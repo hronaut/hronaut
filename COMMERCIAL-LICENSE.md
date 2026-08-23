@@ -38,4 +38,4 @@ An active subscription includes generally available Hronaut updates. It does not
 
 To the maximum extent permitted by law, Hronaut is provided as is, without warranties or conditions, and Hronaut is not liable for indirect, incidental, special, consequential, or punitive damages. Mandatory consumer rights are not affected.
 
-Licensing, billing, activation, cancellation, and refund questions: <hronom@gmail.com>.
+Licensing, billing, activation, cancellation, and refund questions: <support@hronaut.dev>.
