@@ -20,7 +20,7 @@ Internal modifications remain covered by this commercial grant only while the su
 
 ## 4. Subscription, delivery, and activation
 
-List pricing is USD $19 per named user per month or USD $149 per named user per year. The checkout controls the selected quantity, billing period, taxes, and final total. Creem acts as Merchant of Record and handles checkout, payment, taxes, invoices, renewal, and the customer billing portal.
+Current pricing is USD $10 per named user per month or USD $60 per named user per year. The annual plan is 50% off the $120 cost of twelve monthly payments. The checkout controls the selected quantity, billing period, taxes, and final total. Creem acts as Merchant of Record and handles checkout, payment, taxes, invoices, renewal, and the customer billing portal.
 
 Creem generates a license key after successful payment and makes it available in the order confirmation, receipt email, and Customer Portal. Hronaut uses that key to activate and periodically validate up to three devices per seat. Keep the key confidential. The desktop application stores it using the operating system's secure storage when available.
 
