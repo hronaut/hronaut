@@ -1,0 +1,97 @@
+appId: com.hronaut.hronaut
+productName: Hronaut
+copyright: Copyright © 2026 Hronaut
+
+directories:
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+  - LICENSE
+  - NOTICE
+  - THIRD_PARTY_NOTICES.md
+  - node_modules/**
+
+asar: true
+npmRebuild: false
+
+win:
+  executableName: Hronaut
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  artifactName: hronaut-${version}-${arch}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  runAfterFinish: false
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+
+portable:
+  artifactName: hronaut-${version}-${arch}-windows-portable.${ext}
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.utilities
+  identity: null
+  hardenedRuntime: false
+  notarize: false
+  extendInfo:
+    NSCameraUsageDescription: Hronaut lets websites use the camera after user approval.
+    NSMicrophoneUsageDescription: Hronaut lets websites use the microphone after user approval.
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+
+dmg:
+  artifactName: hronaut-${version}-${arch}.${ext}
+
+linux:
+  icon: build/icons
+  syncDesktopName: true
+  category: Network
+  maintainer: Hronaut
+  executableName: hronaut
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+        - arm64
+    - target: rpm
+      arch:
+        - x64
+        - arm64
+
+appImage:
+  artifactName: hronaut-${version}-${arch}.${ext}
+
+deb:
+  artifactName: hronaut-${version}-${arch}.${ext}
+
+rpm:
+  artifactName: hronaut-${version}-${arch}.${ext}
+
+publish:
+  provider: github
+  owner: hronaut
+  repo: hronaut

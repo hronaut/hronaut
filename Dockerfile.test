@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/playwright:v1.62.1-noble
+
+ENV CI=true
+WORKDIR /workspace
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+CMD ["bash", "-lc", "npm run test:integration:headless && npm run test:integration:dialogs:headless"]

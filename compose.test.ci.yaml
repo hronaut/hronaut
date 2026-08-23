@@ -1,0 +1,11 @@
+name: hronaut-tests
+
+services:
+  integration:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    init: true
+    ipc: host
+    environment:
+      CI: "true"

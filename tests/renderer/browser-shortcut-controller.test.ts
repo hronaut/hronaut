@@ -1,0 +1,155 @@
+import { ref } from 'vue'
+import { describe, expect, it, vi } from 'vitest'
+import { useBrowserShortcutController } from '../../src/renderer/src/composables/useBrowserShortcutController.js'
+import type { BrowserState, BrowserTabState, NewTabOptions } from '../../src/shared/types.js'
+
+function tab(id: string, active = false): BrowserTabState {
+  return {
+    id,
+    url: `https://${id}.test/`,
+    title: id,
+    active,
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    pinned: false,
+    sleeping: false,
+    humanInteractionLocked: false,
+    preserveDiagnosticLogs: false,
+    zoomPercent: 100,
+    audible: false,
+    muted: false,
+    devToolsOpen: false
+  }
+}
+
+function browserState(activeTabId: string | null = 'second'): BrowserState {
+  return {
+    tabs: [tab('first'), tab('second', activeTabId === 'second'), tab('third')],
+    closedTabs: [],
+    activeTabId,
+    allHumanInteractionLocked: false,
+    mcpUrl: 'http://127.0.0.1:47812/mcp',
+    profilePath: '/tmp/profile',
+    mcpTabGroups: [],
+    savedTabGroups: []
+  }
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
+}
+
+function createController() {
+  const state = ref(browserState())
+  const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
+  const browser = {
+    newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
+    closeTab: vi.fn(async (_tabId: string) => state.value),
+    reopenClosedTab: vi.fn(async (_closedTabId?: string) => state.value),
+    selectTab: vi.fn(async (_tabId: string) => state.value),
+    reload: vi.fn(async (_tabId?: string) => state.value),
+    reloadIgnoringCache: vi.fn(async (_tabId?: string) => state.value)
+  }
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
+  const settingsOpen = ref(true)
+  const tabSearchOpen = ref(true)
+  const callbacks = {
+    focusAddress: vi.fn(async () => undefined),
+    openFind: vi.fn(async () => undefined),
+    setZoom: vi.fn(async () => undefined),
+    toggleCurrentBookmark: vi.fn(async () => undefined),
+    toggleVisitHistory: vi.fn(async () => undefined),
+    toggleTabSearch: vi.fn(async () => undefined),
+    openPrivacySettings: vi.fn(async () => undefined),
+    toggleCommandPalette: vi.fn(async () => undefined),
+    toggleElementPicker: vi.fn(async () => undefined),
+    toggleDeveloperTools: vi.fn(async () => undefined),
+    onError: vi.fn()
+  }
+  const controller = useBrowserShortcutController({
+    state,
+    activeTab,
+    browser,
+    syncState,
+    settingsOpen,
+    tabSearchOpen,
+    ...callbacks
+  })
+  return { state, activeTab, browser, syncState, settingsOpen, tabSearchOpen, callbacks, controller }
+}
+
+describe('browser shortcut controller', () => {
+  it('reports rejected browser operations instead of leaking an unhandled shortcut failure', async () => {
+    const harness = createController()
+    const failure = new Error('reload channel unavailable')
+    harness.browser.reload.mockRejectedValueOnce(failure)
+
+    await expect(harness.controller.run('reload')).resolves.toBe(false)
+
+    expect(harness.browser.reload).toHaveBeenCalledWith('second')
+    expect(harness.callbacks.onError).toHaveBeenCalledWith('reload', failure)
+    harness.controller.dispose()
+  })
+
+  it('opens a new tab before focusing its address field and closes conflicting overlays', async () => {
+    const harness = createController()
+    const order: string[] = []
+    harness.browser.newTab.mockImplementationOnce(async () => {
+      order.push('new-tab')
+      return harness.state.value
+    })
+    harness.callbacks.focusAddress.mockImplementationOnce(async () => { order.push('focus-address') })
+
+    await expect(harness.controller.run('new-tab')).resolves.toBe(true)
+
+    expect(order).toEqual(['new-tab', 'focus-address'])
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+    harness.controller.dispose()
+  })
+
+  it('wraps relative tab selection and ignores a stale active-tab id', async () => {
+    const harness = createController()
+
+    await harness.controller.selectRelativeTab(1)
+    await harness.controller.selectRelativeTab(-1)
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(1, 'third')
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(2, 'first')
+
+    harness.state.value = browserState('missing')
+    await harness.controller.selectRelativeTab(1)
+    expect(harness.browser.selectTab).toHaveBeenCalledTimes(2)
+    harness.controller.dispose()
+  })
+
+  it('blocks close-tab while human interaction is globally locked', async () => {
+    const harness = createController()
+    harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
+
+    await expect(harness.controller.run('close-tab')).resolves.toBe(false)
+
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    expect(harness.callbacks.onError).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('ignores a delayed failure after disposal', async () => {
+    const harness = createController()
+    const pending = deferred<BrowserState>()
+    harness.browser.reload.mockReturnValueOnce(pending.promise)
+
+    const running = harness.controller.run('reload')
+    harness.controller.dispose()
+    pending.reject(new Error('late failure'))
+
+    await expect(running).resolves.toBe(false)
+    expect(harness.callbacks.onError).not.toHaveBeenCalled()
+  })
+})

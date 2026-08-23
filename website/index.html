@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Hronaut is a visible, persistent Electron browser that coding agents control through MCP." />
+    <meta name="theme-color" content="#10071c" />
+    <meta property="og:title" content="Hronaut — the persistent browser for coding agents" />
+    <meta property="og:description" content="A visible multi-tab browser with durable sessions, isolated agent workspaces, and 63 MCP tools." />
+    <meta property="og:url" content="https://github.com/hronaut/hronaut" />
+    <meta name="twitter:card" content="summary" />
+    <title>Hronaut — Persistent MCP Browser</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top" aria-label="Hronaut home"><span>B</span> HRONAUT</a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#connect">Connect</a>
+        <a href="#download">Download</a>
+        <a href="#support">Support</a>
+        <a href="https://github.com/hronaut/hronaut">GitHub</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><span></span> Source-available · Electron · TypeScript</div>
+          <h1>The browser your coding agent can come back to.</h1>
+          <p>Hronaut stays visible, keeps running after an AI session ends, and preserves your durable Default profile alongside isolated agent workspaces.</p>
+          <div class="actions">
+            <a class="button primary" href="#download">Download Hronaut</a>
+            <a class="button secondary" href="https://github.com/hronaut/hronaut">View source</a>
+          </div>
+          <ul class="stats" aria-label="Project highlights">
+            <li><strong>63</strong><span>MCP tools</span></li>
+            <li><strong>4</strong><span>themes</span></li>
+            <li><strong>∞</strong><span>persistent sessions</span></li>
+          </ul>
+        </div>
+
+        <div class="browser-art" aria-label="Hronaut application preview">
+          <div class="browser-tabs"><span class="app-home active">▦ Home</span><i></i><span>✦ New tab</span><span>● google.com</span><b>+</b></div>
+          <div class="browser-page">
+            <small>HRONAUT HOME</small>
+            <h2>Ready for coding agents.</h2>
+            <div class="preview-grid">
+              <article><span>01</span><strong>Connect your agent</strong><code>codex mcp add hronaut --url …</code></article>
+              <article><span>02</span><strong>Live connections</strong><div class="connected">● MCP server online</div></article>
+            </div>
+            <div class="tool-pills"><span>browser_navigate</span><span>browser_snapshot</span><span>browser_issues</span><span>browser_performance</span><span>browser_memory</span></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <div class="section-heading"><span>Why Hronaut</span><h2>A real browser session, not a disposable automation process.</h2></div>
+        <div id="feature-grid" class="features">
+          <article><b>01</b><h3>Visible by design</h3><p>Watch every tab and navigation. Take over manually whenever login, consent, or visual judgment needs a person.</p></article>
+          <article><b>02</b><h3>Persistent profiles</h3><p>The shared Default profile survives indefinitely. Isolated workspace profiles survive restarts and archives, then disappear when their workspace is permanently closed.</p></article>
+          <article><b>03</b><h3>Agent independent</h3><p>Connect Codex, Claude Code, Cursor, VS Code/Copilot, or another Streamable HTTP MCP client.</p></article>
+          <article><b>04</b><h3>Does not disappear</h3><p>Closing the window hides it to the tray. Disconnecting an AI client leaves the browser and MCP server alive.</p></article>
+          <article><b>05</b><h3>Typed and tested</h3><p>The application is TypeScript-first, with Vitest unit coverage and Playwright tests against the real Electron process.</p></article>
+          <article><b>06</b><h3>Your preferred look</h3><p>Follow your system appearance automatically, or keep Light, Dark, or Cyberpunk fixed for this profile.</p></article>
+          <article><b>07</b><h3>Updates on your terms</h3><p>Check automatically, then choose when to download, install, and restart from an in-app prompt.</p></article>
+          <article><b>08</b><h3>Secure by default</h3><p>Each profile gets an owner-only MCP token. Authentication can be changed immediately in Settings when a trusted local workflow needs it.</p></article>
+          <article><b>09</b><h3>Pause agents instantly</h3><p>Reject new MCP commands with one click while every tab, login, and browser session stays exactly where you left it.</p></article>
+          <article><b>10</b><h3>See the work add up</h3><p>Review local, content-free action history, timing, outcomes, and success rate on Hronaut Home without recording page data.</p></article>
+          <article><b>11</b><h3>Passwords stay protected</h3><p>Save logins with explicit consent, OS-backed encryption, metadata-only management, and autofill that pauses agents before decrypting.</p></article>
+          <article><b>12</b><h3>Use familiar shortcuts</h3><p>Focus the address bar, open, close, reopen, search, and cycle tabs with the standard keyboard shortcuts you already know.</p></article>
+          <article><b>13</b><h3>Choose the local port</h3><p>Move the live MCP listener from Settings with validation and automatic rollback if the requested port is unavailable.</p></article>
+          <article><b>14</b><h3>Zoom the page, not the chrome</h3><p>Scale any site from 50% to 300% with familiar shortcuts, visible controls, or the MCP inspection tool.</p></article>
+          <article><b>15</b><h3>Control where every file goes</h3><p>Choose a download folder or ask where to save each file, then track progress, cancel transfers, and reveal completed downloads.</p></article>
+          <article><b>16</b><h3>Recognize and quiet any tab</h3><p>Scan real site favicons, see which page is audible, and mute only that tab without changing site-wide sound permissions.</p></article>
+          <article><b>17</b><h3>Keep useful pages close</h3><p>Save local bookmarks with a familiar shortcut, then search, rename, remove, or open them yourself or through MCP.</p></article>
+          <article><b>18</b><h3>Find where you were</h3><p>Search a bounded 90-day history of local web visits, reopen a page, remove one entry, or clear everything yourself or through MCP.</p></article>
+          <article><b>19</b><h3>Find any open tab</h3><p>Search every open website by title or address, switch with the keyboard, or close clutter even after the tab strip overflows.</p></article>
+          <article><b>20</b><h3>Controls stay where you expect</h3><p>Global browser controls remain aligned in one top strip on Home and websites, while the address row contains only page-specific actions.</p></article>
+          <article><b>21</b><h3>Arrange the tabs that matter</h3><p>Drag tabs into your preferred order, keep important sites compact and left-most, and restore the same arrangement after restarting.</p></article>
+          <article><b>22</b><h3>Find local pages in one place</h3><p>Type once in the address bar to switch open tabs or reopen matching bookmarks and history, with private on-device suggestions.</p></article>
+          <article><b>23</b><h3>Clear only what you intend</h3><p>Review local history, cookies, and cache, then remove selected categories without touching bookmarks, passwords, settings, or open tabs.</p></article>
+          <article><b>24</b><h3>Tame tab clutter safely</h3><p>Search open and recently closed pages together, restore any chosen tab, close duplicates or tabs to the right, and keep pinned tabs protected.</p></article>
+          <article><b>25</b><h3>Choose where searches go</h3><p>Send submitted address-bar and agent searches to Google, DuckDuckGo, Bing, Brave Search, or Startpage while local suggestions stay private.</p></article>
+          <article><b>26</b><h3>Spend less context on screenshots</h3><p>Let agents capture lossless PNG or compact JPEG, constrain either dimension without distortion, and inspect hidden tray tabs just as reliably.</p></article>
+          <article><b>27</b><h3>Never get stuck behind a dialog</h3><p>Accept or dismiss open alerts and confirmations, or answer those and text prompts as part of the action that opened them.</p></article>
+          <article><b>28</b><h3>Reproduce the conditions that broke it</h3><p>Test one tab on mobile touch, at a chosen location, with variant request headers, or under realistic network and CPU limits without disturbing other tabs.</p></article>
+          <article><b>29</b><h3>Share only what matters</h3><p>Agents can capture one element or rectangle directly. Humans can drag over an issue, pick one complete component, or copy the visible viewport or full scrollable page, then paste its PNG into agent chat.</p></article>
+          <article><b>30</b><h3>Make broken APIs repeatable</h3><p>Temporarily return a chosen response or network failure in one tab, see when routing is active, and clear every mock from the toolbar in one click.</p></article>
+          <article><b>31</b><h3>Find accessibility barriers locally</h3><p>Run WCAG A/AA checks without uploading the page, review prioritized failures and exact selectors in the toolbar, or let an agent inspect the same bounded findings through MCP.</p></article>
+          <article><b>32</b><h3>Measure a slow page locally</h3><p>Inspect LCP, INP, CLS, loading milestones, long tasks, and Long Animation Frames with bounded script and forced-layout attribution for the current visit from the toolbar or through MCP.</p></article>
+          <article><b>33</b><h3>Give every agent its own workspace</h3><p>Each agent creates a fresh uniquely named workspace and uses only its stable UUIDv7 ID. Renaming changes the human label, not identity. Your own new tabs always return to the durable Default workspace.</p></article>
+          <article><b>34</b><h3>Inspect the state behind a bug</h3><p>Review and edit current-site local storage, tab-only session storage, and non-HttpOnly cookies from the toolbar or a bounded group-scoped MCP tool.</p></article>
+          <article><b>35</b><h3>Catch memory growth before it hides</h3><p>Set a page baseline, repeat the suspect interaction, force garbage collection, and compare bounded heap, DOM-node, and event-listener deltas from the toolbar or MCP.</p></article>
+          <article><b>36</b><h3>Keep page tools organized</h3><p>Find storage, audits, memory, element selection, PDF export, and password fill by name in one responsive menu while everyday browsing controls stay one click away.</p></article>
+          <article><b>37</b><h3>Bring the evidence into agent chat</h3><p>Review current console and failed-network signals together, refresh after reproducing a problem, and copy one bounded security-filtered debug report for a person or MCP agent.</p></article>
+          <article><b>38</b><h3>Test every responsive range</h3><p>Preview generic phone, tablet, laptop, and desktop sizes, rotate or enter exact conditions, and let agents use the same presets without resizing the application.</p></article>
+          <article><b>39</b><h3>Follow every request live</h3><p>Wait without polling, then search and sort HTTP or WebSocket activity; scan a compact timing waterfall; follow retained redirects and browser-reported dependencies; and inspect bounded sanitized evidence.</p></article>
+          <article><b>40</b><h3>Put tools where you need them</h3><p>Dock tools right, left, top, or bottom; drag the boundary to the size you need; or detach them into a secure separate window while the website returns to full size.</p></article>
+          <article><b>41</b><h3>Isolate browser data</h3><p>Each non-Default workspace has separate cookies, local storage, cache, and site state. Start clean or fork selected websites from Default, then explicitly save useful changes back.</p></article>
+          <article><b>42</b><h3>Compare two live pages</h3><p>Put a reference and implementation side by side or stacked, focus either pane without closing the other, adjust their share of the window, and restore the same comparison after restarting.</p></article>
+          <article><b>43</b><h3>Keep large workspaces responsive</h3><p>Sleep eligible inactive tabs on a schedule or on demand, see exactly which tabs are paused, and wake them automatically before you or an MCP agent uses them.</p></article>
+          <article><b>44</b><h3>Turn browser warnings into fixes</h3><p>Review Chromium's CORS, CSP, mixed-content, cookie, deprecation, quirks-mode, and stylesheet issues in a dockable panel, or copy the same bounded redacted evidence through MCP.</p></article>
+          <article><b>45</b><h3>Show an agent exactly what happened</h3><p>Record a compact timeline of navigation, clicks, safe keys, redacted typing, and scroll positions, review it, then copy it directly into agent chat without retaining what you typed.</p></article>
+          <article><b>46</b><h3>Prove what changed on screen</h3><p>Capture a temporary viewport baseline, reproduce the change, then review changed-pixel metrics and copy a high-contrast diff PNG to an agent without saving screenshots to disk.</p></article>
+          <article><b>47</b><h3>Make Hronaut easier to read</h3><p>Choose Compact, Comfortable, or Large interface sizing for tabs, Settings, and diagnostics without changing the zoom or responsive viewport of any website.</p></article>
+          <article><b>48</b><h3>Find every action by name</h3><p>Open one Command Palette from the toolbar, View menu, or keyboard; search navigation, settings, safety controls, and page diagnostics, then run the result without hunting through panels.</p></article>
+          <article><b>49</b><h3>Archive a workspace for later</h3><p>Archive a finished workspace without losing its ordered pages or isolated profile, find it in Tabs, then restore it under a fresh workspace ID when the investigation resumes.</p></article>
+          <article><b>50</b><h3>Keep the evidence through a redirect</h3><p>Preserve bounded Console and Network logs across reloads and multi-page flows, or switch to current-document-only evidence before reproducing a clean navigation.</p></article>
+          <article><b>51</b><h3>Find code the workflow never uses</h3><p>Record JavaScript and CSS coverage while loading and exercising a page, then rank sanitized resources by unused bytes without exposing their source to an agent.</p></article>
+          <article><b>52</b><h3>Explain the connection, not just the lock</h3><p>Inspect the main document's transport, TLS protocol, cipher, certificate identity and validity while keeping raw certificates and response secrets out of human and MCP reports.</p></article>
+          <article><b>53</b><h3>See the design system the page actually renders</h3><p>Rank computed colors and font combinations, review responsive media queries, and find likely text-contrast failures without exposing CSS source, body copy, form values, IDs, or class names.</p></article>
+          <article><b>54</b><h3>See the metadata crawlers and social cards receive</h3><p>Review titles, descriptions, canonical and robots signals, Open Graph, Twitter cards, language alternates, and JSON-LD types without exposing arbitrary meta tags or full structured-data objects.</p></article>
+          <article><b>55</b><h3>Read page logs without opening Developer Tools</h3><p>Filter the live bounded Console by text and severity, preserve it through multi-page flows, then copy sanitized evidence directly into an agent chat.</p></article>
+          <article><b>56</b><h3>Reproduce the user’s browser environment</h3><p>Throttle Network and CPU; ignore HTTP cache or bypass service-worker fetch handlers; test Data Saver paths or pages without JavaScript; switch rendering preferences; simulate vision deficiencies; and override locale, time zone, identity, or location.</p></article>
+          <article><b>57</b><h3>Test the failure before shipping the fallback</h3><p>Open visible Request conditions to block a resource, mock an API response, or throttle one slow dependency without slowing the whole page; prioritize overlapping rules, then remove one condition or every temporary override.</p></article>
+          <article><b>58</b><h3>Scan tools by the job you are doing</h3><p>Find simulation, diagnosis, reproduction, auditing, optimization, and export actions under descriptive Page tools headings while keeping every command directly available.</p></article>
+          <article><b>59</b><h3>See what an interaction changed</h3><p>Record bounded structural DOM mutations, reproduce one action, then copy a privacy-safe report of added nodes, removed nodes, text changes, and changed attribute names into agent chat.</p></article>
+          <article><b>60</b><h3>Trace an error to its source</h3><p>Expand a sanitized JavaScript call stack for uncaught exceptions, warnings, errors, traces, and failed assertions directly in Hronaut Console, or give the same bounded source context to an MCP coding agent.</p></article>
+          <article><b>61</b><h3>Keep noisy logs compact</h3><p>Collapse adjacent identical ordinary Console messages into one entry with an honest occurrence count, while every repeated exception remains independently visible for debugging.</p></article>
+          <article><b>62</b><h3>Copy exactly the Console evidence you need</h3><p>Copy one sanitized entry, the current filtered view, or every retained message with occurrence counts and structured call stacks ready for an agent chat.</p></article>
+          <article><b>63</b><h3>Start from the request that actually failed</h3><p>Copy a sanitized HTTP request as cURL or fetch from Network details, or let an MCP agent request the same bounded replay text, with omissions and residual-data risks stated before anyone shares or runs it.</p></article>
+          <article><b>64</b><h3>Find the request containing the clue</h3><p>Search bounded sanitized headers, payloads, responses, and retained WebSocket text for an error ID or cache directive, then open the exact matching request or hand its ID and short context to an MCP agent.</p></article>
+          <article><b>65</b><h3>Inspect the element that actually rendered</h3><p>Preview content, padding, border, and margin as distinct layers with live dimensions and accessibility context, then copy or query the bounded computed report—without returning form values or stylesheet source.</p></article>
+          <article><b>66</b><h3>See where rendering work happens</h3><p>Flash repaints, highlight layout shifts and scrolling bottlenecks, expose compositor layers, or watch live frame rendering stats in one tab from Environment or MCP.</p></article>
+          <article><b>67</b><h3>Paste page structure instead of another image</h3><p>Copy bounded headings, controls, and visible text from Page tools or the Command Palette, with live form values and secret URL components removed before the snapshot reaches agent chat.</p></article>
+          <article><b>68</b><h3>Review page quality in one pass</h3><p>Combine accessibility, observed Web Vitals, metadata, transport security, PWA readiness, and Chromium issues in one bounded, copy-ready audit without a made-up score.</p></article>
+        </div>
+        <button id="feature-toggle" class="feature-toggle" type="button" aria-controls="feature-grid" aria-expanded="false" hidden>Show all capabilities</button>
+      </section>
+
+      <section id="connect" class="section connect-section">
+        <div class="section-heading"><span>Connect</span><h2>One local endpoint. Your choice of coding agent.</h2></div>
+        <div class="connect-layout">
+          <div class="client-tabs" role="tablist" aria-label="Coding agent configuration">
+            <button class="active" type="button" role="tab" data-client="codex">Codex</button>
+            <button type="button" role="tab" data-client="claude">Claude Code</button>
+            <button type="button" role="tab" data-client="cursor">Cursor</button>
+            <button type="button" role="tab" data-client="vscode">VS Code / Copilot</button>
+          </div>
+          <div class="code-panel">
+            <div><span id="config-location">Command line</span><button id="copy-config" type="button">Copy</button></div>
+            <pre><code id="config-code"></code></pre>
+          </div>
+        </div>
+        <p id="copy-config-status" class="copy-status" aria-live="polite"></p>
+        <p class="endpoint">Default endpoint <code>http://127.0.0.1:47812/mcp</code></p>
+        <p class="endpoint">Open Hronaut Home for the exact token-aware configuration generated for your profile.</p>
+      </section>
+
+      <section id="download" class="section download-section">
+        <div class="section-heading"><span>Download</span><h2>Run Hronaut on your desktop.</h2><p>Choose a platform. The site resolves the matching file from the latest GitHub release only after you click.</p></div>
+        <div class="downloads">
+          <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="windows"><span>⊞</span><strong>Windows</strong><small>x64 installer</small></a>
+          <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="mac-arm"><span>●</span><strong>macOS</strong><small>Apple Silicon</small></a>
+          <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="mac-x64"><span>●</span><strong>macOS</strong><small>Intel</small></a>
+          <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="linux-x64"><span>◆</span><strong>Linux</strong><small>x64 AppImage</small></a>
+          <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="linux-arm"><span>◆</span><strong>Linux</strong><small>ARM64 AppImage</small></a>
+        </div>
+        <p id="download-status" class="download-status" aria-live="polite">Unsigned community builds are produced by the public release workflow with SHA-256 hashes and GitHub provenance attestations.</p>
+      </section>
+
+      <section id="support" class="section support-section">
+        <div class="support-copy">
+          <span>Source-available</span>
+          <h2>Use Hronaut anywhere. Help improve it.</h2>
+          <p>Hronaut is licensed under PolyForm Noncommercial 1.0.0. Commercial use requires a separate active subscription license.</p>
+          <small>Focused issues, documentation, accessibility feedback, and signed-off code contributions are welcome.</small>
+        </div>
+        <div class="support-actions">
+          <p>Found a bug or have an improvement to contribute?</p>
+          <a class="button primary" href="https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md">Contribute ↗</a>
+          <div>
+            <a href="https://github.com/hronaut/hronaut/blob/main/LICENSE">PolyForm Noncommercial license ↗</a>
+            <a href="https://github.com/hronaut/hronaut/issues">Report an issue ↗</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer><a class="brand" href="#top"><span>H</span> HRONAUT</a><p>Source-available under the <a href="https://github.com/hronaut/hronaut/blob/main/LICENSE">PolyForm Noncommercial License 1.0.0</a>.</p><a href="https://github.com/hronaut/hronaut">Hronaut on GitHub ↗</a></footer>
+    <script type="module" src="/app.ts"></script>
+  </body>
+</html>

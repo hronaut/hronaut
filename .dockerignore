@@ -1,0 +1,12 @@
+.git
+.idea
+.codex
+.agents
+node_modules
+out
+dist
+docs
+playwright-report
+test-results
+*.tsbuildinfo
+*.log

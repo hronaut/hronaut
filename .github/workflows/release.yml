@@ -1,0 +1,359 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to release, for example v1.0.0
+        required: true
+        type: string
+      notes_ref:
+        description: Optional descendant commit containing a corrected matching changelog section
+        required: false
+        type: string
+      dry_run:
+        description: Build and validate every release artifact without publishing a GitHub release
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+      notes_sha: ${{ steps.release.outputs.notes_sha }}
+    steps:
+      - name: Checkout requested tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          persist-credentials: false
+
+      - name: Resolve and validate the immutable release source
+        id: release
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
+          REQUESTED_NOTES_REF: ${{ github.event.inputs.notes_ref }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="$REQUESTED_TAG"
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+
+          tag_sha="$(git rev-parse --verify "refs/tags/$tag^{commit}")" || {
+            echo "Tag $tag does not exist. Push it before dispatching this workflow." >&2
+            exit 1
+          }
+          if [[ "$(git rev-parse HEAD)" != "$tag_sha" ]]; then
+            echo "Checkout does not match immutable tag commit $tag_sha." >&2
+            exit 1
+          fi
+
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$tag" != "v$version" ]]; then
+            echo "Tag $tag does not match package version v$version." >&2
+            exit 1
+          fi
+
+          notes_sha="$tag_sha"
+          if [[ -n "$REQUESTED_NOTES_REF" ]]; then
+            notes_sha="$(git rev-parse --verify "$REQUESTED_NOTES_REF^{commit}")" || {
+              echo "Release-notes ref $REQUESTED_NOTES_REF does not resolve to a commit." >&2
+              exit 1
+            }
+            if ! git merge-base --is-ancestor "$tag_sha" "$notes_sha"; then
+              echo "Release-notes commit must descend from immutable tag commit $tag_sha." >&2
+              exit 1
+            fi
+          fi
+
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$tag_sha" >> "$GITHUB_OUTPUT"
+          echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
+
+  test-integration:
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+
+      - name: Run Electron integration tests in Docker
+        run: docker compose --file compose.test.ci.yaml run --build --rm integration
+
+  build-linux:
+    name: build-linux (${{ matrix.target }})
+    needs:
+      - prepare-release
+      - test-integration
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: AppImage
+            slug: appimage
+            files: |
+              dist/*.AppImage
+              dist/latest-linux*.yml
+              dist/*.blockmap
+          - target: deb
+            slug: deb
+            files: dist/*.deb
+          - target: rpm
+            slug: rpm
+            files: dist/*.rpm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install RPM packaging tools
+        if: matrix.target == 'rpm'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+      - name: Build Linux ${{ matrix.target }} packages
+        env:
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          npm ci
+          npm run build
+          npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never
+      - name: Upload Linux ${{ matrix.target }} release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-${{ matrix.slug }}
+          if-no-files-found: error
+          path: ${{ matrix.files }}
+          compression-level: 0
+          retention-days: 1
+
+  build-macos:
+    name: build-macos (${{ matrix.target }})
+    needs:
+      - prepare-release
+      - test-integration
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: dmg
+            files: |
+              dist/*.dmg
+              dist/*.dmg.blockmap
+          - target: zip
+            files: |
+              dist/*.zip
+              dist/latest-mac*.yml
+              dist/*.blockmap
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build unsigned macOS ${{ matrix.target }} packages
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never
+      - name: Upload macOS ${{ matrix.target }} release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-macos-${{ matrix.target }}
+          if-no-files-found: error
+          path: ${{ matrix.files }}
+          compression-level: 0
+          retention-days: 1
+
+  build-windows:
+    name: build-windows (${{ matrix.target }})
+    needs:
+      - prepare-release
+      - test-integration
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: nsis
+            files: |
+              dist/*-setup.exe
+              dist/*-setup.exe.blockmap
+              dist/latest.yml
+          - target: portable
+            files: dist/*-windows-portable.exe
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build unsigned Windows ${{ matrix.target }} packages
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          PACKAGE_TARGET: ${{ matrix.target }}
+        shell: pwsh
+        run: |
+          npm ci
+          npm run build
+          npx electron-builder --win $env:PACKAGE_TARGET --x64 --publish never
+      - name: Upload Windows ${{ matrix.target }} release assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-windows-${{ matrix.target }}
+          if-no-files-found: error
+          path: ${{ matrix.files }}
+          compression-level: 0
+          retention-days: 1
+
+  publish-release:
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - build-linux
+      - build-macos
+      - build-windows
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout immutable release notes source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.notes_sha }}
+          persist-credentials: false
+
+      - name: Set up release notes runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Download immutable build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate complete Linux updater manifests
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/linux-update-manifests.ts release-assets "$VERSION"
+
+      - name: Generate SHA-256 manifest
+        run: |
+          set -euo pipefail
+          cd release-assets
+          LC_ALL=C find . -maxdepth 1 -type f ! -name 'hashes.txt' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > hashes.txt
+          sed -i 's|  \./|  |' hashes.txt
+          cat hashes.txt
+
+      - name: Attest release assets and checksum manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
+
+      - name: Create one draft release for the completed artifact set
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            is_draft="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Release $TAG is already published." >&2
+              exit 1
+            fi
+            echo "Reusing existing draft release $TAG."
+          else
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --draft \
+              --generate-notes \
+              --title "Hronaut $VERSION"
+          fi
+
+          current_notes="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body')"
+          node scripts/release-notes.ts "$VERSION" > changelog-notes.md
+          if [[ "$current_notes" == *"<!-- hronaut-generated-notes -->"* ]]; then
+            comparison_notes="$(printf '%s\n' "$current_notes" | sed -n '/<!-- hronaut-generated-notes -->/,$p' | tail -n +2)"
+          else
+            comparison_notes="$current_notes"
+          fi
+          {
+            echo '<!-- hronaut-release-notes -->'
+            echo '<!-- unsigned-release-warning -->'
+            echo '> [!WARNING]'
+            echo '> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. Verify downloads with `hashes.txt` and the GitHub artifact attestations.'
+            echo
+            echo "## What's changed"
+            echo
+            cat changelog-notes.md
+            if [[ -n "$comparison_notes" ]]; then
+              echo
+              echo '<!-- hronaut-generated-notes -->'
+              echo '---'
+              printf '%s\n' "$comparison_notes"
+            fi
+          } > release-notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Hronaut $VERSION"
+
+      - name: Upload assets and publish completed release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

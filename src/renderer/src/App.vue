@@ -1,0 +1,2454 @@
+<script setup lang="ts">
+import { bind as bindFoley, play as playFoley, set as setFoley } from '@foleyjs/core'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+import {
+  formatBytes as formatLocalizedBytes,
+  formatDateTime,
+  formatNumber,
+  formatPercent,
+  formatTime
+} from '../../shared/format'
+import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
+import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
+import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
+import IconCheck from '~icons/material-symbols/check-rounded'
+import IconClose from '~icons/material-symbols/close-rounded'
+import IconError from '~icons/material-symbols/error-outline-rounded'
+import IconHandyman from '~icons/material-symbols/handyman-rounded'
+import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
+import IconLanguage from '~icons/material-symbols/language-rounded'
+import IconLock from '~icons/material-symbols/lock-rounded'
+import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
+import IconProgress from '~icons/material-symbols/progress-activity-rounded'
+import IconRefresh from '~icons/material-symbols/refresh-rounded'
+import IconRoute from '~icons/material-symbols/route-rounded'
+import IconSearch from '~icons/material-symbols/search-rounded'
+import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
+import IconSpeed from '~icons/material-symbols/speed-rounded'
+import IconStar from '~icons/material-symbols/star-rounded'
+import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
+import IconTune from '~icons/material-symbols/tune-rounded'
+import IconStop from '~icons/material-symbols/stop-rounded'
+import {
+  DETACHABLE_PANEL_IDS,
+  PANEL_DOCKS,
+  AppSettings,
+  BrowserState,
+  BrowserEmulationState,
+  BrowserTabState,
+  BrowserBookmark,
+  BrowserHistoryEntry,
+  HelpMenuAction,
+  CredentialSummary,
+  DetachablePanelId,
+  PanelDock,
+  SitePermissionDecision,
+  SitePermissionEntry
+} from '../../shared/types'
+import BrowserTabsBar from './components/BrowserTabsBar.vue'
+import AppToastRegion from './components/AppToastRegion.vue'
+import AppTopbarActions from './components/AppTopbarActions.vue'
+import BookmarksPanel from './components/BookmarksPanel.vue'
+import CommandPalette from './components/CommandPalette.vue'
+import ConsolePanelContainer from './components/ConsolePanelContainer.vue'
+import CredentialPicker from './components/CredentialPicker.vue'
+import DiagnosticsPanels from './components/DiagnosticsPanels.vue'
+import DownloadsPanel from './components/DownloadsPanel.vue'
+import EnvironmentPanel from './components/EnvironmentPanel.vue'
+import FindInPageBar from './components/FindInPageBar.vue'
+import HelpDialog from './components/HelpDialog.vue'
+import HistoryPanel from './components/HistoryPanel.vue'
+import NetworkPanel from './components/NetworkPanel.vue'
+import PageToolsPanel from './components/PageToolsPanel.vue'
+import PanelDockPicker from './components/PanelDockPicker.vue'
+import ResponsivePreviewPanel from './components/ResponsivePreviewPanel.vue'
+import SettingsDialog from './components/SettingsDialog.vue'
+import SiteControlsPanel from './components/SiteControlsPanel.vue'
+import SiteStoragePanel from './components/SiteStoragePanel.vue'
+import SplitViewControl from './components/SplitViewControl.vue'
+import TabSearchPanel from './components/TabSearchPanel.vue'
+import WorkspaceEditor from './components/WorkspaceEditor.vue'
+import ZoomBar from './components/ZoomBar.vue'
+import { useBrowserStore } from './stores/browser'
+import { useSettingsStore } from './stores/settings'
+import { useShellWindowLifecycle } from './composables/useShellWindowLifecycle'
+import { useDiagnosticsController } from './composables/useDiagnosticsController'
+import { useCredentialsController } from './composables/useCredentialsController'
+import { useDownloadSettingsController } from './composables/useDownloadSettingsController'
+import { useEnvironmentPanelController } from './composables/useEnvironmentPanelController'
+import { useHelpDialogController } from './composables/useHelpDialogController'
+import { useMcpSettingsController } from './composables/useMcpSettingsController'
+import { useMcpActivityController } from './composables/useMcpActivityController'
+import { useMcpStatusController } from './composables/useMcpStatusController'
+import { usePageCaptureController } from './composables/usePageCaptureController'
+import { usePageExportController } from './composables/usePageExportController'
+import { useDiagnosticLogPreservationController } from './composables/useDiagnosticLogPreservationController'
+import { usePerformanceSettingsController } from './composables/usePerformanceSettingsController'
+import { usePrivacySettingsController } from './composables/usePrivacySettingsController'
+import { useSearchSettingsController } from './composables/useSearchSettingsController'
+import { useSettingsDialogController, type SettingsSection } from './composables/useSettingsDialogController'
+import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
+import { useSitePermissionsController } from './composables/useSitePermissionsController'
+import { useCommercialLicenseController } from './composables/useCommercialLicenseController'
+import { useUpdateSettingsController } from './composables/useUpdateSettingsController'
+import { useAddressBarController } from './composables/useAddressBarController'
+import { usePanelDockLayout } from './composables/usePanelDockLayout'
+import { usePanelRegistryController } from './composables/usePanelRegistryController'
+import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
+import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
+import { useAppEventsController } from './composables/useAppEventsController'
+import { useEmulationController } from './composables/useEmulationController'
+import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
+import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
+import { useUiActionController } from './composables/useUiActionController'
+import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
+import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
+import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
+import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
+import {
+  shouldShowUpdateStatusPill,
+  shouldAutoDismissUpdateStatus,
+  UPDATE_STATUS_DISMISS_MS
+} from '../../shared/update-presentation'
+import { browserShortcutAction } from '../../shared/browser-shortcuts'
+import type { CommandPaletteCommandId } from '../../shared/command-palette'
+import { DEFAULT_INTERFACE_SCALE } from '../../shared/interface-scale'
+
+function isPanelDock(value: string | null): value is PanelDock {
+  return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
+}
+
+function isDetachablePanelId(value: string | null): value is DetachablePanelId {
+  return value !== null && (DETACHABLE_PANEL_IDS as readonly string[]).includes(value)
+}
+
+function detachedPanelLabel(panel: DetachablePanelId): string {
+  const keys: Record<DetachablePanelId, string> = {
+    'site-controls': 'panels.siteControls',
+    'site-storage': 'panels.siteStorage',
+    'page-tools': 'panels.pageTools',
+    'responsive-preview': 'panels.responsivePreview',
+    environment: 'panels.environment',
+    accessibility: 'panels.accessibility',
+    'quality-audit': 'panels.qualityAudit',
+    performance: 'panels.performance',
+    'design-overview': 'panels.designOverview',
+    'page-metadata': 'panels.pageMetadata',
+    security: 'panels.security',
+    coverage: 'panels.coverage',
+    'cpu-profile': 'panels.cpuProfile',
+    memory: 'panels.memory',
+    console: 'panels.console',
+    network: 'panels.network',
+    'debug-report': 'panels.debugReport',
+    'repro-recorder': 'panels.reproRecorder',
+    'dom-changes': 'panels.domChanges',
+    'visual-compare': 'panels.visualCompare',
+    issues: 'panels.issues',
+    bookmarks: 'panels.bookmarks'
+  }
+  return t(keys[panel])
+}
+
+function detachedPanelTitle(panel: DetachablePanelId): string {
+  return t('panels.title', { panel: detachedPanelLabel(panel) })
+}
+
+const { t } = useI18n({ useScope: 'global' })
+const browserStore = useBrowserStore()
+const settingsStore = useSettingsStore()
+const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
+const { settings, systemTheme, resolvedLocale } = storeToRefs(settingsStore)
+const browser = window.hronaut
+const appToastController = useAppToastController()
+const {
+  toasts: appToasts,
+  show: showAppToast,
+  dismiss: dismissAppToast,
+  dispose: disposeAppToastController
+} = appToastController
+const activeTab = computed(() => state.value.tabs.find((tab) => tab.id === state.value.activeTabId))
+const {
+  busy: diagnosticLogPreservationBusy,
+  update: updateDiagnosticLogPreservation,
+  dispose: disposeDiagnosticLogPreservationController
+} = useDiagnosticLogPreservationController({
+  activeTab,
+  browser,
+  syncState: browserStore.syncOperation,
+  onError: handleExtractedSettingError
+})
+const mcpActivityController = useMcpActivityController({
+  api: browser,
+  tabIds: computed(() => state.value.tabs.map((tab) => tab.id)),
+  hydrated: browserStateInitialized
+})
+const {
+  activityByTab: mcpActivityByTab,
+  dispose: disposeMcpActivityController
+} = mcpActivityController
+const detachedPanelParameter = new URLSearchParams(window.location.search).get('hronautPanel')
+const detachedPanelId = isDetachablePanelId(detachedPanelParameter) ? detachedPanelParameter : null
+const isDetachedPanelWindow = detachedPanelId !== null
+if (detachedPanelId) {
+  document.documentElement.dataset.panelWindow = 'true'
+  document.title = detachedPanelTitle(detachedPanelId)
+}
+const savedPanelDock = window.localStorage.getItem('hronaut:panel-dock')
+const panelDock = ref<PanelDock>(isDetachedPanelWindow ? 'window' : isPanelDock(savedPanelDock) ? savedPanelDock : 'right')
+
+function keepsSeparatePanelOpen(): boolean {
+  return isDetachedPanelWindow || panelDock.value === 'window'
+}
+const sitePermissionsController = useSitePermissionsController({
+  api: window.hronautPermissions,
+  translate: (key) => t(key),
+  onError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.settingNotSaved'),
+    friendlyUiError(error, t('runtime.toast.settingKept'))
+  )
+})
+const {
+  entries: sitePermissions,
+  busy: sitePermissionsBusy,
+  permissionLabel,
+  initialize: initializeSitePermissions,
+  replace: replaceSitePermissions,
+  isPending: isSitePermissionPending,
+  setDecision: setSitePermissionDecision,
+  remove: removeSitePermission,
+  clear: clearSitePermissions,
+  dispose: disposeSitePermissionsController
+} = sitePermissionsController
+const credentialsController = useCredentialsController({
+  api: window.hronautCredentials,
+  initializingReason: t('runtime.initializingStorage'),
+  missingCredentialMessage: t('runtimeActions.credential.noLongerExists'),
+  formatError: (error) => friendlyUiError(error, t('runtime.toast.passwordRemoveDescription')),
+  onRemoved: () => showAppToast(
+    'success',
+    t('runtime.toast.passwordRemoved'),
+    t('runtime.toast.passwordRemovedDescription')
+  ),
+  onError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.passwordRemoveFailed'),
+    friendlyUiError(error, t('runtime.toast.passwordRemoveDescription'))
+  )
+})
+const {
+  entries: credentials,
+  storage: credentialStorage,
+  initialize: initializeCredentials,
+  replace: replaceCredentials,
+  dispose: disposeCredentialsController
+} = credentialsController
+const credentialPickerOpen = ref(false)
+const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
+const credentialFillState = ref<'idle' | 'filling'>('idle')
+const siteControlsButton = ref<HTMLButtonElement | null>(null)
+const shell = ref<HTMLElement | null>(null)
+const findOpen = ref(false)
+const zoomOpen = ref(false)
+const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
+const splitMenuOpen = ref(false)
+const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
+const downloadsOpen = ref(false)
+const browserCollectionsController = useBrowserCollectionsController({
+  downloadsApi: window.hronautDownloads,
+  bookmarksApi: window.hronautBookmarks,
+  historyApi: window.hronautHistory,
+  shouldAutoOpenDownloads: () => !settingsOpen.value,
+  openDownloads: () => (downloadsOpen.value = true)
+})
+const {
+  downloads,
+  bookmarks,
+  history: visitHistory
+} = browserCollectionsController
+const bookmarksOpen = ref(false)
+const bookmarksPanel = ref<InstanceType<typeof BookmarksPanel> | null>(null)
+const historyOpen = ref(false)
+const historyPanel = ref<InstanceType<typeof HistoryPanel> | null>(null)
+const siteStorageOpen = ref(false)
+const siteStoragePanel = ref<InstanceType<typeof SiteStoragePanel> | null>(null)
+const pageToolsOpen = ref(false)
+const responsivePanelOpen = ref(false)
+const responsivePanel = ref<InstanceType<typeof ResponsivePreviewPanel> | null>(null)
+const environmentPanelOpen = ref(false)
+const emulationController = useEmulationController({
+  activeTab,
+  resetTabEmulation: (tabId) => browser.resetTabEmulation(tabId),
+  syncState,
+  responsivePanelOpen: () => responsivePanelOpen.value,
+  loadResponsiveDraft,
+  environmentPanelOpen: () => environmentPanelOpen.value,
+  loadEnvironmentDraft,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  formatPercent: localPercent,
+  onResetError: (error) => showAppToast(
+    'error',
+    t('runtimeDetails.browserAction'),
+    friendlyUiError(error, t('runtime.toast.actionFailed'))
+  )
+})
+const {
+  activeEmulation,
+  resetPending: emulationResetPending,
+  label: emulationLabel,
+  describe: emulationDescription,
+  beginMutation: beginEmulationMutation,
+  invalidateMutation: invalidateEmulationMutation,
+  isMutationCurrent: isEmulationMutationCurrent,
+  resetActive: resetActiveTabEmulation,
+  dispose: disposeEmulationController
+} = emulationController
+const environmentController = useEnvironmentPanelController({
+  open: environmentPanelOpen,
+  activeTab,
+  setTabEnvironment: (tabId, environment) => browser.setTabEnvironment(tabId, environment),
+  reloadIgnoringCache: (tabId) => browser.reloadIgnoringCache(tabId),
+  syncState,
+  beginMutation: beginEmulationMutation,
+  isMutationCurrent: isEmulationMutationCurrent,
+  closeTransientPanels
+})
+const {
+  state: environmentState,
+  activeOverrideCount: activeEnvironmentOverrideCount
+} = environmentController
+const workspaceEditorOpen = ref(false)
+const workspaceEditor = ref<InstanceType<typeof WorkspaceEditor> | null>(null)
+const privacySettingsController = usePrivacySettingsController({
+  api: window.hronautBrowsingData,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  confirm: (message) => window.confirm(message),
+  formatNumber: localNumber
+})
+const {
+  search: janitorSearch,
+  refresh: refreshPrivacySettings,
+  resetSelection: resetPrivacySelection,
+  dispose: disposePrivacySettingsController
+} = privacySettingsController
+const siteControlsOpen = ref(false)
+const siteDataController = useSiteDataSummaryController({
+  current: () => activeTab.value && activeWebUrl.value
+    ? { tabId: activeTab.value.id, url: activeWebUrl.value }
+    : null,
+  load: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId)
+})
+const { summary: siteDataSummary, state: siteDataState, message: siteDataMessage } = siteDataController
+const tabSearchOpen = ref(false)
+const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
+const commandPaletteOpen = ref(false)
+const commandPalette = ref<InstanceType<typeof CommandPalette> | null>(null)
+const browserTabsBar = ref<InstanceType<typeof BrowserTabsBar> | null>(null)
+const lastWebTabId = ref<string | null>(null)
+const updateNoticeOpen = ref(false)
+const updateSettingsController = useUpdateSettingsController({
+  api: window.hronautUpdates,
+  settings,
+  setCheckOnStartup: (enabled) => settingsStore.setCheckForUpdatesOnStartup(enabled),
+  onCheckStarted: () => (updateNoticeOpen.value = true),
+  onStateAccepted: (next) => {
+    if (
+      next.status === 'available'
+      || next.status === 'downloading'
+      || next.status === 'downloaded'
+      || next.status === 'up-to-date'
+      || next.status === 'error'
+      || next.status === 'install-error'
+    ) updateNoticeOpen.value = true
+  },
+  onSettingError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.settingNotSaved'),
+    friendlyUiError(error, t('runtime.toast.settingKept'))
+  ),
+  onActionError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.actionFailed'),
+    friendlyUiError(error, t('runtime.toast.actionFailed'))
+  )
+})
+const {
+  state: updateState,
+  busy: updateSettingsBusy,
+  initialize: initializeUpdateSettings,
+  reset: resetUpdateSettings,
+  dispose: disposeUpdateSettingsController
+} = updateSettingsController
+const commercialLicenseController = useCommercialLicenseController({
+  api: window.hronautLicense,
+  confirmDeactivate: () => window.confirm(t('runtimeDetails.deactivate')),
+  emptyKeyMessage: () => t('runtime.license.enterKey'),
+  formatError: (error) => error instanceof Error ? error.message : String(error)
+})
+const {
+  initialize: initializeCommercialLicense,
+  dispose: disposeCommercialLicenseController
+} = commercialLicenseController
+const mcpStatusController = useMcpStatusController({
+  api: window.hronautMcp,
+  endpoint: computed(() => state.value.mcpUrl),
+  copyText: copyAppText,
+  onPauseError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.actionFailed'),
+    friendlyUiError(error, t('runtime.toast.actionFailed'))
+  )
+})
+const {
+  state: mcpControl,
+  initialize: initializeMcpStatus,
+  togglePaused: toggleMcpPaused,
+  dispose: disposeMcpStatusController
+} = mcpStatusController
+const defaultDownloadDirectory = ref('')
+const downloadSettingsController = useDownloadSettingsController({
+  api: window.hronautSettings,
+  settings,
+  defaultDirectory: defaultDownloadDirectory,
+  applySettings: applyTheme,
+  translate: (key) => t(key)
+})
+const {
+  busy: downloadSettingsBusy,
+  reset: resetDownloadSettings,
+  dispose: disposeDownloadSettingsController
+} = downloadSettingsController
+const performanceSettingsController = usePerformanceSettingsController({
+  settings,
+  browserState: state,
+  setEnabled: (enabled) => settingsStore.setMemorySaverEnabled(enabled),
+  setTimeout: (minutes) => settingsStore.setMemorySaverTimeoutMinutes(minutes),
+  sleepInactiveTabs: () => browser.sleepInactiveTabs(),
+  syncBrowserState: (operation) => browserStore.syncOperation(operation),
+  formatError: (error, operation) => friendlyUiError(
+    error,
+    t(operation === 'saving' ? 'runtime.toast.settingKept' : 'runtime.toast.actionFailed')
+  ),
+  onError: (error, operation) => showAppToast(
+    'error',
+    t(operation === 'saving' ? 'runtime.toast.settingNotSaved' : 'runtime.toast.actionFailed'),
+    friendlyUiError(error, t(operation === 'saving' ? 'runtime.toast.settingKept' : 'runtime.toast.actionFailed'))
+  )
+})
+const {
+  busy: performanceSettingsBusy,
+  reset: resetPerformanceSettings,
+  dispose: disposePerformanceSettingsController
+} = performanceSettingsController
+const mcpSettingsController = useMcpSettingsController({
+  settings,
+  endpoint: computed(() => state.value.mcpUrl),
+  listenerFailed: computed(() => mcpControl.value.status === 'error'),
+  setAuthentication: (enabled) => settingsStore.setMcpAuthentication(enabled),
+  setPort: (port) => settingsStore.setMcpPort(port),
+  confirmDisableAuthentication: () => window.confirm(t('runtimeActions.mcp.disableConfirm')),
+  translate: (key, parameters) => t(key, parameters ?? {}),
+  formatPortError: (error) => error instanceof Error ? error.message : String(error),
+  onAuthenticationError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.settingNotSaved'),
+    friendlyUiError(error, t('runtime.toast.settingKept'))
+  )
+})
+const {
+  busy: mcpSettingsBusy,
+  reset: resetMcpSettings,
+  dispose: disposeMcpSettingsController
+} = mcpSettingsController
+const searchSettingsController = useSearchSettingsController({
+  settings,
+  setSearchEngine: (searchEngine) => settingsStore.setSearchEngine(searchEngine),
+  onError: handleExtractedSettingError
+})
+const {
+  busy: searchSettingsBusy,
+  reset: resetSearchSettings,
+  dispose: disposeSearchSettingsController
+} = searchSettingsController
+const helpDialogController = useHelpDialogController({
+  beforeOpen: closeTransientPanels
+})
+const {
+  open: helpDialogOpen,
+  openDialog: showHelpDialog,
+  close: closeHelpDialog,
+  dispose: disposeHelpDialogController
+} = helpDialogController
+const settingsDialogController = useSettingsDialogController({
+  beforeOpen: () => {
+    commandPaletteOpen.value = false
+    closeHelpDialog()
+    closeTransientPanels()
+  },
+  resetSection: resetSettingsSection,
+  isResetDisabled: (section) => (
+    (section === 'search' && searchSettingsBusy.value)
+    || (section === 'downloads' && downloadSettingsBusy.value)
+    || (section === 'performance' && performanceSettingsBusy.value)
+    || (section === 'privacy' && privacySettingsController.clearing.value)
+    || (section === 'permissions' && sitePermissionsBusy.value)
+    || (section === 'mcp' && mcpSettingsBusy.value)
+    || (section === 'updates' && updateSettingsBusy.value)
+  ),
+  onResetError: handleExtractedSettingError
+})
+const {
+  open: settingsOpen,
+  section: settingsSection,
+  openSection: openSettingsSection,
+  close: closeSettings,
+  toggle: toggleSettings,
+  dispose: disposeSettingsDialogController
+} = settingsDialogController
+const fullModalOpen = computed(() => settingsOpen.value
+  || commandPaletteOpen.value
+  || helpDialogOpen.value
+  || workspaceEditorOpen.value
+  || credentialPickerOpen.value)
+const addressBarController = useAddressBarController({
+  activeTab,
+  bookmarks,
+  history: visitHistory,
+  overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
+  theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+  locale: () => resolvedLocale.value,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  onOpen: () => {
+    siteControlsOpen.value = false
+    settingsOpen.value = false
+    updateNoticeOpen.value = false
+    downloadsOpen.value = false
+    bookmarksOpen.value = false
+    historyOpen.value = false
+    tabSearchOpen.value = false
+    zoomOpen.value = false
+    if (findOpen.value) void closeFind()
+  },
+  onNavigate: navigateAddress,
+  onFocusLeft: () => (siteControlsOpen.value = false)
+})
+const {
+  address,
+  input: addressInput,
+  form: addressForm,
+  open: addressSuggestionsOpen,
+  selection: addressSuggestionSelection,
+  suggestions: addressSuggestions,
+  visible: addressSuggestionsVisible,
+  selected: selectedAddressSuggestion,
+  suggestionId: addressSuggestionId,
+  suggestionMeta: addressSuggestionMeta,
+  close: closeAddressSuggestions,
+  handleFocus: handleAddressFocus,
+  handleInput: handleAddressInput,
+  handleFocusOut: handleAddressFocusOut,
+  handleKeydown: handleAddressKeydown,
+  submit: submitAddress,
+  handleResize: resizeAddressSuggestions
+} = addressBarController
+const pageCaptureController = usePageCaptureController({
+  activeTab,
+  browser,
+  onElementCopied: (mode) => showAppToast(
+    'success',
+    t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotCopied' : 'runtime.toast.elementCopied'),
+    t(mode === 'screenshot' ? 'runtime.capture.pastePng' : 'runtime.capture.safeContext')
+  ),
+  onElementFailed: (mode, error) => showAppToast(
+    'error',
+    t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotFailed' : 'runtime.toast.elementFailed'),
+    friendlyUiError(error, t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotDescription' : 'runtime.toast.elementDescription'))
+  ),
+  onCaptureCopied: (mode) => showAppToast(
+    'success',
+    t(mode === 'area'
+      ? 'runtime.toast.areaCopied'
+      : mode === 'full-page'
+        ? 'runtime.toast.fullCopied'
+        : 'runtime.toast.viewportCopied'),
+    t('runtime.capture.pastePng')
+  ),
+  onCaptureFailed: (mode, error) => {
+    const captureName = mode === 'area'
+      ? ''
+      : t(mode === 'full-page' ? 'runtimeActions.capture.fullPage' : 'runtimeActions.capture.viewport')
+    const message = friendlyUiError(
+      error,
+      mode === 'area'
+        ? t('runtimeActions.capture.areaFallback')
+        : t('runtimeActions.capture.pageFallback', { area: captureName })
+    )
+    showAppToast('error', t('runtime.capture.screenshotFailed'), message)
+    return mode === 'area'
+      ? t('runtimeActions.capture.areaCopyFailed', { error: message })
+      : t('runtimeActions.capture.pageCopyFailed', { area: captureName, error: message })
+  }
+})
+const {
+  elementState: elementPickerState,
+  elementMode: elementPickerMode,
+  captureState: areaCaptureState,
+  toggleElementPicker,
+  cancelElementPicker: cancelActiveElementPicker,
+  toggleAreaCapture,
+  capturePage: capturePageScreenshot,
+  dispose: disposePageCaptureController
+} = pageCaptureController
+const pageExportController = usePageExportController({
+  activeTab,
+  browser,
+  snapshotCopied: (result) => showAppToast(
+    'success',
+    t('runtimeActions.pageSnapshot.copied'),
+    t('runtimeActions.pageSnapshot.ready', {
+      count: localNumber(result.characters),
+      limit: t(result.truncated ? 'runtimeActions.pageSnapshot.bounded' : 'runtimeActions.pageSnapshot.period')
+    })
+  ),
+  snapshotFailed: (error) => showAppToast(
+    'error',
+    t('runtime.toast.pageSnapshotFailed'),
+    friendlyUiError(error, t('runtime.toast.pageSnapshotDescription'))
+  )
+})
+const {
+  snapshotState: pageSnapshotState,
+  pdfState: pdfExportState,
+  copySnapshot: copyPageSnapshot,
+  savePdf: saveActivePdf,
+  dispose: disposePageExportController
+} = pageExportController
+const diagnosticsController = useDiagnosticsController({
+  activeTab,
+  browser,
+  translate: (message, parameters) => t(message, parameters ?? {}),
+  copyText: copyAppText,
+  closeTransientPanels,
+  keepsSeparatePanelOpen
+})
+const {
+  accessibilityPanelOpen,
+  qualityAuditPanelOpen,
+  performancePanelOpen,
+  designOverviewPanelOpen,
+  pageMetadataPanelOpen,
+  securityPanelOpen,
+  coveragePanelOpen,
+  cpuProfilePanelOpen,
+  memoryPanelOpen,
+  debugReportPanelOpen,
+  reproPanelOpen,
+  domChangesPanelOpen,
+  visualComparePanelOpen,
+  inspectorIssuesOpen,
+  runPerformanceReport,
+  togglePerformanceReport,
+  runDesignOverview,
+  toggleDesignOverview,
+  runPageMetadata,
+  togglePageMetadata,
+  runSecurityReport,
+  toggleSecurityReport,
+  manageCodeCoverage,
+  toggleCodeCoverage,
+  manageCpuProfile,
+  toggleCpuProfile,
+  runMemoryReport,
+  toggleMemoryReport,
+  runDebugReport,
+  toggleDebugReport,
+  manageRepro,
+  toggleReproRecorder,
+  manageDomChanges,
+  toggleDomChanges,
+  manageVisualCompare,
+  toggleVisualCompare,
+  refreshInspectorIssues,
+  toggleInspectorIssues,
+  runAccessibilityAudit,
+  toggleAccessibilityAudit,
+  runQualityAudit,
+  toggleQualityAudit,
+  dispose: disposeDiagnosticsController
+} = diagnosticsController
+const consolePanelOpen = ref(false)
+const consolePanel = ref<InstanceType<typeof ConsolePanelContainer> | null>(null)
+const networkMonitorOpen = ref(false)
+const networkPanel = ref<InstanceType<typeof NetworkPanel> | null>(null)
+const panelRegistryController = usePanelRegistryController({
+  panels: {
+    'site-controls': siteControlsOpen,
+    'site-storage': siteStorageOpen,
+    'page-tools': pageToolsOpen,
+    'responsive-preview': responsivePanelOpen,
+    environment: environmentPanelOpen,
+    accessibility: accessibilityPanelOpen,
+    'quality-audit': qualityAuditPanelOpen,
+    performance: performancePanelOpen,
+    'design-overview': designOverviewPanelOpen,
+    'page-metadata': pageMetadataPanelOpen,
+    security: securityPanelOpen,
+    coverage: coveragePanelOpen,
+    'cpu-profile': cpuProfilePanelOpen,
+    memory: memoryPanelOpen,
+    console: consolePanelOpen,
+    network: networkMonitorOpen,
+    'debug-report': debugReportPanelOpen,
+    'repro-recorder': reproPanelOpen,
+    'dom-changes': domChangesPanelOpen,
+    'visual-compare': visualComparePanelOpen,
+    issues: inspectorIssuesOpen,
+    bookmarks: bookmarksOpen
+  },
+  onActivate: (panel) => {
+    if (isDetachedPanelWindow) document.title = detachedPanelTitle(panel)
+  }
+})
+const {
+  activePanelId,
+  dockedPanelOpen,
+  closeAll: closeDockedPanels,
+  activate: activatePanel
+} = panelRegistryController
+if (detachedPanelId) activatePanel(detachedPanelId)
+const {
+  syncingMainPanelState,
+  dispose: disposePanelWindowEventsController
+} = usePanelWindowEventsController({
+  api: window.hronautPanelWindow,
+  detachedWindow: isDetachedPanelWindow,
+  showDetachedPanel,
+  activateMainPanel: activatePanel,
+  redockMainPanel: ({ panel, dock }) => {
+    panelDock.value = dock
+    activatePanel(panel)
+  },
+  closeMainPanels: closeDockedPanels,
+  onError: reportShellActionError
+})
+let updateNoticeDismissTimer: number | undefined
+const {
+  run: runShellAction,
+  dispose: disposeUiActionController
+} = useUiActionController({ onError: reportShellActionError })
+const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncController({
+  api: window.hronautPanelWindow,
+  detachedWindow: isDetachedPanelWindow,
+  panelDock,
+  activePanelId,
+  syncingMainPanelState,
+  persistDock: (dock) => window.localStorage.setItem('hronaut:panel-dock', dock),
+  onError: reportShellActionError
+})
+const appBootstrapController = useAppBootstrapController({
+  tasks: [
+    { id: 'settings', run: () => settingsStore.initialize() },
+    { id: 'browser', run: () => browserStore.initialize() },
+    { id: 'updates', run: initializeUpdateSettings },
+    { id: 'license', run: initializeCommercialLicense },
+    { id: 'mcp', run: initializeMcpStatus },
+    {
+      id: 'download-directory',
+      run: async () => {
+        defaultDownloadDirectory.value = await window.hronautSettings.getDefaultDownloadDirectory()
+      }
+    },
+    { id: 'permissions', run: () => initializeSitePermissions(window.hronautPermissions.list()) },
+    {
+      id: 'credentials',
+      run: () => initializeCredentials(window.hronautCredentials.status(), window.hronautCredentials.list())
+    },
+    { id: 'collections', run: () => browserCollectionsController.initialize() }
+  ],
+  onFailure: reportAppBootstrapFailure
+})
+const browserShortcutController = useBrowserShortcutController({
+  state,
+  activeTab,
+  browser,
+  syncState,
+  settingsOpen,
+  tabSearchOpen,
+  focusAddress,
+  openFind,
+  setZoom: (action) => zoomBar.value?.setZoom(action),
+  toggleCurrentBookmark,
+  toggleVisitHistory,
+  toggleTabSearch,
+  openPrivacySettings: () => openPrivacySettings(),
+  toggleCommandPalette,
+  toggleElementPicker,
+  toggleDeveloperTools,
+  onError: (_action, error) => showAppToast(
+    'error',
+    t('runtimeDetails.browserAction'),
+    friendlyUiError(error, t('runtime.toast.actionFailed'))
+  )
+})
+const {
+  run: runBrowserShortcut,
+  dispose: disposeBrowserShortcutController
+} = browserShortcutController
+const { dispose: disposeAppEventsController } = useAppEventsController({
+  browserApi: browser,
+  permissionsApi: window.hronautPermissions,
+  credentialsApi: window.hronautCredentials,
+  updatesApi: window.hronautUpdates,
+  shellApi: window.hronautShell,
+  onUserAttention: () => playFoley(settings.value.attentionSoundCue, { volume: 0.65 }),
+  onShortcut: runBrowserShortcut,
+  onTabGroupEdit: openTabGroupEditor,
+  onPermissionsChanged: replaceSitePermissions,
+  onCredentialsChanged: replaceCredentials,
+  onUpdateOpen: openUpdateSettings,
+  onHelp: handleHelpRequested,
+  onClipboardFailure: (message) => {
+    showAppToast('error', t('runtime.capture.copyFailed'), friendlyUiError(message, t('runtime.capture.clipboardFailed')))
+  },
+  onActionFailure: ({ action, message }) => {
+    const title = action === 'reload'
+      ? t('runtimeActions.actionFailure.reload')
+      : action === 'save link'
+        ? t('runtimeActions.actionFailure.saveLink')
+        : t('runtimeActions.actionFailure.generic')
+    showAppToast('error', title, friendlyUiError(message, t('runtime.toast.actionFailed')))
+  },
+  onError: reportShellActionError
+})
+const keyboardShortcuts = computed(() => [
+  { label: t('runtime.shortcuts.address'), keys: ['Ctrl/Cmd', 'L'] },
+  { label: t('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
+  { label: t('runtime.shortcuts.reloadFresh'), keys: ['Ctrl/Cmd', 'Shift', 'R'] },
+  { label: t('runtime.shortcuts.newTab'), keys: ['Ctrl/Cmd', 'T'] },
+  { label: t('runtime.shortcuts.closeTab'), keys: ['Ctrl/Cmd', 'W'] },
+  { label: t('runtime.shortcuts.reopenTab'), keys: ['Ctrl/Cmd', 'Shift', 'T'] },
+  { label: t('runtime.shortcuts.searchTabs'), keys: ['Ctrl/Cmd', 'Shift', 'A'] },
+  { label: t('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
+  { label: t('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
+  { label: t('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
+  { label: t('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
+  { label: t('runtime.shortcuts.history'), keys: ['Ctrl+H', 'Cmd+Y'] },
+  { label: t('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
+  { label: t('runtime.shortcuts.devtools'), keys: ['F12', 'Ctrl+Shift+I', 'Cmd+Option+I'] },
+  { label: t('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
+  { label: t('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
+  { label: t('runtime.shortcuts.resetZoom'), keys: ['Ctrl/Cmd', '0'] }
+])
+const panelDockLayout = usePanelDockLayout({
+  dock: panelDock,
+  shell,
+  dockedPanelOpen,
+  fullModalOpen,
+  detachedWindow: isDetachedPanelWindow,
+  shellApi: window.hronautShell
+})
+const {
+  size: panelDockSize,
+  shellContentTop,
+  resizeGesture: panelResizeGesture,
+  reportShellHeight,
+  maximumSize: panelDockMaximumSize,
+  minimumSize: panelDockMinimumSize,
+  startResize: startPanelResize,
+  resizeWithKeyboard: resizePanelWithKeyboard,
+  resetSize: resetPanelDockSize
+} = panelDockLayout
+const pageToolsPresentationController = usePageToolsPresentationController({
+  activeTab,
+  emulation: emulationController,
+  environmentState,
+  environmentOverrideCount: activeEnvironmentOverrideCount,
+  diagnostics: diagnosticsController,
+  capture: pageCaptureController,
+  pageExport: pageExportController,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  formatPercent: localPercent,
+  formatBytes
+})
+const {
+  labels: pageToolsLabels,
+  activeNetworkRouteCount,
+  activeInspectorIssueCount,
+  debugReportSignalCount,
+  elementPickerLabel,
+  elementPickerTitle,
+  areaCaptureLabel
+} = pageToolsPresentationController
+const activeTabPresentationController = useActiveTabPresentationController({
+  state,
+  activeTab,
+  sitePermissions,
+  credentials,
+  downloads,
+  bookmarks,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  describeEmulation: emulationDescription
+})
+const {
+  regularTabs,
+  activeIsHome,
+  activeWebUrl,
+  activeOrigin,
+  activeHostname,
+  activeSitePermissions,
+  activeAddressKind,
+  activeCredentials,
+  activeDownloads,
+  activeTabUsesDefaultProfile,
+  currentBookmark,
+  downloadButtonLabel,
+  tabHumanInteractionLocked,
+  effectiveHumanInteractionLocked,
+  tabInteractionLockLabel,
+  allInteractionLockLabel,
+  tabTooltip,
+  pageProblemDetails
+} = activeTabPresentationController
+function expandTabGroupForTab(tab: BrowserTabState): void {
+  browserTabsBar.value?.expandTabGroupForTab(tab)
+}
+const detachedPanelUnavailable = computed(() => (
+  isDetachedPanelWindow
+  && activeIsHome.value
+  && activePanelId.value !== 'bookmarks'
+))
+const detachedPanelLabelText = computed(() => (
+  activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
+))
+const showUpdateStatusPill = computed(() => (
+  updateNoticeOpen.value
+  && !settingsOpen.value
+  && shouldShowUpdateStatusPill(updateState.value.status)
+))
+function formatBytes(bytes: number): string {
+  return formatLocalizedBytes(resolvedLocale.value, bytes)
+}
+
+function localNumber(value: number): string {
+  return formatNumber(resolvedLocale.value, value)
+}
+
+function localDateTime(value: Date | number | string): string {
+  return formatDateTime(resolvedLocale.value, value)
+}
+
+function localTime(value: Date | number | string): string {
+  return formatTime(resolvedLocale.value, value)
+}
+
+function localPercent(percent: number, maximumFractionDigits = 0): string {
+  return formatPercent(resolvedLocale.value, percent / 100, { maximumFractionDigits })
+}
+
+async function toggleDownloads(): Promise<void> {
+  settingsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  if (!downloadsOpen.value) await browserCollectionsController.refreshDownloads()
+  downloadsOpen.value = !downloadsOpen.value
+}
+
+async function toggleBookmarks(): Promise<void> {
+  settingsOpen.value = false
+  downloadsOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  await bookmarksPanel.value?.toggle()
+}
+
+async function toggleCurrentBookmark(): Promise<void> {
+  downloadsOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  await bookmarksPanel.value?.toggleCurrent()
+}
+
+async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
+  settingsOpen.value = false
+  await syncState(browser.newTab({ url: bookmark.url, active: true }))
+}
+
+function preferredWebTab(): BrowserTabState | undefined {
+  return regularTabs.value.find((tab) => tab.id === lastWebTabId.value) ?? regularTabs.value.at(-1)
+}
+
+async function openApplicationHome(): Promise<void> {
+  if (activeTab.value && !activeIsHome.value) lastWebTabId.value = activeTab.value.id
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  zoomOpen.value = false
+  if (findOpen.value) await closeFind()
+  await syncState(browser.openHome())
+}
+
+async function toggleVisitHistory(): Promise<void> {
+  settingsOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  tabSearchOpen.value = false
+  await historyPanel.value?.toggle()
+}
+
+function resetSiteStorageView(closePanel = false): void {
+  siteStoragePanel.value?.reset(closePanel)
+  if (closePanel && !keepsSeparatePanelOpen()) siteStorageOpen.value = false
+}
+
+async function refreshSiteStorage(): Promise<void> {
+  await nextTick()
+  await siteStoragePanel.value?.refresh()
+}
+
+async function openSiteStorage(): Promise<void> {
+  settingsOpen.value = false
+  siteControlsOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  zoomOpen.value = false
+  addressSuggestionsOpen.value = false
+  siteStorageOpen.value = true
+  await nextTick()
+  siteStoragePanel.value?.reset()
+  await siteStoragePanel.value?.refresh()
+}
+
+async function toggleSiteStorage(): Promise<void> {
+  if (siteStorageOpen.value) {
+    siteStorageOpen.value = false
+    return
+  }
+  await openSiteStorage()
+}
+
+async function openTabGroupEditor(groupId: string): Promise<void> {
+  await workspaceEditor.value?.openExisting(groupId)
+}
+
+async function openNewWorkspaceEditor(): Promise<void> {
+  await workspaceEditor.value?.openNew()
+}
+
+function closeWorkspaceEditor(): void {
+  workspaceEditor.value?.close()
+}
+
+async function openHistoryEntry(entry: BrowserHistoryEntry): Promise<void> {
+  await syncState(browser.newTab({ url: entry.url, active: true }))
+}
+
+async function toggleTabSearch(): Promise<void> {
+  if (tabSearchOpen.value) {
+    tabSearchPanel.value?.close()
+    tabSearchOpen.value = false
+    return
+  }
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  zoomOpen.value = false
+  const stopFind = findOpen.value ? closeFind() : undefined
+  await tabSearchPanel.value?.openPanel()
+  await stopFind
+}
+
+async function toggleCommandPalette(): Promise<void> {
+  if (commandPaletteOpen.value) {
+    commandPalette.value?.close()
+    commandPaletteOpen.value = false
+    return
+  }
+  closeSettings()
+  closeHelpDialog()
+  closeTransientPanels()
+  await commandPalette.value?.openPanel()
+}
+
+async function runCommandPaletteCommand(commandId: CommandPaletteCommandId): Promise<void> {
+  commandPaletteOpen.value = false
+  switch (commandId) {
+    case 'home': return openApplicationHome()
+    case 'new-tab':
+      await runBrowserShortcut('new-tab')
+      return
+    case 'search-tabs': return toggleTabSearch()
+    case 'downloads': return toggleDownloads()
+    case 'bookmarks': return toggleBookmarks()
+    case 'history': return toggleVisitHistory()
+    case 'find': return openFind()
+    case 'reload':
+      await runBrowserShortcut('reload')
+      return
+    case 'reload-ignoring-cache':
+      await runBrowserShortcut('reload-ignoring-cache')
+      return
+    case 'capture-area': return toggleAreaCapture()
+    case 'capture-element': return toggleElementPicker('screenshot')
+    case 'capture-viewport': return capturePageScreenshot('viewport')
+    case 'capture-full-page': return capturePageScreenshot('full-page')
+    case 'copy-snapshot': return copyPageSnapshot()
+    case 'pick-element': return toggleElementPicker('context')
+    case 'page-tools': return togglePageTools()
+    case 'site-storage': return toggleSiteStorage()
+    case 'responsive-preview': return toggleResponsivePreview()
+    case 'environment': return toggleEnvironment()
+    case 'console': return toggleConsole()
+    case 'network': return toggleNetworkMonitor()
+    case 'request-conditions': return openRequestConditions()
+    case 'issues': return toggleInspectorIssues()
+    case 'debug-report': return toggleDebugReport()
+    case 'repro-recorder': return toggleReproRecorder()
+    case 'dom-changes': return toggleDomChanges()
+    case 'visual-compare': return toggleVisualCompare()
+    case 'quality-audit': return toggleQualityAudit()
+    case 'accessibility': return toggleAccessibilityAudit()
+    case 'performance': return togglePerformanceReport()
+    case 'design-overview': return toggleDesignOverview()
+    case 'page-metadata': return togglePageMetadata()
+    case 'security': return toggleSecurityReport()
+    case 'coverage': return toggleCodeCoverage()
+    case 'cpu-profile': return toggleCpuProfile()
+    case 'memory': return toggleMemoryReport()
+    case 'developer-tools': return toggleDeveloperTools()
+    case 'settings': return openSettingsSection('appearance')
+    case 'privacy': return openPrivacySettings()
+    case 'site-permissions': return openSettingsSection('permissions')
+    case 'mcp-security': return openSettingsSection('mcp')
+    case 'updates': return openUpdateSettings()
+    case 'keyboard-shortcuts': return openHelpDialog('shortcuts')
+    case 'toggle-mcp-pause': await toggleMcpPaused(); return
+  }
+}
+
+function reportShellActionError(error: unknown): void {
+  showAppToast(
+    'error',
+    t('runtimeDetails.browserAction'),
+    friendlyUiError(error, t('runtime.toast.actionFailed'))
+  )
+}
+
+function reportAppBootstrapFailure(failures: AppBootstrapFailure[]): void {
+  showAppToast(
+    'error',
+    t('runtime.toast.startupIncomplete'),
+    friendlyUiError(failures[0]?.error, t('runtime.toast.startupIncompleteDescription'))
+  )
+}
+
+async function reorderTab(details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }): Promise<void> {
+  await syncState(browser.reorderTab(details.tabId, details.targetTabId, details.placement))
+}
+
+function setResponsiveTabViewport(
+  tabId: string,
+  viewport: NonNullable<BrowserEmulationState['viewport']> | null
+): Promise<BrowserState> {
+  return browser.setTabViewport(tabId, viewport)
+}
+
+function loadResponsiveDraft(viewport = activeEmulation.value?.viewport): void {
+  responsivePanel.value?.loadDraft(viewport)
+}
+
+function resetResponsiveFeedback(): void {
+  responsivePanel.value?.resetFeedback()
+}
+
+function toggleResponsivePreview(): void {
+  responsivePanel.value?.toggle()
+}
+
+function loadEnvironmentDraft(emulation = activeEmulation.value): void {
+  environmentController.loadDraft(emulation)
+}
+
+function toggleEnvironment(): void {
+  environmentController.toggle()
+}
+
+watch(settingsOpen, async () => {
+  if (!settingsOpen.value && settingsSection.value === 'privacy') janitorSearch.value = ''
+  await nextTick()
+  reportShellHeight()
+})
+
+watch([settingsOpen, settingsSection], ([open, section]) => {
+  if (open && section === 'privacy') {
+    void refreshPrivacySettings()
+  }
+})
+
+watch(updateNoticeOpen, async () => {
+  await nextTick()
+  reportShellHeight()
+})
+
+watch(findOpen, async () => {
+  await nextTick()
+  reportShellHeight()
+})
+
+watch(zoomOpen, async () => {
+  await nextTick()
+  reportShellHeight()
+})
+
+watch(
+  [
+    siteControlsOpen,
+    siteStorageOpen,
+    addressSuggestionsOpen,
+    pageToolsOpen,
+    responsivePanelOpen,
+    environmentPanelOpen,
+    accessibilityPanelOpen,
+    qualityAuditPanelOpen,
+    performancePanelOpen,
+    designOverviewPanelOpen,
+    pageMetadataPanelOpen,
+    securityPanelOpen,
+    coveragePanelOpen,
+    cpuProfilePanelOpen,
+    memoryPanelOpen,
+    consolePanelOpen,
+    debugReportPanelOpen,
+    reproPanelOpen,
+    domChangesPanelOpen,
+    visualComparePanelOpen,
+    inspectorIssuesOpen,
+    networkMonitorOpen,
+    commandPaletteOpen,
+    tabSearchOpen,
+    downloadsOpen,
+    bookmarksOpen,
+    historyOpen,
+    splitMenuOpen,
+    workspaceEditorOpen,
+    credentialPickerOpen
+  ],
+  async () => {
+    await nextTick()
+    reportShellHeight()
+  }
+)
+
+watch(
+  [settingsOpen, commandPaletteOpen, helpDialogOpen, workspaceEditorOpen, credentialPickerOpen, siteControlsOpen, siteStorageOpen, addressSuggestionsOpen, findOpen, zoomOpen, splitMenuOpen, tabSearchOpen, downloadsOpen, bookmarksOpen, historyOpen],
+  (openStates) => {
+    if (openStates.some(Boolean) && !keepsSeparatePanelOpen()) {
+      pageToolsOpen.value = false
+      environmentPanelOpen.value = false
+      accessibilityPanelOpen.value = false
+      qualityAuditPanelOpen.value = false
+      performancePanelOpen.value = false
+      designOverviewPanelOpen.value = false
+      pageMetadataPanelOpen.value = false
+      securityPanelOpen.value = false
+      coveragePanelOpen.value = false
+      cpuProfilePanelOpen.value = false
+      memoryPanelOpen.value = false
+      consolePanelOpen.value = false
+      reproPanelOpen.value = false
+      domChangesPanelOpen.value = false
+      visualComparePanelOpen.value = false
+      inspectorIssuesOpen.value = false
+      networkMonitorOpen.value = false
+    }
+  }
+)
+
+// The address suggestions are rendered in a topmost native WebContentsView.
+// Dismiss it synchronously before any full renderer modal opens so the native
+// overlay can never cover Settings, Help, the command palette, or a picker.
+watch(fullModalOpen, (open) => {
+  if (open) closeAddressSuggestions()
+}, { flush: 'sync' })
+
+watch(
+  () => activeTab.value?.id,
+  () => {
+    credentialPickerOpen.value = false
+  }
+)
+
+watch(
+  [updateNoticeOpen, () => updateState.value.status],
+  ([open, status]) => {
+    if (updateNoticeDismissTimer !== undefined) {
+      window.clearTimeout(updateNoticeDismissTimer)
+      updateNoticeDismissTimer = undefined
+    }
+    if (open && shouldAutoDismissUpdateStatus(status)) {
+      updateNoticeDismissTimer = window.setTimeout(() => {
+        updateNoticeOpen.value = false
+        updateNoticeDismissTimer = undefined
+      }, UPDATE_STATUS_DISMISS_MS)
+    }
+  }
+)
+
+watch(
+  () => activeTab.value?.url,
+  () => {
+    const keepPanelOpen = keepsSeparatePanelOpen()
+    invalidateEmulationMutation()
+    siteDataController.reset()
+    if (!keepPanelOpen) {
+      siteControlsOpen.value = false
+      pageToolsOpen.value = false
+      responsivePanelOpen.value = false
+      environmentPanelOpen.value = false
+    }
+    resetSiteStorageView(true)
+    if (responsivePanelOpen.value && keepPanelOpen) loadResponsiveDraft(activeEmulation.value?.viewport)
+    else resetResponsiveFeedback()
+    if (environmentPanelOpen.value && keepPanelOpen) loadEnvironmentDraft(activeEmulation.value)
+    else environmentController.resetFeedback()
+    resetConsoleView(true)
+    resetNetworkMonitorView(true)
+  },
+  { immediate: true }
+)
+
+watch(
+  () => state.value.activeTabId,
+  (tabId) => {
+    const tab = state.value.tabs.find((candidate) => candidate.id === tabId)
+    const keepPanelOpen = keepsSeparatePanelOpen()
+    invalidateEmulationMutation()
+    siteDataController.reset()
+    if (!keepPanelOpen) {
+      siteControlsOpen.value = false
+      pageToolsOpen.value = false
+    }
+    if (tab && !tab.url.startsWith('hronaut://home')) lastWebTabId.value = tab.id
+    resetSiteStorageView(true)
+    resetConsoleView(true)
+    resetNetworkMonitorView(true)
+    if (responsivePanelOpen.value) {
+      if (!keepPanelOpen) responsivePanelOpen.value = false
+      else loadResponsiveDraft(tab?.emulation?.viewport)
+    } else resetResponsiveFeedback()
+    if (environmentPanelOpen.value) {
+      if (!keepPanelOpen) environmentPanelOpen.value = false
+      else loadEnvironmentDraft(tab?.emulation)
+    } else environmentController.resetFeedback()
+  }
+)
+
+watch(
+  () => [state.value.activeTabId, activeTab.value?.url, activeTab.value?.loading] as const,
+  ([tabId, url, loading], [previousTabId, previousUrl, previousLoading]) => {
+    if (!isDetachedPanelWindow || !tabId || !url || url.startsWith('hronaut://home') || loading) return
+    const contextChanged = tabId !== previousTabId || url !== previousUrl || previousLoading === true
+    if (!contextChanged) return
+    const panel = activePanelId.value
+    if (panel) void refreshDetachedPanel(panel)
+  }
+)
+
+async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
+  await browserStore.syncOperation(Promise.resolve(next))
+}
+
+async function selectBrowserTab(tabId: string): Promise<boolean> {
+  try {
+    await syncState(browser.selectTab(tabId))
+    return true
+  } catch (error) {
+    showAppToast('error', t('runtime.workspace.openFailed'), friendlyUiError(error, t('runtime.workspace.openDescription')))
+    return false
+  }
+}
+
+async function navigateAddress(nextAddress: string): Promise<void> {
+  try {
+    await syncState(browser.navigate({ url: nextAddress, tabId: state.value.activeTabId ?? undefined }))
+  } catch (error) {
+    showAppToast('error', t('runtime.navigation.failed'), friendlyUiError(error, t('runtime.navigation.failedDescription')))
+  }
+}
+
+async function retryActivePageProblem(): Promise<void> {
+  const tab = activeTab.value
+  if (!tab?.pageProblem) return
+  await syncState(browser.reload(tab.id))
+}
+
+async function refreshSiteDataSummary(): Promise<void> {
+  await siteDataController.refresh()
+}
+
+async function toggleSiteControls(): Promise<void> {
+  if (!activeWebUrl.value) return
+  if (siteControlsOpen.value) {
+    siteControlsOpen.value = false
+    return
+  }
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  zoomOpen.value = false
+  addressSuggestionsOpen.value = false
+  if (findOpen.value) await closeFind()
+  siteControlsOpen.value = true
+  await refreshSiteDataSummary()
+}
+
+async function openSitePrivacySettings(): Promise<void> {
+  siteControlsOpen.value = false
+  if (!activeTabUsesDefaultProfile.value) {
+    await openSiteStorage()
+    return
+  }
+  await openPrivacySettings(activeOrigin.value ?? undefined)
+}
+
+function openSitePermissionSettings(): void {
+  siteControlsOpen.value = false
+  openSettingsSection('permissions')
+}
+
+function handleWindowResize(): void {
+  reportShellHeight()
+  resizeAddressSuggestions()
+}
+
+async function openFind(): Promise<void> {
+  if (!activeTab.value) return
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  zoomOpen.value = false
+  tabSearchOpen.value = false
+  addressSuggestionsOpen.value = false
+  await findBar.value?.openForTab(activeTab.value)
+}
+
+async function focusAddress(): Promise<void> {
+  if (activeIsHome.value) {
+    const tab = preferredWebTab()
+    if (!tab || !(await selectBrowserTab(tab.id))) await syncState(browser.newTab())
+  }
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  if (findOpen.value) await closeFind()
+  zoomOpen.value = false
+  tabSearchOpen.value = false
+  await nextTick()
+  addressInput.value?.focus()
+  addressInput.value?.select()
+}
+
+async function newTabInWorkspace(groupId: string): Promise<void> {
+  if (state.value.allHumanInteractionLocked) return
+  const workspace = state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
+  if (!workspace) return
+  settingsOpen.value = false
+  tabSearchOpen.value = false
+  try {
+    await syncState(browser.newTab({ active: true, mcpGroupId: groupId }))
+    browserTabsBar.value?.expandTabGroup(groupId)
+    await focusAddress()
+  } catch (error) {
+    showAppToast('error', t('runtime.workspace.newTabFailed'), friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name })))
+  }
+}
+
+async function showWorkspaceContextMenu(groupId: string): Promise<void> {
+  await browser.showWorkspaceContextMenu(groupId)
+}
+
+async function toggleZoom(): Promise<void> {
+  if (zoomOpen.value) {
+    zoomBar.value?.close()
+    return
+  }
+  if (!activeTab.value) return
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  tabSearchOpen.value = false
+  if (findOpen.value) await closeFind()
+  zoomBar.value?.openForTab(activeTab.value)
+}
+
+function prepareSplitViewMenu(): void {
+  settingsOpen.value = false
+  updateNoticeOpen.value = false
+  tabSearchOpen.value = false
+  zoomOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  addressSuggestionsOpen.value = false
+}
+
+function handleSplitViewError(error: unknown, fallback: string): void {
+  showAppToast('error', t('runtime.workspace.splitFailed'), friendlyUiError(error, fallback))
+}
+
+function handleZoomError(error: unknown): void {
+  showAppToast('error', t('runtimeDetails.browserAction'), friendlyUiError(error, t('runtime.toast.actionFailed')))
+}
+
+async function closeFind(): Promise<void> {
+  await findBar.value?.close()
+}
+
+async function closeTab(tabId: string): Promise<void> {
+  if (state.value.allHumanInteractionLocked) return
+  await syncState(browser.closeTab(tabId))
+}
+
+async function toggleTabMuted(tab: BrowserTabState): Promise<void> {
+  await syncState(browser.setTabMuted(tab.id, !tab.muted))
+}
+
+async function toggleTabHumanInteraction(): Promise<void> {
+  if (!activeTab.value || activeIsHome.value || state.value.allHumanInteractionLocked) return
+  await syncState(browser.setTabHumanInteractionLocked(activeTab.value.id, !activeTab.value.humanInteractionLocked))
+}
+
+async function toggleAllHumanInteraction(): Promise<void> {
+  await syncState(browser.setAllHumanInteractionLocked(!state.value.allHumanInteractionLocked))
+}
+
+function resetConsoleView(closePanel = false): void {
+  consolePanel.value?.reset(closePanel)
+  if (closePanel && !keepsSeparatePanelOpen()) consolePanelOpen.value = false
+}
+
+async function refreshConsole(clear = false): Promise<void> {
+  await nextTick()
+  await consolePanel.value?.refresh(clear)
+}
+
+ function toggleConsole(): void {
+  if (consolePanelOpen.value) {
+    consolePanelOpen.value = false
+    return
+  }
+  closeTransientPanels()
+  consolePanelOpen.value = true
+}
+
+function resetNetworkMonitorView(closePanel = false): void {
+  networkPanel.value?.reset(closePanel)
+  if (closePanel && !keepsSeparatePanelOpen()) networkMonitorOpen.value = false
+}
+
+async function refreshNetworkMonitor(clear = false): Promise<void> {
+  await nextTick()
+  await networkPanel.value?.refresh(clear)
+}
+
+async function refreshNetworkRoutes(silent = false): Promise<void> {
+  await nextTick()
+  await networkPanel.value?.refreshRoutes(silent)
+}
+
+async function refreshNetwork(): Promise<void> {
+  await nextTick()
+  await networkPanel.value?.refreshAll()
+}
+
+function toggleNetworkMonitor(): void {
+  if (networkMonitorOpen.value) {
+    networkMonitorOpen.value = false
+    return
+  }
+  closeTransientPanels()
+  networkMonitorOpen.value = true
+  void refreshNetwork()
+}
+
+async function openRequestConditions(): Promise<void> {
+  if (!networkMonitorOpen.value) {
+    closeTransientPanels()
+    networkMonitorOpen.value = true
+    await nextTick()
+  }
+  await networkPanel.value?.openRequestConditions()
+}
+
+function describeTabEmulation(tab: BrowserTabState): string {
+  return tab.emulation ? emulationDescription(tab.emulation) : ''
+}
+
+function showTabSearchError(title: string, message: string): void {
+  showAppToast('error', title, message)
+}
+
+async function copyAppText(text: string): Promise<boolean> {
+  try {
+    await browser.copyText(text)
+    return true
+  } catch (error) {
+    showAppToast('error', t('runtime.capture.copyFailed'), friendlyUiError(error, t('runtime.capture.clipboardFailed')))
+    return false
+  }
+}
+
+function applyTheme(next: AppSettings): void {
+  settings.value = next
+  setFoley({ muted: !next.attentionSound })
+  const effectiveTheme = next.theme === 'system' ? systemTheme.value : next.theme
+  document.documentElement.dataset.themePreference = next.theme
+  document.documentElement.dataset.theme = effectiveTheme
+  document.documentElement.style.colorScheme = effectiveTheme === 'light' ? 'light' : 'dark'
+}
+
+watch([settings, systemTheme], () => applyTheme(settings.value), { deep: true, immediate: true })
+
+function handleExtractedSettingError(error: unknown): void {
+  showAppToast('error', t('runtime.toast.settingNotSaved'), friendlyUiError(error, t('runtime.toast.settingKept')))
+}
+
+function testAttentionSound(): void {
+  playFoley(settings.value.attentionSoundCue, { volume: 0.65 })
+}
+
+async function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): Promise<boolean> {
+  return setSitePermissionDecision(entry, decision)
+}
+
+async function resetSitePermissionFromControls(entry: SitePermissionEntry): Promise<boolean> {
+  const removed = await removeSitePermission(entry)
+  await nextTick()
+  siteControlsOpen.value = true
+  await nextTick()
+  siteControlsButton.value?.focus()
+  return removed
+}
+
+async function fillSavedPassword(): Promise<void> {
+  if (!activeTab.value || !activeCredentials.value.length) return
+  if (activeCredentials.value.length === 1) {
+    await fillSelectedCredential(activeCredentials.value[0])
+    return
+  }
+  await credentialPicker.value?.openPanel()
+}
+
+async function fillSelectedCredential(credential: CredentialSummary): Promise<void> {
+  const tabId = activeTab.value?.id
+  if (!tabId || credentialFillState.value === 'filling') return
+  credentialPickerOpen.value = false
+  credentialFillState.value = 'filling'
+  try {
+    const filled = await window.hronautCredentials.fill(tabId, credential.id)
+    if (!filled) throw new Error(t('runtimeActions.credential.noLongerMatches'))
+    showAppToast('success', t('runtime.toast.passwordFilled'), t('runtime.toast.passwordFilledDescription', { username: credential.username || t('credentialPicker.unnamed') }))
+  } catch (error) {
+    showAppToast('error', t('runtime.toast.passwordFillFailed'), friendlyUiError(error, t('runtime.toast.passwordFillDescription')))
+  } finally {
+    credentialFillState.value = 'idle'
+  }
+}
+
+function openUpdateSettings(): void {
+  if (workspaceEditorOpen.value || credentialPickerOpen.value) return
+  closeHelpDialog()
+  tabSearchOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  openSettingsSection('updates')
+}
+
+async function openPrivacySettings(origin?: string): Promise<void> {
+  updateNoticeOpen.value = false
+  downloadsOpen.value = false
+  bookmarksOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  zoomOpen.value = false
+  addressSuggestionsOpen.value = false
+  if (findOpen.value) await closeFind()
+  janitorSearch.value = origin ?? ''
+  openSettingsSection('privacy')
+}
+
+async function openSupport(url: string): Promise<void> {
+  closeHelpDialog()
+  closeSettings()
+  await syncState(browser.newTab({ url, active: true }))
+}
+
+async function refreshDetachedPanel(panel: DetachablePanelId): Promise<void> {
+  if (panel === 'site-controls') await refreshSiteDataSummary()
+  else if (panel === 'site-storage') await refreshSiteStorage()
+  else if (panel === 'responsive-preview') loadResponsiveDraft()
+  else if (panel === 'environment') loadEnvironmentDraft()
+  else if (panel === 'accessibility') await runAccessibilityAudit()
+  else if (panel === 'quality-audit') await runQualityAudit()
+  else if (panel === 'performance') await runPerformanceReport()
+  else if (panel === 'design-overview') await runDesignOverview()
+  else if (panel === 'page-metadata') await runPageMetadata()
+  else if (panel === 'security') await runSecurityReport()
+  else if (panel === 'coverage') await manageCodeCoverage('get')
+  else if (panel === 'cpu-profile') await manageCpuProfile('get')
+  else if (panel === 'memory') await runMemoryReport()
+  else if (panel === 'console') await refreshConsole()
+  else if (panel === 'network') await Promise.all([refreshNetworkMonitor(), refreshNetworkRoutes()])
+  else if (panel === 'debug-report') await runDebugReport()
+  else if (panel === 'repro-recorder') await manageRepro('get')
+  else if (panel === 'dom-changes') await manageDomChanges('get')
+  else if (panel === 'visual-compare') await manageVisualCompare('get')
+  else if (panel === 'issues') await refreshInspectorIssues()
+}
+
+async function showDetachedPanel(panel: DetachablePanelId): Promise<void> {
+  activatePanel(panel)
+  await nextTick()
+  await refreshDetachedPanel(panel)
+}
+
+function closeTransientPanels(): void {
+  if (isDetachedPanelWindow || panelDock.value !== 'window') closeDockedPanels()
+  addressSuggestionsOpen.value = false
+  zoomOpen.value = false
+  downloadsOpen.value = false
+  historyOpen.value = false
+  tabSearchOpen.value = false
+  updateNoticeOpen.value = false
+}
+
+function togglePageTools(): void {
+  if (pageToolsOpen.value) {
+    pageToolsOpen.value = false
+    return
+  }
+  closeTransientPanels()
+  pageToolsOpen.value = true
+}
+
+function openHelpDialog(dialog: 'shortcuts' | 'about'): void {
+  commandPaletteOpen.value = false
+  closeSettings()
+  showHelpDialog(dialog)
+}
+
+function handleHelpRequested(action: HelpMenuAction): void {
+  if (workspaceEditorOpen.value || credentialPickerOpen.value) return
+  if (action === 'support') {
+    openSupportSettings()
+    return
+  }
+  openHelpDialog(action)
+}
+
+async function toggleDeveloperTools(): Promise<void> {
+  const tab = activeTab.value
+  if (!tab || activeIsHome.value || tab.humanInteractionLocked) return
+  closeHelpDialog()
+  closeSettings()
+  closeTransientPanels()
+  await browser.toggleDevTools(tab.id)
+}
+
+function openSupportSettings(): void {
+  openSettingsSection('support')
+}
+
+async function resetSettingsSection(section: SettingsSection): Promise<boolean | void> {
+  if (section === 'appearance') {
+    await settingsStore.setTheme('system')
+    await settingsStore.setInterfaceScale(DEFAULT_INTERFACE_SCALE)
+    await settingsStore.setHideInTray(true)
+    await settingsStore.setAttentionSound(true)
+    await settingsStore.setAttentionSoundCue('warning')
+    return true
+  }
+  if (section === 'search') return resetSearchSettings()
+  if (section === 'downloads') return resetDownloadSettings()
+  if (section === 'performance') return resetPerformanceSettings()
+  if (section === 'permissions') return clearSitePermissions()
+  if (section === 'privacy') resetPrivacySelection()
+  if (section === 'mcp') return resetMcpSettings()
+  if (section === 'updates') return resetUpdateSettings()
+}
+
+function guardShellInteraction(event: Event): void {
+  if (
+    !state.value.allHumanInteractionLocked
+    || !(event.target instanceof Element)
+    || event.target.closest('[data-lock-protected-tab-close]') === null
+  ) return
+  event.preventDefault()
+  event.stopImmediatePropagation()
+}
+
+function handleKeyDown(event: KeyboardEvent): void {
+  const shortcut = browserShortcutAction({
+    key: event.key,
+    control: event.ctrlKey,
+    meta: event.metaKey,
+    alt: event.altKey,
+    shift: event.shiftKey,
+    repeat: event.repeat,
+    composing: event.isComposing
+  })
+  guardShellInteraction(event)
+  if (event.defaultPrevented) return
+  if (commandPaletteOpen.value && shortcut !== 'command-palette') {
+    if (event.key === 'Escape') commandPaletteOpen.value = false
+    return
+  }
+  if (workspaceEditorOpen.value || credentialPickerOpen.value || helpDialogOpen.value || settingsOpen.value) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      if (workspaceEditorOpen.value) closeWorkspaceEditor()
+      else if (credentialPickerOpen.value) credentialPickerOpen.value = false
+      else if (helpDialogOpen.value) closeHelpDialog()
+      else closeSettings()
+    }
+    return
+  }
+  if (shortcut) {
+    event.preventDefault()
+    void runBrowserShortcut(shortcut)
+    return
+  }
+  if (event.key !== 'Escape') return
+  if (commandPaletteOpen.value) commandPaletteOpen.value = false
+  else if (siteStorageOpen.value) siteStorageOpen.value = false
+  else if (siteControlsOpen.value) siteControlsOpen.value = false
+  else if (addressSuggestionsOpen.value) addressSuggestionsOpen.value = false
+  else if (findOpen.value) void closeFind()
+  else if (tabSearchOpen.value) tabSearchOpen.value = false
+  else if (splitMenuOpen.value) splitMenuOpen.value = false
+  else if (zoomOpen.value) zoomOpen.value = false
+  else if (downloadsOpen.value) downloadsOpen.value = false
+  else if (bookmarksOpen.value) bookmarksPanel.value?.handleEscape()
+  else if (historyOpen.value) historyOpen.value = false
+  else if (pageToolsOpen.value) pageToolsOpen.value = false
+  else if (accessibilityPanelOpen.value) accessibilityPanelOpen.value = false
+  else if (qualityAuditPanelOpen.value) qualityAuditPanelOpen.value = false
+  else if (performancePanelOpen.value) performancePanelOpen.value = false
+  else if (designOverviewPanelOpen.value) designOverviewPanelOpen.value = false
+  else if (pageMetadataPanelOpen.value) pageMetadataPanelOpen.value = false
+  else if (securityPanelOpen.value) securityPanelOpen.value = false
+  else if (coveragePanelOpen.value) coveragePanelOpen.value = false
+  else if (cpuProfilePanelOpen.value) cpuProfilePanelOpen.value = false
+  else if (memoryPanelOpen.value) memoryPanelOpen.value = false
+  else if (consolePanelOpen.value) consolePanelOpen.value = false
+  else if (debugReportPanelOpen.value) debugReportPanelOpen.value = false
+  else if (reproPanelOpen.value) reproPanelOpen.value = false
+  else if (domChangesPanelOpen.value) domChangesPanelOpen.value = false
+  else if (visualComparePanelOpen.value) visualComparePanelOpen.value = false
+  else if (inspectorIssuesOpen.value) inspectorIssuesOpen.value = false
+  else if (networkMonitorOpen.value) networkMonitorOpen.value = false
+  else if (responsivePanelOpen.value) responsivePanel.value?.handleEscape()
+  else if (environmentPanelOpen.value) environmentPanelOpen.value = false
+  else if (areaCaptureState.value === 'picking') void toggleAreaCapture()
+  else if (elementPickerState.value === 'picking') void cancelActiveElementPicker()
+  else updateNoticeOpen.value = false
+}
+
+useShellWindowLifecycle({
+  shell,
+  onKeyDown: handleKeyDown,
+  onWindowResize: handleWindowResize,
+  onShellResize: reportShellHeight
+})
+
+onMounted(() => {
+  bindFoley()
+  void appBootstrapController.initialize().then(async () => {
+    await nextTick()
+    reportShellHeight()
+  })
+})
+
+onBeforeUnmount(() => {
+  disposeMcpActivityController()
+  disposeEmulationController()
+  disposeBrowserShortcutController()
+  disposeUiActionController()
+  appBootstrapController.dispose()
+  browserStore.dispose()
+  settingsStore.dispose()
+  disposeAppEventsController()
+  disposePanelWindowSyncController()
+  disposePanelWindowEventsController()
+  if (updateNoticeDismissTimer !== undefined) window.clearTimeout(updateNoticeDismissTimer)
+  disposePageCaptureController()
+  disposePageExportController()
+  disposeDiagnosticLogPreservationController()
+  disposeDownloadSettingsController()
+  disposePerformanceSettingsController()
+  disposeMcpSettingsController()
+  disposeSearchSettingsController()
+  disposeHelpDialogController()
+  disposeSettingsDialogController()
+  disposeUpdateSettingsController()
+  disposeCommercialLicenseController()
+  disposeMcpStatusController()
+  disposePrivacySettingsController()
+  disposeSitePermissionsController()
+  disposeCredentialsController()
+  browserCollectionsController.dispose()
+  disposeDiagnosticsController()
+  disposeAppToastController()
+})
+</script>
+
+<template>
+  <header
+    ref="shell"
+    class="shell"
+    :class="[
+      {
+        'all-human-interaction-locked': state.allHumanInteractionLocked,
+        'home-shell': activeIsHome,
+        'detached-panel-window': isDetachedPanelWindow,
+        'detached-panel-unavailable': detachedPanelUnavailable
+      },
+      `panel-dock-${panelDock}`
+    ]"
+    :style="{
+      '--panel-dock-size': `${panelDockSize}px`,
+      '--shell-content-top': `${shellContentTop}px`
+    }"
+    @click.capture="guardShellInteraction"
+    @pointerdown.capture="guardShellInteraction"
+    @contextmenu.capture="guardShellInteraction"
+    @wheel.capture="guardShellInteraction"
+    @submit.capture="guardShellInteraction"
+  >
+    <div class="topbar">
+      <BrowserTabsBar
+        ref="browserTabsBar"
+        :state="state"
+        :hydrated="browserStateInitialized"
+        :mcp-activity-by-tab="mcpActivityByTab"
+        :format-number="localNumber"
+        :tab-tooltip="tabTooltip"
+        :describe-emulation="describeTabEmulation"
+        @open-home="runShellAction(openApplicationHome)"
+        @show-workspace-context-menu="runShellAction(() => showWorkspaceContextMenu($event))"
+        @new-tab="runShellAction(() => newTabInWorkspace($event))"
+        @create-workspace="runShellAction(openNewWorkspaceEditor)"
+        @select-tab="tabSearchOpen = false; runShellAction(() => selectBrowserTab($event))"
+        @show-tab-context-menu="runShellAction(() => browser.showTabContextMenu($event))"
+        @reorder-tab="runShellAction(() => reorderTab($event))"
+        @toggle-tab-muted="runShellAction(() => toggleTabMuted($event))"
+        @close-tab="runShellAction(() => closeTab($event))"
+        @drag-start="tabSearchOpen = false"
+      />
+      <AppTopbarActions
+        :command-palette-open="commandPaletteOpen"
+        :tab-search-open="tabSearchOpen"
+        :downloads-open="downloadsOpen"
+        :history-open="historyOpen"
+        :settings-open="settingsOpen"
+        :downloads="downloads"
+        :active-downloads="activeDownloads"
+        :download-button-label="downloadButtonLabel"
+        :all-interaction-locked="state.allHumanInteractionLocked"
+        :all-interaction-lock-label="allInteractionLockLabel"
+        :show-update-status="showUpdateStatusPill"
+        :update-state="updateState"
+        :mcp-status-controller="mcpStatusController"
+        @toggle-command-palette="runShellAction(toggleCommandPalette)"
+        @toggle-tab-search="runShellAction(toggleTabSearch)"
+        @toggle-downloads="runShellAction(toggleDownloads)"
+        @toggle-history="runShellAction(toggleVisitHistory)"
+        @toggle-all-interaction="runShellAction(toggleAllHumanInteraction)"
+        @open-update-settings="runShellAction(openUpdateSettings)"
+        @toggle-settings="runShellAction(toggleSettings)"
+      />
+    </div>
+    <div v-if="!activeIsHome" class="toolbar">
+      <button class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="runShellAction(() => syncState(browser.back()))"><IconArrowBack aria-hidden="true" /></button>
+      <button class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="runShellAction(() => syncState(browser.forward()))"><IconArrowForward aria-hidden="true" /></button>
+      <button class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" @click="runShellAction(() => syncState(activeTab?.loading ? browser.stop() : browser.reload()))">
+        <IconStop v-if="activeTab?.loading" aria-hidden="true" />
+        <IconRefresh v-else aria-hidden="true" />
+      </button>
+      <form ref="addressForm" class="address-form" @submit.prevent="runShellAction(submitAddress)" @focusout="handleAddressFocusOut">
+        <button
+          ref="siteControlsButton"
+          class="site-controls-button"
+          :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
+          type="button"
+          :title="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsAvailable')"
+          :aria-label="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsUnavailable')"
+          aria-controls="site-controls-panel"
+          :aria-expanded="siteControlsOpen"
+          :disabled="!activeWebUrl"
+          @click="runShellAction(toggleSiteControls)"
+        >
+          <IconTune aria-hidden="true" />
+          <span v-if="activeSitePermissions.length" class="site-controls-indicator" aria-hidden="true" />
+        </button>
+        <input
+          ref="addressInput"
+          v-model="address"
+          class="address"
+          :aria-label="t('shell.toolbar.address')"
+          role="combobox"
+          aria-keyshortcuts="Control+L Meta+L"
+          aria-autocomplete="list"
+          aria-controls="address-suggestions"
+          :aria-expanded="addressSuggestionsVisible"
+          :aria-activedescendant="addressSuggestionsVisible && selectedAddressSuggestion ? addressSuggestionId(selectedAddressSuggestion) : undefined"
+          autocomplete="off"
+          spellcheck="false"
+          :placeholder="t('shell.toolbar.addressPlaceholder')"
+          @focus="handleAddressFocus"
+          @input="handleAddressInput"
+          @keydown="handleAddressKeydown"
+        />
+        <button
+          v-if="activeEmulation"
+          class="emulation-pill"
+          :class="{ offline: activeEmulation.network === 'offline' }"
+          type="button"
+          :title="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
+          :aria-label="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
+          :disabled="emulationResetPending"
+          @click="runShellAction(resetActiveTabEmulation)"
+        >
+          <IconSpeed aria-hidden="true" />
+          <span>{{ emulationLabel(activeEmulation) }}</span>
+          <IconClose aria-hidden="true" />
+        </button>
+        <button
+          v-if="activeNetworkRouteCount"
+          class="network-routes-pill"
+          type="button"
+          :title="t('shell.pageTools.openRoutes', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
+          :aria-label="t('shell.pageTools.openRoutes', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
+          @click="runShellAction(openRequestConditions)"
+        >
+          <IconRoute aria-hidden="true" />
+          <span>{{ t('shell.pageTools.routeCount', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount) }}</span>
+          <IconKeyboardArrowRight aria-hidden="true" />
+        </button>
+        <SiteControlsPanel
+          v-model:open="siteControlsOpen"
+          v-model:dock="panelDock"
+          :hostname="activeHostname"
+          :address-kind="activeAddressKind"
+          :origin="activeOrigin"
+          :summary="siteDataSummary"
+          :state="siteDataState"
+          :message="siteDataMessage"
+          :permissions="activeSitePermissions"
+          :uses-default-profile="activeTabUsesDefaultProfile"
+          :locale="resolvedLocale"
+          :permission-label="permissionLabel"
+          :permission-pending="isSitePermissionPending"
+          :set-permission="setSitePermission"
+          :reset-permission="resetSitePermissionFromControls"
+          :open-permission-settings="openSitePermissionSettings"
+          :open-privacy-settings="openSitePrivacySettings"
+        />
+        <section
+          v-if="addressSuggestionsVisible"
+          id="address-suggestions"
+          class="sr-only"
+          role="listbox"
+          :aria-label="t('shell.suggestions')"
+        >
+          <span
+            v-for="(suggestion, index) in addressSuggestions"
+            :id="addressSuggestionId(suggestion)"
+            :key="suggestion.id"
+            role="option"
+            :aria-selected="index === addressSuggestionSelection"
+          >{{ suggestion.title }} {{ suggestion.url }} {{ addressSuggestionMeta(suggestion) }}</span>
+        </section>
+      </form>
+      <button
+        class="icon-button find-button"
+        type="button"
+        :title="t('shell.toolbar.findTitle')"
+        :aria-label="t('shell.toolbar.find')"
+        aria-keyshortcuts="Control+F Meta+F"
+        :disabled="!activeTab"
+        @click="runShellAction(openFind)"
+      >
+        <IconSearch aria-hidden="true" />
+      </button>
+      <button
+        class="zoom-button"
+        type="button"
+        :title="t('runtime.address.zoom', { percent: localPercent(activeTab?.zoomPercent ?? 100) })"
+        :aria-label="t('shell.toolbar.zoom')"
+        :aria-expanded="zoomOpen"
+        :disabled="!activeTab"
+        @click="runShellAction(toggleZoom)"
+      >
+        {{ activeTab?.zoomPercent ?? 100 }}%
+      </button>
+      <button
+        class="icon-button bookmarks-button"
+        :class="{ bookmarked: Boolean(currentBookmark) }"
+        type="button"
+        :title="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
+        :aria-label="t('shell.toolbar.bookmarks')"
+        aria-keyshortcuts="Control+D Meta+D"
+        :aria-expanded="bookmarksOpen"
+        @click="runShellAction(toggleBookmarks)"
+      >
+        <IconStar v-if="currentBookmark" aria-hidden="true" />
+        <IconStarOutline v-else aria-hidden="true" />
+      </button>
+      <div
+        class="interaction-locks"
+        role="group"
+        :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
+      >
+        <button
+          class="interaction-lock-button"
+          :class="{ locked: tabHumanInteractionLocked }"
+          type="button"
+          :title="tabInteractionLockLabel"
+          :aria-label="tabInteractionLockLabel"
+          :aria-pressed="tabHumanInteractionLocked"
+          :disabled="!activeTab || activeIsHome || state.allHumanInteractionLocked"
+          @click="runShellAction(toggleTabHumanInteraction)"
+        >
+          <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
+          <IconLockOpen v-else aria-hidden="true" />
+          {{ t('shell.split.tab') }}
+        </button>
+      </div>
+      <SplitViewControl
+        v-model:open="splitMenuOpen"
+        :state="state"
+        :active-tab="activeTab"
+        :browser="browser"
+        :accept-state="syncState"
+        :close-other-menus="prepareSplitViewMenu"
+        @error="handleSplitViewError"
+      />
+      <button
+        class="icon-button area-capture-button"
+        :class="{ active: areaCaptureState === 'picking' || areaCaptureState === 'capturing', copied: areaCaptureState === 'copied', error: areaCaptureState === 'error' }"
+        type="button"
+        :title="areaCaptureLabel"
+        :aria-label="areaCaptureLabel"
+        :aria-pressed="areaCaptureState === 'picking'"
+        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home') || areaCaptureState === 'capturing'"
+        @click="runShellAction(toggleAreaCapture)"
+      >
+        <IconCheck v-if="areaCaptureState === 'copied'" aria-hidden="true" />
+        <IconClose v-else-if="areaCaptureState === 'picking'" aria-hidden="true" />
+        <IconProgress v-else-if="areaCaptureState === 'capturing'" class="state-spinner" aria-hidden="true" />
+        <IconScreenshotRegion v-else aria-hidden="true" />
+      </button>
+      <button
+        class="icon-button element-picker-button"
+        :class="{ active: elementPickerState === 'picking', copied: elementPickerState === 'copied', error: elementPickerState === 'error' }"
+        type="button"
+        :title="elementPickerTitle"
+        :aria-label="elementPickerLabel"
+        aria-keyshortcuts="Control+Shift+C Meta+Alt+C"
+        :aria-pressed="elementPickerState === 'picking'"
+        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home')"
+        @click="runShellAction(() => toggleElementPicker('context'))"
+      >
+        <IconCheck v-if="elementPickerState === 'copied'" aria-hidden="true" />
+        <IconClose v-else-if="elementPickerState === 'picking'" aria-hidden="true" />
+        <IconAdsClick v-else aria-hidden="true" />
+      </button>
+      <button
+        class="icon-button page-tools-button"
+        :class="{ active: pageToolsOpen }"
+        type="button"
+        :title="t('shell.pageTools.heading')"
+        :aria-label="t('shell.pageTools.heading')"
+        aria-haspopup="dialog"
+        aria-controls="page-tools-panel"
+        :aria-expanded="pageToolsOpen"
+        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home')"
+        @click="togglePageTools"
+      >
+        <IconHandyman aria-hidden="true" />
+      </button>
+      <PageToolsPanel
+        v-model:open="pageToolsOpen"
+        v-model:dock="panelDock"
+        :active-tab="activeTab"
+        :active-web-url="activeWebUrl"
+        :hostname="activeHostname"
+        :locale="resolvedLocale"
+        :active-emulation="activeEmulation"
+        :environment-state="environmentState"
+        :environment-override-count="activeEnvironmentOverrideCount"
+        :network-route-count="activeNetworkRouteCount"
+        :inspector-issue-count="activeInspectorIssueCount"
+        :debug-report-signal-count="debugReportSignalCount"
+        :element-picker-state="elementPickerState"
+        :element-picker-mode="elementPickerMode"
+        :snapshot-state="pageSnapshotState"
+        :pdf-state="pdfExportState"
+        :credential-storage-available="credentialStorage.available"
+        :credential-count="activeCredentials.length"
+        :diagnostics="diagnosticsController"
+        :labels="pageToolsLabels"
+        :actions="{
+          toggleSiteStorage,
+          toggleResponsivePreview,
+          toggleEnvironment,
+          toggleConsole,
+          toggleNetwork: toggleNetworkMonitor,
+          openRequestConditions,
+          toggleElementPicker,
+          copyPageSnapshot,
+          savePdf: saveActivePdf,
+          fillSavedPassword
+        }"
+      />
+    </div>
+    <div v-if="!activeIsHome && activeTab?.pageProblem" class="page-problem-bar" role="alert" aria-live="assertive">
+      <span class="page-problem-mark" aria-hidden="true"><IconError /></span>
+      <span class="page-problem-copy">
+        <strong>{{ activeTab.pageProblem.title }}</strong>
+        <span>{{ activeTab.pageProblem.message }}</span>
+        <code v-if="pageProblemDetails(activeTab)">{{ pageProblemDetails(activeTab) }}</code>
+      </span>
+      <button type="button" @click="runShellAction(retryActivePageProblem)">
+        <IconRefresh aria-hidden="true" />
+        {{ activeTab.pageProblem.kind === 'unresponsive' ? t('pageProblem.reload') : t('pageProblem.tryAgain') }}
+      </button>
+    </div>
+    <ResponsivePreviewPanel
+      ref="responsivePanel"
+      v-model:open="responsivePanelOpen"
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :set-tab-viewport="setResponsiveTabViewport"
+      :sync-state="syncState"
+      :begin-mutation="beginEmulationMutation"
+      :is-mutation-current="isEmulationMutationCurrent"
+      :close-transient-panels="closeTransientPanels"
+    />
+    <EnvironmentPanel
+      v-model:open="environmentPanelOpen"
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :controller="environmentController"
+      :open-responsive-preview="toggleResponsivePreview"
+    />
+    <DiagnosticsPanels
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :controller="diagnosticsController"
+      :open-support="openSupport"
+      :preservation-busy="diagnosticLogPreservationBusy"
+      :update-preservation="updateDiagnosticLogPreservation"
+    />
+    <ConsolePanelContainer
+      ref="consolePanel"
+      v-model:open="consolePanelOpen"
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :copy-text="copyAppText"
+      :preservation-busy="diagnosticLogPreservationBusy"
+      :update-preservation="updateDiagnosticLogPreservation"
+      :keeps-separate-panel-open="keepsSeparatePanelOpen"
+    />
+    <NetworkPanel
+      ref="networkPanel"
+      v-model:open="networkMonitorOpen"
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :copy-text="copyAppText"
+      :sync-state="syncState"
+      :preservation-busy="diagnosticLogPreservationBusy"
+      :update-preservation="updateDiagnosticLogPreservation"
+      :keeps-separate-panel-open="keepsSeparatePanelOpen"
+    />
+    <TabSearchPanel
+      ref="tabSearchPanel"
+      v-model:open="tabSearchOpen"
+      :state="state"
+      :mcp-activity-by-tab="mcpActivityByTab"
+      :sync-state="syncState"
+      :select-tab="selectBrowserTab"
+      :expand-tab-group="expandTabGroupForTab"
+      :describe-emulation="describeTabEmulation"
+      :format-number="localNumber"
+      :format-time="localTime"
+      :format-error="friendlyUiError"
+      :show-error="showTabSearchError"
+      @new-tab="runBrowserShortcut('new-tab')"
+    />
+    <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
+    <ZoomBar ref="zoomBar" v-model:open="zoomOpen" :active-tab="activeTab" :browser="browser" :accept-state="syncState" :format-percent="localPercent" @error="handleZoomError" />
+    <DownloadsPanel
+      v-model:open="downloadsOpen"
+      v-model:downloads="downloads"
+      :format-bytes="formatBytes"
+      :format-percent="localPercent"
+      :cancel-download="browserCollectionsController.cancelDownload"
+      :clear-finished="browserCollectionsController.clearFinishedDownloads"
+      :show-in-folder="browserCollectionsController.revealDownload"
+    />
+    <BookmarksPanel
+      ref="bookmarksPanel"
+      v-model:open="bookmarksOpen"
+      v-model:bookmarks="bookmarks"
+      v-model:dock="panelDock"
+      :active-url="activeWebUrl"
+      :active-title="activeTab?.title ?? ''"
+      :current-bookmark="currentBookmark"
+      :list-bookmarks="browserCollectionsController.refreshBookmarks"
+      :add-bookmark="browserCollectionsController.addBookmark"
+      :rename-bookmark="browserCollectionsController.renameBookmark"
+      :remove-bookmark="browserCollectionsController.removeBookmark"
+      :open-bookmark="openBookmark"
+    />
+    <HistoryPanel
+      ref="historyPanel"
+      v-model:open="historyOpen"
+      v-model:entries="visitHistory"
+      :format-date-time="localDateTime"
+      :format-number="localNumber"
+      :list-history="browserCollectionsController.refreshHistory"
+      :remove-history-entry="browserCollectionsController.removeHistoryEntry"
+      :clear-history="browserCollectionsController.clearHistory"
+      :open-history-entry="openHistoryEntry"
+    />
+    <SiteStoragePanel
+      ref="siteStoragePanel"
+      v-model:open="siteStorageOpen"
+      v-model:dock="panelDock"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :copy-text="copyAppText"
+      :keeps-separate-panel-open="keepsSeparatePanelOpen"
+    />
+    <WorkspaceEditor
+      ref="workspaceEditor"
+      v-model:open="workspaceEditorOpen"
+      :state="state"
+      :sync-state="syncState"
+      :format-number="localNumber"
+    />
+    <CredentialPicker
+      ref="credentialPicker"
+      v-model:open="credentialPickerOpen"
+      :credentials="credentials"
+      :origin="activeOrigin"
+      :fill-credential="fillSelectedCredential"
+    />
+    <CommandPalette
+      ref="commandPalette"
+      v-model:open="commandPaletteOpen"
+      :website-available="Boolean(activeTab && !activeIsHome)"
+      :format-number="localNumber"
+      :run-command="runCommandPaletteCommand"
+      :report-command-error="reportShellActionError"
+    />
+    <SettingsDialog
+      :controller="settingsDialogController"
+      :search-controller="searchSettingsController"
+      :download-controller="downloadSettingsController"
+      :performance-controller="performanceSettingsController"
+      :mcp-controller="mcpSettingsController"
+      :privacy-controller="privacySettingsController"
+      :permissions-controller="sitePermissionsController"
+      :credentials-controller="credentialsController"
+      :update-controller="updateSettingsController"
+      :support-controller="commercialLicenseController"
+      :format-bytes="formatBytes"
+      :format-number="localNumber"
+      :format-date-time="localDateTime"
+      :test-sound="testAttentionSound"
+      :report-setting-error="handleExtractedSettingError"
+      :open-url="openSupport"
+    />
+    <HelpDialog
+      :controller="helpDialogController"
+      :shortcuts="keyboardShortcuts"
+      :current-version="updateState.currentVersion"
+      :open-url="openSupport"
+      :open-support-settings="openSupportSettings"
+      :report-layout="reportShellHeight"
+    />
+    <div
+      v-if="detachedPanelUnavailable"
+      class="detached-panel-unavailable-state"
+      role="dialog"
+      aria-modal="false"
+      :aria-label="detachedPanelLabelText"
+    >
+      <header>
+        <span>
+          <small>{{ t('panels.websiteRequired') }}</small>
+          <strong>{{ detachedPanelLabelText }}</strong>
+        </span>
+        <div class="panel-header-actions">
+          <PanelDockPicker v-model="panelDock" :label="t('panels.dockPanel')" />
+          <button class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: detachedPanelLabelText })" @click="closeDockedPanels"><IconClose aria-hidden="true" /></button>
+        </div>
+      </header>
+      <div>
+        <span aria-hidden="true"><IconLanguage /></span>
+        <h2>{{ t('panels.openWebsite') }}</h2>
+        <p>{{ t('panels.openWebsiteDescription') }}</p>
+      </div>
+    </div>
+    <div
+      v-if="dockedPanelOpen && panelDock !== 'window'"
+      class="panel-resize-handle"
+      :class="{ active: panelResizeGesture !== null }"
+      role="separator"
+      :aria-orientation="panelDock === 'right' || panelDock === 'left' ? 'vertical' : 'horizontal'"
+      :aria-label="t('panels.resize')"
+      :aria-valuemin="panelDockMinimumSize()"
+      :aria-valuemax="panelDockMaximumSize()"
+      :aria-valuenow="panelDockSize"
+      tabindex="0"
+      :title="t('panels.resizeHelp')"
+      @pointerdown="startPanelResize"
+      @keydown="resizePanelWithKeyboard"
+      @dblclick="resetPanelDockSize"
+    />
+  </header>
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" />
+</template>

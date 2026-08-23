@@ -1,0 +1,30 @@
+import { describe, expect, it, vi } from 'vitest'
+import { useHelpDialogController } from '../../src/renderer/src/composables/useHelpDialogController.js'
+
+describe('help dialog controller', () => {
+  it('opens either help view and runs shell cleanup first', () => {
+    const beforeOpen = vi.fn()
+    const controller = useHelpDialogController({ beforeOpen })
+
+    controller.openDialog('shortcuts')
+    expect(controller.dialog.value).toBe('shortcuts')
+    expect(controller.open.value).toBe(true)
+    controller.openDialog('about')
+
+    expect(controller.dialog.value).toBe('about')
+    expect(beforeOpen).toHaveBeenCalledTimes(2)
+    controller.dispose()
+    expect(controller.open.value).toBe(false)
+  })
+
+  it('closes idempotently', () => {
+    const controller = useHelpDialogController({ beforeOpen: vi.fn() })
+    controller.openDialog('about')
+
+    controller.close()
+    controller.close()
+
+    expect(controller.dialog.value).toBeNull()
+    controller.dispose()
+  })
+})

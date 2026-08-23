@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+import ctypes
+import sys
+import time
+
+
+def main() -> None:
+    if len(sys.argv) != 4:
+        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key>")
+
+    x = int(sys.argv[1])
+    y = int(sys.argv[2])
+    key = sys.argv[3]
+    x11 = ctypes.cdll.LoadLibrary("libX11.so.6")
+    xtst = ctypes.cdll.LoadLibrary("libXtst.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    display = x11.XOpenDisplay(None)
+    if not display:
+        raise SystemExit("could not open the X11 display")
+
+    try:
+        x11.XFlush.argtypes = [ctypes.c_void_p]
+        x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
+        x11.XStringToKeysym.restype = ctypes.c_ulong
+        x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+        x11.XKeysymToKeycode.restype = ctypes.c_uint
+        xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+        xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        keysym = x11.XStringToKeysym(key.encode("ascii"))
+        keycode = x11.XKeysymToKeycode(display, keysym)
+        if not keycode:
+            raise SystemExit(f"could not resolve X11 key: {key}")
+
+        xtst.XTestFakeKeyEvent(display, keycode, True, 0)
+        xtst.XTestFakeKeyEvent(display, keycode, False, 0)
+        x11.XFlush(display)
+        time.sleep(0.05)
+
+        xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+        xtst.XTestFakeButtonEvent(display, 1, True, 0)
+        xtst.XTestFakeButtonEvent(display, 1, False, 0)
+        x11.XFlush(display)
+        time.sleep(0.05)
+
+        for _ in range(3):
+            xtst.XTestFakeButtonEvent(display, 5, True, 0)
+            xtst.XTestFakeButtonEvent(display, 5, False, 0)
+        x11.XFlush(display)
+    finally:
+        x11.XCloseDisplay(display)
+
+
+if __name__ == "__main__":
+    main()
