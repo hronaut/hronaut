@@ -175,6 +175,73 @@ describe('BrowserTabsBar', () => {
     expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
   })
 
+  it('uses one tab stop and manually activates workspace tabs after arrow-key navigation', async () => {
+    const first = tab('first')
+    const second = tab('second', { active: true })
+    const third = tab('third')
+    const view = renderTabs(browserState({
+      tabs: [first, second, third],
+      activeTabId: second.id
+    }))
+    const user = userEvent.setup()
+    const firstControl = screen.getByRole('tab', { name: 'Page first' })
+    const secondControl = screen.getByRole('tab', { name: 'Page second' })
+    const thirdControl = screen.getByRole('tab', { name: 'Page third' })
+
+    expect(firstControl).toHaveAttribute('tabindex', '-1')
+    expect(secondControl).toHaveAttribute('tabindex', '0')
+    expect(thirdControl).toHaveAttribute('tabindex', '-1')
+
+    secondControl.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(thirdControl).toHaveFocus()
+    expect(thirdControl).toHaveAttribute('tabindex', '0')
+    expect(secondControl).toHaveAttribute('tabindex', '-1')
+    expect(view.emitted().selectTab).toBeUndefined()
+
+    await user.keyboard('{ArrowRight}')
+    expect(firstControl).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(thirdControl).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(firstControl).toHaveFocus()
+
+    await user.keyboard('{Enter}')
+    expect(view.emitted().selectTab).toEqual([['first']])
+  })
+
+  it('skips collapsed workspace tabs during keyboard navigation and includes them after expansion', async () => {
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-2']))
+    const firstWorkspace = workspace('workspace-1')
+    const secondWorkspace = { ...workspace('workspace-2'), name: 'Hidden QA' }
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    const hidden = tab('hidden', {
+      mcpGroupId: secondWorkspace.id,
+      mcpGroupName: secondWorkspace.name
+    })
+    renderTabs(browserState({
+      tabs: [first, second, hidden],
+      activeTabId: first.id,
+      mcpTabGroups: [firstWorkspace, secondWorkspace]
+    }))
+    const user = userEvent.setup()
+    const firstControl = screen.getByRole('tab', { name: 'Page first' })
+    const secondControl = screen.getByRole('tab', { name: 'Page second' })
+
+    firstControl.focus()
+    await user.keyboard('{ArrowLeft}')
+    expect(secondControl).toHaveFocus()
+    expect(screen.queryByRole('tab', { name: 'Page hidden' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Expand workspace Hidden QA, 1 tab' }))
+    const previouslyHidden = screen.getByRole('tab', { name: 'Page hidden' })
+    secondControl.focus()
+    await user.keyboard('{ArrowRight}')
+    expect(previouslyHidden).toHaveFocus()
+    expect(previouslyHidden).toHaveAttribute('aria-selected', 'false')
+  })
+
   it('emits midpoint-aware reorder requests but keeps pinned boundaries intact', async () => {
     const first = tab('first')
     const second = tab('second')

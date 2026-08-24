@@ -145,6 +145,25 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })).toBe(true)
   await expect(previousTabs).toBeVisible()
   await expect(previousTabs).toBeEnabled()
+
+  const firstTab = appWindow.getByRole('tab', { name: /^Overflow tab 1 —/ })
+  const lastTab = appWindow.getByRole('tab', { name: /^Overflow tab 12 —/ })
+  const previousTab = appWindow.getByRole('tab', { name: /^Overflow tab 11 —/ })
+  await lastTab.focus()
+  await lastTab.press('Home')
+  await expect(firstTab).toBeFocused()
+  expect(await appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId)`)).toBe(lastTabId)
+
+  await firstTab.press('End')
+  await expect(lastTab).toBeFocused()
+  await lastTab.press('ArrowLeft')
+  await expect(previousTab).toBeFocused()
+  await expect(previousTab).toHaveAttribute('tabindex', '0')
+  await expect(appWindow.locator('.tab[tabindex="0"]')).toHaveCount(1)
+  expect(await appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId)`)).toBe(lastTabId)
+
+  await previousTab.press('Enter')
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)`)).toBe('Overflow tab 11')
 })
 
 test('does not offer or attempt tab reordering across workspace boundaries', async ({ appWindow }) => {

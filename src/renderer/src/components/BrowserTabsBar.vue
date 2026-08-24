@@ -48,6 +48,7 @@ const { t } = useI18n({ useScope: 'global' })
 const homeTab = computed(() => props.state.tabs.find((tab) => tab.url.startsWith('hronaut://home')))
 const regularTabs = computed(() => props.state.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
 const collapsedTabGroupIds = ref(new Set<string>(loadCollapsedTabGroupIds()))
+const focusedTabId = ref<string | null>(null)
 const draggedTabId = ref<string | null>(null)
 const tabDropTargetId = ref<string | null>(null)
 const tabDropPlacement = ref<'before' | 'after' | null>(null)
@@ -120,6 +121,50 @@ function tabGroupContainsActiveTab(groupId: string): boolean {
 
 function isTabGroupCollapsed(groupId: string): boolean {
   return collapsedTabGroupIds.value.has(groupId)
+}
+
+const visibleTabs = computed(() => props.state.mcpTabGroups.flatMap((group) => (
+  isTabGroupCollapsed(group.id) ? [] : tabGroupTabs(group.id)
+)))
+const keyboardTabId = computed(() => {
+  const visibleIds = new Set(visibleTabs.value.map((tab) => tab.id))
+  if (focusedTabId.value && visibleIds.has(focusedTabId.value)) return focusedTabId.value
+  if (props.state.activeTabId && visibleIds.has(props.state.activeTabId)) return props.state.activeTabId
+  return visibleTabs.value[0]?.id ?? null
+})
+
+function tabKeyboardIndex(tab: BrowserTabState): 0 | -1 {
+  return keyboardTabId.value === tab.id ? 0 : -1
+}
+
+function tabControl(tabId: string): HTMLElement | undefined {
+  return [...(tabsStrip.value?.querySelectorAll<HTMLElement>('[data-tab-id]') ?? [])]
+    .find((element) => element.dataset.tabId === tabId)
+}
+
+function focusTab(tabId: string): void {
+  focusedTabId.value = tabId
+  void nextTick(() => {
+    const control = tabControl(tabId)
+    control?.focus({ preventScroll: true })
+    if (typeof control?.scrollIntoView === 'function') {
+      control.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+  })
+}
+
+function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
+  const tabs = visibleTabs.value
+  const currentIndex = tabs.findIndex((candidate) => candidate.id === tab.id)
+  if (currentIndex < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const targetIndex = event.key === 'Home'
+    ? 0
+    : event.key === 'End'
+      ? tabs.length - 1
+      : (currentIndex + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length
+  const target = tabs[targetIndex]
+  if (target) focusTab(target.id)
 }
 
 function persistCollapsedTabGroups(): void {
@@ -224,7 +269,9 @@ watch(
 
 watch(
   () => props.state.activeTabId,
-  async () => {
+  async (activeTabId) => {
+    const tab = visibleTabs.value.find((candidate) => candidate.id === activeTabId)
+    if (tab) focusedTabId.value = tab.id
     await nextTick()
     revealActiveTab()
   }
@@ -232,6 +279,9 @@ watch(
 
 onMounted(async () => {
   await nextTick()
+  const active = visibleTabs.value.find((tab) => tab.id === props.state.activeTabId)
+  if (active) focusedTabId.value = active.id
+  revealActiveTab()
   updateTabOverflow()
   if (typeof ResizeObserver !== 'undefined' && tabsStrip.value) {
     tabsStripResizeObserver = new ResizeObserver(updateTabOverflow)
@@ -243,10 +293,14 @@ onBeforeUnmount(() => tabsStripResizeObserver?.disconnect())
 
 watch(
   [() => props.hydrated, () => props.state.activeTabId],
-  ([hydrated, activeTabId], [wasHydrated, previousActiveTabId]) => {
+  async ([hydrated, activeTabId], [wasHydrated, previousActiveTabId]) => {
     if (!hydrated || !wasHydrated || activeTabId === previousActiveTabId) return
     const tab = props.state.tabs.find((candidate) => candidate.id === activeTabId)
-    if (tab) expandTabGroupForTab(tab)
+    if (!tab) return
+    expandTabGroupForTab(tab)
+    focusedTabId.value = tab.id
+    await nextTick()
+    revealActiveTab()
   }
 )
 
@@ -338,9 +392,13 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           :aria-label="tabTooltip(tab)"
           type="button"
           role="tab"
+          :tabindex="tabKeyboardIndex(tab)"
+          :data-tab-id="tab.id"
           draggable="true"
           :aria-selected="tab.active"
           :data-active-tab="tab.active ? 'true' : undefined"
+          @focus="focusedTabId = tab.id"
+          @keydown="handleTabKeyDown($event, tab)"
           @click="emit('selectTab', tab.id)"
           @contextmenu.prevent="emit('showTabContextMenu', tab.id)"
           @dragstart="beginTabDrag($event, tab)"
