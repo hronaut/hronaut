@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-08-24
+
 ### Changed
 
 - Split Privacy Settings shell orchestration out of `App.vue` into a focused controller.
