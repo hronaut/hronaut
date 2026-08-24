@@ -36,6 +36,18 @@ describe('release quality gates', () => {
     }
   })
 
+  it('gives each published release a factual demo, download, setup, and license path', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+
+    expect(workflow).toContain("echo '## Start here'")
+    expect(workflow).toContain('https://hronaut.dev/#demo')
+    expect(workflow).toContain('https://hronaut.dev/download')
+    expect(workflow).toContain('https://hronaut.dev/setup')
+    expect(workflow).toContain('PolyForm Noncommercial 1.0.0')
+    expect(workflow.indexOf('<!-- unsigned-release-warning -->')).toBeLessThan(workflow.indexOf("echo '## Start here'"))
+    expect(workflow.indexOf("echo '## Start here'")).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))
+  })
+
   it('retains bounded Playwright diagnostics when Docker integration fails', async () => {
     const [ciWorkflow, releaseWorkflow, runner, playwright] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),

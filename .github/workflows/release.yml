@@ -377,6 +377,14 @@ jobs:
             echo '> [!WARNING]'
             echo '> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. Verify downloads with `hashes.txt` and the GitHub artifact attestations.'
             echo
+            echo '## Start here'
+            echo
+            echo '- [Watch the 35-second product demo](https://hronaut.dev/#demo)'
+            echo '- [Choose the right Windows, macOS, or Linux package](https://hronaut.dev/download)'
+            echo '- [Connect Codex, Claude Code, Cursor, Copilot, OpenCode, or another MCP client](https://hronaut.dev/setup)'
+            echo
+            echo 'Hronaut is source-available under [PolyForm Noncommercial 1.0.0](https://github.com/hronaut/hronaut/blob/main/LICENSE). Permitted noncommercial use is free; other use requires an active commercial license.'
+            echo
             echo "## What's changed"
             echo
             cat changelog-notes.md
