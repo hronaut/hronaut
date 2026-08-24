@@ -799,6 +799,56 @@ test('does not open Site Controls underneath Settings after delayed Find cleanup
   }
 })
 
+test('opens Privacy immediately and keeps a newer close authoritative after delayed Find cleanup', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Privacy race fixture</title><main>Find this private content</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Privacy race fixture did not expose a TCP port')
+    const url = `http://127.0.0.1:${address.port}/privacy-race`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
+
+    await electronApp.evaluate(({ ipcMain }) => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedPrivacyFindCleanup?: () => void }
+      ipcMain.removeHandler('browser:stop-find-in-page')
+      ipcMain.handle('browser:stop-find-in-page', () => new Promise<void>(resolve => {
+        mainGlobal.__resolveDelayedPrivacyFindCleanup = resolve
+      }))
+    })
+
+    await appWindow.keyboard.press('Control+Shift+Delete')
+    const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+    await expect(settings).toBeVisible()
+    await expect(settings.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
+    await settings.getByRole('button', { name: 'Close settings' }).click()
+    await expect(settings).toBeHidden()
+
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedPrivacyFindCleanup?: () => void }
+      if (!mainGlobal.__resolveDelayedPrivacyFindCleanup) throw new Error('Delayed Privacy Find cleanup did not start')
+      mainGlobal.__resolveDelayedPrivacyFindCleanup()
+      delete mainGlobal.__resolveDelayedPrivacyFindCleanup
+    })
+
+    await expect(settings).toBeHidden()
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('shows a recoverable site error and retries the failed address', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })

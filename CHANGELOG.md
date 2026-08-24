@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split Privacy Settings shell orchestration out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Open Privacy Settings immediately while Find-in-page cleanup finishes, and keep a newer close, section change, or Privacy request authoritative over delayed cleanup results.
+
 ## [1.2.1] - 2026-08-24
 
 ### Added

@@ -97,6 +97,7 @@ import { useBrowserShortcutController } from './composables/useBrowserShortcutCo
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
+import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -553,6 +554,25 @@ const {
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
 } = addressBarController
+const {
+  open: openPrivacySettings,
+  dispose: disposePrivacySettingsShellController
+} = usePrivacySettingsShellController({
+  settingsOpen,
+  settingsSection,
+  updateNoticeOpen,
+  downloadsOpen,
+  bookmarksOpen,
+  historyOpen,
+  tabSearchOpen,
+  zoomOpen,
+  addressSuggestionsOpen,
+  findOpen,
+  search: janitorSearch,
+  openSection: openSettingsSection,
+  closeSettings,
+  closeFind
+})
 const pageCaptureController = usePageCaptureController({
   activeTab,
   browser,
@@ -1623,19 +1643,6 @@ function openUpdateSettings(): void {
   openSettingsSection('updates')
 }
 
-async function openPrivacySettings(origin?: string): Promise<void> {
-  updateNoticeOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  zoomOpen.value = false
-  addressSuggestionsOpen.value = false
-  if (findOpen.value) await closeFind()
-  janitorSearch.value = origin ?? ''
-  openSettingsSection('privacy')
-}
-
 async function openSupport(url: string): Promise<void> {
   closeHelpDialog()
   closeSettings()
@@ -1853,6 +1860,7 @@ onBeforeUnmount(() => {
   disposeSearchSettingsController()
   disposeHelpDialogController()
   disposeSettingsDialogController()
+  disposePrivacySettingsShellController()
   disposeSiteControlsShellController()
   disposeUpdateSettingsController()
   disposeCommercialLicenseController()
