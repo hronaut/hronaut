@@ -4,6 +4,12 @@ Hronaut is a visible, persistent Electron browser that exposes its live tabs to 
 
 [Website](https://hronaut.dev) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
+## See Hronaut in action
+
+[![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
+
+Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
+
 ## Highlights
 
 - Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.

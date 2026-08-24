@@ -20,6 +20,7 @@
     "start": "electron-vite preview",
     "build": "npm run typecheck && electron-vite build",
     "build:website": "vite build --config vite.website.config.ts",
+    "capture:marketing": "node scripts/capture-marketing-assets.ts",
     "preview:website": "vite preview --config vite.website.config.ts",
     "postinstall": "node node_modules/electron/install.js && electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir --config.electronDist=node_modules/electron/dist",
