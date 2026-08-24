@@ -102,6 +102,7 @@ import { useFindTransitionController } from './composables/useFindTransitionCont
 import { useFindShellController } from './composables/useFindShellController'
 import { useTransientPanelsController } from './composables/useTransientPanelsController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
+import { useTabSearchShellController } from './composables/useTabSearchShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -775,6 +776,14 @@ const { open: openFind } = useFindShellController({
   closeTransientPanels: transientPanelsController.close,
   openForTab: async (tab) => findBar.value?.openForTab(tab)
 })
+const { toggle: toggleTabSearch } = useTabSearchShellController({
+  open: tabSearchOpen,
+  panel: tabSearchPanel,
+  settingsOpen,
+  bookmarksOpen,
+  splitMenuOpen,
+  closeTransientPanels: transientPanelsController.close
+})
 if (detachedPanelId) activatePanel(detachedPanelId)
 const {
   syncingMainPanelState,
@@ -1154,23 +1163,6 @@ function closeWorkspaceEditor(): void {
 
 async function openHistoryEntry(entry: BrowserHistoryEntry): Promise<void> {
   await syncState(browser.newTab({ url: entry.url, active: true }))
-}
-
-async function toggleTabSearch(): Promise<void> {
-  if (tabSearchOpen.value) {
-    tabSearchPanel.value?.close()
-    tabSearchOpen.value = false
-    return
-  }
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  zoomOpen.value = false
-  const stopFind = findOpen.value ? closeFind() : undefined
-  await tabSearchPanel.value?.openPanel()
-  await stopFind
 }
 
 function reportShellActionError(error: unknown): void {

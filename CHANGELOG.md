@@ -11,10 +11,12 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Split Find-in-page shell orchestration out of `App.vue` into a focused controller.
+- Split Tab Search shell orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
 - Close the Split View menu and other competing surfaces when Find-in-page opens instead of stacking controls over the page.
+- Close the Split View menu and other competing surfaces when Tab Search opens instead of stacking side panels over the page.
 - Fail `textGone` waits when the renderer cannot verify page text before the deadline instead of reporting unobserved absence as success.
 
 ## [1.3.0] - 2026-08-24
