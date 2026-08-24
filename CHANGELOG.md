@@ -4,8 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add verified OpenCode MCP setup to Hronaut Home, the README, and the public setup guide, including global/project paths and connection diagnostics.
+
 ### Fixed
 
+- Generate authenticated OpenCode headers with its token-file substitution instead of asking people to paste the owner token into JSON.
+- Show the Hronaut “H” mark on Home instead of the stale pre-rename “B”.
 - Document the canonical Cloudflare Pages storefront repository instead of a nonexistent GitHub Pages workflow in the desktop repository.
 
 ## [1.2.0] - 2026-08-24

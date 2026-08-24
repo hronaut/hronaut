@@ -47,6 +47,11 @@ function agentGuides(
     : ''
   const tokenPlaceholder = tokenPath ? `<paste token from ${tokenPath}>` : '<HRONAUT_MCP_TOKEN>'
   const headers = authenticationDisabled ? undefined : { Authorization: `Bearer ${tokenPlaceholder}` }
+  const openCodeHeaders = authenticationDisabled
+    ? undefined
+    : tokenPath
+      ? { Authorization: `Bearer {file:${tokenPath}}` }
+      : headers
   return [
     {
       id: 'codex',
@@ -84,7 +89,7 @@ function agentGuides(
       id: 'opencode',
       name: 'OpenCode',
       note: home.connect.guides.opencode,
-      location: 'opencode.json',
+      location: '~/.config/opencode/opencode.json',
       code: JSON.stringify({
         $schema: 'https://opencode.ai/config.json',
         mcp: {
@@ -93,7 +98,7 @@ function agentGuides(
             url: endpoint,
             enabled: true,
             oauth: false,
-            ...(headers && { headers })
+            ...(openCodeHeaders && { headers: openCodeHeaders })
           }
         }
       }, null, 2)
@@ -268,7 +273,7 @@ export function renderHomePage(options: HomePageOptions): string {
   <main class="page">
     <section class="hero">
       <div>
-        <div class="brand"><span class="mark">B</span> ${escapeHtml(home.brand)}</div>
+        <div class="brand"><span class="mark">H</span> ${escapeHtml(home.brand)}</div>
         <h1>${escapeHtml(home.hero)}</h1>
         <p class="lead">${escapeHtml(home.lead)}</p>
       </div>

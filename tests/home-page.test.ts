@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { renderHomePage } from '../src/main/home-page.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
 
+interface RenderedGuide {
+  id: string
+  location: string
+  code: string
+}
+
+function renderedGuides(html: string): RenderedGuide[] {
+  const source = html.match(/const guides = (.+);\n {4}const messages =/)?.[1]
+  if (!source) throw new Error('Hronaut Home did not serialize its MCP client guides')
+  return JSON.parse(source) as RenderedGuide[]
+}
+
 const dashboard: McpDashboardState = {
   name: 'hronaut',
   version: '1.6.9',
@@ -24,10 +36,22 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('"id":"opencode"')
-    expect(html).toContain('\\"type\\": \\"remote\\"')
-    expect(html).toContain('\\"url\\": \\"http://127.0.0.1:47812/mcp\\"')
-    expect(html).toContain('\\"oauth\\": false')
+    expect(html).toContain('<span class="mark">H</span> Hronaut')
+    const openCode = renderedGuides(html).find((guide) => guide.id === 'opencode')
+    expect(openCode).toBeDefined()
+    expect(openCode?.location).toBe('~/.config/opencode/opencode.json')
+    expect(JSON.parse(openCode?.code ?? '{}')).toEqual({
+      $schema: 'https://opencode.ai/config.json',
+      mcp: {
+        hronaut: {
+          type: 'remote',
+          url: dashboard.endpoint,
+          enabled: true,
+          oauth: false,
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
+        }
+      }
+    })
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -46,5 +70,11 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain(tokenPath)
     expect(html).not.toContain('secret-token-value')
     expect(html).toContain('Bearer \\u003cpaste token from /tmp/hronaut-owner-token>')
+    const openCode = renderedGuides(html).find((guide) => guide.id === 'opencode')
+    const openCodeConfig = JSON.parse(openCode?.code ?? '{}') as {
+      mcp?: { hronaut?: { headers?: { Authorization?: string } } }
+    }
+    expect(openCodeConfig.mcp?.hronaut?.headers?.Authorization).toBe('Bearer {file:/tmp/hronaut-owner-token}')
+    expect(openCode?.code).not.toContain('<paste token')
   })
 })
