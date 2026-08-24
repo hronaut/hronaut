@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split shared transient-panel closing policy out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Close Find-in-page immediately when Page Tools or another transient panel opens, while completing browser-side Find cleanup in the background.
+
 ## [1.2.2] - 2026-08-24
 
 ### Changed

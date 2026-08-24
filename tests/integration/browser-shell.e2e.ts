@@ -748,6 +748,35 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
   }
 })
 
+test('closes Find when Page Tools opens', async ({ appWindow }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Page tools transition fixture</title><main>Find this content</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Page Tools transition fixture did not expose a TCP port')
+    const url = `http://127.0.0.1:${address.port}/page-tools-transition`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+
+    const find = appWindow.getByRole('search', { name: 'Find in page' })
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(find).toBeVisible()
+
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    await expect(appWindow.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
+    await expect(find).toBeHidden()
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('does not open Site Controls underneath Settings after delayed Find cleanup', async ({
   appWindow,
   electronApp

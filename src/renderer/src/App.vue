@@ -99,6 +99,7 @@ import { useBrowserCollectionsShellController } from './composables/useBrowserCo
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
+import { useTransientPanelsController } from './composables/useTransientPanelsController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -739,6 +740,19 @@ const {
   closeAll: closeDockedPanels,
   activate: activatePanel
 } = panelRegistryController
+const transientPanelsController = useTransientPanelsController({
+  shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
+  closeDockedPanels,
+  addressSuggestionsOpen,
+  zoomOpen,
+  downloadsOpen,
+  historyOpen,
+  tabSearchOpen,
+  updateNoticeOpen,
+  findOpen,
+  closeFind,
+  onError: reportShellActionError
+})
 if (detachedPanelId) activatePanel(detachedPanelId)
 const {
   syncingMainPanelState,
@@ -1684,13 +1698,7 @@ async function showDetachedPanel(panel: DetachablePanelId): Promise<void> {
 }
 
 function closeTransientPanels(): void {
-  if (isDetachedPanelWindow || panelDock.value !== 'window') closeDockedPanels()
-  addressSuggestionsOpen.value = false
-  zoomOpen.value = false
-  downloadsOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  updateNoticeOpen.value = false
+  transientPanelsController.close()
 }
 
 function togglePageTools(): void {
