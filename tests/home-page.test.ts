@@ -6,6 +6,7 @@ interface RenderedGuide {
   id: string
   location: string
   code: string
+  verifyCommand?: string
 }
 
 function renderedGuides(html: string): RenderedGuide[] {
@@ -40,6 +41,8 @@ describe('Hronaut Home localization', () => {
     const openCode = renderedGuides(html).find((guide) => guide.id === 'opencode')
     expect(openCode).toBeDefined()
     expect(openCode?.location).toBe('~/.config/opencode/opencode.json')
+    expect(openCode?.verifyCommand).toBe('opencode mcp list')
+    expect(html).toContain('Verify connection')
     expect(JSON.parse(openCode?.code ?? '{}')).toEqual({
       $schema: 'https://opencode.ai/config.json',
       mcp: {

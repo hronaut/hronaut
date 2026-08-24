@@ -2530,6 +2530,7 @@ export const frFR = {
       "agentsLabel": "Agents de programmation",
       "instructions": "Instructions de configuration",
       "copy": "Copier",
+      "verify": "Vérifier la connexion",
       "guides": {
         "codex": "Ajoute Hronaut à votre configuration Codex au niveau utilisateur.",
         "claudeCode": "Utilise le transport HTTP diffusé recommandé pour chaque projet.",

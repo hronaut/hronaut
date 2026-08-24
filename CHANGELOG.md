@@ -90,6 +90,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Split address-focus and new-tab shell orchestration out of `App.vue` into focused navigation controllers.
 - Split Site Storage shell orchestration out of `App.vue` into a focused controller.
+- Show OpenCode's `opencode mcp list` connection check directly beside its Hronaut Home setup.
 
 ### Fixed
 

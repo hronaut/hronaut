@@ -4593,19 +4593,26 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   const homeContent = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
-    return home.executeJavaScript(`({
-      heading: document.querySelector('h1')?.textContent,
-      agents: [...document.querySelectorAll('[data-guide]')].map((node) => node.textContent),
-      tools: document.querySelectorAll('.tool').length,
-      activeCount: document.getElementById('active-count')?.textContent,
-      requestCount: document.getElementById('request-count')?.textContent
-    })`)
-  }) as { heading: string; agents: string[]; tools: number; activeCount: string; requestCount: string }
+    return home.executeJavaScript(`(() => {
+      document.querySelector('[data-guide="opencode"]')?.click();
+      return {
+        heading: document.querySelector('h1')?.textContent,
+        agents: [...document.querySelectorAll('[data-guide]')].map((node) => node.textContent),
+        tools: document.querySelectorAll('.tool').length,
+        activeCount: document.getElementById('active-count')?.textContent,
+        requestCount: document.getElementById('request-count')?.textContent,
+        verifyCommand: document.getElementById('guide-verify-command')?.textContent,
+        verifyHidden: document.getElementById('guide-verify')?.hidden
+      };
+    })()`)
+  }) as { heading: string; agents: string[]; tools: number; activeCount: string; requestCount: string; verifyCommand: string; verifyHidden: boolean }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
   expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
+  expect(homeContent.verifyCommand).toBe('opencode mcp list')
+  expect(homeContent.verifyHidden).toBe(false)
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

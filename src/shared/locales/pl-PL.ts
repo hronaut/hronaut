@@ -2530,6 +2530,7 @@ export const plPL = {
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
+      "verify": "Sprawdź połączenie",
       "guides": {
         "codex": "Dodaje Hronaut do konfiguracji Codex na poziomie użytkownika.",
         "claudeCode": "Używa zalecanego transportu strumieniowego HTTP dla każdego projektu.",

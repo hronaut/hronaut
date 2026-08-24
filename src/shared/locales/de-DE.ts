@@ -2530,6 +2530,7 @@ export const deDE = {
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
+      "verify": "Verbindung prüfen",
       "guides": {
         "codex": "Fügt Hronaut Ihrer Codex-Konfiguration auf Benutzerebene hinzu.",
         "claudeCode": "Verwendet für jedes Projekt den empfohlenen Streamable-HTTP-Transport.",

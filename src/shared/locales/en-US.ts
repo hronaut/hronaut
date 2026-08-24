@@ -298,6 +298,7 @@ export const enUS = {
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
+      verify: 'Verify connection',
       guides: {
         codex: 'Adds Hronaut to your user-level Codex configuration.',
         claudeCode: 'Uses the recommended Streamable HTTP transport for every project.',

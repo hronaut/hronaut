@@ -16,6 +16,7 @@ interface AgentGuide {
   note: string
   location: string
   code: string
+  verifyCommand?: string
 }
 
 function escapeHtml(value: string): string {
@@ -101,7 +102,8 @@ function agentGuides(
             ...(openCodeHeaders && { headers: openCodeHeaders })
           }
         }
-      }, null, 2)
+      }, null, 2),
+      verifyCommand: 'opencode mcp list'
     },
     {
       id: 'generic',
@@ -206,6 +208,11 @@ export function renderHomePage(options: HomePageOptions): string {
     pre { min-height: 126px; margin: 0; padding: 19px 54px 19px 18px; overflow: auto; border-radius: 12px; color: var(--code-text); background: var(--code); font: 12px/1.7 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
     .code-copy { position: absolute; top: 10px; right: 10px; border-color: rgba(255,255,255,.16); color: #f4f4f8; background: rgba(255,255,255,.08); }
     .security { margin: 13px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .verify { display: flex; align-items: center; gap: 9px; margin-top: 12px; }
+    .verify[hidden] { display: none; }
+    .verify-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 750; }
+    .verify code { min-width: 0; flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--soft); font: 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .verify .copy-button { padding: 7px 10px; }
     .connections-body { min-height: 360px; padding: 10px 14px 14px; }
     .empty { display: grid; min-height: 250px; place-items: center; padding: 30px; color: var(--muted); text-align: center; }
     .empty strong { display: block; color: var(--text); font-size: 15px; }
@@ -307,6 +314,11 @@ export function renderHomePage(options: HomePageOptions): string {
               <pre><code id="guide-code"></code></pre>
               <button class="copy-button code-copy" type="button" data-copy-target="guide-code">${escapeHtml(home.connect.copy)}</button>
             </div>
+            <div id="guide-verify" class="verify" hidden>
+              <span class="verify-label">${escapeHtml(home.connect.verify)}</span>
+              <code id="guide-verify-command"></code>
+              <button class="copy-button" type="button" data-copy-target="guide-verify-command">${escapeHtml(home.connect.copy)}</button>
+            </div>
             <p class="security">${escapeHtml(securityNote)}</p>
           </div>
         </div>
@@ -405,6 +417,10 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('guide-note').textContent = guide.note;
       document.getElementById('guide-location').textContent = guide.location;
       document.getElementById('guide-code').textContent = guide.code;
+      const verify = document.getElementById('guide-verify');
+      const verifyCommand = document.getElementById('guide-verify-command');
+      verify.hidden = !guide.verifyCommand;
+      verifyCommand.textContent = guide.verifyCommand || '';
       document.querySelectorAll('[data-guide]').forEach((button) => button.addEventListener('click', () => {
         selectedGuide = button.dataset.guide;
         renderGuide();
