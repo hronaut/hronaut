@@ -24,6 +24,10 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
+    expect(html).toContain('"id":"opencode"')
+    expect(html).toContain('\\"type\\": \\"remote\\"')
+    expect(html).toContain('\\"url\\": \\"http://127.0.0.1:47812/mcp\\"')
+    expect(html).toContain('\\"oauth\\": false')
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -41,5 +45,6 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('Автентифікація обов’язкова')
     expect(html).toContain(tokenPath)
     expect(html).not.toContain('secret-token-value')
+    expect(html).toContain('Bearer \\u003cpaste token from /tmp/hronaut-owner-token>')
   })
 })

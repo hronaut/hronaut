@@ -288,7 +288,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '5 clients',
+      clients: '6 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -297,6 +297,7 @@ export const enUS = {
         claudeCode: 'Uses the recommended Streamable HTTP transport for every project.',
         cursor: 'Save globally, or move the same object to .cursor/mcp.json for one project.',
         vscode: 'Save in the workspace, or use MCP: Open User Configuration for global access.',
+        opencode: 'Adds Hronaut as a remote Streamable HTTP server in OpenCode.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

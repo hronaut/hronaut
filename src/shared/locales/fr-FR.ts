@@ -2515,7 +2515,7 @@ export const frFR = {
     "connect": {
       "heading": "Connectez votre agent de programmation",
       "description": "Choisissez un client, copiez la configuration, puis créez un espace de travail nommé avant de naviguer.",
-      "clients": "5 clients",
+      "clients": "6 clients",
       "agentsLabel": "Agents de programmation",
       "instructions": "Instructions de configuration",
       "copy": "Copier",
@@ -2524,6 +2524,7 @@ export const frFR = {
         "claudeCode": "Utilise le transport HTTP diffusé recommandé pour chaque projet.",
         "cursor": "Enregistrez globalement ou déplacez le même objet vers .cursor/mcp.json pour un projet.",
         "vscode": "Enregistrez dans l’espace de travail ou utilisez MCP: Open User Configuration pour un accès global.",
+        "opencode": "Ajoute Hronaut à OpenCode comme serveur HTTP diffusé distant.",
         "generic": "Utilisez HTTP diffusé et dirigez le client directement vers Hronaut.",
         "genericLocation": "Paramètres MCP du client"
       }

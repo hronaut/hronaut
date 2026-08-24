@@ -2515,7 +2515,7 @@ export const deDE = {
     "connect": {
       "heading": "Coding-Agenten verbinden",
       "description": "Wählen Sie einen Client, kopieren Sie die Einrichtung und erstellen Sie vor dem Surfen einen benannten Arbeitsbereich.",
-      "clients": "5 Clients",
+      "clients": "6 Clients",
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
@@ -2524,6 +2524,7 @@ export const deDE = {
         "claudeCode": "Verwendet für jedes Projekt den empfohlenen Streamable-HTTP-Transport.",
         "cursor": "Global speichern oder dasselbe Objekt für ein Projekt nach .cursor/mcp.json verschieben.",
         "vscode": "Im Arbeitsbereich speichern oder für globalen Zugriff MCP: Open User Configuration verwenden.",
+        "opencode": "Fügt Hronaut in OpenCode als Remote-Streamable-HTTP-Server hinzu.",
         "generic": "Streamable HTTP verwenden und den Client direkt auf Hronaut verweisen.",
         "genericLocation": "MCP-Einstellungen des Clients"
       }

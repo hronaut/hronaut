@@ -81,6 +81,24 @@ function agentGuides(
       code: JSON.stringify({ servers: { hronaut: { type: 'http', url: endpoint, ...(headers && { headers }) } } }, null, 2)
     },
     {
+      id: 'opencode',
+      name: 'OpenCode',
+      note: home.connect.guides.opencode,
+      location: 'opencode.json',
+      code: JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        mcp: {
+          hronaut: {
+            type: 'remote',
+            url: endpoint,
+            enabled: true,
+            oauth: false,
+            ...(headers && { headers })
+          }
+        }
+      }, null, 2)
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,
