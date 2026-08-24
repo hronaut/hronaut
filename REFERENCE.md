@@ -429,11 +429,11 @@ The Docker runner is defined once in `compose.test.ci.yaml`. It pins Microsoft's
 
 The CI workflow runs lint, unit tests, the production build, the Playwright Electron suite, a raw Electron dialog test without a competing automation debugger, and the production dependency audit. Tagged releases repeat lint, unit, build, and dependency-audit validation against the immutable tag before any platform package build starts. Pull requests whose branch name contains `release-` additionally build the complete Linux, macOS, and Windows package sets in a hosted matrix before merge.
 
-## GitHub Pages
+## Product website
 
-The English product website is authored in `website/` with TypeScript behavior and built by Vite. The dedicated Pages workflow builds it from `main`, uploads the generated `docs/` artifact, and deploys it through GitHub Pages. It resolves platform-specific downloads from the latest public GitHub release only after a user clicks a download card.
+The canonical English commercial storefront is authored in the sibling `hronaut-page` repository and deployed to `hronaut.dev` through Cloudflare Pages. Public and non-indexed staging deployments use separate Pages projects, D1 databases, Creem environments, and explicit serialized deploy commands. The `website/` directory in this desktop repository is a lightweight static reference and is not the deployed storefront.
 
-Preview the exact production output locally:
+Build the desktop repository's static reference locally:
 
 ```bash
 npm run build:website
@@ -448,4 +448,4 @@ The release workflow creates one draft release, builds Linux, macOS, and Windows
 
 Current releases are unsigned community builds: the binaries are not platform code-signed and macOS packages are not Apple-notarized. macOS Gatekeeper and Windows SmartScreen may therefore warn before first launch. Build jobs never receive release-write credentials; the final job publishes the completed set and generates GitHub artifact attestations. Verify a downloaded asset with `gh attestation verify <asset> -R hronaut/hronaut`, then compare it with `hashes.txt`.
 
-Dependabot checks npm packages and GitHub Actions weekly and groups related Electron, Vue/Vite, MCP, and TypeScript updates. GitHub Pages deploys independently from the desktop release workflow.
+Dependabot checks npm packages and GitHub Actions weekly and groups related Electron, Vue/Vite, MCP, and TypeScript updates. The Cloudflare Pages storefront deploys independently from the desktop release workflow in `hronaut-page`.
