@@ -278,11 +278,11 @@ For text-first context, choose **Page tools → Copy page snapshot** or search t
 - `browser_request_user_attention`
 - `browser_new_tab`, `browser_select_tab`, `browser_close_tab`, `browser_bookmarks`, `browser_visit_history`, `browser_site_data`, `browser_storage`, `browser_storage_changes`, `browser_storage_usage`, `browser_indexeddb`, `browser_pwa`
 - `browser_navigate`, `browser_history`, `browser_wait`
-- `browser_snapshot`, `browser_element_inspect`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
+- `browser_snapshot`, `browser_find`, `browser_element_inspect`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
 - `browser_select`, `browser_hover`, `browser_drag`, `browser_scroll`, `browser_file_upload`
 - `browser_resize`, `browser_emulate`, `browser_zoom`, `browser_audio`, `browser_screenshot`, `browser_pdf_save`, `browser_accessibility_audit`, `browser_performance`, `browser_design_overview`, `browser_page_metadata`, `browser_security`, `browser_code_coverage`, `browser_cpu_profile`, `browser_memory`, `browser_debug_report`, `browser_repro`, `browser_dom_changes`, `browser_visual_compare`, `browser_issues`, `browser_console`, `browser_diagnostic_logs`, `browser_network`, `browser_network_wait`, `browser_network_search`, `browser_network_request`, `browser_network_replay`, `browser_network_har`, `browser_network_routes`, `browser_downloads`, `browser_evaluate`
 
-The preferred interaction loop is `browser_snapshot` → semantic element ref (`e1`, `e2`, ...) → `browser_element_inspect`, `browser_click`, or `browser_type`. Take a fresh snapshot after navigation or large DOM changes. Snapshots exclude live form values and sanitize URL credentials, fragments, and recognized secret-bearing query values; page-authored headings, labels, and visible text remain available because they are the interaction context.
+The preferred interaction loop is `browser_snapshot` → semantic element ref (`e1`, `e2`, ...) → `browser_element_inspect`, `browser_click`, or `browser_type`. When the target text is already known, use `browser_find` to search the same bounded sanitized snapshot and return only compact matching snippets and refs; this avoids transferring the full page context. Take a fresh snapshot after navigation or large DOM changes. Snapshots exclude live form values and sanitize URL credentials, fragments, and recognized secret-bearing query values; page-authored headings, labels, and visible text remain available because they are the interaction context.
 
 Every MCP browser workflow starts with `browser_workspaces` **create**. The agent must create a fresh, clearly and uniquely named workspace for its task and pass only the UUIDv7 `id` returned by that call as `workspaceId` to every other browser tool. If the same agent later reopens its own archive, it may instead use the fresh `id` returned by `browser_saved_workspaces` **open**. Names are for people and can change; UUIDv7 IDs are the stable MCP identity and survive a rename. Listing workspaces is for awareness and avoiding naming collisions; it never grants permission to resume, rename, recolor, close, or browse another workspace. In particular, agents must never use the human **Default** workspace, which is marked `isDefault: true`. This is deliberately a cooperative contract rather than a session claim or secret: workspace IDs are visible identifiers, and agents are expected to stay inside the workspace they created or reopened from their own archive.
 
@@ -397,6 +397,7 @@ Wallet support is intentionally being designed as a separate security-sensitive 
 Unit tests live in `tests/*.test.ts` and use Vitest. Real-application integration tests live in `tests/integration/*.e2e.ts` and use Playwright's Electron API with reusable fixtures from `tests/integration/fixtures.ts`. Every integration test launches Hronaut with an isolated temporary profile and cleans it up afterward. The suite covers the visible shell, tabs, MCP, Home, themes, site permissions, restart persistence, and updater settings without contacting the live release feed. Application, test, preload, website, and build configuration source is TypeScript.
 
 ```bash
+npm run lint
 npm test
 npm run test:integration
 npm run test:integration:headless
@@ -423,7 +424,7 @@ npm run test:integration:docker
 
 The Docker runner is defined once in `compose.test.ci.yaml`. It pins Microsoft's Playwright `v1.62.1-noble` image to the exact project Playwright version, caches `npm ci` in a separate image layer, uses a private virtual display, removes the container after each run, and never mounts the host display socket or Hronaut profile. Docker startup is slower than local Xvfb, so use the headless command for rapid iteration and Docker for clean release or environment verification. CI runs this same Compose service, and release builds cannot start until it passes against the immutable tag commit.
 
-The CI workflow runs unit tests, the production build, the Playwright Electron suite, a raw Electron dialog test without a competing automation debugger, and the production dependency audit. Pull requests whose branch name contains `release-` additionally build the complete Linux, macOS, and Windows package sets in a hosted matrix before merge.
+The CI workflow runs lint, unit tests, the production build, the Playwright Electron suite, a raw Electron dialog test without a competing automation debugger, and the production dependency audit. Tagged releases repeat lint, unit, build, and dependency-audit validation against the immutable tag before any platform package build starts. Pull requests whose branch name contains `release-` additionally build the complete Linux, macOS, and Windows package sets in a hosted matrix before merge.
 
 ## GitHub Pages
 

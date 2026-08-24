@@ -27,7 +27,7 @@ await client.connect(transport)
 try {
   await useMcpWorkspace(client, 'MCP smoke')
   const tools = await client.listTools()
-  const requiredTools = ['browser_workspaces', 'browser_status', 'browser_new_tab', 'browser_snapshot', 'browser_element_inspect', 'browser_dialog', 'browser_emulate', 'browser_storage', 'browser_memory', 'browser_debug_report', 'browser_network_wait', 'browser_network_search', 'browser_type', 'browser_screenshot']
+  const requiredTools = ['browser_workspaces', 'browser_status', 'browser_new_tab', 'browser_snapshot', 'browser_find', 'browser_element_inspect', 'browser_dialog', 'browser_emulate', 'browser_storage', 'browser_memory', 'browser_debug_report', 'browser_network_wait', 'browser_network_search', 'browser_type', 'browser_screenshot']
   for (const name of requiredTools) {
     if (!tools.tools.some((tool) => tool.name === name)) fail(`Missing MCP tool: ${name}`)
   }
@@ -48,6 +48,12 @@ try {
   const snapshotText = text(snapshot)
   if (!snapshotText.includes('Hronaut MCP Smoke') || !snapshotText.includes('[e1]')) {
     fail(`Unexpected snapshot: ${snapshotText.slice(0, 500)}`)
+  }
+
+  const found = await client.callTool({ name: 'browser_find', arguments: { tabId, query: 'MCP Smoke' } }) as CallToolResult
+  const findResult = JSON.parse(text(found)) as { matches?: Array<{ snippet?: string }> }
+  if (found.isError || !findResult.matches?.some((match) => match.snippet?.includes('Hronaut MCP Smoke'))) {
+    fail(`Unexpected browser_find result: ${text(found).slice(0, 500)}`)
   }
 
   const typed = await client.callTool({
@@ -73,7 +79,7 @@ try {
   const closed = await client.callTool({ name: 'browser_close_tab', arguments: { tabId } }) as CallToolResult
   if (closed.isError) fail(text(closed))
 
-  console.log(`MCP smoke passed: ${tools.tools.length} tools, semantic snapshot, typing, debug report, and PNG screenshot.`)
+  console.log(`MCP smoke passed: ${tools.tools.length} tools, compact snapshot search, semantic snapshot, typing, debug report, and PNG screenshot.`)
 } finally {
   await client.close()
 }

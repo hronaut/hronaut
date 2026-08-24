@@ -53,3 +53,5 @@ export function useSiteDataSummaryController(options: {
 
   return { summary, state, message, refresh, reset }
 }
+
+export type SiteDataSummaryController = ReturnType<typeof useSiteDataSummaryController>

@@ -22,6 +22,7 @@ Hronaut requires Node.js 22 or newer.
 
 ```bash
 npm ci
+npm run lint
 npm test
 npm run typecheck
 npm run build

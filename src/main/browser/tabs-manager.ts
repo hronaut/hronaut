@@ -28,6 +28,7 @@ import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/
 import { MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
+import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
@@ -2988,6 +2989,20 @@ export class BrowserTabsManager {
   async snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
     const tab = this.getTab(tabId)
     return tab.webContents.executeJavaScript(snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000)), true)
+  }
+
+  async findSnapshot(options: SnapshotSearchOptions & { tabId?: string }): Promise<SnapshotSearchResult & { tabId: string }> {
+    const tab = this.getTab(options.tabId)
+    const snapshot = await tab.webContents.executeJavaScript(snapshotScript(100_000), true) as string
+    return {
+      tabId: tab.id,
+      ...searchSnapshot(snapshot, {
+        query: options.query,
+        caseSensitive: options.caseSensitive,
+        maxMatches: options.maxMatches,
+        contextChars: options.contextChars
+      })
+    }
   }
 
   async accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {

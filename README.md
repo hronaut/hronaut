@@ -59,6 +59,7 @@ The server listens only on loopback. Authentication is optional for a new profil
 ## Development checks
 
 ```bash
+npm run lint
 npm test
 npm run typecheck
 npm run build

@@ -271,3 +271,5 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     dispose
   }
 }
+
+export type AddressBarController = ReturnType<typeof useAddressBarController>

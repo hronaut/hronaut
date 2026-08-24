@@ -220,6 +220,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_navigate', category: 'Navigation', description: 'Navigate to a URL or search phrase.' },
   { name: 'browser_history', category: 'Navigation', description: 'Go back, forward, reload normally or without cache, or stop loading.' },
   { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded.' },
+  { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_click', category: 'Interaction', description: 'Click an element by snapshot ref or CSS selector.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
@@ -804,6 +805,26 @@ function createBrowserMcpServer(
     tabTool('browser_snapshot', async ({ tabId, maxChars }: { tabId?: string; maxChars?: number }) =>
       textResult(await manager.snapshot(tabId, maxChars))
     )
+  )
+  registerWorkspaceTool(
+    'browser_find',
+    {
+      description: toolDescription('browser_find'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        query: z.string().trim().min(1).max(200),
+        caseSensitive: z.boolean().optional(),
+        maxMatches: z.number().int().min(1).max(50).optional(),
+        contextChars: z.number().int().min(20).max(500).optional()
+      }
+    },
+    tabTool('browser_find', async (options: {
+      tabId?: string
+      query: string
+      caseSensitive?: boolean
+      maxMatches?: number
+      contextChars?: number
+    }) => textResult(await manager.findSnapshot(options)))
   )
   registerWorkspaceTool(
     'browser_element_inspect',

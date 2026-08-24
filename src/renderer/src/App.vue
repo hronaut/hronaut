@@ -15,21 +15,15 @@ import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
-import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconHandyman from '~icons/material-symbols/handyman-rounded'
-import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
-import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
-import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
-import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconStar from '~icons/material-symbols/star-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
-import IconTune from '~icons/material-symbols/tune-rounded'
 import IconStop from '~icons/material-symbols/stop-rounded'
 import {
   DETACHABLE_PANEL_IDS,
@@ -43,11 +37,10 @@ import {
   HelpMenuAction,
   CredentialSummary,
   DetachablePanelId,
-  PanelDock,
-  SitePermissionDecision,
-  SitePermissionEntry
+  PanelDock
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
+import BrowserAddressBar from './components/BrowserAddressBar.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
 import AppTopbarActions from './components/AppTopbarActions.vue'
 import BookmarksPanel from './components/BookmarksPanel.vue'
@@ -61,16 +54,16 @@ import FindInPageBar from './components/FindInPageBar.vue'
 import HelpDialog from './components/HelpDialog.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import NetworkPanel from './components/NetworkPanel.vue'
+import PageProblemBar from './components/PageProblemBar.vue'
 import PageToolsPanel from './components/PageToolsPanel.vue'
-import PanelDockPicker from './components/PanelDockPicker.vue'
 import ResponsivePreviewPanel from './components/ResponsivePreviewPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
-import SiteControlsPanel from './components/SiteControlsPanel.vue'
 import SiteStoragePanel from './components/SiteStoragePanel.vue'
 import SplitViewControl from './components/SplitViewControl.vue'
 import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
+import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useShellWindowLifecycle } from './composables/useShellWindowLifecycle'
@@ -214,10 +207,8 @@ const sitePermissionsController = useSitePermissionsController({
 const {
   entries: sitePermissions,
   busy: sitePermissionsBusy,
-  permissionLabel,
   initialize: initializeSitePermissions,
   replace: replaceSitePermissions,
-  isPending: isSitePermissionPending,
   setDecision: setSitePermissionDecision,
   remove: removeSitePermission,
   clear: clearSitePermissions,
@@ -249,7 +240,6 @@ const {
 const credentialPickerOpen = ref(false)
 const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
 const credentialFillState = ref<'idle' | 'filling'>('idle')
-const siteControlsButton = ref<HTMLButtonElement | null>(null)
 const shell = ref<HTMLElement | null>(null)
 const findOpen = ref(false)
 const zoomOpen = ref(false)
@@ -300,8 +290,6 @@ const emulationController = useEmulationController({
 })
 const {
   activeEmulation,
-  resetPending: emulationResetPending,
-  label: emulationLabel,
   describe: emulationDescription,
   beginMutation: beginEmulationMutation,
   invalidateMutation: invalidateEmulationMutation,
@@ -346,7 +334,6 @@ const siteDataController = useSiteDataSummaryController({
     : null,
   load: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId)
 })
-const { summary: siteDataSummary, state: siteDataState, message: siteDataMessage } = siteDataController
 const tabSearchOpen = ref(false)
 const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
 const commandPaletteOpen = ref(false)
@@ -544,22 +531,9 @@ const addressBarController = useAddressBarController({
   onFocusLeft: () => (siteControlsOpen.value = false)
 })
 const {
-  address,
   input: addressInput,
-  form: addressForm,
   open: addressSuggestionsOpen,
-  selection: addressSuggestionSelection,
-  suggestions: addressSuggestions,
-  visible: addressSuggestionsVisible,
-  selected: selectedAddressSuggestion,
-  suggestionId: addressSuggestionId,
-  suggestionMeta: addressSuggestionMeta,
   close: closeAddressSuggestions,
-  handleFocus: handleAddressFocus,
-  handleInput: handleAddressInput,
-  handleFocusOut: handleAddressFocusOut,
-  handleKeydown: handleAddressKeydown,
-  submit: submitAddress,
   handleResize: resizeAddressSuggestions
 } = addressBarController
 const pageCaptureController = usePageCaptureController({
@@ -912,8 +886,6 @@ const {
   activeWebUrl,
   activeOrigin,
   activeHostname,
-  activeSitePermissions,
-  activeAddressKind,
   activeCredentials,
   activeDownloads,
   activeTabUsesDefaultProfile,
@@ -1641,19 +1613,6 @@ function testAttentionSound(): void {
   playFoley(settings.value.attentionSoundCue, { volume: 0.65 })
 }
 
-async function setSitePermission(entry: SitePermissionEntry, decision: SitePermissionDecision): Promise<boolean> {
-  return setSitePermissionDecision(entry, decision)
-}
-
-async function resetSitePermissionFromControls(entry: SitePermissionEntry): Promise<boolean> {
-  const removed = await removeSitePermission(entry)
-  await nextTick()
-  siteControlsOpen.value = true
-  await nextTick()
-  siteControlsButton.value?.focus()
-  return removed
-}
-
 async function fillSavedPassword(): Promise<void> {
   if (!activeTab.value || !activeCredentials.value.length) return
   if (activeCredentials.value.length === 1) {
@@ -2000,101 +1959,28 @@ onBeforeUnmount(() => {
         <IconStop v-if="activeTab?.loading" aria-hidden="true" />
         <IconRefresh v-else aria-hidden="true" />
       </button>
-      <form ref="addressForm" class="address-form" @submit.prevent="runShellAction(submitAddress)" @focusout="handleAddressFocusOut">
-        <button
-          ref="siteControlsButton"
-          class="site-controls-button"
-          :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
-          type="button"
-          :title="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsAvailable')"
-          :aria-label="activeWebUrl ? t('runtime.tabs.siteControls', { host: activeHostname }) : t('runtime.tabs.siteControlsUnavailable')"
-          aria-controls="site-controls-panel"
-          :aria-expanded="siteControlsOpen"
-          :disabled="!activeWebUrl"
-          @click="runShellAction(toggleSiteControls)"
-        >
-          <IconTune aria-hidden="true" />
-          <span v-if="activeSitePermissions.length" class="site-controls-indicator" aria-hidden="true" />
-        </button>
-        <input
-          ref="addressInput"
-          v-model="address"
-          class="address"
-          :aria-label="t('shell.toolbar.address')"
-          role="combobox"
-          aria-keyshortcuts="Control+L Meta+L"
-          aria-autocomplete="list"
-          aria-controls="address-suggestions"
-          :aria-expanded="addressSuggestionsVisible"
-          :aria-activedescendant="addressSuggestionsVisible && selectedAddressSuggestion ? addressSuggestionId(selectedAddressSuggestion) : undefined"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="t('shell.toolbar.addressPlaceholder')"
-          @focus="handleAddressFocus"
-          @input="handleAddressInput"
-          @keydown="handleAddressKeydown"
-        />
-        <button
-          v-if="activeEmulation"
-          class="emulation-pill"
-          :class="{ offline: activeEmulation.network === 'offline' }"
-          type="button"
-          :title="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
-          :aria-label="t('runtime.emulation.reset', { description: emulationDescription(activeEmulation) })"
-          :disabled="emulationResetPending"
-          @click="runShellAction(resetActiveTabEmulation)"
-        >
-          <IconSpeed aria-hidden="true" />
-          <span>{{ emulationLabel(activeEmulation) }}</span>
-          <IconClose aria-hidden="true" />
-        </button>
-        <button
-          v-if="activeNetworkRouteCount"
-          class="network-routes-pill"
-          type="button"
-          :title="t('shell.pageTools.openRoutes', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
-          :aria-label="t('shell.pageTools.openRoutes', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount)"
-          @click="runShellAction(openRequestConditions)"
-        >
-          <IconRoute aria-hidden="true" />
-          <span>{{ t('shell.pageTools.routeCount', { count: localNumber(activeNetworkRouteCount) }, activeNetworkRouteCount) }}</span>
-          <IconKeyboardArrowRight aria-hidden="true" />
-        </button>
-        <SiteControlsPanel
-          v-model:open="siteControlsOpen"
-          v-model:dock="panelDock"
-          :hostname="activeHostname"
-          :address-kind="activeAddressKind"
-          :origin="activeOrigin"
-          :summary="siteDataSummary"
-          :state="siteDataState"
-          :message="siteDataMessage"
-          :permissions="activeSitePermissions"
-          :uses-default-profile="activeTabUsesDefaultProfile"
-          :locale="resolvedLocale"
-          :permission-label="permissionLabel"
-          :permission-pending="isSitePermissionPending"
-          :set-permission="setSitePermission"
-          :reset-permission="resetSitePermissionFromControls"
-          :open-permission-settings="openSitePermissionSettings"
-          :open-privacy-settings="openSitePrivacySettings"
-        />
-        <section
-          v-if="addressSuggestionsVisible"
-          id="address-suggestions"
-          class="sr-only"
-          role="listbox"
-          :aria-label="t('shell.suggestions')"
-        >
-          <span
-            v-for="(suggestion, index) in addressSuggestions"
-            :id="addressSuggestionId(suggestion)"
-            :key="suggestion.id"
-            role="option"
-            :aria-selected="index === addressSuggestionSelection"
-          >{{ suggestion.title }} {{ suggestion.url }} {{ addressSuggestionMeta(suggestion) }}</span>
-        </section>
-      </form>
+      <BrowserAddressBar
+        v-model:site-controls-open="siteControlsOpen"
+        v-model:panel-dock="panelDock"
+        :address-controller="addressBarController"
+        :active-tab-presentation="activeTabPresentationController"
+        :emulation-controller="emulationController"
+        :page-tools-presentation="pageToolsPresentationController"
+        :site-data-controller="siteDataController"
+        :site-permissions-controller="sitePermissionsController"
+        :locale="resolvedLocale"
+        :format-number="localNumber"
+        :run-action="runShellAction"
+        :actions="{
+          toggleSiteControls,
+          resetActiveTabEmulation,
+          openRequestConditions,
+          setSitePermission: setSitePermissionDecision,
+          resetSitePermission: removeSitePermission,
+          openSitePermissionSettings,
+          openSitePrivacySettings
+        }"
+      />
       <button
         class="icon-button find-button"
         type="button"
@@ -2238,18 +2124,12 @@ onBeforeUnmount(() => {
         }"
       />
     </div>
-    <div v-if="!activeIsHome && activeTab?.pageProblem" class="page-problem-bar" role="alert" aria-live="assertive">
-      <span class="page-problem-mark" aria-hidden="true"><IconError /></span>
-      <span class="page-problem-copy">
-        <strong>{{ activeTab.pageProblem.title }}</strong>
-        <span>{{ activeTab.pageProblem.message }}</span>
-        <code v-if="pageProblemDetails(activeTab)">{{ pageProblemDetails(activeTab) }}</code>
-      </span>
-      <button type="button" @click="runShellAction(retryActivePageProblem)">
-        <IconRefresh aria-hidden="true" />
-        {{ activeTab.pageProblem.kind === 'unresponsive' ? t('pageProblem.reload') : t('pageProblem.tryAgain') }}
-      </button>
-    </div>
+    <PageProblemBar
+      v-if="!activeIsHome && activeTab?.pageProblem"
+      :tab="activeTab"
+      :details="pageProblemDetails"
+      @retry="runShellAction(retryActivePageProblem)"
+    />
     <ResponsivePreviewPanel
       ref="responsivePanel"
       v-model:open="responsivePanelOpen"
@@ -2410,29 +2290,12 @@ onBeforeUnmount(() => {
       :open-support-settings="openSupportSettings"
       :report-layout="reportShellHeight"
     />
-    <div
+    <DetachedPanelUnavailableState
       v-if="detachedPanelUnavailable"
-      class="detached-panel-unavailable-state"
-      role="dialog"
-      aria-modal="false"
-      :aria-label="detachedPanelLabelText"
-    >
-      <header>
-        <span>
-          <small>{{ t('panels.websiteRequired') }}</small>
-          <strong>{{ detachedPanelLabelText }}</strong>
-        </span>
-        <div class="panel-header-actions">
-          <PanelDockPicker v-model="panelDock" :label="t('panels.dockPanel')" />
-          <button class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: detachedPanelLabelText })" @click="closeDockedPanels"><IconClose aria-hidden="true" /></button>
-        </div>
-      </header>
-      <div>
-        <span aria-hidden="true"><IconLanguage /></span>
-        <h2>{{ t('panels.openWebsite') }}</h2>
-        <p>{{ t('panels.openWebsiteDescription') }}</p>
-      </div>
-    </div>
+      v-model:dock="panelDock"
+      :label="detachedPanelLabelText"
+      @close="closeDockedPanels"
+    />
     <div
       v-if="dockedPanelOpen && panelDock !== 'window'"
       class="panel-resize-handle"

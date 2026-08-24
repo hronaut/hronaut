@@ -508,6 +508,25 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const wakeSnapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
     expect(wakeSnapshot.isError, text(wakeSnapshot)).not.toBe(true)
     expect(text(wakeSnapshot)).toContain('Capability fixture')
+    const findResult = await client.callTool({
+      name: 'browser_find',
+      arguments: { tabId, query: 'capture this area', maxMatches: 5 }
+    }) as CallToolResult
+    expect(findResult.isError, text(findResult)).not.toBe(true)
+    const foundSnapshotText = JSON.parse(text(findResult)) as {
+      tabId: string
+      query: string
+      matches: Array<{ snippet: string }>
+      truncated: boolean
+    }
+    expect(foundSnapshotText).toMatchObject({
+      tabId,
+      query: 'capture this area',
+      truncated: false
+    })
+    expect(foundSnapshotText.matches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ snippet: expect.stringContaining('Capture this area') })
+    ]))
     const elementInspectionResult = await client.callTool({
       name: 'browser_element_inspect',
       arguments: { tabId, selector: '#capture-target' }

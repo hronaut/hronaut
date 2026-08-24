@@ -7,6 +7,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
 import type { BrowserState, RendererSettingsState } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
@@ -4182,7 +4183,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   }) as { heading: string; agents: string[]; tools: number; activeCount: string; requestCount: string }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
   expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'Generic MCP client'])
-  expect(homeContent.tools).toBe(63)
+  expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
 
