@@ -24,6 +24,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   let downloadsRevision = 0
   let bookmarksRevision = 0
   let historyRevision = 0
+  let downloadsRequestSequence = 0
+  let bookmarksRequestSequence = 0
+  let historyRequestSequence = 0
   let initialized = false
   let initializePromise: Promise<void> | undefined
   let subscriptionsAttached = false
@@ -60,22 +63,25 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
 
   async function resolveDownloads(operation: () => Promise<BrowserDownloadState[]>): Promise<BrowserDownloadState[]> {
     const revision = downloadsRevision
+    const sequence = ++downloadsRequestSequence
     const next = await operation()
-    if (!disposed && revision === downloadsRevision) acceptDownloads(next, false)
+    if (!disposed && revision === downloadsRevision && sequence === downloadsRequestSequence) acceptDownloads(next, false)
     return downloads.value
   }
 
   async function resolveBookmarks(operation: () => Promise<BrowserBookmark[]>): Promise<BrowserBookmark[]> {
     const revision = bookmarksRevision
+    const sequence = ++bookmarksRequestSequence
     const next = await operation()
-    if (!disposed && revision === bookmarksRevision) acceptBookmarks(next)
+    if (!disposed && revision === bookmarksRevision && sequence === bookmarksRequestSequence) acceptBookmarks(next)
     return bookmarks.value
   }
 
   async function resolveHistory(operation: () => Promise<BrowserHistoryEntry[]>): Promise<BrowserHistoryEntry[]> {
     const revision = historyRevision
+    const sequence = ++historyRequestSequence
     const next = await operation()
-    if (!disposed && revision === historyRevision) acceptHistory(next)
+    if (!disposed && revision === historyRevision && sequence === historyRequestSequence) acceptHistory(next)
     return history.value
   }
 
@@ -153,6 +159,9 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     downloadsRevision += 1
     bookmarksRevision += 1
     historyRevision += 1
+    downloadsRequestSequence += 1
+    bookmarksRequestSequence += 1
+    historyRequestSequence += 1
     unsubscribeDownloads?.()
     unsubscribeBookmarks?.()
     unsubscribeHistory?.()

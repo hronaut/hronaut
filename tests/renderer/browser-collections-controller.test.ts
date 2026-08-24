@@ -184,6 +184,55 @@ describe('useBrowserCollectionsController', () => {
     harness.controller.dispose()
   })
 
+  it('keeps the latest-started collection request authoritative when an older response arrives first', async () => {
+    const harness = createHarness()
+    await harness.controller.initialize()
+    const olderDownloads = deferred<BrowserDownloadState[]>()
+    const newerDownloads = deferred<BrowserDownloadState[]>()
+    const olderBookmarks = deferred<BrowserBookmark[]>()
+    const newerBookmarks = deferred<BrowserBookmark[]>()
+    const olderHistory = deferred<BrowserHistoryEntry[]>()
+    const newerHistory = deferred<BrowserHistoryEntry[]>()
+    harness.listDownloads
+      .mockReturnValueOnce(olderDownloads.promise)
+      .mockReturnValueOnce(newerDownloads.promise)
+    harness.listBookmarks
+      .mockReturnValueOnce(olderBookmarks.promise)
+      .mockReturnValueOnce(newerBookmarks.promise)
+    harness.listHistory
+      .mockReturnValueOnce(olderHistory.promise)
+      .mockReturnValueOnce(newerHistory.promise)
+
+    const olderRequests = [
+      harness.controller.refreshDownloads(),
+      harness.controller.refreshBookmarks(),
+      harness.controller.refreshHistory()
+    ]
+    const newerRequests = [
+      harness.controller.refreshDownloads(),
+      harness.controller.refreshBookmarks(),
+      harness.controller.refreshHistory()
+    ]
+    olderDownloads.resolve([download('older')])
+    olderBookmarks.resolve([bookmark('older')])
+    olderHistory.resolve([historyEntry('older')])
+    await Promise.all(olderRequests)
+
+    expect(harness.controller.downloads.value).toEqual([])
+    expect(harness.controller.bookmarks.value).toEqual([])
+    expect(harness.controller.history.value).toEqual([])
+
+    newerDownloads.resolve([download('newer')])
+    newerBookmarks.resolve([bookmark('newer')])
+    newerHistory.resolve([historyEntry('newer')])
+    await Promise.all(newerRequests)
+
+    expect(harness.controller.downloads.value.map((item) => item.id)).toEqual(['newer'])
+    expect(harness.controller.bookmarks.value.map((item) => item.id)).toEqual(['newer'])
+    expect(harness.controller.history.value.map((item) => item.id)).toEqual(['newer'])
+    harness.controller.dispose()
+  })
+
   it('initializes once, bounds known download state, and ignores late work after disposal', async () => {
     const harness = createHarness()
     harness.listDownloads.mockResolvedValueOnce([download('historical')])

@@ -1255,6 +1255,7 @@ test('reports rejected shell controls without an unhandled renderer rejection', 
   const topbarFailure = appWindow.getByRole('alert', { name: 'Browser action failed' })
     .filter({ hasText: 'Downloads channel unavailable for regression test' })
   await expect(topbarFailure).toBeVisible()
+  await expect(appWindow.getByRole('dialog', { name: 'Downloads' })).toBeHidden()
 
   await appWindow.evaluate('window.hronaut.newTab({ active: true })')
   const reload = appWindow.locator('.toolbar').getByRole('button', { name: 'Reload', exact: true })
@@ -1287,6 +1288,38 @@ test('reports rejected shell controls without an unhandled renderer rejection', 
     return rejection
   })).toBeNull()
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeEnabled()
+})
+
+test('keeps the newer collection panel open when a Downloads refresh finishes late', async ({
+  appWindow,
+  electronApp
+}) => {
+  await electronApp.evaluate(({ ipcMain }) => {
+    const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedDownloads?: () => void }
+    ipcMain.removeHandler('downloads:list')
+    ipcMain.handle('downloads:list', () => new Promise<[]>(resolve => {
+      mainGlobal.__resolveDelayedDownloads = () => resolve([])
+    }))
+  })
+
+  const downloadsPanel = appWindow.getByRole('dialog', { name: 'Downloads' })
+  const historyPanel = appWindow.getByRole('dialog', { name: 'Browsing history' })
+  await appWindow.getByRole('button', { name: 'Downloads', exact: true }).click()
+  await expect(downloadsPanel).toBeVisible()
+
+  await appWindow.getByRole('button', { name: 'Browsing history' }).click()
+  await expect(historyPanel).toBeVisible()
+  await expect(downloadsPanel).toBeHidden()
+
+  await electronApp.evaluate(() => {
+    const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedDownloads?: () => void }
+    if (!mainGlobal.__resolveDelayedDownloads) throw new Error('Delayed Downloads request did not start')
+    mainGlobal.__resolveDelayedDownloads()
+    delete mainGlobal.__resolveDelayedDownloads
+  })
+
+  await expect(historyPanel).toBeVisible()
+  await expect(downloadsPanel).toBeHidden()
 })
 
 test('rolls back rejected diagnostic log preservation without an unhandled renderer rejection', async ({ appWindow, electronApp }) => {

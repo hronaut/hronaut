@@ -8,8 +8,13 @@ All notable changes to Hronaut are documented in this file.
 
 - Add verified OpenCode MCP setup to Hronaut Home, the README, and the public setup guide, including global/project paths and connection diagnostics.
 
+### Changed
+
+- Split browser-collection panel orchestration out of `App.vue` into a focused controller.
+
 ### Fixed
 
+- Keep the newest Downloads, Bookmarks, and History request authoritative, and prevent a late Downloads refresh from reopening or displacing a newer panel choice.
 - Generate authenticated OpenCode headers with its token-file substitution instead of asking people to paste the owner token into JSON.
 - Show the Hronaut “H” mark on Home instead of the stale pre-rename “B”.
 - Document the canonical Cloudflare Pages storefront repository instead of a nonexistent GitHub Pages workflow in the desktop repository.

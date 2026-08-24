@@ -95,6 +95,7 @@ import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
+import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -500,6 +501,21 @@ const {
   toggle: toggleSettings,
   dispose: disposeSettingsDialogController
 } = settingsDialogController
+const {
+  toggleDownloads,
+  toggleBookmarks,
+  toggleCurrentBookmark,
+  toggleVisitHistory
+} = useBrowserCollectionsShellController({
+  settingsOpen,
+  downloadsOpen,
+  bookmarksOpen,
+  historyOpen,
+  tabSearchOpen,
+  bookmarksPanel,
+  historyPanel,
+  refreshDownloads: browserCollectionsController.refreshDownloads
+})
 const fullModalOpen = computed(() => settingsOpen.value
   || commandPaletteOpen.value
   || helpDialogOpen.value
@@ -993,30 +1009,6 @@ function localPercent(percent: number, maximumFractionDigits = 0): string {
   return formatPercent(resolvedLocale.value, percent / 100, { maximumFractionDigits })
 }
 
-async function toggleDownloads(): Promise<void> {
-  settingsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  if (!downloadsOpen.value) await browserCollectionsController.refreshDownloads()
-  downloadsOpen.value = !downloadsOpen.value
-}
-
-async function toggleBookmarks(): Promise<void> {
-  settingsOpen.value = false
-  downloadsOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  await bookmarksPanel.value?.toggle()
-}
-
-async function toggleCurrentBookmark(): Promise<void> {
-  downloadsOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  await bookmarksPanel.value?.toggleCurrent()
-}
-
 async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
   settingsOpen.value = false
   await syncState(browser.newTab({ url: bookmark.url, active: true }))
@@ -1037,14 +1029,6 @@ async function openApplicationHome(): Promise<void> {
   zoomOpen.value = false
   if (findOpen.value) await closeFind()
   await syncState(browser.openHome())
-}
-
-async function toggleVisitHistory(): Promise<void> {
-  settingsOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  tabSearchOpen.value = false
-  await historyPanel.value?.toggle()
 }
 
 function resetSiteStorageView(closePanel = false): void {
