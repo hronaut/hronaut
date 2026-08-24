@@ -2,13 +2,15 @@
 
 Hronaut is a visible, persistent Electron browser that exposes its live tabs to AI clients through MCP. It keeps the browser open independently of any individual AI session, so humans and agents can share the same local browsing context.
 
-[Website](https://hronaut.dev) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
+[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
 
 [![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
 
 Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
+
+Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
 
 ## Highlights
 
@@ -58,7 +60,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-Hronaut Home contains current setup instructions for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, and generic MCP clients.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, and generic MCP clients. Hronaut Home contains the current profile-specific version, including the right endpoint and authentication settings.
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 
