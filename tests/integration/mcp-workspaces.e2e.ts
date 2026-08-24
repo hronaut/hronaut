@@ -147,6 +147,39 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await expect(previousTabs).toBeEnabled()
 })
 
+test('does not offer or attempt tab reordering across workspace boundaries', async ({ appWindow }) => {
+  await appWindow.evaluate(`window.hronaut.newTab({
+    url: 'data:text/html,<title>Default drag source</title><main>Default</main>',
+    active: true
+  })`)
+  const isolatedState = await appWindow.evaluate(`window.hronaut.createWorkspace({
+    name: 'Drag isolation',
+    color: 'cyan',
+    storage: 'scratch'
+  })`) as BrowserState
+  const isolatedTabId = isolatedState.activeTabId
+  expect(isolatedTabId).toMatch(UUID_V7_PATTERN)
+  await appWindow.evaluate(`window.hronaut.navigate({
+    tabId: ${JSON.stringify(isolatedTabId)},
+    url: 'data:text/html,<title>Isolated drag target</title><main>Isolated</main>'
+  })`)
+  await expect(appWindow.getByRole('tab', { name: /^Default drag source/ })).toBeVisible()
+  await expect(appWindow.getByRole('tab', { name: /^Isolated drag target/ })).toBeVisible()
+
+  const before = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs
+    .filter((tab) => !tab.url.startsWith('hronaut://'))
+    .map(({ id, mcpGroupId }) => ({ id, mcpGroupId })))`)
+  await appWindow.getByRole('tab', { name: /^Default drag source/ }).dragTo(
+    appWindow.getByRole('tab', { name: /^Isolated drag target/ }),
+    { targetPosition: { x: 3, y: 18 } }
+  )
+
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs
+    .filter((tab) => !tab.url.startsWith('hronaut://'))
+    .map(({ id, mcpGroupId }) => ({ id, mcpGroupId })))`)).toEqual(before)
+  await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toHaveCount(0)
+})
+
 test('requires visible workspaces and keeps each tool inside its selected workspace', async ({
   appWindow,
   mcpPort,

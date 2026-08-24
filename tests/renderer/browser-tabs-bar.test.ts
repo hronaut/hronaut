@@ -210,6 +210,47 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted().reorderTab).toHaveLength(1)
   })
 
+  it('rejects drag targets from another workspace before showing a drop affordance', async () => {
+    const firstWorkspace = workspace('workspace-1')
+    const secondWorkspace = {
+      ...workspace('workspace-2'),
+      name: 'QA'
+    }
+    const source = tab('source')
+    const otherWorkspaceTarget = tab('target', {
+      mcpGroupId: secondWorkspace.id,
+      mcpGroupName: secondWorkspace.name
+    })
+    const view = renderTabs(browserState({
+      tabs: [source, otherWorkspaceTarget],
+      activeTabId: source.id,
+      mcpTabGroups: [firstWorkspace, secondWorkspace]
+    }))
+    const sourceControl = screen.getByRole('tab', { name: 'Page source' })
+    const targetControl = screen.getByRole('tab', { name: 'Page target' })
+    vi.spyOn(targetControl, 'getBoundingClientRect').mockReturnValue({
+      left: 20,
+      width: 100,
+      right: 120,
+      top: 0,
+      bottom: 32,
+      height: 32,
+      x: 20,
+      y: 0,
+      toJSON: () => ({})
+    })
+
+    await fireEvent.dragStart(sourceControl)
+    await fireEvent.dragOver(targetControl, { clientX: 90 })
+
+    expect(targetControl).not.toHaveClass('drop-before')
+    expect(targetControl).not.toHaveClass('drop-after')
+
+    await fireEvent.drop(targetControl, { clientX: 90 })
+
+    expect(view.emitted().reorderTab).toBeUndefined()
+  })
+
   it('offers explicit controls and mouse-wheel navigation when tabs overflow', async () => {
     const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
     renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))

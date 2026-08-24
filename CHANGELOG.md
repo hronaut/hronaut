@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split Site Storage shell orchestration out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Reject cross-workspace tab drag targets before showing a drop indicator or attempting an invalid reorder.
+- Suppress obsolete Site Storage refresh failures after the panel closes or resets for a newer tab.
+
 ## [1.4.2] - 2026-08-25
 
 ### Fixed

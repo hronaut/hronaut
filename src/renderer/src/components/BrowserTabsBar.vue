@@ -154,7 +154,12 @@ function clearTabDrag(): void {
 
 function canDropTab(target: BrowserTabState): boolean {
   const dragged = regularTabs.value.find((tab) => tab.id === draggedTabId.value)
-  return Boolean(dragged && dragged.id !== target.id && dragged.pinned === target.pinned)
+  return Boolean(
+    dragged
+    && dragged.id !== target.id
+    && dragged.pinned === target.pinned
+    && dragged.mcpGroupId === target.mcpGroupId
+  )
 }
 
 function beginTabDrag(event: DragEvent, tab: BrowserTabState): void {

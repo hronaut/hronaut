@@ -97,6 +97,7 @@ import { useBrowserShortcutController } from './composables/useBrowserShortcutCo
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
+import { useSiteStorageShellController } from './composables/useSiteStorageShellController'
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useFindShellController } from './composables/useFindShellController'
@@ -560,6 +561,25 @@ const {
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
 } = addressBarController
+const {
+  reset: resetSiteStorageView,
+  refresh: refreshSiteStorage,
+  open: openSiteStorage,
+  toggle: toggleSiteStorage,
+  dispose: disposeSiteStorageShellController
+} = useSiteStorageShellController({
+  open: siteStorageOpen,
+  panel: siteStoragePanel,
+  keepsSeparatePanelOpen,
+  settingsOpen,
+  siteControlsOpen,
+  downloadsOpen,
+  bookmarksOpen,
+  historyOpen,
+  tabSearchOpen,
+  zoomOpen,
+  addressSuggestionsOpen
+})
 const {
   open: openPrivacySettings,
   dispose: disposePrivacySettingsShellController
@@ -1124,39 +1144,6 @@ async function openApplicationHome(): Promise<void> {
   tabSearchOpen.value = false
   zoomOpen.value = false
   await runFindTransition(() => syncState(browser.openHome()))
-}
-
-function resetSiteStorageView(closePanel = false): void {
-  siteStoragePanel.value?.reset(closePanel)
-  if (closePanel && !keepsSeparatePanelOpen()) siteStorageOpen.value = false
-}
-
-async function refreshSiteStorage(): Promise<void> {
-  await nextTick()
-  await siteStoragePanel.value?.refresh()
-}
-
-async function openSiteStorage(): Promise<void> {
-  settingsOpen.value = false
-  siteControlsOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  zoomOpen.value = false
-  addressSuggestionsOpen.value = false
-  siteStorageOpen.value = true
-  await nextTick()
-  siteStoragePanel.value?.reset()
-  await siteStoragePanel.value?.refresh()
-}
-
-async function toggleSiteStorage(): Promise<void> {
-  if (siteStorageOpen.value) {
-    siteStorageOpen.value = false
-    return
-  }
-  await openSiteStorage()
 }
 
 async function openTabGroupEditor(groupId: string): Promise<void> {
@@ -1858,6 +1845,7 @@ onBeforeUnmount(() => {
   disposeSettingsDialogController()
   disposePrivacySettingsShellController()
   disposeSiteControlsShellController()
+  disposeSiteStorageShellController()
   disposeUpdateSettingsController()
   disposeCommercialLicenseController()
   disposeMcpStatusController()
