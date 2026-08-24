@@ -25,6 +25,7 @@ import {
   type WebContents
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
+import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
 import { MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
@@ -4981,10 +4982,29 @@ export class BrowserTabsManager {
 
   async press(key: string, tabId?: string): Promise<void> {
     const webContents = this.getTab(tabId).webContents
+    const input = parseBrowserKeyPress(key)
     await this.withAgentInput(webContents, async () => {
       webContents.focus()
-      webContents.sendInputEvent({ type: 'keyDown', keyCode: key })
-      webContents.sendInputEvent({ type: 'keyUp', keyCode: key })
+      try {
+        webContents.sendInputEvent({
+          type: 'keyDown',
+          keyCode: input.keyCode,
+          modifiers: input.modifiers
+        })
+        if (input.emitsCharacter) {
+          webContents.sendInputEvent({
+            type: 'char',
+            keyCode: input.keyCode,
+            modifiers: input.modifiers
+          })
+        }
+      } finally {
+        webContents.sendInputEvent({
+          type: 'keyUp',
+          keyCode: input.keyCode,
+          modifiers: input.modifiers
+        })
+      }
       await new Promise<void>((resolve) => setImmediate(resolve))
     })
   }

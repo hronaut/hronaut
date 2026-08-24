@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
+import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
@@ -231,7 +232,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element to reveal menus, tooltips, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element.' },
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
-  { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key to the active page.' },
+  { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
   { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, any requested visible page text, or page text to disappear.' },
   { name: 'browser_emulate', category: 'Inspection', description: 'Reproduce responsive, network, cache, service-worker, Data Saver, CPU, animation-playback, CSS media, vision, locale, time-zone, JavaScript-disabled, location, request-header, and user-agent conditions, or show paint, layout-shift, layer, frame, and scrolling diagnostics in one tab.' },
@@ -993,7 +994,11 @@ function createBrowserMcpServer(
     'browser_press',
     {
       description: toolDescription('browser_press'),
-      inputSchema: { key: z.string().min(1), tabId: tabIdSchema.optional() }
+      inputSchema: {
+        key: z.string().min(1).max(MAX_BROWSER_KEY_PRESS_LENGTH)
+          .describe('Key or combination such as Enter, ArrowLeft, x, Control+A, or Control+Shift+R.'),
+        tabId: tabIdSchema.optional()
+      }
     },
     tabTool('browser_press', async ({ key, tabId }: { key: string; tabId?: string }) => {
       await manager.press(key, tabId)

@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-25
+
+### Fixed
+
+- Make `browser_press` dispatch modifier combinations and printable characters correctly instead of sending chord text as an invalid literal key.
+
 ## [1.4.0] - 2026-08-24
 
 ### Added

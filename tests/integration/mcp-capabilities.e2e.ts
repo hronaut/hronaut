@@ -266,6 +266,19 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       <button id="capture-target" value="element-inspection-secret" style="box-sizing:border-box;width:240px;height:120px;background:rgb(103,87,232);color:rgb(255,255,255)">Capture this area</button>
       <script src="/cpu-profile.js?token=cpu-profile-secret"></script>
       <script>
+        window.hronautKeyboardEvents = [];
+        for (const eventName of ['keydown', 'keyup']) {
+          window.addEventListener(eventName, (event) => {
+            window.hronautKeyboardEvents.push({
+              type: event.type,
+              key: event.key,
+              control: event.ctrlKey,
+              shift: event.shiftKey,
+              alt: event.altKey,
+              meta: event.metaKey
+            });
+          });
+        }
         localStorage.setItem('hronaut-mcp-site-data', 'stored');
         document.cookie = 'hronaut-mcp-site-data=stored; SameSite=Lax';
         console.error('hronaut-console-marker');
@@ -1392,6 +1405,52 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       arguments: { tabId, script: "({ name: document.querySelector('#name').value, agree: document.querySelector('#agree').checked })" }
     }) as CallToolResult
     expect(JSON.parse(text(formState))).toEqual({ name: 'Ada', agree: true })
+
+    await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "document.querySelector('#name').focus(); window.hronautKeyboardEvents = []; true"
+      }
+    })
+    const selectedAll = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'Control+A' }
+    }) as CallToolResult
+    expect(selectedAll.isError, text(selectedAll)).not.toBe(true)
+    const shortcutState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "({ start: document.querySelector('#name').selectionStart, end: document.querySelector('#name').selectionEnd, events: window.hronautKeyboardEvents })"
+      }
+    }) as CallToolResult
+    expect(JSON.parse(text(shortcutState))).toEqual({
+      start: 0,
+      end: 3,
+      events: [
+        { type: 'keydown', key: 'a', control: true, shift: false, alt: false, meta: false },
+        { type: 'keyup', key: 'a', control: true, shift: false, alt: false, meta: false }
+      ]
+    })
+
+    const replacedSelection = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'x' }
+    }) as CallToolResult
+    expect(replacedSelection.isError, text(replacedSelection)).not.toBe(true)
+    const pressedCharacter = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#name').value" }
+    }) as CallToolResult
+    expect(text(pressedCharacter)).toBe('x')
+
+    const invalidKeyCombination = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'Control+A+B' }
+    }) as CallToolResult
+    expect(invalidKeyCombination.isError).toBe(true)
+    expect(text(invalidKeyCombination)).toContain('exactly one non-modifier key')
 
     const invalidPromptClick = await client.callTool({
       name: 'browser_click',
