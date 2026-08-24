@@ -53,7 +53,8 @@ describe('SettingsDialog', () => {
         formatDateTime: String,
         testSound: vi.fn(),
         reportSettingError: vi.fn(),
-        openUrl: vi.fn(async () => undefined)
+        openUrl: vi.fn(async () => undefined),
+        purchaseCommercialLicense: vi.fn()
       }
     })
 

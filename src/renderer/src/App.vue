@@ -1667,6 +1667,10 @@ async function openSupport(url: string): Promise<void> {
   await syncState(browser.newTab({ url, active: true }))
 }
 
+function purchaseCommercialLicense(): void {
+  void runShellAction(() => window.hronautLicense.openPurchase())
+}
+
 async function refreshDetachedPanel(panel: DetachablePanelId): Promise<void> {
   if (panel === 'site-controls') await refreshSiteDataSummary()
   else if (panel === 'site-storage') await refreshSiteStorage()
@@ -2281,6 +2285,7 @@ onBeforeUnmount(() => {
       :test-sound="testAttentionSound"
       :report-setting-error="handleExtractedSettingError"
       :open-url="openSupport"
+      :purchase-commercial-license="purchaseCommercialLicense"
     />
     <HelpDialog
       :controller="helpDialogController"

@@ -37,6 +37,7 @@ import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
+import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore } from './commercial-license-store.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
@@ -2924,6 +2925,10 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return deactivateCommercialLicense()
   })
+  ipcMain.handle(
+    'license:open-purchase',
+    commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
+  )
   ipcMain.handle('updates:get-state', (event) => { assertTrustedShellSender(event); return { ...updateState } })
   ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
   ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })

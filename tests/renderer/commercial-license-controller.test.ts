@@ -34,6 +34,7 @@ function createController(
     activate,
     refresh,
     deactivate,
+    openPurchase: vi.fn(async () => undefined),
     onChanged: vi.fn((next: (state: CommercialLicenseState) => void) => {
       listener = next
       onSubscribe?.(next)

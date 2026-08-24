@@ -32,6 +32,7 @@ function renderPanel(initial = license()) {
     activate,
     refresh: vi.fn(async () => initial),
     deactivate: vi.fn(async () => license()),
+    openPurchase: vi.fn(async () => undefined),
     onChanged: vi.fn(() => () => undefined)
   }
   const controller = useCommercialLicenseController({
@@ -108,6 +109,15 @@ describe('SupportSettingsPanel', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'PolyForm Noncommercial license ↗' }))
 
     expect(rendered.emitted().openUrl).toEqual([['https://github.com/hronaut/hronaut/blob/main/LICENSE']])
+    controller.dispose()
+  })
+
+  it('routes commercial purchase separately from Hronaut tab links', async () => {
+    const { controller, rendered } = renderPanel()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Buy commercial license ↗' }))
+
+    expect(rendered.emitted().purchase).toEqual([[]])
+    expect(rendered.emitted().openUrl).toBeUndefined()
     controller.dispose()
   })
 })

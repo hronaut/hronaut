@@ -334,6 +334,7 @@ const licenseApi: HronautLicenseApi = {
   activate: (licenseKey: string) => ipcRenderer.invoke('license:activate', licenseKey),
   refresh: () => ipcRenderer.invoke('license:refresh'),
   deactivate: () => ipcRenderer.invoke('license:deactivate'),
+  openPurchase: () => ipcRenderer.invoke('license:open-purchase'),
   onChanged: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, state: import('../shared/types.js').CommercialLicenseState): void => listener(state)
     ipcRenderer.on('license:changed', handler)

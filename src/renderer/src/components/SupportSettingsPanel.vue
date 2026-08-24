@@ -11,6 +11,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   openUrl: [url: string]
+  purchase: []
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -75,7 +76,7 @@ const {
       </form>
       <small v-if="stateMessage">{{ stateMessage }}</small>
       <small v-if="errorMessage" class="commercial-license-error" role="alert">{{ errorMessage }}</small>
-      <button class="secondary-button" type="button" @click="emit('openUrl', 'https://hronaut.pages.dev')">{{ t('settings.support.support') }}</button>
+      <button class="secondary-button" type="button" @click="emit('purchase')">{{ t('settings.support.support') }}</button>
     </div>
     <div class="support-alternatives">
       <span>{{ t('settings.support.alternatives') }}</span>

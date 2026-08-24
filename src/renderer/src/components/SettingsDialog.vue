@@ -51,6 +51,7 @@ const props = defineProps<{
   testSound: () => void
   reportSettingError: (error: unknown) => void
   openUrl: (url: string) => Promise<void>
+  purchaseCommercialLicense: () => void
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -168,6 +169,7 @@ useModalDialogFocus({ open, panel })
           :format-number="formatNumber"
           :format-date-time="formatDateTime"
           @open-url="openUrl"
+          @purchase="purchaseCommercialLicense"
         />
       </div>
 

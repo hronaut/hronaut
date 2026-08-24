@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-24
+
+### Fixed
+
+- Open **Buy commercial license** in the operating system's default browser instead of creating a Hronaut tab.
+
 ## [1.1.0] - 2026-08-24
 
 ### Added
