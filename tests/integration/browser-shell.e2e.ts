@@ -1451,6 +1451,81 @@ test('supports standard tab and address shortcuts from the shell and websites', 
   await expect(appWindow.getByRole('tab')).toHaveCount(3)
 })
 
+test('does not steal address focus when delayed new-tab creation loses to a newer selection', async ({
+  appWindow,
+  electronApp
+}) => {
+  const newerUrl = 'data:text/html,<title>Newer focus choice</title><main>Keep this tab selected</main>'
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(newerUrl)}, active: false })`)
+  const newerTab = appWindow.getByRole('tab', { name: /^Newer focus choice/ })
+  await expect(newerTab).toBeVisible()
+
+  await electronApp.evaluate(({ ipcMain }) => {
+    type InvokeHandler = (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+    const handlers = (ipcMain as unknown as { _invokeHandlers: Map<string, InvokeHandler> })._invokeHandlers
+    const original = handlers.get('browser:new-tab')
+    if (!original) throw new Error('New-tab IPC handler was not registered')
+    const control = {
+      original,
+      started: false,
+      returned: false,
+      release: undefined as (() => void) | undefined
+    }
+    ;(globalThis as typeof globalThis & { __hronautDelayedNewTab?: typeof control }).__hronautDelayedNewTab = control
+    ipcMain.removeHandler('browser:new-tab')
+    ipcMain.handle('browser:new-tab', async (event, ...args) => {
+      const result = await original(event, ...args)
+      control.started = true
+      await new Promise<void>((resolve) => { control.release = resolve })
+      control.returned = true
+      return result
+    })
+  })
+
+  try {
+    await appWindow.getByRole('button', { name: 'Settings' }).focus()
+    await appWindow.keyboard.press(`${primaryModifier}+T`)
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedNewTab?: { started: boolean } })
+        .__hronautDelayedNewTab?.started ?? false
+    ))).toBe(true)
+
+    await newerTab.click()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer focus choice')
+
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautDelayedNewTab?: { release?: () => void }
+      }).__hronautDelayedNewTab
+      if (!control?.release) throw new Error('Delayed new-tab response was not waiting')
+      control.release()
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedNewTab?: { returned: boolean } })
+        .__hronautDelayedNewTab?.returned ?? false
+    ))).toBe(true)
+    await appWindow.evaluate('new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))')
+
+    await expect(appWindow.getByRole('combobox', { name: 'Address' })).not.toBeFocused()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer focus choice')
+  } finally {
+    await electronApp.evaluate(({ ipcMain }) => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautDelayedNewTab?: {
+          original: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+          release?: () => void
+        }
+      }
+      const control = mainGlobal.__hronautDelayedNewTab
+      if (!control) return
+      control.release?.()
+      ipcMain.removeHandler('browser:new-tab')
+      ipcMain.handle('browser:new-tab', control.original)
+      delete mainGlobal.__hronautDelayedNewTab
+    }).catch(() => undefined)
+  }
+})
+
 test('reports a rejected browser shortcut without breaking the shell', async ({ appWindow, electronApp }) => {
   await electronApp.evaluate(({ ipcMain }) => {
     ipcMain.removeHandler('browser:reload')

@@ -94,6 +94,7 @@ import { usePanelWindowSyncController } from './composables/usePanelWindowSyncCo
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
+import { useTabNavigationController } from './composables/useTabNavigationController'
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
@@ -925,14 +926,41 @@ const {
   toggle: toggleCommandPalette,
   run: runCommandPaletteCommand
 } = commandPaletteShellController
+const {
+  focusAddress,
+  openNewTab,
+  newTabInWorkspace
+} = useTabNavigationController({
+  state,
+  isHome: () => activeIsHome.value,
+  preferredWebTab,
+  selectBrowserTab,
+  browser,
+  syncState,
+  settingsOpen,
+  updateNoticeOpen,
+  zoomOpen,
+  tabSearchOpen,
+  runFindTransition,
+  focusInput: () => {
+    addressInput.value?.focus()
+    addressInput.value?.select()
+  },
+  expandTabGroup: (groupId) => browserTabsBar.value?.expandTabGroup(groupId),
+  onWorkspaceError: (workspace, error) => showAppToast(
+    'error',
+    t('runtime.workspace.newTabFailed'),
+    friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name }))
+  )
+})
 const browserShortcutController = useBrowserShortcutController({
   state,
   activeTab,
   browser,
   syncState,
   settingsOpen,
-  tabSearchOpen,
-  focusAddress,
+  openNewTab: async () => { await openNewTab() },
+  focusAddress: async () => { await focusAddress() },
   openFind,
   setZoom: (action) => zoomBar.value?.setZoom(action),
   toggleCurrentBookmark,
@@ -1439,37 +1467,6 @@ function openSitePermissionSettings(): void {
 function handleWindowResize(): void {
   reportShellHeight()
   resizeAddressSuggestions()
-}
-
-async function focusAddress(): Promise<void> {
-  if (activeIsHome.value) {
-    const tab = preferredWebTab()
-    if (!tab || !(await selectBrowserTab(tab.id))) await syncState(browser.newTab())
-  }
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  zoomOpen.value = false
-  tabSearchOpen.value = false
-  await runFindTransition(async () => {
-    await nextTick()
-    addressInput.value?.focus()
-    addressInput.value?.select()
-  })
-}
-
-async function newTabInWorkspace(groupId: string): Promise<void> {
-  if (state.value.allHumanInteractionLocked) return
-  const workspace = state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
-  if (!workspace) return
-  settingsOpen.value = false
-  tabSearchOpen.value = false
-  try {
-    await syncState(browser.newTab({ active: true, mcpGroupId: groupId }))
-    browserTabsBar.value?.expandTabGroup(groupId)
-    await focusAddress()
-  } catch (error) {
-    showAppToast('error', t('runtime.workspace.newTabFailed'), friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name })))
-  }
 }
 
 async function showWorkspaceContextMenu(groupId: string): Promise<void> {

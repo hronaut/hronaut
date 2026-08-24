@@ -8,7 +8,7 @@ import type {
 
 type ShortcutBrowserApi = Pick<
   HronautApi,
-  'newTab' | 'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache'
+  'closeTab' | 'reopenClosedTab' | 'selectTab' | 'reload' | 'reloadIgnoringCache'
 >
 
 type ShortcutCallback = () => void | Promise<void>
@@ -19,7 +19,7 @@ export interface BrowserShortcutControllerOptions {
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
-  tabSearchOpen: Ref<boolean>
+  openNewTab: ShortcutCallback
   focusAddress: ShortcutCallback
   openFind: ShortcutCallback
   setZoom: (action: 'in' | 'out' | 'reset') => void | Promise<void>
@@ -62,10 +62,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
         if (options.activeTab.value) await options.syncState(options.browser.reloadIgnoringCache(options.activeTab.value.id))
         return
       case 'new-tab':
-        options.settingsOpen.value = false
-        options.tabSearchOpen.value = false
-        await options.syncState(options.browser.newTab())
-        await options.focusAddress()
+        await options.openNewTab()
         return
       case 'close-tab':
         if (options.activeTab.value) await options.syncState(options.browser.closeTab(options.activeTab.value.id))

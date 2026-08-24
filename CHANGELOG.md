@@ -10,10 +10,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Split address-focus and new-tab shell orchestration out of `App.vue` into focused navigation controllers.
 - Split Site Storage shell orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
+- Prevent delayed shortcut or workspace tab creation from stealing address focus after a newer tab selection.
 - Reject cross-workspace tab drag targets before showing a drop indicator or attempting an invalid reorder.
 - Suppress obsolete Site Storage refresh failures after the panel closes or resets for a newer tab.
 

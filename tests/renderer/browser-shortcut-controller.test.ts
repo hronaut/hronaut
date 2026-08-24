@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useBrowserShortcutController } from '../../src/renderer/src/composables/useBrowserShortcutController.js'
-import type { BrowserState, BrowserTabState, NewTabOptions } from '../../src/shared/types.js'
+import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(id: string, active = false): BrowserTabState {
   return {
@@ -50,7 +50,6 @@ function createController() {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
   const browser = {
-    newTab: vi.fn(async (_options?: NewTabOptions) => state.value),
     closeTab: vi.fn(async (_tabId: string) => state.value),
     reopenClosedTab: vi.fn(async (_closedTabId?: string) => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
@@ -59,8 +58,8 @@ function createController() {
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
   const settingsOpen = ref(true)
-  const tabSearchOpen = ref(true)
   const callbacks = {
+    openNewTab: vi.fn(async () => undefined),
     focusAddress: vi.fn(async () => undefined),
     openFind: vi.fn(async () => undefined),
     setZoom: vi.fn(async () => undefined),
@@ -79,10 +78,9 @@ function createController() {
     browser,
     syncState,
     settingsOpen,
-    tabSearchOpen,
     ...callbacks
   })
-  return { state, activeTab, browser, syncState, settingsOpen, tabSearchOpen, callbacks, controller }
+  return { state, activeTab, browser, syncState, settingsOpen, callbacks, controller }
 }
 
 describe('browser shortcut controller', () => {
@@ -98,20 +96,12 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
-  it('opens a new tab before focusing its address field and closes conflicting overlays', async () => {
+  it('delegates new-tab creation to the shell navigation controller', async () => {
     const harness = createController()
-    const order: string[] = []
-    harness.browser.newTab.mockImplementationOnce(async () => {
-      order.push('new-tab')
-      return harness.state.value
-    })
-    harness.callbacks.focusAddress.mockImplementationOnce(async () => { order.push('focus-address') })
 
     await expect(harness.controller.run('new-tab')).resolves.toBe(true)
 
-    expect(order).toEqual(['new-tab', 'focus-address'])
-    expect(harness.settingsOpen.value).toBe(false)
-    expect(harness.tabSearchOpen.value).toBe(false)
+    expect(harness.callbacks.openNewTab).toHaveBeenCalledOnce()
     harness.controller.dispose()
   })
 
