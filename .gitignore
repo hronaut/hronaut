@@ -231,5 +231,6 @@ dist/
 docs/
 playwright-report/
 test-results/
+ci-artifacts/
 .DS_Store
 design

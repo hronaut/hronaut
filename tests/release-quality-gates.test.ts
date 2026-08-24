@@ -35,4 +35,26 @@ describe('release quality gates', () => {
       expect(job(workflow, build)).toMatch(/needs:\n(?: {6}- .+\n)* {6}- validate\n/)
     }
   })
+
+  it('retains bounded Playwright diagnostics when Docker integration fails', async () => {
+    const [ciWorkflow, releaseWorkflow, runner, playwright] = await Promise.all([
+      readFile('.github/workflows/ci.yml', 'utf8'),
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('scripts/run-integration-ci.sh', 'utf8'),
+      readFile('playwright.config.ts', 'utf8')
+    ])
+
+    for (const integration of [job(ciWorkflow, 'integration'), job(releaseWorkflow, 'test-integration')]) {
+      expect(integration).toContain('run: bash scripts/run-integration-ci.sh')
+      expect(integration).toContain('if: failure()')
+      expect(integration).toContain('uses: actions/upload-artifact@v7')
+      expect(integration).toContain('path: ci-artifacts/')
+      expect(integration).toContain('retention-days: 7')
+    }
+    expect(playwright).toContain("trace: process.env.CI ? 'retain-on-first-failure' : 'off'")
+    expect(runner).toContain('docker compose --file compose.test.ci.yaml run --build --name "$container_name" integration')
+    expect(runner).toContain('docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"')
+    expect(runner).toContain('docker rm --force "$container_name"')
+    expect(runner).not.toContain('run --build --rm integration')
+  })
 })

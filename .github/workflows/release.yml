@@ -103,7 +103,16 @@ jobs:
           persist-credentials: false
 
       - name: Run Electron integration tests in Docker
-        run: docker compose --file compose.test.ci.yaml run --build --rm integration
+        run: bash scripts/run-integration-ci.sh
+
+      - name: Upload Electron failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ci-artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
 
   validate:
     needs: prepare-release

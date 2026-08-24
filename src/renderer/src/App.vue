@@ -98,6 +98,7 @@ import { useBrowserCollectionsController } from './composables/useBrowserCollect
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
+import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -249,6 +250,7 @@ const zoomOpen = ref(false)
 const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
 const splitMenuOpen = ref(false)
 const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
+const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
 const downloadsOpen = ref(false)
 const browserCollectionsController = useBrowserCollectionsController({
   downloadsApi: window.hronautDownloads,
@@ -1066,8 +1068,7 @@ async function openApplicationHome(): Promise<void> {
   historyOpen.value = false
   tabSearchOpen.value = false
   zoomOpen.value = false
-  if (findOpen.value) await closeFind()
-  await syncState(browser.openHome())
+  await runFindTransition(() => syncState(browser.openHome()))
 }
 
 function resetSiteStorageView(closePanel = false): void {
@@ -1432,12 +1433,13 @@ async function focusAddress(): Promise<void> {
   }
   settingsOpen.value = false
   updateNoticeOpen.value = false
-  if (findOpen.value) await closeFind()
   zoomOpen.value = false
   tabSearchOpen.value = false
-  await nextTick()
-  addressInput.value?.focus()
-  addressInput.value?.select()
+  await runFindTransition(async () => {
+    await nextTick()
+    addressInput.value?.focus()
+    addressInput.value?.select()
+  })
 }
 
 async function newTabInWorkspace(groupId: string): Promise<void> {
@@ -1468,8 +1470,7 @@ async function toggleZoom(): Promise<void> {
   settingsOpen.value = false
   updateNoticeOpen.value = false
   tabSearchOpen.value = false
-  if (findOpen.value) await closeFind()
-  zoomBar.value?.openForTab(activeTab.value)
+  await runFindTransition(() => zoomBar.value?.openForTab(activeTab.value))
 }
 
 function prepareSplitViewMenu(): void {

@@ -7,10 +7,13 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Split Privacy Settings shell orchestration out of `App.vue` into a focused controller.
+- Start Home, address-focus, and Zoom actions before awaiting Find-in-page cleanup through a shared transition controller.
+- Retain the first failed Playwright Electron trace in CI without enabling retries, extract diagnostics from the disposable Docker container, and upload them for seven days.
 
 ### Fixed
 
 - Open Privacy Settings immediately while Find-in-page cleanup finishes, and keep a newer close, section change, or Privacy request authoritative over delayed cleanup results.
+- Prevent delayed Find-in-page cleanup from opening Home after a newer tab selection.
 
 ## [1.2.1] - 2026-08-24
 

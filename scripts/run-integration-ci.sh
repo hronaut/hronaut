@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+set -u -o pipefail
+
+container_name="hronaut-integration-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
+artifact_directory="ci-artifacts"
+
+cleanup() {
+  docker rm --force "$container_name" >/dev/null 2>&1 || true
+}
+
+extract_directory() {
+  local source_directory="$1"
+  if ! docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"; then
+    echo "Warning: could not extract $source_directory from $container_name." >&2
+  fi
+}
+
+trap cleanup EXIT INT TERM
+
+status=0
+docker compose --file compose.test.ci.yaml run --build --name "$container_name" integration || status=$?
+
+if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
+  mkdir -p "$artifact_directory"
+  extract_directory test-results
+  extract_directory playwright-report
+fi
+
+exit "$status"

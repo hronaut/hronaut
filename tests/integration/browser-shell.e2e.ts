@@ -849,6 +849,62 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
   }
 })
 
+test('does not open Home after a newer tab selection during delayed Find cleanup', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    const newer = request.url === '/newer'
+    response.end(`<!doctype html><title>${newer ? 'Newer tab choice' : 'Home race fixture'}</title><main>Find this content</main>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Home race fixture did not expose a TCP port')
+    const origin = `http://127.0.0.1:${address.port}`
+    const fixtureTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${origin}/fixture`)}, active: true }).then((state) => state.activeTabId)`)
+    const newerTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${origin}/newer`)}, active: false }).then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(`${origin}/newer`)})?.id)`)
+    if (!fixtureTabId || !newerTabId) throw new Error('Home race tabs were not available')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Home race fixture')
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
+
+    await electronApp.evaluate(({ ipcMain }) => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
+      ipcMain.removeHandler('browser:stop-find-in-page')
+      ipcMain.handle('browser:stop-find-in-page', () => new Promise<void>(resolve => {
+        mainGlobal.__resolveDelayedHomeFindCleanup = resolve
+      }))
+    })
+
+    await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toMatch(/^hronaut:\/\/home/)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(newerTabId)})`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer tab choice')
+
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
+      if (!mainGlobal.__resolveDelayedHomeFindCleanup) throw new Error('Delayed Home Find cleanup did not start')
+      mainGlobal.__resolveDelayedHomeFindCleanup()
+      delete mainGlobal.__resolveDelayedHomeFindCleanup
+    })
+
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Newer tab choice')
+  } finally {
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedHomeFindCleanup?: () => void }
+      mainGlobal.__resolveDelayedHomeFindCleanup?.()
+      delete mainGlobal.__resolveDelayedHomeFindCleanup
+    }).catch(() => undefined)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('shows a recoverable site error and retries the failed address', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
