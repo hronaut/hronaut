@@ -1,245 +1,46 @@
 # Hronaut
 
-Hronaut is a visible, multi-tab Electron browser that exposes its live tabs to AI clients through MCP. It is deliberately not headless and is not tied to the lifetime of an AI session.
+Hronaut is a visible, persistent Electron browser that exposes its live tabs to AI clients through MCP. It keeps the browser open independently of any individual AI session, so humans and agents can share the same local browsing context.
 
-Hronaut 1.0 is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Permitted noncommercial uses are defined by that license. Any use that PolyForm Noncommercial does not permit requires an active [commercial subscription license](COMMERCIAL-LICENSE.md).
+[Website](https://hronaut.dev) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
-Project home: https://github.com/hronaut/hronaut
+## Highlights
 
-## What it keeps
+- Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.
+- Local Streamable HTTP MCP endpoint with browser navigation, interaction, inspection, diagnostics, downloads, storage, and accessibility tools.
+- Multi-agent workspaces with stable UUIDv7 identities and isolated browser profiles.
+- Human-interaction locks, instant MCP pause, explicit permissions, and optional bearer-token authentication.
+- Built-in history, bookmarks, downloads, password vault, site controls, responsive preview, visual comparison, and Chromium diagnostics.
+- Automatic update checks against public GitHub releases; downloads and installation always require user action.
+- English, Ukrainian, Russian, German, French, Spanish, and Polish interface languages.
 
-- Cookies, local storage, IndexedDB, service workers, cache, and login sessions use Electron's persistent `persist:hronaut` partition.
-- Open tabs and the active tab are restored from `tabs.json` in Electron's user-data directory.
-- A two-tab split view, its side-by-side or stacked layout, pane order, and proportion are restored from the same file.
-- Per-tab and all-tab human-interaction locks are restored from `tabs.json` as well.
-- Appearance, search-engine, and other application settings are restored from `settings.json` in the same profile.
-- Allowed and blocked website permissions are restored from `site-permissions.json` in the same profile.
-- Window position, size, monitor, maximized state, and fullscreen state are restored. If that monitor is disconnected, the window is centered on the current primary display.
-- Closing the window hides it by default. The Electron process and MCP endpoint keep running; click the tray icon to open its menu and choose **Show Hronaut** or **Quit**. Disable **Hide in tray when closing** in Settings to make the window close button quit Hronaut instead.
-- A second launch focuses the existing instance instead of starting a competing browser profile.
+## Install
 
-## Appearance
+Download the latest package for Windows, macOS, or Linux from [GitHub Releases](https://github.com/hronaut/hronaut/releases/latest).
 
-Open **Settings** from the gear button in the top strip. Hronaut includes four application themes:
+The initial release artifacts are not platform code-signed or Apple-notarized, so Windows SmartScreen or macOS Gatekeeper may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
 
-- **System** follows the operating system's light or dark appearance as it changes.
-- **Light** for a bright, neutral browser shell.
-- **Dark** for a low-glare browser shell.
-- **Cyberpunk** for a neon cyan and magenta browser shell.
+## Run from source
 
-The selected theme is applied immediately and survives application restarts. System mode keeps Hronaut's renderer, native menus, and window background aligned with Electron's current operating-system theme. A fixed theme changes Hronaut's controls and native color preference without injecting styles into websites.
-
-### Interface language
-
-Choose **System default**, English, Ukrainian, Russian, German, French, Spanish, or Polish in **Settings → Appearance**. The preference is stored in Hronaut's profile and applies immediately to the main window, detached panels, Hronaut Home, and native menus. System mode keeps the `system` preference and resolves Electron's operating-system locale centrally; unsupported system languages use English. Electron does not provide a reliable cross-platform live notification when the operating-system language changes, so an OS-language change is picked up on the next Hronaut launch. Choosing an explicit language, or switching back to System default, applies immediately without restarting.
-
-**Interface size** scales Hronaut's tabs, toolbar, Settings, and diagnostic panels independently from website page zoom. New profiles use Comfortable 110%; choose Compact 100% or Large 125% at any time. Detached Hronaut panels follow the same setting, while every website retains its own zoom and viewport. The same dialog includes separate **Search engine**, **Downloads**, **Performance**, **MCP security**, **Privacy & data**, **Site permissions**, **Passwords**, and **Updates** sections.
-
-## Choose the default search engine
-
-Open **Settings → Search engine** to choose Google, DuckDuckGo, Bing, Brave Search, or Startpage. Plain text submitted from the address bar and `browser_navigate` uses the selected provider immediately; recognizable addresses and explicit URL schemes continue to navigate directly. The choice is stored in the local Hronaut profile. Local tab, bookmark, and history suggestions remain on-device and do not send keystrokes to any provider.
-
-## Clear browsing data safely
-
-Open **Settings → Privacy & data** to review local history-page and visit counts, cookie count, and HTTP cache size. Select browsing history, cookies and site data, cached images and files, or any combination once, then either clear one website from the searchable list or use **Clear all websites…** for the whole profile. The Settings-owned website list never changes its target when another browser tab gains focus. Cookies and site data are off by default because removing them can sign you out; history and cache are selected by default.
-
-The inventory combines origins from local history, cookies, open tabs, bookmarks, saved accounts, and permission decisions; storage-only origins that Chromium does not expose as an index may not appear until they are known through one of those sources. Each website row shows available cookies and history plus retained bookmarks, accounts, permissions, and open tabs.
-
-For the current page, click the controls icon at the left of the address. The compact **Site controls** panel shows cookies from that tab's Default or isolated workspace profile, exact-origin history, and saved permission decisions. Change or reset a permission in place or open all site settings. On a Default tab, **Clear data for this website** opens Privacy & data already filtered to that explicit website; opening Privacy normally resets the filter and shows the complete list. On an isolated workspace tab, **Site storage** opens the workspace-scoped inspector instead, so the human Default profile is never shown or cleared by mistake.
-
-Website-scoped history matches the exact origin; storage and cache use Chromium's origin matching; cookies may also be removed from related subdomains because browsers store them at domain boundaries. Clearing site data covers cookies, local storage, IndexedDB, file-system data, service workers, offline caches, Web SQL, and background fetch data. Hronaut temporarily rejects new MCP commands and waits for active commands to finish while the operation runs, then restores the previous pause state. Open pages are deliberately not reloaded, so unsaved page state is not discarded; reload a page when you want it to observe the cleared session. Bookmarks, downloaded files, the encrypted password vault, site-permission decisions, settings, and open tabs are never removed by this action.
-
-## Site permissions
-
-When a website requests access such as location, notifications, clipboard, camera, or microphone, Hronaut asks before granting it and remembers the Allow or Deny decision for that exact website origin. Open **Settings → Site permissions** to change a saved decision, forget one so Hronaut asks again, or reset the section to clear all saved decisions.
-
-## Updates
-
-Automatic update checks are enabled by default. Packaged builds check the public GitHub release feed shortly after startup unless you disable **Check for updates on startup**. Hronaut never downloads an update silently: an in-app notification shows the available version and release notes, then asks you to **Download update** and **Install and restart**.
-
-On Linux, Hronaut waits for the old single-instance process to finish its bounded profile and MCP shutdown before launching the newly installed DEB, RPM, or AppImage. This prevents an immediate second update prompt from the still-running old binary during consecutive releases.
-
-You can also check manually from Settings, the Hronaut application menu, or the tray menu. Update preferences are stored in the persistent profile. Development builds do not contact the release feed; set `HRONAUT_DISABLE_AUTO_UPDATE=1` to disable checks for a packaged launch as well.
-
-## Hronaut Home
-
-The dedicated **Home** application button sits outside the browser tab list and opens **Hronaut Home**, an internal dashboard that stays inside the persistent browser partition. It is app navigation, not a reserved browser tab. While Home is active, Hronaut keeps the top strip for switching to open websites but removes the website-only Back, Forward, address, and page-action row, giving the dashboard the reclaimed space. Application-wide Search tabs, Downloads, History, Hronaut lock, MCP, and Settings controls remain in the same top-strip positions on Home and websites; only page-specific navigation and tools appear beside the address. Hronaut keeps Home as a singleton: clicking the button focuses the existing Home page or recreates it if needed. Regular new tabs remain blank. Home provides:
-
-- Copy-ready setup instructions for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, and generic Streamable HTTP clients.
-- A live list of active requests and recently seen MCP clients.
-- The current browser tool catalog, grouped by session, navigation, interaction, and inspection.
-- A privacy-safe activity dashboard with recent tab actions, duration, outcome, and per-launch impact totals. It records no URLs, selectors, typed text, screenshots, or page content.
-- The local MCP endpoint and authentication guidance.
-
-Regular websites, including `https://google.com`, can be opened from the address bar, a new-tab request with a URL, or `browser_navigate`.
-
-Right-click a website tab to create or edit its workspace, open another tab in that workspace, or archive a non-Default workspace. Every human-created website tab belongs to the durable **Default** workspace. Every tab and workspace has a UUIDv7 identity. Workspace names are unique human labels: renaming one never changes its stable `workspaceId`. Each agent creates a separate workspace and uses that public ID; IDs coordinate ownership and are not secrets. Workspace membership is immutable, so tabs cannot move between workspaces.
-
-## Save resources in large workspaces
-
-Memory Saver is enabled by default under **Settings → Performance**. After one hour of inactivity, Hronaut unloads eligible background website tabs and marks each sleeping tab with a moon. Choose 5 minutes through 4 hours, sleep every eligible tab immediately, or disable the feature. Selecting a sleeping tab or targeting it with an MCP command reloads it and restores its navigation history before the work begins.
-
-Visible split-view panes, pinned or loading tabs, audio playback, active downloads, open dialogs, Developer Tools, current MCP commands, and pages with edited form or rich-text content stay awake. Right-click an inactive tab to sleep or wake it directly. These protections follow the same practical model as mainstream browser memory savers while preserving Hronaut's persistent multi-agent workspace.
-
-## Pause agents instantly
-
-Use the pause button beside **MCP ready** to reject new MCP commands immediately while keeping Hronaut, its tabs, logins, and browser profile open. Resume from the same control when you are ready. This runtime safety switch is intentionally separate from MCP authentication and resets when Hronaut restarts.
-
-## Saved passwords
-
-When you manually submit a website password form, Hronaut can ask whether to save or update that login. Passwords are encrypted asynchronously by the operating system through macOS Keychain, Windows DPAPI, or a supported Linux secret store. Hronaut refuses to enable password saving when Linux would fall back to Electron's unprotected `basic_text` backend.
-
-Saved-account metadata can be reviewed or removed under **Settings → Passwords**. Hronaut never exposes stored passwords through its preload API, Settings, Home dashboard, or MCP tools. Use the password button in the toolbar to fill an account for the active website. Hronaut pauses new MCP commands before decrypting and filling, waits for active requests to finish, and remains paused until you explicitly resume agents.
-
-To migrate accounts from an installed browser, export its passwords as CSV, then choose **Settings → Passwords → Choose browser CSV…**. Chrome, Edge, Firefox, and compatible password managers use or can produce the required `url`, `username`, and `password` columns. Hronaut opens the file through a native picker, parses at most 3,000 rows and 10 MB in the main process, shows counts before changing the vault, and imports only after explicit confirmation. Valid HTTP(S) accounts are re-encrypted atomically with Hronaut's operating-system-backed vault; later duplicate rows win, existing origin-and-username matches are updated, and invalid rows are reported as skipped. Password values and the selected file path never cross the preload boundary or reach MCP.
-
-Browser CSV exports contain readable passwords. Delete the export after confirming the import. Hronaut deliberately does not read or decrypt another browser's live profile database: those stores are protected by browser- and OS-specific credential systems, may require a primary password or biometric approval, and increasingly bind secrets to the source application. The browser's authenticated export flow is the supported consent boundary.
-
-## Prevent accidental human interaction
-
-Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock the entire app. Both block human mouse, wheel, context-menu, and keyboard input. A full-app lock leaves only its own unlock button active, so it is still easy to release. MCP inspection and interaction continue to work while human input is locked.
-
-## Right-click webpage actions
-
-Right-click an unlocked website to use a native context menu. Links can open in a background tab, be copied, or downloaded; images can be copied, opened, or saved; text fields expose spelling suggestions and standard editing commands; selections can be copied; and every page includes Back, Forward, Reload, Reload Without Cache, Copy Page Address, and Inspect. The native View menu and `Ctrl/Cmd+R` now reload the active website rather than Hronaut's application shell; use `Ctrl/Cmd+Shift+R` when debugging requires a fresh network load. Download actions use Hronaut's configured collision-safe download directory. Context menus remain completely suppressed while the tab or all of Hronaut is human-interaction locked.
-
-## Inspect current-site storage
-
-Use the database button in the website toolbar to inspect, filter, add, edit, or delete the active tab's local storage, session storage, and cookies. The **IndexedDB** tab lists top-level-origin databases, object-store schemas, indexes, counts, and bounded record previews without opening Developer Tools; it is deliberately read-only. The **Offline** tab shows bounded web app manifest fields, Chromium installability findings, service-worker registrations, and paginated Cache Storage request metadata without returning raw manifest source or cached response bodies. The **Changes** tab can save an in-memory baseline and show which local-storage, session-storage, or cookie keys were added, updated, or removed after reproducing an issue. Local storage, workers, caches, and cookies are shared by origin inside the current workspace and isolated from other workspaces; session storage belongs only to the selected tab. Hronaut displays sizes, bounds long previews, and keeps HttpOnly cookie values protected from both the human panel and MCP storage tools.
-
-## Get help from the application menu
-
-Use the native **Help** menu beside Hronaut, Edit, and View below the window title. It follows Textonom's familiar structure: Keyboard Shortcuts, About Hronaut, Support Hronaut, GitHub Repository, and Check for Updates. Because the menu is owned by the operating system rather than drawn inside the browser toolbar, it remains visible above Home, websites, and native page views on every tab.
-
-## Debug a website with Chromium Developer Tools
-
-Open **View → Developer Tools**, use **F12**, **Ctrl+Shift+I** on Linux or Windows, or **Cmd+Option+I** on macOS to open detached Chromium Developer Tools for the active website tab. The right-click **Inspect** action opens the same per-tab tools and selects the element under the pointer. Locking the tab or all of Hronaut closes its Developer Tools so the human-interaction lock remains effective.
-
-Electron permits only one debugger connection to a website at a time. MCP actions that depend on the Chrome DevTools Protocol therefore ask you to close Developer Tools first; regular page actions and Hronaut's bounded console and network records remain available. Closing Developer Tools restores those debugger-backed MCP actions immediately.
-
-Agents can use `browser_emulate` to reproduce failures under offline, Slow 3G, Slow 4G, or Fast 4G network conditions; ignore the HTTP cache; bypass service-worker fetch handlers; override the page's Data Saver preference; slow the CPU from 1–20×; pause document-timeline animations or play them at 10%, 25%, or normal speed; disable page JavaScript; switch screen or print media; emulate color scheme, forced colors, contrast, reduced motion, reduced transparency, or a vision deficiency; set a locale and IANA time zone; override the user agent; or apply a mobile/desktop viewport with DPR, touch, and orientation. The same tool can supply test coordinates and extra request headers for location-aware or server-variant debugging, and can enable Chromium paint flashing, layout-shift regions, layer borders, frame rendering stats, or scrolling-performance highlights through `renderingDebug`. Animation playback controls cover CSS transitions, CSS Animations, Web Animations, and view transitions on the document timeline; JavaScript `requestAnimationFrame` loops remain unaffected. A website still needs its normal Hronaut geolocation permission. Header values are applied inside the website tab but only their names appear in tab state or the trusted shell. Overrides apply only to the chosen tab, survive navigation and reload, and can be inspected or reset through the same tool. `cacheDisabled: true` ignores memory and disk cache for future requests without deleting cached data. `bypassServiceWorker: true` sends future requests to the network without unregistering the worker; combining it with Offline deliberately prevents the worker from supplying offline responses. Data Saver changes `navigator.connection.saveData` without throttling bandwidth; choose `enabled`, `disabled`, or `auto` to restore the system value. Reload after changing locale so `navigator.language`, `navigator.languages`, and subsequent request negotiation all reflect it. Reload after disabling JavaScript to inspect the page’s real HTML/CSS fallback; use `browser_emulate` with `javaScriptDisabled: false` or `reset: true` to restore execution even when page evaluation is unavailable. Hronaut marks the tab with a speed icon and shows the active condition beside its address; click that pill to restore normal conditions immediately.
-
-Open **Page tools → Environment → Rendering diagnostics** to use the same overlays without opening Developer Tools. Paint flashing marks every repaint in green; layout-shift regions briefly identify unstable content; layer borders expose compositor structure; frame rendering stats show frame timing, dropped frames, and GPU state; scrolling-performance highlights identify regions that may delay scrolling. These are live diagnostic hints rather than performance measurements or root-cause verdicts. Paint and layout-shift overlays can flash rapidly and should be disabled immediately if flashing content could affect you. Developer Tools owns Chromium's only debugging connection while open; Hronaut restores still-active overlays after Developer Tools closes.
-
-## Preview responsive layouts
-
-Open **Page tools → Responsive preview** to apply a compact-phone, phone, large-phone, tablet, laptop, or desktop viewport to the current website without resizing the Hronaut window. Rotate any preset, or choose Custom for exact CSS-pixel dimensions, DPR, mobile rendering, and touch events. Resetting from this panel clears only the viewport, so an agent's network, CPU, media, location, user-agent, and request-header conditions remain intact.
-
-The presets are intentionally generic: responsive breakpoints should follow where content stops working, not a short-lived list of branded devices. This Chromium simulation is useful for reproducing layout and input problems, but it remains a first-order approximation rather than proof that a page works on physical hardware.
-
-## Copy an element for an agent
-
-Open **Page tools → Pick element**. Hronaut highlights content, padding, border, and margin as distinct blue, green, yellow, and orange layers while a live tooltip shows dimensions, spacing, layout type, accessible role and name, keyboard focusability, and solid-color contrast. Click one element to copy an agent-ready description containing the page, a CSS selector, safe element attributes, visible text, viewport bounds, computed box model, layout, typography, contrast, and basic accessibility properties. Press Escape or choose Pick element again to cancel. Form values, inline event handlers, page markup, and stylesheet source are never included. Computed values are a point-in-time rendering snapshot rather than the CSS cascade or a complete accessibility verdict; collapsed or negative margins and layered backgrounds can also make the visualization or contrast incomplete.
-
-## Compare a page before and after
-
-Open **Page tools → Visual compare** and set a viewport baseline before reproducing a visual change. Compare afterward to see the changed-pixel percentage, the smallest changed rectangle, and a high-contrast diff where changed pixels are white and stable pixels are dimmed. Copy the diff PNG directly into an agent chat. The panel docks on any side or opens in its own window like the other page diagnostics.
-
-Each tab keeps at most one baseline and one diff in memory. They disappear when cleared, when the tab closes, or when Hronaut exits. Captures are normalized to at most 1920×1080; the comparison rejects a changed viewport size instead of stretching either image. The default per-channel threshold ignores small rendering noise, but animation, video, blinking carets, delayed content, fonts, GPU output, and operating-system differences can still affect pixels. Generate both captures in the same Hronaut environment and review the diff before sharing it.
-
-## Find in a page
-
-Press **Ctrl+F** on Linux or Windows, **Cmd+F** on macOS, or use the find button beside the address bar. Hronaut uses Chromium's native page search to highlight matches and show the current result count. Press Enter or Shift+Enter to move between matches, or Escape to close the bar and clear the search selection.
-
-## Find any Hronaut command
-
-Click the command button in the top strip or press **Ctrl/Cmd+Shift+P** from Hronaut or the active website. The Command Palette searches navigation, application settings, and current-website diagnostics by name, description, and practical synonyms such as `cookies`, `screenshot`, `WCAG`, or `HAR`. Use Up/Down and Enter to run the highlighted command, or Escape to close it.
-
-Commands that require a website appear only when a website tab is active, so Home presents a concise global list instead of actions that cannot run. The palette follows the same keyboard convention as Chrome DevTools and VS Code while keeping all matching and ranking local to Hronaut.
-
-## Browser keyboard shortcuts
-
-Hronaut supports the standard browser shortcuts from either its shell or the active website: **Ctrl/Cmd+L** focuses the address bar, **Ctrl/Cmd+T** opens a tab, **Ctrl/Cmd+W** closes the active tab, and **Ctrl/Cmd+Shift+T** reopens the most recently closed website tab. **Ctrl/Cmd+Shift+A** searches open and recently closed website tabs, while **Ctrl/Cmd+Shift+P** searches Hronaut commands. **Ctrl/Cmd+D** saves or removes the current website bookmark. **Ctrl+H** on Linux/Windows or **Cmd+Y** on macOS opens browsing history. **Ctrl/Cmd+Shift+Delete** opens Privacy & data settings. **Ctrl+Tab** and **Ctrl+Shift+Tab** cycle through tabs. **F12**, **Ctrl+Shift+I**, or **Cmd+Option+I** toggles Developer Tools for the active website. Closed-tab recovery stays in memory for the current Hronaut launch and is separate from persistent browsing history.
-
-## Search and restore tabs
-
-Use the fixed tab-search button or press **Ctrl/Cmd+Shift+A** from Hronaut or any active website. Search matches titles and addresses across both open tabs and the bounded recently closed stack. Use Up/Down and Enter to switch to an open page or restore any matching closed page without leaving the keyboard; pin, unpin, and close open entries directly from the accessible floating panel. Recently closed entries retain only title, address, pin state, and close time for the current launch. Home remains application navigation and is intentionally excluded from website-tab results. This keeps active pages discoverable when the 50-tab strip overflows and makes recovery visible without requiring a shortcut.
-
-## Compare two live pages in split view
-
-Use the split-view button beside the address bar to choose another open website, or right-click a tab and choose **Open in Split View**. Hronaut puts the second page on the right by default and keeps both websites live and interactive. Click either page or either marked tab to make it the active pane; the address bar and page tools follow that focus without closing the other page.
-
-The split control can switch between side-by-side and stacked layouts, allocate 25–75% of the available space to the first pane, swap pane positions, or return to one page. Docked Page tools and Bookmarks resize both panes inside the remaining website area. The pair, layout, order, and proportion survive application restarts. Selecting a third tab exits the pair instead of silently replacing one side, and closing either pane returns the remaining tab to the full website area.
-
-## Find local pages from the address bar
-
-Start typing a title or address to match bookmarks and browsing history in a native dropdown that floats above the current website without resizing it. Use Up/Down and Enter or click a result. Type **@bookmarks** or **@history** followed by optional keywords to limit the local source. Open tabs are intentionally kept out of address suggestions: submitting an address always navigates the current tab, even when the same page is already open elsewhere, while the dedicated tab-search control remains available for switching between open pages. Matching happens entirely inside Hronaut: focus and keystrokes are not sent to a suggestion service. If you submit text that is not an explicitly selected local result or recognizable address, Hronaut sends it to the provider selected under **Settings → Search engine** only after you press Enter.
-
-## Pin important tabs
-
-Right-click a website tab and choose **Pin Tab**, or use the pin control in open-tab search. Pinned tabs stay compact at the left of regular website tabs. Drag tabs along the strip to arrange them; pinned tabs can be reordered among pinned tabs and regular tabs among regular tabs, preserving the compact left boundary. The right-click menu also offers **Move Tab Left** and **Move Tab Right** for an accessible non-drag alternative. Custom order and pinned state are stored with the profile and restored after an application restart, while closed-tab recovery keeps the pin state during the current launch. Unpin from the same native menu or search panel. Home remains separate application navigation and cannot be pinned or reordered.
-
-The same native tab menu can reload, mute, or duplicate a tab while preserving its Back/Forward history. It can close duplicate tabs, other unpinned tabs, or unpinned tabs to the right without touching pinned tabs. Every closed website remains recoverable with **Reopen Closed Tab** or **Ctrl/Cmd+Shift+T** during the current launch, including a full 50-tab bulk close.
-
-## Save local bookmarks
-
-Press **Ctrl/Cmd+D** or use the star beside the address bar to save the current HTTP or HTTPS page. Open the bookmarks panel to search, rename, remove, or open saved pages. Bookmarks are kept locally in the Hronaut profile with atomic writes, duplicate addresses update the existing entry, and non-web URL schemes are rejected. Agents can manage the same collection with `browser_bookmarks`.
-
-## Review local browsing history
-
-Press **Ctrl+H** on Linux/Windows, **Cmd+Y** on macOS, or use the history button to search recently visited pages, reopen one, remove an individual entry, or clear the collection. Hronaut stores one recency entry per normalized HTTP or HTTPS address, counts repeat visits, removes URL credentials and fragments, and automatically drops visits older than 90 days. Home, `about:`, `data:`, and other internal pages are never recorded, and restoring a saved tab does not count as a new visit. History stays in the local profile with atomic writes; clearing it does not remove cookies, passwords, bookmarks, or downloaded files. Agents can use `browser_visit_history` to list, search, reopen, remove, or clear the same collection.
-
-## Identify and mute tabs
-
-Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab without changing sound permissions for the entire site. Agents can use `browser_audio`, and `browser_tabs` reports each tab's audible and muted state.
-
-## Recover a failed page
-
-When a website cannot be reached, its renderer crashes, or it stops responding, Hronaut shows a compact diagnostic row beneath the address bar instead of leaving an unexplained blank tab. **Try again** retries the exact failed address or reloads a crashed page in a fresh renderer process. The row expands the shell so it never covers website content, disappears after recovery, and includes the underlying Chromium error or process-exit reason when available. Agents receive the same structured `pageProblem` details through `browser_tabs` and can retry with `browser_history` using `reload` or `reload-ignoring-cache`.
-
-## Change the MCP port
-
-Open **Settings → MCP security**, enter an available port from 1024 through 65535, and choose **Apply port**. Hronaut starts the replacement listener before stopping the old one; if the requested port is unavailable, the current MCP endpoint keeps running and the saved setting is unchanged. Connected clients must be updated to the new endpoint after a successful move.
-
-## Save a page as PDF
-
-Use the **PDF** button beside the address bar to save the active page with backgrounds to the configured download directory. Hronaut derives a portable filename from the page title and adds a numeric suffix instead of overwriting an existing file. Agents can use `browser_pdf_save` and optionally choose a portable filename, A4/Letter/Legal paper, or landscape orientation.
-
-## Track downloads
-
-Website downloads appear in the toolbar with live byte progress and a recent-item count. Open the download panel to cancel an active transfer, reveal a completed file in its operating-system folder, or clear finished entries. The panel opens when a new download starts, floats over the page without resizing it, and keeps completed, cancelled, and interrupted items in memory for the current Hronaut launch. In **Settings → Downloads**, choose a persistent destination, open it in the operating-system file manager, or ask where to save every new website download. Automatic saves remain collision-safe and never overwrite an existing file. Active transfers keep the destination they started with.
-
-## Run
-
-Requirements: Node.js 22+ and a graphical Linux, macOS, or Windows session.
+Requirements: Node.js 22 or newer and a graphical Linux, macOS, or Windows session.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Development runs use a persistent `hronaut-dev` profile. This keeps development cookies, tabs, storage, and window state across restarts while avoiding the single-instance lock and profile of an installed Hronaut build. If an older window appears after upgrading the source, quit it from **Hronaut → Quit** once instead of only closing the window.
-
-For the built application:
+Build and run the desktop application:
 
 ```bash
 npm run build
 npm start
 ```
 
-To ask an already running development instance to flush its profile and quit cleanly:
-
-```bash
-node_modules/.bin/electron . --quit
-```
-
-The MCP endpoint is available while the app is running:
-
-```text
-http://127.0.0.1:47812/mcp
-```
-
-Health check:
-
-```bash
-curl http://127.0.0.1:47812/healthz
-```
-
-Authentication is off for a new profile so local agents can connect without token setup. If you enable **Require MCP authentication** in Settings, the exact token path is shown on Hronaut Home. On Linux, the packaged default is `~/.config/Hronaut/mcp-token`; development builds use `~/.config/hronaut-dev/mcp-token`. Hronaut creates one random token per profile and restricts the token file to the profile owner.
+Development uses a separate persistent `hronaut-dev` profile. Installed builds use the normal Hronaut profile.
 
 ## Connect an MCP client
 
-Use a Streamable HTTP MCP configuration and start Hronaut before the client connects. A generic JSON configuration looks like:
+Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 
 ```json
 {
@@ -251,197 +52,29 @@ Use a Streamable HTTP MCP configuration and start Hronaut before the client conn
 }
 ```
 
-The exact schema depends on the MCP client; Hronaut Home includes separate current instructions for the major coding agents. Disconnecting or closing that client does not close Hronaut.
+Hronaut Home contains current setup instructions for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, and generic MCP clients.
 
-Optional environment variables:
+The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 
-- `HRONAUT_MCP_PORT`: override the saved listen port for the current launch. Without the override, the port can be changed under **Settings → MCP security** and defaults to `47812` for new profiles.
-- `HRONAUT_MCP_HOST`: loopback listen host, default `127.0.0.1`. Non-loopback values are rejected.
-- `HRONAUT_MCP_TOKEN`: override the generated per-profile token with at least 32 URL-safe characters. While authentication is enabled, every MCP and health request must send `Authorization: Bearer <token>`.
-- `HRONAUT_DISABLE_MCP_AUTH`: force the current launch to keep MCP authentication disabled even if the profile normally requires it. The setting can be changed immediately under **Settings → MCP security**. Hronaut remains loopback-only, but every local process can control the profile while authentication is off; enable authentication on computers where local processes are not equally trusted.
-- `HRONAUT_USER_DATA_DIR`: use an alternate profile directory instead of the packaged or `hronaut-dev` default. This is primarily useful for isolated integration tests.
-- `HRONAUT_DISABLE_AUTO_UPDATE`: set to `1` to disable update checks for the current launch.
-- `HRONAUT_DOWNLOAD_DIR`: use this directory as the profile's default instead of the operating system's Downloads directory. A folder explicitly chosen in Settings takes precedence.
-
-## Page tools
-
-Page tools keeps every action directly visible while grouping the growing surface by task: **Inspect & simulate**, **Diagnose & reproduce**, **Audit & optimize**, and **Export & account**. The groups use real section headings for keyboard and assistive-technology orientation; the Command Palette remains the fastest route when the action name is already known.
-
-For screenshots, humans can drag an area from the toolbar, pick one complete element from Page tools, or use the Command Palette to copy the visible viewport or complete scrollable page. All four modes write a PNG directly to the system clipboard for pasting into an agent chat; application toasts report success and actionable clipboard errors without covering or changing the address field.
-
-For text-first context, choose **Page tools → Copy page snapshot** or search the Command Palette for `page context`. Hronaut copies a bounded 30,000-character view of the current headings, interactive controls, and visible text through the same verified native clipboard bridge. Live form values are excluded, and URLs remove credentials, fragments, and recognized secret-bearing query values before the snapshot reaches the clipboard. Visible page-authored text can still be private, so review it before sharing outside the trusted agent session.
-
-## MCP tools
-
-- `browser_workspaces`, `browser_saved_workspaces`
-- `browser_status`, `browser_show`, `browser_tabs`
-- `browser_request_user_attention`
-- `browser_new_tab`, `browser_select_tab`, `browser_close_tab`, `browser_bookmarks`, `browser_visit_history`, `browser_site_data`, `browser_storage`, `browser_storage_changes`, `browser_storage_usage`, `browser_indexeddb`, `browser_pwa`
-- `browser_navigate`, `browser_history`, `browser_wait`
-- `browser_snapshot`, `browser_element_inspect`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
-- `browser_select`, `browser_hover`, `browser_drag`, `browser_scroll`, `browser_file_upload`
-- `browser_resize`, `browser_emulate`, `browser_zoom`, `browser_audio`, `browser_screenshot`, `browser_pdf_save`, `browser_accessibility_audit`, `browser_performance`, `browser_design_overview`, `browser_page_metadata`, `browser_security`, `browser_code_coverage`, `browser_cpu_profile`, `browser_memory`, `browser_debug_report`, `browser_repro`, `browser_dom_changes`, `browser_visual_compare`, `browser_issues`, `browser_console`, `browser_diagnostic_logs`, `browser_network`, `browser_network_wait`, `browser_network_search`, `browser_network_request`, `browser_network_replay`, `browser_network_har`, `browser_network_routes`, `browser_downloads`, `browser_evaluate`
-
-The preferred interaction loop is `browser_snapshot` → semantic element ref (`e1`, `e2`, ...) → `browser_element_inspect`, `browser_click`, or `browser_type`. Take a fresh snapshot after navigation or large DOM changes. Snapshots exclude live form values and sanitize URL credentials, fragments, and recognized secret-bearing query values; page-authored headings, labels, and visible text remain available because they are the interaction context.
-
-Every MCP browser workflow starts with `browser_workspaces` **create**. The agent must create a fresh, clearly and uniquely named workspace for its task and pass only the UUIDv7 `id` returned by that call as `workspaceId` to every other browser tool. If the same agent later reopens its own archive, it may instead use the fresh `id` returned by `browser_saved_workspaces` **open**. Names are for people and can change; UUIDv7 IDs are the stable MCP identity and survive a rename. Listing workspaces is for awareness and avoiding naming collisions; it never grants permission to resume, rename, recolor, close, or browse another workspace. In particular, agents must never use the human **Default** workspace, which is marked `isDefault: true`. This is deliberately a cooperative contract rather than a session claim or secret: workspace IDs are visible identifiers, and agents are expected to stay inside the workspace they created or reopened from their own archive.
-
-New tabs, bookmark/history opens, website popups, duplicated tabs, closed-tab restores, the implicit active tab, and returned browser state all stay inside the supplied agent workspace. Hronaut rejects a tab ID from a different workspace and preserves workspaces and their tabs across restarts. Human-created new tabs use one persistent workspace named **Default**, regardless of which tab is currently focused, so normal browsing never falls into an agent workspace.
-
-Click a named workspace header to collapse or expand its tabs, or focus the header and press Enter or Space. Hronaut remembers collapsed workspaces across restarts, keeps the current workspace visibly emphasized, and shows its tab count even while the individual tabs are hidden. A pin marks Default. Right-clicking a workspace header opens its controls. Tabs can be reordered only inside their current workspace and cannot be moved between workspaces. The workspace editor offers nine labeled colors; agents receive the same palette through `browser_workspaces` create and update operations.
-
-Use **Archive Workspace** from that context menu when a non-Default investigation should leave the active tab strip without being lost. Archived workspaces retain their isolated profile and reopen their ordered URLs and pinned state under a fresh `workspaceId`; Default cannot be archived. Permanently closing or deleting a non-Default workspace deletes its isolated browser data. Agents can use `browser_saved_workspaces` only for workspaces they created.
-
-Default is Hronaut's shared durable Chromium profile. Every non-Default workspace receives its own persistent Electron partition for cookies, local storage, cache, service workers, and related website state. On `browser_workspaces` `create`, an MCP client chooses `storage: "scratch"` (the default) for clean isolated site storage or `storage: "fork-default"` for a one-time copy of reusable cookies and local storage from Default, optionally limited with task-relevant `origins` it already knows. Omitting `origins` copies all available cookies and known local storage from Default; MCP deliberately does not expose Default's origin inventory. Later, `import-default` refreshes selected state from Default and `save-default` optionally merges selected workspace state back into Default. These are explicit one-time copies, not a live link or synchronization, and agents remain forbidden from browsing Default directly. `list-origins` shows only the agent workspace and is useful before a selective `save-default`. Hronaut rejects overlapping storage copies and prevents a workspace from being renamed, archived, or deleted while its profile is being copied. Bookmarks, visit history, download records, and Hronaut's remembered permission decisions remain application-wide.
-
-`browser_storage` inspects or edits local storage, tab-specific session storage, and non-HttpOnly cookies for one tab inside the caller's workspace. Lists default to metadata-only; request `includeValues` or use an explicit `get` when a bounded value is needed. Results are capped at 200 entries, 16 KiB per returned value, and 128 KiB of values in total; inputs are capped at 256 KiB. HttpOnly cookie values are never returned or edited. Use `browser_site_data` when the task requires clearing broader origin data such as caches or all cookies and storage.
-
-Use `browser_storage_changes` to save a volatile baseline before reproducing an issue and compare it afterward. The report groups added, updated, and removed local-storage, session-storage, and cookie keys, includes byte sizes and cookie attribute changes, and omits values by default. `includeValues: true` returns only bounded non-HttpOnly values; HttpOnly values remain protected. Baselines are held only in memory, clear automatically when the tab changes origin, and never authorize access outside the caller's workspace.
-
-`browser_indexeddb` inspects the same top-level-origin database state shown in Site storage → IndexedDB. Without a database it returns bounded names and versions; selecting a database adds object-store key paths, auto-increment state, indexes, and entry counts; selecting an object store adds an ordered, paged key list. Values are omitted by default. `includeValues: true` returns bounded JSON-like previews for supported structured-clone values, including safe descriptions for blobs, buffers, maps, sets, dates, and typed arrays. The inspector runs in an isolated Chromium world, remains available on human-locked or MCP-created tabs, does not occupy the Developer Tools connection, and never mutates a database. Third-party-frame databases and database or object-store names beyond the documented 512-character bound are out of scope; lists are point-in-time snapshots, and website-authored database, store, index, or key names—as well as opt-in values—can contain private application data.
-
-`browser_storage_usage` returns the same read-only origin overview shown in Site storage → Overview: total usage, Chromium's current quota estimate, remaining allowance, percentage used, and a bounded byte breakdown by browser-defined storage category. It works on locked and MCP-created tabs. When Developer Tools owns Chromium's debugging connection, Hronaut falls back to `StorageManager.estimate()` and marks the reduced-detail source in the report. The tool never returns storage keys, values, filenames, or cached response bodies, and it never changes quota or clears data.
-
-`browser_pwa` inspects the same top-level-origin offline state shown in Site storage → Offline. It returns bounded web app identity, presentation, icon, shortcut, parse-error, and Chromium installability diagnostics together with service-worker registration scopes, worker script/state metadata, and current Cache Storage names; selecting a cache adds server-side-paginated request URL, method, response status, type, and time metadata, with an optional path filter. Raw manifest source and cached response bodies are never returned, and headers are omitted by default; `includeHeaders: true` adds bounded headers with recognized security-bearing names redacted. Registration discovery remains available on locked or MCP-created tabs even when Chromium Developer Tools owns the debugging connection; in that case the report clearly marks debugger-dependent manifest, installability, and Cache Storage inspection unavailable. The tool is point-in-time and read-only. Use `browser_site_data` only when the task explicitly requires unregistering workers or clearing caches.
-
-When a manual step is unavoidable—such as entering credentials, completing a CAPTCHA, approving a device prompt, or pressing a control that cannot be automated—an agent can call `browser_request_user_attention` with a short reason and optional tab ID. Hronaut plays the selected attention cue, pulses its tray icon, and flashes its taskbar entry until the window is focused or the alert is dismissed from the tray menu. The cue can be selected, previewed, or disabled in Settings → Appearance. The pending request is also reported by `browser_status`. Do not include passwords, tokens, or other secrets in the reason because it is displayed in the operating-system tray.
-
-`browser_screenshot` returns image content directly to the connected agent, ready to display or copy into its chat. Capture the visible viewport, the full page, one element from the latest snapshot with `ref`, any unique element with `selector`, or an exact visible rectangle with `clip: { x, y, width, height }`. Element targets are scrolled into view and captured at their full page bounds; clip coordinates are viewport-relative and must fit inside the visible page area. PNG remains the lossless default; agents can request JPEG with a quality from 1–100 and bound any result with `maxWidth` and/or `maxHeight` while preserving its aspect ratio. For a human-reported issue, use the screenshot-region button in the website toolbar and drag the relevant area, or choose **Element screenshot** from Page tools or the command palette and click one component. Hronaut copies the resulting PNG directly to the system clipboard; paste it into Cursor, Codex, Claude, or another agent chat with Ctrl/Cmd+V. Element screenshots include the complete selected node even when it extends beyond the visible viewport. The pickers work on Default and MCP-created tabs, including locked tabs and pages with Developer Tools open. While selection is active, Hronaut owns the native input, blocks website handlers, ignores concurrent agent-generated pointer events, and restores normal input rules immediately afterward. Main-process coordinate and element fallbacks keep the selection valid when a reactive page replaces its picker state during the drag. Hronaut clears and reads the image back after copying, retries a rejected Linux clipboard write, and surfaces a concrete error when the system clipboard does not accept it. Compact captures reduce image transfer and model-context cost, and every scope keeps working while Hronaut is hidden in the tray. `browser_pdf_save` writes a rendered PDF to the configured download directory and never silently overwrites an existing file. Console and network histories are bounded to the 500 most recent stored entries per tab; adjacent identical ordinary Console events share one entry with `repeatCount`, while exceptions remain distinct. `browser_network` waits for detailed Chromium diagnostics to be ready and returns lightweight HTTP, WebSocket, and EventSource metadata with credentials, fragments, and security-related query values removed; call it once before reproducing an issue when later XHR replay or response-body inspection matters. Each completed response identifies direct network, disk-cache, prefetch-cache, service-worker, or fallback browser-cache provenance. Service-worker responses additionally identify Cache Storage, HTTP cache, fallback code, or a network fetch and include the bounded, best-effort-redacted Cache Storage name when Chromium provides one. Pass one returned ID to `browser_network_request` to inspect the same provenance plus bounded request and response headers and bodies; the parser, script, preload, redirect, or other initiator; retained redirect hops; direct parent and dependent requests reported by Chromium; and Chromium's connection setup, DNS, TLS, send, TTFB, response-header, content-download, and total timing when available. Relationship collections are capped at 12 summaries per kind, raw protocol IDs are never returned, and Hronaut does not guess dependencies from matching URLs or stack text. For WebSockets, the same call returns handshake status, open or closed state, and up to 100 sanitized sent, received, or error messages; text is capped at 4,096 characters per frame, binary payloads are omitted, and a tab retains at most 500 messages across its connections. For EventSource/SSE, it returns open or closed stream state plus up to 100 sanitized event names, IDs, and data records per connection; each data record is capped at 4,096 characters and a tab retains at most 500 events. Script initiators include at most 12 sanitized source frames with 1-based positions; URL credentials, fragments, and security-related query values are redacted, and inline `data:` or `javascript:` sources are omitted. Authorization, cookies, API keys, tokens, passwords, and other named structured secrets are redacted, while binary and multipart bodies are omitted. The human Network list has dedicated SSE and WebSocket filters, badges cached and worker-served requests, and shows the exact response source, worker provenance, Cache Storage name, initiator, relationships, timing, WebSocket messages, and Event stream evidence. People can jump between related requests and copy the complete sanitized request JSON directly into an agent chat. Every Hronaut text-copy action, including Home setup snippets, clears, writes, and reads back the native clipboard with retries; a rejected write produces a top-level application error toast and never reports a false success. For HTTP(S), the panel can also copy a sanitized cURL or fetch command; agents can request the same text with `copyAs: "curl"` or `copyAs: "fetch"` on `browser_network_request`. Hronaut never executes these commands. A retained XHR also exposes **Replay XHR** in the human panel and `browser_network_replay` to agents. Chromium recreates the original XHR inside the same tab and session while its original body, headers, credentials, username, and password remain internal; the result returns a new sanitized Hronaut request ID for inspection. GET and HEAD replay directly. POST, PUT, PATCH, DELETE, and every other method require a second human click or `confirmSideEffects: true` because replay can repeat writes, purchases, messages, or other side effects. Fetch, document, and non-XHR requests are rejected rather than reconstructed inaccurately. It rejects invalid or non-HTTP requests, removes recognized secret and transport headers, omits incomplete or oversized replay data, and explains the omissions in the result. This is structured redaction rather than data-loss prevention: arbitrary URL paths and body text may still contain private data, so review every copy before sharing or running it. `browser_network_har` exports the filtered current-visit evidence as bounded HAR 1.2 using the captured timing phases instead of placing the whole duration in `wait`, with response provenance, initiators, and payload-free WebSocket and EventSource counts under bounded Hronaut metadata. It removes cookie collections and secret-valued headers, defaults to 100 requests without bodies, caps exports at 200 requests, and includes bounded HTTP text bodies only when explicitly requested. Cached, service-worker, failed, or still-pending requests may omit evidence that Chromium did not expose. Chromium keeps only a bounded diagnostic payload buffer, so old or very large response bodies may be unavailable. Website downloads are tracked through MCP, use collision-safe filenames, and never silently overwrite an existing file.
-
-Use the Search action in the human Network header—or `browser_network_search` through MCP—to find a string across bounded sanitized URLs, errors, headers, request payloads, response bodies, retained WebSocket text, and retained server-sent events. Search covers the 50 most recent requests by default and returns request IDs plus short matching snippets; case-sensitive mode and bounded request, body, and result limits are optional. Known secret fields are redacted before matching, while binary and multipart bodies are omitted. This is best-effort structured filtering rather than data-loss prevention: review arbitrary snippets before sharing them outside a trusted agent session.
-
-Use `browser_network_wait` instead of repeatedly polling the Network list when an action should produce a specific request. It matches a full Chrome-style URL wildcard plus optional method, `fetch/xhr` or another Chromium resource type, HTTP status, and lifecycle phase. `response` is the default and resolves when headers arrive or the request fails; `request` resolves at dispatch, while `complete` waits for transfer completion or failure. By default Hronaut checks retained requests first and then listens to exact browser lifecycle events, which catches a response that completed between sequential MCP calls. When an endpoint can repeat, pass the last retained Hronaut request ID as `afterRequestId` to consider only later captures. Use `from: "future"` for a timer-driven request that has not started yet. Waits default to 30 seconds, are capped at 60 seconds and 20 concurrent waits per tab, clean up on every terminal path, return only sanitized lightweight metadata, and never expose raw Chromium IDs.
-
-`browser_element_inspect` reads one rendered element by a fresh snapshot ref or CSS selector and returns bounded computed box-model dimensions, layout, typography, solid-color contrast, and basic accessible role, name, and state. The human Pick element action copies the same report after a visual selection. Neither path returns form values, inline handlers, page markup, arbitrary DOM properties, or stylesheet source. Selectors, allowlisted attributes, visible text, and accessible names are still authored by the website and can contain private data, so review the result before sharing it outside the trusted session.
-
-`browser_network_routes` can temporarily fulfill, abort, or individually throttle matching requests in one tab so an agent can reproduce API errors, timeouts, deterministic response states, and one slow dependency without slowing the whole page. Patterns use Chrome wildcard syntax. Block and mock rules can be restricted to one HTTP method, are one-shot by default, and can be bounded to 100 matches. Throttle rules use Fast 4G, Slow 4G, or Slow 3G, match URLs regardless of method, and stay active until removed. No condition survives app restart or tab closure. A tab can hold at most 50 routes; each mock body is capped at 512 KiB and its headers are validated and bounded. Overlapping routes use first-match-wins priority; agents can move a route one position `up` or `down` without recreating it. Humans can review and reorder the same list under **Network → Request conditions**, add any of the three behaviors, see remaining matches or persistent throttle state, remove one rule or all rules, and open it from the red active-condition indicator or Command Palette. Mock header values and response bodies are accepted only while creating a rule; afterward the UI and MCP summary show status, header names, and byte count instead. Opening Developer Tools clears all conditions because Electron gives DevTools exclusive ownership of the page-debugging transport.
-
-When a response includes `Server-Timing`, Hronaut parses up to 32 metrics into the same Network details, `browser_network_request`, copied request JSON, and sanitized HAR metadata. Repeated metric names remain distinct; optional durations retain tenth-millisecond precision; quoted descriptions may contain commas or semicolons; unknown extension parameters are ignored. Names and descriptions are bounded and descriptions receive best-effort secret filtering. These values are defined by the server, can expose application or infrastructure details, may overlap one another, and do not need to add up to browser-observed TTFB, so review them before sharing outside a trusted agent session.
-
-`browser_accessibility_audit` runs the bundled axe-core engine locally inside one website tab and returns prioritized WCAG violations without uploading the page to an audit service. It checks WCAG A/AA by default, can target one CSS selector, and can instead include AAA, best-practice, or all enabled rules. Agent responses are bounded to 50 rules and 10 affected nodes per rule; they contain selectors and failure summaries, not element HTML or form values. Humans can run the same A/AA audit from Page tools, review critical and serious findings, open rule guidance, and rerun after a fix. Automated checks cannot prove complete accessibility, so keyboard and assistive-technology testing remain necessary.
-
-`browser_performance` measures the current local visit with the bundled Google `web-vitals` collector. It reports LCP, INP, CLS, FCP, and TTFB when the browser has observed them, plus navigation milestones, aggregate resource sizes by type, bounded long-task totals, and Long Animation Frame responsiveness evidence. LoAF results separate blocking, rendering, and style/layout time and rank bounded same-origin main-thread script entry points by observed duration and forced-layout work. To explain CLS, the report keeps up to 20 of the highest-scoring unexpected layout shifts with their time and five bounded affected-element selectors, plus the total observed unexpected-shift count and the number ignored after recent discrete input. The diagnostic score sum is not a replacement for CLS because CLS uses session windows. The report also includes the 50 most recent `performance.mark()` and `performance.measure()` entries so application-defined phases can be correlated with browser work. It returns only a sanitized name, type, relative start, and duration; arbitrary detail objects, stack traces, and source code are omitted. Use `action: "set-baseline"` before a change and the default `measure` afterward to receive signed before/after deltas for the five Web Vitals, load event, transferred resources, long-task blocking, and Long Animation Frame blocking; `clear-baseline` discards it. The Page tools panel exposes the same Save, Replace, Measure, and Clear workflow. A baseline is volatile and scoped to its tab, but intentionally survives navigation so a reload or deployment can be compared; every comparison says whether the sanitized URL and the effective viewport, zoom, throttling, cache, service-worker, locale, user-agent, and header conditions still match. Closing the tab or app discards it. Source URLs have credentials, fragments, and sensitive query values removed; page-authored function, invoker, User Timing, and element-selector text receive best-effort secret filtering. The collector runs once per page load in an isolated world, stays available across repeated measurements and soft navigations, and does not occupy Electron's single DevTools debugging connection. These results are one local sample—not field data or a 75th-percentile CrUX result—and normal run-to-run variation means important changes should be repeated under matching conditions. INP remains unavailable until the page receives a qualifying interaction. Script attribution identifies an entry point rather than necessarily the slowest internal function, and cross-origin frames, workers, service workers, and isolated-world work can remain unattributed.
-
-`browser_design_overview` captures the same current-rendering summary available under **Page tools → Design overview**. It ranks bounded computed text, background, and border colors; font-family, size, weight, and line-height combinations; readable media-query conditions; and likely WCAG AA text-contrast failures for solid backgrounds. The collector samples at most 2,500 elements and 20,000 accessible CSS rules, reports only the leading 24 colors and fonts, and returns at most 25 structural contrast selectors. It never returns CSS source, body text, form values, element IDs, class names, or page markup. Cross-origin stylesheet rules, gradients, imagery, overlays, filters, pseudo-elements, and blended backgrounds can make the overview incomplete, so use it as a focused design-consistency lead rather than a conformance verdict; `browser_accessibility_audit` remains the broader automated accessibility check.
-
-`browser_page_metadata` exposes the same rendered-document report available under **Page tools → Page metadata**. It covers title and description inputs, canonical and robots directives, language, viewport, manifest and icon links, heading counts, Open Graph, Twitter cards, language alternates, and JSON-LD parse status and declared types. It identifies missing or conflicting signals without inventing an SEO score. Only explicitly allowlisted metadata is returned: arbitrary meta tags, body content, form values, and complete structured-data objects stay out of the report, while sensitive URL query parameters are redacted. Search engines and social platforms may crawl or render a different response, and valid metadata cannot guarantee indexing, ranking, snippets, card rendering, or rich-result eligibility.
-
-`browser_security` exposes the same current-main-document report available under **Page tools → Security**. It shows whether the transport is encrypted and, when Chromium observed an HTTPS response, the TLS/QUIC protocol, cipher, key exchange, certificate subject and issuer, validity window, transparency status, Encrypted ClientHello state, and up to 50 bounded SAN names. The report never includes raw certificates, certificate IDs, response headers, cookies, or page content. Cached, service-worker, local, failed, and still-loading documents may not expose certificate details; reload before inspecting again. Security state describes the connection—not whether the website or its operator is trustworthy—and mixed content, CSP, CORS, and cookie findings remain in `browser_issues`.
-
-`browser_code_coverage` runs the same per-tab recorder available under **Page tools → Code coverage**. Start and reload to measure initial page code, exercise the workflow being optimized, then stop to see total, used, and unused JavaScript/CSS bytes per sanitized resource URL. Function mode keeps overhead lower; block mode provides finer results while slowing JavaScript more. Hronaut returns aggregates only—never source text—keeps at most 100 resources, skips sources above 5 million characters, prevents the recording tab from sleeping, and discards active instrumentation if regular Chromium Developer Tools takes ownership. One recording cannot prove that code is unused for every route, feature flag, or user, so treat the result as a focused optimization lead.
-
-`browser_cpu_profile` runs the same sampled JavaScript profiler available under **Page tools → JavaScript CPU**. Start recording, reproduce one slow interaction, then stop to rank up to 50 hot functions by direct self time, percentage, and sample count. Reports include only bounded function names and sanitized file positions—never source code, arguments, form values, or page content. The tab stays awake while recording, regular Chromium Developer Tools takes exclusive ownership of the debugger connection, and code coverage and CPU profiling cannot record simultaneously. Sampling can miss short functions and does not measure browser rendering work, so repeat the smallest reproducible interaction and compare several runs before optimizing.
-
-`browser_memory` measures aggregate JavaScript heap usage plus document, frame, DOM-node, event-listener, and layout-object counters for one group tab. Set a runtime baseline, reproduce the same interaction, then measure again with optional forced garbage collection to receive signed deltas. The same tool can start and stop low-overhead allocation sampling, ranking up to 50 functions by sampled live bytes with sanitized locations while omitting object values, source code, and page content. The Page tools memory action exposes both workflows to a person. A full navigation clears the baseline, and closing the tab discards volatile measurements and profiles; nothing is persisted. Growth is evidence to investigate, not proof of a leak, so repeat the same interaction and compare multiple post-GC samples. Hronaut intentionally does not create raw heap snapshots because they can be extremely large and may retain page strings or other sensitive values.
-
-`browser_debug_report` combines the bounded in-memory console and network histories for one group tab into a compact current-visit report. It summarizes all retained entries, includes recent console evidence and failed-request metadata by default, and can optionally include successful requests. Request headers and bodies are excluded; URLs remove credentials, fragments, and security-related query values, while console text and structured exception stacks receive bounded best-effort secret filtering. The matching Page tools panel lets a person review the evidence, refresh after reproducing a problem, and copy the JSON report directly into an agent chat. Because websites author their own console text and function names, review them before sharing outside a trusted agent session.
-
-The human **Page tools → Console** panel reads the same bounded per-tab history as `browser_console` without opening Chromium Developer Tools. It updates while visible, shows newest entries first, filters by message, source, function name, or Chrome-style Verbose, Info, Warning, and Error levels, and can clear the shared tab history, copy one entry, copy the current filtered view, or copy the complete retained history. Adjacent identical ordinary messages collapse into one entry with an occurrence badge and `repeatCount` for agents; level totals and debug summaries still count every event. Uncaught JavaScript exceptions always remain distinct and include their Chromium-provided source column and up to 20 structured call frames. Chrome-provided stacks are also retained for `console.warn`, `console.error`, `console.trace`, and failed `console.assert` calls, with async ancestry marked when the runtime exposes it; errors handled after reporting remain visible but are labeled accordingly. Message text, function names, and source URLs are sanitized before retention, inline `data:` and `javascript:` sources are omitted, and each Console message is capped at 4,000 characters. The panel can dock on any side or move to a separate window, and its Preserve logs checkbox controls the same per-tab state as Network, Debug report, and `browser_diagnostic_logs`.
-
-Diagnostic logs are preserved across page loads by default so redirects, OAuth handoffs, reload failures, and multi-page reproduction steps remain explainable. Uncheck **Preserve logs** in Console, Network, or Debug report to clear the previous bounded Console and Network histories immediately before the tab's next main-frame request; the new document and its redirect chain are still captured. `browser_diagnostic_logs` exposes the same per-tab choice to agents and can inspect or clear both histories explicitly. This control is in-memory and per tab: it does not move evidence between workspaces or persist captured page data to disk.
-
-The human **Network** panel can sort its filtered request list by start time, end time, total duration, waiting for the response/TTFB, transferred response size, or status, in either direction. Its filter box accepts free text and Chrome-style `domain:`, `is:running`, `larger-than:`, `method:`, `resource-type:`, `scheme:`, `status-code:`, and `url:` properties; separate multiple terms with spaces to require every term, quote a phrase containing spaces, use `*` in a domain, and suffix sizes with `K`/`KB` or `M`/`MB`. The same query contract filters `browser_network`, copied or saved `browser_network_har` results, and the human HAR actions, so the visible list and exported evidence stay aligned. Each visible row includes a compact shared-scale waterfall: its horizontal position shows when the request started relative to the first filtered request, its solid bar shows total duration, pending requests use a marker, and failed requests are distinct. The track has an accessible relative-start, total, and TTFB label; select the row for exact browser-reported phase timing. Pending requests and unavailable measurements remain at the end instead of appearing as misleading zeroes. `browser_network` accepts the same `query`, `sortBy`, and `sortDirection` flow, can limit the returned rows, and treats `fetch/xhr` as the same category used by the human filter. Lightweight request summaries now include Chromium-derived `durationMs` and `waitingForResponseMs` when available; detailed phase timing remains available through `browser_network_request`.
-
-`browser_repro` controls the same per-tab Repro recorder available under Page tools. Start it, reproduce the issue manually, stop it, then review or copy the ordered navigation, click, safe-key, redacted-input, and scroll timeline. Humans and agents can also export that timeline as a Playwright TypeScript test skeleton for a bug report or repository regression test. The export keeps selectors and navigation, converts recorded keys and scrolls, requires every omitted input through a named `HRONAUT_REPRO_INPUT_<step>` environment variable, and deliberately fails at an explicit TODO until the developer replaces it with an expected-result assertion; it never invents a value or silently produces a runnable credential flow. The recorder never stores typed values, clipboard contents, file paths, screenshots, or page HTML; targets use bounded structural selectors and redacted visible labels. It keeps at most 200 steps in memory, prevents the active recording tab from sleeping, and discards the timeline when the tab or Hronaut closes. MCP actions are deliberately not duplicated as human steps. Review either export before sharing or running it because website-authored URLs, labels, and selectors can still contain private visible text.
-
-`browser_dom_changes` records the same current-document structural evidence available under **Page tools → DOM changes**. Start it, perform an action, then stop to review which structural targets added or removed nodes, changed an attribute name, or changed text content. Reports contain at most 200 grouped entries and never include page text, markup, attribute values, IDs, classes, form values, clipboard content, or file paths. Cross-origin frames and changes inside existing shadow roots are outside its scope. A full navigation clears the recording because it creates a different DOM; same-document route changes remain observable.
-
-`browser_visual_compare` exposes the same per-tab Visual compare workflow to an agent. Use `set-baseline`, perform the action under test, then call `compare` to receive changed-pixel metrics and a diff PNG in the same MCP response. `get` returns the current baseline/result and `clear` discards it. The optional 0–255 threshold defaults to 24, while `settleMs` can wait up to two seconds before a capture. A URL change is allowed and clearly marked; a viewport-size change is rejected so the result remains geometrically meaningful. Captures stay in memory only and remain scoped to the workspace that owns the tab.
-
-`browser_issues` exposes Chromium's structured Issues stream for one workspace tab, including CORS, Content Security Policy, mixed-content, cookie compatibility, deprecation, quirks-mode, broken stylesheet, and related browser diagnostics. The matching Page tools panel groups errors, warnings, and improvements, can refresh or clear the current-document list, copies bounded JSON, docks on any side, and can move to a separate window. Hronaut keeps only the newest 200 normalized issues, returns approved reason codes and affected HTTP(S) resources instead of Chromium's raw payload, and redacts URL credentials, fragments, and security-related query values. Cookie values are never returned. Reload before reproducing when the problem occurs during startup; if Developer Tools owns the diagnostic connection, close it and reload before collecting new Hronaut issues.
-
-The website toolbar keeps navigation, the address field, find, zoom, bookmarks, the tab lock, and area capture immediately available. Lower-frequency actions live in the labeled **Page tools** menu: Environment, Console, Network, Browser Issues, responsive preview, site storage, a copy-ready page snapshot and debug report, the Repro recorder, accessibility, performance, Design overview, Page metadata, security, code coverage, JavaScript CPU profiling, memory, safe element selection, PDF export, and saved-password fill. Page tools and Bookmarks dock to the right by default and resize the live website beside them; choose Left, Bottom, Top, or Separate window from any diagnostic panel, and Hronaut remembers that placement. Tabs, Downloads, Browsing history, and Split view also reserve only their right-side width instead of pushing the live page downward. Drag the dock boundary to choose its width or height, use its focused arrow-key control for exact steps, or double-click to reset; horizontal and vertical sizes are remembered independently while Hronaut preserves usable page space. A detached panel returns the website to full size, follows active-tab and profile changes, remembers its own window bounds, and can be docked again from its own header. It uses a sandboxed, context-isolated local renderer with navigation and popups disabled. The layout keeps the address usable at Hronaut's minimum window width without moving global Settings, downloads, history, MCP, or browser-lock controls out of the fixed top strip. The corresponding MCP tools remain independently callable and are not hidden or renamed. Split view is a human workspace layout rather than a new agent-control capability; group-scoped MCP state reports it only when both visible tabs belong to that same group.
-
-`browser_resize` applies a persistent per-tab desktop viewport override for responsive testing and can reset it without resizing the application window. `browser_emulate` adds isolated network, HTTP-cache, service-worker, Data Saver, CPU, animation-playback, JavaScript execution, CSS media, vision, locale, time-zone, user-agent, mobile/touch viewport, geolocation, extra-request-header conditions, and optional Chromium rendering-debug overlays to one tab. Agents can select `compact-phone`, `phone`, `large-phone`, `tablet`, `laptop`, or `desktop` with `viewportPreset` plus an optional `viewportOrientation`, or continue supplying exact raw `viewport` metrics. Preset and raw viewport inputs cannot be combined. Set `cacheDisabled` or `bypassServiceWorker` to `true` for a cold-network or no-worker reproduction and back to `false` to restore normal request handling; neither control clears storage or unregisters a worker. Set `dataSaver` to `enabled` or `disabled`, and use `auto` to restore the system value without changing network throttling. Set `animationPlaybackRate` to `0`, `0.1`, `0.25`, or `1` to pause, slow, or restore document-timeline motion without changing `prefers-reduced-motion`. Pass a partial `renderingDebug` object to merge overlay choices or `null` to clear all five. Use an empty string to clear only `locale`, `timezoneId`, or `userAgent`; set `javaScriptDisabled` to `false` to restore page scripts; use `null` to clear only `viewport` or `geolocation`; use an empty object to clear `extraHttpHeaders`; omit overrides to inspect state; or use `reset: true` to restore every normal condition. Locale accepts a BCP 47 tag such as `fr-CA`; time zone accepts an IANA ID such as `America/Toronto`. Request-header values are intentionally redacted from returned state. Humans can manage Network, HTTP cache, service-worker bypass, Data Saver, CPU, animation playback, JavaScript-disabled startup, rendering diagnostics, screen or print media, color scheme, forced colors, contrast, motion, transparency, vision-deficiency simulation, locale, time zone, user-agent, and geolocation through **Page tools → Environment**, then apply live or reload without cache. Environment displays a separately managed viewport and agent-set header names, preserves both when applying or resetting its own controls, and never exposes header values. Reload after changing locale because the current document's navigator language does not change immediately. Disabling page JavaScript does not disable the trusted Environment panel or MCP command that restores it, but page evaluation and site interactions can remain unavailable until execution is enabled again. These rendering conditions reproduce browser signals and visual effects, but do not replace manual testing with assistive technology or a person who has the relevant vision deficiency. Throttling is relative to the current computer and cannot reproduce a physical device architecture or real-world radio conditions. `browser_zoom` changes page content from 50% to 300% without scaling the Hronaut toolbar or Settings. `browser_audio` mutes one tab without changing site-wide sound permissions. `browser_bookmarks` lists, adds, renames, removes, or opens locally saved pages. `browser_visit_history` searches, reopens, removes, or clears the bounded local visit log. `browser_site_data` inspects one explicit HTTP(S) origin or clears selected `cookies-and-storage`, `cache`, and `history` categories for that origin so agents can reproduce clean-session bugs. It cannot clear the whole profile, does not reload open pages, and never removes bookmarks, passwords, permissions, downloads, or settings. `browser_fill_form` updates several inputs, text areas, selects, checkboxes, radios, or editable elements in one call.
-
-`browser_dialog` accepts or dismisses an already-open JavaScript `alert` or `confirm` dialog. An agent that knows a click or evaluation will open one can instead provide `dialogAction` directly to `browser_click` or `browser_evaluate`. For a website click that opens `window.prompt()`, `browser_click` also accepts `promptText`. Hronaut responds inside the same operation so the page cannot deadlock the tool call. Electron does not implement native prompts, so Hronaut installs a prompt response only around that explicit click; all other dialogs remain native and user-visible.
-
-## License and contributions
-
-Hronaut is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Any use that PolyForm Noncommercial does not permit requires an active [Commercial Subscription License](COMMERCIAL-LICENSE.md). Bundled dependencies retain their own terms as documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Bug reports, documentation suggestions, and private security reports are welcome. Code contributions remain paused until a contributor agreement supplies the relicensing rights required by the dual-license model; see [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Security model
-
-- The MCP server binds to loopback by default and rejects non-local browser origins.
-- MCP authentication is off for new profiles and the server remains loopback-only. Enable **Require MCP authentication** in **Settings → MCP security** when local processes are not equally trusted; Hronaut then generates and reuses an owner-only token unless a valid `HRONAUT_MCP_TOKEN` override is supplied.
-- Website tabs have Node.js disabled, context isolation enabled, Chromium sandboxing enabled, and web security enabled.
-- New browser windows become managed tabs.
-- Unknown site permission requests require explicit confirmation. Hronaut remembers each decision per website origin and permission type, and lets you review or revoke it later in Settings.
-- Camera, microphone, and file-system grants are never reused: Hronaut shows the requested scope and asks again each time.
-- `browser_evaluate` is intentionally powerful: only connect trusted AI clients to this browser profile.
-- Saved passwords use OS-backed encryption and can only be filled by a human from the Hronaut toolbar. Filling pauses MCP first because any password placed into a page can otherwise be read by page JavaScript or a trusted client using `browser_evaluate`.
-- `browser_network_request` can return API request and response content plus sanitized WebSocket text messages and EventSource events to an authenticated client. It redacts named security headers and structured secret fields, bounds text, and omits binary or multipart payloads, but it is a debugging aid rather than a data-loss-prevention boundary. Only connect clients you trust with the visible browser session.
-- `browser_network_replay` can repeat a retained XHR with the original in-session credentials, headers, and body. It does not expose those values, rejects non-XHR requests, and requires explicit side-effect confirmation outside GET/HEAD, but a confirmed replay can still repeat a real write or purchase.
-- `browser_network_search` examines the same bounded sanitized evidence and returns short neighboring text around matches. Arbitrary response text may still contain private data, so review results and connect only clients you trust.
-- `browser_network_wait` evaluates URL patterns against the live request address but returns only the same sanitized lightweight metadata as `browser_network`; it does not return headers or bodies.
-- `browser_storage_changes` omits values by default, never returns HttpOnly cookie values, caps snapshots and returned values, and clears its volatile baseline when the selected tab changes origin. Opt-in values can still contain page data, so request them only from a trusted client when needed.
-- `browser_indexeddb` is read-only, bounds database, schema, key, and record collections, redacts recognized secret URL fields, and omits record values by default. Website-authored schema names, keys, and opt-in previews can still contain arbitrary private application data, so request and share them only through a trusted client.
-- `browser_storage_usage` is read-only and returns aggregate byte counts only. Quota is a point-in-time Chromium estimate rather than device free space, and third-party or partitioned storage can have separate accounting.
-- `browser_pwa` is read-only, never returns cached response bodies, omits headers by default, and bounds worker/cache collections and names. Registration scopes, script URLs, cache names, request paths, and opt-in headers remain website-authored debugging data, so review them before sharing beyond a trusted client.
-- `browser_element_inspect` excludes form values, inline event handlers, page markup, arbitrary DOM properties, and stylesheet source, but its selector, allowlisted attributes, visible text, and accessible name can still contain page-authored private data.
-- `browser_network_routes` can replace or fail website requests in the selected tab. Routes are visible, bounded, temporary, and human-resettable, but a trusted client can still alter what that page receives while they are active.
-- Accessibility audits execute the bundled axe-core rules inside the selected website and return bounded selectors and failure summaries. They do not send page content to a third party, but selectors and page addresses still reach the authenticated MCP client.
-- Performance reports execute the bundled `web-vitals` collector locally in an isolated world and return aggregate timings, sizes, and bounded element selectors without resource URLs or markup. Page addresses and metric target selectors still reach the authenticated MCP client.
-- Debug reports exclude request headers and bodies and filter sensitive URL fields. Page-authored console messages, exception text, and function names receive best-effort filtering but can contain arbitrary text, so review copied reports before sharing them beyond a trusted MCP client.
-- Browser Issues expose normalized Chromium reason codes and bounded affected URLs, never raw issue payloads or cookie values. Review copied diagnostics before sharing them outside a trusted agent session.
-- `browser_file_upload` can attach any absolute local file path supplied by a connected client. Only connect clients you trust with local file access.
-
-## Web3 wallet design
-
-Wallet support is intentionally being designed as a separate security-sensitive project rather than being folded into ordinary browser tooling. The current proposal starts with a standards-compatible provider and external-wallet signing, preserves human approval for every signature or transaction, and gives agents inspection and simulation capabilities without signing authority. See [the Web3 wallet architecture](design/web3-wallet-architecture.md).
-
-## Testing
-
-Unit tests live in `tests/*.test.ts` and use Vitest. Real-application integration tests live in `tests/integration/*.e2e.ts` and use Playwright's Electron API with reusable fixtures from `tests/integration/fixtures.ts`. Every integration test launches Hronaut with an isolated temporary profile and cleans it up afterward. The suite covers the visible shell, tabs, MCP, Home, themes, site permissions, restart persistence, and updater settings without contacting the live release feed. Application, test, preload, website, and build configuration source is TypeScript.
+## Development checks
 
 ```bash
 npm test
-npm run test:integration
-npm run test:integration:headless
-npm run test:integration:docker
-npm run test:integration:dialogs
 npm run typecheck
 npm run build
-npm run build:website
-npm run build:unpack
-npm run test:package:smoke
-```
-
-On Linux, use the Xvfb-backed command to run the real Electron application on an in-memory display. No Hronaut window appears on the desktop or steals focus:
-
-```bash
 npm run test:integration:headless
 ```
 
-For complete host isolation, run the same Playwright Electron and native-dialog suites in Docker:
+Release packaging and publishing are centralized in [`.github/workflows/release.yml`](.github/workflows/release.yml). Every local package command uses `--publish never`.
 
-```bash
-npm run test:integration:docker
-```
+## License
 
-The Docker runner is defined once in `compose.test.ci.yaml`. It pins Microsoft's Playwright `v1.62.1-noble` image to the exact project Playwright version, caches `npm ci` in a separate image layer, uses a private virtual display, removes the container after each run, and never mounts the host display socket or Hronaut profile. Docker startup is slower than local Xvfb, so use the headless command for rapid iteration and Docker for clean release or environment verification. CI runs this same Compose service, and release builds cannot start until it passes against the immutable tag commit.
+Hronaut is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Uses not permitted by that license require an active [commercial subscription license](COMMERCIAL-LICENSE.md).
 
-The CI workflow runs unit tests, the production build, the Playwright Electron suite, a raw Electron dialog test without a competing automation debugger, and the production dependency audit. Pull requests whose branch name contains `release-` additionally build the complete Linux, macOS, and Windows package sets in a hosted matrix before merge.
+Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow [SECURITY.md](SECURITY.md).
 
-## GitHub Pages
+For billing and licensing support, contact [support@hronaut.dev](mailto:support@hronaut.dev).
 
-The English product website is authored in `website/` with TypeScript behavior and built by Vite. The dedicated Pages workflow builds it from `main`, uploads the generated `docs/` artifact, and deploys it through GitHub Pages. It resolves platform-specific downloads from the latest public GitHub release only after a user clicks a download card.
+## Documentation
 
-Preview the exact production output locally:
-
-```bash
-npm run build:website
-npm run preview:website
-```
-
-## Releases
-
-GitHub Actions validates every pull request and every push to `main`. When `package.json` changes to a new version on `main`, the auto-tag workflow creates an annotated `v<version>` tag and dispatches the release workflow. A tag is created only when the version differs from the parent commit.
-
-The release workflow creates one draft release, builds Linux, macOS, and Windows artifacts in parallel from the immutable tag commit, uploads the updater manifests and a `hashes.txt` SHA-256 manifest, and publishes only after every platform job succeeds. Packaged Hronaut builds use those manifests through `electron-updater`. The workflow can also be dispatched manually for an existing version tag.
-
-Current releases are unsigned community builds: the binaries are not platform code-signed and macOS packages are not Apple-notarized. macOS Gatekeeper and Windows SmartScreen may therefore warn before first launch. Build jobs never receive release-write credentials; the final job publishes the completed set and generates GitHub artifact attestations. Verify a downloaded asset with `gh attestation verify <asset> -R hronaut/hronaut`, then compare it with `hashes.txt`.
-
-Dependabot checks npm packages and GitHub Actions weekly and groups related Electron, Vue/Vite, MCP, and TypeScript updates. GitHub Pages deploys independently from the desktop release workflow.
+The [detailed reference](REFERENCE.md) covers browser behavior, privacy and security boundaries, every MCP tool group, testing, packaging, and release operations.
