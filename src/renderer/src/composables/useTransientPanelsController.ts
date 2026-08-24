@@ -14,8 +14,12 @@ export interface TransientPanelsControllerOptions {
   onError: (error: unknown) => void
 }
 
+export interface TransientPanelsCloseOptions {
+  preserveFind?: boolean
+}
+
 export function useTransientPanelsController(options: TransientPanelsControllerOptions) {
-  function close(): void {
+  function close({ preserveFind = false }: TransientPanelsCloseOptions = {}): void {
     if (options.shouldCloseDockedPanels()) options.closeDockedPanels()
     options.addressSuggestionsOpen.value = false
     options.zoomOpen.value = false
@@ -24,9 +28,11 @@ export function useTransientPanelsController(options: TransientPanelsControllerO
     options.tabSearchOpen.value = false
     options.updateNoticeOpen.value = false
 
-    const shouldCleanUpFind = options.findOpen.value
-    options.findOpen.value = false
-    if (shouldCleanUpFind) void options.closeFind().catch(options.onError)
+    if (!preserveFind) {
+      const shouldCleanUpFind = options.findOpen.value
+      options.findOpen.value = false
+      if (shouldCleanUpFind) void options.closeFind().catch(options.onError)
+    }
   }
 
   return { close }

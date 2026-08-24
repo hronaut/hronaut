@@ -5279,32 +5279,35 @@ export class BrowserTabsManager {
   }
 
   async waitForText(
-    text: string,
+    text: string | readonly string[],
     tabId?: string,
     timeoutMs = 30_000,
     state: 'visible' | 'hidden' = 'visible'
-  ): Promise<boolean> {
+  ): Promise<string | null> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
+    const candidates = typeof text === 'string' ? [text] : [...text]
+    if (!candidates.length) throw new TypeError('At least one text candidate is required.')
     const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+    const evaluationDeadline = Symbol('text-wait-deadline')
     while (Date.now() < deadline) {
       if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
         throw new Error('The tab closed while waiting for page text.')
       }
-      let found: boolean
+      let match: string | null
       let onDestroyed: () => void = () => undefined
       let evaluationTimer: NodeJS.Timeout | undefined
       try {
         const evaluation = webContents.executeJavaScript(
-          `document.body?.innerText?.includes(${JSON.stringify(text)}) ?? false`,
+          `(() => { const pageText = document.body?.innerText ?? ''; return ${JSON.stringify(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
           true
         )
         const closed = new Promise<never>((_resolve, reject) => {
           onDestroyed = () => reject(new Error('The tab closed while waiting for page text.'))
           webContents.once('destroyed', onDestroyed)
         })
-        const timedOut = new Promise<boolean>((resolve) => {
-          evaluationTimer = setTimeout(() => resolve(false), Math.max(1, deadline - Date.now()))
+        const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
+          evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
         })
         // Register the close race before checking state again so no teardown
         // gap can strand executeJavaScript while an unfinished page is loading.
@@ -5312,7 +5315,9 @@ export class BrowserTabsManager {
         if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
           throw new Error('The tab closed while waiting for page text.')
         }
-        found = await pending
+        const result = await pending
+        if (result === evaluationDeadline) return null
+        match = typeof result === 'string' ? result : null
       } catch (error) {
         if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
           throw new Error('The tab closed while waiting for page text.')
@@ -5322,11 +5327,13 @@ export class BrowserTabsManager {
         if (evaluationTimer) clearTimeout(evaluationTimer)
         webContents.removeListener('destroyed', onDestroyed)
       }
-      if (found === (state === 'visible')) return true
-      if (Date.now() >= deadline) return false
+      if (state === 'visible' ? match !== null : match === null) {
+        return state === 'visible' ? match : (candidates[0] ?? null)
+      }
+      if (Date.now() >= deadline) return null
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
-    return false
+    return null
   }
 
   setToolbarHeight(height: number): void {

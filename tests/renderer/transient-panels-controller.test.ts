@@ -54,6 +54,19 @@ describe('useTransientPanelsController', () => {
     expect(harness.closeFind).not.toHaveBeenCalled()
   })
 
+  it('can preserve Find while closing every competing transient surface', () => {
+    const harness = createController()
+
+    harness.controller.close({ preserveFind: true })
+
+    expect(harness.panels.findOpen.value).toBe(true)
+    expect(Object.entries(harness.panels)
+      .filter(([name]) => name !== 'findOpen')
+      .every(([, panel]) => !panel.value)).toBe(true)
+    expect(harness.closeDockedPanels).toHaveBeenCalledOnce()
+    expect(harness.closeFind).not.toHaveBeenCalled()
+  })
+
   it('reports asynchronous Find cleanup failures after closing the UI', async () => {
     const harness = createController()
     const failure = new Error('stopFindInPage failed')

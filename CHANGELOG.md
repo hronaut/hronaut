@@ -4,6 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Let `browser_wait` accept up to 20 candidate texts and resolve with the first visible match for workflows with multiple possible outcomes.
+
+### Changed
+
+- Split Find-in-page shell orchestration out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Close the Split View menu and other competing surfaces when Find-in-page opens instead of stacking controls over the page.
+- Fail `textGone` waits when the renderer cannot verify page text before the deadline instead of reporting unobserved absence as success.
+
 ## [1.3.0] - 2026-08-24
 
 ### Added

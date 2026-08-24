@@ -28,6 +28,11 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
       response.end('<!doctype html><title>Persistent text</title><main>Persistent status</main>')
       return
     }
+    if (request.url === '/text-any') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end('<!doctype html><title>Any text</title><main id="status">Deploying</main><script>setTimeout(() => { document.querySelector("#status").textContent = "Deployment failed" }, 1000)</script>')
+      return
+    }
     pendingResponses.add(response)
     response.once('close', () => pendingResponses.delete(response))
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -69,6 +74,23 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
     expect(disappeared.isError).not.toBe(true)
     expect(text(disappeared)).toBe('Text disappeared: Loading profile')
 
+    const anyTextTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/text-any`, active: true }
+    }) as CallToolResult
+    const anyTextTabId = (JSON.parse(text(anyTextTab)) as { activeTabId: string }).activeTabId
+    const anyText = await client.callTool({
+      name: 'browser_wait',
+      arguments: {
+        tabId: anyTextTabId,
+        text: ['Deployment ready', 'Deployment failed'],
+        timeoutMs: 5_000
+      }
+    }) as CallToolResult
+    expect(anyText.isError).not.toBe(true)
+    expect(text(anyText)).toBe('Found text: Deployment failed')
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(anyTextTabId)})`)
+
     const ambiguous = await client.callTool({
       name: 'browser_wait',
       arguments: { tabId: disappearingTabId, text: 'Profile', textGone: 'Loading profile' }
@@ -82,6 +104,37 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
       arguments: { url: `http://127.0.0.1:${address.port}/text-stays`, active: true }
     }) as CallToolResult
     const persistentTabId = (JSON.parse(text(persistentTab)) as { activeTabId: string }).activeTabId
+    const persistentUrl = `http://127.0.0.1:${address.port}/text-stays`
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL() === requestedUrl)
+    ), persistentUrl)).toBe(true)
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Persistent text WebContents was not found')
+      const original = page.executeJavaScript.bind(page)
+      ;(globalThis as typeof globalThis & {
+        __hronautStalledTextWait?: { page: Electron.WebContents; original: typeof original }
+      }).__hronautStalledTextWait = { page, original }
+      Object.defineProperty(page, 'executeJavaScript', {
+        configurable: true,
+        value: () => new Promise<never>(() => undefined)
+      })
+    }, persistentUrl)
+    const unverifiableAbsence = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: persistentTabId, textGone: 'Already absent', timeoutMs: 100 }
+    }) as CallToolResult
+    expect(unverifiableAbsence.isError).toBe(true)
+    expect(text(unverifiableAbsence)).toContain('Timed out waiting for text to disappear: Already absent')
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautStalledTextWait?: { page: Electron.WebContents; original: Electron.WebContents['executeJavaScript'] }
+      }
+      const control = mainGlobal.__hronautStalledTextWait
+      if (!control) throw new Error('Stalled text wait control was not installed')
+      Object.defineProperty(control.page, 'executeJavaScript', { configurable: true, value: control.original })
+      delete mainGlobal.__hronautStalledTextWait
+    })
     const persistent = await client.callTool({
       name: 'browser_wait',
       arguments: { tabId: persistentTabId, textGone: 'Persistent status', timeoutMs: 100 }

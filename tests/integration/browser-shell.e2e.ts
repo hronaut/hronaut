@@ -777,7 +777,7 @@ test('closes Find when Page Tools opens', async ({ appWindow }) => {
   }
 })
 
-test('closes Find when the Split view menu opens', async ({ appWindow }) => {
+test('keeps Find and the Split view menu mutually exclusive', async ({ appWindow }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>${request.url}</title><main>Split view Find content</main>`)
@@ -800,9 +800,14 @@ test('closes Find when the Split view menu opens', async ({ appWindow }) => {
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
     await expect(find).toBeVisible()
 
+    const splitViewMenu = appWindow.getByRole('dialog', { name: 'Split view' })
     await appWindow.getByRole('button', { name: 'Split view' }).click()
-    await expect(appWindow.getByRole('dialog', { name: 'Split view' })).toBeVisible()
+    await expect(splitViewMenu).toBeVisible()
     await expect(find).toBeHidden()
+
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(find).toBeVisible()
+    await expect(splitViewMenu).toBeHidden()
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

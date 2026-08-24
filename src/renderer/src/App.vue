@@ -99,6 +99,7 @@ import { useBrowserCollectionsShellController } from './composables/useBrowserCo
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
+import { useFindShellController } from './composables/useFindShellController'
 import { useTransientPanelsController } from './composables/useTransientPanelsController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
@@ -766,6 +767,13 @@ const {
     t('runtime.workspace.splitFailed'),
     friendlyUiError(error, fallback)
   )
+})
+const { open: openFind } = useFindShellController({
+  activeTab,
+  settingsOpen,
+  splitMenuOpen,
+  closeTransientPanels: transientPanelsController.close,
+  openForTab: async (tab) => findBar.value?.openForTab(tab)
 })
 if (detachedPanelId) activatePanel(detachedPanelId)
 const {
@@ -1442,16 +1450,6 @@ function openSitePermissionSettings(): void {
 function handleWindowResize(): void {
   reportShellHeight()
   resizeAddressSuggestions()
-}
-
-async function openFind(): Promise<void> {
-  if (!activeTab.value) return
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  zoomOpen.value = false
-  tabSearchOpen.value = false
-  addressSuggestionsOpen.value = false
-  await findBar.value?.openForTab(activeTab.value)
 }
 
 async function focusAddress(): Promise<void> {
