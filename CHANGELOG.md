@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-24
+
 ### Added
 
 - Add `textGone` to `browser_wait` for bounded waits until rendered page text disappears.
