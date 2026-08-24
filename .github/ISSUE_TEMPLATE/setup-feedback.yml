@@ -1,0 +1,81 @@
+name: Setup feedback
+description: Tell us whether Hronaut connected and what made setup clear or difficult.
+title: "[Setup]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying Hronaut. Successful connection reports are useful too.
+
+        This issue will be public. Do not include credentials, MCP bearer tokens, private URLs, page content, screenshots, logs containing personal data, or other browser-session data. Report security vulnerabilities privately through the repository security policy.
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      description: Which client did you connect to Hronaut?
+      options:
+        - Codex
+        - Claude Code
+        - Cursor
+        - VS Code / GitHub Copilot
+        - OpenCode
+        - Another MCP client
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: hronaut-version
+    attributes:
+      label: Hronaut version
+      description: Find this in Settings → About or on the downloaded release.
+      placeholder: "1.4.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: Connection outcome
+      options:
+        - Connected successfully
+        - Connected after troubleshooting
+        - Could not connect
+        - Not sure whether it connected
+    validations:
+      required: true
+
+  - type: textarea
+    id: experience
+    attributes:
+      label: What happened?
+      description: Tell us what worked and where the setup became unclear. Exact commands are welcome after removing secrets and private paths.
+      placeholder: I started Hronaut, added the MCP configuration, and then…
+    validations:
+      required: true
+
+  - type: textarea
+    id: improvement
+    attributes:
+      label: What would make setup easier?
+      description: Optional. One specific missing explanation, action, or diagnostic is especially useful.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public-data check
+      options:
+        - label: I removed credentials, tokens, private URLs, page content, and personal browser-session data.
+          required: true

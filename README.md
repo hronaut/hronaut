@@ -62,6 +62,8 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 
 The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version, including the right endpoint and authentication settings.
 
+After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
+
 ### OpenCode
 
 For a new Hronaut profile with MCP authentication disabled, add this server to the global `~/.config/opencode/opencode.json` or a project's `opencode.json`:
