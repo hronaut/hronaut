@@ -544,6 +544,18 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       accessibility: { role: 'button', name: 'Capture this area', focusable: true, disabled: false }
     })
     expect(JSON.stringify(elementInspection)).not.toContain('element-inspection-secret')
+    const generatedLocatorResult = await client.callTool({
+      name: 'browser_generate_locator',
+      arguments: { tabId, selector: '#capture-target' }
+    }) as CallToolResult
+    expect(generatedLocatorResult.isError, text(generatedLocatorResult)).not.toBe(true)
+    expect(JSON.parse(text(generatedLocatorResult))).toMatchObject({
+      tabId,
+      locator: 'page.getByRole("button", { name: "Capture this area", exact: true })',
+      strategy: 'role',
+      selector: '#capture-target'
+    })
+    expect(text(generatedLocatorResult)).not.toContain('element-inspection-secret')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((value) => value.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(false)
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('http://127.0.0.1') && contents.getURL().endsWith('/'))

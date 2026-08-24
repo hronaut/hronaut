@@ -95,6 +95,7 @@ import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
+import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
@@ -106,7 +107,6 @@ import {
   UPDATE_STATUS_DISMISS_MS
 } from '../../shared/update-presentation'
 import { browserShortcutAction } from '../../shared/browser-shortcuts'
-import type { CommandPaletteCommandId } from '../../shared/command-palette'
 import { DEFAULT_INTERFACE_SCALE } from '../../shared/interface-scale'
 
 function isPanelDock(value: string | null): value is PanelDock {
@@ -752,6 +752,65 @@ const appBootstrapController = useAppBootstrapController({
   ],
   onFailure: reportAppBootstrapFailure
 })
+const commandPaletteShellController = useCommandPaletteShellController({
+  open: commandPaletteOpen,
+  panel: commandPalette,
+  beforeOpen: () => {
+    closeSettings()
+    closeHelpDialog()
+    closeTransientPanels()
+  },
+  actions: {
+    home: openApplicationHome,
+    'new-tab': () => browserShortcutController.run('new-tab'),
+    'search-tabs': toggleTabSearch,
+    downloads: toggleDownloads,
+    bookmarks: toggleBookmarks,
+    history: toggleVisitHistory,
+    find: openFind,
+    reload: () => browserShortcutController.run('reload'),
+    'reload-ignoring-cache': () => browserShortcutController.run('reload-ignoring-cache'),
+    'capture-area': toggleAreaCapture,
+    'capture-element': () => toggleElementPicker('screenshot'),
+    'capture-viewport': () => capturePageScreenshot('viewport'),
+    'capture-full-page': () => capturePageScreenshot('full-page'),
+    'copy-snapshot': copyPageSnapshot,
+    'pick-element': () => toggleElementPicker('context'),
+    'page-tools': togglePageTools,
+    'site-storage': toggleSiteStorage,
+    'responsive-preview': toggleResponsivePreview,
+    environment: toggleEnvironment,
+    console: toggleConsole,
+    network: toggleNetworkMonitor,
+    'request-conditions': openRequestConditions,
+    issues: toggleInspectorIssues,
+    'debug-report': toggleDebugReport,
+    'repro-recorder': toggleReproRecorder,
+    'dom-changes': toggleDomChanges,
+    'visual-compare': toggleVisualCompare,
+    'quality-audit': toggleQualityAudit,
+    accessibility: toggleAccessibilityAudit,
+    performance: togglePerformanceReport,
+    'design-overview': toggleDesignOverview,
+    'page-metadata': togglePageMetadata,
+    security: toggleSecurityReport,
+    coverage: toggleCodeCoverage,
+    'cpu-profile': toggleCpuProfile,
+    memory: toggleMemoryReport,
+    'developer-tools': toggleDeveloperTools,
+    settings: () => openSettingsSection('appearance'),
+    privacy: openPrivacySettings,
+    'site-permissions': () => openSettingsSection('permissions'),
+    'mcp-security': () => openSettingsSection('mcp'),
+    updates: openUpdateSettings,
+    'keyboard-shortcuts': () => openHelpDialog('shortcuts'),
+    'toggle-mcp-pause': toggleMcpPaused
+  }
+})
+const {
+  toggle: toggleCommandPalette,
+  run: runCommandPaletteCommand
+} = commandPaletteShellController
 const browserShortcutController = useBrowserShortcutController({
   state,
   activeTab,
@@ -1052,74 +1111,6 @@ async function toggleTabSearch(): Promise<void> {
   const stopFind = findOpen.value ? closeFind() : undefined
   await tabSearchPanel.value?.openPanel()
   await stopFind
-}
-
-async function toggleCommandPalette(): Promise<void> {
-  if (commandPaletteOpen.value) {
-    commandPalette.value?.close()
-    commandPaletteOpen.value = false
-    return
-  }
-  closeSettings()
-  closeHelpDialog()
-  closeTransientPanels()
-  await commandPalette.value?.openPanel()
-}
-
-async function runCommandPaletteCommand(commandId: CommandPaletteCommandId): Promise<void> {
-  commandPaletteOpen.value = false
-  switch (commandId) {
-    case 'home': return openApplicationHome()
-    case 'new-tab':
-      await runBrowserShortcut('new-tab')
-      return
-    case 'search-tabs': return toggleTabSearch()
-    case 'downloads': return toggleDownloads()
-    case 'bookmarks': return toggleBookmarks()
-    case 'history': return toggleVisitHistory()
-    case 'find': return openFind()
-    case 'reload':
-      await runBrowserShortcut('reload')
-      return
-    case 'reload-ignoring-cache':
-      await runBrowserShortcut('reload-ignoring-cache')
-      return
-    case 'capture-area': return toggleAreaCapture()
-    case 'capture-element': return toggleElementPicker('screenshot')
-    case 'capture-viewport': return capturePageScreenshot('viewport')
-    case 'capture-full-page': return capturePageScreenshot('full-page')
-    case 'copy-snapshot': return copyPageSnapshot()
-    case 'pick-element': return toggleElementPicker('context')
-    case 'page-tools': return togglePageTools()
-    case 'site-storage': return toggleSiteStorage()
-    case 'responsive-preview': return toggleResponsivePreview()
-    case 'environment': return toggleEnvironment()
-    case 'console': return toggleConsole()
-    case 'network': return toggleNetworkMonitor()
-    case 'request-conditions': return openRequestConditions()
-    case 'issues': return toggleInspectorIssues()
-    case 'debug-report': return toggleDebugReport()
-    case 'repro-recorder': return toggleReproRecorder()
-    case 'dom-changes': return toggleDomChanges()
-    case 'visual-compare': return toggleVisualCompare()
-    case 'quality-audit': return toggleQualityAudit()
-    case 'accessibility': return toggleAccessibilityAudit()
-    case 'performance': return togglePerformanceReport()
-    case 'design-overview': return toggleDesignOverview()
-    case 'page-metadata': return togglePageMetadata()
-    case 'security': return toggleSecurityReport()
-    case 'coverage': return toggleCodeCoverage()
-    case 'cpu-profile': return toggleCpuProfile()
-    case 'memory': return toggleMemoryReport()
-    case 'developer-tools': return toggleDeveloperTools()
-    case 'settings': return openSettingsSection('appearance')
-    case 'privacy': return openPrivacySettings()
-    case 'site-permissions': return openSettingsSection('permissions')
-    case 'mcp-security': return openSettingsSection('mcp')
-    case 'updates': return openUpdateSettings()
-    case 'keyboard-shortcuts': return openHelpDialog('shortcuts')
-    case 'toggle-mcp-pause': await toggleMcpPaused(); return
-  }
 }
 
 function reportShellActionError(error: unknown): void {

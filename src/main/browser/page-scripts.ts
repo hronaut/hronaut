@@ -562,6 +562,52 @@ export function elementInspectionScript(target: { ref?: string; selector?: strin
   })()`
 }
 
+export function playwrightLocatorScript(target: { ref?: string; selector?: string }): string {
+  return `(() => {
+    ${elementInspectionHelpersSource()}
+    const target = ${JSON.stringify(target)};
+    const element = target.ref
+      ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
+      : target.selector ? document.querySelector(target.selector) : null;
+    if (!(element instanceof Element)) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
+    const candidates = [];
+    const uniqueElements = (predicate) => [...document.querySelectorAll('*')].filter(predicate).length === 1;
+    const role = hronautRole(element);
+    const name = hronautAccessibleName(element);
+    const playwrightRoles = new Set(['alert', 'button', 'checkbox', 'combobox', 'dialog', 'heading', 'img', 'link', 'listbox', 'menuitem', 'option', 'progressbar', 'radio', 'row', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'treeitem']);
+    if (name && playwrightRoles.has(role) && uniqueElements((candidate) => hronautRole(candidate) === role && hronautAccessibleName(candidate) === name)) {
+      candidates.push({ strategy: 'role', role, value: name });
+    }
+    const labels = 'labels' in element && element.labels
+      ? [...element.labels].map((label) => hronautCompact(label.innerText || label.textContent || '', 500)).filter(Boolean)
+      : [];
+    for (const label of labels) {
+      if (uniqueElements((candidate) => 'labels' in candidate && candidate.labels && [...candidate.labels].some((item) => hronautCompact(item.innerText || item.textContent || '', 500) === label))) {
+        candidates.push({ strategy: 'label', value: label });
+        break;
+      }
+    }
+    const testId = element.getAttribute('data-testid');
+    const boundedTestId = hronautCompact(testId, 500);
+    if (testId && testId === boundedTestId && uniqueElements((candidate) => candidate.getAttribute('data-testid') === testId)) {
+      candidates.push({ strategy: 'test-id', value: testId });
+    }
+    const attributes = [
+      ['placeholder', 'placeholder'],
+      ['alt', 'alt-text'],
+      ['title', 'title']
+    ];
+    for (const [attribute, strategy] of attributes) {
+      const value = element.getAttribute(attribute);
+      const boundedValue = hronautCompact(value, 500);
+      if (value && value === boundedValue && uniqueElements((candidate) => candidate.getAttribute(attribute) === value)) {
+        candidates.push({ strategy, value });
+      }
+    }
+    return { selector: hronautSelectorFor(element), candidates };
+  })()`
+}
+
 export function screenshotAreaScript(): string {
   return `(() => new Promise((resolve) => {
     const pickerKey = '__hronautScreenshotArea';

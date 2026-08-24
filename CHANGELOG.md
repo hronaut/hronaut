@@ -4,6 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-24
+
+### Added
+
+- Add `browser_generate_locator`, which turns a snapshot ref or CSS selector into a unique Playwright locator while excluding form values and page source.
+- Cover semantic, test-ID, CSS-fallback, escaping, and privacy edge cases with unit and real-Electron Docker regression tests.
+
+### Changed
+
+- Split command-palette shell orchestration and exhaustive command dispatch out of `App.vue` into a focused controller.
+- Update the Home and public website catalog to advertise all 65 MCP tools and the locator-generation workflow.
+
 ## [1.1.1] - 2026-08-24
 
 ### Fixed

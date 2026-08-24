@@ -79,6 +79,10 @@ import {
   formatElementInspectionForAgent,
   normalizeElementInspection
 } from '../../shared/element-inspection.js'
+import {
+  normalizeBrowserGeneratedLocator,
+  type BrowserGeneratedLocator
+} from '../../shared/playwright-locator.js'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
 import {
   deriveNetworkTiming,
@@ -256,6 +260,7 @@ import {
   elementPickerScript,
   elementInspectionScript,
   fillFormScript,
+  playwrightLocatorScript,
   snapshotScript,
   screenshotAreaScript,
   screenshotAreaNativeInputScript,
@@ -3743,6 +3748,18 @@ export class BrowserTabsManager {
       url: tab.url,
       raw
     })
+  }
+
+  async generatePlaywrightLocator(options: BrowserElementInspectionOptions): Promise<BrowserGeneratedLocator> {
+    const tab = this.getTab(options.tabId)
+    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before generating a locator')
+    this.validateTarget(options)
+    const raw = await tab.webContents.executeJavaScriptInIsolatedWorld(
+      ELEMENT_INSPECTION_WORLD_ID,
+      [{ code: playwrightLocatorScript(options) }],
+      false
+    )
+    return normalizeBrowserGeneratedLocator(tab.id, raw as Record<string, unknown>)
   }
 
   async cancelElementPicker(tabId?: string): Promise<boolean> {

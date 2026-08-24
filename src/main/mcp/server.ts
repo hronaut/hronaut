@@ -222,6 +222,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded.' },
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
+  { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
   { name: 'browser_click', category: 'Interaction', description: 'Click an element by snapshot ref or CSS selector.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
@@ -841,6 +842,22 @@ function createBrowserMcpServer(
       ref?: string
       selector?: string
     }) => textResult(await manager.elementInspection(options)))
+  )
+  registerWorkspaceTool(
+    'browser_generate_locator',
+    {
+      description: toolDescription('browser_generate_locator'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ref: z.string().max(200).optional(),
+        selector: z.string().max(1_000).optional()
+      }
+    },
+    tabTool('browser_generate_locator', async (options: {
+      tabId?: string
+      ref?: string
+      selector?: string
+    }) => textResult(await manager.generatePlaywrightLocator(options)))
   )
   registerWorkspaceTool(
     'browser_click',
