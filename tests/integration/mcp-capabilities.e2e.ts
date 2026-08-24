@@ -254,6 +254,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       <button id="hover" onmouseenter="this.dataset.hovered='true'">Hover target</button>
       <button id="alert" onclick="alert('Agent alert'); this.dataset.result='continued'">Open alert</button>
       <button id="prompt" onclick="this.dataset.result=prompt('Agent prompt', 'default')">Open prompt</button>
+      <button id="double-click" onclick="this.dataset.clicks=String(Number(this.dataset.clicks || 0) + 1)" ondblclick="this.dataset.doubleClicks=String(Number(this.dataset.doubleClicks || 0) + 1)">Double-click target</button>
       <button id="throw" onclick="window.runConsoleExceptionProbe()">Throw error</button>
       <section id="audit-scope"><button id="unnamed-button"></button></section>
       <div id="drag" draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'dragged')">Drag me</div>
@@ -1391,6 +1392,34 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       arguments: { tabId, script: "({ name: document.querySelector('#name').value, agree: document.querySelector('#agree').checked })" }
     }) as CallToolResult
     expect(JSON.parse(text(formState))).toEqual({ name: 'Ada', agree: true })
+
+    const invalidPromptClick = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, selector: '#double-click', promptText: 'ignored without an action' }
+    }) as CallToolResult
+    expect(invalidPromptClick.isError).toBe(true)
+    expect(text(invalidPromptClick)).toContain('promptText requires dialogAction: accept')
+
+    const invalidDialogDoubleClick = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, selector: '#double-click', doubleClick: true, dialogAction: 'dismiss' }
+    }) as CallToolResult
+    expect(invalidDialogDoubleClick.isError).toBe(true)
+    expect(text(invalidDialogDoubleClick)).toContain('doubleClick cannot be combined with dialogAction')
+
+    const doubleClicked = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, selector: '#double-click', doubleClick: true }
+    }) as CallToolResult
+    expect(doubleClicked.isError, text(doubleClicked)).not.toBe(true)
+    const doubleClickState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "({ clicks: document.querySelector('#double-click').dataset.clicks, doubleClicks: document.querySelector('#double-click').dataset.doubleClicks })"
+      }
+    }) as CallToolResult
+    expect(JSON.parse(text(doubleClickState))).toEqual({ clicks: '2', doubleClicks: '1' })
 
     const acceptedPrompt = await client.callTool({
       name: 'browser_click',

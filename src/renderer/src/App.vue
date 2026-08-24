@@ -103,6 +103,7 @@ import { useFindShellController } from './composables/useFindShellController'
 import { useTransientPanelsController } from './composables/useTransientPanelsController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
 import { useTabSearchShellController } from './composables/useTabSearchShellController'
+import { useZoomShellController } from './composables/useZoomShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -779,6 +780,15 @@ const { open: openFind } = useFindShellController({
 const { toggle: toggleTabSearch } = useTabSearchShellController({
   open: tabSearchOpen,
   panel: tabSearchPanel,
+  settingsOpen,
+  bookmarksOpen,
+  splitMenuOpen,
+  closeTransientPanels: transientPanelsController.close
+})
+const { toggle: toggleZoom } = useZoomShellController({
+  activeTab,
+  open: zoomOpen,
+  bar: zoomBar,
   settingsOpen,
   bookmarksOpen,
   splitMenuOpen,
@@ -1477,18 +1487,6 @@ async function newTabInWorkspace(groupId: string): Promise<void> {
 
 async function showWorkspaceContextMenu(groupId: string): Promise<void> {
   await browser.showWorkspaceContextMenu(groupId)
-}
-
-async function toggleZoom(): Promise<void> {
-  if (zoomOpen.value) {
-    zoomBar.value?.close()
-    return
-  }
-  if (!activeTab.value) return
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  tabSearchOpen.value = false
-  await runFindTransition(() => zoomBar.value?.openForTab(activeTab.value))
 }
 
 function handleZoomError(error: unknown): void {

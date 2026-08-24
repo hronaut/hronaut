@@ -3858,11 +3858,51 @@ export class BrowserTabsManager {
     tabId?: string
     ref?: string
     selector?: string
+    doubleClick?: boolean
   } & BrowserDialogHandlingOptions): Promise<unknown> {
     this.validateTarget(target)
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
     const dialogAction = target.dialogAction
+    if (target.promptText !== undefined && dialogAction !== 'accept') {
+      throw new TypeError('promptText requires dialogAction: accept')
+    }
+    if (target.doubleClick && dialogAction !== undefined) {
+      throw new TypeError('doubleClick cannot be combined with dialogAction or promptText')
+    }
+    if (target.doubleClick) {
+      const point = await webContents.executeJavaScript(targetPointScript(target), true) as {
+        x: number
+        y: number
+        tag: string
+      }
+      await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
+        await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+          type: 'mouseMoved',
+          x: point.x,
+          y: point.y
+        })
+        for (const clickCount of [1, 2]) {
+          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mousePressed',
+            x: point.x,
+            y: point.y,
+            button: 'left',
+            buttons: 1,
+            clickCount
+          })
+          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+            type: 'mouseReleased',
+            x: point.x,
+            y: point.y,
+            button: 'left',
+            buttons: 0,
+            clickCount
+          })
+        }
+      }))
+      return { ok: true, tag: point.tag, doubleClick: true }
+    }
     return this.withAgentInput(webContents, () => {
       if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
       return this.withOptionalDialogHandling(webContents, target, async () => {

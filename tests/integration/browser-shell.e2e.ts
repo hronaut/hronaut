@@ -777,7 +777,7 @@ test('closes Find when Page Tools opens', async ({ appWindow }) => {
   }
 })
 
-test('keeps Find, Tab Search, and the Split view menu mutually exclusive', async ({ appWindow }) => {
+test('keeps Find, Zoom, Tab Search, and the Split view menu mutually exclusive', async ({ appWindow }) => {
   const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>${request.url}</title><main>Split view Find content</main>`)
@@ -819,6 +819,15 @@ test('keeps Find, Tab Search, and the Split view menu mutually exclusive', async
     await appWindow.getByRole('button', { name: 'Split view' }).click()
     await expect(splitViewMenu).toBeVisible()
     await expect(tabSearch).toBeHidden()
+
+    const zoom = appWindow.getByRole('group', { name: 'Page zoom controls' })
+    await appWindow.getByRole('button', { name: 'Page zoom controls' }).click()
+    await expect(zoom).toBeVisible()
+    await expect(splitViewMenu).toBeHidden()
+
+    await appWindow.getByRole('button', { name: 'Split view' }).click()
+    await expect(splitViewMenu).toBeVisible()
+    await expect(zoom).toBeHidden()
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

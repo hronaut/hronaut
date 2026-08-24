@@ -223,7 +223,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
-  { name: 'browser_click', category: 'Interaction', description: 'Click an element by snapshot ref or CSS selector.' },
+  { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
@@ -867,6 +867,8 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional(),
         ref: z.string().optional(),
         selector: z.string().optional(),
+        doubleClick: z.boolean().optional()
+          .describe('Dispatch two native pointer clicks and a dblclick event instead of one programmatic click.'),
         dialogAction: z.enum(['accept', 'dismiss']).optional(),
         promptText: z.string().max(4096).optional()
       }
@@ -875,6 +877,7 @@ function createBrowserMcpServer(
       tabId?: string
       ref?: string
       selector?: string
+      doubleClick?: boolean
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
     }) => textResult(await manager.click(input)))

@@ -4,20 +4,26 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-24
+
 ### Added
 
 - Let `browser_wait` accept up to 20 candidate texts and resolve with the first visible match for workflows with multiple possible outcomes.
+- Let `browser_click` dispatch Chromium's native double-click sequence for controls that require two clicks or a `dblclick` event.
 
 ### Changed
 
 - Split Find-in-page shell orchestration out of `App.vue` into a focused controller.
 - Split Tab Search shell orchestration out of `App.vue` into a focused controller.
+- Split Zoom shell orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
 - Close the Split View menu and other competing surfaces when Find-in-page opens instead of stacking controls over the page.
 - Close the Split View menu and other competing surfaces when Tab Search opens instead of stacking side panels over the page.
+- Close the Split View menu and other competing surfaces when Zoom opens instead of stacking controls over the page.
 - Fail `textGone` waits when the renderer cannot verify page text before the deadline instead of reporting unobserved absence as success.
+- Reject `browser_click` prompt text unless the same call explicitly accepts the prompt, preventing an accidental blocking native dialog.
 
 ## [1.3.0] - 2026-08-24
 
