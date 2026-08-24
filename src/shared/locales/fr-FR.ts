@@ -936,6 +936,8 @@ export const frFR = {
     "loading": "Chargement",
     "tabs": {
       "list": "Onglets et espaces de travail du navigateur",
+      "scrollBack": "Afficher les onglets précédents",
+      "scrollForward": "Afficher les onglets suivants",
       "defaultWorkspace": "Espace de travail par défaut pour les nouveaux onglets",
       "pageAttention": "La page requiert votre attention",
       "sleeping": "En veille pour économiser les ressources",

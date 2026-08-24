@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-08-25
+
+### Fixed
+
+- Keep crowded tab strips navigable with visible overflow controls, horizontal mouse-wheel scrolling, and automatic active-tab reveal.
+
 ## [1.4.1] - 2026-08-25
 
 ### Fixed

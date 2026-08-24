@@ -936,6 +936,8 @@ export const esES = {
     "loading": "Cargando",
     "tabs": {
       "list": "Pestañas y espacios de trabajo del navegador",
+      "scrollBack": "Mostrar pestañas anteriores",
+      "scrollForward": "Mostrar pestañas siguientes",
       "defaultWorkspace": "Espacio de trabajo predeterminado para pestañas nuevas",
       "pageAttention": "La página requiere atención",
       "sleeping": "Suspendida para ahorrar recursos",

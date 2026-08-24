@@ -175,18 +175,49 @@ button { color: inherit; }
   margin: 0 8px 7px 0;
   background: var(--border-soft);
 }
-.tabs-strip {
-  display: flex;
+.tabs-strip-shell {
+  position: relative;
   min-width: 0;
   height: 37px;
   flex: 1 1 auto;
+}
+.tabs-strip {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  height: 37px;
   align-items: end;
   gap: 4px;
   overflow-x: auto;
   overflow-y: hidden;
+  box-sizing: border-box;
+  scroll-padding-inline: 31px;
+  overscroll-behavior-inline: contain;
   scrollbar-width: none;
 }
 .tabs-strip::-webkit-scrollbar { display: none; }
+.tabs-scroll-button {
+  position: absolute;
+  z-index: 3;
+  bottom: 5px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--toolbar) 94%, transparent);
+  box-shadow: 0 2px 9px color-mix(in srgb, black 24%, transparent);
+  cursor: pointer;
+}
+.tabs-scroll-button.previous { left: 0; }
+.tabs-scroll-button.next { right: 0; }
+.tabs-scroll-button svg { width: 19px; height: 19px; }
+.tabs-scroll-button:hover:not(:disabled) { border-color: var(--accent); background: var(--hover); }
+.tabs-scroll-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tabs-scroll-button:disabled { visibility: hidden; opacity: 0; pointer-events: none; }
 .tab-group-label {
   display: flex;
   align-items: center;

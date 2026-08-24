@@ -102,6 +102,51 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
   }
 })
 
+test('keeps many open tabs reachable without covering the fixed topbar actions', async ({ appWindow }) => {
+  const lastTabId = await appWindow.evaluate(`(async () => {
+    const initial = await window.hronaut.getState();
+    const workspaceId = initial.mcpTabGroups.find((workspace) => workspace.isDefault)?.id;
+    if (!workspaceId) throw new Error('Default workspace was not found');
+    let lastTabId = '';
+    for (let index = 1; index <= 12; index += 1) {
+      const url = 'data:text/html,<title>Overflow tab ' + index + '</title><main>Overflow ' + index + '</main>';
+      const state = await window.hronaut.newTab({ url, active: false, mcpGroupId: workspaceId });
+      lastTabId = state.tabs.find((tab) => tab.url === url)?.id ?? '';
+    }
+    return lastTabId;
+  })()`) as string
+  expect(lastTabId).toMatch(UUID_V7_PATTERN)
+
+  const strip = appWindow.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+  await expect.poll(() => strip.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+  const previousTabs = appWindow.locator('.tabs-scroll-button.previous')
+  const moreTabs = appWindow.getByRole('button', { name: 'Show more tabs' })
+  await expect(previousTabs).toBeHidden()
+  await expect(moreTabs).toBeEnabled()
+
+  const [moreBounds, actionsBounds] = await Promise.all([
+    moreTabs.boundingBox(),
+    appWindow.locator('.topbar-actions').boundingBox()
+  ])
+  expect((moreBounds?.x ?? 0) + (moreBounds?.width ?? 0)).toBeLessThanOrEqual(actionsBounds?.x ?? 0)
+
+  await strip.dispatchEvent('wheel', { deltaY: 220 })
+  await expect.poll(() => strip.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
+
+  await strip.evaluate((element) => { element.scrollLeft = 0 })
+  await moreTabs.click()
+  await expect.poll(() => strip.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
+
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(lastTabId)})`)
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const strip = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(strip && tab.left >= strip.left + 30 && tab.right <= strip.right - 30)
+  })).toBe(true)
+  await expect(previousTabs).toBeVisible()
+  await expect(previousTabs).toBeEnabled()
+})
+
 test('requires visible workspaces and keeps each tool inside its selected workspace', async ({
   appWindow,
   mcpPort,

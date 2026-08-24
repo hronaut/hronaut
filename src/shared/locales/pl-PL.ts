@@ -936,6 +936,8 @@ export const plPL = {
     "loading": "Ładowanie",
     "tabs": {
       "list": "Karty i obszary robocze przeglądarki",
+      "scrollBack": "Pokaż poprzednie karty",
+      "scrollForward": "Pokaż następne karty",
       "defaultWorkspace": "Domyślny obszar roboczy dla nowych kart",
       "pageAttention": "Strona wymaga uwagi",
       "sleeping": "Uśpiona, aby oszczędzać zasoby",

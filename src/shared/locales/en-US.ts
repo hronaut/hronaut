@@ -121,7 +121,7 @@ export const enUS = {
     home: { open: 'Open Hronaut Home', label: 'Home' },
     loading: 'Loading',
     tabs: {
-      list: 'Browser tabs and workspaces', defaultWorkspace: 'Default workspace for new tabs', pageAttention: 'Page needs attention', sleeping: 'Sleeping to save resources', stackedVisible: 'Visible in stacked split view', sideVisible: 'Visible in side-by-side split view', inputLocked: 'Page input locked',
+      list: 'Browser tabs and workspaces', scrollBack: 'Show previous tabs', scrollForward: 'Show more tabs', defaultWorkspace: 'Default workspace for new tabs', pageAttention: 'Page needs attention', sleeping: 'Sleeping to save resources', stackedVisible: 'Visible in stacked split view', sideVisible: 'Visible in side-by-side split view', inputLocked: 'Page input locked',
       createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', locked: 'Tabs locked', lock: 'Lock tabs'
     },
     actions: {

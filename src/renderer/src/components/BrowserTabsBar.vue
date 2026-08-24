@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconAddBox from '~icons/material-symbols/add-box-rounded'
@@ -9,6 +9,7 @@ import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
 import IconError from '~icons/material-symbols/error-outline-rounded'
 import IconHorizontalSplit from '~icons/material-symbols/horizontal-split-rounded'
 import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-rounded'
+import IconKeyboardArrowLeft from '~icons/material-symbols/keyboard-arrow-left-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
@@ -50,6 +51,41 @@ const collapsedTabGroupIds = ref(new Set<string>(loadCollapsedTabGroupIds()))
 const draggedTabId = ref<string | null>(null)
 const tabDropTargetId = ref<string | null>(null)
 const tabDropPlacement = ref<'before' | 'after' | null>(null)
+const tabsStrip = ref<HTMLElement | null>(null)
+const hasTabOverflow = ref(false)
+const canScrollTabsBack = ref(false)
+const canScrollTabsForward = ref(false)
+let tabsStripResizeObserver: ResizeObserver | undefined
+
+function updateTabOverflow(): void {
+  const strip = tabsStrip.value
+  if (!strip) return
+  const maximumScroll = Math.max(0, strip.scrollWidth - strip.clientWidth)
+  hasTabOverflow.value = maximumScroll > 1
+  canScrollTabsBack.value = strip.scrollLeft > 1
+  canScrollTabsForward.value = strip.scrollLeft < maximumScroll - 1
+}
+
+function scrollTabs(direction: -1 | 1): void {
+  const strip = tabsStrip.value
+  if (!strip) return
+  strip.scrollBy({ left: direction * Math.max(180, strip.clientWidth * 0.72), behavior: 'smooth' })
+}
+
+function scrollTabsWithWheel(event: WheelEvent): void {
+  const strip = tabsStrip.value
+  if (!strip || !hasTabOverflow.value || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+  event.preventDefault()
+  strip.scrollLeft += event.deltaY
+  updateTabOverflow()
+}
+
+function revealActiveTab(): void {
+  const activeTab = tabsStrip.value?.querySelector<HTMLElement>('[data-active-tab="true"]')
+  if (typeof activeTab?.scrollIntoView === 'function') {
+    activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  }
+}
 
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
   if (!tab.mcpGroupId) return undefined
@@ -170,6 +206,37 @@ watch(
 )
 
 watch(
+  [
+    () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}`).join('|'),
+    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}`).join('|'),
+    () => [...collapsedTabGroupIds.value].sort().join('|')
+  ],
+  async () => {
+    await nextTick()
+    updateTabOverflow()
+  }
+)
+
+watch(
+  () => props.state.activeTabId,
+  async () => {
+    await nextTick()
+    revealActiveTab()
+  }
+)
+
+onMounted(async () => {
+  await nextTick()
+  updateTabOverflow()
+  if (typeof ResizeObserver !== 'undefined' && tabsStrip.value) {
+    tabsStripResizeObserver = new ResizeObserver(updateTabOverflow)
+    tabsStripResizeObserver.observe(tabsStrip.value)
+  }
+})
+
+onBeforeUnmount(() => tabsStripResizeObserver?.disconnect())
+
+watch(
   [() => props.hydrated, () => props.state.activeTabId],
   ([hydrated, activeTabId], [wasHydrated, previousActiveTabId]) => {
     if (!hydrated || !wasHydrated || activeTabId === previousActiveTabId) return
@@ -196,7 +263,24 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span>{{ t('shell.home.label') }}</span>
   </button>
   <span class="topbar-divider" aria-hidden="true" />
-  <div class="tabs-strip" role="tablist" :aria-label="t('shell.tabs.list')">
+  <div class="tabs-strip-shell">
+    <button
+      v-if="hasTabOverflow"
+      class="tabs-scroll-button previous"
+      type="button"
+      :disabled="!canScrollTabsBack"
+      :title="t('shell.tabs.scrollBack')"
+      :aria-label="t('shell.tabs.scrollBack')"
+      @click="scrollTabs(-1)"
+    ><IconKeyboardArrowLeft aria-hidden="true" /></button>
+    <div
+      ref="tabsStrip"
+      class="tabs-strip"
+      role="tablist"
+      :aria-label="t('shell.tabs.list')"
+      @scroll="updateTabOverflow"
+      @wheel="scrollTabsWithWheel"
+    >
     <template v-for="workspace in state.mcpTabGroups" :key="workspace.id">
       <button
         class="tab-group-label"
@@ -251,6 +335,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           role="tab"
           draggable="true"
           :aria-selected="tab.active"
+          :data-active-tab="tab.active ? 'true' : undefined"
           @click="emit('selectTab', tab.id)"
           @contextmenu.prevent="emit('showTabContextMenu', tab.id)"
           @dragstart="beginTabDrag($event, tab)"
@@ -315,5 +400,15 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       <IconAddBox aria-hidden="true" />
       <span>{{ t('shell.tabs.workspace') }}</span>
     </button>
+    </div>
+    <button
+      v-if="hasTabOverflow"
+      class="tabs-scroll-button next"
+      type="button"
+      :disabled="!canScrollTabsForward"
+      :title="t('shell.tabs.scrollForward')"
+      :aria-label="t('shell.tabs.scrollForward')"
+      @click="scrollTabs(1)"
+    ><IconKeyboardArrowRight aria-hidden="true" /></button>
   </div>
 </template>

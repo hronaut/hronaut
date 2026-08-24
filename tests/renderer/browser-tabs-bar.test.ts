@@ -209,4 +209,71 @@ describe('BrowserTabsBar', () => {
 
     expect(view.emitted().reorderTab).toHaveLength(1)
   })
+
+  it('offers explicit controls and mouse-wheel navigation when tabs overflow', async () => {
+    const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
+    renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
+    const user = userEvent.setup()
+    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    Object.defineProperties(strip, {
+      clientWidth: { configurable: true, value: 320 },
+      scrollWidth: { configurable: true, value: 1_280 },
+      scrollLeft: { configurable: true, value: 0, writable: true }
+    })
+    const scrollBy = vi.fn(({ left }: ScrollToOptions) => { strip.scrollLeft += left ?? 0 })
+    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+
+    await fireEvent.scroll(strip)
+
+    const previous = screen.getByRole('button', { name: 'Show previous tabs' })
+    const next = screen.getByRole('button', { name: 'Show more tabs' })
+    expect(previous).toBeDisabled()
+    expect(next).toBeEnabled()
+
+    await user.click(next)
+    expect(scrollBy).toHaveBeenCalledOnce()
+    expect(scrollBy.mock.calls[0][0]).toMatchObject({ behavior: 'smooth' })
+    expect(scrollBy.mock.calls[0][0].left).toBeCloseTo(230.4)
+
+    const wheel = new WheelEvent('wheel', { cancelable: true, deltaY: 120 })
+    strip.dispatchEvent(wheel)
+    expect(wheel.defaultPrevented).toBe(true)
+    expect(strip.scrollLeft).toBe(350.4)
+
+    strip.scrollLeft = 960
+    await fireEvent.scroll(strip)
+    expect(previous).toBeEnabled()
+    expect(next).toBeDisabled()
+
+    Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 280 })
+    await user.click(screen.getByRole('button', { name: 'Collapse workspace Research, 9 tabs' }))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Show previous tabs' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('reveals a newly active tab inside the scrolling strip', async () => {
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const initial = browserState()
+      const view = renderTabs(initial)
+
+      await view.rerender({
+        state: browserState({
+          activeTabId: 'first',
+          tabs: initial.tabs.map((value) => ({ ...value, active: value.id === 'first' }))
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      })
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
 })

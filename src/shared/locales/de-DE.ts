@@ -936,6 +936,8 @@ export const deDE = {
     "loading": "Wird geladen",
     "tabs": {
       "list": "Browser-Tabs und Arbeitsbereiche",
+      "scrollBack": "Vorherige Tabs anzeigen",
+      "scrollForward": "Weitere Tabs anzeigen",
       "defaultWorkspace": "Standardarbeitsbereich für neue Tabs",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",
