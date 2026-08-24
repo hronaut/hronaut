@@ -5278,7 +5278,12 @@ export class BrowserTabsManager {
     })
   }
 
-  async waitForText(text: string, tabId?: string, timeoutMs = 30_000): Promise<boolean> {
+  async waitForText(
+    text: string,
+    tabId?: string,
+    timeoutMs = 30_000,
+    state: 'visible' | 'hidden' = 'visible'
+  ): Promise<boolean> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
     const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
@@ -5317,7 +5322,7 @@ export class BrowserTabsManager {
         if (evaluationTimer) clearTimeout(evaluationTimer)
         webContents.removeListener('destroyed', onDestroyed)
       }
-      if (found) return true
+      if (found === (state === 'visible')) return true
       if (Date.now() >= deadline) return false
       await new Promise((resolve) => setTimeout(resolve, 200))
     }

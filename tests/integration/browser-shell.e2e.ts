@@ -777,6 +777,37 @@ test('closes Find when Page Tools opens', async ({ appWindow }) => {
   }
 })
 
+test('closes Find when the Split view menu opens', async ({ appWindow }) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>${request.url}</title><main>Split view Find content</main>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Split view transition fixture did not expose a TCP port')
+    const firstUrl = `http://127.0.0.1:${address.port}/split-first`
+    const secondUrl = `http://127.0.0.1:${address.port}/split-second`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(firstUrl)}, active: true })`)
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(secondUrl)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(secondUrl)
+
+    const find = appWindow.getByRole('search', { name: 'Find in page' })
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(find).toBeVisible()
+
+    await appWindow.getByRole('button', { name: 'Split view' }).click()
+    await expect(appWindow.getByRole('dialog', { name: 'Split view' })).toBeVisible()
+    await expect(find).toBeHidden()
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('does not open Site Controls underneath Settings after delayed Find cleanup', async ({
   appWindow,
   electronApp

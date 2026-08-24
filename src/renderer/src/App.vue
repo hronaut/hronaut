@@ -100,6 +100,7 @@ import { useSiteControlsShellController } from './composables/useSiteControlsShe
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useTransientPanelsController } from './composables/useTransientPanelsController'
+import { useSplitViewShellController } from './composables/useSplitViewShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -249,7 +250,6 @@ const shell = ref<HTMLElement | null>(null)
 const findOpen = ref(false)
 const zoomOpen = ref(false)
 const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
-const splitMenuOpen = ref(false)
 const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
 const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
 const downloadsOpen = ref(false)
@@ -752,6 +752,20 @@ const transientPanelsController = useTransientPanelsController({
   findOpen,
   closeFind,
   onError: reportShellActionError
+})
+const {
+  open: splitMenuOpen,
+  prepareOpen: prepareSplitViewMenu,
+  handleError: handleSplitViewError
+} = useSplitViewShellController({
+  settingsOpen,
+  bookmarksOpen,
+  closeTransientPanels,
+  reportError: (error, fallback) => showAppToast(
+    'error',
+    t('runtime.workspace.splitFailed'),
+    friendlyUiError(error, fallback)
+  )
 })
 if (detachedPanelId) activatePanel(detachedPanelId)
 const {
@@ -1485,21 +1499,6 @@ async function toggleZoom(): Promise<void> {
   updateNoticeOpen.value = false
   tabSearchOpen.value = false
   await runFindTransition(() => zoomBar.value?.openForTab(activeTab.value))
-}
-
-function prepareSplitViewMenu(): void {
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  tabSearchOpen.value = false
-  zoomOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  addressSuggestionsOpen.value = false
-}
-
-function handleSplitViewError(error: unknown, fallback: string): void {
-  showAppToast('error', t('runtime.workspace.splitFailed'), friendlyUiError(error, fallback))
 }
 
 function handleZoomError(error: unknown): void {

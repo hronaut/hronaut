@@ -4,13 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add `textGone` to `browser_wait` for bounded waits until rendered page text disappears.
+
 ### Changed
 
 - Split shared transient-panel closing policy out of `App.vue` into a focused controller.
+- Split Split View menu shell orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
 - Close Find-in-page immediately when Page Tools or another transient panel opens, while completing browser-side Find cleanup in the background.
+- Close Find-in-page when the Split View menu opens instead of stacking both controls over the page.
 
 ## [1.2.2] - 2026-08-24
 

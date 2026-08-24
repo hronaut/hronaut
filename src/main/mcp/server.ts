@@ -233,7 +233,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key to the active page.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
-  { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation or visible page text.' },
+  { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, visible page text, or page text to disappear.' },
   { name: 'browser_emulate', category: 'Inspection', description: 'Reproduce responsive, network, cache, service-worker, Data Saver, CPU, animation-playback, CSS media, vision, locale, time-zone, JavaScript-disabled, location, request-header, and user-agent conditions, or show paint, layout-shift, layer, frame, and scrolling diagnostics in one tab.' },
   { name: 'browser_resize', category: 'Inspection', description: 'Set or reset the page viewport for responsive UI testing.' },
   { name: 'browser_zoom', category: 'Inspection', description: 'Inspect or change page zoom from 50% to 300% without resizing the browser chrome.' },
@@ -1018,14 +1018,29 @@ function createBrowserMcpServer(
       description: toolDescription('browser_wait'),
       inputSchema: {
         tabId: tabIdSchema.optional(),
-        text: z.string().optional(),
+        text: z.string().min(1).max(1_000).optional()
+          .describe('Wait until this exact text is visible in the rendered page. Cannot be combined with textGone.'),
+        textGone: z.string().min(1).max(1_000).optional()
+          .describe('Wait until this exact text is absent from the rendered page. Cannot be combined with text.'),
         timeoutMs: z.number().int().min(1).max(60_000).optional()
       }
     },
-    tabTool('browser_wait', async ({ tabId, text, timeoutMs }: { tabId?: string; text?: string; timeoutMs?: number }) => {
+    tabTool('browser_wait', async ({ tabId, text, textGone, timeoutMs }: {
+      tabId?: string
+      text?: string
+      textGone?: string
+      timeoutMs?: number
+    }) => {
+      if (text && textGone) throw new TypeError('Choose either text or textGone, not both.')
       if (text) {
-        const found = await manager.waitForText(text, tabId, timeoutMs)
+        const found = await manager.waitForText(text, tabId, timeoutMs, 'visible')
         return found ? textResult(`Found text: ${text}`) : errorResult(new Error(`Timed out waiting for text: ${text}`))
+      }
+      if (textGone) {
+        const disappeared = await manager.waitForText(textGone, tabId, timeoutMs, 'hidden')
+        return disappeared
+          ? textResult(`Text disappeared: ${textGone}`)
+          : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))
       }
       await manager.waitForPage(tabId, timeoutMs)
       return textResult('Page is no longer loading.')

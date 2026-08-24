@@ -17,7 +17,17 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
   mcpToken
 }) => {
   const pendingResponses = new Set<ServerResponse>()
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
+    if (request.url === '/text-disappears') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end('<!doctype html><title>Disappearing text</title><main id="status">Loading profile</main><script>setTimeout(() => document.querySelector("#status")?.remove(), 1000)</script>')
+      return
+    }
+    if (request.url === '/text-stays') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end('<!doctype html><title>Persistent text</title><main>Persistent status</main>')
+      return
+    }
     pendingResponses.add(response)
     response.once('close', () => pendingResponses.delete(response))
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -46,6 +56,40 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
     }).toBe(true)
     await client.connect(transport)
     await useMcpWorkspace(client, 'Wait cancellation test', false)
+
+    const disappearingTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/text-disappears`, active: true }
+    }) as CallToolResult
+    const disappearingTabId = (JSON.parse(text(disappearingTab)) as { activeTabId: string }).activeTabId
+    const disappeared = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: disappearingTabId, textGone: 'Loading profile', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(disappeared.isError).not.toBe(true)
+    expect(text(disappeared)).toBe('Text disappeared: Loading profile')
+
+    const ambiguous = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: disappearingTabId, text: 'Profile', textGone: 'Loading profile' }
+    }) as CallToolResult
+    expect(ambiguous.isError).toBe(true)
+    expect(text(ambiguous)).toContain('Choose either text or textGone')
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(disappearingTabId)})`)
+
+    const persistentTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/text-stays`, active: true }
+    }) as CallToolResult
+    const persistentTabId = (JSON.parse(text(persistentTab)) as { activeTabId: string }).activeTabId
+    const persistent = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: persistentTabId, textGone: 'Persistent status', timeoutMs: 100 }
+    }) as CallToolResult
+    expect(persistent.isError).toBe(true)
+    expect(text(persistent)).toContain('Timed out waiting for text to disappear: Persistent status')
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(persistentTabId)})`)
+
     const opened = await client.callTool({
       name: 'browser_new_tab',
       arguments: { url: `http://127.0.0.1:${address.port}/never-finishes`, active: true }
