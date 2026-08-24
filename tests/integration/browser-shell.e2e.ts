@@ -748,6 +748,57 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
   }
 })
 
+test('does not open Site Controls underneath Settings after delayed Find cleanup', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Site controls race fixture</title><main>Find this content</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Site Controls race fixture did not expose a TCP port')
+    const url = `http://127.0.0.1:${address.port}/site-controls-race`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe(url)
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(appWindow.getByRole('search', { name: 'Find in page' })).toBeVisible()
+
+    await electronApp.evaluate(({ ipcMain }) => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedFindCleanup?: () => void }
+      ipcMain.removeHandler('browser:stop-find-in-page')
+      ipcMain.handle('browser:stop-find-in-page', () => new Promise<void>(resolve => {
+        mainGlobal.__resolveDelayedFindCleanup = resolve
+      }))
+    })
+
+    const siteControls = appWindow.getByRole('dialog', { name: '127.0.0.1' })
+    await appWindow.getByRole('button', { name: /Site controls for 127\.0\.0\.1/ }).click()
+    await expect(siteControls).toBeVisible()
+    await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(siteControls).toBeHidden()
+
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __resolveDelayedFindCleanup?: () => void }
+      if (!mainGlobal.__resolveDelayedFindCleanup) throw new Error('Delayed Find cleanup did not start')
+      mainGlobal.__resolveDelayedFindCleanup()
+      delete mainGlobal.__resolveDelayedFindCleanup
+    })
+
+    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+    await expect(siteControls).toBeHidden()
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('shows a recoverable site error and retries the failed address', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })

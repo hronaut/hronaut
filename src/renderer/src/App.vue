@@ -96,6 +96,7 @@ import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
+import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
@@ -973,6 +974,24 @@ const {
   tabTooltip,
   pageProblemDetails
 } = activeTabPresentationController
+const {
+  toggle: toggleSiteControls,
+  dispose: disposeSiteControlsShellController
+} = useSiteControlsShellController({
+  open: siteControlsOpen,
+  canOpen: () => Boolean(activeWebUrl.value),
+  settingsOpen,
+  updateNoticeOpen,
+  downloadsOpen,
+  bookmarksOpen,
+  historyOpen,
+  tabSearchOpen,
+  zoomOpen,
+  addressSuggestionsOpen,
+  findOpen,
+  closeFind,
+  refresh: refreshSiteDataSummary
+})
 function expandTabGroupForTab(tab: BrowserTabState): void {
   browserTabsBar.value?.expandTabGroupForTab(tab)
 }
@@ -1355,25 +1374,6 @@ async function retryActivePageProblem(): Promise<void> {
 
 async function refreshSiteDataSummary(): Promise<void> {
   await siteDataController.refresh()
-}
-
-async function toggleSiteControls(): Promise<void> {
-  if (!activeWebUrl.value) return
-  if (siteControlsOpen.value) {
-    siteControlsOpen.value = false
-    return
-  }
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  zoomOpen.value = false
-  addressSuggestionsOpen.value = false
-  if (findOpen.value) await closeFind()
-  siteControlsOpen.value = true
-  await refreshSiteDataSummary()
 }
 
 async function openSitePrivacySettings(): Promise<void> {
@@ -1853,6 +1853,7 @@ onBeforeUnmount(() => {
   disposeSearchSettingsController()
   disposeHelpDialogController()
   disposeSettingsDialogController()
+  disposeSiteControlsShellController()
   disposeUpdateSettingsController()
   disposeCommercialLicenseController()
   disposeMcpStatusController()
