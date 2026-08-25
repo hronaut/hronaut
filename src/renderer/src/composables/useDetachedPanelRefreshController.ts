@@ -23,6 +23,7 @@ export interface DetachedPanelRefreshControllerOptions {
 
 export function useDetachedPanelRefreshController(options: DetachedPanelRefreshControllerOptions) {
   let disposed = false
+  let presentationSequence = 0
   let refreshSequence = 0
 
   function fail(error: unknown, sequence: number): void {
@@ -35,13 +36,24 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
   }
 
   async function show(panel: DetachablePanelId): Promise<void> {
-    const sequence = ++refreshSequence
-    await waitForPresentationTurn()
-    if (disposed || sequence !== refreshSequence) return
+    const presentation = ++presentationSequence
+    refreshSequence += 1
+    try {
+      await waitForPresentationTurn()
+    } catch (error) {
+      if (!disposed && presentation === presentationSequence) options.onError(error)
+      return
+    }
+    if (disposed || presentation !== presentationSequence) return
     options.activate(panel)
     await nextTick()
-    if (disposed || sequence !== refreshSequence || options.activePanelId.value !== panel) return
-    await options.refresh(panel)
+    if (disposed || presentation !== presentationSequence || options.activePanelId.value !== panel) return
+    const refresh = ++refreshSequence
+    try {
+      await options.refresh(panel)
+    } catch (error) {
+      fail(error, refresh)
+    }
   }
 
   const stopContextWatch = watch(
@@ -72,6 +84,7 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
   function dispose(): void {
     if (disposed) return
     disposed = true
+    presentationSequence += 1
     refreshSequence += 1
     stopContextWatch()
   }

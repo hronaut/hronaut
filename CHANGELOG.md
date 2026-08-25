@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move detached-panel refresh dispatch out of `App.vue` into a focused, exhaustively tested controller.
 - Reset all Appearance preferences in one authoritative transaction and prevent conflicting settings edits while a reset is pending.
 - Move Settings reset routing and Appearance defaults out of `App.vue` into a focused controller.
 - Move Privacy Settings open, refresh, and search-reset lifecycle ownership out of `App.vue` into its focused shell controller.
@@ -19,6 +20,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep a tab context update from canceling a newer detached-panel request, and suppress refresh failures from panels that have already been superseded.
 - Reset the interface language to the system default with the rest of the Appearance preferences.
 - Keep completed browsing-data clears authoritative when the follow-up website inventory refresh fails, instead of presenting the destructive clear as failed.
 - Reveal the selected tab after startup when its workspace had previously been collapsed, while preserving collapse state for unrelated workspaces.

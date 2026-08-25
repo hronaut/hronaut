@@ -85,6 +85,7 @@ import { usePanelRegistryController } from './composables/usePanelRegistryContro
 import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
 import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
 import { useDetachedPanelRefreshController } from './composables/useDetachedPanelRefreshController'
+import { useDetachedPanelActionsController } from './composables/useDetachedPanelActionsController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
@@ -764,33 +765,19 @@ const {
   domChangesPanelOpen,
   visualComparePanelOpen,
   inspectorIssuesOpen,
-  runPerformanceReport,
   togglePerformanceReport,
-  runDesignOverview,
   toggleDesignOverview,
-  runPageMetadata,
   togglePageMetadata,
-  runSecurityReport,
   toggleSecurityReport,
-  manageCodeCoverage,
   toggleCodeCoverage,
-  manageCpuProfile,
   toggleCpuProfile,
-  runMemoryReport,
   toggleMemoryReport,
-  runDebugReport,
   toggleDebugReport,
-  manageRepro,
   toggleReproRecorder,
-  manageDomChanges,
   toggleDomChanges,
-  manageVisualCompare,
   toggleVisualCompare,
-  refreshInspectorIssues,
   toggleInspectorIssues,
-  runAccessibilityAudit,
   toggleAccessibilityAudit,
-  runQualityAudit,
   toggleQualityAudit,
   dispose: disposeDiagnosticsController
 } = diagnosticsController
@@ -847,22 +834,28 @@ const transientPanelsController = useTransientPanelsController({
   closeFind,
   onError: reportShellActionError
 })
-const {
-  resetConsole: resetConsoleView,
-  refreshConsole,
-  toggleConsole,
-  resetNetwork: resetNetworkMonitorView,
-  refreshNetwork: refreshNetworkMonitor,
-  refreshNetworkRoutes,
-  toggleNetwork: toggleNetworkMonitor,
-  openRequestConditions
-} = useDeveloperPanelsShellController({
+const developerPanelsShellController = useDeveloperPanelsShellController({
   consoleOpen: consolePanelOpen,
   consolePanel,
   networkOpen: networkMonitorOpen,
   networkPanel,
   closeTransientPanels: transientPanelsController.close,
   keepsSeparatePanelOpen
+})
+const {
+  resetConsole: resetConsoleView,
+  toggleConsole,
+  resetNetwork: resetNetworkMonitorView,
+  toggleNetwork: toggleNetworkMonitor,
+  openRequestConditions
+} = developerPanelsShellController
+const { refresh: refreshDetachedPanel } = useDetachedPanelActionsController({
+  refreshSiteData: refreshSiteDataSummary,
+  refreshSiteStorage,
+  loadResponsiveDraft,
+  loadEnvironmentDraft,
+  diagnostics: diagnosticsController,
+  developerPanels: developerPanelsShellController
 })
 const {
   open: splitMenuOpen,
@@ -1511,29 +1504,6 @@ async function openSupport(url: string): Promise<void> {
 
 function purchaseCommercialLicense(): void {
   void runShellAction(() => window.hronautLicense.openPurchase())
-}
-
-async function refreshDetachedPanel(panel: DetachablePanelId): Promise<void> {
-  if (panel === 'site-controls') await refreshSiteDataSummary()
-  else if (panel === 'site-storage') await refreshSiteStorage()
-  else if (panel === 'responsive-preview') loadResponsiveDraft()
-  else if (panel === 'environment') loadEnvironmentDraft()
-  else if (panel === 'accessibility') await runAccessibilityAudit()
-  else if (panel === 'quality-audit') await runQualityAudit()
-  else if (panel === 'performance') await runPerformanceReport()
-  else if (panel === 'design-overview') await runDesignOverview()
-  else if (panel === 'page-metadata') await runPageMetadata()
-  else if (panel === 'security') await runSecurityReport()
-  else if (panel === 'coverage') await manageCodeCoverage('get')
-  else if (panel === 'cpu-profile') await manageCpuProfile('get')
-  else if (panel === 'memory') await runMemoryReport()
-  else if (panel === 'console') await refreshConsole()
-  else if (panel === 'network') await Promise.all([refreshNetworkMonitor(), refreshNetworkRoutes()])
-  else if (panel === 'debug-report') await runDebugReport()
-  else if (panel === 'repro-recorder') await manageRepro('get')
-  else if (panel === 'dom-changes') await manageDomChanges('get')
-  else if (panel === 'visual-compare') await manageVisualCompare('get')
-  else if (panel === 'issues') await refreshInspectorIssues()
 }
 
 function closeTransientPanels(): void {

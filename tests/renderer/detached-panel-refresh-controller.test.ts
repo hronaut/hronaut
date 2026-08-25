@@ -23,6 +23,16 @@ function createHarness(detachedWindow = true) {
   return { activate, activePanelId, controller, loading, onError, refresh, tabId, url }
 }
 
+function deferred<Value = void>() {
+  let resolve!: (value: Value) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, reject, resolve }
+}
+
 describe('detached panel refresh controller', () => {
   it('refreshes only the newest panel when requests overlap before rendering', async () => {
     const harness = createHarness()
@@ -47,6 +57,67 @@ describe('detached panel refresh controller', () => {
 
     expect(harness.activate).not.toHaveBeenCalled()
     expect(harness.refresh).not.toHaveBeenCalled()
+  })
+
+  it('does not let a tab context change cancel a newer panel presentation', async () => {
+    const presentationTurn = deferred()
+    const harness = createHarness()
+    harness.controller.dispose()
+    const controller = useDetachedPanelRefreshController({
+      detachedWindow: true,
+      activePanelId: harness.activePanelId,
+      context: () => ({
+        tabId: harness.tabId.value,
+        url: harness.url.value,
+        loading: harness.loading.value
+      }),
+      activate: harness.activate,
+      refresh: harness.refresh,
+      onError: harness.onError,
+      waitForPresentationTurn: () => presentationTurn.promise
+    })
+
+    const showing = controller.show('console')
+    harness.loading.value = false
+    await nextTick()
+    presentationTurn.resolve()
+    await showing
+
+    expect(harness.activate).toHaveBeenCalledWith('console')
+    expect(harness.activePanelId.value).toBe('console')
+    expect(harness.refresh).toHaveBeenLastCalledWith('console')
+    controller.dispose()
+  })
+
+  it('ignores a refresh failure from a panel request superseded after presentation', async () => {
+    const staleRefresh = deferred()
+    const harness = createHarness()
+    harness.refresh
+      .mockImplementationOnce(() => staleRefresh.promise)
+      .mockResolvedValueOnce(undefined)
+
+    const stale = harness.controller.show('network')
+    await vi.waitFor(() => expect(harness.refresh).toHaveBeenCalledWith('network'))
+    const current = harness.controller.show('console')
+    await current
+    staleRefresh.reject(new Error('stale network refresh'))
+    await stale
+
+    expect(harness.activePanelId.value).toBe('console')
+    expect(harness.onError).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('reports a refresh failure from the currently presented panel', async () => {
+    const harness = createHarness()
+    const failure = new Error('current console refresh')
+    harness.refresh.mockRejectedValueOnce(failure)
+
+    await harness.controller.show('console')
+
+    expect(harness.activePanelId.value).toBe('console')
+    expect(harness.onError).toHaveBeenCalledWith(failure)
+    harness.controller.dispose()
   })
 
   it('refreshes the active panel when a detached tab finishes loading or changes context', async () => {

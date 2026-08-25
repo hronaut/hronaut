@@ -451,9 +451,34 @@ test('coalesces rapid detached-panel requests and refreshes only the latest pane
     }).__hronautRapidPanelRefreshes
   ))).toEqual({ console: 0, network: 1, routes: 1 })
 
-  await electronApp.evaluate(({ BrowserWindow }) => {
+  const changedPanelContext = await appWindow.evaluate(async () => {
+    const page = window as unknown as { hronaut: { getState: () => Promise<BrowserState> } }
+    const next = await page.hronaut.getState()
+    return {
+      ...next,
+      tabs: next.tabs.map((tab) => tab.id === next.activeTabId
+        ? { ...tab, url: `${tab.url}#detached-panel-context-change`, loading: false }
+        : tab)
+    }
+  }) as BrowserState
+  await electronApp.evaluate(({ BrowserWindow }, context) => {
     const panel = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Network monitor — Hronaut')
     if (!panel) throw new Error('Missing serialized network panel')
+    panel.webContents.send('panel-window:show-panel', 'console')
+    panel.webContents.send('browser:state-changed', context)
+  }, changedPanelContext)
+
+  await expect(detachedPage).toHaveTitle('Console — Hronaut')
+  await expect(detachedPage.getByRole('dialog', { name: 'Console' })).toBeVisible()
+  await expect.poll(() => electronApp.evaluate(() => (
+    (globalThis as typeof globalThis & {
+      __hronautRapidPanelRefreshes?: { console: number; network: number; routes: number }
+    }).__hronautRapidPanelRefreshes?.console
+  ))).toBeGreaterThan(0)
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    const panel = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Console — Hronaut')
+    if (!panel) throw new Error('Missing serialized console panel')
     panel.close()
   })
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
