@@ -148,6 +148,34 @@ describe('BrowserTabsBar', () => {
     expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
   })
 
+  it('reveals the active tab when it moves into a collapsed workspace', async () => {
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-2']))
+    const firstWorkspace = workspace('workspace-1')
+    const secondWorkspace = { ...workspace('workspace-2'), name: 'Hidden QA' }
+    const active = tab('active', { active: true })
+    const view = renderTabs(browserState({
+      tabs: [active],
+      activeTabId: active.id,
+      mcpTabGroups: [firstWorkspace, secondWorkspace]
+    }))
+
+    await view.rerender({
+      state: browserState({
+        tabs: [{
+          ...active,
+          mcpGroupId: secondWorkspace.id,
+          mcpGroupName: secondWorkspace.name
+        }],
+        activeTabId: active.id,
+        mcpTabGroups: [firstWorkspace, secondWorkspace]
+      })
+    })
+
+    expect(screen.getByRole('button', { name: 'Collapse workspace Hidden QA, 1 tab' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('tab', { name: 'Page active' })).toBeVisible()
+    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
+  })
+
   it('preserves collapse state while the authoritative browser state hydrates', async () => {
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
     const view = renderTabs(browserState({ tabs: [], activeTabId: null, mcpTabGroups: [] }), false)
@@ -355,6 +383,45 @@ describe('BrowserTabsBar', () => {
 
     Object.defineProperty(strip, 'scrollWidth', { configurable: true, value: 280 })
     await user.click(screen.getByRole('button', { name: 'Collapse workspace Research, 9 tabs' }))
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Show previous tabs' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('recomputes overflow when tabs move into a collapsed workspace', async () => {
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-2']))
+    const firstWorkspace = workspace('workspace-1')
+    const secondWorkspace = { ...workspace('workspace-2'), name: 'Hidden QA' }
+    const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
+    const view = renderTabs(browserState({
+      tabs,
+      activeTabId: tabs[0].id,
+      mcpTabGroups: [firstWorkspace, secondWorkspace]
+    }))
+    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    let contentWidth = 1_280
+    Object.defineProperties(strip, {
+      clientWidth: { configurable: true, value: 320 },
+      scrollWidth: { configurable: true, get: () => contentWidth },
+      scrollLeft: { configurable: true, value: 0, writable: true }
+    })
+    await fireEvent.scroll(strip)
+    expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeVisible()
+
+    contentWidth = 280
+    await view.rerender({
+      state: browserState({
+        tabs: tabs.map((value, index) => index === 0 ? value : ({
+          ...value,
+          mcpGroupId: secondWorkspace.id,
+          mcpGroupName: secondWorkspace.name
+        })),
+        activeTabId: tabs[0].id,
+        mcpTabGroups: [firstWorkspace, secondWorkspace]
+      })
+    })
+
     await vi.waitFor(() => {
       expect(screen.queryByRole('button', { name: 'Show previous tabs' })).not.toBeInTheDocument()
       expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()

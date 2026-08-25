@@ -257,8 +257,8 @@ watch(
 
 watch(
   [
-    () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}`).join('|'),
-    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}`).join('|'),
+    () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
+    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.isDefault}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
   async () => {
@@ -292,9 +292,17 @@ onMounted(async () => {
 onBeforeUnmount(() => tabsStripResizeObserver?.disconnect())
 
 watch(
-  [() => props.hydrated, () => props.state.activeTabId],
-  async ([hydrated, activeTabId], [wasHydrated, previousActiveTabId]) => {
-    if (!hydrated || !wasHydrated || activeTabId === previousActiveTabId) return
+  [
+    () => props.hydrated,
+    () => props.state.activeTabId,
+    () => props.state.tabs.find((tab) => tab.id === props.state.activeTabId)?.mcpGroupId
+  ],
+  async ([hydrated, activeTabId, activeTabGroupId], [wasHydrated, previousActiveTabId, previousActiveTabGroupId]) => {
+    if (
+      !hydrated
+      || !wasHydrated
+      || (activeTabId === previousActiveTabId && activeTabGroupId === previousActiveTabGroupId)
+    ) return
     const tab = props.state.tabs.find((candidate) => candidate.id === activeTabId)
     if (!tab) return
     expandTabGroupForTab(tab)

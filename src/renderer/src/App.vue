@@ -91,6 +91,7 @@ import { usePanelDockLayout } from './composables/usePanelDockLayout'
 import { usePanelRegistryController } from './composables/usePanelRegistryController'
 import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
 import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
+import { useDetachedPanelRefreshController } from './composables/useDetachedPanelRefreshController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
@@ -845,6 +846,17 @@ const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncControll
   persistDock: (dock) => window.localStorage.setItem('hronaut:panel-dock', dock),
   onError: reportShellActionError
 })
+const { dispose: disposeDetachedPanelRefreshController } = useDetachedPanelRefreshController({
+  detachedWindow: isDetachedPanelWindow,
+  activePanelId,
+  context: () => ({
+    tabId: state.value.activeTabId,
+    url: activeTab.value?.url,
+    loading: activeTab.value?.loading
+  }),
+  refresh: refreshDetachedPanel,
+  onError: reportShellActionError
+})
 const appBootstrapController = useAppBootstrapController({
   tasks: [
     { id: 'settings', run: () => settingsStore.initialize() },
@@ -1407,17 +1419,6 @@ watch(
   }
 )
 
-watch(
-  () => [state.value.activeTabId, activeTab.value?.url, activeTab.value?.loading] as const,
-  ([tabId, url, loading], [previousTabId, previousUrl, previousLoading]) => {
-    if (!isDetachedPanelWindow || !tabId || !url || url.startsWith('hronaut://home') || loading) return
-    const contextChanged = tabId !== previousTabId || url !== previousUrl || previousLoading === true
-    if (!contextChanged) return
-    const panel = activePanelId.value
-    if (panel) void refreshDetachedPanel(panel)
-  }
-)
-
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
 }
@@ -1828,6 +1829,7 @@ onBeforeUnmount(() => {
   browserStore.dispose()
   settingsStore.dispose()
   disposeAppEventsController()
+  disposeDetachedPanelRefreshController()
   disposePanelWindowSyncController()
   disposePanelWindowEventsController()
   if (updateNoticeDismissTimer !== undefined) window.clearTimeout(updateNoticeDismissTimer)
