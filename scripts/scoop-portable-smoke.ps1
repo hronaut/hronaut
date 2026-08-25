@@ -63,37 +63,23 @@ function Wait-ForEndpoint {
 function Start-Hronaut {
   param(
     [string]$Executable,
-    [string]$AppDataDirectory,
     [int]$Port
   )
 
-  $previousAppData = $env:APPDATA
-  $env:APPDATA = $AppDataDirectory
   $env:HRONAUT_MCP_HOST = "127.0.0.1"
   $env:HRONAUT_MCP_PORT = [string]$Port
   $env:HRONAUT_DISABLE_MCP_AUTH = "1"
-  try {
-    Start-Process -FilePath $Executable | Out-Null
-  } finally {
-    $env:APPDATA = $previousAppData
-  }
+  Start-Process -FilePath $Executable | Out-Null
   Wait-ForEndpoint -Url "http://127.0.0.1:$Port/healthz" -Available $true
 }
 
 function Stop-Hronaut {
   param(
     [string]$Executable,
-    [string]$AppDataDirectory,
     [int]$Port
   )
 
-  $previousAppData = $env:APPDATA
-  $env:APPDATA = $AppDataDirectory
-  try {
-    Start-Process -FilePath $Executable -ArgumentList "--quit" -Wait | Out-Null
-  } finally {
-    $env:APPDATA = $previousAppData
-  }
+  Start-Process -FilePath $Executable -ArgumentList "--quit" -Wait | Out-Null
   Wait-ForEndpoint -Url "http://127.0.0.1:$Port/healthz" -Available $false
 }
 
@@ -113,7 +99,6 @@ if ($manifest.shortcuts[0][0] -ne $expectedFilename -or $manifest.shortcuts[0][1
 $temporaryRoot = Join-Path $env:RUNNER_TEMP "hronaut-scoop-smoke-$([Guid]::NewGuid().ToString('N'))"
 $serveDirectory = Join-Path $temporaryRoot "serve"
 $scoopDirectory = Join-Path $temporaryRoot "scoop"
-$appDataDirectory = Join-Path $temporaryRoot "appdata"
 $fixtureDirectory = Join-Path $temporaryRoot "fixture"
 $localManifestPath = Join-Path $temporaryRoot "hronaut.json"
 $scoopInstallerPath = Join-Path $temporaryRoot "install-scoop.ps1"
@@ -123,9 +108,10 @@ $fixtureServer = $null
 $installed = $false
 $installedExecutable = $null
 $mcpPort = $null
+$profileDirectory = $null
 
 try {
-  New-Item -ItemType Directory -Force -Path $serveDirectory, $appDataDirectory, $fixtureDirectory | Out-Null
+  New-Item -ItemType Directory -Force -Path $serveDirectory, $fixtureDirectory | Out-Null
   Copy-Item $ArtifactPath (Join-Path $serveDirectory $expectedFilename)
   Set-Content -Path (Join-Path $fixtureDirectory "index.html") -Value "<!doctype html><title>Hronaut profile smoke</title><h1>Hronaut profile smoke</h1>" -Encoding UTF8
 
@@ -164,20 +150,22 @@ try {
     throw "Hronaut shortcut targets $($shortcut.TargetPath), expected $installedExecutable"
   }
 
-  Start-Hronaut -Executable $installedExecutable -AppDataDirectory $appDataDirectory -Port $mcpPort
+  Start-Hronaut -Executable $installedExecutable -Port $mcpPort
   $env:HRONAUT_MCP_URL = "http://127.0.0.1:$mcpPort/mcp"
   $env:HRONAUT_PROFILE_SMOKE_URL = "http://127.0.0.1:$fixturePort/"
   Remove-Item Env:HRONAUT_MCP_TOKEN -ErrorAction SilentlyContinue
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "write")
-  Stop-Hronaut -Executable $installedExecutable -AppDataDirectory $appDataDirectory -Port $mcpPort
+  Stop-Hronaut -Executable $installedExecutable -Port $mcpPort
 
-  $profileMarker = Get-ChildItem -Path $appDataDirectory -Filter "tabs.json" -File -Recurse | Select-Object -First 1
+  $profileMarker = Get-ChildItem -Path $originalAppData -Filter "tabs.json" -File -Recurse | Where-Object {
+    (Get-Content -Raw $_.FullName) -match 'Profile smoke'
+  } | Select-Object -First 1
   if (-not $profileMarker) {
-    $appDataContents = (Get-ChildItem -Path $appDataDirectory -Force -Recurse | Select-Object -ExpandProperty FullName) -join "`n"
-    throw "Hronaut did not store tabs.json under the external AppData directory. Contents:`n$appDataContents"
+    $appDataContents = (Get-ChildItem -Path $originalAppData -Filter "tabs.json" -File -Recurse | Select-Object -ExpandProperty FullName) -join "`n"
+    throw "Hronaut did not store the Profile smoke workspace in normal AppData. tabs.json candidates:`n$appDataContents"
   }
   $profileDirectory = $profileMarker.Directory.FullName
-  $appDataPrefix = [System.IO.Path]::GetFullPath($appDataDirectory).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  $appDataPrefix = [System.IO.Path]::GetFullPath($originalAppData).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
   if (-not [System.IO.Path]::GetFullPath($profileDirectory).StartsWith($appDataPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Hronaut profile was stored outside the expected AppData root: $profileDirectory"
   }
@@ -200,11 +188,11 @@ try {
 
   Invoke-CheckedCommand -Command $scoopCommand -Arguments @("install", $localManifestPath)
   $installed = $true
-  Start-Hronaut -Executable $installedExecutable -AppDataDirectory $appDataDirectory -Port $mcpPort
+  Start-Hronaut -Executable $installedExecutable -Port $mcpPort
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "read")
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/mcp-smoke.ts")
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "cleanup")
-  Stop-Hronaut -Executable $installedExecutable -AppDataDirectory $appDataDirectory -Port $mcpPort
+  Stop-Hronaut -Executable $installedExecutable -Port $mcpPort
 
   Invoke-CheckedCommand -Command $scoopCommand -Arguments @("uninstall", "hronaut")
   $installed = $false
@@ -226,6 +214,9 @@ try {
   }
   if ($fixtureServer -and -not $fixtureServer.HasExited) {
     Stop-Process -Id $fixtureServer.Id -Force
+  }
+  if ($profileDirectory -and (Test-Path $profileDirectory)) {
+    Remove-Item -Recurse -Force $profileDirectory -ErrorAction SilentlyContinue
   }
   Remove-Item -Recurse -Force $temporaryRoot -ErrorAction SilentlyContinue
 }
