@@ -451,4 +451,43 @@ describe('BrowserTabsBar', () => {
       else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
     }
   })
+
+  it('reveals the active tab again when the scrolling strip is resized', async () => {
+    const originalResizeObserver = Object.getOwnPropertyDescriptor(window, 'ResizeObserver')
+    const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    const scrollIntoView = vi.fn()
+    let resizeCallback: ResizeObserverCallback | undefined
+    let resizeObserver: ResizeObserver | undefined
+
+    class TestResizeObserver implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+        resizeObserver = this
+      }
+
+      disconnect(): void {}
+      observe(): void {}
+      unobserve(): void {}
+    }
+
+    Object.defineProperty(window, 'ResizeObserver', { configurable: true, value: TestResizeObserver })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const active = tab('active', { active: true })
+      renderTabs(browserState({ tabs: [active], activeTabId: active.id }))
+      await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+      scrollIntoView.mockClear()
+
+      resizeCallback?.([], resizeObserver!)
+
+      await vi.waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      })
+    } finally {
+      if (originalResizeObserver) Object.defineProperty(window, 'ResizeObserver', originalResizeObserver)
+      else Reflect.deleteProperty(window, 'ResizeObserver')
+      if (originalScrollIntoView) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
 })

@@ -102,7 +102,7 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
   }
 })
 
-test('keeps many open tabs reachable without covering the fixed topbar actions', async ({ appWindow }) => {
+test('keeps many open tabs reachable without covering the fixed topbar actions', async ({ appWindow, electronApp }) => {
   const lastTabId = await appWindow.evaluate(`(async () => {
     const initial = await window.hronaut.getState();
     const workspaceId = initial.mcpTabGroups.find((workspace) => workspace.isDefault)?.id;
@@ -145,6 +145,13 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })).toBe(true)
   await expect(previousTabs).toBeVisible()
   await expect(previousTabs).toBeEnabled()
+
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 600))
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const strip = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(strip && tab.left >= strip.left + 30 && tab.right <= strip.right - 30)
+  })).toBe(true)
 
   const firstTab = appWindow.getByRole('tab', { name: /^Overflow tab 1 —/ })
   const lastTab = appWindow.getByRole('tab', { name: /^Overflow tab 12 —/ })

@@ -14,8 +14,14 @@ export function usePanelRegistryController(options: PanelRegistryControllerOptio
   ))
   const dockedPanelOpen = computed(() => activePanelId.value !== null)
 
+  function closeAllExcept(preservedPanel: DetachablePanelId | null = null): void {
+    for (const panel of DETACHABLE_PANEL_IDS) {
+      if (panel !== preservedPanel) options.panels[panel].value = false
+    }
+  }
+
   function closeAll(): void {
-    for (const panel of DETACHABLE_PANEL_IDS) options.panels[panel].value = false
+    closeAllExcept()
   }
 
   function activate(panel: DetachablePanelId): void {
@@ -24,7 +30,7 @@ export function usePanelRegistryController(options: PanelRegistryControllerOptio
     options.panels[panel].value = true
   }
 
-  return { activePanelId, dockedPanelOpen, closeAll, activate }
+  return { activePanelId, dockedPanelOpen, closeAll, closeAllExcept, activate }
 }
 
 export type PanelRegistryController = ReturnType<typeof usePanelRegistryController>

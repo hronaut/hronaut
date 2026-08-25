@@ -734,9 +734,18 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
     ))
     const browserViewY = async (): Promise<number | undefined> => (await browserViewBounds())?.y
     await expect.poll(browserViewY).toBe(105)
+
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    await appWindow.getByRole('dialog', { name: 'Page tools' })
+      .getByRole('button', { name: /Responsive preview:/ })
+      .click()
+    const responsivePreview = appWindow.getByRole('dialog', { name: 'Responsive preview' })
+    await expect(responsivePreview).toBeVisible()
+
     await appWindow.getByRole('button', { name: /Site controls for 127\.0\.0\.1/ }).click()
     const siteControls = appWindow.getByRole('dialog', { name: '127.0.0.1' })
     await expect(siteControls).toBeVisible()
+    await expect(responsivePreview).toBeHidden()
     const panelBounds = await siteControls.boundingBox()
     expect(panelBounds).not.toBeNull()
     await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: Math.round(panelBounds!.x) })

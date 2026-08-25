@@ -93,6 +93,7 @@ import { usePanelWindowEventsController } from './composables/usePanelWindowEven
 import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
 import { useDetachedPanelRefreshController } from './composables/useDetachedPanelRefreshController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
+import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
@@ -765,6 +766,7 @@ const {
   activePanelId,
   dockedPanelOpen,
   closeAll: closeDockedPanels,
+  closeAllExcept: closeDockedPanelsExcept,
   activate: activatePanel
 } = panelRegistryController
 const transientPanelsController = useTransientPanelsController({
@@ -1273,10 +1275,8 @@ function toggleEnvironment(): void {
   environmentController.toggle()
 }
 
-watch(settingsOpen, async () => {
-  if (!settingsOpen.value && settingsSection.value === 'privacy') janitorSearch.value = ''
-  await nextTick()
-  reportShellHeight()
+watch(settingsOpen, (open) => {
+  if (!open && settingsSection.value === 'privacy') janitorSearch.value = ''
 })
 
 watch([settingsOpen, settingsSection], ([open, section]) => {
@@ -1285,91 +1285,50 @@ watch([settingsOpen, settingsSection], ([open, section]) => {
   }
 })
 
-watch(updateNoticeOpen, async () => {
-  await nextTick()
-  reportShellHeight()
-})
-
-watch(findOpen, async () => {
-  await nextTick()
-  reportShellHeight()
-})
-
-watch(zoomOpen, async () => {
-  await nextTick()
-  reportShellHeight()
-})
-
-watch(
-  [
-    siteControlsOpen,
-    siteStorageOpen,
+const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCoordinationController({
+  layoutSources: [
+    settingsOpen,
+    updateNoticeOpen,
+    findOpen,
+    zoomOpen,
+    activePanelId,
     addressSuggestionsOpen,
-    pageToolsOpen,
-    responsivePanelOpen,
-    environmentPanelOpen,
-    accessibilityPanelOpen,
-    qualityAuditPanelOpen,
-    performancePanelOpen,
-    designOverviewPanelOpen,
-    pageMetadataPanelOpen,
-    securityPanelOpen,
-    coveragePanelOpen,
-    cpuProfilePanelOpen,
-    memoryPanelOpen,
-    consolePanelOpen,
-    debugReportPanelOpen,
-    reproPanelOpen,
-    domChangesPanelOpen,
-    visualComparePanelOpen,
-    inspectorIssuesOpen,
-    networkMonitorOpen,
     commandPaletteOpen,
     tabSearchOpen,
     downloadsOpen,
-    bookmarksOpen,
     historyOpen,
     splitMenuOpen,
     workspaceEditorOpen,
     credentialPickerOpen
   ],
-  async () => {
-    await nextTick()
-    reportShellHeight()
-  }
-)
-
-watch(
-  [settingsOpen, commandPaletteOpen, helpDialogOpen, workspaceEditorOpen, credentialPickerOpen, siteControlsOpen, siteStorageOpen, addressSuggestionsOpen, findOpen, zoomOpen, splitMenuOpen, tabSearchOpen, downloadsOpen, bookmarksOpen, historyOpen],
-  (openStates) => {
-    if (openStates.some(Boolean) && !keepsSeparatePanelOpen()) {
-      pageToolsOpen.value = false
-      environmentPanelOpen.value = false
-      accessibilityPanelOpen.value = false
-      qualityAuditPanelOpen.value = false
-      performancePanelOpen.value = false
-      designOverviewPanelOpen.value = false
-      pageMetadataPanelOpen.value = false
-      securityPanelOpen.value = false
-      coveragePanelOpen.value = false
-      cpuProfilePanelOpen.value = false
-      memoryPanelOpen.value = false
-      consolePanelOpen.value = false
-      reproPanelOpen.value = false
-      domChangesPanelOpen.value = false
-      visualComparePanelOpen.value = false
-      inspectorIssuesOpen.value = false
-      networkMonitorOpen.value = false
-    }
-  }
-)
-
-// The address suggestions are rendered in a topmost native WebContentsView.
-// Dismiss it synchronously before any full renderer modal opens so the native
-// overlay can never cover Settings, Help, the command palette, or a picker.
-watch(fullModalOpen, (open) => {
-  if (open) closeAddressSuggestions()
-}, { flush: 'sync' })
+  competingOverlayStates: [
+    settingsOpen,
+    commandPaletteOpen,
+    helpDialogOpen,
+    workspaceEditorOpen,
+    credentialPickerOpen,
+    siteControlsOpen,
+    siteStorageOpen,
+    addressSuggestionsOpen,
+    findOpen,
+    zoomOpen,
+    splitMenuOpen,
+    tabSearchOpen,
+    downloadsOpen,
+    bookmarksOpen,
+    historyOpen
+  ],
+  preservedPanels: [
+    { panel: 'site-controls', open: siteControlsOpen },
+    { panel: 'site-storage', open: siteStorageOpen },
+    { panel: 'bookmarks', open: bookmarksOpen }
+  ],
+  fullModalOpen,
+  keepsSeparatePanelOpen,
+  closePanelsExcept: closeDockedPanelsExcept,
+  closeAddressSuggestions,
+  reportLayout: reportShellHeight
+})
 
 watch(
   [updateNoticeOpen, () => updateState.value.status],
@@ -1790,6 +1749,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposeMcpActivityController()
+  disposeShellOverlayCoordinationController()
   disposeActiveTabContextController()
   disposeEnvironmentPanelController()
   disposeEmulationController()

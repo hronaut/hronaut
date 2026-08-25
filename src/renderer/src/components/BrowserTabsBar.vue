@@ -88,6 +88,11 @@ function revealActiveTab(): void {
   }
 }
 
+function handleTabStripResize(): void {
+  updateTabOverflow()
+  revealActiveTab()
+}
+
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
   if (!tab.mcpGroupId) return undefined
   const color = props.state.mcpTabGroups.find((group) => group.id === tab.mcpGroupId)?.color ?? defaultTabGroupColor(tab.mcpGroupId)
@@ -284,7 +289,7 @@ onMounted(async () => {
   revealActiveTab()
   updateTabOverflow()
   if (typeof ResizeObserver !== 'undefined' && tabsStrip.value) {
-    tabsStripResizeObserver = new ResizeObserver(updateTabOverflow)
+    tabsStripResizeObserver = new ResizeObserver(handleTabStripResize)
     tabsStripResizeObserver.observe(tabsStrip.value)
   }
 })

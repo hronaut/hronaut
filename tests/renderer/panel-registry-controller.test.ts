@@ -51,4 +51,16 @@ describe('panel registry controller', () => {
     expect(controller.dockedPanelOpen.value).toBe(false)
     expect(onActivate).not.toHaveBeenCalled()
   })
+
+  it('closes competing panels while preserving the overlay being opened', () => {
+    const { controller, panels, onActivate } = create()
+    panels['site-controls'].value = true
+    panels['responsive-preview'].value = true
+    panels['debug-report'].value = true
+
+    controller.closeAllExcept('site-controls')
+
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => panels[panel].value)).toEqual(['site-controls'])
+    expect(onActivate).not.toHaveBeenCalled()
+  })
 })
