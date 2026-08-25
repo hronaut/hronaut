@@ -218,6 +218,23 @@ function focusTab(tabId: string): void {
 }
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
+  if (event.key === 'Delete') {
+    if (props.state.allHumanInteractionLocked) return
+    event.preventDefault()
+    emit('closeTab', tab.id)
+    return
+  }
+  if (
+    event.key.toLocaleLowerCase() === 'm'
+    && !event.ctrlKey
+    && !event.metaKey
+    && !event.altKey
+    && (tab.audible || tab.muted)
+  ) {
+    event.preventDefault()
+    emit('toggleTabMuted', tab)
+    return
+  }
   const tabs = visibleTabs.value
   const currentIndex = tabs.findIndex((candidate) => candidate.id === tab.id)
   const previousKey = vertical.value ? 'ArrowUp' : 'ArrowLeft'
@@ -231,6 +248,13 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
       : (currentIndex + (event.key === previousKey ? -1 : 1) + tabs.length) % tabs.length
   const target = tabs[targetIndex]
   if (target) focusTab(target.id)
+}
+
+function tabKeyboardShortcuts(tab: BrowserTabState): string | undefined {
+  const shortcuts: string[] = []
+  if (!props.state.allHumanInteractionLocked) shortcuts.push('Delete')
+  if (tab.audible || tab.muted) shortcuts.push('M')
+  return shortcuts.length ? shortcuts.join(' ') : undefined
 }
 
 function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
@@ -517,6 +541,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           type="button"
           role="tab"
           :tabindex="tabKeyboardIndex(tab)"
+          :aria-keyshortcuts="tabKeyboardShortcuts(tab)"
           :data-tab-id="tab.id"
           draggable="true"
           :aria-selected="tab.active"
@@ -556,10 +581,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             v-if="tab.audible || tab.muted"
             class="tab-audio"
             :class="{ muted: tab.muted }"
-            role="button"
             :title="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
-            :aria-label="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
-            :aria-pressed="tab.muted"
+            aria-hidden="true"
             @click.stop="emit('toggleTabMuted', tab)"
           >
             <IconVolumeOff v-if="tab.muted" aria-hidden="true" />
@@ -567,11 +590,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           </span>
           <span
             class="tab-close"
-            role="button"
             :title="state.allHumanInteractionLocked ? t('runtime.locks.unlockToClose') : t('runtime.locks.closeShortcut')"
-            :aria-label="state.allHumanInteractionLocked ? t('runtime.locks.closeUnavailable') : t('tabSearch.closeTab')"
-            aria-keyshortcuts="Control+W Meta+W"
-            :aria-disabled="state.allHumanInteractionLocked"
+            aria-hidden="true"
             data-lock-protected-tab-close
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>

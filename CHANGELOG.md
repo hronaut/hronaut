@@ -21,6 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Make tab mute and close actions keyboard-operable from the focused tab and remove invalid nested button semantics.
 - Keep completed workspace storage transfers authoritative when the follow-up workspace refresh fails, and block duplicate transfers until that refresh settles.
 - Keep a tab context update from canceling a newer detached-panel request, and suppress refresh failures from panels that have already been superseded.
 - Reset the interface language to the system default with the rest of the Appearance preferences.

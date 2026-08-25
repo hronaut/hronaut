@@ -388,6 +388,42 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted().selectTab).toEqual([['first']])
   })
 
+  it('exposes mute and close shortcuts on the focused tab without nested button roles', async () => {
+    const audible = tab('audible', { active: true, audible: true })
+    const view = renderTabs(browserState({ tabs: [audible], activeTabId: audible.id }))
+    const user = userEvent.setup()
+    const control = screen.getByRole('tab', { name: /Page audible/ })
+
+    expect(control).toHaveAttribute('aria-keyshortcuts', 'Delete M')
+    expect(control.querySelector('[role="button"]')).not.toBeInTheDocument()
+
+    control.focus()
+    await user.keyboard('m')
+    await user.keyboard('{Delete}')
+
+    expect(view.emitted('toggleTabMuted')).toEqual([[audible]])
+    expect(view.emitted('closeTab')).toEqual([[audible.id]])
+  })
+
+  it('keeps the keyboard close shortcut unavailable while all tab closing is locked', async () => {
+    const audible = tab('audible', { active: true, audible: true })
+    const view = renderTabs(browserState({
+      tabs: [audible],
+      activeTabId: audible.id,
+      allHumanInteractionLocked: true
+    }))
+    const user = userEvent.setup()
+    const control = screen.getByRole('tab', { name: /Page audible/ })
+
+    expect(control).toHaveAttribute('aria-keyshortcuts', 'M')
+    control.focus()
+    await user.keyboard('{Delete}')
+    await user.keyboard('m')
+
+    expect(view.emitted('closeTab')).toBeUndefined()
+    expect(view.emitted('toggleTabMuted')).toEqual([[audible]])
+  })
+
   it('skips collapsed workspace tabs during keyboard navigation and includes them after expansion', async () => {
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-2']))
     const firstWorkspace = workspace('workspace-1')
