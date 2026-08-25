@@ -6,7 +6,7 @@ export const INTERFACE_SCALE_OPTIONS = [
 
 export type InterfaceScale = (typeof INTERFACE_SCALE_OPTIONS)[number]['value']
 
-export const DEFAULT_INTERFACE_SCALE: InterfaceScale = 1.1
+export const DEFAULT_INTERFACE_SCALE: InterfaceScale = 1
 
 export function isInterfaceScale(value: unknown): value is InterfaceScale {
   return INTERFACE_SCALE_OPTIONS.some((option) => option.value === value)

@@ -8,8 +8,8 @@ import {
 } from '../src/shared/interface-scale.js'
 
 describe('interface scale', () => {
-  it('provides a readable default and a bounded explicit scale', () => {
-    expect(DEFAULT_INTERFACE_SCALE).toBe(1.1)
+  it('defaults fresh and reset profiles to 100% with bounded larger choices', () => {
+    expect(DEFAULT_INTERFACE_SCALE).toBe(1)
     expect(INTERFACE_SCALE_OPTIONS.map((option) => option.value)).toEqual([1, 1.1, 1.25])
     expect(INTERFACE_SCALE_OPTIONS.every((option) => isInterfaceScale(option.value))).toBe(true)
   })

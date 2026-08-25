@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -15,7 +16,7 @@ import type {
 
 export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   theme: 'system',
-  interfaceScale: 1,
+  interfaceScale: DEFAULT_INTERFACE_SCALE,
   tabPosition: 'top',
   searchEngine: 'google',
   hideInTray: true,

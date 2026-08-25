@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Use 100% as the default interface scale for fresh profiles and Appearance resets while preserving an existing explicit scale choice.
+
 ### Fixed
 
 - Open scheme-less localhost and IP loopback development addresses over HTTP instead of forcing them through HTTPS and producing a TLS failure.

@@ -215,16 +215,16 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.getByRole('button', { name: 'Reset to default' }).click()
 
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
-  await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1.1')
+  await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1')
   await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('top')
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
     BrowserWindow.getAllWindows()[0]?.webContents.getZoomFactor()
-  ))).toBe(1.1)
+  ))).toBe(1)
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'system',
-    interfaceScale: 1.1,
+    interfaceScale: 1,
     tabPosition: 'top',
     hideInTray: true,
     attentionSound: true,
