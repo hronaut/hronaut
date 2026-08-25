@@ -29,6 +29,7 @@ const props = defineProps<{
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
   railPinned: boolean
+  railRevealed?: boolean
   mcpActivityByTab: Record<string, McpTabActivity>
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
@@ -66,7 +67,7 @@ let tabsStripResizeObserver: ResizeObserver | undefined
 const vertical = computed(() => props.orientation === 'vertical')
 const railHovered = ref(false)
 const railFocusWithin = ref(false)
-const railExpanded = computed(() => props.railPinned || railHovered.value || railFocusWithin.value)
+const railExpanded = computed(() => props.railPinned || props.railRevealed || railHovered.value || railFocusWithin.value)
 
 function reportRailReveal(): void {
   emit('railRevealChange', vertical.value && (railHovered.value || railFocusWithin.value))
@@ -91,10 +92,22 @@ function handleRailFocusOut(event: FocusEvent): void {
 function updateTabOverflow(): void {
   const strip = tabsStrip.value
   if (!strip) return
-  const maximumScroll = Math.max(0, vertical.value
-    ? strip.scrollHeight - strip.clientHeight
-    : strip.scrollWidth - strip.clientWidth)
-  hasTabOverflow.value = maximumScroll > 1
+  const contentExtent = vertical.value ? strip.scrollHeight : strip.scrollWidth
+  const viewportExtent = vertical.value ? strip.clientHeight : strip.clientWidth
+  // Vertical controls reserve space outside the scrolling viewport. Compare
+  // content against the full shell so those controls cannot keep themselves
+  // alive after tabs shrink enough to fit without them.
+  const overflowCapacity = vertical.value
+    ? strip.parentElement?.clientHeight ?? viewportExtent
+    : viewportExtent
+  const overflowing = contentExtent - overflowCapacity > 1
+  const maximumScroll = Math.max(0, contentExtent - viewportExtent)
+  hasTabOverflow.value = overflowing
+  if (!overflowing) {
+    canScrollTabsBack.value = false
+    canScrollTabsForward.value = false
+    return
+  }
   const position = vertical.value ? strip.scrollTop : strip.scrollLeft
   canScrollTabsBack.value = position > 1
   canScrollTabsForward.value = position < maximumScroll - 1
@@ -116,10 +129,10 @@ function scrollTabsWithWheel(event: WheelEvent): void {
   updateTabOverflow()
 }
 
-function revealActiveTab(): void {
+function revealActiveTab(behavior: ScrollBehavior = 'smooth'): void {
   const activeTab = tabsStrip.value?.querySelector<HTMLElement>('[data-active-tab="true"]')
   if (typeof activeTab?.scrollIntoView === 'function') {
-    activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+    activeTab.scrollIntoView({ behavior, block: 'nearest', inline: 'nearest' })
   }
 }
 
@@ -321,14 +334,22 @@ watch(
   [
     () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
     () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.isDefault}`).join('|'),
-    () => [...collapsedTabGroupIds.value].sort().join('|'),
-    () => props.orientation
+    () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
   async () => {
     const revealAfterLayout = activeTabIntersectsVisibleStrip()
     await nextTick()
     updateTabOverflow()
     if (revealAfterLayout) revealActiveTab()
+  }
+)
+
+watch(
+  () => props.orientation,
+  async () => {
+    await nextTick()
+    updateTabOverflow()
+    revealActiveTab('auto')
   }
 )
 
@@ -500,6 +521,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           @drop="finishTabDrop($event, tab)"
           @dragend="clearTabDrag"
         >
+          <span v-if="tab.active" class="tab-active-indicator" aria-hidden="true" />
           <span v-if="tab.loading" class="spinner" :aria-label="t('shell.loading')" />
           <IconError v-else-if="tab.pageProblem" class="favicon-fallback tab-problem-icon" :aria-label="t('shell.tabs.pageAttention')" />
           <img v-else-if="tab.faviconDataUrl" class="favicon-image" :src="tab.faviconDataUrl" alt="" draggable="false" />

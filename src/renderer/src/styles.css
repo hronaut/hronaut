@@ -125,6 +125,12 @@ button { color: inherit; }
   transition: background 180ms ease, border-color 180ms ease;
 }
 .shell.home-shell { min-height: 44px; }
+.shell.vertical-tabs-shell { min-height: 60px; }
+.shell.vertical-tabs-shell.home-shell {
+  min-height: 0;
+  border-bottom: 0;
+  box-shadow: none;
+}
 
 :root[data-theme="cyberpunk"] .shell::after {
   position: absolute;
@@ -145,8 +151,7 @@ button { color: inherit; }
   padding: 7px 10px 0;
 }
 .browser-tabs-bar.horizontal { display: contents; }
-.vertical-tabs-shell .topbar { justify-content: flex-end; }
-.browser-tabs-bar.vertical {
+.vertical-tabs-shell .topbar {
   position: fixed;
   z-index: 47;
   top: var(--shell-content-top);
@@ -154,14 +159,27 @@ button { color: inherit; }
   left: 0;
   display: flex;
   width: var(--tab-rail-width);
+  height: auto;
   min-width: 0;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 9px 9px;
+  align-items: stretch;
+  padding: 0;
   border-top: 1px solid var(--border-soft);
   border-right: 1px solid var(--border);
   background: linear-gradient(180deg, var(--shell-bottom), var(--toolbar));
   box-shadow: 2px 0 8px color-mix(in srgb, var(--shadow) 68%, transparent);
+}
+.browser-tabs-bar.vertical {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 9px 9px;
 }
 .browser-tabs-bar.vertical .app-home-button { width: 100%; height: 34px; margin: 0; }
 .browser-tabs-bar.vertical .topbar-divider { width: 100%; height: 1px; margin: 0; }
@@ -215,9 +233,24 @@ button { color: inherit; }
   border-radius: 8px;
 }
 .browser-tabs-bar.vertical .tab.active {
-  box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-soft);
+  background: color-mix(in srgb, var(--accent) 18%, var(--toolbar));
+  box-shadow:
+    inset 4px 0 0 var(--accent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, var(--border-soft)),
+    0 3px 10px color-mix(in srgb, var(--shadow) 48%, transparent);
 }
 .browser-tabs-bar.vertical .tab.grouped { border-top: 0; border-left: 3px solid var(--tab-group-color); }
+.browser-tabs-bar.vertical .tab.grouped.active {
+  background: color-mix(in srgb, var(--accent) 16%, color-mix(in srgb, var(--tab-group-color) 9%, var(--toolbar)));
+}
+.browser-tabs-bar.vertical .tab-active-indicator {
+  top: 7px;
+  right: 0;
+  bottom: 7px;
+  left: auto;
+  width: 4px;
+  height: auto;
+}
 .browser-tabs-bar.vertical .tab.pinned { width: 40px; min-width: 40px; align-self: flex-start; }
 .browser-tabs-bar.vertical .workspace-action-divider { width: 100%; height: 1px; margin: 5px 0 2px; }
 .browser-tabs-bar.vertical .new-workspace { width: 100%; height: 32px; margin: 0; }
@@ -255,6 +288,22 @@ button { color: inherit; }
   padding-left: 0;
 }
 .browser-tabs-bar.vertical.rail-collapsed .tabs-strip { align-items: center; }
+.browser-tabs-bar.vertical.rail-collapsed .tab.active {
+  background: color-mix(in srgb, var(--accent) 34%, var(--toolbar));
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    0 3px 12px color-mix(in srgb, var(--accent) 36%, var(--shadow));
+}
+.browser-tabs-bar.vertical.rail-collapsed .tab-active-indicator {
+  top: 2px;
+  right: 2px;
+  bottom: auto;
+  left: auto;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--toolbar);
+  border-radius: 999px;
+}
 .browser-tabs-bar.vertical.rail-collapsed .app-home-button > span,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label > span,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-default-badge,
@@ -400,6 +449,63 @@ button { color: inherit; }
   align-items: end;
   margin-left: 6px;
 }
+.vertical-tabs-shell .topbar-actions {
+  display: grid;
+  width: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+  border-top: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--toolbar) 94%, var(--shell-bottom));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.vertical-tabs-shell .topbar-actions-divider { display: none; }
+.vertical-tabs-shell .topbar-icon-button {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+}
+.vertical-tabs-shell .command-palette-button { grid-column: 1; grid-row: 1; }
+.vertical-tabs-shell .tab-search-button { grid-column: 2; grid-row: 1; }
+.vertical-tabs-shell .downloads-button { grid-column: 3; grid-row: 1; }
+.vertical-tabs-shell .history-button { grid-column: 4; grid-row: 1; }
+.vertical-tabs-shell .settings-button { grid-column: 5; grid-row: 1; }
+.vertical-tabs-shell .browser-lock-button {
+  width: 100%;
+  height: 32px;
+  justify-content: center;
+  margin: 0;
+  padding: 0 8px;
+  grid-column: 1 / 3;
+  grid-row: 2;
+}
+.vertical-tabs-shell .mcp-controls {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  grid-column: 3 / 6;
+  grid-row: 2;
+}
+.vertical-tabs-shell .mcp-pill { min-width: 0; flex: 1; justify-content: center; }
+.vertical-tabs-shell .update-status-pill {
+  width: 100%;
+  max-width: none;
+  height: 32px;
+  justify-content: center;
+  margin: 0;
+  grid-column: 1 / -1;
+}
+.vertical-tabs-shell .topbar.rail-collapsed .topbar-actions {
+  max-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border-top: 0;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
 
 .tab {
   display: flex;
@@ -455,8 +561,24 @@ button { color: inherit; }
 
 .tab:hover { background: var(--tab-hover); }
 .tab.active {
-  background: var(--toolbar);
-  box-shadow: 0 -1px 0 var(--accent-soft), 0 1px 0 var(--toolbar);
+  background: color-mix(in srgb, var(--accent) 13%, var(--toolbar));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, var(--border-soft)),
+    0 -1px 0 var(--accent-soft),
+    0 1px 0 var(--toolbar);
+}
+.tab.active .tab-title { color: var(--text); font-weight: 750; }
+.tab-active-indicator {
+  position: absolute;
+  z-index: 3;
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: var(--accent);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--accent) 52%, transparent);
+  pointer-events: none;
 }
 .tab.grouped {
   border-top: 2px solid var(--tab-group-color);
@@ -3945,6 +4067,8 @@ button { color: inherit; }
 @media (max-width: 900px) {
   .browser-lock-button { width: 30px; padding: 0; justify-content: center; font-size: 0; }
   .mcp-pill { display: none; }
+  .vertical-tabs-shell .browser-lock-button { width: 100%; padding: 0 8px; font-size: 12px; }
+  .vertical-tabs-shell .mcp-pill { display: flex; }
   .update-status-pill { max-width: 160px; }
   .page-problem-copy { display: grid; gap: 2px; }
   .page-problem-copy code { display: none; }

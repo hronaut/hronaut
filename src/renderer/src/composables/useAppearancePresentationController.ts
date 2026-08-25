@@ -57,6 +57,20 @@ export function useAppearancePresentationController(options: AppearancePresentat
     verticalTabRailRevealed.value = revealed
   }
 
+  function revealVerticalTabRail(): void {
+    if (tabOrientation.value === 'vertical') setVerticalTabRailRevealed(true)
+  }
+
+  function concealVerticalTabRail(): void {
+    if (tabOrientation.value === 'vertical') setVerticalTabRailRevealed(false)
+  }
+
+  function handleVerticalTabRailFocusOut(event: FocusEvent): void {
+    const chrome = event.currentTarget as HTMLElement
+    if (event.relatedTarget instanceof Node && chrome.contains(event.relatedTarget)) return
+    concealVerticalTabRail()
+  }
+
   watch(
     [options.settings, options.systemTheme],
     () => applySettings(options.settings.value),
@@ -74,9 +88,13 @@ export function useAppearancePresentationController(options: AppearancePresentat
     tabRailWidth,
     tabOrientation,
     verticalTabRailPinned,
+    verticalTabRailRevealed,
     applySettings,
     playAttentionSound,
     toggleVerticalTabRailPinned,
-    setVerticalTabRailRevealed
+    setVerticalTabRailRevealed,
+    revealVerticalTabRail,
+    concealVerticalTabRail,
+    handleVerticalTabRailFocusOut
   }
 }

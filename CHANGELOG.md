@@ -8,7 +8,13 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Make the selected tab unmistakable with a persistent accent marker and stronger active surface, including the collapsed vertical rail.
+- Move the complete tab and application-action chrome into the left rail when tabs are placed on the left, leaving only the navigation and address toolbar across the top.
+
 ### Fixed
+
+- Remove vertical tab overflow controls once the remaining tabs fit the full rail again.
+- Keep the selected tab immediately visible when switching a crowded tab strip from the top to the left rail.
 
 ## [1.5.1] - 2026-08-25
 

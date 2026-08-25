@@ -161,6 +161,41 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('toggleRailPinned')).toEqual([[]])
   })
 
+  it('stays expanded when the surrounding side chrome is being used', async () => {
+    const view = renderTabs(browserState(), true, 'vertical', false)
+    const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })
+
+    expect(navigation).toHaveClass('rail-collapsed')
+
+    await view.rerender({ railRevealed: true })
+
+    expect(navigation).not.toHaveClass('rail-collapsed')
+  })
+
+  it('keeps an explicit selected marker on the active tab in a collapsed rail', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    const view = renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }), true, 'vertical', false)
+    const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })
+    const firstControl = screen.getByRole('tab', { name: first.title })
+    const secondControl = screen.getByRole('tab', { name: second.title })
+
+    expect(navigation).toHaveClass('rail-collapsed')
+    expect(firstControl.querySelector('.tab-active-indicator')).toBeInTheDocument()
+    expect(secondControl.querySelector('.tab-active-indicator')).not.toBeInTheDocument()
+
+    await view.rerender({
+      state: browserState({
+        tabs: [{ ...first, active: false }, { ...second, active: true }],
+        activeTabId: second.id
+      })
+    })
+
+    expect(firstControl.querySelector('.tab-active-indicator')).not.toBeInTheDocument()
+    expect(secondControl.querySelector('.tab-active-indicator')).toBeInTheDocument()
+    expect(screen.getAllByRole('tab').filter((control) => control.getAttribute('aria-selected') === 'true')).toHaveLength(1)
+  })
+
   it('recomputes overflow when the tab position changes its scroll axis', async () => {
     const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
     const view = renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
@@ -178,6 +213,34 @@ describe('BrowserTabsBar', () => {
     await view.rerender({ orientation: 'vertical' })
 
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeEnabled())
+  })
+
+  it('removes vertical overflow controls when content fits the full rail again', async () => {
+    renderTabs(browserState(), true, 'vertical')
+    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const shell = strip.closest<HTMLElement>('.tabs-strip-shell')
+    if (!shell) throw new Error('Tab strip shell was not found')
+    let contentHeight = 500
+    Object.defineProperties(shell, {
+      clientHeight: { configurable: true, value: 360 }
+    })
+    Object.defineProperties(strip, {
+      clientHeight: {
+        configurable: true,
+        get: () => shell.classList.contains('has-tab-overflow') ? 296 : 360
+      },
+      scrollHeight: { configurable: true, get: () => contentHeight },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+
+    await fireEvent.scroll(strip)
+    expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeEnabled()
+
+    contentHeight = 330
+    await fireEvent.scroll(strip)
+
+    expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()
+    expect(shell).not.toHaveClass('has-tab-overflow')
   })
 
   it.each([
@@ -550,6 +613,27 @@ describe('BrowserTabsBar', () => {
 
       await vi.waitFor(() => {
         expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      })
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('reveals the active tab immediately when the strip moves to the left rail', async () => {
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const active = tab('active', { active: true })
+      const view = renderTabs(browserState({ tabs: [active], activeTabId: active.id }))
+      await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+      scrollIntoView.mockClear()
+
+      await view.rerender({ orientation: 'vertical' })
+
+      await vi.waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
       })
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)

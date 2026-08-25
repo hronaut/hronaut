@@ -212,10 +212,13 @@ const {
   tabRailWidth,
   tabOrientation,
   verticalTabRailPinned,
+  verticalTabRailRevealed,
   applySettings: applyTheme,
   playAttentionSound: testAttentionSound,
   toggleVerticalTabRailPinned,
-  setVerticalTabRailRevealed
+  revealVerticalTabRail,
+  concealVerticalTabRail,
+  handleVerticalTabRailFocusOut
 } = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
 if (detachedPanelId) {
   document.documentElement.dataset.panelWindow = 'true'
@@ -1708,13 +1711,21 @@ onBeforeUnmount(() => {
     @wheel.capture="guardShellInteraction"
     @submit.capture="guardShellInteraction"
   >
-    <div class="topbar">
+    <div
+      class="topbar"
+      :class="{ 'rail-collapsed': tabOrientation === 'vertical' && !verticalTabRailPinned && !verticalTabRailRevealed }"
+      @mouseenter="revealVerticalTabRail"
+      @mouseleave="concealVerticalTabRail"
+      @focusin="revealVerticalTabRail"
+      @focusout="handleVerticalTabRailFocusOut"
+    >
       <BrowserTabsBar
         ref="browserTabsBar"
         :state="state"
         :hydrated="browserStateInitialized"
         :orientation="tabOrientation"
         :rail-pinned="verticalTabRailPinned"
+        :rail-revealed="verticalTabRailRevealed"
         :mcp-activity-by-tab="mcpActivityByTab"
         :format-number="localNumber"
         :tab-tooltip="tabTooltip"
@@ -1730,7 +1741,6 @@ onBeforeUnmount(() => {
         @close-tab="runShellAction(() => closeTab($event))"
         @drag-start="tabSearchOpen = false"
         @toggle-rail-pinned="toggleVerticalTabRailPinned"
-        @rail-reveal-change="setVerticalTabRailRevealed"
       />
       <AppTopbarActions
         :command-palette-open="commandPaletteOpen"

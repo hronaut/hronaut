@@ -217,6 +217,41 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
   const verticalNavigation = appWindow.getByRole('navigation', { name: 'Tab navigation' })
   await expect(verticalNavigation).toHaveClass(/vertical/)
+  await expect.poll(() => appWindow.evaluate(() => {
+    const toolbar = document.querySelector<HTMLElement>('.toolbar')?.getBoundingClientRect()
+    const rail = document.querySelector<HTMLElement>('.topbar')?.getBoundingClientRect()
+    const navigation = document.querySelector<HTMLElement>('.browser-tabs-bar.vertical')?.getBoundingClientRect()
+    const actions = document.querySelector<HTMLElement>('.topbar-actions')?.getBoundingClientRect()
+    if (!toolbar || !rail || !navigation || !actions) return null
+    return {
+      toolbarIsOnlyTopRow: Math.round(toolbar.top) === 0
+        && Math.round(toolbar.left) === 0
+        && Math.round(toolbar.right) === window.innerWidth,
+      railStartsBelowToolbar: rail.top >= toolbar.bottom && rail.top <= toolbar.bottom + 1,
+      railFillsLeftViewport: Math.round(rail.left) === 0
+        && Math.round(rail.right) === 280
+        && Math.round(rail.bottom) === window.innerHeight,
+      navigationInsideRail: navigation.left >= rail.left
+        && navigation.right <= rail.right
+        && navigation.top >= rail.top
+        && navigation.bottom <= actions.top,
+      actionsInsideRail: actions.left >= rail.left
+        && actions.right <= rail.right
+        && actions.top >= navigation.bottom
+        && actions.bottom <= rail.bottom
+    }
+  })).toEqual({
+    toolbarIsOnlyTopRow: true,
+    railStartsBelowToolbar: true,
+    railFillsLeftViewport: true,
+    navigationInsideRail: true,
+    actionsInsideRail: true
+  })
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const stripBounds = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(stripBounds && tab.top >= stripBounds.top && tab.bottom <= stripBounds.bottom)
+  })).toBe(true)
   await expect.poll(() => strip.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
   await strip.evaluate((element) => { element.scrollTop = (element.scrollHeight - element.clientHeight) / 2 })
   await expect.poll(() => strip.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
@@ -263,6 +298,8 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await appWindow.getByRole('combobox', { name: 'Address' }).hover()
   await appWindow.getByRole('combobox', { name: 'Address' }).focus()
   await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
+  await expect(appWindow.locator('.topbar')).toHaveClass(/rail-collapsed/)
+  await expect(appWindow.locator('.topbar-actions')).toBeHidden()
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
@@ -273,9 +310,37 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     }
   })).toEqual({ x: 56, width: 704, contentWidth: 760 })
   expect(await appWindow.evaluate("localStorage.getItem('hronaut:vertical-tab-rail-pinned')")).toBe('false')
+  const selectedRailTab = appWindow.locator('[data-active-tab="true"]')
+  await expect(selectedRailTab).toHaveAttribute('aria-selected', 'true')
+  await expect(selectedRailTab.locator('.tab-active-indicator')).toBeVisible()
+  expect(await selectedRailTab.evaluate((element) => {
+    const indicator = element.querySelector<HTMLElement>('.tab-active-indicator')
+    const indicatorBounds = indicator?.getBoundingClientRect()
+    const style = getComputedStyle(element)
+    return {
+      markerVisible: (indicatorBounds?.width ?? 0) >= 8 && (indicatorBounds?.height ?? 0) >= 8,
+      backgroundVisible: style.backgroundColor !== 'rgba(0, 0, 0, 0)',
+      shadowVisible: style.boxShadow !== 'none'
+    }
+  })).toEqual({
+    markerVisible: true,
+    backgroundVisible: true,
+    shadowVisible: true
+  })
+  await expect(verticalNavigation.locator('.tab:not(.active) .tab-active-indicator')).toHaveCount(0)
 
   await verticalNavigation.hover()
   await expect(verticalNavigation).not.toHaveClass(/rail-collapsed/)
+  await expect(appWindow.locator('.topbar')).not.toHaveClass(/rail-collapsed/)
+  await expect(appWindow.locator('.topbar-actions')).toBeVisible()
+  expect(await appWindow.locator('.topbar-actions button').evaluateAll((buttons) => {
+    const rail = document.querySelector<HTMLElement>('.topbar')?.getBoundingClientRect()
+    if (!rail) return false
+    return buttons.every((button) => {
+      const bounds = button.getBoundingClientRect()
+      return bounds.left >= rail.left && bounds.right <= rail.right && bounds.bottom <= rail.bottom
+    })
+  })).toBe(true)
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
@@ -296,6 +361,25 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await strip.evaluate((element) => { element.scrollTop = 0 })
   await strip.dispatchEvent('wheel', { deltaY: 180 })
   await expect.poll(() => strip.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+
+  const tabsToClose = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs
+    .filter((tab) => /^Overflow tab [1-8]$/.test(tab.title))
+    .map((tab) => tab.id))`) as string[]
+  expect(tabsToClose).toHaveLength(8)
+  for (const tabId of tabsToClose) await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
+  await expect.poll(() => strip.evaluate((element) => {
+    const shell = element.closest<HTMLElement>('.tabs-strip-shell')
+    return Boolean(shell && element.scrollHeight <= shell.clientHeight + 1)
+  })).toBe(true)
+  await expect(appWindow.locator('.tabs-scroll-button')).toHaveCount(0)
+  await expect(appWindow.locator('.tabs-strip-shell')).not.toHaveClass(/has-tab-overflow/)
+
+  await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
+  await expect(appWindow.locator('.toolbar')).toHaveCount(0)
+  await expect.poll(() => appWindow.locator('.topbar').evaluate((rail) => {
+    const bounds = rail.getBoundingClientRect()
+    return Math.round(bounds.top) === 0 && Math.round(bounds.bottom) === window.innerHeight
+  })).toBe(true)
 })
 
 test('does not offer or attempt tab reordering across workspace boundaries', async ({ appWindow }) => {
