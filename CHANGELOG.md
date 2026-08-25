@@ -6,6 +6,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.1] - 2026-08-25
+
+### Added
+
 - Let an unpinned vertical tab rail collapse to favicon width and temporarily expand for pointer or keyboard interaction.
 
 ### Changed
@@ -14,6 +22,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep crowded vertical tabs clear of the fixed previous/next scroll controls.
 - Preserve every rapid next/previous-tab shortcut by queueing relative selections against the latest active tab.
 - Wait for Electron to finish opening Developer Tools before allowing debugger-backed browser actions to continue.
 
