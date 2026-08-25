@@ -205,7 +205,7 @@ try {
 
   Write-Host "Scoop portable smoke passed: install, shortcut, MCP, external AppData persistence, uninstall, reinstall, relaunch, and final uninstall."
 } finally {
-  Get-Process -Name "Hronaut" -ErrorAction SilentlyContinue | Stop-Process -Force
+  Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like "hronaut*" } | Stop-Process -Force
   if ($installed -and (Test-Path (Join-Path $scoopDirectory "shims/scoop.ps1"))) {
     & (Join-Path $scoopDirectory "shims/scoop.ps1") uninstall hronaut | Out-Null
   }

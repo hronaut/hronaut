@@ -48,5 +48,6 @@ describe('Scoop package QA', () => {
     expect(smoke).toContain('scripts/mcp-smoke.ts')
     expect(smoke).toContain('uninstall\", \"hronaut\"')
     expect(profile).toContain('...(token ? { requestInit:')
+    expect(profile).toContain("typedPhase !== 'write'")
   })
 })

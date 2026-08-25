@@ -23,7 +23,7 @@ const client = new Client({ name: 'hronaut-profile-smoke', version: '1.0.0' })
 await client.connect(new StreamableHTTPClientTransport(endpoint, {
   ...(token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : {})
 }))
-const workspaceId = await useMcpWorkspace(client, 'Profile smoke')
+const workspaceId = await useMcpWorkspace(client, 'Profile smoke', true, typedPhase !== 'write')
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')

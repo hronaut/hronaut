@@ -3,11 +3,22 @@ function text(result) {
   return content?.type === 'text' ? content.text : ''
 }
 
-export async function useMcpWorkspace(client, name, ensureTab = true) {
+export async function useMcpWorkspace(client, name, ensureTab = true, reuseExisting = false) {
   const callTool = client.callTool.bind(client)
   const created = await callTool({ name: 'browser_workspaces', arguments: { action: 'create', name } })
-  if (created.isError) throw new Error(text(created))
-  const workspace = JSON.parse(text(created))
+  if (created.isError && !reuseExisting) throw new Error(text(created))
+  const workspace = created.isError
+    ? await (async () => {
+        const listed = await callTool({ name: 'browser_workspaces', arguments: { action: 'list' } })
+        if (listed.isError) throw new Error(text(listed))
+        const normalizedName = name.trim().toLocaleLowerCase()
+        const match = JSON.parse(text(listed)).find(
+          (candidate) => candidate.name.trim().toLocaleLowerCase() === normalizedName
+        )
+        if (!match) throw new Error(text(created))
+        return match
+      })()
+    : JSON.parse(text(created))
 
   const workspaceId = workspace.id
   client.callTool = (request, ...rest) => callTool(
