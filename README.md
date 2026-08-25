@@ -1,8 +1,8 @@
 # Hronaut
 
-Hronaut is a visible, persistent Electron browser that exposes its live tabs to AI clients through MCP. It keeps the browser open independently of any individual AI session, so humans and agents can share the same local browsing context.
+Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
 
-[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
+[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
 
@@ -80,7 +80,7 @@ For a new Hronaut profile with MCP authentication disabled, add this server to t
 }
 ```
 
-Start Hronaut, then verify the connection with `opencode mcp list`. If MCP authentication is enabled, copy the OpenCode configuration from Hronaut Home; it references the owner-only token file without placing the token in the JSON. Use `opencode mcp debug hronaut` to diagnose connection or authentication failures. See OpenCode's [official MCP guide](https://opencode.ai/docs/mcp-servers/) for the current stable schema.
+Start Hronaut, then verify the connection with `opencode mcp list`. If MCP authentication is enabled, copy the OpenCode configuration from Hronaut Home; it references the owner-only token file without placing the token in the JSON. Use `opencode mcp debug hronaut` to diagnose connection or authentication failures. Hronaut's [focused OpenCode browser MCP guide](https://hronaut.dev/opencode-browser-mcp) includes stable and V2 configuration, verification, security boundaries, and browser-ownership tradeoffs. See OpenCode's [official MCP guide](https://opencode.ai/docs/mcp-servers/) for the current stable schema.
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 
