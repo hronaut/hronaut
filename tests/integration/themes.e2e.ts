@@ -227,6 +227,17 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
   await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  await appWindow.evaluate(() => {
+    const page = window as typeof window & {
+      hronautSettings: {
+        onChanged: (listener: () => void) => () => void
+      }
+      __appearanceResetProbe?: { count: () => number, dispose: () => void }
+    }
+    let count = 0
+    const dispose = page.hronautSettings.onChanged(() => { count += 1 })
+    page.__appearanceResetProbe = { count: () => count, dispose }
+  })
 
   await appWindow.locator('.settings-footer .secondary-button').click()
 
@@ -248,6 +259,19 @@ test('resets every Appearance preference including interface size', async ({
     attentionSound: true,
     attentionSoundCue: 'warning',
     languagePreference: 'system'
+  })
+  await expect.poll(() => appWindow.evaluate(() => {
+    const page = window as typeof window & {
+      __appearanceResetProbe?: { count: () => number }
+    }
+    return page.__appearanceResetProbe?.count()
+  })).toBe(1)
+  await appWindow.evaluate(() => {
+    const page = window as typeof window & {
+      __appearanceResetProbe?: { dispose: () => void }
+    }
+    page.__appearanceResetProbe?.dispose()
+    delete page.__appearanceResetProbe
   })
 })
 

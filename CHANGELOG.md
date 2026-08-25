@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Reset all Appearance preferences in one authoritative transaction and prevent conflicting settings edits while a reset is pending.
 - Move Settings reset routing and Appearance defaults out of `App.vue` into a focused controller.
 - Move Privacy Settings open, refresh, and search-reset lifecycle ownership out of `App.vue` into its focused shell controller.
 - Move update-notification visibility and auto-dismiss timing out of `App.vue` into a focused lifecycle controller.

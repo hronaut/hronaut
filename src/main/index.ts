@@ -111,6 +111,7 @@ import {
   type CommercialLicenseState,
   type DetachablePanelId,
   type HelpMenuAction,
+  type LanguagePreference,
   type McpControlState,
   type McpServerStatus,
   type PanelDock,
@@ -1029,6 +1030,19 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
   if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
     addressSuggestionSurface.webContents.setZoomFactor(scale)
   }
+}
+
+async function applyLanguagePreferenceRuntime(preference: LanguagePreference): Promise<void> {
+  if (preference === 'system') systemLocale = resolveSupportedLocale(app.getLocale())
+  resolvedLocale = resolveLocalePreference(preference, systemLocale)
+  publishSettings()
+  installApplicationMenu()
+  setTrayContextMenu()
+  mainWindow?.setTitle('Hronaut')
+  if (panelWindow && !panelWindow.isDestroyed() && panelWindowPanel) {
+    panelWindow.setTitle(detachedPanelTitle(panelWindowPanel))
+  }
+  await tabsManager?.reloadHome()
 }
 
 function homeDashboardState(): McpDashboardState {
@@ -2709,6 +2723,22 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
+  ipcMain.handle('settings:reset-appearance', async (event) => {
+    assertTrustedShellSender(event)
+    await updateSettings({
+      theme: DEFAULT_SETTINGS.theme,
+      interfaceScale: DEFAULT_SETTINGS.interfaceScale,
+      tabPosition: DEFAULT_SETTINGS.tabPosition,
+      hideInTray: DEFAULT_SETTINGS.hideInTray,
+      attentionSound: DEFAULT_SETTINGS.attentionSound,
+      attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
+      languagePreference: DEFAULT_SETTINGS.languagePreference
+    })
+    applyTheme(settings.theme)
+    applyInterfaceScale(settings.interfaceScale)
+    await applyLanguagePreferenceRuntime(settings.languagePreference)
+    return currentRendererSettingsState()
+  })
   ipcMain.handle('settings:set-theme', async (event, theme: unknown) => {
     assertTrustedShellSender(event)
     if (!isThemeName(theme)) throw new TypeError('Unsupported theme')
@@ -2839,16 +2869,7 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!isLanguagePreference(preference)) throw new TypeError('Invalid language preference')
     await updateSettings({ languagePreference: preference })
-    if (preference === 'system') systemLocale = resolveSupportedLocale(app.getLocale())
-    resolvedLocale = resolveLocalePreference(preference, systemLocale)
-    publishSettings()
-    installApplicationMenu()
-    setTrayContextMenu()
-    mainWindow?.setTitle('Hronaut')
-    if (panelWindow && !panelWindow.isDestroyed()) {
-      if (panelWindowPanel) panelWindow.setTitle(detachedPanelTitle(panelWindowPanel))
-    }
-    await tabsManager?.reloadHome()
+    await applyLanguagePreferenceRuntime(preference)
     return currentRendererSettingsState()
   })
   ipcMain.handle('permissions:list', (event) => { assertTrustedShellSender(event); return sitePermissionStore!.list() })

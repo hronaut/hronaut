@@ -508,13 +508,7 @@ const {
   dispose: disposeHelpDialogController
 } = helpDialogController
 const { reset: resetSettingsSection } = useSettingsSectionResetController({
-  setTheme: (theme) => settingsStore.setTheme(theme),
-  setInterfaceScale: (scale) => settingsStore.setInterfaceScale(scale),
-  setTabPosition: (position) => settingsStore.setTabPosition(position),
-  setHideInTray: (enabled) => settingsStore.setHideInTray(enabled),
-  setAttentionSound: (enabled) => settingsStore.setAttentionSound(enabled),
-  setAttentionSoundCue: (cue) => settingsStore.setAttentionSoundCue(cue),
-  setLanguagePreference: (preference) => settingsStore.setLanguagePreference(preference),
+  resetAppearance: async () => { await settingsStore.resetAppearance(); return true },
   resetSearch: resetSearchSettings,
   resetDownloads: resetDownloadSettings,
   resetPerformance: resetPerformanceSettings,

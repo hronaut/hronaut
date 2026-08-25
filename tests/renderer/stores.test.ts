@@ -85,6 +85,7 @@ function installBrowserApi(options: {
 function installSettingsApi(options: {
   getRendererState: () => Promise<RendererSettingsState>
   onRendererStateChanged: (listener: (state: RendererSettingsState) => void) => () => void
+  resetAppearance?: () => Promise<RendererSettingsState>
   setLanguagePreference?: (preference: RendererSettingsState['settings']['languagePreference']) => Promise<RendererSettingsState>
 }): void {
   Object.defineProperty(window, 'hronautSettings', { configurable: true, value: options })
@@ -237,6 +238,33 @@ describe('browser Pinia store lifecycle', () => {
 })
 
 describe('settings Pinia store lifecycle', () => {
+  it('accepts one authoritative renderer snapshot from an Appearance reset', async () => {
+    const resetState: RendererSettingsState = {
+      ...settingsState('en-US'),
+      settings: {
+        ...settingsState('en-US').settings,
+        interfaceScale: 1,
+        languagePreference: 'system'
+      }
+    }
+    const resetAppearance = vi.fn(async () => resetState)
+    installSettingsApi({
+      getRendererState: async () => settingsState('uk-UA'),
+      onRendererStateChanged: () => vi.fn(),
+      resetAppearance
+    })
+    const store = useSettingsStore()
+    await store.initialize()
+
+    await expect(store.resetAppearance()).resolves.toEqual(resetState)
+
+    expect(resetAppearance).toHaveBeenCalledOnce()
+    expect(store.settings.interfaceScale).toBe(1)
+    expect(store.settings.languagePreference).toBe('system')
+    expect(store.resolvedLocale).toBe('en-US')
+    store.dispose()
+  })
+
   it('keeps settings, system theme, and locale synchronized without an initialization race', async () => {
     const pending = deferred<RendererSettingsState>()
     let listener: ((state: RendererSettingsState) => void) | undefined

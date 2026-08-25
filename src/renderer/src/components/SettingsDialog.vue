@@ -59,6 +59,7 @@ const panel = ref<HTMLElement | null>(null)
 const {
   open,
   section,
+  resetBusy,
   resetVisible,
   resetDisabled,
   close,
@@ -104,7 +105,11 @@ useModalDialogFocus({ open, panel })
         <button class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></button>
       </div>
 
-      <div class="settings-layout">
+      <div
+        class="settings-layout"
+        :aria-busy="resetBusy"
+        :inert="resetBusy ? true : undefined"
+      >
         <nav class="settings-sidebar" :aria-label="t('settings.sections')">
           <button
             v-for="item in navigation"

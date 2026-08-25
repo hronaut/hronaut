@@ -2,16 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { useSettingsSectionResetController } from '../../src/renderer/src/composables/useSettingsSectionResetController.js'
 
 function createHarness() {
-  const calls: string[] = []
-  const asyncSetting = (name: string) => vi.fn(async (value: unknown) => { calls.push(`${name}:${String(value)}`) })
   const callbacks = {
-    setTheme: asyncSetting('theme'),
-    setInterfaceScale: asyncSetting('scale'),
-    setTabPosition: asyncSetting('tabs'),
-    setHideInTray: asyncSetting('tray'),
-    setAttentionSound: asyncSetting('sound'),
-    setAttentionSoundCue: asyncSetting('cue'),
-    setLanguagePreference: asyncSetting('language'),
+    resetAppearance: vi.fn(async () => true),
     resetSearch: vi.fn(() => true),
     resetDownloads: vi.fn(async () => true),
     resetPerformance: vi.fn(async () => true),
@@ -21,28 +13,18 @@ function createHarness() {
     resetUpdates: vi.fn(async () => true)
   }
   return {
-    calls,
     callbacks,
     controller: useSettingsSectionResetController(callbacks)
   }
 }
 
 describe('settings section reset controller', () => {
-  it('resets every Appearance preference and changes language only after the other defaults', async () => {
+  it('routes Appearance through one authoritative reset transaction', async () => {
     const harness = createHarness()
 
     await expect(harness.controller.reset('appearance')).resolves.toBe(true)
 
-    expect(harness.calls).toEqual([
-      'theme:system',
-      'scale:1',
-      'tabs:top',
-      'tray:true',
-      'sound:true',
-      'cue:warning',
-      'language:system'
-    ])
-    expect(harness.callbacks.setLanguagePreference).toHaveBeenCalledWith('system')
+    expect(harness.callbacks.resetAppearance).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -65,6 +47,6 @@ describe('settings section reset controller', () => {
     const harness = createHarness()
 
     expect(harness.controller.reset(section)).toBe(false)
-    expect(harness.calls).toEqual([])
+    expect(harness.callbacks.resetAppearance).not.toHaveBeenCalled()
   })
 })

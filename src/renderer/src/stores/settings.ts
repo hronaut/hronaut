@@ -119,6 +119,13 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const setTheme = (theme: ThemeName): Promise<AppSettings> => applySettings(window.hronautSettings.setTheme(theme))
+  async function resetAppearance(): Promise<RendererSettingsState> {
+    const currentGeneration = generation
+    const startingRevision = revision
+    const next = await window.hronautSettings.resetAppearance()
+    if (generation === currentGeneration && revision === startingRevision) acceptAuthoritativeState(next)
+    return next
+  }
   const setInterfaceScale = (scale: InterfaceScale): Promise<AppSettings> => applySettings(window.hronautSettings.setInterfaceScale(scale))
   const setTabPosition = (position: TabPosition): Promise<AppSettings> => applySettings(window.hronautSettings.setTabPosition(position))
   const setSearchEngine = (engine: SearchEngineName): Promise<AppSettings> => applySettings(window.hronautSettings.setSearchEngine(engine))
@@ -162,6 +169,7 @@ export const useSettingsStore = defineStore('settings', () => {
     dispose,
     acceptAuthoritativeState,
     applySettings,
+    resetAppearance,
     setTheme,
     setInterfaceScale,
     setTabPosition,
