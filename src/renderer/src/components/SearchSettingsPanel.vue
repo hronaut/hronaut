@@ -14,7 +14,7 @@ const { settings, busy, select } = props.controller
 </script>
 
 <template>
-  <main class="settings-content">
+  <div class="settings-content">
     <div class="setting-copy">
       <h3>{{ t('settings.search.heading') }}</h3>
       <p>{{ t('settings.search.description') }}</p>
@@ -45,5 +45,5 @@ const { settings, busy, select } = props.controller
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.search.privacy') }}</p>
     </div>
-  </main>
+  </div>
 </template>

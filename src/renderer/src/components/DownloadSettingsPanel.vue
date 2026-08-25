@@ -29,7 +29,7 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
 </script>
 
 <template>
-  <main class="settings-content downloads-settings">
+  <div class="settings-content downloads-settings">
     <div class="setting-copy">
       <h3>{{ t('settings.downloads.heading') }}</h3>
       <p>{{ t('settings.downloads.description') }}</p>
@@ -69,5 +69,5 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.downloads.help') }}</p>
     </div>
-  </main>
+  </div>
 </template>

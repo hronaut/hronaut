@@ -449,12 +449,18 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <div
       ref="tabsStrip"
       class="tabs-strip"
-      role="tablist"
+      role="group"
       :aria-label="t('shell.tabs.list')"
       @scroll="updateTabOverflow"
       @wheel="scrollTabsWithWheel"
     >
-    <template v-for="workspace in state.mcpTabGroups" :key="workspace.id">
+    <div
+      v-for="workspace in state.mcpTabGroups"
+      :key="workspace.id"
+      class="workspace-tab-section"
+      role="group"
+      :aria-label="workspace.name"
+    >
       <button
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
@@ -484,9 +490,10 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
       ><IconAdd aria-hidden="true" /></button>
-      <template v-for="tab in tabGroupTabs(workspace.id)" :key="tab.id">
+      <div class="workspace-tab-list" role="tablist" :aria-label="workspace.name">
         <button
-          v-if="!isTabGroupCollapsed(workspace.id)"
+          v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
+          :key="tab.id"
           class="tab"
           :class="{
             active: tab.active,
@@ -566,8 +573,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
         </button>
-      </template>
-    </template>
+      </div>
+    </div>
     <span class="workspace-action-divider" aria-hidden="true" />
     <button
       class="new-workspace"

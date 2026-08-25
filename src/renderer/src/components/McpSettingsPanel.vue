@@ -41,7 +41,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <main class="settings-content" :aria-busy="busy">
+  <div class="settings-content" :aria-busy="busy">
     <div class="setting-copy">
       <h3>{{ t('settings.mcp.heading') }}</h3>
       <p>{{ t('settings.mcp.description') }}</p>
@@ -104,5 +104,5 @@ function handlePortKeydown(event: KeyboardEvent): void {
       <p v-if="settings.mcpAuthentication">{{ t('settings.mcp.tokenHelp') }}</p>
       <p v-else>{{ t('settings.mcp.warning') }}</p>
     </div>
-  </main>
+  </div>
 </template>

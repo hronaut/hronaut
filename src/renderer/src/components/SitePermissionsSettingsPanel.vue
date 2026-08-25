@@ -29,7 +29,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
 </script>
 
 <template>
-  <main class="settings-content permissions-settings">
+  <div class="settings-content permissions-settings">
     <div class="setting-copy">
       <h3>{{ t('settings.permissions.heading') }}</h3>
       <p>{{ t('settings.permissions.description') }}</p>
@@ -78,5 +78,5 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.permissions.help') }}</p>
     </div>
-  </main>
+  </div>
 </template>

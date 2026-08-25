@@ -26,7 +26,7 @@ async function changeStartupCheck(event: Event): Promise<void> {
 </script>
 
 <template>
-  <main class="settings-content updates-settings" :aria-busy="busy">
+  <div class="settings-content updates-settings" :aria-busy="busy">
     <div class="setting-copy">
       <h3>{{ t('settings.updates.heading') }}</h3>
       <p>{{ t('settings.updates.description') }}</p>
@@ -68,5 +68,5 @@ async function changeStartupCheck(event: Event): Promise<void> {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.updates.help') }}</p>
     </div>
-  </main>
+  </div>
 </template>

@@ -46,7 +46,7 @@ async function changeTimeout(event: Event): Promise<void> {
 </script>
 
 <template>
-  <main class="settings-content performance-settings" :aria-busy="busy">
+  <div class="settings-content performance-settings" :aria-busy="busy">
     <div class="setting-copy">
       <h3>{{ t('settings.memory.heading') }}</h3>
       <p>{{ t('settings.memory.description') }}</p>
@@ -96,5 +96,5 @@ async function changeTimeout(event: Event): Promise<void> {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.memory.help') }}</p>
     </div>
-  </main>
+  </div>
 </template>

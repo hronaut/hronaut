@@ -118,7 +118,7 @@ describe('BrowserTabsBar', () => {
     const user = userEvent.setup()
     const firstControl = screen.getByRole('tab', { name: 'Page first' })
     const secondControl = screen.getByRole('tab', { name: 'Page second' })
-    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
 
     expect(strip.closest('.browser-tabs-bar')).toHaveClass('vertical')
     firstControl.focus()
@@ -199,7 +199,7 @@ describe('BrowserTabsBar', () => {
   it('recomputes overflow when the tab position changes its scroll axis', async () => {
     const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
     const view = renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
-    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
     Object.defineProperties(strip, {
       clientWidth: { configurable: true, value: 1_280 },
       scrollWidth: { configurable: true, value: 1_280 },
@@ -217,7 +217,7 @@ describe('BrowserTabsBar', () => {
 
   it('removes vertical overflow controls when content fits the full rail again', async () => {
     renderTabs(browserState(), true, 'vertical')
-    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
     const shell = strip.closest<HTMLElement>('.tabs-strip-shell')
     if (!shell) throw new Error('Tab strip shell was not found')
     let contentHeight = 500
@@ -518,7 +518,7 @@ describe('BrowserTabsBar', () => {
     const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
     renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
     const user = userEvent.setup()
-    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
     Object.defineProperties(strip, {
       clientWidth: { configurable: true, value: 320 },
       scrollWidth: { configurable: true, value: 1_280 },
@@ -567,7 +567,7 @@ describe('BrowserTabsBar', () => {
       activeTabId: tabs[0].id,
       mcpTabGroups: [firstWorkspace, secondWorkspace]
     }))
-    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
     let contentWidth = 1_280
     Object.defineProperties(strip, {
       clientWidth: { configurable: true, value: 320 },
@@ -678,7 +678,7 @@ describe('BrowserTabsBar', () => {
       const view = renderTabs(browserState({ tabs: [first, active], activeTabId: active.id }))
       await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
       scrollIntoView.mockClear()
-      vi.spyOn(screen.getByRole('tablist'), 'getBoundingClientRect').mockReturnValue({
+      vi.spyOn(screen.getByRole('group', { name: 'Browser tabs and workspaces' }), 'getBoundingClientRect').mockReturnValue({
         left: 0, right: 320, top: 0, bottom: 40, width: 320, height: 40, x: 0, y: 0, toJSON: () => ({})
       })
       vi.spyOn(screen.getByRole('tab', { name: active.title }), 'getBoundingClientRect').mockReturnValue({
@@ -711,7 +711,7 @@ describe('BrowserTabsBar', () => {
       const view = renderTabs(browserState({ tabs: [first, active], activeTabId: active.id }))
       await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
       scrollIntoView.mockClear()
-      vi.spyOn(screen.getByRole('tablist'), 'getBoundingClientRect').mockReturnValue({
+      vi.spyOn(screen.getByRole('group', { name: 'Browser tabs and workspaces' }), 'getBoundingClientRect').mockReturnValue({
         left: 0, right: 320, top: 0, bottom: 40, width: 320, height: 40, x: 0, y: 0, toJSON: () => ({})
       })
       vi.spyOn(screen.getByRole('tab', { name: active.title }), 'getBoundingClientRect').mockReturnValue({

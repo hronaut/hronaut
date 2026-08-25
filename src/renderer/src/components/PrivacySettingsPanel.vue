@@ -38,7 +38,7 @@ const {
 </script>
 
 <template>
-  <main class="settings-content privacy-settings">
+  <div class="settings-content privacy-settings">
     <div class="setting-copy">
       <h3>{{ t('settings.privacy.heading') }}</h3>
       <p>{{ t('settings.privacy.description') }}</p>
@@ -123,5 +123,5 @@ const {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.privacy.exclusions', { bookmarks: summary?.bookmarkCount === undefined ? '…' : formatNumber(summary.bookmarkCount), passwords: summary?.savedPasswordCount === undefined ? '…' : formatNumber(summary.savedPasswordCount), permissions: summary?.permissionDecisionCount === undefined ? '…' : formatNumber(summary.permissionDecisionCount) }) }}</p>
     </div>
-  </main>
+  </div>
 </template>

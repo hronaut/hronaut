@@ -40,7 +40,7 @@ test('uses the selected search engine for address-bar and MCP searches', async (
     await expect(settingsDialog).toBeVisible()
     await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toHaveCount(0)
     await appWindow.getByRole('button', { name: /Search engine/ }).click()
-    const searchSettings = appWindow.getByRole('main')
+    const searchSettings = appWindow.getByRole('dialog', { name: 'Settings' }).locator('.settings-content')
     await expect(searchSettings.getByRole('radio')).toHaveCount(5)
     await searchSettings.getByTestId('search-engine-duckduckgo').click()
     await expect(searchSettings.getByTestId('search-engine-duckduckgo')).toHaveAttribute('aria-checked', 'true')

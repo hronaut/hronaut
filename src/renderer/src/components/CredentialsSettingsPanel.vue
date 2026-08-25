@@ -23,7 +23,7 @@ const {
 </script>
 
 <template>
-  <main class="settings-content credentials-settings">
+  <div class="settings-content credentials-settings">
     <div class="setting-copy">
       <h3>{{ t('settings.passwords.heading') }}</h3>
       <p>{{ t('settings.passwords.description') }}</p>
@@ -63,5 +63,5 @@ const {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.passwords.encryptedBy') }} {{ storage.backend }}. {{ t('settings.passwords.help') }}</p>
     </div>
-  </main>
+  </div>
 </template>

@@ -6,7 +6,7 @@
   background: #f6f5fb;
   font-synthesis: none;
   --text: #252432;
-  --muted: #777286;
+  --muted: #6f6a7d;
   --subtle: #9893a6;
   --accent: #6757e8;
   --accent-soft: rgba(103, 87, 232, 0.12);
@@ -384,6 +384,8 @@ button { color: inherit; }
   scrollbar-width: none;
 }
 .tabs-strip::-webkit-scrollbar { display: none; }
+.workspace-tab-section,
+.workspace-tab-list { display: contents; }
 .tabs-scroll-button {
   position: absolute;
   z-index: 3;
@@ -419,7 +421,7 @@ button { color: inherit; }
   border: 1px solid color-mix(in srgb, var(--tab-group-color) 52%, var(--border-soft));
   border-radius: 999px 8px 8px 999px;
   background: color-mix(in srgb, var(--tab-group-color) 16%, var(--toolbar));
-  color: color-mix(in srgb, var(--tab-group-color) 74%, var(--text));
+  color: color-mix(in srgb, var(--tab-group-color) 55%, var(--text));
   font-size: 12px;
   font-weight: 750;
   line-height: 1.2;

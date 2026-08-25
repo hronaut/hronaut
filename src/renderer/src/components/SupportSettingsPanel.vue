@@ -29,7 +29,7 @@ const {
 </script>
 
 <template>
-  <main class="settings-content support-settings" :aria-busy="busy">
+  <div class="settings-content support-settings" :aria-busy="busy">
     <div class="setting-copy">
       <span class="support-kicker">{{ t('settings.support.kicker') }}</span>
       <h3>{{ state.active ? t('settings.support.thanks') : t('settings.support.heading') }}</h3>
@@ -84,5 +84,5 @@ const {
       <button type="button" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('settings.support.contributing') }}</button>
       <button type="button" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/issues')">{{ t('settings.support.issue') }}</button>
     </div>
-  </main>
+  </div>
 </template>

@@ -106,7 +106,7 @@ async function setLanguagePreference(event: Event): Promise<void> {
 </script>
 
 <template>
-  <main class="settings-content">
+  <div class="settings-content">
     <div class="setting-copy">
       <h3>{{ t('appearance.heading') }}</h3>
       <p>{{ t('appearance.description') }}</p>
@@ -222,5 +222,5 @@ async function setLanguagePreference(event: Event): Promise<void> {
         </div>
       </div>
     </div>
-  </main>
+  </div>
 </template>

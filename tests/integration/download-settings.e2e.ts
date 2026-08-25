@@ -10,7 +10,7 @@ test('persists and resets website download preferences from Settings', async ({
   const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
   await settingsDialog.getByRole('button', { name: 'Downloads Location and prompts' }).click()
 
-  const downloadSettings = settingsDialog.getByRole('main')
+  const downloadSettings = settingsDialog.locator('.settings-content')
   await expect(downloadSettings.getByRole('heading', { name: 'Website downloads' })).toBeVisible()
   const askWhereToSave = downloadSettings.getByRole('checkbox', { name: /^Ask where to save each file/ })
   await expect(askWhereToSave).not.toBeChecked()

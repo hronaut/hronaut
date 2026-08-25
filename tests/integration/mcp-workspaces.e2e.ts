@@ -117,7 +117,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })()`) as string
   expect(lastTabId).toMatch(UUID_V7_PATTERN)
 
-  const strip = appWindow.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+  const strip = appWindow.getByRole('group', { name: 'Browser tabs and workspaces' })
   await expect.poll(() => strip.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
   const previousTabs = appWindow.locator('.tabs-scroll-button.previous')
   const moreTabs = appWindow.getByRole('button', { name: 'Show more tabs' })
