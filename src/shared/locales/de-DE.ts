@@ -2670,6 +2670,7 @@ export const deDE = {
       "workspace": "Arbeitsbereich: {name}",
       "newTabWorkspace": "Neuer Tab im Arbeitsbereich",
       "editWorkspace": "Arbeitsbereich bearbeiten…",
+      "sleepWorkspaceTabs": "Geeignete Tabs in Ruhezustand versetzen",
       "archiveWorkspace": "Arbeitsbereich archivieren",
       "workspaceUnavailable": "Arbeitsbereich nicht verfügbar",
       "splitView": "Geteilte Ansicht",

@@ -2670,6 +2670,7 @@ export const frFR = {
       "workspace": "Espace de travail : {name}",
       "newTabWorkspace": "Nouvel onglet dans l’espace de travail",
       "editWorkspace": "Modifier l’espace de travail…",
+      "sleepWorkspaceTabs": "Mettre les onglets éligibles en veille",
       "archiveWorkspace": "Archiver l’espace de travail",
       "workspaceUnavailable": "Espace de travail indisponible",
       "splitView": "Vue fractionnée",

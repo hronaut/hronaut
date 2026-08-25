@@ -2670,6 +2670,7 @@ export const plPL = {
       "workspace": "Obszar roboczy: {name}",
       "newTabWorkspace": "Nowa karta w obszarze roboczym",
       "editWorkspace": "Edytuj obszar roboczy…",
+      "sleepWorkspaceTabs": "Uśpij kwalifikujące się karty",
       "archiveWorkspace": "Archiwizuj obszar roboczy",
       "workspaceUnavailable": "Obszar roboczy niedostępny",
       "splitView": "Widok dzielony",

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a workspace context action that sleeps only eligible background tabs while preserving active, pinned, busy, and unsaved-form tabs.
+
 ### Changed
 
 - Move Console and Network panel shell orchestration out of `App.vue` into a focused controller.

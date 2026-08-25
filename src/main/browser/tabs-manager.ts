@@ -2289,6 +2289,12 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  private async sleepWorkspaceTabs(groupId: string): Promise<void> {
+    if (!this.mcpTabGroups.has(groupId)) throw new Error(`Unknown workspace: ${groupId}`)
+    const workspaceTabs = [...this.tabs.values()].filter((tab) => tab.mcpGroupId === groupId)
+    for (const tab of workspaceTabs) await this.putTabToSleep(tab, false)
+  }
+
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): BrowserState {
     const tab = this.getTab(tabId)
     const target = this.getTab(targetTabId)
@@ -2337,6 +2343,16 @@ export class BrowserTabsManager {
         })
       },
       { type: 'separator' },
+      {
+        id: 'sleep-workspace-tabs',
+        label: this.text('native.context.sleepWorkspaceTabs'),
+        enabled: !this.allHumanInteractionLocked && [...this.tabs.values()].some((tab) => (
+          tab.mcpGroupId === group.id
+          && !tab.sleeping
+          && this.sleepBlockReason(tab) === undefined
+        )),
+        click: () => runAction('put eligible workspace tabs to sleep', () => this.sleepWorkspaceTabs(group.id))
+      },
       {
         id: 'archive-workspace',
         label: this.text('native.context.archiveWorkspace'),

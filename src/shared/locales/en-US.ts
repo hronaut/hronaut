@@ -392,7 +392,7 @@ export const enUS = {
       tooltipAttention: 'Hronaut — Attention needed: {reason}'
     },
     context: {
-      workspace: 'Workspace: {name}', newTabWorkspace: 'New Tab in Workspace', editWorkspace: 'Edit Workspace…', archiveWorkspace: 'Archive Workspace', workspaceUnavailable: 'Workspace unavailable',
+      workspace: 'Workspace: {name}', newTabWorkspace: 'New Tab in Workspace', editWorkspace: 'Edit Workspace…', sleepWorkspaceTabs: 'Sleep Eligible Tabs', archiveWorkspace: 'Archive Workspace', workspaceUnavailable: 'Workspace unavailable',
       splitView: 'Split View', sideBySide: 'Side by Side', stacked: 'Stacked', swapTabs: 'Swap Tabs', exitSplit: 'Exit Split View', openSplit: 'Open in Split View', openBeside: 'Open Tab Beside',
       newTab: 'New Tab', reloadTab: 'Reload Tab', reloadNoCache: 'Reload Tab Without Cache', duplicateTab: 'Duplicate Tab', muteTab: 'Mute Tab', unmuteTab: 'Unmute Tab', pinTab: 'Pin Tab', unpinTab: 'Unpin Tab', wakeTab: 'Wake Tab', sleepTab: 'Put Tab to Sleep',
       moveLeft: 'Move Tab Left', moveRight: 'Move Tab Right', closeTab: 'Close Tab', closeOthers: 'Close Other Tabs', closeRight: 'Close Tabs to the Right', closeDuplicates: 'Close Duplicate Tabs', reopenClosed: 'Reopen Closed Tab',

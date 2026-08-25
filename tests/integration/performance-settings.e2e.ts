@@ -1,6 +1,7 @@
 import { mkdir, readFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
+import type { BrowserState } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
 test('serializes Memory Saver settings and sleeps eligible tabs without stale shell state', async ({
@@ -72,6 +73,104 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
       memorySaverEnabled: true,
       memorySaverTimeoutMinutes: 60
+    })
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('sleeps only eligible inactive tabs in the selected workspace', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((request, response) => {
+    const fixture = request.url?.slice(1) || 'unknown'
+    const titles: Record<string, string> = {
+      active: 'Workspace active tab',
+      eligible: 'Workspace eligible tab',
+      dirty: 'Workspace dirty form',
+      pinned: 'Workspace pinned tab',
+      other: 'Other workspace tab'
+    }
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>${titles[fixture] ?? 'Unknown fixture'}</title>
+      <main>${fixture}</main>${fixture === 'dirty' ? '<input aria-label="Unsaved workspace input" value="">' : ''}`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Workspace sleep fixture did not expose a port')
+    const origin = `http://127.0.0.1:${address.port}`
+    const workspace = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Sleep research', storage: 'scratch' })`) as BrowserState
+    const workspaceId = workspace.mcpTabGroups.find((group) => group.name === 'Sleep research')?.id
+    if (!workspaceId) throw new Error('Sleep research workspace was not created')
+    const activeTabId = workspace.activeTabId
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(activeTabId)}, url: ${JSON.stringify(`${origin}/active`)} })`)
+    for (const fixture of ['eligible', 'dirty', 'pinned']) {
+      await appWindow.evaluate(`window.hronaut.newTab({
+        url: ${JSON.stringify(`${origin}/${fixture}`)},
+        active: false,
+        mcpGroupId: ${JSON.stringify(workspaceId)}
+      })`)
+    }
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.filter((tab) => tab.mcpGroupId === ${JSON.stringify(workspaceId)} && tab.url.startsWith(${JSON.stringify(origin)})).map((tab) => tab.title).sort()
+    ))`)).toEqual([
+      'Workspace active tab',
+      'Workspace dirty form',
+      'Workspace eligible tab',
+      'Workspace pinned tab'
+    ])
+    const fixtureIds = await appWindow.evaluate(`window.hronaut.getState().then((state) => Object.fromEntries(
+      state.tabs.filter((tab) => tab.mcpGroupId === ${JSON.stringify(workspaceId)}).map((tab) => [new URL(tab.url).pathname.slice(1), tab.id])
+    ))`) as Record<string, string>
+    await appWindow.evaluate(`window.hronaut.setTabPinned(${JSON.stringify(fixtureIds.pinned)}, true)`)
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === url)
+      if (!contents) throw new Error('Workspace dirty form WebContents was not found')
+      await contents.executeJavaScript(`(() => {
+        const input = document.querySelector('input');
+        input.value = 'unfinished';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      })()`)
+    }, `${origin}/dirty`)
+
+    const otherWorkspace = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Other research', storage: 'scratch' })`) as BrowserState
+    const otherWorkspaceId = otherWorkspace.mcpTabGroups.find((group) => group.name === 'Other research')?.id
+    if (!otherWorkspaceId) throw new Error('Other research workspace was not created')
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(otherWorkspace.activeTabId)}, url: ${JSON.stringify(`${origin}/other`)} })`)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(activeTabId)})`)
+
+    await electronApp.evaluate(({ Menu }) => {
+      ;(globalThis as typeof globalThis & { __hronautWorkspaceSleepMenu?: Electron.Menu }).__hronautWorkspaceSleepMenu = undefined
+      Menu.prototype.popup = function (): void {
+        ;(globalThis as typeof globalThis & { __hronautWorkspaceSleepMenu?: Electron.Menu }).__hronautWorkspaceSleepMenu = this
+      }
+    })
+    await appWindow.locator('.tab-group-label', { hasText: 'Sleep research' }).click({ button: 'right' })
+    await expect.poll(() => electronApp.evaluate(() => {
+      const menu = (globalThis as typeof globalThis & { __hronautWorkspaceSleepMenu?: Electron.Menu }).__hronautWorkspaceSleepMenu
+      return menu?.getMenuItemById('sleep-workspace-tabs')?.label ?? null
+    })).toBe('Sleep Eligible Tabs')
+    await electronApp.evaluate(() => {
+      const menu = (globalThis as typeof globalThis & { __hronautWorkspaceSleepMenu?: Electron.Menu }).__hronautWorkspaceSleepMenu
+      const item = menu?.getMenuItemById('sleep-workspace-tabs')
+      if (!item?.click) throw new Error('Sleep Eligible Tabs context action was not found')
+      ;(item.click as unknown as () => void)()
+    })
+
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => Object.fromEntries(
+      state.tabs.filter((tab) => tab.url.startsWith(${JSON.stringify(origin)})).map((tab) => [new URL(tab.url).pathname.slice(1), tab.sleeping])
+    ))`)).toEqual({
+      active: false,
+      eligible: true,
+      dirty: false,
+      pinned: false,
+      other: false
     })
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))

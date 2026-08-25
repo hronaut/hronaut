@@ -2670,6 +2670,7 @@ export const ruRU = {
       "workspace": "Рабочая область: {name}",
       "newTabWorkspace": "Новая вкладка в рабочей области",
       "editWorkspace": "Изменить рабочую область…",
+      "sleepWorkspaceTabs": "Приостановить доступные вкладки",
       "archiveWorkspace": "Архивировать рабочую область",
       "workspaceUnavailable": "Рабочая область недоступна",
       "splitView": "Разделённое представление",

@@ -2670,6 +2670,7 @@ export const esES = {
       "workspace": "Espacio de trabajo: {name}",
       "newTabWorkspace": "Pestaña nueva en el espacio de trabajo",
       "editWorkspace": "Editar espacio de trabajo…",
+      "sleepWorkspaceTabs": "Suspender pestañas disponibles",
       "archiveWorkspace": "Archivar espacio de trabajo",
       "workspaceUnavailable": "Espacio de trabajo no disponible",
       "splitView": "Vista dividida",
