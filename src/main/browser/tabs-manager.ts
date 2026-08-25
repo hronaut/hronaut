@@ -7753,9 +7753,27 @@ export class BrowserTabsManager {
       if (pendingDebugger) await pendingDebugger
       if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
       if (webContents.debugger.isAttached()) webContents.debugger.detach()
-      webContents.openDevTools({
-        mode: 'detach',
-        title: `Hronaut Developer Tools — ${tab.title || 'Website'}`
+      await new Promise<void>((resolve, reject) => {
+        const cleanup = (): void => {
+          webContents.removeListener('devtools-opened', finish)
+          webContents.removeListener('destroyed', finish)
+        }
+        const finish = (): void => {
+          cleanup()
+          resolve()
+        }
+        webContents.once('devtools-opened', finish)
+        webContents.once('destroyed', finish)
+        try {
+          webContents.openDevTools({
+            mode: 'detach',
+            title: `Hronaut Developer Tools — ${tab.title || 'Website'}`
+          })
+          if (webContents.isDevToolsOpened()) finish()
+        } catch (error) {
+          cleanup()
+          reject(error)
+        }
       })
     } finally {
       this.devToolsOpening.delete(webContents.id)

@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Preserve every rapid next/previous-tab shortcut by queueing relative selections against the latest active tab.
+- Wait for Electron to finish opening Developer Tools before allowing debugger-backed browser actions to continue.
 
 ## [1.5.0] - 2026-08-25
 
