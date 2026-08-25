@@ -373,7 +373,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
 })
 
-test('serializes rapid detached-panel requests and shows the latest panel', async ({ appWindow, electronApp }) => {
+test('coalesces rapid detached-panel requests and refreshes only the latest panel', async ({ appWindow, electronApp }) => {
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const detachedPagePromise = electronApp.waitForEvent('window')
   await appWindow.evaluate(`Promise.all([
@@ -388,6 +388,41 @@ test('serializes rapid detached-panel requests and shows the latest panel', asyn
   if (!detachedPage) throw new Error('Missing serialized detached panel page')
   await expect(detachedPage).toHaveTitle('Network monitor — Hronaut')
   await expect(detachedPage.getByRole('dialog', { name: 'Network' })).toBeVisible()
+
+  await electronApp.evaluate(({ BrowserWindow, ipcMain }) => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __hronautRapidPanelRefreshes?: { console: number; network: number; routes: number }
+    }
+    const counts = { console: 0, network: 0, routes: 0 }
+    mainGlobal.__hronautRapidPanelRefreshes = counts
+    ipcMain.removeHandler('browser:console')
+    ipcMain.handle('browser:console', () => {
+      counts.console += 1
+      return []
+    })
+    ipcMain.removeHandler('browser:network')
+    ipcMain.handle('browser:network', () => {
+      counts.network += 1
+      return []
+    })
+    ipcMain.removeHandler('browser:list-network-routes')
+    ipcMain.handle('browser:list-network-routes', () => {
+      counts.routes += 1
+      return []
+    })
+    const panel = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Network monitor — Hronaut')
+    if (!panel) throw new Error('Missing serialized network panel')
+    panel.webContents.send('panel-window:show-panel', 'console')
+    panel.webContents.send('panel-window:show-panel', 'network')
+  })
+
+  await expect(detachedPage).toHaveTitle('Network monitor — Hronaut')
+  await expect(detachedPage.getByRole('dialog', { name: 'Network' })).toBeVisible()
+  await expect.poll(() => electronApp.evaluate(() => (
+    (globalThis as typeof globalThis & {
+      __hronautRapidPanelRefreshes?: { console: number; network: number; routes: number }
+    }).__hronautRapidPanelRefreshes
+  ))).toEqual({ console: 0, network: 1, routes: 1 })
 
   await electronApp.evaluate(({ BrowserWindow }) => {
     const panel = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Network monitor — Hronaut')

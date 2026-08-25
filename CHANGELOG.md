@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevented rapid detached Page Tools switches from refreshing a panel that was already superseded before rendering.
 - Keep the active tab visible when earlier pinned tabs or workspace labels expand in a crowded strip, without overriding deliberate tab-strip scrolling.
 - Cancel a queued Network refresh when the panel is closed again before it finishes opening.
 

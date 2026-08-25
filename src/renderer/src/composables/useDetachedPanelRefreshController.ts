@@ -1,5 +1,9 @@
-import { watch, type Ref } from 'vue'
+import { nextTick, watch, type Ref } from 'vue'
 import type { DetachablePanelId } from '../../../shared/types.js'
+
+// Native panel requests arrive as separate IPC tasks. Leave a short window for
+// the newest request to win before mounting a panel and starting its pollers.
+const PANEL_PRESENTATION_COALESCE_MS = 50
 
 export interface DetachedPanelRefreshContext {
   tabId: string | null
@@ -11,8 +15,10 @@ export interface DetachedPanelRefreshControllerOptions {
   detachedWindow: boolean
   activePanelId: Readonly<Ref<DetachablePanelId | null>>
   context: () => DetachedPanelRefreshContext
+  activate: (panel: DetachablePanelId) => void
   refresh: (panel: DetachablePanelId) => Promise<void>
   onError: (error: unknown) => void
+  waitForPresentationTurn?: () => Promise<void>
 }
 
 export function useDetachedPanelRefreshController(options: DetachedPanelRefreshControllerOptions) {
@@ -21,6 +27,21 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
 
   function fail(error: unknown, sequence: number): void {
     if (!disposed && sequence === refreshSequence) options.onError(error)
+  }
+
+  function waitForPresentationTurn(): Promise<void> {
+    if (options.waitForPresentationTurn) return options.waitForPresentationTurn()
+    return new Promise((resolve) => window.setTimeout(resolve, PANEL_PRESENTATION_COALESCE_MS))
+  }
+
+  async function show(panel: DetachablePanelId): Promise<void> {
+    const sequence = ++refreshSequence
+    await waitForPresentationTurn()
+    if (disposed || sequence !== refreshSequence) return
+    options.activate(panel)
+    await nextTick()
+    if (disposed || sequence !== refreshSequence || options.activePanelId.value !== panel) return
+    await options.refresh(panel)
   }
 
   const stopContextWatch = watch(
@@ -55,7 +76,7 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
     stopContextWatch()
   }
 
-  return { dispose }
+  return { show, dispose }
 }
 
 export type DetachedPanelRefreshController = ReturnType<typeof useDetachedPanelRefreshController>

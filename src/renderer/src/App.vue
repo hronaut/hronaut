@@ -846,6 +846,21 @@ const { toggle: toggleZoom } = useZoomShellController({
 })
 if (detachedPanelId) activatePanel(detachedPanelId)
 const {
+  show: showDetachedPanel,
+  dispose: disposeDetachedPanelRefreshController
+} = useDetachedPanelRefreshController({
+  detachedWindow: isDetachedPanelWindow,
+  activePanelId,
+  context: () => ({
+    tabId: state.value.activeTabId,
+    url: activeTab.value?.url,
+    loading: activeTab.value?.loading
+  }),
+  activate: activatePanel,
+  refresh: refreshDetachedPanel,
+  onError: reportShellActionError
+})
+const {
   syncingMainPanelState,
   dispose: disposePanelWindowEventsController
 } = usePanelWindowEventsController({
@@ -872,17 +887,6 @@ const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncControll
   activePanelId,
   syncingMainPanelState,
   persistDock: (dock) => window.localStorage.setItem('hronaut:panel-dock', dock),
-  onError: reportShellActionError
-})
-const { dispose: disposeDetachedPanelRefreshController } = useDetachedPanelRefreshController({
-  detachedWindow: isDetachedPanelWindow,
-  activePanelId,
-  context: () => ({
-    tabId: state.value.activeTabId,
-    url: activeTab.value?.url,
-    loading: activeTab.value?.loading
-  }),
-  refresh: refreshDetachedPanel,
   onError: reportShellActionError
 })
 const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
@@ -1607,12 +1611,6 @@ async function refreshDetachedPanel(panel: DetachablePanelId): Promise<void> {
   else if (panel === 'dom-changes') await manageDomChanges('get')
   else if (panel === 'visual-compare') await manageVisualCompare('get')
   else if (panel === 'issues') await refreshInspectorIssues()
-}
-
-async function showDetachedPanel(panel: DetachablePanelId): Promise<void> {
-  activatePanel(panel)
-  await nextTick()
-  await refreshDetachedPanel(panel)
 }
 
 function closeTransientPanels(): void {
