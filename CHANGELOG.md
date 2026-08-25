@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Verify after every published release that `hronaut.dev` resolves the new version and every platform download.
 - Move detached-panel refresh dispatch out of `App.vue` into a focused, exhaustively tested controller.
 - Reset all Appearance preferences in one authoritative transaction and prevent conflicting settings edits while a reset is pending.
 - Move Settings reset routing and Appearance defaults out of `App.vue` into a focused controller.

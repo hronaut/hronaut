@@ -408,3 +408,28 @@ jobs:
           set -euo pipefail
           gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+
+  verify-public-release:
+    name: Verify hronaut.dev release sync
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - publish-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release.outputs.sha }}
+          persist-credentials: false
+
+      - name: Set up release verification runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Verify hronaut.dev resolves the published release
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/verify-public-release.ts "$VERSION"

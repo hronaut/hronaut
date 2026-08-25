@@ -48,6 +48,16 @@ describe('release quality gates', () => {
     expect(workflow.indexOf("echo '## Start here'")).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))
   })
 
+  it('verifies hronaut.dev has resolved every published release and download', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const verification = job(workflow, 'verify-public-release')
+
+    expect(verification).toContain('- publish-release')
+    expect(verification).toContain('ref: ${{ needs.prepare-release.outputs.sha }}')
+    expect(verification).toContain('VERSION: ${{ needs.prepare-release.outputs.version }}')
+    expect(verification).toContain('run: node scripts/verify-public-release.ts "$VERSION"')
+  })
+
   it('retains bounded Playwright diagnostics when Docker integration fails', async () => {
     const [ciWorkflow, releaseWorkflow, runner, playwright] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),
