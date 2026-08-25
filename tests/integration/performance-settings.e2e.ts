@@ -26,6 +26,14 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
       await window.hronaut.newTab({ url, active: true });
       await window.hronaut.newTab({ url, active: true });
     })()`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => {
+      const tabs = state.tabs.filter((tab) => tab.url === ${JSON.stringify(websiteUrl)});
+      return {
+        count: tabs.length,
+        active: tabs.filter((tab) => tab.active).length,
+        loading: tabs.filter((tab) => tab.loading).length
+      };
+    })`)).toEqual({ count: 2, active: 1, loading: 0 })
 
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     await appWindow.getByRole('button', { name: /Performance/ }).click()
@@ -61,6 +69,9 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     })
 
     await sleepNow.click()
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.filter((tab) => tab.url === ${JSON.stringify(websiteUrl)} && tab.sleeping).length
+    ))`)).toBe(1)
     await expect(appWindow.getByText('1 sleeping')).toBeVisible()
     await automatic.uncheck()
     await expect(automatic).not.toBeChecked()
