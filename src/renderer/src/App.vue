@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { bind as bindFoley, play as playFoley, set as setFoley } from '@foleyjs/core'
+import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -28,7 +28,6 @@ import IconStop from '~icons/material-symbols/stop-rounded'
 import {
   DETACHABLE_PANEL_IDS,
   PANEL_DOCKS,
-  AppSettings,
   BrowserState,
   BrowserEmulationState,
   BrowserTabState,
@@ -66,6 +65,7 @@ import DetachedPanelUnavailableState from './components/DetachedPanelUnavailable
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useShellWindowLifecycle } from './composables/useShellWindowLifecycle'
+import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
 import { useDiagnosticsController } from './composables/useDiagnosticsController'
 import { useCredentialsController } from './composables/useCredentialsController'
 import { useDownloadSettingsController } from './composables/useDownloadSettingsController'
@@ -208,6 +208,12 @@ const {
 const detachedPanelParameter = new URLSearchParams(window.location.search).get('hronautPanel')
 const detachedPanelId = isDetachablePanelId(detachedPanelParameter) ? detachedPanelParameter : null
 const isDetachedPanelWindow = detachedPanelId !== null
+const {
+  tabRailWidth,
+  tabOrientation,
+  applySettings: applyTheme,
+  playAttentionSound: testAttentionSound
+} = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
 if (detachedPanelId) {
   document.documentElement.dataset.panelWindow = 'true'
   document.title = detachedPanelTitle(detachedPanelId)
@@ -1135,7 +1141,7 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   credentialsApi: window.hronautCredentials,
   updatesApi: window.hronautUpdates,
   shellApi: window.hronautShell,
-  onUserAttention: () => playFoley(settings.value.attentionSoundCue, { volume: 0.65 }),
+  onUserAttention: testAttentionSound,
   onShortcut: runBrowserShortcut,
   onTabGroupEdit: openTabGroupEditor,
   onPermissionsChanged: replaceSitePermissions,
@@ -1179,6 +1185,7 @@ const panelDockLayout = usePanelDockLayout({
   shell,
   dockedPanelOpen,
   fullModalOpen,
+  tabRailWidth,
   detachedWindow: isDetachedPanelWindow,
   shellApi: window.hronautShell
 })
@@ -1529,23 +1536,8 @@ async function copyAppText(text: string): Promise<boolean> {
   }
 }
 
-function applyTheme(next: AppSettings): void {
-  settings.value = next
-  setFoley({ muted: !next.attentionSound })
-  const effectiveTheme = next.theme === 'system' ? systemTheme.value : next.theme
-  document.documentElement.dataset.themePreference = next.theme
-  document.documentElement.dataset.theme = effectiveTheme
-  document.documentElement.style.colorScheme = effectiveTheme === 'light' ? 'light' : 'dark'
-}
-
-watch([settings, systemTheme], () => applyTheme(settings.value), { deep: true, immediate: true })
-
 function handleExtractedSettingError(error: unknown): void {
   showAppToast('error', t('runtime.toast.settingNotSaved'), friendlyUiError(error, t('runtime.toast.settingKept')))
-}
-
-function testAttentionSound(): void {
-  playFoley(settings.value.attentionSoundCue, { volume: 0.65 })
 }
 
 function openUpdateSettings(): void {
@@ -1636,6 +1628,7 @@ async function resetSettingsSection(section: SettingsSection): Promise<boolean |
   if (section === 'appearance') {
     await settingsStore.setTheme('system')
     await settingsStore.setInterfaceScale(DEFAULT_INTERFACE_SCALE)
+    await settingsStore.setTabPosition('top')
     await settingsStore.setHideInTray(true)
     await settingsStore.setAttentionSound(true)
     await settingsStore.setAttentionSoundCue('warning')
@@ -1714,13 +1707,15 @@ onBeforeUnmount(() => {
         'all-human-interaction-locked': state.allHumanInteractionLocked,
         'home-shell': activeIsHome,
         'detached-panel-window': isDetachedPanelWindow,
-        'detached-panel-unavailable': detachedPanelUnavailable
+        'detached-panel-unavailable': detachedPanelUnavailable,
+        'vertical-tabs-shell': tabOrientation === 'vertical'
       },
       `panel-dock-${panelDock}`
     ]"
     :style="{
       '--panel-dock-size': `${panelDockSize}px`,
-      '--shell-content-top': `${shellContentTop}px`
+      '--shell-content-top': `${shellContentTop}px`,
+      '--tab-rail-width': `${tabRailWidth}px`
     }"
     @click.capture="guardShellInteraction"
     @pointerdown.capture="guardShellInteraction"
@@ -1733,6 +1728,7 @@ onBeforeUnmount(() => {
         ref="browserTabsBar"
         :state="state"
         :hydrated="browserStateInitialized"
+        :orientation="tabOrientation"
         :mcp-activity-by-tab="mcpActivityByTab"
         :format-number="localNumber"
         :tab-tooltip="tabTooltip"

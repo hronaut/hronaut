@@ -211,6 +211,29 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   await middleClickTarget.dispatchEvent('auxclick', { button: 1 })
   await expect(middleClickTarget).toHaveCount(0)
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)`)).toBe('Overflow tab 11')
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
+  await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
+  const verticalNavigation = appWindow.getByRole('navigation', { name: 'Tab navigation' })
+  await expect(verticalNavigation).toHaveClass(/vertical/)
+  await expect.poll(() => strip.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    const websiteView = window?.contentView.children[0]
+    return {
+      x: websiteView?.getBounds().x,
+      width: websiteView?.getBounds().width,
+      contentWidth: window?.getContentBounds().width
+    }
+  })).toEqual({ x: 280, width: 480, contentWidth: 760 })
+
+  await lastTab.focus()
+  await lastTab.press('ArrowUp')
+  await expect(previousTab).toBeFocused()
+  await strip.evaluate((element) => { element.scrollTop = 0 })
+  await strip.dispatchEvent('wheel', { deltaY: 180 })
+  await expect.poll(() => strip.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
 })
 
 test('does not offer or attempt tab reordering across workspace boundaries', async ({ appWindow }) => {

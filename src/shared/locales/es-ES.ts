@@ -49,6 +49,12 @@ export const esES = {
       "large": "Grande",
       "largeDescription": "125 % · más fácil de leer"
     },
+    "tabPosition": {
+      "label": "Posición de las pestañas",
+      "description": "Mantén las pestañas arriba o muestra los títulos completos en una barra lateral desplazable.",
+      "top": "Arriba",
+      "left": "A la izquierda"
+    },
     "hideInTray": {
       "label": "Ocultar en la bandeja al cerrar",
       "description": "Mantener Hronaut y su servidor MCP activos después de cerrar la ventana."
@@ -935,6 +941,7 @@ export const esES = {
     },
     "loading": "Cargando",
     "tabs": {
+      "navigation": "Navegación por pestañas",
       "list": "Pestañas y espacios de trabajo del navegador",
       "scrollBack": "Mostrar pestañas anteriores",
       "scrollForward": "Mostrar pestañas siguientes",

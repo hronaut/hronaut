@@ -27,6 +27,7 @@ describe('SettingsStore', () => {
     await store.save({
       theme: 'cyberpunk',
       interfaceScale: 1.25,
+      tabPosition: 'left',
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -43,6 +44,7 @@ describe('SettingsStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
       theme: 'cyberpunk',
       interfaceScale: 1.25,
+      tabPosition: 'left',
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -59,6 +61,7 @@ describe('SettingsStore', () => {
     expect(await store.load()).toEqual({
       theme: 'cyberpunk',
       interfaceScale: 1.25,
+      tabPosition: 'left',
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -104,6 +107,7 @@ describe('SettingsStore', () => {
     expect(await store.load()).toEqual({
       theme: 'dark',
       interfaceScale: DEFAULT_INTERFACE_SCALE,
+      tabPosition: 'top',
       searchEngine: 'google',
       hideInTray: true,
       attentionSound: true,
@@ -124,6 +128,13 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ languagePreference }), 'utf8')
     expect((await store.load()).languagePreference).toBe('system')
+  })
+
+  it.each(['side', 'bottom', '', 42, null])('migrates an invalid tab position to top: %s', async (tabPosition) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ tabPosition }), 'utf8')
+    expect((await store.load()).tabPosition).toBe('top')
   })
 
   it.each([80, 65_536, 48_000.5, '48000'])('rejects an invalid persisted MCP port: %s', async (mcpPort) => {

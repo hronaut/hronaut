@@ -54,6 +54,7 @@ import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName, SettingsStore } from './settings-store.js'
 import { isMemorySaverTimeoutMinutes } from '../shared/memory-saver.js'
 import { isInterfaceScale, scaleShellMetric } from '../shared/interface-scale.js'
+import { isTabPosition } from '../shared/tab-position.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
@@ -2718,6 +2719,13 @@ function registerIpc(): void {
     if (!isInterfaceScale(scale)) throw new TypeError('Unsupported interface size')
     await updateSettings({ interfaceScale: scale })
     applyInterfaceScale(scale)
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:set-tab-position', async (event, position: unknown) => {
+    assertTrustedShellSender(event)
+    if (!isTabPosition(position)) throw new TypeError('Invalid tab position')
+    await updateSettings({ tabPosition: position })
     publishSettings()
     return { ...settings }
   })

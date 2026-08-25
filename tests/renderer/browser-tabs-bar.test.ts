@@ -89,12 +89,13 @@ function browserState(overrides: Partial<BrowserState> = {}): BrowserState {
   }
 }
 
-function renderTabs(state = browserState(), hydrated = true) {
+function renderTabs(state = browserState(), hydrated = true, orientation: 'horizontal' | 'vertical' = 'horizontal') {
   return render(BrowserTabsBar, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       state,
       hydrated,
+      orientation,
       mcpActivityByTab: {},
       formatNumber: (value: number) => String(value),
       tabTooltip: (value: BrowserTabState) => value.title,
@@ -104,6 +105,52 @@ function renderTabs(state = browserState(), hydrated = true) {
 }
 
 describe('BrowserTabsBar', () => {
+  it('uses vertical navigation and scrolling when tabs are placed on the left', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }), true, 'vertical')
+    const user = userEvent.setup()
+    const firstControl = screen.getByRole('tab', { name: 'Page first' })
+    const secondControl = screen.getByRole('tab', { name: 'Page second' })
+    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+
+    expect(strip.closest('.browser-tabs-bar')).toHaveClass('vertical')
+    firstControl.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(secondControl).toHaveFocus()
+
+    Object.defineProperties(strip, {
+      clientHeight: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 1_280 },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    await fireEvent.scroll(strip)
+    const wheel = new WheelEvent('wheel', { cancelable: true, deltaY: 120 })
+    strip.dispatchEvent(wheel)
+
+    expect(wheel.defaultPrevented).toBe(true)
+    expect(strip.scrollTop).toBe(120)
+  })
+
+  it('recomputes overflow when the tab position changes its scroll axis', async () => {
+    const tabs = Array.from({ length: 9 }, (_, index) => tab(`tab-${index + 1}`))
+    const view = renderTabs(browserState({ tabs, activeTabId: tabs[0].id }))
+    const strip = screen.getByRole('tablist', { name: 'Browser tabs and workspaces' })
+    Object.defineProperties(strip, {
+      clientWidth: { configurable: true, value: 1_280 },
+      scrollWidth: { configurable: true, value: 1_280 },
+      clientHeight: { configurable: true, value: 320 },
+      scrollHeight: { configurable: true, value: 1_280 },
+      scrollTop: { configurable: true, value: 0, writable: true }
+    })
+    await fireEvent.scroll(strip)
+    expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()
+
+    await view.rerender({ orientation: 'vertical' })
+
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeEnabled())
+  })
+
   it.each([
     { label: 'empty', tabs: [] as BrowserTabState[], activeTabId: null },
     { label: 'populated', tabs: [tab('first')], activeTabId: 'first' }

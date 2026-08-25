@@ -49,6 +49,12 @@ export const plPL = {
       "large": "Duży",
       "largeDescription": "125% · łatwiejszy do czytania"
     },
+    "tabPosition": {
+      "label": "Położenie kart",
+      "description": "Pozostaw karty u góry lub pokazuj pełne tytuły na przewijanym pasku po lewej.",
+      "top": "U góry",
+      "left": "Po lewej"
+    },
     "hideInTray": {
       "label": "Ukrywaj w zasobniku po zamknięciu",
       "description": "Pozostaw Hronaut i serwer MCP uruchomione po zamknięciu okna."
@@ -935,6 +941,7 @@ export const plPL = {
     },
     "loading": "Ładowanie",
     "tabs": {
+      "navigation": "Nawigacja po kartach",
       "list": "Karty i obszary robocze przeglądarki",
       "scrollBack": "Pokaż poprzednie karty",
       "scrollForward": "Pokaż następne karty",

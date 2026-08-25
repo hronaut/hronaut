@@ -3,12 +3,14 @@ import type { BrowserTabGroupColor } from './tab-groups.js'
 import type { MemorySaverTimeoutMinutes } from './memory-saver.js'
 import type { InterfaceScale } from './interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from './locale.js'
+import type { TabPosition } from './tab-position.js'
 
 export type { SearchEngineName } from './search-engine.js'
 export type { BrowserTabGroupColor } from './tab-groups.js'
 export type { MemorySaverTimeoutMinutes } from './memory-saver.js'
 export type { InterfaceScale } from './interface-scale.js'
 export type { LanguagePreference, SupportedLocale } from './locale.js'
+export type { TabPosition } from './tab-position.js'
 
 export type HelpMenuAction = 'shortcuts' | 'about' | 'support'
 
@@ -368,6 +370,7 @@ export function isAttentionSoundCue(value: unknown): value is AttentionSoundCue 
 export interface AppSettings {
   theme: ThemeName
   interfaceScale: InterfaceScale
+  tabPosition: TabPosition
   searchEngine: SearchEngineName
   hideInTray: boolean
   attentionSound: boolean
@@ -2299,6 +2302,7 @@ export interface HronautSettingsApi {
   getSystemTheme(): Promise<'light' | 'dark'>
   setTheme(theme: ThemeName): Promise<AppSettings>
   setInterfaceScale(scale: InterfaceScale): Promise<AppSettings>
+  setTabPosition(position: TabPosition): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setAttentionSound(enabled: boolean): Promise<AppSettings>

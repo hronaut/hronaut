@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
-import { ATTENTION_SOUND_CUES, type AttentionSoundCue, type LanguagePreference, type ThemeName } from '../../../shared/types.js'
+import { ATTENTION_SOUND_CUES, type AttentionSoundCue, type LanguagePreference, type TabPosition, type ThemeName } from '../../../shared/types.js'
 import { INTERFACE_SCALE_OPTIONS, type InterfaceScale } from '../../../shared/interface-scale.js'
 import { LOCALE_NATIVE_NAMES, SUPPORTED_LOCALES } from '../../../shared/locale.js'
 import { useSettingsStore } from '../stores/settings.js'
@@ -64,6 +64,13 @@ async function selectInterfaceScale(event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const scale = Number(input.value) as InterfaceScale
   if (!(await runSetting(store.setInterfaceScale(scale)))) input.value = String(settings.value.interfaceScale)
+}
+
+async function selectTabPosition(event: Event): Promise<void> {
+  const input = event.target as HTMLSelectElement
+  if (!(await runSetting(store.setTabPosition(input.value as TabPosition)))) {
+    input.value = settings.value.tabPosition
+  }
 }
 
 async function setHideInTray(event: Event): Promise<void> {
@@ -164,6 +171,21 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <option v-for="option in INTERFACE_SCALE_OPTIONS" :key="option.value" :value="option.value">
             {{ localizedScaleLabel(option.value) }} · {{ localizedScaleDescription(option.value) }}
           </option>
+        </select>
+      </label>
+      <label class="settings-row" for="setting-tab-position">
+        <span>
+          <strong>{{ t('appearance.tabPosition.label') }}</strong>
+          <small>{{ t('appearance.tabPosition.description') }}</small>
+        </span>
+        <select
+          id="setting-tab-position"
+          :aria-label="t('appearance.tabPosition.label')"
+          :value="settings.tabPosition"
+          @change="selectTabPosition"
+        >
+          <option value="top">{{ t('appearance.tabPosition.top') }}</option>
+          <option value="left">{{ t('appearance.tabPosition.left') }}</option>
         </select>
       </label>
       <label class="settings-row" for="setting-hide-in-tray">

@@ -49,6 +49,12 @@ export const deDE = {
       "large": "Groß",
       "largeDescription": "125 % · leichter lesbar"
     },
+    "tabPosition": {
+      "label": "Tabposition",
+      "description": "Tabs oben behalten oder vollständige Titel in einer scrollbaren linken Leiste anzeigen.",
+      "top": "Oben",
+      "left": "Links"
+    },
     "hideInTray": {
       "label": "Beim Schließen in den Infobereich",
       "description": "Hronaut und den MCP-Server nach dem Schließen des Fensters weiter ausführen."
@@ -935,6 +941,7 @@ export const deDE = {
     },
     "loading": "Wird geladen",
     "tabs": {
+      "navigation": "Tab-Navigation",
       "list": "Browser-Tabs und Arbeitsbereiche",
       "scrollBack": "Vorherige Tabs anzeigen",
       "scrollForward": "Weitere Tabs anzeigen",

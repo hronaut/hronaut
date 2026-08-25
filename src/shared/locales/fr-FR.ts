@@ -49,6 +49,12 @@ export const frFR = {
       "large": "Grande",
       "largeDescription": "125 % · lecture facilitée"
     },
+    "tabPosition": {
+      "label": "Position des onglets",
+      "description": "Garder les onglets en haut ou afficher les titres complets dans une barre latérale défilante.",
+      "top": "En haut",
+      "left": "À gauche"
+    },
     "hideInTray": {
       "label": "Réduire dans la zone de notification",
       "description": "Laisser Hronaut et son serveur MCP actifs après la fermeture de la fenêtre."
@@ -935,6 +941,7 @@ export const frFR = {
     },
     "loading": "Chargement",
     "tabs": {
+      "navigation": "Navigation dans les onglets",
       "list": "Onglets et espaces de travail du navigateur",
       "scrollBack": "Afficher les onglets précédents",
       "scrollForward": "Afficher les onglets suivants",

@@ -9,10 +9,12 @@ import {
   isMemorySaverTimeoutMinutes
 } from '../shared/memory-saver.js'
 import { isLanguagePreference } from '../shared/locale.js'
+import { DEFAULT_TAB_POSITION, isTabPosition } from '../shared/tab-position.js'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
+  tabPosition: DEFAULT_TAB_POSITION,
   searchEngine: DEFAULT_SEARCH_ENGINE,
   hideInTray: true,
   attentionSound: true,
@@ -55,6 +57,7 @@ export class SettingsStore {
       return {
         theme: isThemeName(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
         interfaceScale: isInterfaceScale(value.interfaceScale) ? value.interfaceScale : DEFAULT_SETTINGS.interfaceScale,
+        tabPosition: isTabPosition(value.tabPosition) ? value.tabPosition : DEFAULT_SETTINGS.tabPosition,
         searchEngine: isSearchEngineName(value.searchEngine) ? value.searchEngine : DEFAULT_SETTINGS.searchEngine,
         hideInTray: typeof value.hideInTray === 'boolean' ? value.hideInTray : DEFAULT_SETTINGS.hideInTray,
         attentionSound:

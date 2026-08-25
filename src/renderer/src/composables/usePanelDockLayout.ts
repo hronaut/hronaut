@@ -14,6 +14,7 @@ interface PanelDockLayoutOptions {
   shell: Ref<HTMLElement | null>
   dockedPanelOpen: ComputedRef<boolean>
   fullModalOpen: ComputedRef<boolean>
+  tabRailWidth: ComputedRef<number>
   detachedWindow: boolean
   shellApi: ShellLayoutApi
 }
@@ -53,7 +54,9 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     dock: PanelDock = options.dock.value,
     shellHeight = options.shell.value?.getBoundingClientRect().height ?? shellContentTop.value
   ): number {
-    if (isHorizontalDock(dock)) return Math.max(1, Math.min(840, window.innerWidth - 360))
+    if (isHorizontalDock(dock)) {
+      return Math.max(1, Math.min(840, window.innerWidth - options.tabRailWidth.value - 360))
+    }
     return Math.max(1, Math.min(700, window.innerHeight - shellHeight - 220))
   }
 
@@ -78,6 +81,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     // its space only when it is true application chrome or a full modal. Any
     // transient popover that overlaps a website must use a topmost native view.
     const modalOpen = options.fullModalOpen.value
+    const tabRailWidth = modalOpen ? 0 : options.tabRailWidth.value
     const sidePanelInset = modalOpen ? 0 : Array.from(
       options.shell.value.querySelectorAll<HTMLElement>('[data-shell-side-panel]')
     ).reduce((inset, panel) => Math.max(inset, window.innerWidth - panel.getBoundingClientRect().left), 0)
@@ -91,7 +95,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
       top: dock === 'top' ? dockSize : 0,
       right: Math.max(dock === 'right' ? dockSize : 0, Math.ceil(sidePanelInset)),
       bottom: dock === 'bottom' ? dockSize : 0,
-      left: dock === 'left' ? dockSize : 0
+      left: tabRailWidth + (dock === 'left' ? dockSize : 0)
     })
   }
 
@@ -191,6 +195,11 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   watch(options.dock, async (dock) => {
     const gesture = resizeGesture.value
     if (gesture && gesture.dock !== dock) endResize(gesture.pointerId, true)
+    await nextTick()
+    reportShellHeight()
+  })
+
+  watch(options.tabRailWidth, async () => {
     await nextTick()
     reportShellHeight()
   })

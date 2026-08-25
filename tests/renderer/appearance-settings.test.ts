@@ -14,6 +14,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
     settings: {
       theme: 'system',
       interfaceScale: 1.1,
+      tabPosition: 'top',
       searchEngine: 'google',
       hideInTray: true,
       attentionSound: true,
@@ -90,5 +91,23 @@ describe('AppearanceSettings', () => {
 
     expect(language).toHaveValue('en-US')
     expect(screen.getByRole('alert')).toHaveTextContent('The language preference could not be saved')
+  })
+
+  it('persists a left-side tab position from the appearance panel', async () => {
+    const setTabPosition = vi.fn(async () => ({ ...snapshot('en-US').settings, tabPosition: 'left' as const }))
+    Object.defineProperty(window, 'hronautSettings', {
+      configurable: true,
+      value: { setTabPosition }
+    })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    await userEvent.setup().selectOptions(screen.getByRole('combobox', { name: 'Tab position' }), 'left')
+
+    expect(setTabPosition).toHaveBeenCalledWith('left')
   })
 })

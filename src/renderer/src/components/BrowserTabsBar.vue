@@ -11,6 +11,7 @@ import IconHorizontalSplit from '~icons/material-symbols/horizontal-split-rounde
 import IconKeyboardArrowDown from '~icons/material-symbols/keyboard-arrow-down-rounded'
 import IconKeyboardArrowLeft from '~icons/material-symbols/keyboard-arrow-left-rounded'
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
+import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-rounded'
 import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
@@ -25,6 +26,7 @@ import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shar
 const props = defineProps<{
   state: BrowserState
   hydrated: boolean
+  orientation: 'horizontal' | 'vertical'
   mcpActivityByTab: Record<string, McpTabActivity>
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
@@ -57,27 +59,33 @@ const hasTabOverflow = ref(false)
 const canScrollTabsBack = ref(false)
 const canScrollTabsForward = ref(false)
 let tabsStripResizeObserver: ResizeObserver | undefined
+const vertical = computed(() => props.orientation === 'vertical')
 
 function updateTabOverflow(): void {
   const strip = tabsStrip.value
   if (!strip) return
-  const maximumScroll = Math.max(0, strip.scrollWidth - strip.clientWidth)
+  const maximumScroll = Math.max(0, vertical.value
+    ? strip.scrollHeight - strip.clientHeight
+    : strip.scrollWidth - strip.clientWidth)
   hasTabOverflow.value = maximumScroll > 1
-  canScrollTabsBack.value = strip.scrollLeft > 1
-  canScrollTabsForward.value = strip.scrollLeft < maximumScroll - 1
+  const position = vertical.value ? strip.scrollTop : strip.scrollLeft
+  canScrollTabsBack.value = position > 1
+  canScrollTabsForward.value = position < maximumScroll - 1
 }
 
 function scrollTabs(direction: -1 | 1): void {
   const strip = tabsStrip.value
   if (!strip) return
-  strip.scrollBy({ left: direction * Math.max(180, strip.clientWidth * 0.72), behavior: 'smooth' })
+  const distance = direction * Math.max(180, (vertical.value ? strip.clientHeight : strip.clientWidth) * 0.72)
+  strip.scrollBy(vertical.value ? { top: distance, behavior: 'smooth' } : { left: distance, behavior: 'smooth' })
 }
 
 function scrollTabsWithWheel(event: WheelEvent): void {
   const strip = tabsStrip.value
-  if (!strip || !hasTabOverflow.value || event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+  if (!strip || !hasTabOverflow.value || event.ctrlKey || (!vertical.value && Math.abs(event.deltaX) >= Math.abs(event.deltaY))) return
   event.preventDefault()
-  strip.scrollLeft += event.deltaY
+  if (vertical.value) strip.scrollTop += event.deltaY || event.deltaX
+  else strip.scrollLeft += event.deltaY
   updateTabOverflow()
 }
 
@@ -94,7 +102,9 @@ function activeTabIntersectsVisibleStrip(): boolean {
   if (!strip || !activeTab) return false
   const stripBounds = strip.getBoundingClientRect()
   const tabBounds = activeTab.getBoundingClientRect()
-  return tabBounds.right >= stripBounds.left - 1 && tabBounds.left <= stripBounds.right + 1
+  return vertical.value
+    ? tabBounds.bottom >= stripBounds.top - 1 && tabBounds.top <= stripBounds.bottom + 1
+    : tabBounds.right >= stripBounds.left - 1 && tabBounds.left <= stripBounds.right + 1
 }
 
 function handleTabStripResize(): void {
@@ -170,13 +180,15 @@ function focusTab(tabId: string): void {
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   const tabs = visibleTabs.value
   const currentIndex = tabs.findIndex((candidate) => candidate.id === tab.id)
-  if (currentIndex < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  const previousKey = vertical.value ? 'ArrowUp' : 'ArrowLeft'
+  const nextKey = vertical.value ? 'ArrowDown' : 'ArrowRight'
+  if (currentIndex < 0 || ![previousKey, nextKey, 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
   const targetIndex = event.key === 'Home'
     ? 0
     : event.key === 'End'
       ? tabs.length - 1
-      : (currentIndex + (event.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length
+      : (currentIndex + (event.key === previousKey ? -1 : 1) + tabs.length) % tabs.length
   const target = tabs[targetIndex]
   if (target) focusTab(target.id)
 }
@@ -245,7 +257,9 @@ function updateTabDrop(event: DragEvent, tab: BrowserTabState): void {
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
   const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
   tabDropTargetId.value = tab.id
-  tabDropPlacement.value = event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after'
+  tabDropPlacement.value = vertical.value
+    ? event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after'
+    : event.clientX < bounds.left + bounds.width / 2 ? 'before' : 'after'
 }
 
 function finishTabDrop(event: DragEvent, tab: BrowserTabState): void {
@@ -280,7 +294,8 @@ watch(
   [
     () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
     () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.isDefault}`).join('|'),
-    () => [...collapsedTabGroupIds.value].sort().join('|')
+    () => [...collapsedTabGroupIds.value].sort().join('|'),
+    () => props.orientation
   ],
   async () => {
     const revealAfterLayout = activeTabIntersectsVisibleStrip()
@@ -339,6 +354,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
 </script>
 
 <template>
+  <nav class="browser-tabs-bar" :class="orientation" :data-shell-tab-rail="vertical ? '' : undefined" :aria-label="t('shell.tabs.navigation')">
   <button
     class="app-home-button"
     :class="{ active: homeTab?.active }"
@@ -362,7 +378,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :title="t('shell.tabs.scrollBack')"
       :aria-label="t('shell.tabs.scrollBack')"
       @click="scrollTabs(-1)"
-    ><IconKeyboardArrowLeft aria-hidden="true" /></button>
+    ><IconKeyboardArrowUp v-if="vertical" aria-hidden="true" /><IconKeyboardArrowLeft v-else aria-hidden="true" /></button>
     <div
       ref="tabsStrip"
       class="tabs-strip"
@@ -504,6 +520,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :title="t('shell.tabs.scrollForward')"
       :aria-label="t('shell.tabs.scrollForward')"
       @click="scrollTabs(1)"
-    ><IconKeyboardArrowRight aria-hidden="true" /></button>
+    ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></button>
   </div>
+  </nav>
 </template>

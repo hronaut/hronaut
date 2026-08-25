@@ -208,6 +208,7 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByTestId('theme-cyberpunk').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
+  await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
 
@@ -215,6 +216,7 @@ test('resets every Appearance preference including interface size', async ({
 
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
   await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1.1')
+  await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('top')
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
@@ -223,6 +225,7 @@ test('resets every Appearance preference including interface size', async ({
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'system',
     interfaceScale: 1.1,
+    tabPosition: 'top',
     hideInTray: true,
     attentionSound: true,
     attentionSoundCue: 'warning'

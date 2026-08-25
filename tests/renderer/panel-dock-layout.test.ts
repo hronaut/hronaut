@@ -46,7 +46,7 @@ function bounds(overrides: Partial<DOMRect> = {}): DOMRect {
   }
 }
 
-function mountHarness(initialDock: PanelDock = 'right'): Harness {
+function mountHarness(initialDock: PanelDock = 'right', tabRailWidth = 0): Harness {
   const dock = ref<PanelDock>(initialDock)
   const modalOpen = ref(false)
   const panelOpen = ref(true)
@@ -61,6 +61,7 @@ function mountHarness(initialDock: PanelDock = 'right'): Harness {
         shell,
         dockedPanelOpen: computed(() => panelOpen.value),
         fullModalOpen: computed(() => modalOpen.value),
+        tabRailWidth: computed(() => tabRailWidth),
         detachedWindow: false,
         shellApi: { setToolbarHeight, setContentInsets }
       })
@@ -110,6 +111,18 @@ afterEach(() => {
 })
 
 describe('usePanelDockLayout', () => {
+  it('composes a vertical tab rail with docked panel insets', async () => {
+    const right = mountHarness('right', 280)
+    right.controller.reportShellHeight()
+    expect(right.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 480, bottom: 0, left: 280 })
+    right.wrapper.unmount()
+
+    const left = mountHarness('left', 280)
+    left.controller.reportShellHeight()
+    expect(left.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 0, bottom: 0, left: 760 })
+    left.wrapper.unmount()
+  })
+
   it('restores independent dock sizes and removes page insets while a full modal is open', async () => {
     window.localStorage.setItem('hronaut:panel-dock-size-horizontal', '530')
     window.localStorage.setItem('hronaut:panel-dock-size-vertical', '290')
