@@ -134,6 +134,8 @@ try {
     throw "Scoop installer exited with code $LASTEXITCODE"
   }
   $scoopCommand = Join-Path $scoopDirectory "shims/scoop.ps1"
+  Write-Host "Scoop version:"
+  Invoke-CheckedCommand -Command $scoopCommand -Arguments @("--version")
 
   Invoke-CheckedCommand -Command $scoopCommand -Arguments @("install", $localManifestPath)
   $installed = $true
