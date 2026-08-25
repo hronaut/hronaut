@@ -9,7 +9,16 @@ describe('normalizeAddress', () => {
 
   it('turns host-like input into an HTTPS URL', () => {
     expect(normalizeAddress('example.com/docs')).toBe('https://example.com/docs')
-    expect(normalizeAddress('localhost:5173')).toBe('https://localhost:5173')
+  })
+
+  it.each([
+    ['localhost:5173', 'http://localhost:5173'],
+    ['app.localhost:4173/dashboard', 'http://app.localhost:4173/dashboard'],
+    ['127.0.0.1:8081/ui-kit', 'http://127.0.0.1:8081/ui-kit'],
+    ['127.42.0.9:3000', 'http://127.42.0.9:3000'],
+    ['[::1]:6006', 'http://[::1]:6006']
+  ])('uses HTTP for a scheme-less loopback development address %s', (input, expected) => {
+    expect(normalizeAddress(input)).toBe(expected)
   })
 
   it('turns plain text into a search', () => {

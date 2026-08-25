@@ -37,7 +37,7 @@ Choose **System default**, English, Ukrainian, Russian, German, French, Spanish,
 
 ## Choose the default search engine
 
-Open **Settings → Search engine** to choose Google, DuckDuckGo, Bing, Brave Search, or Startpage. Plain text submitted from the address bar and `browser_navigate` uses the selected provider immediately; recognizable addresses and explicit URL schemes continue to navigate directly. The choice is stored in the local Hronaut profile. Local tab, bookmark, and history suggestions remain on-device and do not send keystrokes to any provider.
+Open **Settings → Search engine** to choose Google, DuckDuckGo, Bing, Brave Search, or Startpage. Plain text submitted from the address bar and `browser_navigate` uses the selected provider immediately; recognizable addresses and explicit URL schemes continue to navigate directly. Scheme-less public addresses default to HTTPS, while `localhost`, `*.localhost`, `127.0.0.0/8`, and `[::1]` default to HTTP so local development servers work without requiring an explicit scheme. An explicitly entered scheme is always preserved. The choice is stored in the local Hronaut profile. Local tab, bookmark, and history suggestions remain on-device and do not send keystrokes to any provider.
 
 ## Clear browsing data safely
 

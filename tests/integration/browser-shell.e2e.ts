@@ -55,6 +55,33 @@ test('launches a visible browser shell with a loopback MCP endpoint', async ({
     .toBe(true)
 })
 
+test('opens a scheme-less loopback address over HTTP from the address bar', async ({ appWindow }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end('<!doctype html><title>Scheme-less loopback</title><main>Local development server</main>')
+  })
+  const address = await new Promise<{ port: number }>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve(server.address() as { port: number }))
+  })
+
+  try {
+    await appWindow.getByRole('button', { name: 'New tab' }).click()
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await addressInput.fill(`127.0.0.1:${address.port}/scheme-less`)
+    await addressInput.press('Enter')
+
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)'
+    )).toBe(`http://127.0.0.1:${address.port}/scheme-less`)
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
+    )).toBe('Scheme-less loopback')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('recovers from an initial renderer settings failure before Vue mounts', async ({ appWindow, electronApp }) => {
   const settingsState = await appWindow.evaluate('window.hronautSettings.getRendererState()') as RendererSettingsState
   await appWindow.addInitScript(() => {
