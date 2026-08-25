@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move locale-aware shell formatting out of `App.vue` into a focused reactive composable.
 - Use 100% as the default interface scale for fresh profiles and Appearance resets while preserving an existing explicit scale choice.
 
 ### Fixed

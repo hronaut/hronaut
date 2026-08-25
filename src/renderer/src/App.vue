@@ -3,13 +3,6 @@ import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import {
-  formatBytes as formatLocalizedBytes,
-  formatDateTime,
-  formatNumber,
-  formatPercent,
-  formatTime
-} from '../../shared/format'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -121,6 +114,7 @@ import { useActiveTabPresentationController } from './composables/useActiveTabPr
 import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
+import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import {
   shouldShowUpdateStatusPill,
   shouldAutoDismissUpdateStatus,
@@ -177,6 +171,13 @@ const browserStore = useBrowserStore()
 const settingsStore = useSettingsStore()
 const { state, initialized: browserStateInitialized } = storeToRefs(browserStore)
 const { settings, systemTheme, resolvedLocale } = storeToRefs(settingsStore)
+const {
+  formatBytes,
+  formatNumber: localNumber,
+  formatDateTime: localDateTime,
+  formatTime: localTime,
+  formatPercent: localPercent
+} = useLocaleFormatters(resolvedLocale)
 const browser = window.hronaut
 const appToastController = useAppToastController()
 const {
@@ -1300,26 +1301,6 @@ const showUpdateStatusPill = computed(() => (
   && !settingsOpen.value
   && shouldShowUpdateStatusPill(updateState.value.status)
 ))
-function formatBytes(bytes: number): string {
-  return formatLocalizedBytes(resolvedLocale.value, bytes)
-}
-
-function localNumber(value: number): string {
-  return formatNumber(resolvedLocale.value, value)
-}
-
-function localDateTime(value: Date | number | string): string {
-  return formatDateTime(resolvedLocale.value, value)
-}
-
-function localTime(value: Date | number | string): string {
-  return formatTime(resolvedLocale.value, value)
-}
-
-function localPercent(percent: number, maximumFractionDigits = 0): string {
-  return formatPercent(resolvedLocale.value, percent / 100, { maximumFractionDigits })
-}
-
 async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
   settingsOpen.value = false
   await syncState(browser.newTab({ url: bookmark.url, active: true }))
