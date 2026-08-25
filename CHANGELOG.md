@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-08-25
+
 ### Changed
 
 - Move global shell keyboard, modal priority, and Escape-surface routing out of `App.vue` into a focused controller.
