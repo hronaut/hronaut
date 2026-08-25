@@ -2882,9 +2882,9 @@ function registerIpc(): void {
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
     if (!credentialStorageStatus.available || !credentialStore || !tabsManager) return false
-    const origin = tabsManager.credentialOrigin(tabId)
-    if (!origin) return false
-    const selected = credentialStore.list().find((credential) => credential.id === credentialId && credential.origin === origin)
+    const context = tabsManager.credentialContext(tabId)
+    if (!context) return false
+    const selected = credentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
     if (!selected) return false
     setMcpPaused(true)
     const waitStartedAt = Date.now()
@@ -2895,7 +2895,7 @@ function registerIpc(): void {
       throw new Error('Could not fill the password while an MCP command was still active')
     }
     const password = await credentialStore.password(selected.id)
-    return tabsManager.fillCredential(tabId, origin, selected.username, password)
+    return tabsManager.fillCredential(tabId, context, selected.username, password)
   })
   ipcMain.handle('credentials:remove', async (event, id: unknown) => {
     assertTrustedShellSender(event)

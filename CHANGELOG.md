@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep command palettes, dialogs, and tool panels open when Escape belongs to an active IME composition.
+- Cancel a pending credential fill when the user changes tabs or its page navigates or reloads, including same-origin pages, instead of filling a stale background document.
 
 ## [1.4.4] - 2026-08-25
 

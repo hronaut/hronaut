@@ -158,6 +158,11 @@ import {
 import { resolveViewportPreset } from '../../shared/viewport-presets.js'
 import { isValidBrowserLocale, isValidBrowserTimezone } from '../../shared/browser-environment.js'
 import { uuidV7 } from '../uuid-v7.js'
+import {
+  credentialFillContext,
+  isCurrentCredentialFillContext,
+  type CredentialFillContext
+} from './credential-fill-context.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -508,6 +513,7 @@ interface BrowserTab {
   title: string
   url: string
   loading: boolean
+  navigationGeneration: number
   pinned: boolean
   sleeping: boolean
   lastActiveAt: number
@@ -2039,21 +2045,23 @@ export class BrowserTabsManager {
     return `${cookie.secure ? 'https' : 'http'}://${domain}${cookie.path || '/'}`
   }
 
-  credentialOrigin(tabId?: string): string | null {
+  credentialContext(tabId?: string): CredentialFillContext | null {
     const tab = this.getTab(tabId)
-    try {
-      const url = new URL(tab.url)
-      return url.protocol === 'http:' || url.protocol === 'https:' ? url.origin : null
-    } catch {
-      return null
-    }
+    if (tab.id !== this.activeTabId) return null
+    return credentialFillContext(tab.url, tab.navigationGeneration, this.tabSelectionGeneration)
   }
 
-  async fillCredential(tabId: string, expectedOrigin: string, username: string, password: string): Promise<boolean> {
+  async fillCredential(
+    tabId: string,
+    expectedContext: CredentialFillContext,
+    username: string,
+    password: string
+  ): Promise<boolean> {
     const tab = this.getTab(tabId)
-    if (this.credentialOrigin(tabId) !== expectedOrigin) return false
+    if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
     const script = `(() => {
-      if (location.origin !== ${JSON.stringify(expectedOrigin)}) return false;
+      if (location.origin !== ${JSON.stringify(expectedContext.origin)}
+        || location.href !== ${JSON.stringify(expectedContext.url)}) return false;
       const passwords = [...document.querySelectorAll('input[type="password"]')].filter((input) => !input.disabled && !input.readOnly);
       const passwordField = passwords.find((input) => input.autocomplete === 'current-password') || passwords[0];
       if (!passwordField) return false;
@@ -5566,6 +5574,7 @@ export class BrowserTabsManager {
       ),
       url,
       loading: true,
+      navigationGeneration: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
       sleeping: false,
       lastActiveAt: Date.now(),
@@ -6068,7 +6077,9 @@ export class BrowserTabsManager {
       this.prepareDiagnosticNavigation(tab)
     })
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
-      if (tab.sleeping || isSameDocument || !isMainFrame) return
+      if (tab.sleeping || !isMainFrame) return
+      tab.navigationGeneration += 1
+      if (isSameDocument) return
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
