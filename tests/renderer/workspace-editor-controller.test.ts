@@ -233,6 +233,36 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
+  it('keeps a completed storage transfer successful when the follow-up state refresh fails', async () => {
+    const { browser, controller } = createController()
+    await controller.openExisting('agent')
+    browser.getState.mockRejectedValueOnce(new Error('Could not refresh workspace state'))
+
+    await controller.transferStorage()
+
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledOnce()
+    expect(controller.storageState.value).toBe('saved')
+    expect(controller.storageMessage.value).toContain('runtimeActions.workspace.copied')
+    controller.dispose()
+  })
+
+  it('does not start a duplicate transfer while the successful copy is refreshing state', async () => {
+    const { state, browser, controller } = createController()
+    await controller.openExisting('agent')
+    const pendingRefresh = deferred<BrowserState>()
+    browser.getState.mockReturnValueOnce(pendingRefresh.promise)
+
+    const transferring = controller.transferStorage()
+    await vi.waitFor(() => expect(browser.getState).toHaveBeenCalledTimes(2))
+    await controller.transferStorage()
+
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledOnce()
+    pendingRefresh.resolve(state.value)
+    await transferring
+    expect(controller.storageState.value).toBe('saved')
+    controller.dispose()
+  })
+
   it('blocks permanent close while global human interaction is locked', async () => {
     const { confirm, browser, controller } = createController(browserState(true))
     await controller.openExisting('agent')

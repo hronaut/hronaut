@@ -198,24 +198,33 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     const currentOrigins = transferOrigins()
     storageState.value = 'saving'
     storageMessage.value = ''
+    let result: Awaited<ReturnType<WorkspaceEditorBrowserApi['transferWorkspaceStorage']>>
     try {
-      const result = await options.browser.transferWorkspaceStorage({
+      result = await options.browser.transferWorkspaceStorage({
         workspaceId: currentWorkspaceId,
         direction: currentDirection,
         origins: currentOrigins
       })
-      if (!isPresentationCurrent(presentation)) return
-      storageState.value = 'saved'
-      storageMessage.value = options.translate('runtimeActions.workspace.copied', {
-        cookies: options.formatNumber(result.cookieCount),
-        items: options.formatNumber(result.localStorageItemCount)
-      })
-      await options.syncState(options.browser.getState())
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
       storageState.value = 'error'
       storageMessage.value = cause instanceof Error ? cause.message : String(cause)
+      return
     }
+    if (!isPresentationCurrent(presentation)) return
+    const successMessage = options.translate('runtimeActions.workspace.copied', {
+      cookies: options.formatNumber(result.cookieCount),
+      items: options.formatNumber(result.localStorageItemCount)
+    })
+    try {
+      await options.syncState(options.browser.getState())
+    } catch {
+      // The storage copy is authoritative. A failed follow-up refresh must not
+      // report the already-completed operation as failed.
+    }
+    if (!isPresentationCurrent(presentation)) return
+    storageState.value = 'saved'
+    storageMessage.value = successMessage
   }
 
   async function closeWorkspace(): Promise<void> {
