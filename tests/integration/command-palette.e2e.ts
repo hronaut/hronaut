@@ -2,6 +2,25 @@ import { expect, test } from './fixtures.js'
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
+test('keeps the command palette open when Escape belongs to an IME composition', async ({ appWindow }) => {
+  await appWindow.getByRole('button', { name: 'Open command palette' }).click()
+  const palette = appWindow.getByRole('dialog', { name: 'Commands' })
+  const search = palette.getByRole('combobox', { name: 'Search commands' })
+  await expect(search).toBeFocused()
+
+  const composing = await search.evaluate((input) => input.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Escape',
+    bubbles: true,
+    cancelable: true,
+    isComposing: true
+  })))
+
+  expect(composing).toBe(true)
+  await expect(palette).toBeVisible()
+  await appWindow.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+})
+
 test('finds global and website commands from the accessible command palette', async ({ appWindow, electronApp }) => {
   const commandButton = appWindow.getByRole('button', { name: 'Open command palette' })
   await expect(commandButton).toBeVisible()

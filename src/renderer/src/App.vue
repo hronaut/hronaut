@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley, play as playFoley, set as setFoley } from '@foleyjs/core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -97,6 +97,10 @@ import { useShellOverlayCoordinationController } from './composables/useShellOve
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
+import {
+  useShellKeyboardController,
+  type ShellKeyboardSurface
+} from './composables/useShellKeyboardController'
 import { useTabNavigationController } from './composables/useTabNavigationController'
 import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
 import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
@@ -120,7 +124,6 @@ import {
   shouldAutoDismissUpdateStatus,
   UPDATE_STATUS_DISMISS_MS
 } from '../../shared/update-presentation'
-import { browserShortcutAction } from '../../shared/browser-shortcuts'
 import { DEFAULT_INTERFACE_SCALE } from '../../shared/interface-scale'
 
 function isPanelDock(value: string | null): value is PanelDock {
@@ -129,6 +132,10 @@ function isPanelDock(value: string | null): value is PanelDock {
 
 function isDetachablePanelId(value: string | null): value is DetachablePanelId {
   return value !== null && (DETACHABLE_PANEL_IDS as readonly string[]).includes(value)
+}
+
+function refKeyboardSurface(open: Ref<boolean>, close: () => void = () => (open.value = false)): ShellKeyboardSurface {
+  return { isOpen: () => open.value, close }
 }
 
 function detachedPanelLabel(panel: DetachablePanelId): string {
@@ -1018,6 +1025,61 @@ const {
   run: runBrowserShortcut,
   dispose: disposeBrowserShortcutController
 } = browserShortcutController
+const shellKeyboardController = useShellKeyboardController({
+  allInteractionLocked: () => state.value.allHumanInteractionLocked,
+  commandPalette: refKeyboardSurface(commandPaletteOpen),
+  modalSurfaces: [
+    refKeyboardSurface(workspaceEditorOpen, closeWorkspaceEditor),
+    refKeyboardSurface(credentialPickerOpen),
+    refKeyboardSurface(helpDialogOpen, closeHelpDialog),
+    refKeyboardSurface(settingsOpen, closeSettings)
+  ],
+  escapeSurfaces: [
+    refKeyboardSurface(siteStorageOpen),
+    refKeyboardSurface(siteControlsOpen),
+    refKeyboardSurface(addressSuggestionsOpen),
+    refKeyboardSurface(findOpen, () => { void closeFind() }),
+    refKeyboardSurface(tabSearchOpen),
+    refKeyboardSurface(splitMenuOpen),
+    refKeyboardSurface(zoomOpen),
+    refKeyboardSurface(downloadsOpen),
+    refKeyboardSurface(bookmarksOpen, () => bookmarksPanel.value?.handleEscape()),
+    refKeyboardSurface(historyOpen),
+    refKeyboardSurface(pageToolsOpen),
+    refKeyboardSurface(accessibilityPanelOpen),
+    refKeyboardSurface(qualityAuditPanelOpen),
+    refKeyboardSurface(performancePanelOpen),
+    refKeyboardSurface(designOverviewPanelOpen),
+    refKeyboardSurface(pageMetadataPanelOpen),
+    refKeyboardSurface(securityPanelOpen),
+    refKeyboardSurface(coveragePanelOpen),
+    refKeyboardSurface(cpuProfilePanelOpen),
+    refKeyboardSurface(memoryPanelOpen),
+    refKeyboardSurface(consolePanelOpen),
+    refKeyboardSurface(debugReportPanelOpen),
+    refKeyboardSurface(reproPanelOpen),
+    refKeyboardSurface(domChangesPanelOpen),
+    refKeyboardSurface(visualComparePanelOpen),
+    refKeyboardSurface(inspectorIssuesOpen),
+    refKeyboardSurface(networkMonitorOpen),
+    refKeyboardSurface(responsivePanelOpen, () => responsivePanel.value?.handleEscape()),
+    refKeyboardSurface(environmentPanelOpen),
+    {
+      isOpen: () => areaCaptureState.value === 'picking',
+      close: () => { void toggleAreaCapture() }
+    },
+    {
+      isOpen: () => elementPickerState.value === 'picking',
+      close: () => { void cancelActiveElementPicker() }
+    },
+    refKeyboardSurface(updateNoticeOpen)
+  ],
+  runShortcut: (shortcut) => { void runBrowserShortcut(shortcut) }
+})
+const {
+  guardInteraction: guardShellInteraction,
+  handleKeyDown
+} = shellKeyboardController
 const { dispose: disposeAppEventsController } = useAppEventsController({
   browserApi: browser,
   permissionsApi: window.hronautPermissions,
@@ -1653,83 +1715,6 @@ async function resetSettingsSection(section: SettingsSection): Promise<boolean |
   if (section === 'privacy') resetPrivacySelection()
   if (section === 'mcp') return resetMcpSettings()
   if (section === 'updates') return resetUpdateSettings()
-}
-
-function guardShellInteraction(event: Event): void {
-  if (
-    !state.value.allHumanInteractionLocked
-    || !(event.target instanceof Element)
-    || event.target.closest('[data-lock-protected-tab-close]') === null
-  ) return
-  event.preventDefault()
-  event.stopImmediatePropagation()
-}
-
-function handleKeyDown(event: KeyboardEvent): void {
-  const shortcut = browserShortcutAction({
-    key: event.key,
-    control: event.ctrlKey,
-    meta: event.metaKey,
-    alt: event.altKey,
-    shift: event.shiftKey,
-    repeat: event.repeat,
-    composing: event.isComposing
-  })
-  guardShellInteraction(event)
-  if (event.defaultPrevented) return
-  if (commandPaletteOpen.value && shortcut !== 'command-palette') {
-    if (event.key === 'Escape') commandPaletteOpen.value = false
-    return
-  }
-  if (workspaceEditorOpen.value || credentialPickerOpen.value || helpDialogOpen.value || settingsOpen.value) {
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      if (workspaceEditorOpen.value) closeWorkspaceEditor()
-      else if (credentialPickerOpen.value) credentialPickerOpen.value = false
-      else if (helpDialogOpen.value) closeHelpDialog()
-      else closeSettings()
-    }
-    return
-  }
-  if (shortcut) {
-    event.preventDefault()
-    void runBrowserShortcut(shortcut)
-    return
-  }
-  if (event.key !== 'Escape') return
-  if (commandPaletteOpen.value) commandPaletteOpen.value = false
-  else if (siteStorageOpen.value) siteStorageOpen.value = false
-  else if (siteControlsOpen.value) siteControlsOpen.value = false
-  else if (addressSuggestionsOpen.value) addressSuggestionsOpen.value = false
-  else if (findOpen.value) void closeFind()
-  else if (tabSearchOpen.value) tabSearchOpen.value = false
-  else if (splitMenuOpen.value) splitMenuOpen.value = false
-  else if (zoomOpen.value) zoomOpen.value = false
-  else if (downloadsOpen.value) downloadsOpen.value = false
-  else if (bookmarksOpen.value) bookmarksPanel.value?.handleEscape()
-  else if (historyOpen.value) historyOpen.value = false
-  else if (pageToolsOpen.value) pageToolsOpen.value = false
-  else if (accessibilityPanelOpen.value) accessibilityPanelOpen.value = false
-  else if (qualityAuditPanelOpen.value) qualityAuditPanelOpen.value = false
-  else if (performancePanelOpen.value) performancePanelOpen.value = false
-  else if (designOverviewPanelOpen.value) designOverviewPanelOpen.value = false
-  else if (pageMetadataPanelOpen.value) pageMetadataPanelOpen.value = false
-  else if (securityPanelOpen.value) securityPanelOpen.value = false
-  else if (coveragePanelOpen.value) coveragePanelOpen.value = false
-  else if (cpuProfilePanelOpen.value) cpuProfilePanelOpen.value = false
-  else if (memoryPanelOpen.value) memoryPanelOpen.value = false
-  else if (consolePanelOpen.value) consolePanelOpen.value = false
-  else if (debugReportPanelOpen.value) debugReportPanelOpen.value = false
-  else if (reproPanelOpen.value) reproPanelOpen.value = false
-  else if (domChangesPanelOpen.value) domChangesPanelOpen.value = false
-  else if (visualComparePanelOpen.value) visualComparePanelOpen.value = false
-  else if (inspectorIssuesOpen.value) inspectorIssuesOpen.value = false
-  else if (networkMonitorOpen.value) networkMonitorOpen.value = false
-  else if (responsivePanelOpen.value) responsivePanel.value?.handleEscape()
-  else if (environmentPanelOpen.value) environmentPanelOpen.value = false
-  else if (areaCaptureState.value === 'picking') void toggleAreaCapture()
-  else if (elementPickerState.value === 'picking') void cancelActiveElementPicker()
-  else updateNoticeOpen.value = false
 }
 
 useShellWindowLifecycle({
