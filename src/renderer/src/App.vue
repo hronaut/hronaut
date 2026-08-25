@@ -35,7 +35,6 @@ import {
   BrowserBookmark,
   BrowserHistoryEntry,
   HelpMenuAction,
-  CredentialSummary,
   DetachablePanelId,
   PanelDock
 } from '../../shared/types'
@@ -119,6 +118,7 @@ import { useAppBootstrapController, type AppBootstrapFailure } from './composabl
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
+import { useCredentialFillController } from './composables/useCredentialFillController'
 import {
   shouldShowUpdateStatusPill,
   shouldAutoDismissUpdateStatus,
@@ -260,7 +260,6 @@ const {
 } = credentialsController
 const credentialPickerOpen = ref(false)
 const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
-const credentialFillState = ref<'idle' | 'filling'>('idle')
 const shell = ref<HTMLElement | null>(null)
 const findOpen = ref(false)
 const zoomOpen = ref(false)
@@ -1200,6 +1199,29 @@ const {
   pageProblemDetails
 } = activeTabPresentationController
 const {
+  fillSavedPassword,
+  fillSelectedCredential
+} = useCredentialFillController({
+  activeTab,
+  activeCredentials,
+  pickerOpen: credentialPickerOpen,
+  openPicker: () => credentialPicker.value?.openPanel(),
+  fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
+  missingCredentialMessage: t('runtimeActions.credential.noLongerMatches'),
+  onFilled: (credential) => showAppToast(
+    'success',
+    t('runtime.toast.passwordFilled'),
+    t('runtime.toast.passwordFilledDescription', {
+      username: credential.username || t('credentialPicker.unnamed')
+    })
+  ),
+  onError: (error) => showAppToast(
+    'error',
+    t('runtime.toast.passwordFillFailed'),
+    friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
+  )
+})
+const {
   toggle: toggleSiteControls,
   dispose: disposeSiteControlsShellController
 } = useSiteControlsShellController({
@@ -1582,31 +1604,6 @@ function handleExtractedSettingError(error: unknown): void {
 
 function testAttentionSound(): void {
   playFoley(settings.value.attentionSoundCue, { volume: 0.65 })
-}
-
-async function fillSavedPassword(): Promise<void> {
-  if (!activeTab.value || !activeCredentials.value.length) return
-  if (activeCredentials.value.length === 1) {
-    await fillSelectedCredential(activeCredentials.value[0])
-    return
-  }
-  await credentialPicker.value?.openPanel()
-}
-
-async function fillSelectedCredential(credential: CredentialSummary): Promise<void> {
-  const tabId = activeTab.value?.id
-  if (!tabId || credentialFillState.value === 'filling') return
-  credentialPickerOpen.value = false
-  credentialFillState.value = 'filling'
-  try {
-    const filled = await window.hronautCredentials.fill(tabId, credential.id)
-    if (!filled) throw new Error(t('runtimeActions.credential.noLongerMatches'))
-    showAppToast('success', t('runtime.toast.passwordFilled'), t('runtime.toast.passwordFilledDescription', { username: credential.username || t('credentialPicker.unnamed') }))
-  } catch (error) {
-    showAppToast('error', t('runtime.toast.passwordFillFailed'), friendlyUiError(error, t('runtime.toast.passwordFillDescription')))
-  } finally {
-    credentialFillState.value = 'idle'
-  }
 }
 
 function openUpdateSettings(): void {

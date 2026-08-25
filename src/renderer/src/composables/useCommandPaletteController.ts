@@ -5,6 +5,7 @@ import {
   type CommandPaletteCommand,
   type CommandPaletteCommandId
 } from '../../../shared/command-palette.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
@@ -88,6 +89,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    if (isImeCompositionEvent(event)) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       void moveSelection(1)

@@ -1,4 +1,5 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 import type {
   BrowserClosedTabState,
   BrowserSavedTabGroupState,
@@ -219,6 +220,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    if (isImeCompositionEvent(event)) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
       void moveSelection(1)

@@ -81,6 +81,17 @@ describe('FindInPageBar', () => {
     })
   })
 
+  it('does not advance matches when Enter confirms an IME composition', async () => {
+    const { browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await fireEvent.update(search, 'needle')
+    await vi.waitFor(() => expect(browser.findInPage).toHaveBeenCalledOnce())
+
+    await fireEvent.keyDown(search, { key: 'Enter', isComposing: true })
+
+    expect(browser.findInPage).toHaveBeenCalledOnce()
+  })
+
   it('keeps a stale search response from replacing the latest result', async () => {
     const first = deferred<BrowserFindResult>()
     const second = deferred<BrowserFindResult>()

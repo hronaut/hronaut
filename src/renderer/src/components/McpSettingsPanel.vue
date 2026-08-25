@@ -4,6 +4,7 @@ import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { MAX_MCP_PORT, MIN_MCP_PORT } from '../../../shared/mcp-port'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 const props = defineProps<{
   controller: McpSettingsController
@@ -30,6 +31,12 @@ async function changeAuthentication(event: Event): Promise<void> {
 
 function changePort(event: Event): void {
   editPort((event.target as HTMLInputElement).value)
+}
+
+function handlePortKeydown(event: KeyboardEvent): void {
+  if (isImeCompositionEvent(event) || event.key !== 'Enter') return
+  event.preventDefault()
+  void applyPort()
 }
 </script>
 
@@ -70,7 +77,7 @@ function changePort(event: Event): void {
               step="1"
               :aria-label="t('settings.mcp.port')"
               @input="changePort"
-              @keydown.enter.prevent="applyPort"
+              @keydown="handlePortKeydown"
             />
             <button
               class="secondary-button"

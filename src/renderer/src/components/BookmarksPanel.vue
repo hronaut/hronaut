@@ -10,6 +10,7 @@ import IconSearch from '~icons/material-symbols/search-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import type { BrowserBookmark, PanelDock } from '../../../shared/types.js'
 import { useBookmarksPanelController } from '../composables/useBookmarksPanelController.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 import PanelDockPicker from './PanelDockPicker.vue'
 
 const props = defineProps<{
@@ -59,6 +60,17 @@ const {
 
 defineExpose({ toggle, toggleCurrent, handleEscape })
 onBeforeUnmount(dispose)
+
+function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
+  if (isImeCompositionEvent(event)) return
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    void commitRename(bookmarkId)
+  } else if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelRename()
+  }
+}
 </script>
 
 <template>
@@ -111,8 +123,7 @@ onBeforeUnmount(dispose)
               :aria-label="t('bookmarks.renameAria', { title: bookmark.title })"
               :disabled="pendingAction !== null"
               maxlength="200"
-              @keydown.enter.prevent="commitRename(bookmark.id)"
-              @keydown.escape.prevent="cancelRename"
+              @keydown="handleRenameKeydown($event, bookmark.id)"
             />
             <span>{{ bookmark.url }}</span>
           </span>

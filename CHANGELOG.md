@@ -7,11 +7,13 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Move global shell keyboard, modal priority, and Escape-surface routing out of `App.vue` into a focused controller.
+- Move saved-password fill and account-picker orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
 - Keep command palettes, dialogs, and tool panels open when Escape belongs to an active IME composition.
 - Cancel a pending credential fill when the user changes tabs or its page navigates or reloads, including same-origin pages, instead of filling a stale background document.
+- Keep IME candidate navigation and confirmation inside address, command, tab-search, and credential inputs instead of moving, running, filling, or closing shell results.
 
 ## [1.4.4] - 2026-08-25
 

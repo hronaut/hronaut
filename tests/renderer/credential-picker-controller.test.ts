@@ -55,6 +55,21 @@ describe('credential picker controller', () => {
     controller.dispose()
   })
 
+  it('does not fill, move, or close while an IME composition owns the key', async () => {
+    const { open, fillCredential, controller } = createController()
+    await controller.openPanel()
+
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', isComposing: true }))
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true }))
+    await Promise.resolve()
+
+    expect(controller.selection.value).toBe(0)
+    expect(fillCredential).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
+
   it('resets selection to the first match when the query changes', async () => {
     const { controller } = createController()
     await controller.openPanel()

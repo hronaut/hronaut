@@ -59,6 +59,20 @@ describe('command palette controller', () => {
     controller.dispose()
   })
 
+  it('does not run or move commands while an IME composition owns the key', async () => {
+    const { open, runCommand, controller } = createController(true)
+    await controller.openPanel()
+
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', isComposing: true }))
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+    await Promise.resolve()
+
+    expect(controller.selection.value).toBe(0)
+    expect(runCommand).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
+
   it('resets selection to the strongest match when the query changes', async () => {
     const { controller } = createController(true)
     await controller.openPanel()

@@ -1,5 +1,6 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import type { CredentialSummary } from '../../../shared/types.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 type Translate = (key: string) => string
 
@@ -76,6 +77,7 @@ export function useCredentialPickerController(options: CredentialPickerControlle
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    if (isImeCompositionEvent(event)) return
     if (event.key === 'Escape') {
       event.preventDefault()
       close()

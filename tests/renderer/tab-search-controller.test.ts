@@ -178,6 +178,21 @@ describe('tab search controller', () => {
     controller.dispose()
   })
 
+  it('does not switch or move tabs while an IME composition owns the key', async () => {
+    const { open, selectTab, controller } = createController()
+    await controller.openPanel()
+    const initialSelection = controller.selection.value
+
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', isComposing: true }))
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+    await Promise.resolve()
+
+    expect(controller.selection.value).toBe(initialSelection)
+    expect(selectTab).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
+
   it('resets selection to the first match when the search query changes', async () => {
     const { controller } = createController()
     await controller.openPanel()

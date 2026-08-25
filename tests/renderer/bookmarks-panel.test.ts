@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import BookmarksPanel from '../../src/renderer/src/components/BookmarksPanel.vue'
@@ -67,6 +67,22 @@ describe('BookmarksPanel', () => {
     expect(renameBookmark).toHaveBeenCalledTimes(2)
     expect(screen.getByText('Corrected title')).toBeVisible()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('does not save or cancel a rename when IME composition owns Enter or Escape', async () => {
+    const renameBookmark = vi.fn(async () => [bookmark('alpha', 'Composed title')])
+    renderPanel({ bookmarks: [bookmark('alpha', 'Alpha docs')], renameBookmark })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    const editor = screen.getByRole('textbox', { name: 'Rename Alpha docs' })
+    await fireEvent.update(editor, 'Composed title')
+
+    await fireEvent.keyDown(editor, { key: 'Enter', isComposing: true })
+    await fireEvent.keyDown(editor, { key: 'Escape', isComposing: true })
+
+    expect(renameBookmark).not.toHaveBeenCalled()
+    expect(editor).toHaveValue('Composed title')
+    expect(editor).toBeVisible()
   })
 
   it('emits dock changes and resets editing after the panel is closed', async () => {

@@ -11,6 +11,7 @@ import {
   type BrowserTabState,
   type HronautApi
 } from '../../../shared/types.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 type FindBrowserApi = Pick<HronautApi, 'findInPage' | 'stopFindInPage'>
 
@@ -51,6 +52,12 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
       result.value = { activeMatchOrdinal: 0, matches: 0 }
     }
   }
+}
+
+function handleSearchKeydown(event: KeyboardEvent): void {
+  if (isImeCompositionEvent(event) || event.key !== 'Enter') return
+  event.preventDefault()
+  void search(!event.shiftKey, false)
 }
 
 async function activate(tab: BrowserTabState | undefined): Promise<void> {
@@ -116,7 +123,7 @@ defineExpose({ close, openForTab })
         spellcheck="false"
         :placeholder="t('find.placeholder')"
         @input="search(true, true)"
-        @keydown.enter.prevent="search(!$event.shiftKey, false)"
+        @keydown="handleSearchKeydown"
       />
     </div>
     <output class="find-count" aria-live="polite">

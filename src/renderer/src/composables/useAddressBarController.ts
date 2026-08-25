@@ -3,6 +3,7 @@ import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggest
 import { buildLocalAddressSuggestions } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
@@ -150,6 +151,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   function handleKeydown(event: KeyboardEvent): void {
+    if (isImeCompositionEvent(event)) return
     if (event.key === 'Escape' && open.value) {
       event.preventDefault()
       close()

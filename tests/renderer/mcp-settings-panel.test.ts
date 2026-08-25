@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import McpSettingsPanel from '../../src/renderer/src/components/McpSettingsPanel.vue'
@@ -80,6 +80,18 @@ describe('McpSettingsPanel', () => {
     expect(port).toHaveValue(49001)
     expect(screen.queryByText('MCP port 49000 is active.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply port' })).toBeEnabled()
+    controller.dispose()
+  })
+
+  it('does not apply the port when Enter confirms an IME composition', async () => {
+    const { controller, setPort } = renderPanel()
+    const port = screen.getByRole('spinbutton', { name: 'MCP server port' })
+    await fireEvent.update(port, '49000')
+
+    await fireEvent.keyDown(port, { key: 'Enter', isComposing: true })
+
+    expect(setPort).not.toHaveBeenCalled()
+    expect(port).toHaveValue(49000)
     controller.dispose()
   })
 

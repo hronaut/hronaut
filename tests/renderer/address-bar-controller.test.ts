@@ -145,6 +145,26 @@ describe('address bar controller', () => {
     expect(rendered.onNavigate).not.toHaveBeenCalled()
   })
 
+  it('keeps the composed address and selection untouched while an IME owns the key', async () => {
+    const rendered = createHarness({
+      bookmarks: [{ id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.controller.suggestions.value).toHaveLength(1))
+
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', isComposing: true }))
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true }))
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Escape', isComposing: true }))
+    await Promise.resolve()
+
+    expect(input).toHaveValue('saved')
+    expect(rendered.controller.selection.value).toBe(-1)
+    expect(rendered.controller.open.value).toBe(true)
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
   it('keeps the last native suggestion selectable after focus loss restores the address', async () => {
     vi.useFakeTimers()
     const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }

@@ -45,6 +45,17 @@ describe('useShellKeyboardController', () => {
     expect(panel.close).not.toHaveBeenCalled()
   })
 
+  it('recognizes Chromium process-key fallback events as IME composition', () => {
+    const commandPalette = surface(true)
+    const { controller } = setup({ commandPalette })
+    const processKey = new KeyboardEvent('keydown', { key: 'Escape' })
+    Object.defineProperty(processKey, 'keyCode', { value: 229 })
+
+    controller.handleKeyDown(processKey)
+
+    expect(commandPalette.close).not.toHaveBeenCalled()
+  })
+
   it('keeps command-palette input modal while allowing its own toggle shortcut', () => {
     const commandPalette = surface(true)
     const { controller, runShortcut } = setup({ commandPalette })

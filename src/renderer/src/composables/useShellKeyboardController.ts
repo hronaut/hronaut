@@ -2,6 +2,7 @@ import {
   browserShortcutAction,
   type BrowserShortcutAction
 } from '../../../shared/browser-shortcuts.js'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 export interface ShellKeyboardSurface {
   isOpen: () => boolean
@@ -35,6 +36,7 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
   }
 
   function handleKeyDown(event: KeyboardEvent): void {
+    const composing = isImeCompositionEvent(event)
     const shortcut = browserShortcutAction({
       key: event.key,
       control: event.ctrlKey,
@@ -42,10 +44,10 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       alt: event.altKey,
       shift: event.shiftKey,
       repeat: event.repeat,
-      composing: event.isComposing
+      composing
     })
     guardInteraction(event)
-    if (event.defaultPrevented || event.isComposing) return
+    if (event.defaultPrevented || composing) return
     if (options.commandPalette.isOpen() && shortcut !== 'command-palette') {
       if (event.key === 'Escape') options.commandPalette.close()
       return
