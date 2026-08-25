@@ -6,6 +6,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.0] - 2026-08-25
+
+### Added
+
 - Add a persisted top/left tab position setting with a scrollable vertical rail for crowded sessions.
 - Add a workspace context action that sleeps only eligible background tabs while preserving active, pinned, busy, and unsaved-form tabs.
 
