@@ -19,10 +19,9 @@ const typedPhase: ProfilePhase = phase
 const endpoint = new URL(process.env.HRONAUT_MCP_URL || 'http://127.0.0.1:47812/mcp')
 const pageUrl = process.env.HRONAUT_PROFILE_SMOKE_URL || 'http://127.0.0.1:47813/'
 const token = process.env.HRONAUT_MCP_TOKEN
-if (!token) throw new Error('Set HRONAUT_MCP_TOKEN to the token for the running Hronaut profile.')
 const client = new Client({ name: 'hronaut-profile-smoke', version: '1.0.0' })
 await client.connect(new StreamableHTTPClientTransport(endpoint, {
-  requestInit: { headers: { authorization: `Bearer ${token}` } }
+  ...(token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : {})
 }))
 const workspaceId = await useMcpWorkspace(client, 'Profile smoke')
 
