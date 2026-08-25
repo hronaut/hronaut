@@ -119,6 +119,7 @@ import { friendlyUiError, useAppToastController } from './composables/useAppToas
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
+import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import {
   shouldShowUpdateStatusPill,
   shouldAutoDismissUpdateStatus,
@@ -787,6 +788,24 @@ const transientPanelsController = useTransientPanelsController({
   findOpen,
   closeFind,
   onError: reportShellActionError
+})
+const {
+  resetConsole: resetConsoleView,
+  refreshConsole,
+  toggleConsole,
+  resetNetwork: resetNetworkMonitorView,
+  refreshNetwork: refreshNetworkMonitor,
+  refreshNetworkRoutes,
+  refreshNetworkAll: refreshNetwork,
+  toggleNetwork: toggleNetworkMonitor,
+  openRequestConditions
+} = useDeveloperPanelsShellController({
+  consoleOpen: consolePanelOpen,
+  consolePanel,
+  networkOpen: networkMonitorOpen,
+  networkPanel,
+  closeTransientPanels: transientPanelsController.close,
+  keepsSeparatePanelOpen
 })
 const {
   open: splitMenuOpen,
@@ -1509,64 +1528,6 @@ async function toggleTabHumanInteraction(): Promise<void> {
 
 async function toggleAllHumanInteraction(): Promise<void> {
   await syncState(browser.setAllHumanInteractionLocked(!state.value.allHumanInteractionLocked))
-}
-
-function resetConsoleView(closePanel = false): void {
-  consolePanel.value?.reset(closePanel)
-  if (closePanel && !keepsSeparatePanelOpen()) consolePanelOpen.value = false
-}
-
-async function refreshConsole(clear = false): Promise<void> {
-  await nextTick()
-  await consolePanel.value?.refresh(clear)
-}
-
- function toggleConsole(): void {
-  if (consolePanelOpen.value) {
-    consolePanelOpen.value = false
-    return
-  }
-  closeTransientPanels()
-  consolePanelOpen.value = true
-}
-
-function resetNetworkMonitorView(closePanel = false): void {
-  networkPanel.value?.reset(closePanel)
-  if (closePanel && !keepsSeparatePanelOpen()) networkMonitorOpen.value = false
-}
-
-async function refreshNetworkMonitor(clear = false): Promise<void> {
-  await nextTick()
-  await networkPanel.value?.refresh(clear)
-}
-
-async function refreshNetworkRoutes(silent = false): Promise<void> {
-  await nextTick()
-  await networkPanel.value?.refreshRoutes(silent)
-}
-
-async function refreshNetwork(): Promise<void> {
-  await nextTick()
-  await networkPanel.value?.refreshAll()
-}
-
-function toggleNetworkMonitor(): void {
-  if (networkMonitorOpen.value) {
-    networkMonitorOpen.value = false
-    return
-  }
-  closeTransientPanels()
-  networkMonitorOpen.value = true
-  void refreshNetwork()
-}
-
-async function openRequestConditions(): Promise<void> {
-  if (!networkMonitorOpen.value) {
-    closeTransientPanels()
-    networkMonitorOpen.value = true
-    await nextTick()
-  }
-  await networkPanel.value?.openRequestConditions()
 }
 
 function describeTabEmulation(tab: BrowserTabState): string {

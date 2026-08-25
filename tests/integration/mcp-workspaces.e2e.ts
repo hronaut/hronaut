@@ -153,6 +153,17 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     return Boolean(strip && tab.left >= strip.left + 30 && tab.right <= strip.right - 30)
   })).toBe(true)
 
+  const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Overflow tab 1')?.id)`) as string
+  expect(firstTabId).toMatch(UUID_V7_PATTERN)
+  await appWindow.evaluate(`window.hronaut.setTabPinned(${JSON.stringify(firstTabId)}, true)`)
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(firstTabId)})?.pinned)`)).toBe(true)
+  await appWindow.evaluate(`window.hronaut.setTabPinned(${JSON.stringify(firstTabId)}, false)`)
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const strip = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(strip && tab.left >= strip.left + 30 && tab.right <= strip.right - 30)
+  })).toBe(true)
+
   const firstTab = appWindow.getByRole('tab', { name: /^Overflow tab 1 —/ })
   const lastTab = appWindow.getByRole('tab', { name: /^Overflow tab 12 —/ })
   const previousTab = appWindow.getByRole('tab', { name: /^Overflow tab 11 —/ })

@@ -88,6 +88,15 @@ function revealActiveTab(): void {
   }
 }
 
+function activeTabIsVisible(): boolean {
+  const strip = tabsStrip.value
+  const activeTab = strip?.querySelector<HTMLElement>('[data-active-tab="true"]')
+  if (!strip || !activeTab) return false
+  const stripBounds = strip.getBoundingClientRect()
+  const tabBounds = activeTab.getBoundingClientRect()
+  return tabBounds.left >= stripBounds.left - 1 && tabBounds.right <= stripBounds.right + 1
+}
+
 function handleTabStripResize(): void {
   updateTabOverflow()
   revealActiveTab()
@@ -274,8 +283,10 @@ watch(
     () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
   async () => {
+    const revealAfterLayout = activeTabIsVisible()
     await nextTick()
     updateTabOverflow()
+    if (revealAfterLayout) revealActiveTab()
   }
 )
 

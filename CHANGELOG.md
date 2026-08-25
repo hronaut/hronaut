@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Move Console and Network panel shell orchestration out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Keep the active tab visible when earlier pinned tabs or workspace labels expand in a crowded strip, without overriding deliberate tab-strip scrolling.
+- Cancel a queued Network refresh when the panel is closed again before it finishes opening.
+
 ## [1.4.5] - 2026-08-25
 
 ### Changed
