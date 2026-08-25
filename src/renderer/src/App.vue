@@ -96,6 +96,7 @@ import { useShellOverlayCoordinationController } from './composables/useShellOve
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
+import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
 import {
   useShellKeyboardController,
   type ShellKeyboardSurface
@@ -542,6 +543,33 @@ const fullModalOpen = computed(() => settingsOpen.value
   || helpDialogOpen.value
   || workspaceEditorOpen.value
   || credentialPickerOpen.value)
+const {
+  reorderTab,
+  selectBrowserTab,
+  navigateAddress,
+  retryActivePageProblem,
+  showWorkspaceContextMenu,
+  closeTab,
+  toggleTabMuted,
+  toggleTabHumanInteraction,
+  toggleAllHumanInteraction
+} = useBrowserTabActionsController({
+  state,
+  activeTab,
+  isHome: () => activeTab.value?.url.startsWith('hronaut://home') ?? true,
+  browser,
+  syncState,
+  onSelectError: (error) => showAppToast(
+    'error',
+    t('runtime.workspace.openFailed'),
+    friendlyUiError(error, t('runtime.workspace.openDescription'))
+  ),
+  onNavigateError: (error) => showAppToast(
+    'error',
+    t('runtime.navigation.failed'),
+    friendlyUiError(error, t('runtime.navigation.failedDescription'))
+  )
+})
 const addressBarController = useAddressBarController({
   activeTab,
   bookmarks,
@@ -1350,10 +1378,6 @@ function reportAppBootstrapFailure(failures: AppBootstrapFailure[]): void {
   )
 }
 
-async function reorderTab(details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }): Promise<void> {
-  await syncState(browser.reorderTab(details.tabId, details.targetTabId, details.placement))
-}
-
 function setResponsiveTabViewport(
   tabId: string,
   viewport: NonNullable<BrowserEmulationState['viewport']> | null
@@ -1456,30 +1480,6 @@ async function syncState(next: Promise<BrowserState> | BrowserState): Promise<vo
   await browserStore.syncOperation(Promise.resolve(next))
 }
 
-async function selectBrowserTab(tabId: string): Promise<boolean> {
-  try {
-    await syncState(browser.selectTab(tabId))
-    return true
-  } catch (error) {
-    showAppToast('error', t('runtime.workspace.openFailed'), friendlyUiError(error, t('runtime.workspace.openDescription')))
-    return false
-  }
-}
-
-async function navigateAddress(nextAddress: string): Promise<void> {
-  try {
-    await syncState(browser.navigate({ url: nextAddress, tabId: state.value.activeTabId ?? undefined }))
-  } catch (error) {
-    showAppToast('error', t('runtime.navigation.failed'), friendlyUiError(error, t('runtime.navigation.failedDescription')))
-  }
-}
-
-async function retryActivePageProblem(): Promise<void> {
-  const tab = activeTab.value
-  if (!tab?.pageProblem) return
-  await syncState(browser.reload(tab.id))
-}
-
 async function refreshSiteDataSummary(): Promise<void> {
   await siteDataController.refresh()
 }
@@ -1503,34 +1503,12 @@ function handleWindowResize(): void {
   resizeAddressSuggestions()
 }
 
-async function showWorkspaceContextMenu(groupId: string): Promise<void> {
-  await browser.showWorkspaceContextMenu(groupId)
-}
-
 function handleZoomError(error: unknown): void {
   showAppToast('error', t('runtimeDetails.browserAction'), friendlyUiError(error, t('runtime.toast.actionFailed')))
 }
 
 async function closeFind(): Promise<void> {
   await findBar.value?.close()
-}
-
-async function closeTab(tabId: string): Promise<void> {
-  if (state.value.allHumanInteractionLocked) return
-  await syncState(browser.closeTab(tabId))
-}
-
-async function toggleTabMuted(tab: BrowserTabState): Promise<void> {
-  await syncState(browser.setTabMuted(tab.id, !tab.muted))
-}
-
-async function toggleTabHumanInteraction(): Promise<void> {
-  if (!activeTab.value || activeIsHome.value || state.value.allHumanInteractionLocked) return
-  await syncState(browser.setTabHumanInteractionLocked(activeTab.value.id, !activeTab.value.humanInteractionLocked))
-}
-
-async function toggleAllHumanInteraction(): Promise<void> {
-  await syncState(browser.setAllHumanInteractionLocked(!state.value.allHumanInteractionLocked))
 }
 
 function describeTabEmulation(tab: BrowserTabState): string {

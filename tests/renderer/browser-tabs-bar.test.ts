@@ -508,6 +508,39 @@ describe('BrowserTabsBar', () => {
     }
   })
 
+  it('keeps a partially visible active tab revealed when earlier tabs expand', async () => {
+    const scrollIntoView = vi.fn()
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const first = tab('first', { pinned: true })
+      const active = tab('active', { active: true })
+      const view = renderTabs(browserState({ tabs: [first, active], activeTabId: active.id }))
+      await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+      scrollIntoView.mockClear()
+      vi.spyOn(screen.getByRole('tablist'), 'getBoundingClientRect').mockReturnValue({
+        left: 0, right: 320, top: 0, bottom: 40, width: 320, height: 40, x: 0, y: 0, toJSON: () => ({})
+      })
+      vi.spyOn(screen.getByRole('tab', { name: active.title }), 'getBoundingClientRect').mockReturnValue({
+        left: 280, right: 400, top: 0, bottom: 40, width: 120, height: 40, x: 280, y: 0, toJSON: () => ({})
+      })
+
+      await view.rerender({
+        state: browserState({
+          tabs: [{ ...first, pinned: false }, active],
+          activeTabId: active.id
+        })
+      })
+
+      await vi.waitFor(() => {
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+      })
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
+
   it('does not steal a crowded strip the user scrolled away from the active tab', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')

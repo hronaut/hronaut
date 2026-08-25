@@ -10,10 +10,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move browser tab mutation and action-specific error policy out of `App.vue` into a focused controller.
 - Move Console and Network panel shell orchestration out of `App.vue` into a focused controller.
 
 ### Fixed
 
+- Keep a partially visible active tab in view when earlier crowded-strip items expand, while still respecting deliberate scrolling away from it.
 - Prevented rapid detached Page Tools switches from refreshing a panel that was already superseded before rendering.
 - Keep the active tab visible when earlier pinned tabs or workspace labels expand in a crowded strip, without overriding deliberate tab-strip scrolling.
 - Cancel a queued Network refresh when the panel is closed again before it finishes opening.

@@ -1,0 +1,131 @@
+import { ref } from 'vue'
+import { describe, expect, it, vi } from 'vitest'
+import { useBrowserTabActionsController } from '../../src/renderer/src/composables/useBrowserTabActionsController.js'
+import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
+
+function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
+  return {
+    id: 'active',
+    title: 'Active page',
+    url: 'https://example.test/',
+    loading: false,
+    canGoBack: false,
+    canGoForward: false,
+    active: true,
+    pinned: false,
+    sleeping: false,
+    humanInteractionLocked: false,
+    preserveDiagnosticLogs: false,
+    zoomPercent: 100,
+    audible: false,
+    muted: false,
+    devToolsOpen: false,
+    ...overrides
+  }
+}
+
+function browserState(active: BrowserTabState = tab()): BrowserState {
+  return {
+    tabs: [active],
+    closedTabs: [],
+    activeTabId: active.id,
+    allHumanInteractionLocked: false,
+    mcpUrl: 'http://127.0.0.1:47812/mcp',
+    profilePath: '/tmp/profile',
+    mcpTabGroups: [],
+    savedTabGroups: []
+  }
+}
+
+function createHarness() {
+  const active = tab()
+  const state = ref(browserState(active))
+  const activeTab = ref<BrowserTabState | undefined>(active)
+  const home = ref(false)
+  const browser = {
+    closeTab: vi.fn(async (_tabId: string) => state.value),
+    navigate: vi.fn(async (_options: { url: string; tabId?: string }) => state.value),
+    reload: vi.fn(async (_tabId?: string) => state.value),
+    reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
+    selectTab: vi.fn(async (_tabId: string) => state.value),
+    setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
+    setTabHumanInteractionLocked: vi.fn(async (_tabId: string, _locked: boolean) => state.value),
+    setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
+    showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined)
+  }
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
+  const onSelectError = vi.fn()
+  const onNavigateError = vi.fn()
+  const controller = useBrowserTabActionsController({
+    state,
+    activeTab,
+    isHome: () => home.value,
+    browser,
+    syncState,
+    onSelectError,
+    onNavigateError
+  })
+  return { state, activeTab, home, browser, syncState, onSelectError, onNavigateError, controller }
+}
+
+describe('browser tab actions controller', () => {
+  it('contains selection and navigation failures at their action-specific boundaries', async () => {
+    const harness = createHarness()
+    const selectionFailure = new Error('selection failed')
+    const navigationFailure = new Error('navigation failed')
+    harness.browser.selectTab.mockRejectedValueOnce(selectionFailure)
+    harness.browser.navigate.mockRejectedValueOnce(navigationFailure)
+
+    await expect(harness.controller.selectBrowserTab('other')).resolves.toBe(false)
+    await expect(harness.controller.navigateAddress('https://next.test/')).resolves.toBeUndefined()
+
+    expect(harness.onSelectError).toHaveBeenCalledWith(selectionFailure)
+    expect(harness.onNavigateError).toHaveBeenCalledWith(navigationFailure)
+  })
+
+  it('targets the current tab for navigation and page-problem retry', async () => {
+    const harness = createHarness()
+    await harness.controller.navigateAddress('https://next.test/')
+    await harness.controller.retryActivePageProblem()
+    expect(harness.browser.navigate).toHaveBeenCalledWith({ url: 'https://next.test/', tabId: 'active' })
+    expect(harness.browser.reload).not.toHaveBeenCalled()
+
+    harness.activeTab.value = tab({ pageProblem: {
+      kind: 'load-error',
+      title: 'Unavailable',
+      message: 'Try again',
+      url: 'https://example.test/'
+    } })
+    await harness.controller.retryActivePageProblem()
+    expect(harness.browser.reload).toHaveBeenCalledWith('active')
+  })
+
+  it('preserves global and Home interaction guards', async () => {
+    const harness = createHarness()
+    harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
+    await harness.controller.closeTab('active')
+    await harness.controller.toggleTabHumanInteraction()
+    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+
+    harness.state.value = { ...harness.state.value, allHumanInteractionLocked: false }
+    harness.home.value = true
+    await harness.controller.toggleTabHumanInteraction()
+    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+  })
+
+  it('delegates workspace, ordering, mute, and interaction mutations with inverted state', async () => {
+    const harness = createHarness()
+    await harness.controller.showWorkspaceContextMenu('workspace')
+    await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'second', placement: 'after' })
+    await harness.controller.toggleTabMuted(tab({ muted: true }))
+    await harness.controller.toggleTabHumanInteraction()
+    await harness.controller.toggleAllHumanInteraction()
+
+    expect(harness.browser.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace')
+    expect(harness.browser.reorderTab).toHaveBeenCalledWith('first', 'second', 'after')
+    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
+    expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+})

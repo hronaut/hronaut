@@ -154,15 +154,39 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })).toBe(true)
 
   const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Overflow tab 1')?.id)`) as string
+  const partiallyVisibleTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Overflow tab 8')?.id)`) as string
   expect(firstTabId).toMatch(UUID_V7_PATTERN)
+  expect(partiallyVisibleTabId).toMatch(UUID_V7_PATTERN)
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(partiallyVisibleTabId)})`)
+  await expect.poll(() => strip.evaluate(async (element) => {
+    const before = element.scrollLeft
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    return Math.abs(element.scrollLeft - before) < 1
+  })).toBe(true)
+  await strip.evaluate((element) => {
+    const active = element.querySelector<HTMLElement>('[data-active-tab="true"]')
+    if (!active) throw new Error('Active crowded tab was not found')
+    element.scrollLeft = active.offsetLeft + active.offsetWidth / 2
+  })
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const stripBounds = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(stripBounds && tab.left < stripBounds.left && tab.right > stripBounds.left)
+  })).toBe(true)
   await appWindow.evaluate(`window.hronaut.setTabPinned(${JSON.stringify(firstTabId)}, true)`)
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(firstTabId)})?.pinned)`)).toBe(true)
+  await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
+    const tab = element.getBoundingClientRect()
+    const stripBounds = element.closest('.tabs-strip')?.getBoundingClientRect()
+    return Boolean(stripBounds && tab.left >= stripBounds.left + 30 && tab.right <= stripBounds.right - 30)
+  })).toBe(true)
   await appWindow.evaluate(`window.hronaut.setTabPinned(${JSON.stringify(firstTabId)}, false)`)
   await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
     const tab = element.getBoundingClientRect()
     const strip = element.closest('.tabs-strip')?.getBoundingClientRect()
     return Boolean(strip && tab.left >= strip.left + 30 && tab.right <= strip.right - 30)
   })).toBe(true)
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(lastTabId)})`)
 
   const firstTab = appWindow.getByRole('tab', { name: /^Overflow tab 1 —/ })
   const lastTab = appWindow.getByRole('tab', { name: /^Overflow tab 12 —/ })
