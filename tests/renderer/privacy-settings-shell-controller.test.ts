@@ -35,6 +35,8 @@ function createController() {
     settingsOpen.value = false
   })
   const closeFind = vi.fn<() => Promise<void>>(async () => undefined)
+  const refresh = vi.fn<() => Promise<void>>(async () => undefined)
+  const onRefreshError = vi.fn()
   const controller = usePrivacySettingsShellController({
     settingsOpen,
     settingsSection,
@@ -43,7 +45,9 @@ function createController() {
     search,
     openSection,
     closeSettings,
-    closeFind
+    closeFind,
+    refresh,
+    onRefreshError
   })
   return {
     settingsOpen,
@@ -54,6 +58,8 @@ function createController() {
     openSection,
     closeSettings,
     closeFind,
+    refresh,
+    onRefreshError,
     controller
   }
 }
@@ -149,6 +155,65 @@ describe('usePrivacySettingsShellController', () => {
     expect(harness.closeFind).not.toHaveBeenCalled()
     expect(harness.search.value).toBe('')
     expect(harness.settingsOpen.value).toBe(true)
+    harness.controller.dispose()
+  })
+
+  it('refreshes Privacy when opened directly or selected inside Settings', async () => {
+    const harness = createController()
+    harness.findOpen.value = false
+
+    await harness.controller.open('https://example.com')
+    expect(harness.refresh).toHaveBeenCalledOnce()
+
+    harness.openSection('appearance')
+    harness.openSection('privacy')
+    expect(harness.refresh).toHaveBeenCalledTimes(2)
+    harness.controller.dispose()
+  })
+
+  it('clears the website search only after the Privacy dialog closes', async () => {
+    const harness = createController()
+    harness.findOpen.value = false
+    await harness.controller.open('https://example.com')
+
+    harness.openSection('appearance')
+    expect(harness.search.value).toBe('https://example.com')
+    harness.openSection('privacy')
+    harness.closeSettings()
+    await Promise.resolve()
+
+    expect(harness.search.value).toBe('')
+    harness.controller.dispose()
+  })
+
+  it('reports only a current Privacy refresh failure', async () => {
+    const harness = createController()
+    const older = deferred<void>()
+    const newerFailure = new Error('Latest refresh failed')
+    harness.refresh
+      .mockReturnValueOnce(older.promise)
+      .mockRejectedValueOnce(newerFailure)
+
+    harness.openSection('privacy')
+    harness.openSection('appearance')
+    older.reject(new Error('Obsolete refresh failed'))
+    await Promise.resolve()
+    expect(harness.onRefreshError).not.toHaveBeenCalled()
+
+    harness.openSection('privacy')
+    await vi.waitFor(() => expect(harness.onRefreshError).toHaveBeenCalledWith(newerFailure))
+    harness.controller.dispose()
+  })
+
+  it('reports a refresh failure from the direct Privacy open path', async () => {
+    const harness = createController()
+    const failure = new Error('Privacy refresh failed')
+    harness.findOpen.value = false
+    harness.refresh.mockRejectedValueOnce(failure)
+
+    await harness.controller.open()
+
+    await vi.waitFor(() => expect(harness.onRefreshError).toHaveBeenCalledWith(failure))
     harness.controller.dispose()
   })
 })

@@ -16,17 +16,35 @@ export interface PrivacySettingsShellControllerOptions {
   openSection: (section: SettingsSection) => void
   closeSettings: () => void
   closeFind: () => Promise<void>
+  refresh: () => unknown
+  onRefreshError: (error: unknown) => void
 }
 
 export function usePrivacySettingsShellController(options: PrivacySettingsShellControllerOptions) {
   let openGeneration = 0
+  let refreshGeneration = 0
   const stopWatchingSettings = watch(
     [options.settingsOpen, options.settingsSection],
     ([isOpen, section]) => {
-      if (!isOpen || section !== 'privacy') openGeneration += 1
+      if (!isOpen || section !== 'privacy') {
+        openGeneration += 1
+        refreshGeneration += 1
+        return
+      }
+      const generation = ++refreshGeneration
+      try {
+        void Promise.resolve(options.refresh()).catch((error: unknown) => {
+          if (generation === refreshGeneration) options.onRefreshError(error)
+        })
+      } catch (error) {
+        if (generation === refreshGeneration) options.onRefreshError(error)
+      }
     },
     { flush: 'sync' }
   )
+  const stopWatchingDialog = watch(options.settingsOpen, (isOpen) => {
+    if (!isOpen && options.settingsSection.value === 'privacy') options.search.value = ''
+  })
 
   function isCurrent(generation: number): boolean {
     return generation === openGeneration
@@ -57,7 +75,9 @@ export function usePrivacySettingsShellController(options: PrivacySettingsShellC
 
   function dispose(): void {
     openGeneration += 1
+    refreshGeneration += 1
     stopWatchingSettings()
+    stopWatchingDialog()
   }
 
   return { open, dispose }

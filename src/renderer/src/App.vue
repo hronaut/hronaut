@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley } from '@foleyjs/core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
@@ -671,7 +671,9 @@ const {
   search: janitorSearch,
   openSection: openSettingsSection,
   closeSettings,
-  closeFind
+  closeFind,
+  refresh: refreshPrivacySettings,
+  onRefreshError: reportShellActionError
 })
 const pageCaptureController = usePageCaptureController({
   activeTab,
@@ -1394,16 +1396,6 @@ function loadEnvironmentDraft(emulation = activeEmulation.value): void {
 function toggleEnvironment(): void {
   environmentController.toggle()
 }
-
-watch(settingsOpen, (open) => {
-  if (!open && settingsSection.value === 'privacy') janitorSearch.value = ''
-})
-
-watch([settingsOpen, settingsSection], ([open, section]) => {
-  if (open && section === 'privacy') {
-    void refreshPrivacySettings()
-  }
-})
 
 const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCoordinationController({
   layoutSources: [

@@ -31,8 +31,12 @@ function website(hostname: string): BrowsingDataWebsiteSummary {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => { resolve = next })
-  return { promise, resolve }
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
 }
 
 function createController() {
@@ -101,6 +105,84 @@ describe('privacy settings controller', () => {
     expect(api.websites).not.toHaveBeenCalled()
     pendingClear.resolve(summary(0))
     await clearing
+    controller.dispose()
+  })
+
+  it('keeps a completed global clear authoritative when refreshing the website list fails', async () => {
+    const { api, controller } = createController()
+    controller.summary.value = summary(12)
+    controller.websites.value = [website('stale.test')]
+    api.websites.mockRejectedValueOnce(new Error('Website inventory unavailable'))
+
+    await controller.clearSelected()
+
+    expect(api.clear).toHaveBeenCalledOnce()
+    expect(controller.summary.value?.historyEntries).toBe(0)
+    expect(controller.summaryState.value).toBe('cleared')
+    expect(controller.summaryMessage.value).toContain('runtime.browsingData.cleared')
+    expect(controller.websites.value.map((site) => site.hostname)).toEqual(['stale.test'])
+    expect(controller.websiteState.value).toBe('error')
+    expect(controller.websiteMessage.value).toBe('Website inventory unavailable')
+    controller.dispose()
+  })
+
+  it('keeps the global clear busy until its website inventory refresh settles', async () => {
+    const { api, controller } = createController()
+    const inventory = deferred<BrowsingDataWebsiteSummary[]>()
+    api.websites.mockReturnValueOnce(inventory.promise)
+
+    const clearing = controller.clearSelected()
+    await vi.waitFor(() => expect(api.websites).toHaveBeenCalledOnce())
+
+    expect(controller.summary.value?.historyEntries).toBe(0)
+    expect(controller.summaryState.value).toBe('clearing')
+    expect(controller.clearing.value).toBe(true)
+    await controller.clearSelected()
+    expect(api.clear).toHaveBeenCalledOnce()
+
+    inventory.resolve([])
+    await clearing
+    expect(controller.summaryState.value).toBe('cleared')
+    expect(controller.clearing.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('reports a stale website list without misreporting a completed site clear', async () => {
+    const { api, controller } = createController()
+    const target = website('target.test')
+    controller.summary.value = summary(8)
+    controller.websites.value = [target]
+    api.websites.mockRejectedValueOnce(new Error('Website inventory unavailable'))
+
+    await controller.clearWebsite(target)
+
+    expect(api.clear).toHaveBeenCalledWith({
+      history: true,
+      cookiesAndSiteData: false,
+      cache: true,
+      origin: target.origin
+    })
+    expect(controller.summary.value?.historyEntries).toBe(0)
+    expect(controller.websites.value).toEqual([target])
+    expect(controller.websiteState.value).toBe('error')
+    expect(controller.websiteMessage.value).toContain('privacyActions.clearedSite')
+    expect(controller.websiteMessage.value).toContain('Website inventory unavailable')
+    expect(controller.clearingOrigin.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('releases the selected site when its clear operation fails', async () => {
+    const { api, controller } = createController()
+    const target = website('target.test')
+    api.clear.mockRejectedValueOnce(new Error('Clear unavailable'))
+
+    await controller.clearWebsite(target)
+
+    expect(api.websites).not.toHaveBeenCalled()
+    expect(controller.websiteState.value).toBe('error')
+    expect(controller.websiteMessage.value).toBe('Clear unavailable')
+    expect(controller.clearingOrigin.value).toBeNull()
+    expect(controller.clearing.value).toBe(false)
     controller.dispose()
   })
 })

@@ -126,16 +126,26 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     websiteMessage.value = ''
     try {
       const nextSummary = await options.api.clear({ ...clearOptions.value })
-      const nextWebsites = await options.api.websites()
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       summary.value = nextSummary
-      websites.value = nextWebsites
-      summaryState.value = 'cleared'
       summaryMessage.value = options.translate('runtime.browsingData.cleared', {}, selected.length)
     } catch (error) {
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       summaryState.value = 'error'
       summaryMessage.value = errorMessage(error)
+      return
+    }
+
+    try {
+      const nextWebsites = await options.api.websites()
+      if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
+      websites.value = nextWebsites
+      summaryState.value = 'cleared'
+    } catch (error) {
+      if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
+      summaryState.value = 'cleared'
+      websiteState.value = 'error'
+      websiteMessage.value = errorMessage(error)
     }
   }
 
@@ -157,16 +167,27 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
     summaryMessage.value = ''
     try {
       const nextSummary = await options.api.clear({ ...clearOptions.value, origin: site.origin })
-      const nextWebsites = await options.api.websites()
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       summary.value = nextSummary
-      websites.value = nextWebsites
-      websiteState.value = 'cleared'
-      websiteMessage.value = options.translate('privacyActions.clearedSite', { origin: site.origin })
     } catch (error) {
       if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
       websiteState.value = 'error'
       websiteMessage.value = errorMessage(error)
+      clearingOrigin.value = null
+      return
+    }
+
+    const clearedMessage = options.translate('privacyActions.clearedSite', { origin: site.origin })
+    try {
+      const nextWebsites = await options.api.websites()
+      if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
+      websites.value = nextWebsites
+      websiteState.value = 'cleared'
+      websiteMessage.value = clearedMessage
+    } catch (error) {
+      if (summaryOperation !== summaryGeneration || websiteOperation !== websiteGeneration) return
+      websiteState.value = 'error'
+      websiteMessage.value = `${clearedMessage} ${errorMessage(error)}`
     } finally {
       if (summaryOperation === summaryGeneration && websiteOperation === websiteGeneration) clearingOrigin.value = null
     }
