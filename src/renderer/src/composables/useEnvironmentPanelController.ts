@@ -36,6 +36,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   const pendingAction = ref<EnvironmentPanelAction | null>(null)
   let presentationGeneration = 0
   let operationGeneration = 0
+  let disposed = false
 
   const settings = computed<BrowserEnvironmentSettings | null>(() => {
     const candidate: BrowserEnvironmentSettings = {
@@ -91,7 +92,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   }
 
   async function apply(reload = false, override?: BrowserEnvironmentSettings): Promise<void> {
-    if (pendingAction.value) return
+    if (disposed || pendingAction.value) return
     const tab = options.activeTab.value
     const environment = override ?? settings.value
     if (!tab || !environment) return
@@ -150,6 +151,12 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   })
 
   function dispose(): void {
+    if (disposed) return
+    disposed = true
+    presentationGeneration += 1
+    operationGeneration += 1
+    pendingAction.value = null
+    state.value = 'idle'
     stopOpenTracking()
   }
 

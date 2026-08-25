@@ -4,6 +4,16 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split active-tab context transitions and detached-panel refresh coordination out of `App.vue` into focused controllers.
+
+### Fixed
+
+- Reset docked diagnostic panels when the current page reloads at the same URL so stale Network and Console evidence is not left visible.
+- Keep an active tab visible when its workspace changes, and recompute crowded-tab overflow after tabs move into collapsed workspaces.
+- Ignore stale detached-panel refresh failures after a newer tab context or window teardown.
+
 ## [1.4.3] - 2026-08-25
 
 ### Added

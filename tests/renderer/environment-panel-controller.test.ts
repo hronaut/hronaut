@@ -161,4 +161,20 @@ describe('environment panel controller', () => {
     expect(controller.pendingAction.value).toBeNull()
     controller.dispose()
   })
+
+  it('ignores a pending apply after disposal', async () => {
+    const pending = deferred<BrowserState>()
+    const { setTabEnvironment, controller } = createController()
+    setTabEnvironment.mockReturnValueOnce(pending.promise)
+
+    const applying = controller.apply()
+    controller.dispose()
+    pending.resolve(browserState())
+    await applying
+
+    expect(controller.pendingAction.value).toBeNull()
+    expect(controller.state.value).toBe('idle')
+    await controller.apply()
+    expect(setTabEnvironment).toHaveBeenCalledOnce()
+  })
 })

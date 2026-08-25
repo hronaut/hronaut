@@ -1283,11 +1283,25 @@ test('reloads the active website from View and bypasses cached subresources on d
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(activeTitle).toBe('Reload 1 / 1')
 
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    await appWindow.getByRole('dialog', { name: 'Page tools' })
+      .getByRole('button', { name: 'Open network monitor' })
+      .click()
+    const networkPanel = appWindow.getByRole('dialog', { name: 'Network' })
+    await expect(networkPanel).toBeVisible()
+
     await clickViewItem('Reload Tab')
+    await expect(networkPanel).toBeHidden()
     await expect.poll(activeTitle).toBe('Reload 1 / 2')
     expect(scriptRequests).toBe(1)
 
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    await appWindow.getByRole('dialog', { name: 'Page tools' })
+      .getByRole('button', { name: 'Open network monitor' })
+      .click()
+    await expect(networkPanel).toBeVisible()
     await clickViewItem('Reload Tab Without Cache')
+    await expect(networkPanel).toBeHidden()
     await expect.poll(activeTitle).toBe('Reload 2 / 3')
     expect(scriptRequests).toBe(2)
   } finally {

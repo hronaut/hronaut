@@ -92,6 +92,7 @@ import { usePanelRegistryController } from './composables/usePanelRegistryContro
 import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
 import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
 import { useDetachedPanelRefreshController } from './composables/useDetachedPanelRefreshController'
+import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
@@ -321,7 +322,8 @@ const environmentController = useEnvironmentPanelController({
 })
 const {
   state: environmentState,
-  activeOverrideCount: activeEnvironmentOverrideCount
+  activeOverrideCount: activeEnvironmentOverrideCount,
+  dispose: disposeEnvironmentPanelController
 } = environmentController
 const workspaceEditorOpen = ref(false)
 const workspaceEditor = ref<InstanceType<typeof WorkspaceEditor> | null>(null)
@@ -857,6 +859,28 @@ const { dispose: disposeDetachedPanelRefreshController } = useDetachedPanelRefre
   refresh: refreshDetachedPanel,
   onError: reportShellActionError
 })
+const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
+  activeTab,
+  keepsSeparatePanelOpen,
+  siteControlsOpen,
+  pageToolsOpen,
+  responsivePanelOpen,
+  environmentPanelOpen,
+  invalidateEmulationMutation,
+  resetSiteData: siteDataController.reset,
+  resetSiteStorage: resetSiteStorageView,
+  resetConsole: resetConsoleView,
+  resetNetwork: resetNetworkMonitorView,
+  loadResponsiveDraft,
+  resetResponsiveFeedback,
+  loadEnvironmentDraft,
+  resetEnvironmentFeedback: environmentController.resetFeedback,
+  preserveEnvironmentReload: () => environmentController.pendingAction.value === 'apply-reload',
+  onTabChanged: (tab) => {
+    credentialPickerOpen.value = false
+    if (tab && !tab.url.startsWith('hronaut://home')) lastWebTabId.value = tab.id
+  }
+})
 const appBootstrapController = useAppBootstrapController({
   tasks: [
     { id: 'settings', run: () => settingsStore.initialize() },
@@ -1348,13 +1372,6 @@ watch(fullModalOpen, (open) => {
 }, { flush: 'sync' })
 
 watch(
-  () => activeTab.value?.id,
-  () => {
-    credentialPickerOpen.value = false
-  }
-)
-
-watch(
   [updateNoticeOpen, () => updateState.value.status],
   ([open, status]) => {
     if (updateNoticeDismissTimer !== undefined) {
@@ -1367,55 +1384,6 @@ watch(
         updateNoticeDismissTimer = undefined
       }, UPDATE_STATUS_DISMISS_MS)
     }
-  }
-)
-
-watch(
-  () => activeTab.value?.url,
-  () => {
-    const keepPanelOpen = keepsSeparatePanelOpen()
-    invalidateEmulationMutation()
-    siteDataController.reset()
-    if (!keepPanelOpen) {
-      siteControlsOpen.value = false
-      pageToolsOpen.value = false
-      responsivePanelOpen.value = false
-      environmentPanelOpen.value = false
-    }
-    resetSiteStorageView(true)
-    if (responsivePanelOpen.value && keepPanelOpen) loadResponsiveDraft(activeEmulation.value?.viewport)
-    else resetResponsiveFeedback()
-    if (environmentPanelOpen.value && keepPanelOpen) loadEnvironmentDraft(activeEmulation.value)
-    else environmentController.resetFeedback()
-    resetConsoleView(true)
-    resetNetworkMonitorView(true)
-  },
-  { immediate: true }
-)
-
-watch(
-  () => state.value.activeTabId,
-  (tabId) => {
-    const tab = state.value.tabs.find((candidate) => candidate.id === tabId)
-    const keepPanelOpen = keepsSeparatePanelOpen()
-    invalidateEmulationMutation()
-    siteDataController.reset()
-    if (!keepPanelOpen) {
-      siteControlsOpen.value = false
-      pageToolsOpen.value = false
-    }
-    if (tab && !tab.url.startsWith('hronaut://home')) lastWebTabId.value = tab.id
-    resetSiteStorageView(true)
-    resetConsoleView(true)
-    resetNetworkMonitorView(true)
-    if (responsivePanelOpen.value) {
-      if (!keepPanelOpen) responsivePanelOpen.value = false
-      else loadResponsiveDraft(tab?.emulation?.viewport)
-    } else resetResponsiveFeedback()
-    if (environmentPanelOpen.value) {
-      if (!keepPanelOpen) environmentPanelOpen.value = false
-      else loadEnvironmentDraft(tab?.emulation)
-    } else environmentController.resetFeedback()
   }
 )
 
@@ -1822,6 +1790,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disposeMcpActivityController()
+  disposeActiveTabContextController()
+  disposeEnvironmentPanelController()
   disposeEmulationController()
   disposeBrowserShortcutController()
   disposeUiActionController()
