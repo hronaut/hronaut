@@ -115,11 +115,7 @@ import { usePageToolsPresentationController } from './composables/usePageToolsPr
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
-import {
-  shouldShowUpdateStatusPill,
-  shouldAutoDismissUpdateStatus,
-  UPDATE_STATUS_DISMISS_MS
-} from '../../shared/update-presentation'
+import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
 import { DEFAULT_INTERFACE_SCALE } from '../../shared/interface-scale'
 
 function isPanelDock(value: string | null): value is PanelDock {
@@ -538,6 +534,14 @@ const {
   dispose: disposeSettingsDialogController
 } = settingsDialogController
 const {
+  showStatusPill: showUpdateStatusPill,
+  dispose: disposeUpdateNoticePresentationController
+} = useUpdateNoticePresentationController({
+  open: updateNoticeOpen,
+  settingsOpen,
+  state: updateState
+})
+const {
   toggleDownloads,
   toggleBookmarks,
   toggleCurrentBookmark,
@@ -917,7 +921,6 @@ const {
   closeMainPanels: closeDockedPanels,
   onError: reportShellActionError
 })
-let updateNoticeDismissTimer: number | undefined
 const {
   run: runShellAction,
   dispose: disposeUiActionController
@@ -1296,11 +1299,6 @@ const detachedPanelUnavailable = computed(() => (
 const detachedPanelLabelText = computed(() => (
   activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
 ))
-const showUpdateStatusPill = computed(() => (
-  updateNoticeOpen.value
-  && !settingsOpen.value
-  && shouldShowUpdateStatusPill(updateState.value.status)
-))
 async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
   settingsOpen.value = false
   await syncState(browser.newTab({ url: bookmark.url, active: true }))
@@ -1435,22 +1433,6 @@ const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCo
   closeAddressSuggestions,
   reportLayout: reportShellHeight
 })
-
-watch(
-  [updateNoticeOpen, () => updateState.value.status],
-  ([open, status]) => {
-    if (updateNoticeDismissTimer !== undefined) {
-      window.clearTimeout(updateNoticeDismissTimer)
-      updateNoticeDismissTimer = undefined
-    }
-    if (open && shouldAutoDismissUpdateStatus(status)) {
-      updateNoticeDismissTimer = window.setTimeout(() => {
-        updateNoticeOpen.value = false
-        updateNoticeDismissTimer = undefined
-      }, UPDATE_STATUS_DISMISS_MS)
-    }
-  }
-)
 
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
@@ -1642,7 +1624,7 @@ onBeforeUnmount(() => {
   disposeDetachedPanelRefreshController()
   disposePanelWindowSyncController()
   disposePanelWindowEventsController()
-  if (updateNoticeDismissTimer !== undefined) window.clearTimeout(updateNoticeDismissTimer)
+  disposeUpdateNoticePresentationController()
   disposePageCaptureController()
   disposePageExportController()
   disposeDiagnosticLogPreservationController()

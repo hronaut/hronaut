@@ -108,16 +108,30 @@ test('keeps supporting text readable in Settings and page tools', async ({ appWi
   expect(pageToolDescription).toBe(12)
 })
 
-test('explains commercial license requirements', async ({ appWindow }) => {
+test('explains commercial license requirements and buys in the system browser', async ({ appWindow, electronApp }) => {
+  await electronApp.evaluate(({ shell }) => {
+    shell.openExternal = async (url): Promise<void> => {
+      ;(globalThis as typeof globalThis & { __hronautExternalPurchaseUrl?: string })
+        .__hronautExternalPurchaseUrl = url
+    }
+  })
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByRole('button', { name: /Commercial license/ }).click()
   await expect(appWindow.getByText('Activate Hronaut for commercial use')).toBeVisible()
   await expect(appWindow.getByText(/commercial use requires an active paid subscription/i)).toBeVisible()
   await expect(appWindow.getByLabel('Commercial license key')).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Activate commercial license' })).toBeVisible()
-  await expect(appWindow.getByRole('button', { name: 'Buy commercial license ↗' })).toBeVisible()
+  const purchase = appWindow.getByRole('button', { name: 'Buy commercial license ↗' })
+  await expect(purchase).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'PolyForm Noncommercial license ↗' })).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Contributing guide ↗' })).toBeVisible()
+
+  const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
+  await purchase.click()
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautExternalPurchaseUrl?: string }
+  ).__hronautExternalPurchaseUrl)).toBe('https://hronaut.dev/#pricing')
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
 test('persists the selected theme across application restarts', async ({
