@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Show OpenCode's `opencode mcp list` connection check directly beside its Hronaut Home setup.
+
 ### Changed
 
 - Make the selected tab unmistakable with a persistent accent marker and stronger active surface, including the collapsed vertical rail.
@@ -90,7 +92,6 @@ All notable changes to Hronaut are documented in this file.
 
 - Split address-focus and new-tab shell orchestration out of `App.vue` into focused navigation controllers.
 - Split Site Storage shell orchestration out of `App.vue` into a focused controller.
-- Show OpenCode's `opencode mcp list` connection check directly beside its Hronaut Home setup.
 
 ### Fixed
 
