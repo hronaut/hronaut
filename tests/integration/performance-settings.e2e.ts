@@ -4,6 +4,13 @@ import { join } from 'node:path'
 import type { BrowserState } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
+const closeFixtureServer = async (server: ReturnType<typeof createServer>): Promise<void> => {
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve())
+    server.closeAllConnections()
+  })
+}
+
 test('serializes Memory Saver settings and sleeps eligible tabs without stale shell state', async ({
   appWindow,
   profileDirectory
@@ -86,7 +93,7 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
       memorySaverTimeoutMinutes: 60
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -184,7 +191,7 @@ test('sleeps only eligible inactive tabs in the selected workspace', async ({
       other: false
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -266,6 +273,6 @@ test('keeps a tab awake when it becomes visible during the form-safety check', a
       return page?.executeJavaScript('window.__memorySaverDocumentIdentity') ?? null
     }, websiteUrl)).toBe(documentIdentity)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
