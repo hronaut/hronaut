@@ -2,20 +2,6 @@ name: Scoop package smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - distribution-scoop-smoke
-    paths:
-      - .github/workflows/scoop-smoke.yml
-      - electron-builder.yml
-      - package-lock.json
-      - package.json
-      - packaging/scoop/**
-      - scripts/mcp-smoke.ts
-      - scripts/mcp-workspace.ts
-      - scripts/profile-smoke.ts
-      - scripts/scoop-portable-smoke.ps1
-      - src/**
 
 permissions:
   contents: read

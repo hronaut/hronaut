@@ -37,6 +37,7 @@ describe('Scoop package QA', () => {
     ])
 
     expect(workflow).toContain('runs-on: windows-latest')
+    expect(workflow).not.toContain('distribution-scoop-smoke')
     expect(workflow).toContain('npx electron-builder --win portable --x64 --publish never')
     expect(workflow).toContain('./scripts/scoop-portable-smoke.ps1')
     expect(smoke).toContain('http://127.0.0.1:$assetPort/$expectedFilename')
