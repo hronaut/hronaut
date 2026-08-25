@@ -41,7 +41,7 @@ body:
     attributes:
       label: Hronaut version
       description: Find this in Settings → About or on the downloaded release.
-      placeholder: "1.4.2"
+      placeholder: "For example, 1.4.5"
     validations:
       required: true
 
