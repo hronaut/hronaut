@@ -874,9 +874,10 @@ test('restores workspace identity and tabs after an application restart', async 
       defaultGroup: { id: defaultGroupId, name: 'Default', isDefault: true },
       humanGroupId: defaultGroupId
     })
-    await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'false')
-    await expect(restoredGroupControl).toHaveAccessibleName('Expand workspace Persistent investigation, 1 tab')
-    await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeHidden()
+    await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
+    await expect(restoredGroupControl).toHaveAccessibleName('Collapse workspace Persistent investigation, 1 tab')
+    await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
+    expect(await instance.window.evaluate('JSON.parse(localStorage.getItem("hronaut:collapsed-tab-groups"))')).toEqual([])
     const humanTabId = await instance.window.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === 'Persistent human tab')?.id)`) as string
     await instance.window.evaluate(`window.hronaut.selectTab('${humanTabId}')`)
     await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then((state) => state.activeTabId)`)).toBe(humanTabId)

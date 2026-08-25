@@ -316,23 +316,33 @@ describe('BrowserTabsBar', () => {
     expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
   })
 
-  it('preserves collapse state while the authoritative browser state hydrates', async () => {
-    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
+  it('reveals the active workspace while preserving unrelated collapse state during hydration', async () => {
+    window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1', 'workspace-2']))
     const view = renderTabs(browserState({ tabs: [], activeTabId: null, mcpTabGroups: [] }), false)
-    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual(['workspace-1'])
+    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual(['workspace-1', 'workspace-2'])
 
     const hydrated = browserState()
+    const inactiveWorkspace = { ...workspace('workspace-2'), name: 'Background QA' }
     await view.rerender({
       state: browserState({
         activeTabId: 'first',
-        tabs: hydrated.tabs.map((value) => ({ ...value, active: value.id === 'first' }))
+        tabs: [
+          ...hydrated.tabs.map((value) => ({ ...value, active: value.id === 'first' })),
+          tab('background', {
+            mcpGroupId: inactiveWorkspace.id,
+            mcpGroupName: inactiveWorkspace.name
+          })
+        ],
+        mcpTabGroups: [workspace(), inactiveWorkspace]
       }),
       hydrated: true
     })
 
-    expect(screen.getByRole('button', { name: 'Expand workspace Research, 1 tab' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByRole('tab', { name: 'Page first' })).not.toBeInTheDocument()
-    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual(['workspace-1'])
+    expect(screen.getByRole('button', { name: 'Collapse workspace Research, 1 tab' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Expand workspace Background QA, 1 tab' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('tab', { name: 'Page background' })).not.toBeInTheDocument()
+    expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual(['workspace-2'])
   })
 
   it('removes stale persisted workspace ids on startup', () => {

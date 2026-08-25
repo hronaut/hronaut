@@ -365,6 +365,10 @@ watch(
 
 onMounted(async () => {
   await nextTick()
+  if (props.hydrated && props.state.activeTabId) {
+    const activeTab = props.state.tabs.find((tab) => tab.id === props.state.activeTabId)
+    if (activeTab) expandTabGroupForTab(activeTab)
+  }
   const active = visibleTabs.value.find((tab) => tab.id === props.state.activeTabId)
   if (active) focusedTabId.value = active.id
   revealActiveTab()
@@ -396,8 +400,7 @@ watch(
   async ([hydrated, activeTabId, activeTabGroupId], [wasHydrated, previousActiveTabId, previousActiveTabGroupId]) => {
     if (
       !hydrated
-      || !wasHydrated
-      || (activeTabId === previousActiveTabId && activeTabGroupId === previousActiveTabGroupId)
+      || (wasHydrated && activeTabId === previousActiveTabId && activeTabGroupId === previousActiveTabGroupId)
     ) return
     const tab = props.state.tabs.find((candidate) => candidate.id === activeTabId)
     if (!tab) return
