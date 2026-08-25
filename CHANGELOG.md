@@ -10,12 +10,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move Settings reset routing and Appearance defaults out of `App.vue` into a focused controller.
 - Move update-notification visibility and auto-dismiss timing out of `App.vue` into a focused lifecycle controller.
 - Move locale-aware shell formatting out of `App.vue` into a focused reactive composable.
 - Use 100% as the default interface scale for fresh profiles and Appearance resets while preserving an existing explicit scale choice.
 
 ### Fixed
 
+- Reset the interface language to the system default with the rest of the Appearance preferences.
 - Reveal the selected tab after startup when its workspace had previously been collapsed, while preserving collapse state for unrelated workspaces.
 - Give workspace tabs valid tab-list semantics, keep Settings landmarks valid, and raise light-theme secondary text contrast to WCAG AA across browser controls and Settings.
 - Keep crowded-tab scroll buttons in reserved space instead of covering workspace names, tab titles, and the selected-tab marker.

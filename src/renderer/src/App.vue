@@ -73,7 +73,8 @@ import { useDiagnosticLogPreservationController } from './composables/useDiagnos
 import { usePerformanceSettingsController } from './composables/usePerformanceSettingsController'
 import { usePrivacySettingsController } from './composables/usePrivacySettingsController'
 import { useSearchSettingsController } from './composables/useSearchSettingsController'
-import { useSettingsDialogController, type SettingsSection } from './composables/useSettingsDialogController'
+import { useSettingsDialogController } from './composables/useSettingsDialogController'
+import { useSettingsSectionResetController } from './composables/useSettingsSectionResetController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useSitePermissionsController } from './composables/useSitePermissionsController'
 import { useCommercialLicenseController } from './composables/useCommercialLicenseController'
@@ -116,7 +117,6 @@ import { useCredentialFillController } from './composables/useCredentialFillCont
 import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
-import { DEFAULT_INTERFACE_SCALE } from '../../shared/interface-scale'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
@@ -507,6 +507,22 @@ const {
   close: closeHelpDialog,
   dispose: disposeHelpDialogController
 } = helpDialogController
+const { reset: resetSettingsSection } = useSettingsSectionResetController({
+  setTheme: (theme) => settingsStore.setTheme(theme),
+  setInterfaceScale: (scale) => settingsStore.setInterfaceScale(scale),
+  setTabPosition: (position) => settingsStore.setTabPosition(position),
+  setHideInTray: (enabled) => settingsStore.setHideInTray(enabled),
+  setAttentionSound: (enabled) => settingsStore.setAttentionSound(enabled),
+  setAttentionSoundCue: (cue) => settingsStore.setAttentionSoundCue(cue),
+  setLanguagePreference: (preference) => settingsStore.setLanguagePreference(preference),
+  resetSearch: resetSearchSettings,
+  resetDownloads: resetDownloadSettings,
+  resetPerformance: resetPerformanceSettings,
+  resetPrivacySelection,
+  clearSitePermissions,
+  resetMcp: resetMcpSettings,
+  resetUpdates: resetUpdateSettings
+})
 const settingsDialogController = useSettingsDialogController({
   beforeOpen: () => {
     commandPaletteOpen.value = false
@@ -1573,25 +1589,6 @@ async function toggleDeveloperTools(): Promise<void> {
 
 function openSupportSettings(): void {
   openSettingsSection('support')
-}
-
-async function resetSettingsSection(section: SettingsSection): Promise<boolean | void> {
-  if (section === 'appearance') {
-    await settingsStore.setTheme('system')
-    await settingsStore.setInterfaceScale(DEFAULT_INTERFACE_SCALE)
-    await settingsStore.setTabPosition('top')
-    await settingsStore.setHideInTray(true)
-    await settingsStore.setAttentionSound(true)
-    await settingsStore.setAttentionSoundCue('warning')
-    return true
-  }
-  if (section === 'search') return resetSearchSettings()
-  if (section === 'downloads') return resetDownloadSettings()
-  if (section === 'performance') return resetPerformanceSettings()
-  if (section === 'permissions') return clearSitePermissions()
-  if (section === 'privacy') resetPrivacySelection()
-  if (section === 'mcp') return resetMcpSettings()
-  if (section === 'updates') return resetUpdateSettings()
 }
 
 useShellWindowLifecycle({

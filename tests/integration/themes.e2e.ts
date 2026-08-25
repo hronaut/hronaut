@@ -225,10 +225,14 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
+  await appWindow.locator('#setting-language').selectOption('uk-UA')
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
 
-  await appWindow.getByRole('button', { name: 'Reset to default' }).click()
+  await appWindow.locator('.settings-footer .secondary-button').click()
 
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
+  await expect(appWindow.locator('#setting-language')).toHaveValue('system')
   await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1')
   await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('top')
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
@@ -242,7 +246,8 @@ test('resets every Appearance preference including interface size', async ({
     tabPosition: 'top',
     hideInTray: true,
     attentionSound: true,
-    attentionSoundCue: 'warning'
+    attentionSoundCue: 'warning',
+    languagePreference: 'system'
   })
 })
 
