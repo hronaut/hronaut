@@ -6,6 +6,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.2] - 2026-08-25
+
+### Added
+
 - Show OpenCode's `opencode mcp list` connection check directly beside its Hronaut Home setup.
 
 ### Changed
