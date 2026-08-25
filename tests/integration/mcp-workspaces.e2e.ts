@@ -218,6 +218,35 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   const verticalNavigation = appWindow.getByRole('navigation', { name: 'Tab navigation' })
   await expect(verticalNavigation).toHaveClass(/vertical/)
   await expect.poll(() => strip.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+  await strip.evaluate((element) => { element.scrollTop = (element.scrollHeight - element.clientHeight) / 2 })
+  await expect.poll(() => strip.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect.poll(() => appWindow.locator('.tabs-scroll-button.previous').isEnabled()).toBe(true)
+  await expect.poll(() => appWindow.locator('.tabs-scroll-button.next').isEnabled()).toBe(true)
+  expect(await verticalNavigation.evaluate((navigation) => {
+    const strip = navigation.querySelector<HTMLElement>('.tabs-strip')
+    if (!strip) throw new Error('Vertical tab strip was not found')
+    const stripBounds = strip.getBoundingClientRect()
+    const controls = [...navigation.querySelectorAll<HTMLElement>('.tabs-scroll-button')]
+      .filter((control) => getComputedStyle(control).visibility !== 'hidden')
+      .map((control) => ({ label: control.getAttribute('aria-label'), bounds: control.getBoundingClientRect() }))
+    return [...navigation.querySelectorAll<HTMLElement>('.tab')].flatMap((tab) => {
+      const tabBounds = tab.getBoundingClientRect()
+      const visibleTabBounds = {
+        left: Math.max(tabBounds.left, stripBounds.left),
+        right: Math.min(tabBounds.right, stripBounds.right),
+        top: Math.max(tabBounds.top, stripBounds.top),
+        bottom: Math.min(tabBounds.bottom, stripBounds.bottom)
+      }
+      return controls
+        .filter(({ bounds }) => (
+          visibleTabBounds.left < bounds.right
+          && visibleTabBounds.right > bounds.left
+          && visibleTabBounds.top < bounds.bottom
+          && visibleTabBounds.bottom > bounds.top
+        ))
+        .map(({ label }) => `${tab.getAttribute('aria-label')} intersects ${label}`)
+    })
+  })).toEqual([])
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]

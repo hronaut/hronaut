@@ -415,7 +415,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span>{{ t('shell.home.label') }}</span>
   </button>
   <span class="topbar-divider" aria-hidden="true" />
-  <div class="tabs-strip-shell">
+  <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <button
       v-if="hasTabOverflow"
       class="tabs-scroll-button previous"
