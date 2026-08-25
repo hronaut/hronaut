@@ -796,7 +796,6 @@ const {
   resetNetwork: resetNetworkMonitorView,
   refreshNetwork: refreshNetworkMonitor,
   refreshNetworkRoutes,
-  refreshNetworkAll: refreshNetwork,
   toggleNetwork: toggleNetworkMonitor,
   openRequestConditions
 } = useDeveloperPanelsShellController({
