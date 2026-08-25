@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep crowded-tab scroll buttons in reserved space instead of covering workspace names, tab titles, and the selected-tab marker.
 - Open scheme-less localhost and IP loopback development addresses over HTTP instead of forcing them through HTTPS and producing a TLS failure.
 
 ## [1.5.2] - 2026-08-25

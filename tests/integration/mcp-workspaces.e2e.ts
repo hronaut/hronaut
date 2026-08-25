@@ -145,6 +145,31 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
   })).toBe(true)
   await expect(previousTabs).toBeVisible()
   await expect(previousTabs).toBeEnabled()
+  await expect.poll(() => appWindow.locator('.tabs-strip-shell').evaluate((shell) => {
+    const stripBounds = shell.querySelector<HTMLElement>('.tabs-strip')?.getBoundingClientRect()
+    if (!stripBounds) throw new Error('Horizontal tab strip was not found')
+    const controls = [...shell.querySelectorAll<HTMLElement>('.tabs-scroll-button')]
+      .filter((control) => getComputedStyle(control).visibility !== 'hidden')
+      .map((control) => ({ label: control.getAttribute('aria-label'), bounds: control.getBoundingClientRect() }))
+    return [...shell.querySelectorAll<HTMLElement>('.tab-group-label, .workspace-new-tab, .tab, .new-workspace')]
+      .flatMap((item) => {
+        const itemBounds = item.getBoundingClientRect()
+        const visibleItemBounds = {
+          left: Math.max(itemBounds.left, stripBounds.left),
+          right: Math.min(itemBounds.right, stripBounds.right),
+          top: Math.max(itemBounds.top, stripBounds.top),
+          bottom: Math.min(itemBounds.bottom, stripBounds.bottom)
+        }
+        return controls
+          .filter(({ bounds }) => (
+            visibleItemBounds.left < bounds.right
+            && visibleItemBounds.right > bounds.left
+            && visibleItemBounds.top < bounds.bottom
+            && visibleItemBounds.bottom > bounds.top
+          ))
+          .map(({ label }) => `${item.getAttribute('aria-label') ?? item.textContent?.trim()} intersects ${label}`)
+      })
+  })).toEqual([])
 
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 600))
   await expect.poll(() => appWindow.locator('[data-active-tab="true"]').evaluate((element) => {
