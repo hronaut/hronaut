@@ -228,6 +228,39 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     }
   })).toEqual({ x: 280, width: 480, contentWidth: 760 })
 
+  const unpinRail = appWindow.getByRole('button', { name: 'Collapse tab rail when not in use' })
+  await expect(unpinRail).toHaveAttribute('aria-pressed', 'true')
+  await unpinRail.click()
+  await appWindow.getByRole('combobox', { name: 'Address' }).hover()
+  await appWindow.getByRole('combobox', { name: 'Address' }).focus()
+  await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    const websiteView = window?.contentView.children[0]
+    return {
+      x: websiteView?.getBounds().x,
+      width: websiteView?.getBounds().width,
+      contentWidth: window?.getContentBounds().width
+    }
+  })).toEqual({ x: 56, width: 704, contentWidth: 760 })
+  expect(await appWindow.evaluate("localStorage.getItem('hronaut:vertical-tab-rail-pinned')")).toBe('false')
+
+  await verticalNavigation.hover()
+  await expect(verticalNavigation).not.toHaveClass(/rail-collapsed/)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    const websiteView = window?.contentView.children[0]
+    return websiteView?.getBounds().x
+  })).toBe(280)
+
+  await appWindow.getByRole('combobox', { name: 'Address' }).hover()
+  await expect(verticalNavigation).toHaveClass(/rail-collapsed/)
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    const websiteView = window?.contentView.children[0]
+    return websiteView?.getBounds().x
+  })).toBe(56)
+
   await lastTab.focus()
   await lastTab.press('ArrowUp')
   await expect(previousTab).toBeFocused()

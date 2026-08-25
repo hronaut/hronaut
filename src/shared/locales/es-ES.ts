@@ -954,6 +954,8 @@ export const esES = {
       "createWorkspaceTitle": "Crear un nuevo espacio de trabajo aislado",
       "createWorkspace": "Crear espacio de trabajo",
       "workspace": "Espacio de trabajo",
+      "collapseRail": "Contraer la barra de pestañas cuando no se use",
+      "keepRailExpanded": "Mantener expandida la barra de pestañas",
       "locked": "Pestañas bloqueadas",
       "lock": "Bloquear pestañas"
     },

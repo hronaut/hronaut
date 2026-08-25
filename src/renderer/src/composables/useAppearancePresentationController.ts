@@ -1,7 +1,7 @@
 import { play as playFoley, set as setFoley } from '@foleyjs/core'
-import { computed, watch, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
-import { VERTICAL_TAB_RAIL_WIDTH } from '../../../shared/tab-position.js'
+import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH, VERTICAL_TAB_RAIL_WIDTH } from '../../../shared/tab-position.js'
 
 interface AppearancePresentationOptions {
   settings: Ref<AppSettings>
@@ -9,9 +9,25 @@ interface AppearancePresentationOptions {
   detachedWindow: boolean
 }
 
+const VERTICAL_TAB_RAIL_PINNED_KEY = 'hronaut:vertical-tab-rail-pinned'
+
+function storedVerticalTabRailPinned(): boolean {
+  try {
+    return window.localStorage.getItem(VERTICAL_TAB_RAIL_PINNED_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
 export function useAppearancePresentationController(options: AppearancePresentationOptions) {
+  const verticalTabRailPinned = ref(storedVerticalTabRailPinned())
+  const verticalTabRailRevealed = ref(false)
   const tabRailWidth = computed(() => (
-    !options.detachedWindow && options.settings.value.tabPosition === 'left' ? VERTICAL_TAB_RAIL_WIDTH : 0
+    !options.detachedWindow && options.settings.value.tabPosition === 'left'
+      ? verticalTabRailPinned.value || verticalTabRailRevealed.value
+        ? VERTICAL_TAB_RAIL_WIDTH
+        : VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
+      : 0
   ))
   const tabOrientation = computed(() => tabRailWidth.value > 0 ? 'vertical' as const : 'horizontal' as const)
 
@@ -28,11 +44,39 @@ export function useAppearancePresentationController(options: AppearancePresentat
     playFoley(options.settings.value.attentionSoundCue, { volume: 0.65 })
   }
 
+  function toggleVerticalTabRailPinned(): void {
+    verticalTabRailPinned.value = !verticalTabRailPinned.value
+    try {
+      window.localStorage.setItem(VERTICAL_TAB_RAIL_PINNED_KEY, String(verticalTabRailPinned.value))
+    } catch {
+      // The preference remains available for this session when storage is unavailable.
+    }
+  }
+
+  function setVerticalTabRailRevealed(revealed: boolean): void {
+    verticalTabRailRevealed.value = revealed
+  }
+
   watch(
     [options.settings, options.systemTheme],
     () => applySettings(options.settings.value),
     { deep: true, immediate: true }
   )
 
-  return { tabRailWidth, tabOrientation, applySettings, playAttentionSound }
+  watch(
+    () => options.settings.value.tabPosition,
+    (position) => {
+      if (position !== 'left') verticalTabRailRevealed.value = false
+    }
+  )
+
+  return {
+    tabRailWidth,
+    tabOrientation,
+    verticalTabRailPinned,
+    applySettings,
+    playAttentionSound,
+    toggleVerticalTabRailPinned,
+    setVerticalTabRailRevealed
+  }
 }

@@ -211,8 +211,11 @@ const isDetachedPanelWindow = detachedPanelId !== null
 const {
   tabRailWidth,
   tabOrientation,
+  verticalTabRailPinned,
   applySettings: applyTheme,
-  playAttentionSound: testAttentionSound
+  playAttentionSound: testAttentionSound,
+  toggleVerticalTabRailPinned,
+  setVerticalTabRailRevealed
 } = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
 if (detachedPanelId) {
   document.documentElement.dataset.panelWindow = 'true'
@@ -1711,6 +1714,7 @@ onBeforeUnmount(() => {
         :state="state"
         :hydrated="browserStateInitialized"
         :orientation="tabOrientation"
+        :rail-pinned="verticalTabRailPinned"
         :mcp-activity-by-tab="mcpActivityByTab"
         :format-number="localNumber"
         :tab-tooltip="tabTooltip"
@@ -1725,6 +1729,8 @@ onBeforeUnmount(() => {
         @toggle-tab-muted="runShellAction(() => toggleTabMuted($event))"
         @close-tab="runShellAction(() => closeTab($event))"
         @drag-start="tabSearchOpen = false"
+        @toggle-rail-pinned="toggleVerticalTabRailPinned"
+        @rail-reveal-change="setVerticalTabRailRevealed"
       />
       <AppTopbarActions
         :command-palette-open="commandPaletteOpen"

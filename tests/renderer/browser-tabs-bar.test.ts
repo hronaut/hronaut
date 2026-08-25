@@ -89,13 +89,19 @@ function browserState(overrides: Partial<BrowserState> = {}): BrowserState {
   }
 }
 
-function renderTabs(state = browserState(), hydrated = true, orientation: 'horizontal' | 'vertical' = 'horizontal') {
+function renderTabs(
+  state = browserState(),
+  hydrated = true,
+  orientation: 'horizontal' | 'vertical' = 'horizontal',
+  railPinned = true
+) {
   return render(BrowserTabsBar, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       state,
       hydrated,
       orientation,
+      railPinned,
       mcpActivityByTab: {},
       formatNumber: (value: number) => String(value),
       tabTooltip: (value: BrowserTabState) => value.title,
@@ -130,6 +136,29 @@ describe('BrowserTabsBar', () => {
 
     expect(wheel.defaultPrevented).toBe(true)
     expect(strip.scrollTop).toBe(120)
+  })
+
+  it('reveals an unpinned vertical rail for pointer or keyboard interaction and requests pinning', async () => {
+    const view = renderTabs(browserState(), true, 'vertical', false)
+    const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })
+    const pin = screen.getByRole('button', { name: 'Keep tab rail expanded' })
+
+    expect(navigation).toHaveClass('rail-collapsed')
+    expect(pin).toHaveAttribute('aria-pressed', 'false')
+
+    await fireEvent.mouseEnter(navigation)
+    expect(navigation).not.toHaveClass('rail-collapsed')
+    expect(view.emitted('railRevealChange')?.at(-1)).toEqual([true])
+
+    await fireEvent.mouseLeave(navigation)
+    expect(navigation).toHaveClass('rail-collapsed')
+    expect(view.emitted('railRevealChange')?.at(-1)).toEqual([false])
+
+    pin.focus()
+    await fireEvent.focusIn(navigation)
+    expect(navigation).not.toHaveClass('rail-collapsed')
+    await fireEvent.click(pin)
+    expect(view.emitted('toggleRailPinned')).toEqual([[]])
   })
 
   it('recomputes overflow when the tab position changes its scroll axis', async () => {

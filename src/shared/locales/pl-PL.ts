@@ -954,6 +954,8 @@ export const plPL = {
       "createWorkspaceTitle": "Utwórz nowy odizolowany obszar roboczy",
       "createWorkspace": "Utwórz obszar roboczy",
       "workspace": "Obszar roboczy",
+      "collapseRail": "Zwijaj pasek kart, gdy nie jest używany",
+      "keepRailExpanded": "Pozostaw pasek kart rozwinięty",
       "locked": "Karty zablokowane",
       "lock": "Zablokuj karty"
     },

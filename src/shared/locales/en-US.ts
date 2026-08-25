@@ -128,7 +128,7 @@ export const enUS = {
     loading: 'Loading',
     tabs: {
       navigation: 'Tab navigation', list: 'Browser tabs and workspaces', scrollBack: 'Show previous tabs', scrollForward: 'Show more tabs', defaultWorkspace: 'Default workspace for new tabs', pageAttention: 'Page needs attention', sleeping: 'Sleeping to save resources', stackedVisible: 'Visible in stacked split view', sideVisible: 'Visible in side-by-side split view', inputLocked: 'Page input locked',
-      createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', locked: 'Tabs locked', lock: 'Lock tabs'
+      createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', collapseRail: 'Collapse tab rail when not in use', keepRailExpanded: 'Keep tab rail expanded', locked: 'Tabs locked', lock: 'Lock tabs'
     },
     actions: {
       commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', settings: 'Settings'

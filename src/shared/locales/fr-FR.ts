@@ -954,6 +954,8 @@ export const frFR = {
       "createWorkspaceTitle": "Créer un nouvel espace de travail isolé",
       "createWorkspace": "Créer un espace de travail",
       "workspace": "Espace de travail",
+      "collapseRail": "Réduire la barre d’onglets lorsqu’elle n’est pas utilisée",
+      "keepRailExpanded": "Garder la barre d’onglets développée",
       "locked": "Onglets verrouillés",
       "lock": "Verrouiller les onglets"
     },

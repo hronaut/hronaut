@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Let an unpinned vertical tab rail collapse to favicon width and temporarily expand for pointer or keyboard interaction.
+
 ### Changed
 
 - Move localized keyboard-shortcut presentation out of `App.vue` into the Help controller.

@@ -954,6 +954,8 @@ export const deDE = {
       "createWorkspaceTitle": "Neuen isolierten Arbeitsbereich erstellen",
       "createWorkspace": "Arbeitsbereich erstellen",
       "workspace": "Arbeitsbereich",
+      "collapseRail": "Tableiste bei Nichtverwendung einklappen",
+      "keepRailExpanded": "Tableiste ausgeklappt lassen",
       "locked": "Tabs gesperrt",
       "lock": "Tabs sperren"
     },

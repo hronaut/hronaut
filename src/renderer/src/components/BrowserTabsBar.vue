@@ -13,6 +13,7 @@ import IconKeyboardArrowLeft from '~icons/material-symbols/keyboard-arrow-left-r
 import IconKeyboardArrowRight from '~icons/material-symbols/keyboard-arrow-right-rounded'
 import IconKeyboardArrowUp from '~icons/material-symbols/keyboard-arrow-up-rounded'
 import IconKeep from '~icons/material-symbols/keep-rounded'
+import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
@@ -27,6 +28,7 @@ const props = defineProps<{
   state: BrowserState
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
+  railPinned: boolean
   mcpActivityByTab: Record<string, McpTabActivity>
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
@@ -44,6 +46,8 @@ const emit = defineEmits<{
   toggleTabMuted: [tab: BrowserTabState]
   closeTab: [tabId: string]
   dragStart: []
+  toggleRailPinned: []
+  railRevealChange: [revealed: boolean]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -60,6 +64,29 @@ const canScrollTabsBack = ref(false)
 const canScrollTabsForward = ref(false)
 let tabsStripResizeObserver: ResizeObserver | undefined
 const vertical = computed(() => props.orientation === 'vertical')
+const railHovered = ref(false)
+const railFocusWithin = ref(false)
+const railExpanded = computed(() => props.railPinned || railHovered.value || railFocusWithin.value)
+
+function reportRailReveal(): void {
+  emit('railRevealChange', vertical.value && (railHovered.value || railFocusWithin.value))
+}
+
+function setRailHovered(hovered: boolean): void {
+  railHovered.value = hovered
+  reportRailReveal()
+}
+
+function setRailFocusWithin(focused: boolean): void {
+  railFocusWithin.value = focused
+  reportRailReveal()
+}
+
+function handleRailFocusOut(event: FocusEvent): void {
+  const navigation = event.currentTarget as HTMLElement
+  if (event.relatedTarget instanceof Node && navigation.contains(event.relatedTarget)) return
+  setRailFocusWithin(false)
+}
 
 function updateTabOverflow(): void {
   const strip = tabsStrip.value
@@ -327,7 +354,17 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => tabsStripResizeObserver?.disconnect())
+onBeforeUnmount(() => {
+  tabsStripResizeObserver?.disconnect()
+  emit('railRevealChange', false)
+})
+
+watch(vertical, (isVertical) => {
+  if (isVertical) return
+  railHovered.value = false
+  railFocusWithin.value = false
+  emit('railRevealChange', false)
+})
 
 watch(
   [
@@ -354,7 +391,16 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
 </script>
 
 <template>
-  <nav class="browser-tabs-bar" :class="orientation" :data-shell-tab-rail="vertical ? '' : undefined" :aria-label="t('shell.tabs.navigation')">
+  <nav
+    class="browser-tabs-bar"
+    :class="[orientation, { 'rail-collapsed': vertical && !railExpanded }]"
+    :data-shell-tab-rail="vertical ? '' : undefined"
+    :aria-label="t('shell.tabs.navigation')"
+    @mouseenter="setRailHovered(true)"
+    @mouseleave="setRailHovered(false)"
+    @focusin="setRailFocusWithin(true)"
+    @focusout="handleRailFocusOut"
+  >
   <button
     class="app-home-button"
     :class="{ active: homeTab?.active }"
@@ -522,5 +568,18 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></button>
   </div>
+  <button
+    v-if="vertical"
+    class="tab-rail-pin"
+    type="button"
+    :title="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
+    :aria-label="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
+    :aria-pressed="railPinned"
+    @click="emit('toggleRailPinned')"
+  >
+    <IconKeep v-if="railPinned" aria-hidden="true" />
+    <IconKeepOff v-else aria-hidden="true" />
+    <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
+  </button>
   </nav>
 </template>

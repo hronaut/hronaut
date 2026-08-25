@@ -130,7 +130,7 @@ export const ukUA = {
     loading: 'Завантаження',
     tabs: {
       navigation: 'Навігація вкладками', list: 'Вкладки й робочі простори браузера', scrollBack: 'Показати попередні вкладки', scrollForward: 'Показати наступні вкладки', defaultWorkspace: 'Типовий робочий простір для нових вкладок', pageAttention: 'Сторінка потребує уваги', sleeping: 'Приспано для заощадження ресурсів', stackedVisible: 'Відображається у вертикально складеному розділеному перегляді', sideVisible: 'Відображається у розділеному перегляді поруч', inputLocked: 'Введення на сторінці заблоковано',
-      createWorkspaceTitle: 'Створити новий ізольований робочий простір', createWorkspace: 'Створити робочий простір', workspace: 'Робочий простір', locked: 'Вкладки заблоковано', lock: 'Заблокувати вкладки'
+      createWorkspaceTitle: 'Створити новий ізольований робочий простір', createWorkspace: 'Створити робочий простір', workspace: 'Робочий простір', collapseRail: 'Згортати панель вкладок, коли вона не використовується', keepRailExpanded: 'Залишати панель вкладок розгорнутою', locked: 'Вкладки заблоковано', lock: 'Заблокувати вкладки'
     },
     actions: {
       commandsTitle: 'Команди (Ctrl/Cmd+Shift+P)', commands: 'Відкрити палітру команд', searchTabsTitle: 'Пошук вкладок (Ctrl/Cmd+Shift+A)', searchTabs: 'Шукати вкладки', historyTitle: 'Історія перегляду (Ctrl+H / Cmd+Y)', history: 'Історія перегляду', settings: 'Налаштування'

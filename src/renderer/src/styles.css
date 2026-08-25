@@ -218,6 +218,53 @@ button { color: inherit; }
 .browser-tabs-bar.vertical .tab.pinned { width: 40px; min-width: 40px; align-self: flex-start; }
 .browser-tabs-bar.vertical .workspace-action-divider { width: 100%; height: 1px; margin: 5px 0 2px; }
 .browser-tabs-bar.vertical .new-workspace { width: 100%; height: 32px; margin: 0; }
+.browser-tabs-bar.vertical .tab-rail-pin {
+  display: flex;
+  width: 100%;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+.browser-tabs-bar.vertical .tab-rail-pin:hover { color: var(--text); background: var(--hover); }
+.browser-tabs-bar.vertical .tab-rail-pin:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.browser-tabs-bar.vertical .tab-rail-pin svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.browser-tabs-bar.vertical .tab-rail-pin span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.browser-tabs-bar.vertical.rail-collapsed { gap: 7px; padding-right: 7px; padding-left: 7px; }
+.browser-tabs-bar.vertical.rail-collapsed .app-home-button,
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-label,
+.browser-tabs-bar.vertical.rail-collapsed .workspace-new-tab,
+.browser-tabs-bar.vertical.rail-collapsed .tab,
+.browser-tabs-bar.vertical.rail-collapsed .new-workspace,
+.browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin {
+  width: 40px;
+  min-width: 40px;
+  align-self: center;
+  justify-content: center;
+  padding-right: 0;
+  padding-left: 0;
+}
+.browser-tabs-bar.vertical.rail-collapsed .tabs-strip { align-items: center; }
+.browser-tabs-bar.vertical.rail-collapsed .app-home-button > span,
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-label > span,
+.browser-tabs-bar.vertical.rail-collapsed .tab-group-default-badge,
+.browser-tabs-bar.vertical.rail-collapsed .tab-title,
+.browser-tabs-bar.vertical.rail-collapsed .tab-close,
+.browser-tabs-bar.vertical.rail-collapsed .tab-sleep-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-split-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-emulation-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-network-route-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-lock-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-audio,
+.browser-tabs-bar.vertical.rail-collapsed .new-workspace > span,
+.browser-tabs-bar.vertical.rail-collapsed .tab-rail-pin > span { display: none; }
 
 .app-home-button {
   display: flex;
