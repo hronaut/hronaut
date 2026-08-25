@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Open commercial-license pricing directly in the system browser and send license API requests to the canonical domain without a redirect that can rewrite POST requests.
 - Remove vertical tab overflow controls once the remaining tabs fit the full rail again.
 - Keep the selected tab immediately visible when switching a crowded tab strip from the top to the left rail.
 

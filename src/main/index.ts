@@ -37,7 +37,10 @@ import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
-import { commercialLicensePurchaseHandler } from './commercial-license-links.js'
+import {
+  COMMERCIAL_LICENSE_API_BASE_URL,
+  commercialLicensePurchaseHandler
+} from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore } from './commercial-license-store.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
@@ -136,7 +139,7 @@ import { translate, type MessageKey, type MessageParameters } from '../shared/i1
 
 const MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
-const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || 'https://hronaut.pages.dev/api/creem-license'
+const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
 
