@@ -36,8 +36,10 @@ export interface BrowserShortcutControllerOptions {
 export function useBrowserShortcutController(options: BrowserShortcutControllerOptions) {
   let generation = 0
   let disposed = false
+  let relativeTabSelectionQueue: Promise<void> = Promise.resolve()
 
-  async function selectRelativeTab(offset: -1 | 1): Promise<void> {
+  async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
+    if (disposed) return
     const tabs = options.state.value.tabs
     const activeTabId = options.state.value.activeTabId
     if (tabs.length < 2 || !activeTabId) return
@@ -45,6 +47,12 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (current < 0) return
     const next = tabs[(current + offset + tabs.length) % tabs.length]
     if (next) await options.syncState(options.browser.selectTab(next.id))
+  }
+
+  function selectRelativeTab(offset: -1 | 1): Promise<void> {
+    const selection = relativeTabSelectionQueue.then(() => performRelativeTabSelection(offset))
+    relativeTabSelectionQueue = selection.catch(() => undefined)
+    return selection
   }
 
   async function execute(action: BrowserShortcutAction): Promise<void> {

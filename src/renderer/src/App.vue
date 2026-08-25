@@ -495,7 +495,8 @@ const {
   dispose: disposeSearchSettingsController
 } = searchSettingsController
 const helpDialogController = useHelpDialogController({
-  beforeOpen: closeTransientPanels
+  beforeOpen: closeTransientPanels,
+  translate: (key) => t(key)
 })
 const {
   open: helpDialogOpen,
@@ -1161,25 +1162,6 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   },
   onError: reportShellActionError
 })
-const keyboardShortcuts = computed(() => [
-  { label: t('runtime.shortcuts.address'), keys: ['Ctrl/Cmd', 'L'] },
-  { label: t('runtime.shortcuts.reload'), keys: ['Ctrl/Cmd', 'R'] },
-  { label: t('runtime.shortcuts.reloadFresh'), keys: ['Ctrl/Cmd', 'Shift', 'R'] },
-  { label: t('runtime.shortcuts.newTab'), keys: ['Ctrl/Cmd', 'T'] },
-  { label: t('runtime.shortcuts.closeTab'), keys: ['Ctrl/Cmd', 'W'] },
-  { label: t('runtime.shortcuts.reopenTab'), keys: ['Ctrl/Cmd', 'Shift', 'T'] },
-  { label: t('runtime.shortcuts.searchTabs'), keys: ['Ctrl/Cmd', 'Shift', 'A'] },
-  { label: t('runtime.shortcuts.commands'), keys: ['Ctrl/Cmd', 'Shift', 'P'] },
-  { label: t('runtime.shortcuts.pick'), keys: ['Ctrl+Shift+C', 'Cmd+Option+C'] },
-  { label: t('runtime.shortcuts.find'), keys: ['Ctrl/Cmd', 'F'] },
-  { label: t('runtime.shortcuts.bookmark'), keys: ['Ctrl/Cmd', 'D'] },
-  { label: t('runtime.shortcuts.history'), keys: ['Ctrl+H', 'Cmd+Y'] },
-  { label: t('runtime.shortcuts.clearData'), keys: ['Ctrl/Cmd', 'Shift', 'Delete'] },
-  { label: t('runtime.shortcuts.devtools'), keys: ['F12', 'Ctrl+Shift+I', 'Cmd+Option+I'] },
-  { label: t('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
-  { label: t('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
-  { label: t('runtime.shortcuts.resetZoom'), keys: ['Ctrl/Cmd', '0'] }
-])
 const panelDockLayout = usePanelDockLayout({
   dock: panelDock,
   shell,
@@ -2100,7 +2082,6 @@ onBeforeUnmount(() => {
     />
     <HelpDialog
       :controller="helpDialogController"
-      :shortcuts="keyboardShortcuts"
       :current-version="updateState.currentVersion"
       :open-url="openSupport"
       :open-support-settings="openSupportSettings"

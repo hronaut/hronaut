@@ -8,7 +8,11 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move localized keyboard-shortcut presentation out of `App.vue` into the Help controller.
+
 ### Fixed
+
+- Preserve every rapid next/previous-tab shortcut by queueing relative selections against the latest active tab.
 
 ## [1.5.0] - 2026-08-25
 

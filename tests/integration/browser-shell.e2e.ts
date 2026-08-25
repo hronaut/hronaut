@@ -1479,6 +1479,17 @@ test('supports standard tab and address shortcuts from the shell and websites', 
   await appWindow.keyboard.press('Control+Tab')
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe('about:blank')
 
+  const rapidCycleTargetId = await appWindow.evaluate(`window.hronaut.getState().then((state) => {
+    const currentIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId)
+    return state.tabs[(currentIndex + 2) % state.tabs.length]?.id
+  })`) as string
+  await appWindow.evaluate(() => {
+    const shortcut = { key: 'Tab', code: 'Tab', ctrlKey: true, bubbles: true, cancelable: true }
+    window.dispatchEvent(new KeyboardEvent('keydown', shortcut))
+    window.dispatchEvent(new KeyboardEvent('keydown', shortcut))
+  })
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(rapidCycleTargetId)
+
   await appWindow.keyboard.press(`${primary}+W`)
   await expect(appWindow.getByRole('tab')).toHaveCount(2)
   await appWindow.keyboard.press(`${primary}+W`)

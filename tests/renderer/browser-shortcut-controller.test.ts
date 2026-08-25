@@ -119,6 +119,56 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
+  it('queues rapid relative tab shortcuts so every press advances from the latest selection', async () => {
+    const harness = createController()
+    const firstSelection = deferred<BrowserState>()
+    harness.browser.selectTab
+      .mockReturnValueOnce(firstSelection.promise)
+      .mockImplementation(async (tabId: string) => browserState(tabId))
+    harness.syncState.mockImplementation(async (operation: Promise<BrowserState> | BrowserState) => {
+      harness.state.value = await operation
+    })
+
+    const firstRun = harness.controller.run('next-tab')
+    const secondRun = harness.controller.run('next-tab')
+
+    await vi.waitFor(() => expect(harness.browser.selectTab).toHaveBeenCalledTimes(1))
+    expect(harness.browser.selectTab).toHaveBeenLastCalledWith('third')
+
+    firstSelection.resolve(browserState('third'))
+    await vi.waitFor(() => expect(harness.browser.selectTab).toHaveBeenCalledTimes(2))
+    expect(harness.browser.selectTab).toHaveBeenLastCalledWith('first')
+    await expect(Promise.all([firstRun, secondRun])).resolves.toEqual([true, true])
+    expect(harness.state.value.activeTabId).toBe('first')
+    harness.controller.dispose()
+  })
+
+  it('continues queued tab navigation after an earlier selection fails', async () => {
+    const harness = createController()
+    const firstSelection = deferred<BrowserState>()
+    const failure = new Error('selection failed')
+    harness.browser.selectTab
+      .mockReturnValueOnce(firstSelection.promise)
+      .mockImplementation(async (tabId: string) => browserState(tabId))
+    harness.syncState.mockImplementation(async (operation: Promise<BrowserState> | BrowserState) => {
+      harness.state.value = await operation
+    })
+
+    const firstRun = harness.controller.run('next-tab')
+    const secondRun = harness.controller.run('next-tab')
+    await vi.waitFor(() => expect(harness.browser.selectTab).toHaveBeenCalledTimes(1))
+
+    firstSelection.reject(failure)
+    await expect(firstRun).resolves.toBe(false)
+    await vi.waitFor(() => expect(harness.browser.selectTab).toHaveBeenCalledTimes(2))
+    await expect(secondRun).resolves.toBe(true)
+
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(2, 'third')
+    expect(harness.callbacks.onError).toHaveBeenCalledWith('next-tab', failure)
+    expect(harness.state.value.activeTabId).toBe('third')
+    harness.controller.dispose()
+  })
+
   it('blocks close-tab while human interaction is globally locked', async () => {
     const harness = createController()
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }

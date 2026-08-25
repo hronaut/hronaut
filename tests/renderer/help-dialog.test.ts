@@ -6,7 +6,10 @@ import { useHelpDialogController } from '../../src/renderer/src/composables/useH
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 
 function renderDialog() {
-  const controller = useHelpDialogController({ beforeOpen: vi.fn() })
+  const controller = useHelpDialogController({
+    beforeOpen: vi.fn(),
+    translate: (key) => key === 'runtime.shortcuts.address' ? 'Focus the address bar' : key
+  })
   const openUrl = vi.fn(async () => undefined)
   const openSupportSettings = vi.fn()
   const reportLayout = vi.fn()
@@ -14,7 +17,6 @@ function renderDialog() {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       controller,
-      shortcuts: [{ label: 'Focus the address bar', keys: ['Ctrl/Cmd', 'L'] }],
       currentVersion: '1.7.2',
       openUrl,
       openSupportSettings,

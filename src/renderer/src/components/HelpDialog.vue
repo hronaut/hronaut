@@ -3,15 +3,11 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
-import type {
-  HelpDialogController,
-  KeyboardShortcut
-} from '../composables/useHelpDialogController.js'
+import type { HelpDialogController } from '../composables/useHelpDialogController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{
   controller: HelpDialogController
-  shortcuts: KeyboardShortcut[]
   currentVersion: string
   openUrl: (url: string) => Promise<void>
   openSupportSettings: () => void
@@ -20,7 +16,7 @@ const props = defineProps<{
 
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
-const { dialog, open, close } = props.controller
+const { dialog, open, shortcuts, close } = props.controller
 
 useModalDialogFocus({
   open,
