@@ -171,6 +171,11 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
 
   await previousTab.press('Enter')
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)`)).toBe('Overflow tab 11')
+
+  const middleClickTarget = appWindow.getByRole('tab', { name: /^Overflow tab 10 —/ })
+  await middleClickTarget.dispatchEvent('auxclick', { button: 1 })
+  await expect(middleClickTarget).toHaveCount(0)
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)`)).toBe('Overflow tab 11')
 })
 
 test('does not offer or attempt tab reordering across workspace boundaries', async ({ appWindow }) => {

@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.4.4] - 2026-08-25
+
 ### Changed
 
 - Split active-tab context transitions and detached-panel refresh coordination out of `App.vue` into focused controllers.
@@ -11,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Close crowded tabs with the familiar middle-click gesture without activating the page or bypassing the global interaction lock.
 - Reset docked diagnostic panels when the current page reloads at the same URL so stale Network and Console evidence is not left visible.
 - Keep an active tab visible when its workspace changes, and recompute crowded-tab overflow after tabs move into collapsed workspaces.
 - Keep the active tab visible when a crowded tab strip becomes narrower after a window or toolbar resize.

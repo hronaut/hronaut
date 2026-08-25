@@ -305,6 +305,34 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted().reorderTab).toHaveLength(1)
   })
 
+  it('closes a crowded tab with the middle mouse button without activating it', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    const view = renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }))
+
+    const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })
+    screen.getByRole('tab', { name: 'Page second' }).dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(view.emitted('closeTab')).toEqual([[second.id]])
+    expect(view.emitted('selectTab')).toBeUndefined()
+  })
+
+  it('does not middle-click close tabs while all browser interaction is locked', async () => {
+    const first = tab('first', { active: true })
+    const view = renderTabs(browserState({
+      tabs: [first],
+      activeTabId: first.id,
+      allHumanInteractionLocked: true
+    }))
+
+    const event = new MouseEvent('auxclick', { bubbles: true, cancelable: true, button: 1 })
+    screen.getByRole('tab', { name: 'Page first' }).dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(view.emitted('closeTab')).toBeUndefined()
+  })
+
   it('rejects drag targets from another workspace before showing a drop affordance', async () => {
     const firstWorkspace = workspace('workspace-1')
     const secondWorkspace = {

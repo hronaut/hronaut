@@ -172,6 +172,13 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   if (target) focusTab(target.id)
 }
 
+function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
+  if (event.button !== 1) return
+  event.preventDefault()
+  if (props.state.allHumanInteractionLocked) return
+  emit('closeTab', tab.id)
+}
+
 function persistCollapsedTabGroups(): void {
   window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify([...collapsedTabGroupIds.value]))
 }
@@ -413,6 +420,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           @focus="focusedTabId = tab.id"
           @keydown="handleTabKeyDown($event, tab)"
           @click="emit('selectTab', tab.id)"
+          @auxclick="handleTabAuxClick($event, tab)"
           @contextmenu.prevent="emit('showTabContextMenu', tab.id)"
           @dragstart="beginTabDrag($event, tab)"
           @dragover="updateTabDrop($event, tab)"
