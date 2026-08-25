@@ -41,7 +41,7 @@ describe('Scoop package QA', () => {
     expect(workflow).toContain('./scripts/scoop-portable-smoke.ps1')
     expect(smoke).toContain('http://127.0.0.1:$assetPort/$expectedFilename')
     expect(smoke).toContain('Get-FileHash -Algorithm SHA256')
-    expect(smoke).toContain('Join-Path $appDataDirectory $package.name')
+    expect(smoke).toContain('-Filter "tabs.json" -File -Recurse')
     expect(smoke).toContain('scripts/profile-smoke.ts\", \"write\"')
     expect(smoke).toContain('scripts/profile-smoke.ts\", \"read\"')
     expect(smoke).toContain('scripts/mcp-smoke.ts')

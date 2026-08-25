@@ -171,13 +171,20 @@ try {
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "write")
   Stop-Hronaut -Executable $installedExecutable -AppDataDirectory $appDataDirectory -Port $mcpPort
 
-  $profileDirectory = Join-Path $appDataDirectory $package.name
-  if (-not (Test-Path $profileDirectory)) {
-    throw "Hronaut did not store its profile under the normal external AppData directory"
+  $profileMarker = Get-ChildItem -Path $appDataDirectory -Filter "tabs.json" -File -Recurse | Select-Object -First 1
+  if (-not $profileMarker) {
+    $appDataContents = (Get-ChildItem -Path $appDataDirectory -Force -Recurse | Select-Object -ExpandProperty FullName) -join "`n"
+    throw "Hronaut did not store tabs.json under the external AppData directory. Contents:`n$appDataContents"
+  }
+  $profileDirectory = $profileMarker.Directory.FullName
+  $appDataPrefix = [System.IO.Path]::GetFullPath($appDataDirectory).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+  if (-not [System.IO.Path]::GetFullPath($profileDirectory).StartsWith($appDataPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Hronaut profile was stored outside the expected AppData root: $profileDirectory"
   }
   if ([System.IO.Path]::GetFullPath($profileDirectory).StartsWith([System.IO.Path]::GetFullPath($scoopDirectory), [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Hronaut profile was stored inside Scoop's versioned application directory"
   }
+  Write-Host "Hronaut profile root: $profileDirectory"
 
   Invoke-CheckedCommand -Command $scoopCommand -Arguments @("uninstall", "hronaut")
   $installed = $false
