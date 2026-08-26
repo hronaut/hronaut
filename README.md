@@ -15,6 +15,8 @@ Not sure which browser model fits your workflow? Read the source-backed [Browser
 ## Highlights
 
 - Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.
+- Crowded-session tab search, unmistakable active-tab treatment, and top or collapsible left-side tab layouts.
+- Nine appearance choices: System, Light, Dark, Midnight, Sepia, Cyberpunk, Matrix, Machine, and Galactic.
 - Local Streamable HTTP MCP endpoint with browser navigation, interaction, inspection, diagnostics, downloads, storage, and accessibility tools.
 - Multi-agent workspaces with stable UUIDv7 identities and isolated browser profiles.
 - Human-interaction locks, instant MCP pause, explicit permissions, and optional bearer-token authentication.
