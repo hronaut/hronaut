@@ -13,6 +13,11 @@ All notable changes to Hronaut are documented in this file.
 
 - Make the complete horizontal “Workspace” action, including its visible label, clickable instead of limiting its title-bar hit target to the plus icon.
 - Keep a horizontal-only `browser_scroll` action from also applying the default vertical scroll distance.
+- Prevent an older bookmark or history navigation from closing a panel that the user reopened while that navigation was still pending.
+
+### Changed
+
+- Move bookmark and history entry navigation out of `App.vue` into the existing browser-collections shell controller.
 
 ## [1.8.0] - 2026-08-27
 

@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 
 export interface BookmarksShellPanel {
   toggle: () => Promise<void>
@@ -18,6 +19,7 @@ export interface BrowserCollectionsShellControllerOptions {
   bookmarksPanel: Readonly<Ref<BookmarksShellPanel | null>>
   historyPanel: Readonly<Ref<HistoryShellPanel | null>>
   refreshDownloads: () => Promise<unknown>
+  openUrl: (url: string) => Promise<void>
 }
 
 export function useBrowserCollectionsShellController(
@@ -74,10 +76,21 @@ export function useBrowserCollectionsShellController(
     await options.historyPanel.value?.toggle()
   }
 
+  async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
+    options.settingsOpen.value = false
+    await options.openUrl(bookmark.url)
+  }
+
+  function openHistoryEntry(entry: BrowserHistoryEntry): Promise<void> {
+    return options.openUrl(entry.url)
+  }
+
   return {
     toggleDownloads,
     toggleBookmarks,
     toggleCurrentBookmark,
-    toggleVisitHistory
+    toggleVisitHistory,
+    openBookmark,
+    openHistoryEntry
   }
 }

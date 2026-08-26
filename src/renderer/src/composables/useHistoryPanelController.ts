@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserHistoryEntry } from '../../../shared/types.js'
 
 type Translate = (
@@ -24,6 +24,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
   const query = ref('')
   const error = ref('')
   const pendingAction = ref<string | null>(null)
+  let actionGeneration = 0
 
   const filteredEntries = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
@@ -38,22 +39,30 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     error.value = ''
   }
 
+  function invalidateActions(): void {
+    actionGeneration += 1
+    pendingAction.value = null
+  }
+
   async function runAction(
     actionId: string,
     operation: () => Promise<BrowserHistoryEntry[] | void>
   ): Promise<boolean> {
     if (pendingAction.value) return false
+    const generation = ++actionGeneration
     resetError()
     pendingAction.value = actionId
     try {
       const nextEntries = await operation()
+      if (generation !== actionGeneration) return false
       if (nextEntries) options.entries.value = nextEntries
       return true
     } catch (cause) {
+      if (generation !== actionGeneration) return false
       error.value = cause instanceof Error ? cause.message : String(cause)
       return false
     } finally {
-      if (pendingAction.value === actionId) pendingAction.value = null
+      if (generation === actionGeneration) pendingAction.value = null
     }
   }
 
@@ -87,6 +96,16 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
       : visited
   }
 
+  const stopOpenTracking = watch(options.open, (isOpen) => {
+    invalidateActions()
+    if (!isOpen) resetError()
+  }, { flush: 'sync' })
+
+  function dispose(): void {
+    invalidateActions()
+    stopOpenTracking()
+  }
+
   return {
     query,
     error,
@@ -97,6 +116,7 @@ export function useHistoryPanelController(options: HistoryPanelControllerOptions
     openEntry,
     remove,
     clear,
-    entryMeta
+    entryMeta,
+    dispose
   }
 }

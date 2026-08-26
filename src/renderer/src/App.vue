@@ -8,8 +8,6 @@ import {
   BrowserState,
   BrowserEmulationState,
   BrowserTabState,
-  BrowserBookmark,
-  BrowserHistoryEntry,
   PanelDock
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
@@ -533,7 +531,9 @@ const {
   toggleDownloads,
   toggleBookmarks,
   toggleCurrentBookmark,
-  toggleVisitHistory
+  toggleVisitHistory,
+  openBookmark,
+  openHistoryEntry
 } = useBrowserCollectionsShellController({
   settingsOpen,
   downloadsOpen,
@@ -542,7 +542,8 @@ const {
   tabSearchOpen,
   bookmarksPanel,
   historyPanel,
-  refreshDownloads: browserCollectionsController.refreshDownloads
+  refreshDownloads: browserCollectionsController.refreshDownloads,
+  openUrl: (url) => syncState(browser.newTab({ url, active: true }))
 })
 const fullModalOpen = computed(() => settingsOpen.value
   || commandPaletteOpen.value
@@ -1338,11 +1339,6 @@ const detachedPanelUnavailable = computed(() => (
 const detachedPanelLabelText = computed(() => (
   activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
 ))
-async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
-  settingsOpen.value = false
-  await syncState(browser.newTab({ url: bookmark.url, active: true }))
-}
-
 async function openTabGroupEditor(groupId: string): Promise<void> {
   await workspaceEditor.value?.openExisting(groupId)
 }
@@ -1353,10 +1349,6 @@ async function openNewWorkspaceEditor(): Promise<void> {
 
 function closeWorkspaceEditor(): void {
   workspaceEditor.value?.close()
-}
-
-async function openHistoryEntry(entry: BrowserHistoryEntry): Promise<void> {
-  await syncState(browser.newTab({ url: entry.url, active: true }))
 }
 
 function setResponsiveTabViewport(

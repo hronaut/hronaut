@@ -21,6 +21,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   const editingBookmarkId = ref<string | null>(null)
   const editingBookmarkTitle = ref('')
   const editingInput = ref<HTMLInputElement | null>(null)
+  let actionGeneration = 0
 
   const filteredBookmarks = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
@@ -33,6 +34,11 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
 
   function resetError(): void {
     error.value = ''
+  }
+
+  function invalidateActions(): void {
+    actionGeneration += 1
+    pendingAction.value = null
   }
 
   function cancelRename(): void {
@@ -49,17 +55,20 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     operation: () => Promise<BrowserBookmark[] | void>
   ): Promise<boolean> {
     if (pendingAction.value) return false
+    const generation = ++actionGeneration
     resetError()
     pendingAction.value = actionId
     try {
       const nextBookmarks = await operation()
+      if (generation !== actionGeneration) return false
       if (nextBookmarks) options.bookmarks.value = nextBookmarks
       return true
     } catch (cause) {
+      if (generation !== actionGeneration) return false
       error.value = cause instanceof Error ? cause.message : String(cause)
       return false
     } finally {
-      if (pendingAction.value === actionId) pendingAction.value = null
+      if (generation === actionGeneration) pendingAction.value = null
     }
   }
 
@@ -120,10 +129,11 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   }
 
   const stopOpenTracking = watch(options.open, (isOpen) => {
+    invalidateActions()
     if (isOpen) return
     resetError()
     cancelRename()
-  })
+  }, { flush: 'sync' })
   const stopBookmarkTracking = watch(
     () => options.bookmarks.value.map((bookmark) => bookmark.id),
     (ids) => {
@@ -133,6 +143,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
   )
 
   function dispose(): void {
+    invalidateActions()
     stopOpenTracking()
     stopBookmarkTracking()
   }

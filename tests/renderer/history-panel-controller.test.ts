@@ -76,6 +76,27 @@ describe('history panel controller', () => {
     expect(open.value).toBe(false)
   })
 
+  it('does not let an older entry navigation close a newly reopened panel', async () => {
+    let finishNavigation!: () => void
+    const navigation = new Promise<undefined>((resolve) => {
+      finishNavigation = () => resolve(undefined)
+    })
+    const { open, openHistoryEntry, controller } = createController()
+    open.value = true
+    openHistoryEntry.mockReturnValueOnce(navigation)
+
+    const openingEntry = controller.openEntry(entry('alpha'))
+    await controller.toggle()
+    await controller.toggle()
+    expect(open.value).toBe(true)
+
+    finishNavigation()
+    await openingEntry
+
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
+
   it('deduplicates overlapping mutations and accepts the authoritative result', async () => {
     let resolveRemove: ((entries: BrowserHistoryEntry[]) => void) | undefined
     const pendingRemove = new Promise<BrowserHistoryEntry[]>((resolve) => {

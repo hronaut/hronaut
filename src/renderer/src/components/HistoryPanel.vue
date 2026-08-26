@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -27,12 +27,12 @@ const {
   error,
   pendingAction,
   filteredEntries,
-  resetError,
   toggle,
   openEntry,
   remove,
   clear,
-  entryMeta
+  entryMeta,
+  dispose
 } = useHistoryPanelController({
   open,
   entries,
@@ -48,11 +48,8 @@ const {
   confirmClear: () => window.confirm(t('privacyActions.clearHistory'))
 })
 
-watch(open, (isOpen) => {
-  if (!isOpen) resetError()
-})
-
 defineExpose({ toggle })
+onBeforeUnmount(dispose)
 </script>
 
 <template>

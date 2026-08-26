@@ -26,6 +26,7 @@ function createController() {
     toggle: vi.fn(async () => { historyOpen.value = !historyOpen.value })
   })
   const refreshDownloads = vi.fn<() => Promise<unknown>>(async () => undefined)
+  const openUrl = vi.fn<(_url: string) => Promise<void>>(async () => undefined)
   const controller = useBrowserCollectionsShellController({
     settingsOpen,
     downloadsOpen,
@@ -34,7 +35,8 @@ function createController() {
     tabSearchOpen,
     bookmarksPanel,
     historyPanel,
-    refreshDownloads
+    refreshDownloads,
+    openUrl
   })
   return {
     settingsOpen,
@@ -45,6 +47,7 @@ function createController() {
     bookmarksPanel,
     historyPanel,
     refreshDownloads,
+    openUrl,
     controller
   }
 }
@@ -150,5 +153,28 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.historyOpen.value).toBe(false)
     expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.bookmarksPanel.value.toggleCurrent).toHaveBeenCalledOnce()
+  })
+
+  it('owns bookmark and history entry navigation outside App.vue', async () => {
+    const harness = createController()
+
+    await harness.controller.openBookmark({
+      id: 'bookmark-1',
+      url: 'https://example.test/bookmark',
+      title: 'Bookmark',
+      createdAt: '2026-08-27T00:00:00.000Z',
+      updatedAt: '2026-08-27T00:00:00.000Z'
+    })
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.openUrl).toHaveBeenLastCalledWith('https://example.test/bookmark')
+
+    await harness.controller.openHistoryEntry({
+      id: 'history-1',
+      url: 'https://example.test/history',
+      title: 'History',
+      visitedAt: '2026-08-27T00:00:00.000Z',
+      visitCount: 1
+    })
+    expect(harness.openUrl).toHaveBeenLastCalledWith('https://example.test/history')
   })
 })

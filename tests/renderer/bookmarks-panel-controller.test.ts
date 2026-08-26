@@ -127,4 +127,25 @@ describe('bookmarks panel controller', () => {
     expect(controller.error.value).toBe('Could not open bookmark')
     controller.dispose()
   })
+
+  it('does not let an older bookmark navigation close a newly reopened panel', async () => {
+    let finishNavigation!: () => void
+    const navigation = new Promise<undefined>((resolve) => {
+      finishNavigation = () => resolve(undefined)
+    })
+    const { open, bookmarks, openBookmark, controller } = createController()
+    open.value = true
+    openBookmark.mockReturnValueOnce(navigation)
+
+    const openingBookmark = controller.openEntry(bookmarks.value[0])
+    await controller.toggle()
+    await controller.toggle()
+    expect(open.value).toBe(true)
+
+    finishNavigation()
+    await openingBookmark
+
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
 })
