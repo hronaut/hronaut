@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-26
+
 ### Added
 
 - Add an all-platform, restart-required “Use system title bar” fallback for desktop environments where compact window controls are unreliable.
@@ -17,6 +19,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Match native tab-menu directions to the selected layout: vertical rails now say “Move Tab Up,” “Move Tab Down,” and “Close Tabs Below” instead of describing horizontal movement.
 - Keep “Close Other Tabs,” “Close Tabs to the Right,” and “Close Duplicate Tabs” inside the selected tab’s workspace so cleanup cannot remove unrelated workspace tabs.
 - Show authoritative success or failure feedback after a human PDF export, including write errors that occur after Page Tools closes.
 - Keep every tab, address input, toolbar action, and menu control explicitly non-draggable, preserve bare-Alt access to the native application menu, and reserve left- or right-side window-control safe areas at narrow widths and scaled displays.

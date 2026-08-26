@@ -3125,6 +3125,7 @@ async function createWindow(): Promise<void> {
     memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
     getSearchEngine: () => settings.searchEngine,
     getLocale: () => resolvedLocale,
+    getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
     onUserInteraction: acknowledgeUserAttention,
     onShortcutRequested: (action) => {

@@ -29,6 +29,7 @@ import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
 import { MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
+import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
@@ -805,6 +806,7 @@ export interface TabsManagerOptions {
   memorySaverTimeoutMinutes?: MemorySaverTimeoutMinutes
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
+  getTabPosition: () => TabPosition
   toolbarHeight?: number
   onUserInteraction?: () => void
   onCredentialSubmitted?: (candidate: BrowserCredentialCandidate) => void
@@ -2462,6 +2464,7 @@ export class BrowserTabsManager {
             }))
           }
     const shouldSleepTab = !tab.sleeping
+    const verticalTabs = this.options.getTabPosition() === 'left'
     const menu = Menu.buildFromTemplate([
       {
         id: 'new-tab',
@@ -2513,13 +2516,13 @@ export class BrowserTabsManager {
       { type: 'separator' },
       {
         id: 'move-tab-left',
-        label: this.text('native.context.moveLeft'),
+        label: this.text(verticalTabs ? 'native.context.moveUp' : 'native.context.moveLeft'),
         enabled: peerIndex > 0,
         click: () => runAction('move the tab left', () => this.reorderTab(tab.id, peers[peerIndex - 1]!.id, 'before'))
       },
       {
         id: 'move-tab-right',
-        label: this.text('native.context.moveRight'),
+        label: this.text(verticalTabs ? 'native.context.moveDown' : 'native.context.moveRight'),
         enabled: peerIndex >= 0 && peerIndex < peers.length - 1,
         click: () => runAction('move the tab right', () => this.reorderTab(tab.id, peers[peerIndex + 1]!.id, 'after'))
       },
@@ -2538,7 +2541,7 @@ export class BrowserTabsManager {
       },
       {
         id: 'close-tabs-to-right',
-        label: this.text('native.context.closeRight'),
+        label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
         enabled: !this.allHumanInteractionLocked && tabsToRight.length > 0,
         click: () => runAction('close tabs to the right', () => this.closeTabs(tabsToRight.map((candidate) => candidate.id)))
       },

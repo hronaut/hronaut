@@ -89,6 +89,23 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   expect(await appRegion(appWindow.getByRole('combobox', { name: 'Address' }))).toBe('no-drag')
   expect(await appRegion(appWindow.getByRole('button', { name: 'Reload' }))).toBe('no-drag')
 
+  await electronApp.evaluate(({ Menu }) => {
+    ;(globalThis as typeof globalThis & { __hronautVerticalTabMenu?: Electron.Menu })
+      .__hronautVerticalTabMenu = undefined
+    Menu.prototype.popup = function (): void {
+      ;(globalThis as typeof globalThis & { __hronautVerticalTabMenu?: Electron.Menu })
+        .__hronautVerticalTabMenu = this
+    }
+  })
+  await appWindow.locator('.tab.active').click({ button: 'right' })
+  await expect.poll(() => electronApp.evaluate(() => {
+    const menu = (globalThis as typeof globalThis & { __hronautVerticalTabMenu?: Electron.Menu })
+      .__hronautVerticalTabMenu
+    return ['move-tab-left', 'move-tab-right', 'close-tabs-to-right']
+      .map((id) => menu?.getMenuItemById(id)?.label ?? null)
+  })).toEqual(['Move Tab Up', 'Move Tab Down', 'Close Tabs Below'])
+  await toolbar.hover()
+
   await electronApp.evaluate(({ BrowserWindow }) => {
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
     if (!main) throw new Error('Missing main window')
