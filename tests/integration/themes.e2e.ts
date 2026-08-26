@@ -48,6 +48,67 @@ test('offers regular and cinematic themes in Settings', async ({ appWindow, elec
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'light')
 })
 
+test('keeps the latest theme click selected when queued responses settle in request order', async ({
+  appWindow,
+  electronApp
+}) => {
+  const initialSettings = await appWindow.evaluate('window.hronautSettings.get()')
+  await electronApp.evaluate(({ ipcMain }, settings) => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __queuedThemeRequests?: {
+        initial: Record<string, unknown>
+        requests: Array<{
+          theme: string
+          resolve: (value: Record<string, unknown>) => void
+        }>
+      }
+    }
+    const control = {
+      initial: settings as Record<string, unknown>,
+      requests: [] as Array<{
+        theme: string
+        resolve: (value: Record<string, unknown>) => void
+      }>
+    }
+    mainGlobal.__queuedThemeRequests = control
+    ipcMain.removeHandler('settings:set-theme')
+    ipcMain.handle('settings:set-theme', (_event, theme: unknown) => new Promise((resolve) => {
+      control.requests.push({
+        theme: String(theme),
+        resolve: (value) => resolve(value)
+      })
+    }))
+  }, initialSettings)
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByTestId('theme-light').click()
+  await appWindow.getByTestId('theme-galactic').click()
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __queuedThemeRequests?: { requests: unknown[] }
+    }
+  ).__queuedThemeRequests?.requests.length)).toBe(2)
+
+  await electronApp.evaluate(() => {
+    const control = (globalThis as typeof globalThis & {
+      __queuedThemeRequests?: {
+        initial: Record<string, unknown>
+        requests: Array<{
+          theme: string
+          resolve: (value: Record<string, unknown>) => void
+        }>
+      }
+    }).__queuedThemeRequests
+    if (!control || control.requests.length !== 2) throw new Error('Theme requests were not queued')
+    for (const request of control.requests) {
+      request.resolve({ ...control.initial, theme: request.theme })
+    }
+  })
+
+  await expect(appWindow.getByTestId('theme-galactic')).toHaveAttribute('aria-checked', 'true')
+  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'galactic')
+})
+
 test('keeps rejected settings out of live state and later persisted changes', async ({
   appWindow,
   profileDirectory

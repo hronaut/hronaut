@@ -45,6 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   let generation = 0
   let revision = 0
+  let mutationSequence = 0
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
 
@@ -113,8 +114,13 @@ export const useSettingsStore = defineStore('settings', () => {
   async function applySettings(operation: Promise<AppSettings>): Promise<AppSettings> {
     const currentGeneration = generation
     const startingRevision = revision
+    const sequence = ++mutationSequence
     const next = await operation
-    if (generation === currentGeneration && revision === startingRevision) acceptSettings(next)
+    if (
+      generation === currentGeneration
+      && revision === startingRevision
+      && sequence === mutationSequence
+    ) acceptSettings(next)
     return next
   }
 
@@ -122,8 +128,13 @@ export const useSettingsStore = defineStore('settings', () => {
   async function resetAppearance(): Promise<RendererSettingsState> {
     const currentGeneration = generation
     const startingRevision = revision
+    const sequence = ++mutationSequence
     const next = await window.hronautSettings.resetAppearance()
-    if (generation === currentGeneration && revision === startingRevision) acceptAuthoritativeState(next)
+    if (
+      generation === currentGeneration
+      && revision === startingRevision
+      && sequence === mutationSequence
+    ) acceptAuthoritativeState(next)
     return next
   }
   const setInterfaceScale = (scale: InterfaceScale): Promise<AppSettings> => applySettings(window.hronautSettings.setInterfaceScale(scale))
@@ -143,13 +154,18 @@ export const useSettingsStore = defineStore('settings', () => {
   async function setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState> {
     const currentGeneration = generation
     const startingRevision = revision
+    const sequence = ++mutationSequence
     languageChangeError.value = null
     try {
       const next = await window.hronautSettings.setLanguagePreference(preference)
-      if (generation === currentGeneration && revision === startingRevision) acceptAuthoritativeState(next)
+      if (
+        generation === currentGeneration
+        && revision === startingRevision
+        && sequence === mutationSequence
+      ) acceptAuthoritativeState(next)
       return next
     } catch (error) {
-      if (generation === currentGeneration) languageChangeError.value = error
+      if (generation === currentGeneration && sequence === mutationSequence) languageChangeError.value = error
       throw error
     }
   }

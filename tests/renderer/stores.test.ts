@@ -340,6 +340,53 @@ describe('settings Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('keeps the latest settings request authoritative when responses settle in request order', async () => {
+    installSettingsApi({
+      getRendererState: async () => settingsState(),
+      onRendererStateChanged: () => vi.fn()
+    })
+    const store = useSettingsStore()
+    await store.initialize()
+    const older = deferred<RendererSettingsState['settings']>()
+    const newer = deferred<RendererSettingsState['settings']>()
+
+    const olderApply = store.applySettings(older.promise)
+    const newerApply = store.applySettings(newer.promise)
+    older.resolve({ ...settingsState().settings, theme: 'light' })
+    await olderApply
+    newer.resolve({ ...settingsState().settings, theme: 'galactic' })
+    await newerApply
+
+    expect(store.settings.theme).toBe('galactic')
+    store.dispose()
+  })
+
+  it('coordinates full renderer snapshots with concurrent settings responses', async () => {
+    const reset = deferred<RendererSettingsState>()
+    installSettingsApi({
+      getRendererState: async () => settingsState(),
+      onRendererStateChanged: () => vi.fn(),
+      resetAppearance: () => reset.promise
+    })
+    const store = useSettingsStore()
+    await store.initialize()
+    const older = deferred<RendererSettingsState['settings']>()
+    const olderApply = store.applySettings(older.promise)
+    const resetting = store.resetAppearance()
+
+    older.resolve({ ...settingsState().settings, theme: 'light' })
+    await olderApply
+    reset.resolve({
+      ...settingsState('uk-UA'),
+      settings: { ...settingsState('uk-UA').settings, theme: 'matrix' }
+    })
+    await resetting
+
+    expect(store.settings.theme).toBe('matrix')
+    expect(store.resolvedLocale).toBe('uk-UA')
+    store.dispose()
+  })
+
   it('ignores a settings response that settles after disposal', async () => {
     installSettingsApi({
       getRendererState: async () => settingsState(),
