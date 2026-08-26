@@ -436,10 +436,16 @@ function currentMcpControlState(): McpControlState {
   }
 }
 
+function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
+  void tabsManager?.reloadHome().catch((error) => {
+    console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
+  })
+}
+
 function publishMcpControlState(): McpControlState {
   const state = currentMcpControlState()
   sendToShellWindows('mcp:changed', state)
-  void tabsManager?.reloadHome().catch((error) => console.error('[mcp] Could not refresh Hronaut Home:', error))
+  refreshHomeAfterCommittedChange('mcp')
   return state
 }
 
@@ -1032,7 +1038,7 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
   }
 }
 
-async function applyLanguagePreferenceRuntime(preference: LanguagePreference): Promise<void> {
+function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   if (preference === 'system') systemLocale = resolveSupportedLocale(app.getLocale())
   resolvedLocale = resolveLocalePreference(preference, systemLocale)
   publishSettings()
@@ -1042,7 +1048,7 @@ async function applyLanguagePreferenceRuntime(preference: LanguagePreference): P
   if (panelWindow && !panelWindow.isDestroyed() && panelWindowPanel) {
     panelWindow.setTitle(detachedPanelTitle(panelWindowPanel))
   }
-  await tabsManager?.reloadHome()
+  refreshHomeAfterCommittedChange('settings')
 }
 
 function homeDashboardState(): McpDashboardState {
@@ -2848,7 +2854,7 @@ function registerIpc(): void {
     await updateSettings({ mcpAuthentication: enabled })
     mcpServer?.setAuthenticationToken(enabled ? mcpTokenConfiguration?.token : undefined)
     publishSettings()
-    void tabsManager?.reloadHome().catch((error) => console.error('[mcp] Could not refresh Hronaut Home:', error))
+    refreshHomeAfterCommittedChange('mcp')
     console.warn(enabled
       ? '[mcp] Authentication enabled.'
       : '[mcp] Authentication disabled in Settings. Any local process can control this profile.')

@@ -38,6 +38,35 @@ test('switches language live through Settings and persists it across restart', a
   }
 })
 
+test('keeps a committed language change authoritative when the Home refresh fails', async ({
+  appWindow,
+  electronApp,
+  profileDirectory
+}) => {
+  await appWindow.evaluate('window.hronaut.openHome()')
+  await electronApp.evaluate(({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    Object.defineProperty(home, 'reload', {
+      configurable: true,
+      value: () => { throw new Error('Home refresh unavailable for language regression test') }
+    })
+  })
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  const selector = appWindow.locator('#setting-language')
+  await selector.selectOption('uk-UA')
+
+  await expect(appWindow.locator('html')).toHaveAttribute('lang', 'uk-UA')
+  await expect(selector).toHaveValue('uk-UA')
+  await expect(appWindow.getByRole('heading', { name: 'Тема застосунку' })).toBeVisible()
+  expect(await electronApp.evaluate(({ Menu }) => Menu.getApplicationMenu()?.items.map((item) => item.label))).toContain('Редагування')
+  await expect
+    .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).languagePreference)
+    .toBe('uk-UA')
+  await expect(appWindow.getByRole('alert')).toHaveCount(0)
+})
+
 test('supports Russian and the additional European language choices', async ({ appWindow }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.setViewportSize({ width: 760, height: 640 })
