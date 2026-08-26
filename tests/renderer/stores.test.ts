@@ -219,6 +219,49 @@ describe('browser Pinia store lifecycle', () => {
     store.dispose()
   })
 
+  it('keeps the latest browser action authoritative when responses settle in request order', async () => {
+    installBrowserApi({
+      getState: async () => browserState('initial'),
+      onStateChanged: () => vi.fn()
+    })
+    const store = useBrowserStore()
+    await store.initialize()
+    const older = deferred<BrowserState>()
+    const newer = deferred<BrowserState>()
+
+    const olderSync = store.syncOperation(older.promise)
+    const newerSync = store.syncOperation(newer.promise)
+    older.resolve(browserState('older-response'))
+    await olderSync
+    newer.resolve(browserState('newer-response'))
+    await newerSync
+
+    expect(store.state.activeTabId).toBe('newer-response')
+    store.dispose()
+  })
+
+  it('accepts the latest successful browser response when a newer action fails', async () => {
+    installBrowserApi({
+      getState: async () => browserState('initial'),
+      onStateChanged: () => vi.fn()
+    })
+    const store = useBrowserStore()
+    await store.initialize()
+    const older = deferred<BrowserState>()
+    const newer = deferred<BrowserState>()
+    const failure = new Error('newer action failed')
+
+    const olderSync = store.syncOperation(older.promise)
+    const newerSync = store.syncOperation(newer.promise)
+    older.resolve(browserState('successful-response'))
+    await olderSync
+    newer.reject(failure)
+    await expect(newerSync).rejects.toBe(failure)
+
+    expect(store.state.activeTabId).toBe('successful-response')
+    store.dispose()
+  })
+
   it('ignores an action response that settles after disposal', async () => {
     installBrowserApi({
       getState: async () => browserState('initial'),

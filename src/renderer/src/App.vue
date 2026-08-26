@@ -30,6 +30,7 @@ import HelpDialog from './components/HelpDialog.vue'
 import HistoryPanel from './components/HistoryPanel.vue'
 import NetworkPanel from './components/NetworkPanel.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
+import PanelResizeHandle from './components/PanelResizeHandle.vue'
 import PageToolsPanel from './components/PageToolsPanel.vue'
 import ResponsivePreviewPanel from './components/ResponsivePreviewPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
@@ -1902,21 +1903,18 @@ onBeforeUnmount(() => {
       :label="detachedPanelLabelText"
       @close="closeDockedPanels"
     />
-    <div
+    <PanelResizeHandle
       v-if="dockedPanelOpen && panelDock !== 'window'"
-      class="panel-resize-handle"
-      :class="{ active: panelResizeGesture !== null }"
-      role="separator"
-      :aria-orientation="panelDock === 'right' || panelDock === 'left' ? 'vertical' : 'horizontal'"
-      :aria-label="t('panels.resize')"
-      :aria-valuemin="panelDockMinimumSize()"
-      :aria-valuemax="panelDockMaximumSize()"
-      :aria-valuenow="panelDockSize"
-      tabindex="0"
+      :dock="panelDock"
+      :active="panelResizeGesture !== null"
+      :minimum="panelDockMinimumSize()"
+      :maximum="panelDockMaximumSize()"
+      :value="panelDockSize"
+      :label="t('panels.resize')"
       :title="t('panels.resizeHelp')"
       @pointerdown="startPanelResize"
       @keydown="resizePanelWithKeyboard"
-      @dblclick="resetPanelDockSize"
+      @reset="resetPanelDockSize"
     />
   </header>
   <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" />

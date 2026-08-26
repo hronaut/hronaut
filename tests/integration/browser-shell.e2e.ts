@@ -405,6 +405,68 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
 })
 
+test('keeps the latest rapid tab selection when queued responses settle in request order', async ({
+  appWindow,
+  electronApp
+}) => {
+  await appWindow.evaluate(`(async () => {
+    await window.hronaut.newTab({ url: 'data:text/html,<title>First queued tab</title>', active: false });
+    await window.hronaut.newTab({ url: 'data:text/html,<title>Latest queued tab</title>', active: false });
+  })()`)
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+    state.tabs.filter((tab) => tab.title.endsWith('queued tab')).length
+  ))`)).toBe(2)
+  const initialState = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+
+  await electronApp.evaluate(({ ipcMain }, state) => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __queuedTabSelections?: {
+        initial: BrowserState
+        requests: Array<{ tabId: string; resolve: (value: BrowserState) => void }>
+      }
+    }
+    const control = {
+      initial: state as BrowserState,
+      requests: [] as Array<{ tabId: string; resolve: (value: BrowserState) => void }>
+    }
+    mainGlobal.__queuedTabSelections = control
+    ipcMain.removeHandler('browser:select-tab')
+    ipcMain.handle('browser:select-tab', (_event, tabId: unknown) => new Promise((resolve) => {
+      control.requests.push({ tabId: String(tabId), resolve })
+    }))
+  }, initialState)
+
+  const firstTab = appWindow.getByRole('tab', { name: /^First queued tab/ })
+  const latestTab = appWindow.getByRole('tab', { name: /^Latest queued tab/ })
+  await firstTab.click()
+  await latestTab.click()
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __queuedTabSelections?: { requests: unknown[] }
+    }
+  ).__queuedTabSelections?.requests.length)).toBe(2)
+
+  await electronApp.evaluate(() => {
+    const control = (globalThis as typeof globalThis & {
+      __queuedTabSelections?: {
+        initial: BrowserState
+        requests: Array<{ tabId: string; resolve: (value: BrowserState) => void }>
+      }
+    }).__queuedTabSelections
+    if (!control || control.requests.length !== 2) throw new Error('Tab selections were not queued')
+    for (const request of control.requests) {
+      request.resolve({
+        ...control.initial,
+        activeTabId: request.tabId,
+        tabs: control.initial.tabs.map((tab) => ({ ...tab, active: tab.id === request.tabId }))
+      })
+    }
+  })
+
+  await expect(latestTab).toHaveAttribute('aria-selected', 'true')
+  await expect(firstTab).toHaveAttribute('aria-selected', 'false')
+})
+
 test('coalesces rapid detached-panel requests and refreshes only the latest panel', async ({ appWindow, electronApp }) => {
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const detachedPagePromise = electronApp.waitForEvent('window')

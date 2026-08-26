@@ -32,6 +32,13 @@ export const useBrowserStore = defineStore('browser', () => {
 
   let generation = 0
   let revision = 0
+  let operationSequence = 0
+  const pendingOperations = new Set<number>()
+  const completedOperations = new Map<number, {
+    generation: number
+    startingRevision: number
+    state: BrowserState
+  }>()
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
 
@@ -75,6 +82,8 @@ export const useBrowserStore = defineStore('browser', () => {
 
   function dispose(): void {
     generation += 1
+    pendingOperations.clear()
+    completedOperations.clear()
     unsubscribe?.()
     unsubscribe = null
     initializePromise = null
@@ -82,12 +91,40 @@ export const useBrowserStore = defineStore('browser', () => {
     initializing.value = false
   }
 
+  function reconcileOperations(): void {
+    for (const [sequence, result] of completedOperations) {
+      if (result.generation !== generation || result.startingRevision !== revision) {
+        completedOperations.delete(sequence)
+      }
+    }
+    const newestCompleted = [...completedOperations.entries()]
+      .sort(([left], [right]) => right - left)[0]
+    if (!newestCompleted) return
+    const [sequence, result] = newestCompleted
+    if ([...pendingOperations].some((pendingSequence) => pendingSequence > sequence)) return
+    completedOperations.clear()
+    acceptAuthoritativeState(result.state)
+  }
+
   async function syncOperation(operation: Promise<BrowserState>): Promise<BrowserState> {
     const currentGeneration = generation
     const startingRevision = revision
-    const next = await operation
-    if (generation === currentGeneration && revision === startingRevision) acceptAuthoritativeState(next)
-    return next
+    const sequence = ++operationSequence
+    pendingOperations.add(sequence)
+    try {
+      const next = await operation
+      if (generation === currentGeneration && revision === startingRevision) {
+        completedOperations.set(sequence, {
+          generation: currentGeneration,
+          startingRevision,
+          state: next
+        })
+      }
+      return next
+    } finally {
+      pendingOperations.delete(sequence)
+      reconcileOperations()
+    }
   }
 
   const refresh = (): Promise<BrowserState> => syncOperation(window.hronaut.getState())
