@@ -1664,13 +1664,15 @@ test('reports a failed native repository tab without leaving the menu action sil
     Object.defineProperty(prototype, 'setBackgroundColor', {
       configurable: true,
       value(this: Electron.WebContentsView, color: string) {
+        // The address-suggestion overlay may finish initializing after the
+        // shell reaches domcontentloaded. Do not let that transparent helper
+        // view consume the browser-tab failure injected by this test.
+        if (color !== '#ffffff') return originalSetBackgroundColor.call(this, color)
         Object.defineProperty(prototype, 'setBackgroundColor', {
           configurable: true,
           value: originalSetBackgroundColor,
           writable: true
         })
-        void this
-        void color
         throw new Error('Repository tab unavailable for regression test')
       },
       writable: true
