@@ -6,6 +6,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [1.5.3] - 2026-08-26
+
+### Added
+
 - Add a zero-cost Windows Scoop package smoke test that builds the portable app locally, verifies its shortcut and loopback MCP runtime, preserves external AppData across uninstall/reinstall, and avoids consuming public release-download counts.
 
 ### Changed
