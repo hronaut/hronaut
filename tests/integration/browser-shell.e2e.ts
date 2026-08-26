@@ -1479,6 +1479,41 @@ test('reports rejected native application-menu actions without an unhandled main
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeEnabled()
 })
 
+test('reports a failed native repository tab without leaving the menu action silent', async ({
+  appWindow,
+  electronApp
+}) => {
+  await electronApp.evaluate(({ WebContentsView }) => {
+    const prototype = WebContentsView.prototype
+    const originalSetBackgroundColor = prototype.setBackgroundColor
+    Object.defineProperty(prototype, 'setBackgroundColor', {
+      configurable: true,
+      value(this: Electron.WebContentsView, color: string) {
+        Object.defineProperty(prototype, 'setBackgroundColor', {
+          configurable: true,
+          value: originalSetBackgroundColor,
+          writable: true
+        })
+        void this
+        void color
+        throw new Error('Repository tab unavailable for regression test')
+      },
+      writable: true
+    })
+  })
+  await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+    const item = Menu.getApplicationMenu()?.items.find((candidate) => candidate.label === 'Help')
+      ?.submenu?.items.find((candidate) => candidate.label === 'GitHub Repository')
+    if (!item?.click) throw new Error('GitHub Repository application-menu action was not found')
+    item.click(item, BrowserWindow.getAllWindows()[0], {} as Electron.KeyboardEvent)
+  })
+
+  await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText(
+    'Repository tab unavailable for regression test'
+  )
+  await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeEnabled()
+})
+
 test('keeps MCP pause changes handled when the Home refresh fails', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate('window.hronaut.openHome()')
   await electronApp.evaluate(({ webContents }) => {

@@ -22,6 +22,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Report a failed native GitHub Repository menu action in the shell instead of only logging it.
 - Report failed Help and support link navigation instead of silently closing the dialog.
 - Keep committed language changes authoritative when the follow-up Home refresh fails.
 - Keep committed MCP authentication changes authoritative when the follow-up Home refresh fails.

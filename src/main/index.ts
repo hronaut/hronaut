@@ -1305,8 +1305,10 @@ function requestHelp(action: HelpMenuAction): void {
 
 function openRepository(): void {
   showWindow()
-  void tabsManager?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
-    .catch((error) => console.error('[help] Failed to open the GitHub repository:', error))
+  runNativeBrowserAction(
+    'open GitHub repository',
+    () => tabsManager?.newTab({ url: 'https://github.com/hronaut/hronaut', active: true })
+  )
 }
 
 function installApplicationMenu(): void {
