@@ -560,13 +560,19 @@ const {
   closeTab,
   toggleTabMuted,
   toggleTabHumanInteraction,
-  toggleAllHumanInteraction
+  toggleAllHumanInteraction,
+  toggleDeveloperTools
 } = useBrowserTabActionsController({
   state,
   activeTab,
   isHome: () => activeTab.value?.url.startsWith('hronaut://home') ?? true,
   browser,
   syncState,
+  beforeToggleDeveloperTools: () => {
+    closeHelpDialog()
+    closeSettings()
+    closeTransientPanels()
+  },
   onSelectError: (error) => showAppToast(
     'error',
     t('runtime.workspace.openFailed'),
@@ -836,7 +842,8 @@ const {
   toggleConsole,
   resetNetwork: resetNetworkMonitorView,
   toggleNetwork: toggleNetworkMonitor,
-  openRequestConditions
+  openRequestConditions,
+  dispose: disposeDeveloperPanelsShellController
 } = developerPanelsShellController
 const { refresh: refreshDetachedPanel } = useDetachedPanelActionsController({
   refreshSiteData: refreshSiteDataSummary,
@@ -1484,15 +1491,6 @@ function togglePageTools(): void {
   pageToolsOpen.value = true
 }
 
-async function toggleDeveloperTools(): Promise<void> {
-  const tab = activeTab.value
-  if (!tab || activeIsHome.value || tab.humanInteractionLocked) return
-  closeHelpDialog()
-  closeSettings()
-  closeTransientPanels()
-  await browser.toggleDevTools(tab.id)
-}
-
 useShellWindowLifecycle({
   shell,
   onKeyDown: handleKeyDown,
@@ -1542,6 +1540,7 @@ onBeforeUnmount(() => {
   disposeCredentialsController()
   disposeBrowserCollectionsShellController()
   browserCollectionsController.dispose()
+  disposeDeveloperPanelsShellController()
   disposeDiagnosticsController()
   disposeAppToastController()
 })

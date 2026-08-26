@@ -16,6 +16,7 @@ type BrowserTabActionsApi = Pick<
   | 'setTabHumanInteractionLocked'
   | 'setTabMuted'
   | 'showWorkspaceContextMenu'
+  | 'toggleDevTools'
 >
 
 export interface BrowserTabActionsControllerOptions {
@@ -24,6 +25,7 @@ export interface BrowserTabActionsControllerOptions {
   isHome: () => boolean
   browser: BrowserTabActionsApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
+  beforeToggleDeveloperTools: () => void
   onSelectError: (error: unknown) => void
   onNavigateError: (error: unknown) => void
 }
@@ -108,6 +110,15 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     })
   }
 
+  async function toggleDeveloperTools(): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab || options.isHome() || tab.humanInteractionLocked) return
+    options.beforeToggleDeveloperTools()
+    await enqueueToggle(`devtools:${tab.id}`, async () => {
+      await options.browser.toggleDevTools(tab.id)
+    })
+  }
+
   return {
     reorderTab,
     selectBrowserTab,
@@ -117,7 +128,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     closeTab,
     toggleTabMuted,
     toggleTabHumanInteraction,
-    toggleAllHumanInteraction
+    toggleAllHumanInteraction,
+    toggleDeveloperTools
   }
 }
 

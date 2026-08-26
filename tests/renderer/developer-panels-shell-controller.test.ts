@@ -72,6 +72,30 @@ describe('useDeveloperPanelsShellController', () => {
     expect(harness.networkPanel.value.openRequestConditions).not.toHaveBeenCalled()
   })
 
+  it('does not refresh a Network panel reopened externally during an older render', async () => {
+    const harness = setup()
+
+    const opening = harness.controller.toggleNetwork()
+    harness.networkOpen.value = false
+    harness.networkOpen.value = true
+    await opening
+
+    expect(harness.networkOpen.value).toBe(true)
+    expect(harness.networkPanel.value.refreshAll).not.toHaveBeenCalled()
+  })
+
+  it('does not open request conditions in a panel reopened externally during an older render', async () => {
+    const harness = setup()
+
+    const opening = harness.controller.openRequestConditions()
+    harness.networkOpen.value = false
+    harness.networkOpen.value = true
+    await opening
+
+    expect(harness.networkOpen.value).toBe(true)
+    expect(harness.networkPanel.value.openRequestConditions).not.toHaveBeenCalled()
+  })
+
   it('resets panel-owned state and closes docked panels', () => {
     const harness = setup()
     harness.consoleOpen.value = true

@@ -1,4 +1,4 @@
-import { nextTick, type Ref } from 'vue'
+import { nextTick, watch, type Ref } from 'vue'
 
 export interface ConsolePanelShellHandle {
   reset: (closePanel?: boolean) => void
@@ -24,6 +24,11 @@ export interface DeveloperPanelsShellControllerOptions {
 
 export function useDeveloperPanelsShellController(options: DeveloperPanelsShellControllerOptions) {
   let networkOpenSequence = 0
+  let disposed = false
+
+  const stopNetworkOpenTracking = watch(options.networkOpen, () => {
+    networkOpenSequence += 1
+  }, { flush: 'sync' })
 
   function resetConsole(closePanel = false): void {
     options.consolePanel.value?.reset(closePanel)
@@ -67,27 +72,33 @@ export function useDeveloperPanelsShellController(options: DeveloperPanelsShellC
 
   async function toggleNetwork(): Promise<void> {
     if (options.networkOpen.value) {
-      networkOpenSequence += 1
       options.networkOpen.value = false
       return
     }
-    const sequence = ++networkOpenSequence
     options.closeTransientPanels()
     options.networkOpen.value = true
+    const sequence = networkOpenSequence
     await nextTick()
-    if (sequence !== networkOpenSequence || !options.networkOpen.value) return
+    if (disposed || sequence !== networkOpenSequence || !options.networkOpen.value) return
     await options.networkPanel.value?.refreshAll()
   }
 
   async function openRequestConditions(): Promise<void> {
     if (!options.networkOpen.value) {
-      const sequence = ++networkOpenSequence
       options.closeTransientPanels()
       options.networkOpen.value = true
+      const sequence = networkOpenSequence
       await nextTick()
-      if (sequence !== networkOpenSequence || !options.networkOpen.value) return
+      if (disposed || sequence !== networkOpenSequence || !options.networkOpen.value) return
     }
     await options.networkPanel.value?.openRequestConditions()
+  }
+
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    networkOpenSequence += 1
+    stopNetworkOpenTracking()
   }
 
   return {
@@ -99,7 +110,8 @@ export function useDeveloperPanelsShellController(options: DeveloperPanelsShellC
     refreshNetworkRoutes,
     refreshNetworkAll,
     toggleNetwork,
-    openRequestConditions
+    openRequestConditions,
+    dispose
   }
 }
 

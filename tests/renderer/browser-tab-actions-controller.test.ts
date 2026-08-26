@@ -51,23 +51,36 @@ function createHarness() {
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
     setTabHumanInteractionLocked: vi.fn(async (_tabId: string, _locked: boolean) => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
-    showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined)
+    showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined),
+    toggleDevTools: vi.fn(async (_tabId?: string) => true)
   }
   const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
     state.value = await operation
   })
   const onSelectError = vi.fn()
   const onNavigateError = vi.fn()
+  const beforeToggleDeveloperTools = vi.fn()
   const controller = useBrowserTabActionsController({
     state,
     activeTab,
     isHome: () => home.value,
     browser,
     syncState,
+    beforeToggleDeveloperTools,
     onSelectError,
     onNavigateError
   })
-  return { state, activeTab, home, browser, syncState, onSelectError, onNavigateError, controller }
+  return {
+    state,
+    activeTab,
+    home,
+    browser,
+    syncState,
+    beforeToggleDeveloperTools,
+    onSelectError,
+    onNavigateError,
+    controller
+  }
 }
 
 describe('browser tab actions controller', () => {
@@ -195,5 +208,22 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.setAllHumanInteractionLocked.mock.calls.map(([locked]) => locked)).toEqual([true, false])
     expect(harness.state.value.tabs[0]?.humanInteractionLocked).toBe(false)
     expect(harness.state.value.allHumanInteractionLocked).toBe(false)
+  })
+
+  it('owns guarded Developer Tools toggles and shell cleanup outside App.vue', async () => {
+    const harness = createHarness()
+
+    harness.home.value = true
+    await harness.controller.toggleDeveloperTools()
+    harness.home.value = false
+    harness.activeTab.value = tab({ humanInteractionLocked: true })
+    await harness.controller.toggleDeveloperTools()
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+
+    harness.activeTab.value = tab()
+    await harness.controller.toggleDeveloperTools()
+    expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
+    expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
   })
 })
