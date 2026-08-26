@@ -7,10 +7,12 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Let agents hover bounded viewport coordinates to reveal tooltips and hover states on canvas, WebGL, maps, remote desktops, and other visual-only surfaces.
+- Let agents drag between bounded viewport coordinates for canvas, maps, custom controls, remote desktops, and other pixel-precise targets.
 
 ### Fixed
 
 - Make the complete horizontal “Workspace” action, including its visible label, clickable instead of limiting its title-bar hit target to the plus icon.
+- Keep a horizontal-only `browser_scroll` action from also applying the default vertical scroll distance.
 
 ## [1.8.0] - 2026-08-27
 

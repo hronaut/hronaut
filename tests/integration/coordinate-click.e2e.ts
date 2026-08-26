@@ -9,7 +9,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('clicks and hovers canvas coordinates while rejecting ambiguous or offscreen points', async ({
+test('uses bounded canvas coordinates and keeps horizontal scrolling horizontal', async ({
   mcpToken,
   mcpPort
 }) => {
@@ -35,6 +35,7 @@ test('clicks and hovers canvas coordinates while rejecting ambiguous or offscree
     expect(tools.tools.find((tool) => tool.name === 'browser_hover')?.description).toContain('viewport coordinates')
     const html = `<!doctype html><title>Coordinate click fixture</title>
       <canvas id="surface" width="240" height="120" style="display:block;width:240px;height:120px;border:1px solid black"></canvas>
+      <div id="scrollbox" style="width:120px;height:60px;overflow:auto"><div style="width:400px;height:300px"></div></div>
       <p>Canvas target ready</p>
       <script>
         const surface = document.querySelector('#surface');
@@ -45,13 +46,20 @@ test('clicks and hovers canvas coordinates while rejecting ambiguous or offscree
             x: Math.round(event.clientX - rect.left),
             y: Math.round(event.clientY - rect.top)
           });
+          if (['mousedown', 'mousemove', 'mouseup'].includes(event.type)) {
+            const sequence = JSON.parse(surface.dataset.pointerSequence || '[]');
+            sequence.push(event.type);
+            surface.dataset.pointerSequence = JSON.stringify(sequence);
+          }
           if (event.type === 'click' && event.clientX - rect.left > 180) {
             surface.dataset.dialogResult = String(confirm('Coordinate confirm'));
           }
         };
         surface.addEventListener('click', record);
         surface.addEventListener('dblclick', record);
+        surface.addEventListener('mousedown', record);
         surface.addEventListener('mousemove', record);
+        surface.addEventListener('mouseup', record);
       </script>`
     const created = await client.callTool({
       name: 'browser_new_tab',
@@ -87,6 +95,53 @@ test('clicks and hovers canvas coordinates while rejecting ambiguous or offscree
       arguments: { tabId, script: "document.querySelector('#surface').dataset.lastPointer" }
     }) as CallToolResult
     expect(JSON.parse(text(hoverState))).toEqual({ type: 'mousemove', x: 93, y: 51 })
+
+    const horizontalScroll = await client.callTool({
+      name: 'browser_scroll',
+      arguments: { tabId, selector: '#scrollbox', deltaX: 80 }
+    }) as CallToolResult
+    expect(horizontalScroll.isError, text(horizontalScroll)).not.toBe(true)
+    expect(JSON.parse(text(horizontalScroll))).toEqual({ x: 80, y: 0 })
+
+    await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.pointerSequence = '[]'" }
+    })
+    const dragged = await client.callTool({
+      name: 'browser_drag',
+      arguments: {
+        tabId,
+        startX: point.x - 43,
+        startY: point.y - 21,
+        endX: point.x + 87,
+        endY: point.y + 29
+      }
+    }) as CallToolResult
+    expect(dragged.isError, text(dragged)).not.toBe(true)
+    expect(JSON.parse(text(dragged))).toMatchObject({
+      ok: true,
+      from: { x: point.x - 43, y: point.y - 21 },
+      to: { x: point.x + 87, y: point.y + 29 }
+    })
+    const dragState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.pointerSequence" }
+    }) as CallToolResult
+    expect(JSON.parse(text(dragState))).toEqual([
+      'mousemove',
+      'mousedown',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mousemove',
+      'mouseup'
+    ])
+
+    expect(tools.tools.find((tool) => tool.name === 'browser_drag')?.description).toContain('viewport coordinates')
 
     const clicked = await client.callTool({
       name: 'browser_click',
@@ -169,6 +224,41 @@ test('clicks and hovers canvas coordinates while rejecting ambiguous or offscree
     }) as CallToolResult
     expect(offscreenHover.isError).toBe(true)
     expect(text(offscreenHover)).toContain('inside the visible viewport')
+
+    const incompleteDrag = await client.callTool({
+      name: 'browser_drag',
+      arguments: { tabId, startX: point.x, startY: point.y, endX: point.x + 10 }
+    }) as CallToolResult
+    expect(incompleteDrag.isError).toBe(true)
+    expect(text(incompleteDrag)).toContain('Provide all four drag coordinates')
+
+    const ambiguousDrag = await client.callTool({
+      name: 'browser_drag',
+      arguments: {
+        tabId,
+        sourceSelector: '#surface',
+        targetSelector: '#scrollbox',
+        startX: point.x,
+        startY: point.y,
+        endX: point.x + 10,
+        endY: point.y + 10
+      }
+    }) as CallToolResult
+    expect(ambiguousDrag.isError).toBe(true)
+    expect(text(ambiguousDrag)).toContain('Provide element targets or drag coordinates, not both')
+
+    const offscreenDrag = await client.callTool({
+      name: 'browser_drag',
+      arguments: {
+        tabId,
+        startX: point.x,
+        startY: point.y,
+        endX: point.width,
+        endY: point.height
+      }
+    }) as CallToolResult
+    expect(offscreenDrag.isError).toBe(true)
+    expect(text(offscreenDrag)).toContain('inside the visible viewport')
   } finally {
     await client.close().catch(() => undefined)
   }

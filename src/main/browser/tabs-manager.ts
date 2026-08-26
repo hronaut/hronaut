@@ -4032,33 +4032,51 @@ export class BrowserTabsManager {
     sourceSelector?: string
     targetRef?: string
     targetSelector?: string
+    startX?: number
+    startY?: number
+    endX?: number
+    endY?: number
   }): Promise<unknown> {
     const source = { ref: options.sourceRef, selector: options.sourceSelector }
     const target = { ref: options.targetRef, selector: options.targetSelector }
-    this.validateTarget(source)
-    this.validateTarget(target)
+    const coordinatePoints = this.coordinateDragPointsOrValidateTargets(options, source, target)
     const webContents = this.getTab(options.tabId).webContents
-    const from = await webContents.executeJavaScript(targetPointScript(source), true) as { x: number; y: number; tag: string }
-    const to = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
-    await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y })
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1
-      })
-      for (let step = 1; step <= 8; step += 1) {
-        await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-          type: 'mouseMoved',
-          x: from.x + ((to.x - from.x) * step) / 8,
-          y: from.y + ((to.y - from.y) * step) / 8,
-          button: 'left',
-          buttons: 1
-        })
-      }
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1
-      })
-    }))
+    const from = coordinatePoints?.from
+      ?? await webContents.executeJavaScript(targetPointScript(source), true) as { x: number; y: number; tag: string }
+    const to = coordinatePoints?.to
+      ?? await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
+    if (coordinatePoints) {
+      await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
+      await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
+    }
+    await this.withAgentInput(webContents, () => this.withDebugger(
+      webContents,
+      () => this.dispatchNativeDrag(webContents, from, to)
+    ))
     return { ok: true, from, to }
+  }
+
+  private async dispatchNativeDrag(
+    webContents: BrowserTab['view']['webContents'],
+    from: { x: number; y: number },
+    to: { x: number; y: number }
+  ): Promise<void> {
+    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y })
+    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1
+    })
+    for (let step = 1; step <= 8; step += 1) {
+      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: from.x + ((to.x - from.x) * step) / 8,
+        y: from.y + ((to.y - from.y) * step) / 8,
+        button: 'left',
+        buttons: 1
+      })
+    }
+    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1
+    })
   }
 
   async resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
@@ -4245,8 +4263,9 @@ export class BrowserTabsManager {
     if (options.ref || options.selector) this.validateTarget(options)
     const tab = this.getTab(options.tabId)
     const target = options.ref || options.selector ? targetExpression(options) : 'document.scrollingElement'
+    const hasExplicitDelta = options.deltaX !== undefined || options.deltaY !== undefined
     const deltaX = Math.min(Math.max(options.deltaX ?? 0, -100_000), 100_000)
-    const deltaY = Math.min(Math.max(options.deltaY ?? 600, -100_000), 100_000)
+    const deltaY = Math.min(Math.max(options.deltaY ?? (hasExplicitDelta ? 0 : 600), -100_000), 100_000)
     return tab.webContents.executeJavaScript(`(() => {
       const target = ${target};
       if (!target) throw new Error('Scroll target not found.');
@@ -6899,18 +6918,55 @@ export class BrowserTabsManager {
     return { x: target.x, y: target.y }
   }
 
+  private coordinateDragPointsOrValidateTargets(
+    options: {
+      sourceRef?: string
+      sourceSelector?: string
+      targetRef?: string
+      targetSelector?: string
+      startX?: number
+      startY?: number
+      endX?: number
+      endY?: number
+    },
+    source: { ref?: string; selector?: string },
+    target: { ref?: string; selector?: string }
+  ): { from: { x: number; y: number }; to: { x: number; y: number } } | undefined {
+    const coordinates = [options.startX, options.startY, options.endX, options.endY]
+    const hasCoordinates = coordinates.some((value) => value !== undefined)
+    if (!hasCoordinates) {
+      this.validateTarget(source)
+      this.validateTarget(target)
+      return undefined
+    }
+    if (source.ref || source.selector || target.ref || target.selector) {
+      throw new TypeError('Provide element targets or drag coordinates, not both')
+    }
+    if (coordinates.some((value) => value === undefined)) {
+      throw new TypeError('Provide all four drag coordinates: startX, startY, endX, and endY')
+    }
+    if (coordinates.some((value) => !Number.isFinite(value) || value! < 0)) {
+      throw new TypeError('Drag coordinates must be finite non-negative numbers')
+    }
+    return {
+      from: { x: options.startX!, y: options.startY! },
+      to: { x: options.endX!, y: options.endY! }
+    }
+  }
+
   private async assertPointInsideVisibleViewport(
     webContents: BrowserTab['view']['webContents'],
     point: { x: number; y: number },
-    action: 'click' | 'hover'
+    action: 'click' | 'hover' | 'drag'
   ): Promise<void> {
     const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
       width: number
       height: number
     }
     if (point.x >= viewport.width || point.y >= viewport.height) {
+      const actionLabel = `${action[0]!.toUpperCase()}${action.slice(1)}`
       throw new RangeError(
-        `${action === 'click' ? 'Click' : 'Hover'} coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`
+        `${actionLabel} coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`
       )
     }
   }

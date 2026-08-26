@@ -230,7 +230,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
-  { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element.' },
+  { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element, or drag between viewport coordinates for canvas and other visual-only surfaces.' },
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
@@ -981,7 +981,11 @@ function createBrowserMcpServer(
         sourceRef: z.string().optional(),
         sourceSelector: z.string().optional(),
         targetRef: z.string().optional(),
-        targetSelector: z.string().optional()
+        targetSelector: z.string().optional(),
+        startX: z.number().finite().nonnegative().optional(),
+        startY: z.number().finite().nonnegative().optional(),
+        endX: z.number().finite().nonnegative().optional(),
+        endY: z.number().finite().nonnegative().optional()
       }
     },
     tabTool('browser_drag', async (input: {
@@ -990,6 +994,10 @@ function createBrowserMcpServer(
       sourceSelector?: string
       targetRef?: string
       targetSelector?: string
+      startX?: number
+      startY?: number
+      endX?: number
+      endY?: number
     }) => textResult(await manager.drag(input)))
   )
   registerWorkspaceTool(
