@@ -17,6 +17,9 @@ const { t } = useI18n({ useScope: 'global' })
 const store = useSettingsStore()
 const { settings, systemLocale, languageChangeError } = storeToRefs(store)
 const savingLanguage = ref(false)
+const titleBarRestartRequired = computed(() => (
+  (settings.value.useSystemTitleBar ? 'system' : 'overlay') !== (window.hronautShell?.windowChrome.mode ?? 'overlay')
+))
 
 const themeGroups = computed<Array<{
   name: 'regular' | 'expressive'
@@ -97,6 +100,13 @@ async function selectTabPosition(event: Event): Promise<void> {
 async function setHideInTray(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   if (!(await runSetting(store.setHideInTray(input.checked)))) input.checked = settings.value.hideInTray
+}
+
+async function setUseSystemTitleBar(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setUseSystemTitleBar(input.checked)))) {
+    input.checked = settings.value.useSystemTitleBar
+  }
 }
 
 async function setAttentionSound(event: Event): Promise<void> {
@@ -213,6 +223,21 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <option value="top">{{ t('appearance.tabPosition.top') }}</option>
           <option value="left">{{ t('appearance.tabPosition.left') }}</option>
         </select>
+      </label>
+      <label class="settings-row" for="setting-system-title-bar">
+        <span>
+          <strong>{{ t('appearance.systemTitleBar.label') }}</strong>
+          <small>{{ t('appearance.systemTitleBar.description') }}</small>
+          <small v-if="titleBarRestartRequired" class="setting-restart-required" role="status">
+            {{ t('appearance.systemTitleBar.restartRequired') }}
+          </small>
+        </span>
+        <input
+          id="setting-system-title-bar"
+          type="checkbox"
+          :checked="settings.useSystemTitleBar"
+          @change="setUseSystemTitleBar"
+        />
       </label>
       <label class="settings-row" for="setting-hide-in-tray">
         <span>

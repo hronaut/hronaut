@@ -53,6 +53,29 @@ describe('useAppearancePresentationController', () => {
     detachedScope.stop()
   })
 
+  it('collapses a pinned vertical rail at narrow widths so the complete toolbar still fits', () => {
+    const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const })
+    const systemTheme = ref<'light' | 'dark'>('light')
+    const scope = effectScope()
+    const controller = scope.run(() => useAppearancePresentationController({ settings, systemTheme, detachedWindow: false }))!
+
+    controller.updateViewportWidth(760)
+    expect(controller.compactVerticalTabRail.value).toBe(true)
+    expect(controller.verticalTabRailCollapsed.value).toBe(true)
+    expect(controller.tabRailWidth.value).toBe(56)
+
+    controller.setVerticalTabRailRevealed(true)
+    expect(controller.verticalTabRailCollapsed.value).toBe(false)
+    expect(controller.tabRailWidth.value).toBe(56)
+    controller.setVerticalTabRailRevealed(false)
+
+    controller.updateViewportWidth(1_000)
+    expect(controller.compactVerticalTabRail.value).toBe(false)
+    expect(controller.verticalTabRailCollapsed.value).toBe(false)
+    expect(controller.tabRailWidth.value).toBe(280)
+    scope.stop()
+  })
+
   it('persists an unpinned vertical rail and temporarily expands it for interaction', () => {
     window.localStorage.setItem('hronaut:vertical-tab-rail-pinned', 'false')
     const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const })

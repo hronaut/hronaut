@@ -76,6 +76,11 @@ export const deDE = {
       "top": "Oben",
       "left": "Links"
     },
+    "systemTitleBar": {
+      "label": "Systemtitelleiste verwenden",
+      "description": "Stelle die Titelleiste des Betriebssystems wieder her, wenn die kompakten Fenstersteuerelemente nicht richtig funktionieren.",
+      "restartRequired": "Starte Hronaut neu, um diese Änderung am Fensterrahmen anzuwenden."
+    },
     "hideInTray": {
       "label": "Beim Schließen in den Infobereich",
       "description": "Hronaut und den MCP-Server nach dem Schließen des Fensters weiter ausführen."

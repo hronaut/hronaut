@@ -249,12 +249,13 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     const actions = document.querySelector<HTMLElement>('.topbar-actions')?.getBoundingClientRect()
     if (!toolbar || !rail || !navigation || !actions) return null
     return {
-      toolbarIsOnlyTopRow: Math.round(toolbar.top) === 0
-        && Math.round(toolbar.left) === 0
+      toolbarIsRightTopRow: Math.round(toolbar.top) === 0
+        && toolbar.left >= rail.right - 1
         && Math.round(toolbar.right) === window.innerWidth,
-      railStartsBelowToolbar: rail.top >= toolbar.bottom && rail.top <= toolbar.bottom + 1,
-      railFillsLeftViewport: Math.round(rail.left) === 0
-        && Math.round(rail.right) === 280
+      railIsLeftColumn: Math.round(rail.left) === 0
+        && rail.right > 0
+        && rail.right <= 280
+        && Math.round(rail.top) === 0
         && Math.round(rail.bottom) === window.innerHeight,
       navigationInsideRail: navigation.left >= rail.left
         && navigation.right <= rail.right
@@ -266,9 +267,8 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
         && actions.bottom <= rail.bottom
     }
   })).toEqual({
-    toolbarIsOnlyTopRow: true,
-    railStartsBelowToolbar: true,
-    railFillsLeftViewport: true,
+    toolbarIsRightTopRow: true,
+    railIsLeftColumn: true,
     navigationInsideRail: true,
     actionsInsideRail: true
   })
@@ -315,7 +315,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
       width: websiteView?.getBounds().width,
       contentWidth: window?.getContentBounds().width
     }
-  })).toEqual({ x: 280, width: 480, contentWidth: 760 })
+  })).toEqual({ x: 56, width: 704, contentWidth: 760 })
 
   const unpinRail = appWindow.getByRole('button', { name: 'Collapse tab rail when not in use' })
   await expect(unpinRail).toHaveAttribute('aria-pressed', 'true')
@@ -370,7 +370,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
     return websiteView?.getBounds().x
-  })).toBe(280)
+  })).toBe(56)
 
   await appWindow.getByRole('combobox', { name: 'Address' }).hover()
   await expect(verticalNavigation).toHaveClass(/rail-collapsed/)

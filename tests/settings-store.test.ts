@@ -29,6 +29,7 @@ describe('SettingsStore', () => {
       theme: 'cyberpunk',
       interfaceScale: 1.25,
       tabPosition: 'left',
+      useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -46,6 +47,7 @@ describe('SettingsStore', () => {
       theme: 'cyberpunk',
       interfaceScale: 1.25,
       tabPosition: 'left',
+      useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -63,6 +65,7 @@ describe('SettingsStore', () => {
       theme: 'cyberpunk',
       interfaceScale: 1.25,
       tabPosition: 'left',
+      useSystemTitleBar: true,
       searchEngine: 'duckduckgo',
       hideInTray: false,
       attentionSound: false,
@@ -109,6 +112,7 @@ describe('SettingsStore', () => {
       theme: 'dark',
       interfaceScale: DEFAULT_INTERFACE_SCALE,
       tabPosition: 'top',
+      useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
       attentionSound: true,
@@ -136,6 +140,13 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ tabPosition }), 'utf8')
     expect((await store.load()).tabPosition).toBe('top')
+  })
+
+  it.each(['system', 1, null])('migrates an invalid system title bar preference to false: %s', async (useSystemTitleBar) => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ useSystemTitleBar }), 'utf8')
+    expect((await store.load()).useSystemTitleBar).toBe(false)
   })
 
   it.each([80, 65_536, 48_000.5, '48000'])('rejects an invalid persisted MCP port: %s', async (mcpPort) => {

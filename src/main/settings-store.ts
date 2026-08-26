@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
   tabPosition: DEFAULT_TAB_POSITION,
+  useSystemTitleBar: false,
   searchEngine: DEFAULT_SEARCH_ENGINE,
   hideInTray: true,
   attentionSound: true,
@@ -57,6 +58,10 @@ export class SettingsStore {
         theme: isThemeName(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
         interfaceScale: isInterfaceScale(value.interfaceScale) ? value.interfaceScale : DEFAULT_SETTINGS.interfaceScale,
         tabPosition: isTabPosition(value.tabPosition) ? value.tabPosition : DEFAULT_SETTINGS.tabPosition,
+        useSystemTitleBar:
+          typeof value.useSystemTitleBar === 'boolean'
+            ? value.useSystemTitleBar
+            : DEFAULT_SETTINGS.useSystemTitleBar,
         searchEngine: isSearchEngineName(value.searchEngine) ? value.searchEngine : DEFAULT_SETTINGS.searchEngine,
         hideInTray: typeof value.hideInTray === 'boolean' ? value.hideInTray : DEFAULT_SETTINGS.hideInTray,
         attentionSound:

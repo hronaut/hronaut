@@ -76,6 +76,11 @@ export const esES = {
       "top": "Arriba",
       "left": "A la izquierda"
     },
+    "systemTitleBar": {
+      "label": "Usar la barra de título del sistema",
+      "description": "Restaura la barra de título del sistema operativo si los controles compactos no funcionan correctamente.",
+      "restartRequired": "Reinicia Hronaut para aplicar este cambio del marco de la ventana."
+    },
     "hideInTray": {
       "label": "Ocultar en la bandeja al cerrar",
       "description": "Mantener Hronaut y su servidor MCP activos después de cerrar la ventana."

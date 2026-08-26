@@ -44,6 +44,11 @@ export const enUS = {
       top: 'Top',
       left: 'Left side'
     },
+    systemTitleBar: {
+      label: 'Use system title bar',
+      description: 'Restore the operating system title bar if the compact window controls do not work correctly.',
+      restartRequired: 'Restart Hronaut to apply this window-frame change.'
+    },
     hideInTray: {
       label: 'Hide in tray when closing',
       description: 'Keep Hronaut and its MCP server running after the window is closed.'

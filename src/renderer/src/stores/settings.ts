@@ -18,6 +18,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   theme: 'system',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
   tabPosition: 'top',
+  useSystemTitleBar: false,
   searchEngine: 'google',
   hideInTray: true,
   attentionSound: true,
@@ -139,6 +140,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
   const setInterfaceScale = (scale: InterfaceScale): Promise<AppSettings> => applySettings(window.hronautSettings.setInterfaceScale(scale))
   const setTabPosition = (position: TabPosition): Promise<AppSettings> => applySettings(window.hronautSettings.setTabPosition(position))
+  const setUseSystemTitleBar = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setUseSystemTitleBar(enabled))
   const setSearchEngine = (engine: SearchEngineName): Promise<AppSettings> => applySettings(window.hronautSettings.setSearchEngine(engine))
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
   const setAttentionSound = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSound(enabled))
@@ -191,6 +193,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setTheme,
     setInterfaceScale,
     setTabPosition,
+    setUseSystemTitleBar,
     setSearchEngine,
     setHideInTray,
     setAttentionSound,

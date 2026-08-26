@@ -11,6 +11,7 @@ interface AppearancePresentationOptions {
 }
 
 const VERTICAL_TAB_RAIL_PINNED_KEY = 'hronaut:vertical-tab-rail-pinned'
+const COMPACT_VERTICAL_TAB_RAIL_MAX_WIDTH = 900
 
 function storedVerticalTabRailPinned(): boolean {
   try {
@@ -23,11 +24,21 @@ function storedVerticalTabRailPinned(): boolean {
 export function useAppearancePresentationController(options: AppearancePresentationOptions) {
   const verticalTabRailPinned = ref(storedVerticalTabRailPinned())
   const verticalTabRailRevealed = ref(false)
+  const viewportWidth = ref(window.innerWidth)
+  const compactVerticalTabRail = computed(() => (
+    !options.detachedWindow
+    && options.settings.value.tabPosition === 'left'
+    && viewportWidth.value < COMPACT_VERTICAL_TAB_RAIL_MAX_WIDTH
+  ))
+  const verticalTabRailCollapsed = computed(() => (
+    (compactVerticalTabRail.value && !verticalTabRailRevealed.value)
+    || (!verticalTabRailPinned.value && !verticalTabRailRevealed.value)
+  ))
   const tabRailWidth = computed(() => (
     !options.detachedWindow && options.settings.value.tabPosition === 'left'
-      ? verticalTabRailPinned.value || verticalTabRailRevealed.value
-        ? VERTICAL_TAB_RAIL_WIDTH
-        : VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
+      ? compactVerticalTabRail.value || verticalTabRailCollapsed.value
+        ? VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
+        : VERTICAL_TAB_RAIL_WIDTH
       : 0
   ))
   const tabOrientation = computed(() => tabRailWidth.value > 0 ? 'vertical' as const : 'horizontal' as const)
@@ -56,6 +67,10 @@ export function useAppearancePresentationController(options: AppearancePresentat
 
   function setVerticalTabRailRevealed(revealed: boolean): void {
     verticalTabRailRevealed.value = revealed
+  }
+
+  function updateViewportWidth(width = window.innerWidth): void {
+    viewportWidth.value = width
   }
 
   function revealVerticalTabRail(): void {
@@ -88,11 +103,14 @@ export function useAppearancePresentationController(options: AppearancePresentat
   return {
     tabRailWidth,
     tabOrientation,
+    compactVerticalTabRail,
+    verticalTabRailCollapsed,
     verticalTabRailPinned,
     verticalTabRailRevealed,
     applySettings,
     playAttentionSound,
     toggleVerticalTabRailPinned,
+    updateViewportWidth,
     setVerticalTabRailRevealed,
     revealVerticalTabRail,
     concealVerticalTabRail,

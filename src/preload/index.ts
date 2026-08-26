@@ -10,6 +10,7 @@ import type {
   HronautBookmarksApi,
   HronautBrowsingDataApi,
   HronautHistoryApi,
+  HronautShellApi,
   HronautLicenseApi,
   HronautPermissionsApi,
   HronautSettingsApi,
@@ -269,6 +270,7 @@ const settingsApi: HronautSettingsApi = {
   setTheme: (theme: ThemeName) => ipcRenderer.invoke('settings:set-theme', theme),
   setInterfaceScale: (scale: InterfaceScale) => ipcRenderer.invoke('settings:set-interface-scale', scale),
   setTabPosition: (position: TabPosition) => ipcRenderer.invoke('settings:set-tab-position', position),
+  setUseSystemTitleBar: (enabled: boolean) => ipcRenderer.invoke('settings:set-use-system-title-bar', enabled),
   setSearchEngine: (searchEngine: SearchEngineName) => ipcRenderer.invoke('settings:set-search-engine', searchEngine),
   setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
   setAttentionSound: (enabled: boolean) => ipcRenderer.invoke('settings:set-attention-sound', enabled),
@@ -407,7 +409,15 @@ contextBridge.exposeInMainWorld('hronautAddressOverlay', {
     return () => ipcRenderer.removeListener('address-overlay:dismissed', handler)
   }
 })
-contextBridge.exposeInMainWorld('hronautShell', {
+const desktopPlatform = process.platform === 'darwin' || process.platform === 'win32'
+  ? process.platform
+  : 'linux'
+const shellApi: HronautShellApi = {
+  windowChrome: {
+    platform: desktopPlatform,
+    mode: process.argv.includes('--hronaut-window-chrome=overlay') ? 'overlay' : 'system',
+    mainWindow: process.argv.includes('--hronaut-window-kind=main')
+  },
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),
@@ -426,4 +436,5 @@ contextBridge.exposeInMainWorld('hronautShell', {
     ipcRenderer.on('browser:action-failed', handler)
     return () => ipcRenderer.removeListener('browser:action-failed', handler)
   }
-})
+}
+contextBridge.exposeInMainWorld('hronautShell', shellApi)

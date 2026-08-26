@@ -4,6 +4,7 @@ import type { MemorySaverTimeoutMinutes } from './memory-saver.js'
 import type { InterfaceScale } from './interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from './locale.js'
 import type { TabPosition } from './tab-position.js'
+import type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
 
 export type { SearchEngineName } from './search-engine.js'
 export type { BrowserTabGroupColor } from './tab-groups.js'
@@ -11,6 +12,7 @@ export type { MemorySaverTimeoutMinutes } from './memory-saver.js'
 export type { InterfaceScale } from './interface-scale.js'
 export type { LanguagePreference, SupportedLocale } from './locale.js'
 export type { TabPosition } from './tab-position.js'
+export type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
 
 export type HelpMenuAction = 'shortcuts' | 'about' | 'support'
 
@@ -380,6 +382,7 @@ export interface AppSettings {
   theme: ThemeName
   interfaceScale: InterfaceScale
   tabPosition: TabPosition
+  useSystemTitleBar: boolean
   searchEngine: SearchEngineName
   hideInTray: boolean
   attentionSound: boolean
@@ -2313,6 +2316,7 @@ export interface HronautSettingsApi {
   setTheme(theme: ThemeName): Promise<AppSettings>
   setInterfaceScale(scale: InterfaceScale): Promise<AppSettings>
   setTabPosition(position: TabPosition): Promise<AppSettings>
+  setUseSystemTitleBar(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setAttentionSound(enabled: boolean): Promise<AppSettings>
@@ -2333,6 +2337,21 @@ export interface HronautSettingsApi {
   onChanged(listener: (settings: AppSettings) => void): () => void
   onSystemThemeChanged(listener: (theme: 'light' | 'dark') => void): () => void
   onRendererStateChanged(listener: (state: RendererSettingsState) => void): () => void
+}
+
+export interface WindowChromeState {
+  platform: DesktopWindowPlatform
+  mode: WindowChromeMode
+  mainWindow: boolean
+}
+
+export interface HronautShellApi {
+  windowChrome: WindowChromeState
+  setToolbarHeight(height: number): void
+  setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
+  onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
+  onClipboardFailed(listener: (message: string) => void): () => void
+  onActionFailed(listener: (failure: BrowserActionFailure) => void): () => void
 }
 
 export interface HronautMcpApi {

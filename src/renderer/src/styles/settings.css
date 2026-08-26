@@ -171,6 +171,7 @@
 .settings-row strong, .settings-row small { display: block; }
 .settings-row strong { font-size: 14px; }
 .settings-row small { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.settings-row small.setting-restart-required { color: var(--accent-text); font-weight: 750; }
 .settings-row input[type="checkbox"] { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--accent); }
 .settings-row input:disabled { opacity: 0.42; }
 .settings-row select { min-width: 126px; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 7px; outline: none; color: var(--text); background: var(--surface-raised); font: inherit; font-size: 14px; }

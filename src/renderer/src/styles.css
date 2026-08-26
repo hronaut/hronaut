@@ -1,5 +1,6 @@
 @import './styles/tokens.css';
 @import './styles/base.css';
+@import './styles/title-bar.css';
 @import './styles/shell.css';
 @import './styles/tools.css';
 @import './styles/collections.css';

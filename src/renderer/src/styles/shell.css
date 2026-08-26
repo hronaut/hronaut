@@ -65,7 +65,7 @@
 .vertical-tabs-shell .topbar {
   position: fixed;
   z-index: 47;
-  top: var(--shell-content-top);
+  top: 0;
   bottom: 0;
   left: 0;
   display: flex;
@@ -79,6 +79,11 @@
   border-right: 1px solid var(--border);
   background: linear-gradient(180deg, var(--shell-bottom), var(--toolbar));
   box-shadow: 2px 0 8px color-mix(in srgb, var(--shadow) 68%, transparent);
+}
+.custom-title-bar.vertical-tabs-shell .topbar { padding-top: var(--vertical-titlebar-height); }
+.vertical-tabs-shell .topbar.compact-vertical-tab-rail:not(.rail-collapsed) {
+  width: 280px;
+  box-shadow: 8px 0 22px color-mix(in srgb, var(--shadow) 78%, transparent);
 }
 .browser-tabs-bar.vertical {
   position: relative;
@@ -748,6 +753,19 @@
   height: 60px;
   padding: 8px 12px 11px;
   background: var(--toolbar);
+}
+.vertical-tabs-shell .toolbar {
+  width: calc(100% - var(--tab-rail-width));
+  margin-left: var(--tab-rail-width);
+  padding-left: max(
+    12px,
+    calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 12px)
+  );
+  padding-right: max(
+    12px,
+    calc(var(--titlebar-controls-right-safe) + 12px),
+    calc(var(--titlebar-controls-fallback-width) + 12px)
+  );
 }
 .icon-button { display: grid; width: 38px; height: 38px; place-items: center; }
 .icon-button > svg { width: 21px; height: 21px; }

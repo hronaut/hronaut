@@ -41,6 +41,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       theme: 'system',
       interfaceScale: 1.1,
       tabPosition: 'top',
+      useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
       attentionSound: true,

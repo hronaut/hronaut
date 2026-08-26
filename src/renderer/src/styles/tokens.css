@@ -13,6 +13,8 @@
   --accent-text: #5a4da8;
   --button-text: #ffffff;
   --shell-top: #eeedf7;
+  --titlebar-background: #eeedf7;
+  --titlebar-muted: #6d687a;
   --shell-bottom: #f8f7fb;
   --toolbar: #ffffff;
   --surface: #ffffff;
@@ -41,6 +43,8 @@
   --accent-text: #c5bcff;
   --button-text: #10111a;
   --shell-top: #20212c;
+  --titlebar-background: #20212c;
+  --titlebar-muted: #a9a9b7;
   --shell-bottom: #1c1d27;
   --toolbar: #171821;
   --surface: #20212c;
@@ -69,6 +73,8 @@
   --accent-text: #91beff;
   --button-text: #07111f;
   --shell-top: #111f32;
+  --titlebar-background: #111f32;
+  --titlebar-muted: #a8b7cc;
   --shell-bottom: #0b1422;
   --toolbar: #0a1320;
   --surface: #132238;
@@ -97,6 +103,8 @@
   --accent-text: #7c4525;
   --button-text: #ffffff;
   --shell-top: #e8dcc8;
+  --titlebar-background: #e8dcc8;
+  --titlebar-muted: #6e5d4f;
   --shell-bottom: #f4ecdf;
   --toolbar: #faf4e9;
   --surface: #fffaf1;
@@ -125,6 +133,8 @@
   --accent-text: #00f5ff;
   --button-text: #071015;
   --shell-top: #1d0a32;
+  --titlebar-background: #1d0a32;
+  --titlebar-muted: #b9a9cf;
   --shell-bottom: #10071c;
   --toolbar: #130922;
   --surface: #190c2a;
@@ -153,6 +163,8 @@
   --accent-text: #62ff8e;
   --button-text: #001d08;
   --shell-top: #07160b;
+  --titlebar-background: #07160b;
+  --titlebar-muted: #91bd98;
   --shell-bottom: #020b05;
   --toolbar: #030d06;
   --surface: #07150b;
@@ -181,6 +193,8 @@
   --accent-text: #ff766e;
   --button-text: #210302;
   --shell-top: #251012;
+  --titlebar-background: #251012;
+  --titlebar-muted: #caa5a3;
   --shell-bottom: #13080a;
   --toolbar: #16090b;
   --surface: #241012;
@@ -209,6 +223,8 @@
   --accent-text: #8ec0ff;
   --button-text: #071020;
   --shell-top: #111b3a;
+  --titlebar-background: #111b3a;
+  --titlebar-muted: #acb7d5;
   --shell-bottom: #070d20;
   --toolbar: #080e23;
   --surface: #111a37;

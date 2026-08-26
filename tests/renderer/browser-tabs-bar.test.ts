@@ -666,6 +666,33 @@ describe('BrowserTabsBar', () => {
     }
   })
 
+  it('keeps a newly active crowded tab clear of the fixed scroll controls', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    const view = renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }))
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    const secondControl = screen.getByRole('tab', { name: second.title })
+    const scrollBy = vi.fn()
+    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+    vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue({
+      left: 100, right: 500, top: 0, bottom: 40, width: 400, height: 40, x: 100, y: 0, toJSON: () => ({})
+    })
+    vi.spyOn(secondControl, 'getBoundingClientRect').mockReturnValue({
+      left: 470, right: 590, top: 0, bottom: 40, width: 120, height: 40, x: 470, y: 0, toJSON: () => ({})
+    })
+
+    await view.rerender({
+      state: browserState({
+        tabs: [{ ...first, active: false }, { ...second, active: true }],
+        activeTabId: second.id
+      })
+    })
+
+    await vi.waitFor(() => {
+      expect(scrollBy).toHaveBeenCalledWith({ left: 121, behavior: 'smooth' })
+    })
+  })
+
   it('reveals the active tab immediately when the strip moves to the left rail', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -808,7 +835,7 @@ describe('BrowserTabsBar', () => {
       resizeCallback?.([], resizeObserver!)
 
       await vi.waitFor(() => {
-        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
       })
     } finally {
       if (originalResizeObserver) Object.defineProperty(window, 'ResizeObserver', originalResizeObserver)

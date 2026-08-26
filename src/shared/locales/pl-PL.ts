@@ -76,6 +76,11 @@ export const plPL = {
       "top": "U góry",
       "left": "Po lewej"
     },
+    "systemTitleBar": {
+      "label": "Używaj systemowego paska tytułu",
+      "description": "Przywróć pasek tytułu systemu operacyjnego, jeśli kompaktowe elementy sterowania oknem nie działają poprawnie.",
+      "restartRequired": "Uruchom ponownie Hronaut, aby zastosować tę zmianę ramki okna."
+    },
     "hideInTray": {
       "label": "Ukrywaj w zasobniku po zamknięciu",
       "description": "Pozostaw Hronaut i serwer MCP uruchomione po zamknięciu okna."

@@ -30,6 +30,7 @@ const props = defineProps<{
   orientation: 'horizontal' | 'vertical'
   railPinned: boolean
   railRevealed?: boolean
+  forceRailCollapsed?: boolean
   mcpActivityByTab: Record<string, McpTabActivity>
   formatNumber: (value: number) => string
   tabTooltip: (tab: BrowserTabState) => string
@@ -67,7 +68,10 @@ let tabsStripResizeObserver: ResizeObserver | undefined
 const vertical = computed(() => props.orientation === 'vertical')
 const railHovered = ref(false)
 const railFocusWithin = ref(false)
-const railExpanded = computed(() => props.railPinned || props.railRevealed || railHovered.value || railFocusWithin.value)
+const railExpanded = computed(() => (
+  !props.forceRailCollapsed
+  && (props.railPinned || props.railRevealed || railHovered.value || railFocusWithin.value)
+))
 
 function reportRailReveal(): void {
   emit('railRevealChange', vertical.value && (railHovered.value || railFocusWithin.value))
@@ -130,8 +134,28 @@ function scrollTabsWithWheel(event: WheelEvent): void {
 }
 
 function revealActiveTab(behavior: ScrollBehavior = 'smooth'): void {
-  const activeTab = tabsStrip.value?.querySelector<HTMLElement>('[data-active-tab="true"]')
-  if (typeof activeTab?.scrollIntoView === 'function') {
+  const strip = tabsStrip.value
+  const activeTab = strip?.querySelector<HTMLElement>('[data-active-tab="true"]')
+  if (!strip || !activeTab) return
+
+  const stripBounds = strip.getBoundingClientRect()
+  const tabBounds = activeTab.getBoundingClientRect()
+  const availableSpan = vertical.value ? stripBounds.height - tabBounds.height : stripBounds.width - tabBounds.width
+  const margin = Math.min(31, Math.max(0, availableSpan / 2))
+  const leadingEdge = vertical.value ? tabBounds.top : tabBounds.left
+  const trailingEdge = vertical.value ? tabBounds.bottom : tabBounds.right
+  const visibleLeadingEdge = (vertical.value ? stripBounds.top : stripBounds.left) + margin
+  const visibleTrailingEdge = (vertical.value ? stripBounds.bottom : stripBounds.right) - margin
+  const correction = leadingEdge < visibleLeadingEdge
+    ? leadingEdge - visibleLeadingEdge
+    : trailingEdge > visibleTrailingEdge
+      ? trailingEdge - visibleTrailingEdge
+      : 0
+  if (Math.abs(correction) > 1 && typeof strip.scrollBy === 'function') {
+    strip.scrollBy(vertical.value ? { top: correction, behavior } : { left: correction, behavior })
+    return
+  }
+  if (typeof activeTab.scrollIntoView === 'function') {
     activeTab.scrollIntoView({ behavior, block: 'nearest', inline: 'nearest' })
   }
 }
@@ -149,7 +173,7 @@ function activeTabIntersectsVisibleStrip(): boolean {
 
 function handleTabStripResize(): void {
   updateTabOverflow()
-  revealActiveTab()
+  revealActiveTab('auto')
 }
 
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {

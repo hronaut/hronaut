@@ -15,6 +15,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       theme: 'system',
       interfaceScale: 1.1,
       tabPosition: 'top',
+      useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
       attentionSound: true,
@@ -112,5 +113,33 @@ describe('AppearanceSettings', () => {
     await userEvent.setup().selectOptions(screen.getByRole('combobox', { name: 'Tab position' }), 'left')
 
     expect(setTabPosition).toHaveBeenCalledWith('left')
+  })
+
+  it('offers the restart-required system title bar fallback without platform filtering', async () => {
+    const setUseSystemTitleBar = vi.fn(async () => ({
+      ...snapshot('en-US').settings,
+      useSystemTitleBar: true
+    }))
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { windowChrome: { platform: 'darwin', mode: 'overlay', mainWindow: true } }
+    })
+    Object.defineProperty(window, 'hronautSettings', {
+      configurable: true,
+      value: { setUseSystemTitleBar }
+    })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const fallback = screen.getByRole('checkbox', { name: /^Use system title bar/ })
+    expect(fallback).not.toBeChecked()
+    await userEvent.setup().click(fallback)
+
+    expect(setUseSystemTitleBar).toHaveBeenCalledWith(true)
+    expect(screen.getByRole('status')).toHaveTextContent('Restart Hronaut to apply this window-frame change.')
   })
 })

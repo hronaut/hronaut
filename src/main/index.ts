@@ -134,6 +134,13 @@ import { isBrowserViewportEmulation } from '../shared/viewport-presets.js'
 import { isBrowserEnvironmentSettings } from '../shared/browser-environment.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { isSearchEngineName } from '../shared/search-engine.js'
+import {
+  isAutoHideMenuToggleInput,
+  mainWindowChromeOptions,
+  titleBarOverlayStyle,
+  type DesktopWindowPlatform,
+  type WindowChromeMode
+} from '../shared/title-bar.js'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
 import type {
   AddressSuggestion,
@@ -162,6 +169,7 @@ if (process.env.HRONAUT_USER_DATA_DIR) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let mainWindowChromeMode: WindowChromeMode = 'system'
 let panelWindow: BrowserWindow | null = null
 interface AddressSuggestionSurface {
   view: WebContentsView
@@ -1030,10 +1038,30 @@ function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
+function desktopWindowPlatform(): DesktopWindowPlatform {
+  if (process.platform === 'darwin' || process.platform === 'win32') return process.platform
+  return 'linux'
+}
+
+function applyMainWindowTitleBarOverlay(): void {
+  if (
+    mainWindowChromeMode !== 'overlay'
+    || process.platform === 'darwin'
+    || !mainWindow
+    || mainWindow.isDestroyed()
+  ) return
+  mainWindow.setTitleBarOverlay(titleBarOverlayStyle(
+    resolvedTheme(settings.theme),
+    settings.tabPosition,
+    settings.interfaceScale
+  ))
+}
+
 function applyTheme(theme: ThemeName): void {
   nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
   mainWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
   panelWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
+  applyMainWindowTitleBarOverlay()
 }
 
 function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
@@ -1045,6 +1073,7 @@ function applyInterfaceScale(scale: AppSettings['interfaceScale']): void {
   if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
     addressSuggestionSurface.webContents.setZoomFactor(scale)
   }
+  applyMainWindowTitleBarOverlay()
 }
 
 function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
@@ -2746,6 +2775,7 @@ function registerIpc(): void {
       theme: DEFAULT_SETTINGS.theme,
       interfaceScale: DEFAULT_SETTINGS.interfaceScale,
       tabPosition: DEFAULT_SETTINGS.tabPosition,
+      useSystemTitleBar: DEFAULT_SETTINGS.useSystemTitleBar,
       hideInTray: DEFAULT_SETTINGS.hideInTray,
       attentionSound: DEFAULT_SETTINGS.attentionSound,
       attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
@@ -2776,6 +2806,14 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!isTabPosition(position)) throw new TypeError('Invalid tab position')
     await updateSettings({ tabPosition: position })
+    applyMainWindowTitleBarOverlay()
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:set-use-system-title-bar', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('System title bar preference must be a boolean')
+    await updateSettings({ useSystemTitleBar: enabled })
     publishSettings()
     return { ...settings }
   })
@@ -3047,8 +3085,17 @@ async function createWindow(): Promise<void> {
   const primaryDisplay = screen.getPrimaryDisplay()
   const orderedDisplays = [primaryDisplay, ...displays.filter((display) => display.id !== primaryDisplay.id)]
   const bounds = restoreWindowBounds(savedWindowState, orderedDisplays, { width: 1320, height: 860 })
+  mainWindowChromeMode = settings.useSystemTitleBar ? 'system' : 'overlay'
+  const windowChromeOptions = mainWindowChromeOptions({
+    platform: desktopWindowPlatform(),
+    useSystemTitleBar: settings.useSystemTitleBar,
+    theme: resolvedTheme(settings.theme),
+    tabPosition: settings.tabPosition,
+    interfaceScale: settings.interfaceScale
+  })
   mainWindow = new BrowserWindow({
     ...bounds,
+    ...windowChromeOptions,
     minWidth: 760,
     minHeight: 520,
     show: false,
@@ -3056,6 +3103,10 @@ async function createWindow(): Promise<void> {
     backgroundColor: THEME_BACKGROUND[resolvedTheme(settings.theme)],
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
+      additionalArguments: [
+        '--hronaut-window-kind=main',
+        `--hronaut-window-chrome=${mainWindowChromeMode}`
+      ],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
@@ -3131,10 +3182,24 @@ async function createWindow(): Promise<void> {
     addressSuggestionOverlayDismissalPending = false
     mainWindow = null
   })
-  mainWindow.on('focus', acknowledgeUserAttention)
-  mainWindow.webContents.on('focus', acknowledgeUserAttention)
-  mainWindow.webContents.on('before-input-event', (_event, input) => {
+  mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type === 'keyDown' || input.type === 'rawKeyDown') acknowledgeUserAttention()
+    if (mainWindow && isAutoHideMenuToggleInput(desktopWindowPlatform(), input)) {
+      event.preventDefault()
+      if (mainWindowChromeMode === 'overlay') {
+        Menu.getApplicationMenu()?.popup({
+          window: mainWindow,
+          x: 8,
+          y: titleBarOverlayStyle(
+            resolvedTheme(settings.theme),
+            settings.tabPosition,
+            settings.interfaceScale
+          ).height
+        })
+      } else {
+        mainWindow.setMenuBarVisibility(!mainWindow.isMenuBarVisible())
+      }
+    }
   })
   mainWindow.webContents.on('before-mouse-event', (_event, mouse) => {
     if (mouse.type === 'mouseDown' || mouse.type === 'contextMenu') acknowledgeUserAttention()
@@ -3507,6 +3572,7 @@ app.whenReady().then(async () => {
     if (settings.theme === 'system') {
       mainWindow?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
       panelWindow?.setBackgroundColor(THEME_BACKGROUND[systemTheme])
+      applyMainWindowTitleBarOverlay()
     }
     sendToShellWindows('settings:system-theme-changed', systemTheme)
     sendToShellWindows('settings:renderer-state-changed', currentRendererSettingsState())

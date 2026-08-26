@@ -39,6 +39,7 @@ import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
+import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useShellWindowLifecycle } from './composables/useShellWindowLifecycle'
@@ -105,6 +106,7 @@ import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
+import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
@@ -165,13 +167,20 @@ const {
   targetDocument: document
 })
 const {
+  overlayEnabled: customTitleBar,
+  syncGeometry: syncTitleBarGeometry
+} = useTitleBarPresentationController(window.hronautShell.windowChrome)
+const {
   tabRailWidth,
   tabOrientation,
+  compactVerticalTabRail,
+  verticalTabRailCollapsed,
   verticalTabRailPinned,
   verticalTabRailRevealed,
   applySettings: applyTheme,
   playAttentionSound: testAttentionSound,
   toggleVerticalTabRailPinned,
+  updateViewportWidth,
   revealVerticalTabRail,
   concealVerticalTabRail,
   handleVerticalTabRailFocusOut
@@ -1439,6 +1448,8 @@ function openSitePermissionSettings(): void {
 }
 
 function handleWindowResize(): void {
+  syncTitleBarGeometry()
+  updateViewportWidth()
   reportShellHeight()
   resizeAddressSuggestions()
 }
@@ -1568,7 +1579,10 @@ onBeforeUnmount(() => {
         'home-shell': activeIsHome,
         'detached-panel-window': isDetachedPanelWindow,
         'detached-panel-unavailable': detachedPanelUnavailable,
-        'vertical-tabs-shell': tabOrientation === 'vertical'
+        'custom-title-bar': customTitleBar,
+        'vertical-tabs-shell': tabOrientation === 'vertical',
+        'compact-vertical-tab-rail': compactVerticalTabRail,
+        'compact-vertical-tab-rail-revealed': compactVerticalTabRail && !verticalTabRailCollapsed
       },
       `panel-dock-${panelDock}`
     ]"
@@ -1583,9 +1597,23 @@ onBeforeUnmount(() => {
     @wheel.capture="guardShellInteraction"
     @submit.capture="guardShellInteraction"
   >
+    <ShellTitleBarSurface
+      v-if="customTitleBar && tabOrientation === 'vertical'"
+      kind="rail"
+      :draggable="customTitleBar"
+    />
+    <ShellTitleBarSurface
+      v-if="customTitleBar && activeIsHome && tabOrientation === 'vertical'"
+      kind="home"
+      :draggable="customTitleBar"
+    />
     <div
       class="topbar"
-      :class="{ 'rail-collapsed': tabOrientation === 'vertical' && !verticalTabRailPinned && !verticalTabRailRevealed }"
+      :class="{
+        'rail-collapsed': tabOrientation === 'vertical' && verticalTabRailCollapsed,
+        'compact-vertical-tab-rail': compactVerticalTabRail
+      }"
+      :data-titlebar-drag-surface="customTitleBar && tabOrientation === 'horizontal' ? '' : undefined"
       @mouseenter="revealVerticalTabRail"
       @mouseleave="concealVerticalTabRail"
       @focusin="revealVerticalTabRail"
@@ -1598,6 +1626,7 @@ onBeforeUnmount(() => {
         :orientation="tabOrientation"
         :rail-pinned="verticalTabRailPinned"
         :rail-revealed="verticalTabRailRevealed"
+        :force-rail-collapsed="compactVerticalTabRail && verticalTabRailCollapsed"
         :mcp-activity-by-tab="mcpActivityByTab"
         :format-number="localNumber"
         :tab-tooltip="tabTooltip"
@@ -1637,7 +1666,11 @@ onBeforeUnmount(() => {
         @toggle-settings="runShellAction(toggleSettings)"
       />
     </div>
-    <div v-if="!activeIsHome" class="toolbar">
+    <div
+      v-if="!activeIsHome"
+      class="toolbar"
+      :data-titlebar-drag-surface="customTitleBar && tabOrientation === 'vertical' ? '' : undefined"
+    >
       <BrowserNavigationControls
         :active-tab="activeTab"
         :zoom-open="zoomOpen"

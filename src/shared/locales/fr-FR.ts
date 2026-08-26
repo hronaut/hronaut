@@ -76,6 +76,11 @@ export const frFR = {
       "top": "En haut",
       "left": "À gauche"
     },
+    "systemTitleBar": {
+      "label": "Utiliser la barre de titre du système",
+      "description": "Restaure la barre de titre du système si les contrôles compacts de la fenêtre ne fonctionnent pas correctement.",
+      "restartRequired": "Redémarrez Hronaut pour appliquer cette modification du cadre de la fenêtre."
+    },
     "hideInTray": {
       "label": "Réduire dans la zone de notification",
       "description": "Laisser Hronaut et son serveur MCP actifs après la fermeture de la fenêtre."

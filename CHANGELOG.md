@@ -6,12 +6,19 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add an all-platform, restart-required “Use system title bar” fallback for desktop environments where compact window controls are unreliable.
+
 ### Changed
 
+- Replace the redundant main-window title row with a native-controls overlay: horizontal tabs, the vertical navigation row, and Home now provide compact drag surfaces with theme-matched controls.
+- Keep the vertical tab rail in its own left column while navigation and address controls use only the right content column.
 - Publish the verified Windows portable checksum into the Scoop manifest after each release, then automatically dispatch full CI and the Windows install/reinstall smoke.
 
 ### Fixed
 
+- Keep every tab, address input, toolbar action, and menu control explicitly non-draggable, preserve bare-Alt access to the native application menu, and reserve left- or right-side window-control safe areas at narrow widths and scaled displays.
+- Keep the selected crowded tab fully reachable when the window or title-bar safe area changes, including compact horizontal layouts.
+- Keep MCP user-attention requests active when an agent shows or focuses Hronaut, clearing them only after real human input.
 - Keep Site Storage controls locked while a write, delete, or clear is pending so rapid actions cannot overlap, show stale entries, or discard a newer edit draft.
 - Reset both Memory Saver preferences in one persisted transaction so a write failure cannot leave only half of the defaults applied.
 - Reset MCP authentication and its listener port as one main-process transaction so a busy default port cannot leave authentication disabled on the previous listener.
