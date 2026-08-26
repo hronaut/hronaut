@@ -26,6 +26,14 @@ function createController() {
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
   })
+  const resetSettings = vi.fn(async () => {
+    settings.value = {
+      ...settings.value,
+      mcpAuthentication: false,
+      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort
+    }
+    return settings.value
+  })
   const confirmDisableAuthentication = vi.fn(() => true)
   const onAuthenticationError = vi.fn()
   const controller = useMcpSettingsController({
@@ -34,6 +42,7 @@ function createController() {
     listenerFailed,
     setAuthentication,
     setPort,
+    resetSettings,
     confirmDisableAuthentication,
     translate: (key, parameters) => `${key}:${JSON.stringify(parameters ?? {})}`,
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
@@ -46,6 +55,7 @@ function createController() {
     onAuthenticationError,
     setAuthentication,
     setPort,
+    resetSettings,
     settings
   }
 }
@@ -125,14 +135,38 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
-  it('stops reset when authentication persistence fails', async () => {
-    const { controller, onAuthenticationError, setAuthentication, setPort } = createController()
-    setAuthentication.mockRejectedValueOnce(new Error('settings unavailable'))
+  it('reports an atomic reset failure without invoking either individual setting mutation', async () => {
+    const { controller, onAuthenticationError, resetSettings, setAuthentication, setPort } = createController()
+    resetSettings.mockRejectedValueOnce(new Error('settings unavailable'))
 
     await expect(controller.reset()).resolves.toBe(false)
 
+    expect(resetSettings).toHaveBeenCalledOnce()
+    expect(setAuthentication).not.toHaveBeenCalled()
     expect(setPort).not.toHaveBeenCalled()
-    expect(onAuthenticationError).toHaveBeenCalledWith(expect.any(Error))
+    expect(onAuthenticationError).not.toHaveBeenCalled()
+    expect(controller.portState.value).toBe('error')
+    expect(controller.portMessage.value).toBe('settings unavailable')
+    controller.dispose()
+  })
+
+  it('does not partially disable authentication when restoring the default port fails', async () => {
+    const { controller, resetSettings, setAuthentication, setPort, settings } = createController()
+    settings.value = {
+      ...settings.value,
+      mcpAuthentication: true,
+      mcpPort: 49_000
+    }
+    resetSettings.mockRejectedValueOnce(new Error('default port already in use'))
+
+    await expect(controller.reset()).resolves.toBe(false)
+
+    expect(settings.value).toMatchObject({
+      mcpAuthentication: true,
+      mcpPort: 49_000
+    })
+    expect(setAuthentication).not.toHaveBeenCalled()
+    expect(setPort).not.toHaveBeenCalled()
     controller.dispose()
   })
 })

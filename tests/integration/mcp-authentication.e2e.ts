@@ -21,7 +21,6 @@ test('starts without MCP authentication and can enable or disable it in Settings
     request.once('error', () => resolve(0))
   })
   const defaultHealth = `http://127.0.0.1:${DEFAULT_MCP_PORT}/healthz`
-  const defaultPortWasOccupied = await healthStatus(undefined, defaultHealth) !== 0
   await expect.poll(() => healthStatus()).toBe(200)
 
   await appWindow.getByRole('button', { name: 'Settings' }).click()
@@ -46,15 +45,30 @@ test('starts without MCP authentication and can enable or disable it in Settings
 
   await authentication.check()
   await expect.poll(() => healthStatus()).toBe(401)
-  await appWindow.getByRole('button', { name: 'Reset to default' }).click()
-  await expect(authentication).not.toBeChecked()
-  if (defaultPortWasOccupied) {
+
+  const defaultPortOwner = createServer()
+  const reservedDefaultPort = await new Promise<boolean>((resolve) => {
+    defaultPortOwner.once('error', () => resolve(false))
+    defaultPortOwner.listen(DEFAULT_MCP_PORT, '127.0.0.1', () => resolve(true))
+  })
+  try {
+    await appWindow.getByRole('button', { name: 'Reset to default' }).click()
     await expect(appWindow.locator('.mcp-port-status.error')).toContainText(`Could not listen on 127.0.0.1:${DEFAULT_MCP_PORT}`)
-    await expect.poll(() => healthStatus()).toBe(200)
+    await expect(authentication).toBeChecked()
+    await expect.poll(() => healthStatus()).toBe(401)
+    await expect.poll(() => healthStatus(authorization)).toBe(200)
     await expect
       .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')))
-      .toMatchObject({ mcpAuthentication: false, mcpPort })
-  } else {
+      .toMatchObject({ mcpAuthentication: true, mcpPort })
+  } finally {
+    if (reservedDefaultPort) {
+      await new Promise<void>((resolve) => defaultPortOwner.close(() => resolve()))
+    }
+  }
+
+  if (reservedDefaultPort) {
+    await appWindow.getByRole('button', { name: 'Reset to default' }).click()
+    await expect(authentication).not.toBeChecked()
     await expect.poll(() => healthStatus(undefined, defaultHealth)).toBe(200)
     await expect.poll(() => healthStatus()).toBe(0)
     await expect

@@ -16,6 +16,7 @@ export interface McpSettingsControllerOptions {
   listenerFailed: Readonly<Ref<boolean>>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
+  resetSettings: () => Promise<AppSettings>
   confirmDisableAuthentication: () => boolean
   translate: (key: string, parameters?: Record<string, unknown>) => string
   formatPortError: (error: unknown) => string
@@ -125,21 +126,33 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   async function reset(): Promise<boolean> {
     if (busy.value) return false
     const operationGeneration = generation
+    const startingDraftRevision = draftRevision + 1
     operation.value = 'reset'
-    portState.value = 'idle'
-    portMessage.value = ''
+    portDraft.value = String(DEFAULT_MCP_PORT)
+    dirtyPortDraft = true
+    draftRevision = startingDraftRevision
+    portState.value = 'saving'
+    portMessage.value = options.translate('runtimeActions.mcp.moving', { port: DEFAULT_MCP_PORT })
     try {
-      try {
-        await options.setAuthentication(false)
-      } catch (error) {
-        if (operationGeneration === generation) options.onAuthenticationError(error)
-        return false
-      }
+      const next = await options.resetSettings()
       if (operationGeneration !== generation) return false
-      portDraft.value = String(DEFAULT_MCP_PORT)
-      dirtyPortDraft = true
-      draftRevision += 1
-      return await movePort(DEFAULT_MCP_PORT, operationGeneration, draftRevision)
+      if (draftRevision === startingDraftRevision) {
+        portDraft.value = String(next.mcpPort)
+        dirtyPortDraft = false
+        portState.value = 'saved'
+        portMessage.value = options.translate('runtimeActions.mcp.active', { port: next.mcpPort })
+      } else {
+        dirtyPortDraft = portDraft.value !== String(options.settings.value.mcpPort)
+        portState.value = 'idle'
+        portMessage.value = ''
+      }
+      return true
+    } catch (error) {
+      if (operationGeneration === generation) {
+        portState.value = 'error'
+        portMessage.value = options.formatPortError(error)
+      }
+      return false
     } finally {
       if (operationGeneration === generation) operation.value = 'idle'
     }

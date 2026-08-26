@@ -429,6 +429,7 @@ const mcpSettingsController = useMcpSettingsController({
   listenerFailed: computed(() => mcpControl.value.status === 'error'),
   setAuthentication: (enabled) => settingsStore.setMcpAuthentication(enabled),
   setPort: (port) => settingsStore.setMcpPort(port),
+  resetSettings: () => settingsStore.resetMcp(),
   confirmDisableAuthentication: () => window.confirm(t('runtimeActions.mcp.disableConfirm')),
   translate: (key, parameters) => t(key, parameters ?? {}),
   formatPortError: (error) => error instanceof Error ? error.message : String(error),

@@ -275,6 +275,7 @@ const settingsApi: HronautSettingsApi = {
   setAttentionSoundCue: (cue: AttentionSoundCue) => ipcRenderer.invoke('settings:set-attention-sound-cue', cue),
   setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),
   setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),
+  resetMcp: () => ipcRenderer.invoke('settings:reset-mcp'),
   getDefaultDownloadDirectory: () => ipcRenderer.invoke('settings:get-default-download-directory'),
   chooseDownloadDirectory: () => ipcRenderer.invoke('settings:choose-download-directory'),
   setAskWhereToSaveDownloads: (enabled: boolean) => ipcRenderer.invoke('settings:set-ask-where-to-save-downloads', enabled),

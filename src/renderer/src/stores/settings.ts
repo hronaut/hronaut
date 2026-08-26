@@ -145,6 +145,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
+  const resetMcp = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetMcp())
   const setAskWhereToSaveDownloads = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAskWhereToSaveDownloads(enabled))
   const resetDownloads = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetDownloads())
   const setMemorySaverEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverEnabled(enabled))
@@ -196,6 +197,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAttentionSoundCue,
     setMcpAuthentication,
     setMcpPort,
+    resetMcp,
     setAskWhereToSaveDownloads,
     resetDownloads,
     setMemorySaverEnabled,

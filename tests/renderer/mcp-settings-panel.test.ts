@@ -25,6 +25,14 @@ function renderPanel() {
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
   })
+  const resetSettings = vi.fn(async () => {
+    settings.value = {
+      ...settings.value,
+      mcpAuthentication: false,
+      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort
+    }
+    return settings.value
+  })
   const confirmDisableAuthentication = vi.fn(() => true)
   const controller = useMcpSettingsController({
     settings,
@@ -32,6 +40,7 @@ function renderPanel() {
     listenerFailed: ref(false),
     setAuthentication,
     setPort,
+    resetSettings,
     confirmDisableAuthentication,
     translate: (key, parameters) => createHronautI18n('en-US').global.t(key, parameters ?? {}),
     formatPortError: (error) => error instanceof Error ? error.message : String(error),

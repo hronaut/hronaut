@@ -2319,6 +2319,7 @@ export interface HronautSettingsApi {
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
+  resetMcp(): Promise<AppSettings>
   getDefaultDownloadDirectory(): Promise<string>
   chooseDownloadDirectory(): Promise<DownloadDirectorySelection>
   setAskWhereToSaveDownloads(enabled: boolean): Promise<AppSettings>

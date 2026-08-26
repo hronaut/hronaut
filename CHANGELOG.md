@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Keep Site Storage controls locked while a write, delete, or clear is pending so rapid actions cannot overlap, show stale entries, or discard a newer edit draft.
 - Reset both Memory Saver preferences in one persisted transaction so a write failure cannot leave only half of the defaults applied.
+- Reset MCP authentication and its listener port as one main-process transaction so a busy default port cannot leave authentication disabled on the previous listener.
 
 ## [1.6.1] - 2026-08-26
 

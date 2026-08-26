@@ -2885,6 +2885,10 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return setMcpPort(port as number)
   })
+  ipcMain.handle('settings:reset-mcp', async (event) => {
+    assertTrustedShellSender(event)
+    return resetMcpSettings()
+  })
   ipcMain.handle('settings:set-check-on-startup', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Startup update check must be a boolean')
@@ -3332,12 +3336,15 @@ async function installDownloadedUpdate(): Promise<boolean> {
   }
 }
 
-function createRuntimeMcpServer(port: number): McpHttpServer {
+function createRuntimeMcpServer(
+  port: number,
+  authenticationEnabled = settings.mcpAuthentication
+): McpHttpServer {
   if (!tabsManager || !mcpTokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
     host: MCP_HOST,
     port,
-    token: settings.mcpAuthentication ? mcpTokenConfiguration.token : undefined,
+    token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
     version: app.getVersion(),
     showWindow,
     getUserAttention: () => (userAttention ? { ...userAttention } : null),
@@ -3419,6 +3426,59 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   publishMcpControlState()
   await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
   console.info(`[mcp] Moved listener to ${mcpUrl}`)
+  return { ...settings }
+}
+
+async function resetMcpSettings(): Promise<AppSettings> {
+  if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
+    await updateSettings({
+      mcpAuthentication: false,
+      mcpPort: DEFAULT_MCP_PORT
+    })
+    mcpServer?.setAuthenticationToken(undefined)
+    publishSettings()
+    refreshHomeAfterCommittedChange('mcp')
+    console.warn('[mcp] Authentication disabled in Settings. Any local process can control this profile.')
+    return { ...settings }
+  }
+
+  // Keep the candidate listener under the current authentication policy until both settings have committed.
+  // A bind or persistence failure therefore leaves the current runtime and
+  // settings untouched instead of applying half of the reset.
+  const candidate = createRuntimeMcpServer(DEFAULT_MCP_PORT, settings.mcpAuthentication)
+  candidate.setPaused(mcpPaused)
+  try {
+    await candidate.start()
+  } catch (error) {
+    await candidate.stop().catch(() => undefined)
+    throw new Error(
+      `Could not listen on ${MCP_HOST}:${DEFAULT_MCP_PORT}: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+
+  try {
+    await updateSettings({
+      mcpAuthentication: false,
+      mcpPort: DEFAULT_MCP_PORT
+    })
+  } catch (error) {
+    await candidate.stop().catch(() => undefined)
+    throw error
+  }
+
+  candidate.setAuthenticationToken(undefined)
+  const previous = mcpServer
+  mcpServer = candidate
+  mcpPort = DEFAULT_MCP_PORT
+  mcpUrl = `http://${MCP_HOST}:${DEFAULT_MCP_PORT}/mcp`
+  mcpRuntimeStatus = 'ready'
+  mcpStartupError = undefined
+  tabsManager?.setMcpUrl(mcpUrl)
+  publishSettings()
+  publishMcpControlState()
+  await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
+  console.info(`[mcp] Reset listener to ${mcpUrl}`)
+  console.warn('[mcp] Authentication disabled in Settings. Any local process can control this profile.')
   return { ...settings }
 }
 
