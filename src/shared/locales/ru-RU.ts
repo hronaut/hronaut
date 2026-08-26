@@ -14,6 +14,7 @@ export const ruRU = {
     "heading": "Тема приложения",
     "description": "Выберите оформление вкладок, панели инструментов, диалогов и меню Hronaut.",
     "themeGroup": "Тема",
+    "themeCategories": { "regular": "Повседневные", "expressive": "Кинематографические" },
     "themes": {
       "system": {
         "label": "Системная",
@@ -27,9 +28,29 @@ export const ruRU = {
         "label": "Тёмная",
         "description": "Комфортная для глаз"
       },
+      "midnight": {
+        "label": "Полночь",
+        "description": "Глубокий синий фокус"
+      },
+      "sepia": {
+        "label": "Сепия",
+        "description": "Тёплое бумажное спокойствие"
+      },
       "cyberpunk": {
         "label": "Киберпанк",
         "description": "Неоново-фиолетовая"
+      },
+      "matrix": {
+        "label": "Матрица",
+        "description": "Зелёный дождь терминала"
+      },
+      "machine": {
+        "label": "Машина",
+        "description": "Красный тактический HUD"
+      },
+      "galactic": {
+        "label": "Галактическая",
+        "description": "Командный мост в космосе"
       }
     },
     "systemThemeHelp": "Системная тема меняется вместе с устройством. Выбранная тема остаётся постоянной для этого профиля Hronaut.",

@@ -10,6 +10,19 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+## [1.6.0] - 2026-08-26
+
+### Added
+
+- Add Midnight and Sepia everyday themes plus Matrix, Machine, and Galactic cinematic themes, with matching previews, native control color schemes, address suggestions, localization, and reduced-motion-safe effects.
+
+### Changed
+
+- Split the renderer's global stylesheet into ordered token, base, shell, tool, collection, dialog, settings, and docking modules, and colocate toast presentation with its component.
+- Move detached-panel query parsing, labels, and window-title presentation out of `App.vue` into a focused controller.
+
+### Fixed
+
 ## [1.5.3] - 2026-08-26
 
 ### Added

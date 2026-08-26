@@ -131,7 +131,7 @@ test('keeps English and Ukrainian settings usable across themes and a narrow win
 
   for (const locale of ['en-US', 'uk-UA'] as const) {
     await selector.selectOption(locale)
-    for (const theme of ['system', 'light', 'dark', 'cyberpunk'] as const) {
+    for (const theme of ['system', 'light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'matrix', 'machine', 'galactic'] as const) {
       await appWindow.getByTestId(`theme-${theme}`).click()
       await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', theme)
       if (theme !== 'system') await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)

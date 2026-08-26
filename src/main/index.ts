@@ -120,6 +120,7 @@ import {
   type ThemeName,
   type SupportedLocale
 } from '../shared/types.js'
+import { isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
   isLanguagePreference,
   resolveLocalePreference,
@@ -370,10 +371,15 @@ if (!isLoopbackHost(MCP_HOST)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
 }
 
-const THEME_BACKGROUND: Record<Exclude<ThemeName, 'system'>, string> = {
+const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
   light: '#f7f7fb',
   dark: '#171821',
-  cyberpunk: '#10071c'
+  midnight: '#0b1422',
+  sepia: '#f2eadc',
+  cyberpunk: '#10071c',
+  matrix: '#020b05',
+  machine: '#13080a',
+  galactic: '#070d20'
 }
 
 const gotLock = app.requestSingleInstanceLock()
@@ -1022,7 +1028,7 @@ function resolvedTheme(theme: ThemeName): Exclude<ThemeName, 'system'> {
 }
 
 function applyTheme(theme: ThemeName): void {
-  nativeTheme.themeSource = theme === 'system' ? 'system' : theme === 'light' ? 'light' : 'dark'
+  nativeTheme.themeSource = theme === 'system' ? 'system' : themeColorScheme(theme)
   mainWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
   panelWindow?.setBackgroundColor(THEME_BACKGROUND[resolvedTheme(theme)])
 }
@@ -1512,7 +1518,7 @@ function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverla
   ) {
     throw new TypeError('Invalid address overlay selection')
   }
-  if (request.theme !== 'light' && request.theme !== 'dark' && request.theme !== 'cyberpunk') {
+  if (!isResolvedThemeName(request.theme)) {
     throw new TypeError('Invalid address overlay theme')
   }
   return request as unknown as AddressSuggestionOverlayRequest

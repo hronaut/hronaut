@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, isDownloadDirectory, isThemeName, SettingsStore } fro
 import { ATTENTION_SOUND_CUES, isAttentionSoundCue } from '../src/shared/types.js'
 import { isSearchEngineName } from '../src/shared/search-engine.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../src/shared/interface-scale.js'
+import { THEME_NAMES } from '../src/shared/theme.js'
 
 const temporaryDirectories: string[] = []
 const customDownloadDirectory = join(tmpdir(), 'hronaut-custom-downloads')
@@ -96,7 +97,7 @@ describe('SettingsStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, '{not json', 'utf8')
     expect(await store.load()).toEqual(DEFAULT_SETTINGS)
-    await writeFile(path, '{"theme":"sepia","searchEngine":"yahoo"}', 'utf8')
+    await writeFile(path, '{"theme":"neon","searchEngine":"yahoo"}', 'utf8')
     expect(await store.load()).toEqual(DEFAULT_SETTINGS)
   })
 
@@ -181,8 +182,8 @@ describe('SettingsStore', () => {
   })
 
   it('accepts only supported theme names', () => {
-    expect(['system', 'light', 'dark', 'cyberpunk'].every(isThemeName)).toBe(true)
-    expect(isThemeName('sepia')).toBe(false)
+    expect(THEME_NAMES.every(isThemeName)).toBe(true)
+    expect(isThemeName('neon')).toBe(false)
     expect(isThemeName(null)).toBe(false)
   })
 

@@ -1,5 +1,6 @@
 import axe from 'axe-core'
 import { expect, test } from './fixtures.js'
+import { RESOLVED_THEME_NAMES } from '../../src/shared/theme.js'
 
 interface AxeFinding {
   id: string
@@ -47,4 +48,17 @@ test('keeps primary shell states free of accessibility violations', async ({ app
   findings.settings = await auditShell(appWindow)
 
   expect(findings).toEqual({ home: [], website: [], settings: [] })
+})
+
+test('keeps every theme picker free of color contrast violations', async ({ appWindow }) => {
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  const findings: Record<string, AxeFinding[]> = {}
+
+  for (const theme of RESOLVED_THEME_NAMES) {
+    await appWindow.getByTestId(`theme-${theme}`).click()
+    await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
+    findings[theme] = (await auditShell(appWindow)).filter((finding) => finding.id === 'color-contrast')
+  }
+
+  expect(findings).toEqual(Object.fromEntries(RESOLVED_THEME_NAMES.map((theme) => [theme, []])))
 })

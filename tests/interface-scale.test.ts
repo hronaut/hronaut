@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_INTERFACE_SCALE,
@@ -27,8 +27,12 @@ describe('interface scale', () => {
   })
 
   it('keeps application text at readable compact-label sizes', () => {
+    const rendererDirectory = new URL('../src/renderer/src/', import.meta.url)
+    const rendererStyleSources = readdirSync(rendererDirectory, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile() && (entry.name.endsWith('.css') || entry.name.endsWith('.vue')))
+      .map((entry) => readFileSync(`${entry.parentPath}/${entry.name}`, 'utf8'))
     const sources = [
-      readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8'),
+      ...rendererStyleSources,
       readFileSync(new URL('../src/main/home-page.ts', import.meta.url), 'utf8'),
       readFileSync(new URL('../src/main/browser/page-scripts.ts', import.meta.url), 'utf8')
     ]

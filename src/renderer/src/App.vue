@@ -19,14 +19,12 @@ import IconStar from '~icons/material-symbols/star-rounded'
 import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
 import IconStop from '~icons/material-symbols/stop-rounded'
 import {
-  DETACHABLE_PANEL_IDS,
   PANEL_DOCKS,
   BrowserState,
   BrowserEmulationState,
   BrowserTabState,
   BrowserBookmark,
   BrowserHistoryEntry,
-  DetachablePanelId,
   PanelDock
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
@@ -118,49 +116,14 @@ import { useCredentialFillController } from './composables/useCredentialFillCont
 import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
+import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
 }
 
-function isDetachablePanelId(value: string | null): value is DetachablePanelId {
-  return value !== null && (DETACHABLE_PANEL_IDS as readonly string[]).includes(value)
-}
-
 function refKeyboardSurface(open: Ref<boolean>, close: () => void = () => (open.value = false)): ShellKeyboardSurface {
   return { isOpen: () => open.value, close }
-}
-
-function detachedPanelLabel(panel: DetachablePanelId): string {
-  const keys: Record<DetachablePanelId, string> = {
-    'site-controls': 'panels.siteControls',
-    'site-storage': 'panels.siteStorage',
-    'page-tools': 'panels.pageTools',
-    'responsive-preview': 'panels.responsivePreview',
-    environment: 'panels.environment',
-    accessibility: 'panels.accessibility',
-    'quality-audit': 'panels.qualityAudit',
-    performance: 'panels.performance',
-    'design-overview': 'panels.designOverview',
-    'page-metadata': 'panels.pageMetadata',
-    security: 'panels.security',
-    coverage: 'panels.coverage',
-    'cpu-profile': 'panels.cpuProfile',
-    memory: 'panels.memory',
-    console: 'panels.console',
-    network: 'panels.network',
-    'debug-report': 'panels.debugReport',
-    'repro-recorder': 'panels.reproRecorder',
-    'dom-changes': 'panels.domChanges',
-    'visual-compare': 'panels.visualCompare',
-    issues: 'panels.issues',
-    bookmarks: 'panels.bookmarks'
-  }
-  return t(keys[panel])
-}
-
-function detachedPanelTitle(panel: DetachablePanelId): string {
-  return t('panels.title', { panel: detachedPanelLabel(panel) })
 }
 
 const { t } = useI18n({ useScope: 'global' })
@@ -203,9 +166,16 @@ const {
   activityByTab: mcpActivityByTab,
   dispose: disposeMcpActivityController
 } = mcpActivityController
-const detachedPanelParameter = new URLSearchParams(window.location.search).get('hronautPanel')
-const detachedPanelId = isDetachablePanelId(detachedPanelParameter) ? detachedPanelParameter : null
-const isDetachedPanelWindow = detachedPanelId !== null
+const {
+  detachedPanelId,
+  isDetachedPanelWindow,
+  panelLabel: detachedPanelLabel,
+  setActivePanelTitle: setDetachedPanelTitle
+} = useDetachedPanelPresentationController({
+  search: window.location.search,
+  translate: (key, params) => params ? t(key, params) : t(key),
+  targetDocument: document
+})
 const {
   tabRailWidth,
   tabOrientation,
@@ -218,10 +188,6 @@ const {
   concealVerticalTabRail,
   handleVerticalTabRailFocusOut
 } = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
-if (detachedPanelId) {
-  document.documentElement.dataset.panelWindow = 'true'
-  document.title = detachedPanelTitle(detachedPanelId)
-}
 const savedPanelDock = window.localStorage.getItem('hronaut:panel-dock')
 const panelDock = ref<PanelDock>(isDetachedPanelWindow ? 'window' : isPanelDock(savedPanelDock) ? savedPanelDock : 'right')
 
@@ -811,7 +777,7 @@ const panelRegistryController = usePanelRegistryController({
     bookmarks: bookmarksOpen
   },
   onActivate: (panel) => {
-    if (isDetachedPanelWindow) document.title = detachedPanelTitle(panel)
+    setDetachedPanelTitle(panel)
   }
 })
 const {

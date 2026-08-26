@@ -1,6 +1,7 @@
-import { effectScope, ref } from 'vue'
+import { effectScope, nextTick, ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
+import type { AppSettings } from '../../src/shared/types.js'
 
 const foley = vi.hoisted(() => ({ play: vi.fn(), set: vi.fn() }))
 vi.mock('@foleyjs/core', () => foley)
@@ -101,6 +102,22 @@ describe('useAppearancePresentationController', () => {
     expect(foley.set).toHaveBeenCalledWith({ muted: false })
     controller.playAttentionSound()
     expect(foley.play).toHaveBeenCalledWith('chime', { volume: 0.65 })
+    scope.stop()
+  })
+
+  it('uses a light color scheme for sepia and a dark scheme for cinematic themes', async () => {
+    const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS, theme: 'sepia' })
+    const systemTheme = ref<'light' | 'dark'>('dark')
+    const scope = effectScope()
+    scope.run(() => useAppearancePresentationController({ settings, systemTheme, detachedWindow: false }))
+
+    expect(document.documentElement.dataset.theme).toBe('sepia')
+    expect(document.documentElement.style.colorScheme).toBe('light')
+
+    settings.value = { ...settings.value, theme: 'matrix' }
+    await nextTick()
+    expect(document.documentElement.dataset.theme).toBe('matrix')
+    expect(document.documentElement.style.colorScheme).toBe('dark')
     scope.stop()
   })
 })

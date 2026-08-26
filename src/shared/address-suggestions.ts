@@ -36,7 +36,7 @@ export interface AddressSuggestionOverlayBounds {
   maxHeight: number
 }
 
-export type AddressSuggestionOverlayTheme = 'light' | 'dark' | 'cyberpunk'
+export type AddressSuggestionOverlayTheme = Exclude<import('./types.js').ThemeName, 'system'>
 
 export interface AddressSuggestionOverlayState {
   suggestions: AddressSuggestion[]

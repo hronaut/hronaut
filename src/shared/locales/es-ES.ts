@@ -14,6 +14,7 @@ export const esES = {
     "heading": "Tema de la aplicación",
     "description": "Elige el aspecto de las pestañas, la barra de herramientas, los cuadros de diálogo y los menús de Hronaut.",
     "themeGroup": "Tema",
+    "themeCategories": { "regular": "Cotidianos", "expressive": "Cinematográficos" },
     "themes": {
       "system": {
         "label": "Sistema",
@@ -27,9 +28,29 @@ export const esES = {
         "label": "Oscuro",
         "description": "Cómodo para la vista"
       },
+      "midnight": {
+        "label": "Medianoche",
+        "description": "Concentración azul profundo"
+      },
+      "sepia": {
+        "label": "Sepia",
+        "description": "Calma de papel cálido"
+      },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Violeta neón"
+      },
+      "matrix": {
+        "label": "Matriz",
+        "description": "Lluvia verde de terminal"
+      },
+      "machine": {
+        "label": "Máquina",
+        "description": "HUD táctico rojo"
+      },
+      "galactic": {
+        "label": "Galáctico",
+        "description": "Mando del espacio profundo"
       }
     },
     "systemThemeHelp": "El tema del sistema sigue los cambios del dispositivo. Un tema específico permanece fijo para este perfil de Hronaut.",

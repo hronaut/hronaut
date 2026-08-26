@@ -14,6 +14,7 @@ export const plPL = {
     "heading": "Motyw aplikacji",
     "description": "Wybierz wygląd kart, paska narzędzi, okien dialogowych i menu Hronaut.",
     "themeGroup": "Motyw",
+    "themeCategories": { "regular": "Codzienne", "expressive": "Filmowe" },
     "themes": {
       "system": {
         "label": "Systemowy",
@@ -27,9 +28,29 @@ export const plPL = {
         "label": "Ciemny",
         "description": "Łagodny dla oczu"
       },
+      "midnight": {
+        "label": "Północ",
+        "description": "Głębokie niebieskie skupienie"
+      },
+      "sepia": {
+        "label": "Sepia",
+        "description": "Ciepły papierowy spokój"
+      },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Neonowy fiolet"
+      },
+      "matrix": {
+        "label": "Matryca",
+        "description": "Zielony deszcz terminala"
+      },
+      "machine": {
+        "label": "Maszyna",
+        "description": "Czerwony taktyczny HUD"
+      },
+      "galactic": {
+        "label": "Galaktyczny",
+        "description": "Dowodzenie w kosmosie"
       }
     },
     "systemThemeHelp": "Motyw systemowy zmienia się wraz z urządzeniem. Wybrany motyw pozostaje stały dla tego profilu Hronaut.",

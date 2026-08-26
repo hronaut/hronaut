@@ -14,6 +14,7 @@ export const deDE = {
     "heading": "App-Design",
     "description": "Lege fest, wie Tabs, Symbolleiste, Dialoge und Menüs in Hronaut aussehen.",
     "themeGroup": "Design",
+    "themeCategories": { "regular": "Alltag", "expressive": "Filmisch" },
     "themes": {
       "system": {
         "label": "System",
@@ -27,9 +28,29 @@ export const deDE = {
         "label": "Dunkel",
         "description": "Angenehm für die Augen"
       },
+      "midnight": {
+        "label": "Mitternacht",
+        "description": "Tiefblauer Fokus"
+      },
+      "sepia": {
+        "label": "Sepia",
+        "description": "Warme Papierruhe"
+      },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Neonviolett"
+      },
+      "matrix": {
+        "label": "Matrix",
+        "description": "Grüner Terminalregen"
+      },
+      "machine": {
+        "label": "Maschine",
+        "description": "Rotes taktisches HUD"
+      },
+      "galactic": {
+        "label": "Galaktisch",
+        "description": "Kommando im tiefen All"
       }
     },
     "systemThemeHelp": "Das Systemdesign folgt den Änderungen deines Geräts. Ein bestimmtes Design bleibt für dieses Hronaut-Profil fest.",

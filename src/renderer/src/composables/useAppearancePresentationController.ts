@@ -1,6 +1,7 @@
 import { play as playFoley, set as setFoley } from '@foleyjs/core'
 import { computed, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
+import { themeColorScheme } from '../../../shared/theme.js'
 import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH, VERTICAL_TAB_RAIL_WIDTH } from '../../../shared/tab-position.js'
 
 interface AppearancePresentationOptions {
@@ -37,7 +38,7 @@ export function useAppearancePresentationController(options: AppearancePresentat
     const effectiveTheme = next.theme === 'system' ? options.systemTheme.value : next.theme
     document.documentElement.dataset.themePreference = next.theme
     document.documentElement.dataset.theme = effectiveTheme
-    document.documentElement.style.colorScheme = effectiveTheme === 'light' ? 'light' : 'dark'
+    document.documentElement.style.colorScheme = themeColorScheme(effectiveTheme)
   }
 
   function playAttentionSound(): void {

@@ -14,11 +14,17 @@ export const ukUA = {
     heading: 'Тема застосунку',
     description: 'Виберіть вигляд вкладок, панелі інструментів, діалогів і меню Hronaut.',
     themeGroup: 'Тема',
+    themeCategories: { regular: 'Щоденні', expressive: 'Кінематографічні' },
     themes: {
       system: { label: 'Системна', description: 'Як на вашому пристрої' },
       light: { label: 'Світла', description: 'Яскрава та чітка' },
       dark: { label: 'Темна', description: 'Комфортна для очей' },
-      cyberpunk: { label: 'Кіберпанк', description: 'Неоново-фіолетова' }
+      midnight: { label: 'Опівніч', description: 'Глибокий синій фокус' },
+      sepia: { label: 'Сепія', description: 'Теплий паперовий спокій' },
+      cyberpunk: { label: 'Кіберпанк', description: 'Неоново-фіолетова' },
+      matrix: { label: 'Матриця', description: 'Зелений дощ термінала' },
+      machine: { label: 'Машина', description: 'Червоний тактичний HUD' },
+      galactic: { label: 'Галактична', description: 'Командний міст у космосі' }
     },
     systemThemeHelp: 'Системна тема змінюється разом із пристроєм. Вибрана тема залишається сталою для цього профілю Hronaut.',
     language: {

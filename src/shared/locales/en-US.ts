@@ -12,11 +12,17 @@ export const enUS = {
     heading: 'Application theme',
     description: "Choose how Hronaut's tabs, toolbar, dialogs, and menus look.",
     themeGroup: 'Theme',
+    themeCategories: { regular: 'Everyday', expressive: 'Cinematic' },
     themes: {
       system: { label: 'System', description: 'Follow your device' },
       light: { label: 'Light', description: 'Bright and clear' },
       dark: { label: 'Dark', description: 'Easy on the eyes' },
-      cyberpunk: { label: 'Cyberpunk', description: 'Neon violet' }
+      midnight: { label: 'Midnight', description: 'Deep blue focus' },
+      sepia: { label: 'Sepia', description: 'Warm paper calm' },
+      cyberpunk: { label: 'Cyberpunk', description: 'Neon violet' },
+      matrix: { label: 'Matrix', description: 'Green terminal rain' },
+      machine: { label: 'Machine', description: 'Red tactical HUD' },
+      galactic: { label: 'Galactic', description: 'Deep-space command' }
     },
     systemThemeHelp: 'System follows your device as it changes. A specific theme stays fixed for this Hronaut profile.',
     language: {

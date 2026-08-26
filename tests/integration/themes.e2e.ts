@@ -2,7 +2,7 @@ import { mkdir, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-test('offers System, Light, Dark, and Cyberpunk themes in Settings', async ({ appWindow, electronApp }) => {
+test('offers regular and cinematic themes in Settings', async ({ appWindow, electronApp }) => {
   const initialNativeTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', 'system')
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', initialNativeTheme)
@@ -29,13 +29,14 @@ test('offers System, Light, Dark, and Cyberpunk themes in Settings', async ({ ap
 
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
 
-  await appWindow.getByTestId('theme-dark').click()
-  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await expect(appWindow.getByTestId('theme-dark')).toHaveAttribute('aria-checked', 'true')
-
-  await appWindow.getByTestId('theme-cyberpunk').click()
-  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
-  await expect(appWindow.getByTestId('theme-cyberpunk')).toHaveAttribute('aria-checked', 'true')
+  for (const theme of ['light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'matrix', 'machine', 'galactic'] as const) {
+    await appWindow.getByTestId(`theme-${theme}`).click()
+    await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
+    await expect(appWindow.getByTestId(`theme-${theme}`)).toHaveAttribute('aria-checked', 'true')
+    await expect.poll(() => appWindow.evaluate('document.documentElement.style.colorScheme')).toBe(
+      theme === 'light' || theme === 'sepia' ? 'light' : 'dark'
+    )
+  }
 
   await appWindow.getByTestId('theme-system').click()
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')

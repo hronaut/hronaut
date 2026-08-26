@@ -346,7 +346,16 @@ export interface McpControlState {
   error?: string
 }
 
-export type ThemeName = 'system' | 'light' | 'dark' | 'cyberpunk'
+export type ThemeName =
+  | 'system'
+  | 'light'
+  | 'dark'
+  | 'midnight'
+  | 'sepia'
+  | 'cyberpunk'
+  | 'matrix'
+  | 'machine'
+  | 'galactic'
 
 export const ATTENTION_SOUND_CUES = [
   'warning',

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute } from 'node:path'
-import { isAttentionSoundCue, type AppSettings, type ThemeName } from '../shared/types.js'
+import { isAttentionSoundCue, type AppSettings } from '../shared/types.js'
+import { isThemeName } from '../shared/theme.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
 import { DEFAULT_SEARCH_ENGINE, isSearchEngineName } from '../shared/search-engine.js'
 import { DEFAULT_INTERFACE_SCALE, isInterfaceScale } from '../shared/interface-scale.js'
@@ -29,9 +30,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   languagePreference: 'system'
 }
 
-export function isThemeName(value: unknown): value is ThemeName {
-  return value === 'system' || value === 'light' || value === 'dark' || value === 'cyberpunk'
-}
+export { isThemeName }
 
 export function isDownloadDirectory(value: unknown): value is string {
   return typeof value === 'string'

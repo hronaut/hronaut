@@ -14,6 +14,7 @@ export const frFR = {
     "heading": "Thème de l’application",
     "description": "Choisissez l’apparence des onglets, de la barre d’outils, des boîtes de dialogue et des menus de Hronaut.",
     "themeGroup": "Thème",
+    "themeCategories": { "regular": "Quotidiens", "expressive": "Cinématographiques" },
     "themes": {
       "system": {
         "label": "Système",
@@ -27,9 +28,29 @@ export const frFR = {
         "label": "Sombre",
         "description": "Reposant pour les yeux"
       },
+      "midnight": {
+        "label": "Minuit",
+        "description": "Concentration bleu profond"
+      },
+      "sepia": {
+        "label": "Sépia",
+        "description": "Calme du papier chaud"
+      },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Violet néon"
+      },
+      "matrix": {
+        "label": "Matrice",
+        "description": "Pluie verte de terminal"
+      },
+      "machine": {
+        "label": "Machine",
+        "description": "HUD tactique rouge"
+      },
+      "galactic": {
+        "label": "Galactique",
+        "description": "Commandement spatial"
       }
     },
     "systemThemeHelp": "Le thème système suit les changements de votre appareil. Un thème précis reste fixe pour ce profil Hronaut.",

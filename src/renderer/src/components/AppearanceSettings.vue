@@ -18,11 +18,32 @@ const store = useSettingsStore()
 const { settings, systemLocale, languageChangeError } = storeToRefs(store)
 const savingLanguage = ref(false)
 
-const themes = computed<Array<{ name: ThemeName; label: string; description: string }>>(() => [
-  { name: 'system', label: t('appearance.themes.system.label'), description: t('appearance.themes.system.description') },
-  { name: 'light', label: t('appearance.themes.light.label'), description: t('appearance.themes.light.description') },
-  { name: 'dark', label: t('appearance.themes.dark.label'), description: t('appearance.themes.dark.description') },
-  { name: 'cyberpunk', label: t('appearance.themes.cyberpunk.label'), description: t('appearance.themes.cyberpunk.description') }
+const themeGroups = computed<Array<{
+  name: 'regular' | 'expressive'
+  label: string
+  themes: Array<{ name: ThemeName; label: string; description: string }>
+}>>(() => [
+  {
+    name: 'regular',
+    label: t('appearance.themeCategories.regular'),
+    themes: [
+      { name: 'system', label: t('appearance.themes.system.label'), description: t('appearance.themes.system.description') },
+      { name: 'light', label: t('appearance.themes.light.label'), description: t('appearance.themes.light.description') },
+      { name: 'dark', label: t('appearance.themes.dark.label'), description: t('appearance.themes.dark.description') },
+      { name: 'midnight', label: t('appearance.themes.midnight.label'), description: t('appearance.themes.midnight.description') },
+      { name: 'sepia', label: t('appearance.themes.sepia.label'), description: t('appearance.themes.sepia.description') }
+    ]
+  },
+  {
+    name: 'expressive',
+    label: t('appearance.themeCategories.expressive'),
+    themes: [
+      { name: 'cyberpunk', label: t('appearance.themes.cyberpunk.label'), description: t('appearance.themes.cyberpunk.description') },
+      { name: 'matrix', label: t('appearance.themes.matrix.label'), description: t('appearance.themes.matrix.description') },
+      { name: 'machine', label: t('appearance.themes.machine.label'), description: t('appearance.themes.machine.description') },
+      { name: 'galactic', label: t('appearance.themes.galactic.label'), description: t('appearance.themes.galactic.description') }
+    ]
+  }
 ])
 
 const attentionSoundOptions = computed(() => ATTENTION_SOUND_CUES.map((cue) => ({
@@ -111,27 +132,32 @@ async function setLanguagePreference(event: Event): Promise<void> {
       <h3>{{ t('appearance.heading') }}</h3>
       <p>{{ t('appearance.description') }}</p>
     </div>
-    <div class="theme-options" role="radiogroup" :aria-label="t('appearance.themeGroup')">
-      <button
-        v-for="theme in themes"
-        :key="theme.name"
-        class="theme-option"
-        :class="[`theme-${theme.name}`, { selected: settings.theme === theme.name }]"
-        type="button"
-        role="radio"
-        :aria-checked="settings.theme === theme.name"
-        :data-testid="`theme-${theme.name}`"
-        @click="selectTheme(theme.name)"
-      >
-        <span class="theme-preview" aria-hidden="true">
-          <span class="preview-tab" />
-          <span class="preview-bar" />
-          <span class="preview-page" />
-        </span>
-        <span class="theme-label">{{ theme.label }}</span>
-        <span class="theme-description">{{ theme.description }}</span>
-        <span class="theme-check" aria-hidden="true"><IconCheck /></span>
-      </button>
+    <div class="theme-groups" role="radiogroup" :aria-label="t('appearance.themeGroup')">
+      <section v-for="group in themeGroups" :key="group.name" class="theme-group">
+        <h4>{{ group.label }}</h4>
+        <div class="theme-options">
+          <button
+            v-for="theme in group.themes"
+            :key="theme.name"
+            class="theme-option"
+            :class="[`theme-${theme.name}`, { selected: settings.theme === theme.name }]"
+            type="button"
+            role="radio"
+            :aria-checked="settings.theme === theme.name"
+            :data-testid="`theme-${theme.name}`"
+            @click="selectTheme(theme.name)"
+          >
+            <span class="theme-preview" aria-hidden="true">
+              <span class="preview-tab" />
+              <span class="preview-bar" />
+              <span class="preview-page" />
+            </span>
+            <span class="theme-label">{{ theme.label }}</span>
+            <span class="theme-description">{{ theme.description }}</span>
+            <span class="theme-check" aria-hidden="true"><IconCheck /></span>
+          </button>
+        </div>
+      </section>
     </div>
     <div class="settings-info">
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
