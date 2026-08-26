@@ -111,4 +111,25 @@ describe('site-storage controller', () => {
     expect(confirm).toHaveBeenCalledOnce()
     expect(browser.manageStorage).not.toHaveBeenCalled()
   })
+
+  it('does not start another storage mutation while persistence is pending', async () => {
+    const pending = deferred<BrowserStorageResult>()
+    const manageStorage = vi.fn(() => pending.promise)
+    const { browser, controller } = createController(manageStorage)
+    controller.result.value = storageResult()
+
+    const firstDelete = controller.deleteItem({ key: 'first', value: '1', valueBytes: 1 })
+    controller.editItem({ key: 'draft', value: 'new', valueBytes: 3 })
+    const refresh = controller.refresh()
+    const changeKind = controller.selectKind('cookies')
+    const secondDelete = controller.deleteItem({ key: 'second', value: '2', valueBytes: 1 })
+
+    expect(controller.state.value).toBe('saving')
+    expect(controller.key.value).toBe('')
+    expect(controller.kind.value).toBe('local-storage')
+    expect(browser.manageStorage).toHaveBeenCalledOnce()
+    pending.resolve({ ...storageResult(), itemCount: 0, items: [], action: 'delete', changed: true })
+    await Promise.all([firstDelete, refresh, changeKind, secondDelete])
+    expect(controller.state.value).toBe('idle')
+  })
 })

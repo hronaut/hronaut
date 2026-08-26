@@ -182,6 +182,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function refresh(): Promise<void> {
+    if (state.value === 'saving') return
     const tab = options.activeTab.value
     if (!tab || !activeWebUrl.value) return
     const expectedGeneration = generation
@@ -455,6 +456,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function selectKind(nextKind: BrowserStorageKind): Promise<void> {
+    if (state.value === 'saving') return
     usageOpen.value = false
     changesOpen.value = false
     indexedDbOpen.value = false
@@ -467,14 +469,19 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   function editItem(item: BrowserStorageItem): void {
-    if (item.protected) return
+    if (item.protected || state.value === 'saving') return
     key.value = item.key
     value.value = item.value ?? ''
   }
 
   async function mutateItem(action: 'set' | 'delete' | 'clear', item?: BrowserStorageItem): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || (action === 'set' && !key.value.trim()) || (action === 'delete' && (!item || item.protected))) return
+    if (
+      !tab
+      || state.value === 'saving'
+      || (action === 'set' && !key.value.trim())
+      || (action === 'delete' && (!item || item.protected))
+    ) return
     const expectedGeneration = generation
     const sequence = ++listSequence
     state.value = 'saving'

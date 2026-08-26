@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
-import type { BrowserState, RendererSettingsState } from '../../src/shared/types.js'
+import type { BrowserState, BrowserStorageResult, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
@@ -77,6 +77,111 @@ test('opens a scheme-less loopback address over HTTP from the address bar', asyn
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
     )).toBe('Scheme-less loopback')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
+test('locks Site Storage controls while a destructive mutation is pending', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end('<!doctype html><title>Storage mutation lock</title><main>Storage fixture</main>')
+  })
+  const address = await new Promise<{ port: number }>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve(server.address() as { port: number }))
+  })
+
+  try {
+    const state = await appWindow.evaluate(async (url) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.newTab({ url, active: true }), `http://127.0.0.1:${address.port}/`)
+    const tabId = state.activeTabId
+    if (!tabId) throw new Error('Storage fixture tab did not become active')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+      .toBe('Storage mutation lock')
+    await appWindow.evaluate(async (currentTabId) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      await browser.manageStorage({
+        tabId: currentTabId,
+        kind: 'local-storage',
+        action: 'set',
+        key: 'first',
+        value: '1',
+        includeValues: true
+      })
+      return browser.manageStorage({
+        tabId: currentTabId,
+        kind: 'local-storage',
+        action: 'set',
+        key: 'second',
+        value: '2',
+        includeValues: true
+      })
+    }, tabId)
+
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
+    await pageTools.getByRole('button', { name: 'Site storage for 127.0.0.1' }).click()
+    const storagePanel = appWindow.getByRole('dialog', { name: /Site storage/ })
+    await expect(storagePanel.getByRole('button', { name: 'Delete first' })).toBeVisible()
+    await expect(storagePanel.getByRole('button', { name: 'Delete second' })).toBeVisible()
+    const initialResult = await appWindow.evaluate((currentTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.manageStorage({
+      tabId: currentTabId,
+      kind: 'local-storage',
+      action: 'list',
+      includeValues: true
+    }), tabId)
+
+    await electronApp.evaluate(({ ipcMain }, result) => {
+      const control = {
+        requests: [] as Array<{ resolve: (value: BrowserStorageResult) => void }>,
+        result: result as BrowserStorageResult
+      }
+      ;(globalThis as typeof globalThis & { __pendingStorageMutation?: typeof control }).__pendingStorageMutation = control
+      ipcMain.removeHandler('browser:manage-storage')
+      ipcMain.handle('browser:manage-storage', (_event, value: unknown) => {
+        if ((value as { action?: unknown })?.action !== 'delete') throw new Error('Unexpected storage operation')
+        return new Promise<BrowserStorageResult>((resolve) => control.requests.push({ resolve }))
+      })
+    }, initialResult)
+
+    await storagePanel.getByRole('button', { name: 'Delete first' }).click()
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __pendingStorageMutation?: { requests: unknown[] } }
+    ).__pendingStorageMutation?.requests.length)).toBe(1)
+
+    await expect(storagePanel.getByRole('button', { name: 'Delete second' })).toBeDisabled()
+    await expect(storagePanel.getByRole('button', { name: 'Refresh', exact: true })).toBeDisabled()
+    await expect(storagePanel.getByRole('button', { name: 'Session', exact: true })).toBeDisabled()
+    await expect(storagePanel.getByRole('textbox', { name: 'Storage key' })).toBeDisabled()
+    await expect(storagePanel.getByRole('textbox', { name: 'Storage value' })).toBeDisabled()
+
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __pendingStorageMutation?: {
+          requests: Array<{ resolve: (value: BrowserStorageResult) => void }>
+          result: BrowserStorageResult
+        }
+      }).__pendingStorageMutation
+      const request = control?.requests[0]
+      if (!control || !request) throw new Error('Storage mutation was not captured')
+      request.resolve({
+        ...control.result,
+        action: 'delete',
+        changed: true,
+        itemCount: 1,
+        items: control.result.items.filter((item) => item.key !== 'first')
+      })
+    })
+
+    await expect(storagePanel.getByRole('button', { name: 'Delete first' })).toHaveCount(0)
+    await expect(storagePanel.getByRole('button', { name: 'Delete second' })).toBeEnabled()
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Site Storage controls locked while a write, delete, or clear is pending so rapid actions cannot overlap, show stale entries, or discard a newer edit draft.
+
 ## [1.6.1] - 2026-08-26
 
 ### Added
