@@ -1,0 +1,140 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { expect, test } from './fixtures.js'
+import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+
+function text(result: CallToolResult): string {
+  const content = result.content.find((item) => item.type === 'text')
+  return content?.type === 'text' ? content.text : ''
+}
+
+test('clicks canvas coordinates and rejects ambiguous or offscreen points', async ({
+  mcpToken,
+  mcpPort
+}) => {
+  const client = new Client({ name: 'hronaut-coordinate-click-test', version: '1.0.0' })
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+  })
+
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, {
+          headers: { authorization: `Bearer ${mcpToken}` }
+        })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Coordinate click tests')
+    const tools = await client.listTools()
+    expect(tools.tools.find((tool) => tool.name === 'browser_click')?.description).toContain('viewport coordinates')
+    const html = `<!doctype html><title>Coordinate click fixture</title>
+      <canvas id="surface" width="240" height="120" style="display:block;width:240px;height:120px;border:1px solid black"></canvas>
+      <p>Canvas target ready</p>
+      <script>
+        const surface = document.querySelector('#surface');
+        const record = (event) => {
+          const rect = surface.getBoundingClientRect();
+          surface.dataset.lastPointer = JSON.stringify({
+            type: event.type,
+            x: Math.round(event.clientX - rect.left),
+            y: Math.round(event.clientY - rect.top)
+          });
+          if (event.type === 'click' && event.clientX - rect.left > 180) {
+            surface.dataset.dialogResult = String(confirm('Coordinate confirm'));
+          }
+        };
+        surface.addEventListener('click', record);
+        surface.addEventListener('dblclick', record);
+      </script>`
+    const created = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `data:text/html,${encodeURIComponent(html)}`, active: true }
+    }) as CallToolResult
+    expect(created.isError, text(created)).not.toBe(true)
+    const tabId = JSON.parse(text(created)).activeTabId as string
+    await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId, text: 'Canvas target ready' }
+    })
+
+    const pointResult = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: `(() => {
+          const rect = document.querySelector('#surface').getBoundingClientRect();
+          return { x: rect.left + 73, y: rect.top + 41, width: innerWidth, height: innerHeight };
+        })()`
+      }
+    }) as CallToolResult
+    const point = JSON.parse(text(pointResult)) as { x: number; y: number; width: number; height: number }
+
+    const clicked = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: point.x, y: point.y }
+    }) as CallToolResult
+    expect(clicked.isError, text(clicked)).not.toBe(true)
+    expect(JSON.parse(text(clicked))).toMatchObject({ ok: true, x: point.x, y: point.y })
+    const singleState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.lastPointer" }
+    }) as CallToolResult
+    expect(JSON.parse(text(singleState))).toEqual({ type: 'click', x: 73, y: 41 })
+
+    const doubleClicked = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: point.x + 12, y: point.y + 9, doubleClick: true }
+    }) as CallToolResult
+    expect(doubleClicked.isError, text(doubleClicked)).not.toBe(true)
+    expect(JSON.parse(text(doubleClicked))).toMatchObject({
+      ok: true,
+      x: point.x + 12,
+      y: point.y + 9,
+      doubleClick: true
+    })
+    const doubleState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.lastPointer" }
+    }) as CallToolResult
+    expect(JSON.parse(text(doubleState))).toEqual({ type: 'dblclick', x: 85, y: 50 })
+
+    const dialogClicked = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: point.x + 127, y: point.y + 19, dialogAction: 'dismiss' }
+    }) as CallToolResult
+    expect(dialogClicked.isError, text(dialogClicked)).not.toBe(true)
+    const dialogState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.dialogResult" }
+    }) as CallToolResult
+    expect(text(dialogState)).toBe('false')
+
+    const incomplete = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: point.x }
+    }) as CallToolResult
+    expect(incomplete.isError).toBe(true)
+    expect(text(incomplete)).toContain('Provide both x and y')
+
+    const ambiguous = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, selector: '#surface', x: point.x, y: point.y }
+    }) as CallToolResult
+    expect(ambiguous.isError).toBe(true)
+    expect(text(ambiguous)).toContain('Provide a target or coordinates, not both')
+
+    const offscreen = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: point.width, y: point.height }
+    }) as CallToolResult
+    expect(offscreen.isError).toBe(true)
+    expect(text(offscreen)).toContain('inside the visible viewport')
+  } finally {
+    await client.close().catch(() => undefined)
+  }
+})

@@ -904,6 +904,44 @@ export function targetActionScript(
   })()`
 }
 
+function dialogOverridesScript(action: 'accept' | 'dismiss', promptText?: string): string {
+  return `
+    const originalDialogs = Object.fromEntries(
+      ['alert', 'confirm', 'prompt'].map((name) => [name, Object.getOwnPropertyDescriptor(window, name)])
+    );
+    const accept = ${action === 'accept'};
+    const hasPromptText = ${promptText !== undefined};
+    const promptResponse = ${JSON.stringify(promptText ?? '')};
+    Object.defineProperties(window, {
+      alert: {
+        configurable: true,
+        writable: true,
+        value: function () { return undefined; }
+      },
+      confirm: {
+        configurable: true,
+        writable: true,
+        value: function () { return accept; }
+      },
+      prompt: {
+        configurable: true,
+        writable: true,
+        value: function (_message, defaultValue) {
+          if (!accept) return null;
+          if (hasPromptText) return promptResponse;
+          return arguments.length > 1 ? String(defaultValue) : '';
+        }
+      }
+    });
+    const restoreDialogs = function () {
+      for (const name of ['alert', 'confirm', 'prompt']) {
+        const descriptor = originalDialogs[name];
+        if (descriptor) Object.defineProperty(window, name, descriptor);
+        else delete window[name];
+      }
+    };`
+}
+
 export function dialogAwareClickScript(
   target: { ref?: string; selector?: string },
   action: 'accept' | 'dismiss',
@@ -917,25 +955,41 @@ export function dialogAwareClickScript(
     if (!element) throw new Error('Element not found. Take a fresh browser_snapshot and use its ref, or provide a CSS selector.');
     element.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
     element.focus();
-    const originalPrompt = Object.getOwnPropertyDescriptor(window, 'prompt');
-    const accept = ${action === 'accept'};
-    const hasPromptText = ${promptText !== undefined};
-    const promptResponse = ${JSON.stringify(promptText ?? '')};
-    Object.defineProperty(window, 'prompt', {
-      configurable: true,
-      writable: true,
-      value: function (_message, defaultValue) {
-        if (!accept) return null;
-        if (hasPromptText) return promptResponse;
-        return arguments.length > 1 ? String(defaultValue) : '';
-      }
-    });
+    ${dialogOverridesScript(action, promptText)}
     try {
       element.click();
       return { ok: true, tag: element.tagName.toLowerCase() };
     } finally {
-      if (originalPrompt) Object.defineProperty(window, 'prompt', originalPrompt);
-      else delete window.prompt;
+      restoreDialogs();
+    }
+  })()`
+}
+
+export function dialogAwareCoordinateClickScript(
+  point: { x: number; y: number },
+  action: 'accept' | 'dismiss',
+  promptText?: string
+): string {
+  return `(() => {
+    const point = ${JSON.stringify(point)};
+    const element = document.elementFromPoint(point.x, point.y);
+    if (!(element instanceof Element)) throw new Error('No element exists at the requested viewport coordinates.');
+    if (element instanceof HTMLElement) element.focus();
+    ${dialogOverridesScript(action, promptText)}
+    try {
+      element.dispatchEvent(new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        clientX: point.x,
+        clientY: point.y,
+        button: 0,
+        buttons: 0
+      }));
+      return { ok: true, tag: element.tagName.toLowerCase(), x: point.x, y: point.y };
+    } finally {
+      restoreDialogs();
     }
   })()`
 }

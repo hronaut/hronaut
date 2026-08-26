@@ -262,6 +262,7 @@ import {
   cancelElementPickerScript,
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
+  dialogAwareCoordinateClickScript,
   elementPickerInspectionAtPointScript,
   elementPickerNativeInputScript,
   elementPickerScript,
@@ -3883,9 +3884,20 @@ export class BrowserTabsManager {
     tabId?: string
     ref?: string
     selector?: string
+    x?: number
+    y?: number
     doubleClick?: boolean
   } & BrowserDialogHandlingOptions): Promise<unknown> {
-    this.validateTarget(target)
+    const coordinateClick = target.x !== undefined || target.y !== undefined
+    if (coordinateClick) {
+      if (target.x === undefined || target.y === undefined) throw new TypeError('Provide both x and y for a coordinate click')
+      if (target.ref || target.selector) throw new TypeError('Provide a target or coordinates, not both')
+      if (!Number.isFinite(target.x) || !Number.isFinite(target.y) || target.x < 0 || target.y < 0) {
+        throw new TypeError('Click coordinates must be finite non-negative numbers')
+      }
+    } else {
+      this.validateTarget(target)
+    }
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
     const dialogAction = target.dialogAction
@@ -3895,37 +3907,42 @@ export class BrowserTabsManager {
     if (target.doubleClick && dialogAction !== undefined) {
       throw new TypeError('doubleClick cannot be combined with dialogAction or promptText')
     }
+    if (coordinateClick) {
+      const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
+        width: number
+        height: number
+      }
+      if (target.x! >= viewport.width || target.y! >= viewport.height) {
+        throw new RangeError(`Click coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`)
+      }
+      const point = { x: target.x!, y: target.y! }
+      if (dialogAction !== undefined) {
+        await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
+          const contextId = await this.mainWorldContextId(webContents)
+          await this.evaluateWithAttachedDebugger(
+            webContents,
+            dialogAwareCoordinateClickScript(point, dialogAction, target.promptText),
+            contextId
+          )
+        }))
+      } else {
+        await this.withAgentInput(webContents, () => this.withDebugger(
+          webContents,
+          () => this.dispatchNativeClick(webContents, point, target.doubleClick === true)
+        ))
+      }
+      return { ok: true, ...point, ...(target.doubleClick ? { doubleClick: true } : {}) }
+    }
     if (target.doubleClick) {
       const point = await webContents.executeJavaScript(targetPointScript(target), true) as {
         x: number
         y: number
         tag: string
       }
-      await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
-        await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-          type: 'mouseMoved',
-          x: point.x,
-          y: point.y
-        })
-        for (const clickCount of [1, 2]) {
-          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mousePressed',
-            x: point.x,
-            y: point.y,
-            button: 'left',
-            buttons: 1,
-            clickCount
-          })
-          await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-            type: 'mouseReleased',
-            x: point.x,
-            y: point.y,
-            button: 'left',
-            buttons: 0,
-            clickCount
-          })
-        }
-      }))
+      await this.withAgentInput(webContents, () => this.withDebugger(
+        webContents,
+        () => this.dispatchNativeClick(webContents, point, true)
+      ))
       return { ok: true, tag: point.tag, doubleClick: true }
     }
     return this.withAgentInput(webContents, () => {
@@ -3939,6 +3956,36 @@ export class BrowserTabsManager {
         )
       })
     })
+  }
+
+  private async dispatchNativeClick(
+    webContents: BrowserTab['view']['webContents'],
+    point: { x: number; y: number },
+    doubleClick: boolean
+  ): Promise<void> {
+    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: point.x,
+      y: point.y
+    })
+    for (const clickCount of doubleClick ? [1, 2] : [1]) {
+      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: point.x,
+        y: point.y,
+        button: 'left',
+        buttons: 1,
+        clickCount
+      })
+      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: point.x,
+        y: point.y,
+        button: 'left',
+        buttons: 0,
+        clickCount
+      })
+    }
   }
 
   async type(target: {

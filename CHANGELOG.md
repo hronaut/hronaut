@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Let agents single- or double-click bounded viewport coordinates for canvas, WebGL, maps, remote desktops, and other visual-only surfaces without weakening the preferred semantic-ref workflow.
+
 ### Changed
 
 - Left-align Home and the title/tab cluster in horizontal mode, and align the vertical rail title to its left edge while preserving native window-control safe areas.
@@ -11,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Honor accept and dismiss consistently for alerts, confirmations, and prompts opened by agent clicks without racing another dialog handler.
 - Keep hidden-tab screenshots, PDF exports, and visual comparisons reliable when Chromium renders the offscreen surface but omits its first presentation callback under load.
 
 ## [1.7.0] - 2026-08-26
