@@ -144,6 +144,24 @@ describe('page capture controller', () => {
     controller.dispose()
   })
 
+  it('does not start an element picker while a page screenshot is still capturing', async () => {
+    const pending = deferred<BrowserPageCaptureResult>()
+    const { browser, controller, onCaptureCopied } = createController()
+    browser.capturePage.mockImplementationOnce(() => pending.promise)
+
+    const capturing = controller.capturePage('full-page')
+    expect(controller.captureState.value).toBe('capturing')
+
+    await controller.toggleElementPicker('context')
+    expect(browser.pickElement).not.toHaveBeenCalled()
+    expect(controller.elementState.value).toBe('idle')
+
+    pending.resolve({ copied: true, width: 120, height: 500 })
+    await capturing
+    expect(onCaptureCopied).toHaveBeenCalledWith('full-page')
+    controller.dispose()
+  })
+
   it('cancels a native area picker during disposal', async () => {
     const pending = deferred<BrowserAreaCaptureResult>()
     const { browser, controller } = createController()

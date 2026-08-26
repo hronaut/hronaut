@@ -127,6 +127,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function toggleElementPicker(mode: ElementPickerMode = 'context'): Promise<void> {
+    if (captureState.value === 'capturing') return
     if (elementState.value === 'picking') {
       const restartInAnotherMode = elementMode.value !== mode
       await cancelElementPicker()

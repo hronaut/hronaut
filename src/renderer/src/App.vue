@@ -3,14 +3,6 @@ import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
-import IconCheck from '~icons/material-symbols/check-rounded'
-import IconClose from '~icons/material-symbols/close-rounded'
-import IconHandyman from '~icons/material-symbols/handyman-rounded'
-import IconLock from '~icons/material-symbols/lock-rounded'
-import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
-import IconProgress from '~icons/material-symbols/progress-activity-rounded'
-import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
 import {
   PANEL_DOCKS,
   BrowserState,
@@ -23,6 +15,7 @@ import {
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
 import BrowserAddressBar from './components/BrowserAddressBar.vue'
 import BrowserNavigationControls from './components/BrowserNavigationControls.vue'
+import BrowserPageActions from './components/BrowserPageActions.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
 import AppTopbarActions from './components/AppTopbarActions.vue'
 import BookmarksPanel from './components/BookmarksPanel.vue'
@@ -41,7 +34,6 @@ import PageToolsPanel from './components/PageToolsPanel.vue'
 import ResponsivePreviewPanel from './components/ResponsivePreviewPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
 import SiteStoragePanel from './components/SiteStoragePanel.vue'
-import SplitViewControl from './components/SplitViewControl.vue'
 import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
@@ -1680,79 +1672,28 @@ onBeforeUnmount(() => {
           }"
         />
       </BrowserNavigationControls>
-      <div
-        class="interaction-locks"
-        role="group"
-        :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
-      >
-        <button
-          class="interaction-lock-button"
-          :class="{ locked: tabHumanInteractionLocked }"
-          type="button"
-          :title="tabInteractionLockLabel"
-          :aria-label="tabInteractionLockLabel"
-          :aria-pressed="tabHumanInteractionLocked"
-          :disabled="!activeTab || activeIsHome || state.allHumanInteractionLocked"
-          @click="runShellAction(toggleTabHumanInteraction)"
-        >
-          <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
-          <IconLockOpen v-else aria-hidden="true" />
-          {{ t('shell.split.tab') }}
-        </button>
-      </div>
-      <SplitViewControl
-        v-model:open="splitMenuOpen"
+      <BrowserPageActions
+        v-model:split-menu-open="splitMenuOpen"
         :state="state"
         :active-tab="activeTab"
         :browser="browser"
         :accept-state="syncState"
         :close-other-menus="prepareSplitViewMenu"
-        @error="handleSplitViewError"
+        :effective-human-interaction-locked="effectiveHumanInteractionLocked"
+        :tab-human-interaction-locked="tabHumanInteractionLocked"
+        :tab-interaction-lock-label="tabInteractionLockLabel"
+        :area-capture-state="areaCaptureState"
+        :area-capture-label="areaCaptureLabel"
+        :element-picker-state="elementPickerState"
+        :element-picker-title="elementPickerTitle"
+        :element-picker-label="elementPickerLabel"
+        :page-tools-open="pageToolsOpen"
+        @toggle-tab-interaction="runShellAction(toggleTabHumanInteraction)"
+        @toggle-area-capture="runShellAction(toggleAreaCapture)"
+        @toggle-element-picker="runShellAction(() => toggleElementPicker('context'))"
+        @toggle-page-tools="togglePageTools"
+        @split-error="handleSplitViewError"
       />
-      <button
-        class="icon-button area-capture-button"
-        :class="{ active: areaCaptureState === 'picking' || areaCaptureState === 'capturing', copied: areaCaptureState === 'copied', error: areaCaptureState === 'error' }"
-        type="button"
-        :title="areaCaptureLabel"
-        :aria-label="areaCaptureLabel"
-        :aria-pressed="areaCaptureState === 'picking'"
-        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home') || areaCaptureState === 'capturing'"
-        @click="runShellAction(toggleAreaCapture)"
-      >
-        <IconCheck v-if="areaCaptureState === 'copied'" aria-hidden="true" />
-        <IconClose v-else-if="areaCaptureState === 'picking'" aria-hidden="true" />
-        <IconProgress v-else-if="areaCaptureState === 'capturing'" class="state-spinner" aria-hidden="true" />
-        <IconScreenshotRegion v-else aria-hidden="true" />
-      </button>
-      <button
-        class="icon-button element-picker-button"
-        :class="{ active: elementPickerState === 'picking', copied: elementPickerState === 'copied', error: elementPickerState === 'error' }"
-        type="button"
-        :title="elementPickerTitle"
-        :aria-label="elementPickerLabel"
-        aria-keyshortcuts="Control+Shift+C Meta+Alt+C"
-        :aria-pressed="elementPickerState === 'picking'"
-        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home')"
-        @click="runShellAction(() => toggleElementPicker('context'))"
-      >
-        <IconCheck v-if="elementPickerState === 'copied'" aria-hidden="true" />
-        <IconClose v-else-if="elementPickerState === 'picking'" aria-hidden="true" />
-        <IconAdsClick v-else aria-hidden="true" />
-      </button>
-      <button
-        class="icon-button page-tools-button"
-        :class="{ active: pageToolsOpen }"
-        type="button"
-        :title="t('shell.pageTools.heading')"
-        :aria-label="t('shell.pageTools.heading')"
-        aria-haspopup="dialog"
-        aria-controls="page-tools-panel"
-        :aria-expanded="pageToolsOpen"
-        :disabled="!activeTab || activeTab.url.startsWith('hronaut://home')"
-        @click="togglePageTools"
-      >
-        <IconHandyman aria-hidden="true" />
-      </button>
       <PageToolsPanel
         v-model:open="pageToolsOpen"
         v-model:dock="panelDock"
@@ -1768,6 +1709,7 @@ onBeforeUnmount(() => {
         :debug-report-signal-count="debugReportSignalCount"
         :element-picker-state="elementPickerState"
         :element-picker-mode="elementPickerMode"
+        :capture-busy="areaCaptureState === 'capturing'"
         :snapshot-state="pageSnapshotState"
         :pdf-state="pdfExportState"
         :credential-storage-available="credentialStorage.available"

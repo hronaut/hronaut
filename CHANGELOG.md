@@ -9,11 +9,13 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Move browser navigation, address, find, zoom, and bookmark controls out of `App.vue` into a focused component.
+- Move website interaction-lock, split-view, capture, picker, and page-tools controls out of `App.vue` into a focused component.
 
 ### Fixed
 
 - Retry transient renderer service startup failures without requiring an application restart, while keeping retries bounded and reporting recovery.
 - Apply rapid repeated mute and interaction-lock toggles in order against the latest browser state instead of losing the second user action to a stale renderer snapshot.
+- Prevent an element picker from starting while a viewport or full-page screenshot is still capturing and writing to the clipboard.
 
 ## [1.6.0] - 2026-08-26
 

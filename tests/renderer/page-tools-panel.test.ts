@@ -27,7 +27,7 @@ function tab(): BrowserTabState {
   }
 }
 
-function renderPanel() {
+function renderPanel(captureBusy = false) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const diagnostics = useDiagnosticsController({
     activeTab,
@@ -86,6 +86,7 @@ function renderPanel() {
       debugReportSignalCount: 0,
       elementPickerState: 'idle',
       elementPickerMode: 'context',
+      captureBusy,
       snapshotState: 'idle',
       pdfState: 'idle',
       credentialStorageAvailable: true,
@@ -123,6 +124,14 @@ describe('PageToolsPanel', () => {
 
     expect(view.emitted()['update:dock']?.at(-1)).toEqual(['bottom'])
     expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    diagnostics.dispose()
+  })
+
+  it('keeps both element pickers disabled while a page screenshot is capturing', () => {
+    const { diagnostics } = renderPanel(true)
+
+    expect(screen.getByRole('button', { name: 'Pick element context' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Capture one element' })).toBeDisabled()
     diagnostics.dispose()
   })
 })

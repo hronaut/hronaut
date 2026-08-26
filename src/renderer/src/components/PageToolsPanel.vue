@@ -65,6 +65,7 @@ const props = defineProps<{
   debugReportSignalCount: number
   elementPickerState: 'idle' | 'picking' | 'copied' | 'error'
   elementPickerMode: 'context' | 'screenshot'
+  captureBusy: boolean
   snapshotState: 'idle' | 'copying' | 'copied' | 'error'
   pdfState: 'idle' | 'saving' | 'saved' | 'error'
   credentialStorageAvailable: boolean
@@ -175,10 +176,10 @@ function closeAndRun(action: () => void | Promise<void>): void {
           <button :class="{ complete: visualCompareReport?.status === 'compared' && visualCompareReport.identical, warning: visualCompareReport?.status === 'compared' && !visualCompareReport.identical, error: visualCompareState === 'error', running: visualCompareState === 'loading' }" type="button" :aria-label="t('visualCompare.toolAria', { status: labels.visualCompare })" :disabled="visualCompareState === 'loading'" @click="toggleVisualCompare">
             <IconProgress v-if="visualCompareState === 'loading'" class="state-spinner" aria-hidden="true" /><IconDifference v-else aria-hidden="true" /><span><strong>{{ t('panels.visualCompare') }}</strong><small>{{ labels.visualCompare }}</small></span>
           </button>
-          <button :class="{ picking: elementPickerMode === 'context' && elementPickerState === 'picking', copied: elementPickerMode === 'context' && elementPickerState === 'copied', error: elementPickerMode === 'context' && elementPickerState === 'error' }" type="button" :aria-label="labels.contextPicker" @click="closeAndRun(() => actions.toggleElementPicker('context'))">
+          <button :class="{ picking: elementPickerMode === 'context' && elementPickerState === 'picking', copied: elementPickerMode === 'context' && elementPickerState === 'copied', error: elementPickerMode === 'context' && elementPickerState === 'error' }" type="button" :aria-label="labels.contextPicker" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('context'))">
             <IconCheck v-if="elementPickerMode === 'context' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'context' && elementPickerState === 'picking'" aria-hidden="true" /><IconAdsClick v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.pickElement') }}</strong><small>{{ t('shell.pageTools.pickDescription') }}</small></span>
           </button>
-          <button :class="{ picking: elementPickerMode === 'screenshot' && elementPickerState === 'picking', copied: elementPickerMode === 'screenshot' && elementPickerState === 'copied', error: elementPickerMode === 'screenshot' && elementPickerState === 'error' }" type="button" :aria-label="labels.elementScreenshot" @click="closeAndRun(() => actions.toggleElementPicker('screenshot'))">
+          <button :class="{ picking: elementPickerMode === 'screenshot' && elementPickerState === 'picking', copied: elementPickerMode === 'screenshot' && elementPickerState === 'copied', error: elementPickerMode === 'screenshot' && elementPickerState === 'error' }" type="button" :aria-label="labels.elementScreenshot" :disabled="captureBusy" @click="closeAndRun(() => actions.toggleElementPicker('screenshot'))">
             <IconCheck v-if="elementPickerMode === 'screenshot' && elementPickerState === 'copied'" aria-hidden="true" /><IconClose v-else-if="elementPickerMode === 'screenshot' && elementPickerState === 'picking'" aria-hidden="true" /><IconScreenshotRegion v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.elementScreenshot') }}</strong><small>{{ t('shell.pageTools.screenshotDescription') }}</small></span>
           </button>
         </div>
