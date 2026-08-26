@@ -277,6 +277,7 @@ import {
   targetActionScript,
   targetExpression,
   targetPointScript,
+  targetStateScript,
   type BrowserFormField
 } from './page-scripts.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
@@ -5465,6 +5466,55 @@ export class BrowserTabsManager {
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
     return null
+  }
+
+  async waitForElement(
+    target: { ref?: string; selector?: string },
+    tabId?: string,
+    timeoutMs = 30_000,
+    state: 'attached' | 'detached' | 'visible' | 'hidden' = 'visible'
+  ): Promise<boolean> {
+    this.validateTarget(target)
+    const tab = this.getTab(tabId)
+    const webContents = tab.webContents
+    const deadline = Date.now() + Math.min(Math.max(timeoutMs, 1), 60_000)
+    const evaluationDeadline = Symbol('element-wait-deadline')
+    const expression = targetStateScript(target, state)
+    while (Date.now() < deadline) {
+      if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
+        throw new Error('The tab closed while waiting for the page element.')
+      }
+      let onDestroyed: () => void = () => undefined
+      let evaluationTimer: NodeJS.Timeout | undefined
+      try {
+        const evaluation = webContents.executeJavaScript(expression, true) as Promise<{ matches?: boolean }>
+        const closed = new Promise<never>((_resolve, reject) => {
+          onDestroyed = () => reject(new Error('The tab closed while waiting for the page element.'))
+          webContents.once('destroyed', onDestroyed)
+        })
+        const timedOut = new Promise<typeof evaluationDeadline>((resolve) => {
+          evaluationTimer = setTimeout(() => resolve(evaluationDeadline), Math.max(1, deadline - Date.now()))
+        })
+        const pending = Promise.race([evaluation, closed, timedOut])
+        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
+          throw new Error('The tab closed while waiting for the page element.')
+        }
+        const result = await pending
+        if (result === evaluationDeadline) return false
+        if (result?.matches === true) return true
+      } catch (error) {
+        if (!this.tabs.has(tab.id) || webContents.isDestroyed()) {
+          throw new Error('The tab closed while waiting for the page element.')
+        }
+        throw error
+      } finally {
+        if (evaluationTimer) clearTimeout(evaluationTimer)
+        webContents.removeListener('destroyed', onDestroyed)
+      }
+      if (Date.now() >= deadline) return false
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    return false
   }
 
   setToolbarHeight(height: number): void {

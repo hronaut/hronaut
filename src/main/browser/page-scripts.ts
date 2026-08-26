@@ -1004,6 +1004,36 @@ export function targetExpression(target: { ref?: string; selector?: string }): s
   })()`
 }
 
+export function targetStateScript(
+  target: { ref?: string; selector?: string },
+  state: 'attached' | 'detached' | 'visible' | 'hidden'
+): string {
+  return `(() => {
+    const target = ${JSON.stringify(target)};
+    const state = ${JSON.stringify(state)};
+    const element = target.ref
+      ? document.querySelector('[data-hronaut-ref="' + CSS.escape(target.ref) + '"]')
+      : target.selector ? document.querySelector(target.selector) : null;
+    const attached = element instanceof Element && element.isConnected;
+    let visible = false;
+    if (attached) {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      visible = style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && style.visibility !== 'collapse'
+        && rect.width > 0
+        && rect.height > 0;
+    }
+    return {
+      matches: state === 'attached' ? attached
+        : state === 'detached' ? !attached
+        : state === 'visible' ? visible
+        : !visible
+    };
+  })()`
+}
+
 export interface BrowserFormField {
   ref?: string
   selector?: string

@@ -33,6 +33,25 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
       response.end('<!doctype html><title>Any text</title><main id="status">Deploying</main><script>setTimeout(() => { document.querySelector("#status").textContent = "Deployment failed" }, 1000)</script>')
       return
     }
+    if (request.url === '/element-states') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end(`<!doctype html><title>Element states</title>
+        <main>
+          <button id="late-action" hidden>Delayed action</button>
+          <button id="removing">Removing soon</button>
+        </main>
+        <script>
+          setTimeout(() => { document.querySelector('#late-action').hidden = false }, 600)
+          setTimeout(() => {
+            const inserted = document.createElement('output')
+            inserted.id = 'inserted'
+            inserted.textContent = 'Inserted later'
+            document.querySelector('main').append(inserted)
+          }, 1_000)
+          setTimeout(() => document.querySelector('#removing')?.remove(), 2_000)
+        </script>`)
+      return
+    }
     pendingResponses.add(response)
     response.once('close', () => pendingResponses.delete(response))
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -90,6 +109,87 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
     expect(anyText.isError).not.toBe(true)
     expect(text(anyText)).toBe('Found text: Deployment failed')
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(anyTextTabId)})`)
+
+    const elementTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/element-states`, active: true }
+    }) as CallToolResult
+    const elementTabId = (JSON.parse(text(elementTab)) as { activeTabId: string }).activeTabId
+    const elementTools = await client.listTools()
+    expect(elementTools.tools.find((tool) => tool.name === 'browser_wait')?.description).toContain('element')
+    const elementSnapshot = await client.callTool({
+      name: 'browser_snapshot',
+      arguments: { tabId: elementTabId }
+    }) as CallToolResult
+    const removingRef = text(elementSnapshot).match(/\[(e\d+)\].*"Removing soon"/)?.[1]
+    if (!removingRef) throw new Error('Removing element did not receive a snapshot ref')
+
+    const visibleElement = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, selector: '#late-action', state: 'visible', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(visibleElement.isError, text(visibleElement)).not.toBe(true)
+    expect(text(visibleElement)).toBe('Element is visible: #late-action')
+    const defaultVisibleElement = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, selector: '#late-action', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(defaultVisibleElement.isError, text(defaultVisibleElement)).not.toBe(true)
+    expect(text(defaultVisibleElement)).toBe('Element is visible: #late-action')
+
+    const attachedElement = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, selector: '#inserted', state: 'attached', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(attachedElement.isError, text(attachedElement)).not.toBe(true)
+    expect(text(attachedElement)).toBe('Element is attached: #inserted')
+
+    const detachedElement = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, ref: removingRef, state: 'detached', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(detachedElement.isError, text(detachedElement)).not.toBe(true)
+    expect(text(detachedElement)).toBe(`Element is detached: [${removingRef}]`)
+    const hiddenMissingElement = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, selector: '#never-rendered', state: 'hidden', timeoutMs: 5_000 }
+    }) as CallToolResult
+    expect(hiddenMissingElement.isError, text(hiddenMissingElement)).not.toBe(true)
+    expect(text(hiddenMissingElement)).toBe('Element is hidden: #never-rendered')
+
+    const ambiguousElementWait = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, text: 'Delayed action', selector: '#late-action' }
+    }) as CallToolResult
+    expect(ambiguousElementWait.isError).toBe(true)
+    expect(text(ambiguousElementWait)).toContain('Choose page text or an element target')
+    const missingElementTarget = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, state: 'hidden' }
+    }) as CallToolResult
+    expect(missingElementTarget.isError).toBe(true)
+    expect(text(missingElementTarget)).toContain('Provide ref or selector')
+    const ambiguousTarget = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, ref: removingRef, selector: '#late-action', state: 'visible' }
+    }) as CallToolResult
+    expect(ambiguousTarget.isError).toBe(true)
+    expect(text(ambiguousTarget)).toContain('Provide either ref or selector, not both')
+
+    const waitingForElement = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: elementTabId, selector: '#never-visible', state: 'visible', timeoutMs: 10_000 }
+    }) as Promise<CallToolResult>
+    await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(elementTabId)})`)
+    const closedElementWait = await Promise.race([
+      waitingForElement,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('element browser_wait stayed active after its tab closed')), 2_000)
+      })
+    ])
+    expect(closedElementWait.isError).toBe(true)
+    expect(text(closedElementWait)).toContain('tab closed while waiting for the page element')
 
     const ambiguous = await client.callTool({
       name: 'browser_wait',

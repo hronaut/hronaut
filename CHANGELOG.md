@@ -6,10 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Let agents wait for a snapshot ref or CSS selector to become attached, detached, visible, or hidden without brittle JavaScript polling.
 - Let agents single- or double-click bounded viewport coordinates for canvas, WebGL, maps, remote desktops, and other visual-only surfaces without weakening the preferred semantic-ref workflow.
 
 ### Changed
 
+- Move Home navigation, last-website tracking, and competing-surface cleanup out of `App.vue` into a focused controller.
 - Left-align Home and the title/tab cluster in horizontal mode, and align the vertical rail title to its left edge while preserving native window-control safe areas.
 - Move shell-wide browser, startup, search, settings, and clipboard feedback out of `App.vue` into a focused controller.
 

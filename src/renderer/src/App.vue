@@ -108,6 +108,7 @@ import { useUpdateNoticePresentationController } from './composables/useUpdateNo
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
+import { useHomeNavigationController } from './composables/useHomeNavigationController'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
@@ -347,7 +348,6 @@ const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
 const commandPaletteOpen = ref(false)
 const commandPalette = ref<InstanceType<typeof CommandPalette> | null>(null)
 const browserTabsBar = ref<InstanceType<typeof BrowserTabsBar> | null>(null)
-const lastWebTabId = ref<string | null>(null)
 const updateNoticeOpen = ref(false)
 const updateSettingsController = useUpdateSettingsController({
   api: window.hronautUpdates,
@@ -943,6 +943,23 @@ const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncControll
   persistDock: (dock) => window.localStorage.setItem('hronaut:panel-dock', dock),
   onError: reportShellActionError
 })
+const {
+  openHome: openApplicationHome,
+  preferredWebsiteTab: preferredWebTab,
+  rememberWebsiteTab
+} = useHomeNavigationController({
+  activeTab,
+  websiteTabs: () => state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')),
+  settingsOpen,
+  updateNoticeOpen,
+  downloadsOpen,
+  bookmarksOpen,
+  historyOpen,
+  tabSearchOpen,
+  zoomOpen,
+  runFindTransition,
+  navigateHome: () => syncState(browser.openHome())
+})
 const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
   activeTab,
   keepsSeparatePanelOpen,
@@ -962,7 +979,7 @@ const { dispose: disposeActiveTabContextController } = useActiveTabContextContro
   preserveEnvironmentReload: () => environmentController.pendingAction.value === 'apply-reload',
   onTabChanged: (tab) => {
     credentialPickerOpen.value = false
-    if (tab && !tab.url.startsWith('hronaut://home')) lastWebTabId.value = tab.id
+    rememberWebsiteTab(tab)
   }
 })
 const appBootstrapController = useAppBootstrapController({
@@ -1253,7 +1270,6 @@ const activeTabPresentationController = useActiveTabPresentationController({
   describeEmulation: emulationDescription
 })
 const {
-  regularTabs,
   activeIsHome,
   activeWebUrl,
   activeOrigin,
@@ -1325,22 +1341,6 @@ const detachedPanelLabelText = computed(() => (
 async function openBookmark(bookmark: BrowserBookmark): Promise<void> {
   settingsOpen.value = false
   await syncState(browser.newTab({ url: bookmark.url, active: true }))
-}
-
-function preferredWebTab(): BrowserTabState | undefined {
-  return regularTabs.value.find((tab) => tab.id === lastWebTabId.value) ?? regularTabs.value.at(-1)
-}
-
-async function openApplicationHome(): Promise<void> {
-  if (activeTab.value && !activeIsHome.value) lastWebTabId.value = activeTab.value.id
-  settingsOpen.value = false
-  updateNoticeOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  tabSearchOpen.value = false
-  zoomOpen.value = false
-  await runFindTransition(() => syncState(browser.openHome()))
 }
 
 async function openTabGroupEditor(groupId: string): Promise<void> {
