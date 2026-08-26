@@ -8,6 +8,14 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+### Fixed
+
+## [1.6.1] - 2026-08-26
+
+### Added
+
+### Changed
+
 - Move browser navigation, address, find, zoom, and bookmark controls out of `App.vue` into a focused component.
 - Move website interaction-lock, split-view, capture, picker, and page-tools controls out of `App.vue` into a focused component.
 - Move docked-panel resize presentation and input events out of `App.vue` into a focused accessible component.
