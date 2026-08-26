@@ -48,8 +48,7 @@
   margin-left: 0;
   padding-left: max(
     10px,
-    calc(var(--titlebar-controls-left-safe) + 10px),
-    calc(var(--titlebar-controls-fallback-width) + 10px)
+    calc(var(--titlebar-controls-left-safe) + 10px)
   );
   padding-right: max(
     10px,
@@ -57,6 +56,15 @@
     calc(var(--titlebar-controls-fallback-width) + 10px)
   );
   background: var(--titlebar-background);
+}
+
+:root[data-desktop-platform="darwin"] .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
+  padding-left: max(
+    10px,
+    calc(var(--titlebar-controls-left-safe) + 10px),
+    calc(var(--titlebar-controls-fallback-width) + 10px)
+  );
+  padding-right: max(10px, calc(var(--titlebar-controls-right-safe) + 10px));
 }
 
 .custom-title-bar:not(.vertical-tabs-shell) {
@@ -111,7 +119,7 @@
   left: 0;
   width: var(--tab-rail-width);
   height: var(--vertical-titlebar-height);
-  justify-content: center;
+  justify-content: flex-start;
   padding-right: 14px;
   padding-left: 14px;
   border-right: 1px solid var(--border);
@@ -121,7 +129,7 @@
 .custom-title-bar.vertical-tabs-shell:not(.compact-vertical-tab-rail) .shell-title-bar-surface.surface-rail,
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail-revealed .shell-title-bar-surface.surface-rail {
   padding-left: max(14px, calc(var(--titlebar-controls-left-safe) + 8px));
-  padding-right: max(14px, calc(var(--titlebar-controls-right-safe) + 8px));
+  padding-right: 14px;
 }
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail:not(.compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail {
   padding: 0;

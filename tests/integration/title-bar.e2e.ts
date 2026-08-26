@@ -12,6 +12,23 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
   const topbar = appWindow.locator('.topbar')
   await expect(topbar).toHaveAttribute('data-titlebar-drag-surface', '')
   expect(await appRegion(topbar)).toBe('drag')
+  const [topbarBounds, homeBounds] = await Promise.all([
+    topbar.boundingBox(),
+    appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
+  ])
+  expect(topbarBounds).not.toBeNull()
+  expect(homeBounds).not.toBeNull()
+  expect(Math.round(homeBounds!.x - topbarBounds!.x)).toBeLessThanOrEqual(20)
+  await appWindow.evaluate(() => { document.documentElement.dataset.desktopPlatform = 'darwin' })
+  await expect.poll(async () => {
+    const bounds = await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
+    return Math.round((bounds?.x ?? 0) - topbarBounds!.x)
+  }).toBeGreaterThanOrEqual(100)
+  await appWindow.evaluate(() => { document.documentElement.dataset.desktopPlatform = 'linux' })
+  await expect.poll(async () => {
+    const bounds = await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
+    return Math.round((bounds?.x ?? 0) - topbarBounds!.x)
+  }).toBeLessThanOrEqual(20)
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const activeTab = appWindow.locator('.tab.active')
@@ -77,6 +94,9 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   expect(homeGeometry[1]!.x).toBe(0)
   expect(homeGeometry[2]!.x).toBeGreaterThanOrEqual(homeGeometry[0]!.x + homeGeometry[0]!.width - 1)
   expect(homeGeometry[2]!.width).toBeLessThanOrEqual(await appWindow.evaluate(() => window.innerWidth) - homeGeometry[0]!.width + 1)
+  const railMarkBounds = await railTitle.locator('.shell-title-bar-mark').boundingBox()
+  expect(railMarkBounds).not.toBeNull()
+  expect(Math.round(railMarkBounds!.x - homeGeometry[1]!.x)).toBeLessThanOrEqual(20)
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const toolbar = appWindow.locator('.toolbar')
