@@ -36,7 +36,11 @@ export interface BrowserShortcutControllerOptions {
 export function useBrowserShortcutController(options: BrowserShortcutControllerOptions) {
   let generation = 0
   let disposed = false
-  let relativeTabSelectionQueue: Promise<void> = Promise.resolve()
+  let tabSelectionQueue: Promise<void> = Promise.resolve()
+
+  function websiteTabs(): BrowserTabState[] {
+    return options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home'))
+  }
 
   async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
     if (disposed) return
@@ -50,12 +54,37 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
   }
 
   function selectRelativeTab(offset: -1 | 1): Promise<void> {
-    const selection = relativeTabSelectionQueue.then(() => performRelativeTabSelection(offset))
-    relativeTabSelectionQueue = selection.catch(() => undefined)
+    const selection = tabSelectionQueue.then(() => performRelativeTabSelection(offset))
+    tabSelectionQueue = selection.catch(() => undefined)
+    return selection
+  }
+
+  function directTabIndex(action: BrowserShortcutAction): number | null {
+    if (action === 'select-last-tab') return -1
+    const match = /^select-tab-([1-8])$/.exec(action)
+    return match ? Number(match[1]) - 1 : null
+  }
+
+  async function performDirectTabSelection(index: number): Promise<void> {
+    if (disposed) return
+    const tabs = websiteTabs()
+    const target = index === -1 ? tabs.at(-1) : tabs[index]
+    if (!target || target.id === options.state.value.activeTabId) return
+    await options.syncState(options.browser.selectTab(target.id))
+  }
+
+  function selectDirectTab(index: number): Promise<void> {
+    const selection = tabSelectionQueue.then(() => performDirectTabSelection(index))
+    tabSelectionQueue = selection.catch(() => undefined)
     return selection
   }
 
   async function execute(action: BrowserShortcutAction): Promise<void> {
+    const index = directTabIndex(action)
+    if (index !== null) {
+      await selectDirectTab(index)
+      return
+    }
     switch (action) {
       case 'focus-address':
         await options.focusAddress()

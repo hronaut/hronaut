@@ -42,7 +42,15 @@ describe('help dialog controller', () => {
       label: 'translated:runtime.shortcuts.reopenTab',
       keys: ['Ctrl/Cmd', 'Shift', 'T']
     })
-    expect(controller.shortcuts.value).toHaveLength(17)
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.directTab',
+      keys: ['Ctrl/Cmd', '1–8']
+    })
+    expect(controller.shortcuts.value).toContainEqual({
+      label: 'translated:runtime.shortcuts.lastTab',
+      keys: ['Ctrl/Cmd', '9']
+    })
+    expect(controller.shortcuts.value).toHaveLength(19)
     controller.dispose()
   })
 })

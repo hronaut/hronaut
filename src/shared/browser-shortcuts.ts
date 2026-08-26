@@ -5,6 +5,8 @@ export type BrowserShortcutAction =
   | 'reopen-closed-tab'
   | 'next-tab'
   | 'previous-tab'
+  | `select-tab-${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}`
+  | 'select-last-tab'
   | 'find'
   | 'reload'
   | 'reload-ignoring-cache'
@@ -46,6 +48,8 @@ export function browserShortcutAction(input: BrowserShortcutInput): BrowserShort
   if (input.control && key === 'tab') return input.shift ? 'previous-tab' : 'next-tab'
   if (!input.shift && ((input.control && key === 'h') || (input.meta && key === 'y'))) return 'visit-history'
   if (!input.control && !input.meta) return null
+  if (!input.shift && /^[1-8]$/.test(key)) return `select-tab-${key}` as BrowserShortcutAction
+  if (!input.shift && key === '9') return 'select-last-tab'
   if (input.shift && (key === 'delete' || key === 'backspace')) return 'clear-browsing-data'
   if (input.shift && key === 'p') return 'command-palette'
   if (input.shift && key === 'a') return 'search-tabs'

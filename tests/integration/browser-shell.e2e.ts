@@ -1759,6 +1759,11 @@ test('supports standard tab and address shortcuts from the shell and websites', 
 
   await appWindow.keyboard.press(`${primary}+T`)
   await expect(appWindow.getByRole('tab')).toHaveCount(3)
+  await appWindow.keyboard.press(`${primary}+2`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Shortcut fixture')
+  await appWindow.keyboard.press(`${primary}+9`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe('about:blank')
+  await expect(homeButton).not.toHaveAttribute('aria-current', 'page')
   await appWindow.keyboard.press('Control+Shift+Tab')
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Shortcut fixture')
   await appWindow.keyboard.press('Control+Tab')

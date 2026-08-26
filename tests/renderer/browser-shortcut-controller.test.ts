@@ -119,6 +119,45 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
+  it('selects numbered website tabs without counting Home and uses 9 for the last tab', async () => {
+    const harness = createController()
+    const home = { ...tab('home'), url: 'hronaut://home/' }
+    const websites = Array.from({ length: 9 }, (_, index) => tab(`website-${index + 1}`, index === 1))
+    harness.state.value = {
+      ...browserState('website-2'),
+      tabs: [home, ...websites]
+    }
+
+    await expect(harness.controller.run('select-tab-1')).resolves.toBe(true)
+    await expect(harness.controller.run('select-tab-8')).resolves.toBe(true)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(1, 'website-1')
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(2, 'website-8')
+    expect(harness.browser.selectTab).toHaveBeenNthCalledWith(3, 'website-9')
+    expect(harness.browser.selectTab).not.toHaveBeenCalledWith('home')
+
+    harness.browser.selectTab.mockClear()
+    harness.state.value = { ...browserState('home'), tabs: [{ ...home, active: true }] }
+    await expect(harness.controller.run('select-tab-8')).resolves.toBe(true)
+    await expect(harness.controller.run('select-last-tab')).resolves.toBe(true)
+    expect(harness.browser.selectTab).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('keeps Home in relative navigation so Ctrl+Tab can leave and return to it', async () => {
+    const harness = createController()
+    harness.state.value = {
+      ...browserState('home'),
+      tabs: [{ ...tab('home', true), url: 'hronaut://home/' }, tab('first'), tab('second'), tab('third')]
+    }
+
+    await harness.controller.selectRelativeTab(1)
+
+    expect(harness.browser.selectTab).toHaveBeenCalledWith('first')
+    harness.controller.dispose()
+  })
+
   it('queues rapid relative tab shortcuts so every press advances from the latest selection', async () => {
     const harness = createController()
     const firstSelection = deferred<BrowserState>()

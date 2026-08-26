@@ -37,6 +37,17 @@ describe('browserShortcutAction', () => {
     expect(browserShortcutAction(input({ key: 'Tab', meta: true }))).toBeNull()
   })
 
+  it('maps standard direct-tab shortcuts on Linux, Windows, and macOS', () => {
+    for (const modifier of [{ control: true }, { meta: true }]) {
+      for (let position = 1; position <= 8; position += 1) {
+        expect(browserShortcutAction(input({ key: String(position), ...modifier }))).toBe(`select-tab-${position}`)
+      }
+      expect(browserShortcutAction(input({ key: '9', ...modifier }))).toBe('select-last-tab')
+    }
+    expect(browserShortcutAction(input({ key: '1', control: true, shift: true }))).toBeNull()
+    expect(browserShortcutAction(input({ key: '9', meta: true, alt: true }))).toBeNull()
+  })
+
   it('maps the standard tab-search shortcut', () => {
     expect(browserShortcutAction(input({ key: 'A', control: true, shift: true }))).toBe('search-tabs')
     expect(browserShortcutAction(input({ key: 'A', meta: true, shift: true }))).toBe('search-tabs')

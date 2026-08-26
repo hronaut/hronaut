@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add an all-platform, restart-required “Use system title bar” fallback for desktop environments where compact window controls are unreliable.
+- Add Ctrl/Cmd+1–8 direct website-tab selection and Ctrl/Cmd+9 last-tab selection for crowded horizontal and vertical tab layouts.
 
 ### Changed
 

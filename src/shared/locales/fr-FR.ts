@@ -552,6 +552,8 @@ export const frFR = {
       "devtools": "Afficher ou masquer les outils de développement",
       "nextTab": "Passer à l’onglet suivant",
       "previousTab": "Passer à l’onglet précédent",
+      "directTab": "Passer à l’onglet web 1–8",
+      "lastTab": "Passer au dernier onglet web",
       "resetZoom": "Réinitialiser le zoom de la page"
     },
     "responsive": {

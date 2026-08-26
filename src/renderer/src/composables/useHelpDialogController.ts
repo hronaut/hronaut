@@ -32,6 +32,8 @@ export function useHelpDialogController(options: HelpDialogControllerOptions) {
     { label: options.translate('runtime.shortcuts.devtools'), keys: ['F12', 'Ctrl+Shift+I', 'Cmd+Option+I'] },
     { label: options.translate('runtime.shortcuts.nextTab'), keys: ['Ctrl', 'Tab'] },
     { label: options.translate('runtime.shortcuts.previousTab'), keys: ['Ctrl', 'Shift', 'Tab'] },
+    { label: options.translate('runtime.shortcuts.directTab'), keys: ['Ctrl/Cmd', '1–8'] },
+    { label: options.translate('runtime.shortcuts.lastTab'), keys: ['Ctrl/Cmd', '9'] },
     { label: options.translate('runtime.shortcuts.resetZoom'), keys: ['Ctrl/Cmd', '0'] }
   ])
 
