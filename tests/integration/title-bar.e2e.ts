@@ -29,6 +29,22 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
     const bounds = await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
     return Math.round((bounds?.x ?? 0) - topbarBounds!.x)
   }).toBeLessThanOrEqual(20)
+  await appWindow.evaluate(() => {
+    document.documentElement.style.setProperty('--titlebar-controls-left-runtime', '144px')
+    document.documentElement.style.setProperty('--titlebar-controls-right-runtime', '0px')
+  })
+  await expect.poll(async () => {
+    const bounds = await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
+    return Math.round((bounds?.x ?? 0) - topbarBounds!.x)
+  }).toBeGreaterThanOrEqual(150)
+  await appWindow.evaluate(() => {
+    document.documentElement.style.setProperty('--titlebar-controls-left-runtime', '0px')
+    document.documentElement.style.setProperty('--titlebar-controls-right-runtime', '144px')
+  })
+  await expect.poll(async () => {
+    const bounds = await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox()
+    return Math.round((bounds?.x ?? 0) - topbarBounds!.x)
+  }).toBeLessThanOrEqual(20)
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const activeTab = appWindow.locator('.tab.active')
@@ -97,6 +113,14 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   const railMarkBounds = await railTitle.locator('.shell-title-bar-mark').boundingBox()
   expect(railMarkBounds).not.toBeNull()
   expect(Math.round(railMarkBounds!.x - homeGeometry[1]!.x)).toBeLessThanOrEqual(20)
+  const [homeButtonBounds, homeIconBounds] = await Promise.all([
+    appWindow.getByRole('button', { name: 'Open Hronaut Home' }).boundingBox(),
+    appWindow.getByRole('button', { name: 'Open Hronaut Home' }).locator('svg').boundingBox()
+  ])
+  expect(homeButtonBounds).not.toBeNull()
+  expect(homeIconBounds).not.toBeNull()
+  expect(Math.round(homeButtonBounds!.x - homeGeometry[0]!.x)).toBeLessThanOrEqual(12)
+  expect(Math.round(homeIconBounds!.x - homeGeometry[0]!.x)).toBeLessThanOrEqual(24)
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
   const toolbar = appWindow.locator('.toolbar')

@@ -97,7 +97,12 @@
   gap: 8px;
   padding: 10px 9px 9px;
 }
-.browser-tabs-bar.vertical .app-home-button { width: 100%; height: 34px; margin: 0; }
+.browser-tabs-bar.vertical .app-home-button {
+  width: 100%;
+  height: 34px;
+  justify-content: flex-start;
+  margin: 0;
+}
 .browser-tabs-bar.vertical .topbar-divider { width: 100%; height: 1px; margin: 0; }
 .browser-tabs-bar.vertical .tabs-strip-shell {
   display: block;
