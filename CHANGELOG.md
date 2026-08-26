@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 - Make the complete horizontal “Workspace” action, including its visible label, clickable instead of limiting its title-bar hit target to the plus icon.
 - Keep a horizontal-only `browser_scroll` action from also applying the default vertical scroll distance.
 - Prevent an older bookmark or history navigation from closing a panel that the user reopened while that navigation was still pending.
+- Clear stale Downloads actions when the panel is closed so an older reveal, cancel, or cleanup cannot lock or report errors in a reopened panel.
+- Keep an externally reopened Downloads panel visible when an older refresh fails after another shell action or download event changed its visibility.
 
 ### Changed
 

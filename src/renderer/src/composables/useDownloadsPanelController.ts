@@ -1,9 +1,10 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserDownloadState } from '../../../shared/types.js'
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
 
 export interface DownloadsPanelControllerOptions {
+  open: Readonly<Ref<boolean>>
   downloads: Ref<BrowserDownloadState[]>
   translate: Translate
   formatBytes: (bytes: number) => string
@@ -17,6 +18,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   const error = ref('')
   const pendingAction = ref<string | null>(null)
   const finishedDownloads = computed(() => options.downloads.value.filter((download) => download.state !== 'progressing'))
+  let actionGeneration = 0
 
   function downloadProgress(download: BrowserDownloadState): number {
     if (download.state === 'completed') return 100
@@ -40,20 +42,28 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     error.value = ''
   }
 
+  function invalidateActions(): void {
+    actionGeneration += 1
+    pendingAction.value = null
+  }
+
   async function runAction(
     actionId: string,
     operation: () => Promise<BrowserDownloadState[] | void>
   ): Promise<void> {
     if (pendingAction.value) return
+    const generation = ++actionGeneration
     resetError()
     pendingAction.value = actionId
     try {
       const nextDownloads = await operation()
+      if (generation !== actionGeneration) return
       if (nextDownloads) options.downloads.value = nextDownloads
     } catch (cause) {
+      if (generation !== actionGeneration) return
       error.value = cause instanceof Error ? cause.message : String(cause)
     } finally {
-      if (pendingAction.value === actionId) pendingAction.value = null
+      if (generation === actionGeneration) pendingAction.value = null
     }
   }
 
@@ -69,6 +79,16 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     return runAction(`reveal:${downloadId}`, () => options.showInFolder(downloadId))
   }
 
+  const stopOpenTracking = watch(options.open, () => {
+    invalidateActions()
+    resetError()
+  }, { flush: 'sync' })
+
+  function dispose(): void {
+    invalidateActions()
+    stopOpenTracking()
+  }
+
   return {
     error,
     pendingAction,
@@ -78,6 +98,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     resetError,
     cancel,
     clear,
-    reveal
+    reveal,
+    dispose
   }
 }

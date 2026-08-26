@@ -533,7 +533,8 @@ const {
   toggleCurrentBookmark,
   toggleVisitHistory,
   openBookmark,
-  openHistoryEntry
+  openHistoryEntry,
+  dispose: disposeBrowserCollectionsShellController
 } = useBrowserCollectionsShellController({
   settingsOpen,
   downloadsOpen,
@@ -1539,6 +1540,7 @@ onBeforeUnmount(() => {
   disposePrivacySettingsController()
   disposeSitePermissionsController()
   disposeCredentialsController()
+  disposeBrowserCollectionsShellController()
   browserCollectionsController.dispose()
   disposeDiagnosticsController()
   disposeAppToastController()

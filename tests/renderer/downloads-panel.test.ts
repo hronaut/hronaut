@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { render, screen, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import DownloadsPanel from '../../src/renderer/src/components/DownloadsPanel.vue'
@@ -69,5 +69,31 @@ describe('DownloadsPanel', () => {
     expect(clearFinished).toHaveBeenCalledTimes(2)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('No downloads yet')).toBeVisible()
+  })
+
+  it('does not let an older action lock or report errors in a reopened panel', async () => {
+    let rejectReveal!: (reason?: unknown) => void
+    const reveal = new Promise<void>((_resolve, reject) => {
+      rejectReveal = reject
+    })
+    const showInFolder = vi.fn(() => reveal)
+    const view = renderPanel({ showInFolder })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Show complete.bin in folder' }))
+    expect(showInFolder).toHaveBeenCalledWith('complete')
+    expect(screen.getByRole('button', { name: 'Show complete.bin in folder' })).toBeDisabled()
+
+    await view.rerender({ open: false })
+    expect(screen.queryByRole('dialog', { name: 'Downloads' })).not.toBeInTheDocument()
+    await view.rerender({ open: true })
+
+    const reopenedAction = screen.getByRole('button', { name: 'Show complete.bin in folder' })
+    try {
+      expect(reopenedAction).toBeEnabled()
+    } finally {
+      rejectReveal(new Error('Older reveal failed'))
+    }
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 })

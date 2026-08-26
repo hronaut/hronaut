@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
@@ -27,11 +27,12 @@ const {
   finishedDownloads,
   downloadProgress,
   downloadMeta,
-  resetError,
   cancel,
   clear,
-  reveal
+  reveal,
+  dispose
 } = useDownloadsPanelController({
+  open,
   downloads,
   translate: (key, parameters) => t(key, parameters ?? {}),
   formatBytes: props.formatBytes,
@@ -41,7 +42,7 @@ const {
   showInFolder: props.showInFolder
 })
 
-watch(open, resetError)
+onBeforeUnmount(dispose)
 </script>
 
 <template>

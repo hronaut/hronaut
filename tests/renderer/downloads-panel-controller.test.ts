@@ -21,11 +21,13 @@ function download(
 }
 
 function createController(initialDownloads = [download('complete', 'completed', 100, 100)]) {
+  const open = ref(true)
   const downloads = ref(initialDownloads)
   const cancelDownload = vi.fn(async (id: string) => [download(id, 'cancelled')])
   const clearFinished = vi.fn(async () => [])
   const showInFolder = vi.fn(async () => undefined)
   const controller = useDownloadsPanelController({
+    open,
     downloads,
     translate: (key, parameters) => {
       if (key === 'downloads.received') return `${parameters?.received} of ${parameters?.total}`
@@ -39,7 +41,7 @@ function createController(initialDownloads = [download('complete', 'completed', 
     clearFinished,
     showInFolder
   })
-  return { downloads, cancelDownload, clearFinished, showInFolder, controller }
+  return { open, downloads, cancelDownload, clearFinished, showInFolder, controller }
 }
 
 describe('downloads panel controller', () => {
@@ -52,6 +54,7 @@ describe('downloads panel controller', () => {
     expect(controller.error.value).toBe('Could not clear download history')
     expect(controller.pendingAction.value).toBeNull()
     expect(downloads.value).toHaveLength(1)
+    controller.dispose()
   })
 
   it('deduplicates actions while one is pending and accepts the authoritative result', async () => {
@@ -72,6 +75,7 @@ describe('downloads panel controller', () => {
 
     expect(downloads.value[0]?.state).toBe('cancelled')
     expect(controller.pendingAction.value).toBeNull()
+    controller.dispose()
   })
 
   it('clamps progress and formats determinate, indeterminate, and completed metadata', () => {
@@ -85,5 +89,6 @@ describe('downloads panel controller', () => {
     expect(controller.downloadMeta(overComplete)).toBe('100% · 150 B of 100 B')
     expect(controller.downloadMeta(indeterminate)).toBe('25 B downloaded')
     expect(controller.downloadMeta(completed)).toBe('125 B · Complete')
+    controller.dispose()
   })
 })

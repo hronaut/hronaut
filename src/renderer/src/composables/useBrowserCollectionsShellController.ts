@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { watch, type Ref } from 'vue'
 import type { BrowserBookmark, BrowserHistoryEntry } from '../../../shared/types.js'
 
 export interface BookmarksShellPanel {
@@ -26,9 +26,13 @@ export function useBrowserCollectionsShellController(
   options: BrowserCollectionsShellControllerOptions
 ) {
   let downloadsToggleSequence = 0
+  let disposed = false
+
+  const stopDownloadsOpenTracking = watch(options.downloadsOpen, () => {
+    downloadsToggleSequence += 1
+  }, { flush: 'sync' })
 
   function closeDownloads(): void {
-    downloadsToggleSequence += 1
     options.downloadsOpen.value = false
   }
 
@@ -42,13 +46,13 @@ export function useBrowserCollectionsShellController(
       return
     }
 
-    const sequence = ++downloadsToggleSequence
     options.downloadsOpen.value = true
+    const sequence = downloadsToggleSequence
     try {
       await options.refreshDownloads()
     } catch (error) {
-      if (sequence !== downloadsToggleSequence) return
-      options.downloadsOpen.value = false
+      if (disposed || sequence !== downloadsToggleSequence || !options.downloadsOpen.value) return
+      closeDownloads()
       throw error
     }
   }
@@ -85,12 +89,20 @@ export function useBrowserCollectionsShellController(
     return options.openUrl(entry.url)
   }
 
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    downloadsToggleSequence += 1
+    stopDownloadsOpenTracking()
+  }
+
   return {
     toggleDownloads,
     toggleBookmarks,
     toggleCurrentBookmark,
     toggleVisitHistory,
     openBookmark,
-    openHistoryEntry
+    openHistoryEntry,
+    dispose
   }
 }

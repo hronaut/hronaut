@@ -115,6 +115,21 @@ describe('useBrowserCollectionsShellController', () => {
     expect(harness.downloadsOpen.value).toBe(true)
   })
 
+  it('keeps an external Downloads reopen authoritative over an older refresh failure', async () => {
+    const harness = createController()
+    const older = deferred<void>()
+    harness.refreshDownloads.mockReturnValueOnce(older.promise)
+
+    const firstOpening = harness.controller.toggleDownloads()
+    const openingResult = expect(firstOpening).resolves.toBeUndefined()
+    harness.downloadsOpen.value = false
+    harness.downloadsOpen.value = true
+    older.reject(new Error('older failure'))
+
+    await openingResult
+    expect(harness.downloadsOpen.value).toBe(true)
+  })
+
   it('closes competing UI before toggling Bookmarks or History', async () => {
     const harness = createController()
     harness.downloadsOpen.value = true
