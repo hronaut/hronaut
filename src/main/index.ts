@@ -2848,7 +2848,7 @@ function registerIpc(): void {
     await updateSettings({ mcpAuthentication: enabled })
     mcpServer?.setAuthenticationToken(enabled ? mcpTokenConfiguration?.token : undefined)
     publishSettings()
-    await tabsManager?.reloadHome()
+    void tabsManager?.reloadHome().catch((error) => console.error('[mcp] Could not refresh Hronaut Home:', error))
     console.warn(enabled
       ? '[mcp] Authentication enabled.'
       : '[mcp] Authentication disabled in Settings. Any local process can control this profile.')

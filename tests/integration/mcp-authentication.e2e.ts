@@ -63,6 +63,45 @@ test('starts without MCP authentication and can enable or disable it in Settings
   }
 })
 
+test('keeps a committed MCP authentication change authoritative when the Home refresh fails', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const health = `http://127.0.0.1:${mcpPort}/healthz`
+  const status = (authorization?: string): Promise<number> => new Promise((resolve) => {
+    const request = get(health, {
+      headers: authorization ? { authorization } : undefined,
+      agent: false
+    }, (response) => {
+      response.resume()
+      resolve(response.statusCode ?? 0)
+    })
+    request.once('error', () => resolve(0))
+  })
+
+  await appWindow.evaluate('window.hronaut.openHome()')
+  await electronApp.evaluate(({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    Object.defineProperty(home, 'reload', {
+      configurable: true,
+      value: () => { throw new Error('Home refresh unavailable for authentication regression test') }
+    })
+  })
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /MCP security/ }).click()
+  const authentication = appWindow.getByRole('checkbox', { name: 'Require MCP authentication' })
+  await authentication.check()
+
+  await expect(authentication).toBeChecked()
+  await expect.poll(() => status()).toBe(401)
+  await expect.poll(() => status(`Bearer ${mcpToken}`)).toBe(200)
+  await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toHaveCount(0)
+})
+
 test('moves the live MCP listener to a validated available port and rolls back on conflicts', async ({
   appWindow,
   electronApp,
