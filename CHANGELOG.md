@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Retry transient renderer service startup failures without requiring an application restart, while keeping retries bounded and reporting recovery.
+- Apply rapid repeated mute and interaction-lock toggles in order against the latest browser state instead of losing the second user action to a stale renderer snapshot.
 
 ## [1.6.0] - 2026-08-26
 

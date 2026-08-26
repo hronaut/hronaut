@@ -29,6 +29,17 @@ export interface BrowserTabActionsControllerOptions {
 }
 
 export function useBrowserTabActionsController(options: BrowserTabActionsControllerOptions) {
+  const toggleOperations = new Map<string, Promise<void>>()
+
+  function enqueueToggle(key: string, action: () => Promise<void>): Promise<void> {
+    const previous = toggleOperations.get(key) ?? Promise.resolve()
+    const operation = previous.catch(() => undefined).then(action)
+    toggleOperations.set(key, operation)
+    return operation.finally(() => {
+      if (toggleOperations.get(key) === operation) toggleOperations.delete(key)
+    })
+  }
+
   async function reorderTab(details: {
     tabId: string
     targetTabId: string
@@ -74,17 +85,27 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   }
 
   async function toggleTabMuted(tab: BrowserTabState): Promise<void> {
-    await options.syncState(options.browser.setTabMuted(tab.id, !tab.muted))
+    await enqueueToggle(`mute:${tab.id}`, async () => {
+      const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
+      if (!currentTab) return
+      await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted))
+    })
   }
 
   async function toggleTabHumanInteraction(): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || options.isHome() || options.state.value.allHumanInteractionLocked) return
-    await options.syncState(options.browser.setTabHumanInteractionLocked(tab.id, !tab.humanInteractionLocked))
+    await enqueueToggle(`interaction:${tab.id}`, async () => {
+      const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
+      if (!currentTab || options.state.value.allHumanInteractionLocked) return
+      await options.syncState(options.browser.setTabHumanInteractionLocked(tab.id, !currentTab.humanInteractionLocked))
+    })
   }
 
   async function toggleAllHumanInteraction(): Promise<void> {
-    await options.syncState(options.browser.setAllHumanInteractionLocked(!options.state.value.allHumanInteractionLocked))
+    await enqueueToggle('interaction:all', async () => {
+      await options.syncState(options.browser.setAllHumanInteractionLocked(!options.state.value.allHumanInteractionLocked))
+    })
   }
 
   return {

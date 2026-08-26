@@ -53,7 +53,9 @@ function createHarness() {
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
     showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined)
   }
-  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => { await operation })
+  const syncState = vi.fn(async (operation: Promise<BrowserState> | BrowserState) => {
+    state.value = await operation
+  })
   const onSelectError = vi.fn()
   const onNavigateError = vi.fn()
   const controller = useBrowserTabActionsController({
@@ -116,9 +118,12 @@ describe('browser tab actions controller', () => {
 
   it('delegates workspace, ordering, mute, and interaction mutations with inverted state', async () => {
     const harness = createHarness()
+    const mutedTab = tab({ muted: true })
+    harness.state.value = browserState(mutedTab)
+    harness.activeTab.value = mutedTab
     await harness.controller.showWorkspaceContextMenu('workspace')
     await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'second', placement: 'after' })
-    await harness.controller.toggleTabMuted(tab({ muted: true }))
+    await harness.controller.toggleTabMuted(mutedTab)
     await harness.controller.toggleTabHumanInteraction()
     await harness.controller.toggleAllHumanInteraction()
 
@@ -127,5 +132,68 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
     expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+
+  it('serializes rapid mute toggles against the latest authoritative tab state', async () => {
+    const harness = createHarness()
+    harness.browser.setTabMuted.mockImplementation(async (tabId, muted) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map((candidate) => candidate.id === tabId ? { ...candidate, muted } : candidate)
+    }))
+
+    await Promise.all([
+      harness.controller.toggleTabMuted(tab()),
+      harness.controller.toggleTabMuted(tab())
+    ])
+
+    expect(harness.browser.setTabMuted.mock.calls.map(([, muted]) => muted)).toEqual([true, false])
+    expect(harness.state.value.tabs[0]?.muted).toBe(false)
+  })
+
+  it('keeps a toggle queue usable after an earlier mutation is rejected', async () => {
+    const harness = createHarness()
+    const failure = new Error('mute unavailable')
+    harness.browser.setTabMuted
+      .mockRejectedValueOnce(failure)
+      .mockImplementationOnce(async (tabId, muted) => ({
+        ...harness.state.value,
+        tabs: harness.state.value.tabs.map((candidate) => candidate.id === tabId ? { ...candidate, muted } : candidate)
+      }))
+
+    const first = harness.controller.toggleTabMuted(tab())
+    const second = harness.controller.toggleTabMuted(tab())
+
+    await expect(first).rejects.toBe(failure)
+    await expect(second).resolves.toBeUndefined()
+    expect(harness.browser.setTabMuted.mock.calls.map(([, muted]) => muted)).toEqual([true, true])
+    expect(harness.state.value.tabs[0]?.muted).toBe(true)
+  })
+
+  it('serializes rapid per-tab and global interaction-lock toggles', async () => {
+    const harness = createHarness()
+    harness.browser.setTabHumanInteractionLocked.mockImplementation(async (tabId, locked) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map((candidate) => candidate.id === tabId
+        ? { ...candidate, humanInteractionLocked: locked }
+        : candidate)
+    }))
+    harness.browser.setAllHumanInteractionLocked.mockImplementation(async (locked) => ({
+      ...harness.state.value,
+      allHumanInteractionLocked: locked
+    }))
+
+    await Promise.all([
+      harness.controller.toggleTabHumanInteraction(),
+      harness.controller.toggleTabHumanInteraction()
+    ])
+    await Promise.all([
+      harness.controller.toggleAllHumanInteraction(),
+      harness.controller.toggleAllHumanInteraction()
+    ])
+
+    expect(harness.browser.setTabHumanInteractionLocked.mock.calls.map(([, locked]) => locked)).toEqual([true, false])
+    expect(harness.browser.setAllHumanInteractionLocked.mock.calls.map(([locked]) => locked)).toEqual([true, false])
+    expect(harness.state.value.tabs[0]?.humanInteractionLocked).toBe(false)
+    expect(harness.state.value.allHumanInteractionLocked).toBe(false)
   })
 })

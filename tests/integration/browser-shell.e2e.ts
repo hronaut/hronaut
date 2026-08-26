@@ -3414,6 +3414,16 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
     }, url)).toBe(true)
     await tabControl.locator('.tab-audio').click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.muted)')).toBe(false)
+
+    await tabControl.locator('.tab-audio').evaluate((element) => {
+      element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.muted)')).toBe(false)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.isAudioMuted()
+    }, url)).toBe(false)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
