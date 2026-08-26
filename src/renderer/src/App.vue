@@ -96,8 +96,9 @@ import { useTabSearchShellController } from './composables/useTabSearchShellCont
 import { useZoomShellController } from './composables/useZoomShellController'
 import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
 import { useUiActionController } from './composables/useUiActionController'
-import { useAppBootstrapController, type AppBootstrapFailure } from './composables/useAppBootstrapController'
+import { useAppBootstrapController } from './composables/useAppBootstrapController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
+import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
@@ -136,6 +137,17 @@ const {
   dismiss: dismissAppToast,
   dispose: disposeAppToastController
 } = appToastController
+const {
+  reportActionError: reportShellActionError,
+  reportStartupFailure: reportAppBootstrapFailure,
+  reportSearchError: showTabSearchError,
+  copyText: copyAppText,
+  reportSettingError: handleExtractedSettingError
+} = useShellFeedbackController({
+  browser,
+  translate: (key) => t(key),
+  showToast: showAppToast
+})
 const activeTab = computed(() => state.value.tabs.find((tab) => tab.id === state.value.activeTabId))
 const {
   busy: diagnosticLogPreservationBusy,
@@ -1347,22 +1359,6 @@ async function openHistoryEntry(entry: BrowserHistoryEntry): Promise<void> {
   await syncState(browser.newTab({ url: entry.url, active: true }))
 }
 
-function reportShellActionError(error: unknown): void {
-  showAppToast(
-    'error',
-    t('runtimeDetails.browserAction'),
-    friendlyUiError(error, t('runtime.toast.actionFailed'))
-  )
-}
-
-function reportAppBootstrapFailure(failures: AppBootstrapFailure[]): void {
-  showAppToast(
-    'error',
-    t('runtime.toast.startupIncomplete'),
-    friendlyUiError(failures[0]?.error, t('runtime.toast.startupIncompleteDescription'))
-  )
-}
-
 function setResponsiveTabViewport(
   tabId: string,
   viewport: NonNullable<BrowserEmulationState['viewport']> | null
@@ -1464,34 +1460,12 @@ function handleWindowResize(): void {
   resizeAddressSuggestions()
 }
 
-function handleZoomError(error: unknown): void {
-  showAppToast('error', t('runtimeDetails.browserAction'), friendlyUiError(error, t('runtime.toast.actionFailed')))
-}
-
 async function closeFind(): Promise<void> {
   await findBar.value?.close()
 }
 
 function describeTabEmulation(tab: BrowserTabState): string {
   return tab.emulation ? emulationDescription(tab.emulation) : ''
-}
-
-function showTabSearchError(title: string, message: string): void {
-  showAppToast('error', title, message)
-}
-
-async function copyAppText(text: string): Promise<boolean> {
-  try {
-    await browser.copyText(text)
-    return true
-  } catch (error) {
-    showAppToast('error', t('runtime.capture.copyFailed'), friendlyUiError(error, t('runtime.capture.clipboardFailed')))
-    return false
-  }
-}
-
-function handleExtractedSettingError(error: unknown): void {
-  showAppToast('error', t('runtime.toast.settingNotSaved'), friendlyUiError(error, t('runtime.toast.settingKept')))
 }
 
 function openUpdateSettings(): void {
@@ -1850,7 +1824,7 @@ onBeforeUnmount(() => {
       @new-tab="runBrowserShortcut('new-tab')"
     />
     <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
-    <ZoomBar ref="zoomBar" v-model:open="zoomOpen" :active-tab="activeTab" :browser="browser" :accept-state="syncState" :format-percent="localPercent" @error="handleZoomError" />
+    <ZoomBar ref="zoomBar" v-model:open="zoomOpen" :active-tab="activeTab" :browser="browser" :accept-state="syncState" :format-percent="localPercent" @error="reportShellActionError" />
     <DownloadsPanel
       v-model:open="downloadsOpen"
       v-model:downloads="downloads"

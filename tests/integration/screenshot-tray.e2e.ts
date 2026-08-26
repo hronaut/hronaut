@@ -104,10 +104,18 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
     await electronApp.evaluate(({ webContents }) => {
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
       if (!contents) throw new Error('Hidden screenshot tab was not found')
-      const originalInvalidate = contents.invalidate.bind(contents)
-      contents.invalidate = () => {
-        contents.invalidate = originalInvalidate
-      }
+      const originalBeginFrameSubscription = contents.beginFrameSubscription.bind(contents)
+      contents.beginFrameSubscription = ((
+        ...args: [boolean, (image: Electron.NativeImage, dirtyRect: Electron.Rectangle) => void]
+          | [(image: Electron.NativeImage, dirtyRect: Electron.Rectangle) => void]
+      ) => {
+        contents.beginFrameSubscription = originalBeginFrameSubscription
+        // Chromium can present a valid offscreen surface without delivering the
+        // first subscribed callback under renderer pressure. Keep the real
+        // subscription active while deliberately dropping its notification.
+        if (typeof args[0] === 'boolean') originalBeginFrameSubscription(args[0], () => undefined)
+        else originalBeginFrameSubscription(() => undefined)
+      }) as Electron.WebContents['beginFrameSubscription']
     })
 
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close())

@@ -7,6 +7,11 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Left-align Home and the title/tab cluster in horizontal mode, and align the vertical rail title to its left edge while preserving native window-control safe areas.
+- Move shell-wide browser, startup, search, settings, and clipboard feedback out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Keep hidden-tab screenshots, PDF exports, and visual comparisons reliable when Chromium renders the offscreen surface but omits its first presentation callback under load.
 
 ## [1.7.0] - 2026-08-26
 

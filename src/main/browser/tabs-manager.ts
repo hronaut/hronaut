@@ -7301,11 +7301,14 @@ export class BrowserTabsManager {
     await new Promise<void>((resolve, reject) => {
       let finished = false
       let invalidateTimer: NodeJS.Timeout | undefined
+      let captureProbeTimer: NodeJS.Timeout | undefined
+      let captureProbeInFlight = false
       const finish = (error?: Error): void => {
         if (finished) return
         finished = true
         clearTimeout(timer)
         if (invalidateTimer) clearInterval(invalidateTimer)
+        if (captureProbeTimer) clearTimeout(captureProbeTimer)
         try {
           webContents.endFrameSubscription()
         } catch {
@@ -7338,6 +7341,32 @@ export class BrowserTabsManager {
         invalidateTimer = setInterval(invalidate, 250)
         invalidateTimer.unref()
         invalidate()
+
+        const probeCapture = async (): Promise<void> => {
+          if (finished || captureProbeInFlight) return
+          if (webContents.isDestroyed()) {
+            finish(new Error('The tab closed while waiting for a renderable frame'))
+            return
+          }
+          captureProbeInFlight = true
+          try {
+            // A successful direct capture proves the attached offscreen surface
+            // is ready even if Chromium omitted the subscribed presentation event.
+            const image = await webContents.capturePage()
+            if (!image.isEmpty()) finish()
+          } catch {
+            // The compositor may still be attaching. Retry within the same
+            // bounded wait; invalidate() continues to request fresh frames.
+          } finally {
+            captureProbeInFlight = false
+            if (!finished) {
+              captureProbeTimer = setTimeout(() => { void probeCapture() }, 250)
+              captureProbeTimer.unref()
+            }
+          }
+        }
+        captureProbeTimer = setTimeout(() => { void probeCapture() }, 250)
+        captureProbeTimer.unref()
       } catch (error) {
         finish(error instanceof Error ? error : new Error(String(error)))
       }
