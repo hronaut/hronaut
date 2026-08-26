@@ -234,7 +234,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
-  { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, visible or disappearing page text, or an element to become attached, detached, visible, or hidden.' },
+  { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, a matching page URL, visible or disappearing page text, or an element to become attached, detached, visible, or hidden.' },
   { name: 'browser_emulate', category: 'Inspection', description: 'Reproduce responsive, network, cache, service-worker, Data Saver, CPU, animation-playback, CSS media, vision, locale, time-zone, JavaScript-disabled, location, request-header, and user-agent conditions, or show paint, layout-shift, layer, frame, and scrolling diagnostics in one tab.' },
   { name: 'browser_resize', category: 'Inspection', description: 'Set or reset the page viewport for responsive UI testing.' },
   { name: 'browser_zoom', category: 'Inspection', description: 'Inspect or change page zoom from 50% to 300% without resizing the browser chrome.' },
@@ -1045,22 +1045,34 @@ function createBrowserMcpServer(
           .describe('CSS selector to wait for. Cannot be combined with ref, text, or textGone.'),
         state: z.enum(['attached', 'detached', 'visible', 'hidden']).optional()
           .describe('Element state to wait for. Defaults to visible when ref or selector is provided.'),
+        urlPattern: z.string().trim().min(1).max(2_048).optional()
+          .describe('Full page URL wildcard pattern to wait for, including same-document route changes. Cannot be combined with text or an element target.'),
         timeoutMs: z.number().int().min(1).max(60_000).optional()
       }
     },
-    tabTool('browser_wait', async ({ tabId, text, textGone, ref, selector, state, timeoutMs }: {
+    tabTool('browser_wait', async ({ tabId, text, textGone, ref, selector, state, urlPattern, timeoutMs }: {
       tabId?: string
       text?: string | string[]
       textGone?: string
       ref?: string
       selector?: string
       state?: 'attached' | 'detached' | 'visible' | 'hidden'
+      urlPattern?: string
       timeoutMs?: number
     }) => {
       if (text && textGone) throw new TypeError('Choose either text or textGone, not both.')
       const hasTarget = Boolean(ref || selector)
+      if (urlPattern && (text || textGone || hasTarget || state)) {
+        throw new TypeError('Choose one wait condition: urlPattern, page text, or an element target.')
+      }
       if (hasTarget && (text || textGone)) throw new TypeError('Choose page text or an element target, not both.')
       if (state && !hasTarget) throw new TypeError('Provide ref or selector when waiting for an element state.')
+      if (urlPattern) {
+        const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
+        return matchedUrl
+          ? textResult(`URL matched: ${matchedUrl}`)
+          : errorResult(new Error('Timed out waiting for the page URL pattern.'))
+      }
       if (hasTarget) {
         const elementState = state ?? 'visible'
         const matched = await manager.waitForElement({ ref, selector }, tabId, timeoutMs, elementState)

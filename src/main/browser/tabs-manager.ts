@@ -86,6 +86,7 @@ import {
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
+import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../shared/page-url-wait.js'
 import {
   deriveNetworkTiming,
   type CdpNetworkResourceTiming
@@ -5515,6 +5516,53 @@ export class BrowserTabsManager {
       await new Promise((resolve) => setTimeout(resolve, 200))
     }
     return false
+  }
+
+  async waitForUrlPattern(
+    urlPattern: string,
+    tabId?: string,
+    timeoutMs = 30_000
+  ): Promise<string | null> {
+    const pattern = normalizePageUrlWaitPattern(urlPattern)
+    const tab = this.getTab(tabId)
+    const webContents = tab.webContents
+    const timeout = Math.min(Math.max(timeoutMs, 1), 60_000)
+    if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page URL.')
+
+    return new Promise<string | null>((resolve, reject) => {
+      let settled = false
+      const cleanup = (): void => {
+        clearTimeout(timer)
+        webContents.removeListener('did-navigate', onNavigate)
+        webContents.removeListener('did-navigate-in-page', onNavigate)
+        webContents.removeListener('destroyed', onDestroyed)
+      }
+      const finish = (url: string | null): void => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(url ? redactNetworkUrl(url) : null)
+      }
+      const fail = (error: Error): void => {
+        if (settled) return
+        settled = true
+        cleanup()
+        reject(error)
+      }
+      const match = (url: string): void => {
+        if (pageUrlMatchesWait(pattern, url)) finish(url)
+      }
+      const onNavigate = (_event: Electron.Event, url: string): void => match(url)
+      const onDestroyed = (): void => fail(new Error('The tab closed while waiting for the page URL.'))
+      const timer = setTimeout(() => finish(null), timeout)
+      webContents.on('did-navigate', onNavigate)
+      webContents.on('did-navigate-in-page', onNavigate)
+      webContents.once('destroyed', onDestroyed)
+      // Register every listener before checking the current URL so a route
+      // change or teardown cannot land in the setup gap.
+      if (!this.tabs.has(tab.id) || webContents.isDestroyed()) onDestroyed()
+      else match(webContents.getURL() || tab.url)
+    })
   }
 
   setToolbarHeight(height: number): void {

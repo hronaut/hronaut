@@ -10,7 +10,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('fails MCP page, text, and network waits promptly on tab teardown or timeout', async ({
+test('fails MCP page, URL, text, element, and network waits promptly on tab teardown or timeout', async ({
   appWindow,
   electronApp,
   mcpPort,
@@ -50,6 +50,25 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
           }, 1_000)
           setTimeout(() => document.querySelector('#removing')?.remove(), 2_000)
         </script>`)
+      return
+    }
+    if (request.url === '/url-wait') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end(`<!doctype html><title>URL wait</title><main>Changing route</main>
+        <script>
+          setTimeout(() => history.pushState({}, '', '/url-wait/ready?token=private-value&task=42#private-fragment'), 600)
+        </script>`)
+      return
+    }
+    if (request.url === '/url-navigation') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end(`<!doctype html><title>Document URL wait</title><main>Redirecting document</main>
+        <script>setTimeout(() => location.href = '/url-navigation/ready?task=84', 600)</script>`)
+      return
+    }
+    if (request.url === '/url-navigation/ready?task=84') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end('<!doctype html><title>Document URL ready</title><main>Document ready</main>')
       return
     }
     pendingResponses.add(response)
@@ -190,6 +209,90 @@ test('fails MCP page, text, and network waits promptly on tab teardown or timeou
     ])
     expect(closedElementWait.isError).toBe(true)
     expect(text(closedElementWait)).toContain('tab closed while waiting for the page element')
+
+    const urlTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/url-wait`, active: true }
+    }) as CallToolResult
+    const urlTabId = (JSON.parse(text(urlTab)) as { activeTabId: string }).activeTabId
+    const urlTools = await client.listTools()
+    expect(urlTools.tools.find((tool) => tool.name === 'browser_wait')?.description).toContain('URL')
+    const matchedUrl = await client.callTool({
+      name: 'browser_wait',
+      arguments: {
+        tabId: urlTabId,
+        urlPattern: `*://127.0.0.1:${address.port}/url-wait/ready*`,
+        timeoutMs: 5_000
+      }
+    }) as CallToolResult
+    expect(matchedUrl.isError, text(matchedUrl)).not.toBe(true)
+    const returnedUrl = new URL(text(matchedUrl).replace(/^URL matched: /, ''))
+    expect(returnedUrl.pathname).toBe('/url-wait/ready')
+    expect(returnedUrl.searchParams.get('token')).toBe('[REDACTED]')
+    expect(returnedUrl.searchParams.get('task')).toBe('42')
+    expect(returnedUrl.hash).toBe('')
+    expect(text(matchedUrl)).not.toContain('private-value')
+    expect(text(matchedUrl)).not.toContain('private-fragment')
+
+    const documentUrlTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/url-navigation`, active: true }
+    }) as CallToolResult
+    const documentUrlTabId = (JSON.parse(text(documentUrlTab)) as { activeTabId: string }).activeTabId
+    const matchedDocumentUrl = await client.callTool({
+      name: 'browser_wait',
+      arguments: {
+        tabId: documentUrlTabId,
+        urlPattern: `*://127.0.0.1:${address.port}/url-navigation/ready*`,
+        timeoutMs: 5_000
+      }
+    }) as CallToolResult
+    expect(matchedDocumentUrl.isError, text(matchedDocumentUrl)).not.toBe(true)
+    expect(new URL(text(matchedDocumentUrl).replace(/^URL matched: /, '')).pathname).toBe('/url-navigation/ready')
+    const alreadyMatchedDocumentUrl = await client.callTool({
+      name: 'browser_wait',
+      arguments: {
+        tabId: documentUrlTabId,
+        urlPattern: `*://127.0.0.1:${address.port}/url-navigation/ready*`,
+        timeoutMs: 100
+      }
+    }) as CallToolResult
+    expect(alreadyMatchedDocumentUrl.isError, text(alreadyMatchedDocumentUrl)).not.toBe(true)
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(documentUrlTabId)})`)
+
+    const ambiguousUrlWait = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: urlTabId, urlPattern: '*://*/url-wait*', text: 'Changing route' }
+    }) as CallToolResult
+    expect(ambiguousUrlWait.isError).toBe(true)
+    expect(text(ambiguousUrlWait)).toContain('Choose one wait condition')
+
+    const timedOutUrlWait = await client.callTool({
+      name: 'browser_wait',
+      arguments: {
+        tabId: urlTabId,
+        urlPattern: '*://*/never-matches?token=timeout-secret',
+        timeoutMs: 100
+      }
+    }) as CallToolResult
+    expect(timedOutUrlWait.isError).toBe(true)
+    expect(text(timedOutUrlWait)).toContain('Timed out waiting for the page URL pattern')
+    expect(text(timedOutUrlWait)).not.toContain('timeout-secret')
+
+    const waitingForUrl = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: urlTabId, urlPattern: '*://*/never-matches*', timeoutMs: 10_000 }
+    }) as Promise<CallToolResult>
+    await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(urlTabId)})`)
+    const closedUrlWait = await Promise.race([
+      waitingForUrl,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('URL browser_wait stayed active after its tab closed')), 2_000)
+      })
+    ])
+    expect(closedUrlWait.isError).toBe(true)
+    expect(text(closedUrlWait)).toContain('tab closed while waiting for the page URL')
 
     const ambiguous = await client.callTool({
       name: 'browser_wait',

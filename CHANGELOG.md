@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Let agents wait for full or same-document navigation to reach a wildcard URL pattern, with prompt tab-close cancellation and redacted matched URLs.
 - Let agents wait for a snapshot ref or CSS selector to become attached, detached, visible, or hidden without brittle JavaScript polling.
 - Let agents single- or double-click bounded viewport coordinates for canvas, WebGL, maps, remote desktops, and other visual-only surfaces without weakening the preferred semantic-ref workflow.
 
