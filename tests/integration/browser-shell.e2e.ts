@@ -1948,6 +1948,21 @@ test('reports rejected shell controls without an unhandled renderer rejection', 
   const toolbarFailure = appWindow.getByRole('alert', { name: 'Browser action failed' })
     .filter({ hasText: 'Toolbar reload unavailable for regression test' })
   await expect(toolbarFailure).toBeVisible()
+
+  await electronApp.evaluate(({ ipcMain }) => {
+    ipcMain.removeHandler('browser:save-pdf')
+    ipcMain.handle('browser:save-pdf', () => {
+      throw new Error('PDF download directory is read-only for regression test')
+    })
+  })
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
+  await expect(pageTools).toBeVisible()
+  await pageTools.getByRole('button', { name: 'Save page as PDF', exact: true }).click()
+  await expect(pageTools).toBeHidden()
+  const pdfFailure = appWindow.getByRole('alert', { name: 'Could not save page as PDF' })
+  await expect(pdfFailure).toContainText('PDF download directory is read-only for regression test')
+
   expect(await appWindow.evaluate(() => {
     type RejectionEvent = { reason: unknown; preventDefault: () => void }
     const shellWindow = globalThis as typeof globalThis & {

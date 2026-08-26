@@ -17,6 +17,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show authoritative success or failure feedback after a human PDF export, including write errors that occur after Page Tools closes.
 - Keep every tab, address input, toolbar action, and menu control explicitly non-draggable, preserve bare-Alt access to the native application menu, and reserve left- or right-side window-control safe areas at narrow widths and scaled displays.
 - Keep the selected crowded tab fully reachable when the window or title-bar safe area changes, including compact horizontal layouts.
 - Keep MCP user-attention requests active when an agent shows or focuses Hronaut, clearing them only after real human input.

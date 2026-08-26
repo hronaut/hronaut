@@ -9,20 +9,33 @@ function tab(url = 'https://example.test/start'): BrowserTabState {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => { resolve = next })
-  return { promise, resolve }
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
 }
 
 function createController() {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const snapshotCopied = vi.fn()
   const snapshotFailed = vi.fn()
+  const pdfSaved = vi.fn()
+  const pdfFailed = vi.fn()
   const browser = {
     copySnapshot: vi.fn(async (): Promise<BrowserSnapshotCopyResult> => ({ copied: true, characters: 42, truncated: false })),
     savePdf: vi.fn(async (): Promise<BrowserPdfExport> => ({ filename: 'page.pdf', path: '/tmp/page.pdf', bytes: 42 }))
   }
-  const controller = usePageExportController({ activeTab, browser, snapshotCopied, snapshotFailed })
-  return { activeTab, browser, controller, snapshotCopied, snapshotFailed }
+  const controller = usePageExportController({
+    activeTab,
+    browser,
+    snapshotCopied,
+    snapshotFailed,
+    pdfSaved,
+    pdfFailed
+  })
+  return { activeTab, browser, controller, snapshotCopied, snapshotFailed, pdfSaved, pdfFailed }
 }
 
 describe('page export controller', () => {
@@ -60,7 +73,7 @@ describe('page export controller', () => {
 
   it('invalidates an in-flight PDF export when the active tab changes', async () => {
     const pending = deferred<BrowserPdfExport>()
-    const { activeTab, browser, controller } = createController()
+    const { activeTab, browser, controller, pdfSaved } = createController()
     browser.savePdf.mockImplementationOnce(() => pending.promise)
 
     const saving = controller.savePdf()
@@ -71,6 +84,38 @@ describe('page export controller', () => {
 
     expect(controller.pdfState.value).toBe('idle')
     expect(controller.pdfExport.value).toBeNull()
+    expect(pdfSaved).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('reports PDF completion and failure only while the exporting page is current', async () => {
+    const { browser, controller, pdfSaved, pdfFailed } = createController()
+    const exported = { filename: 'page.pdf', path: '/tmp/page.pdf', bytes: 42 }
+
+    await controller.savePdf()
+    expect(pdfSaved).toHaveBeenCalledWith(exported)
+    expect(pdfFailed).not.toHaveBeenCalled()
+
+    const failure = new Error('Download directory is read-only')
+    browser.savePdf.mockRejectedValueOnce(failure)
+    await controller.savePdf()
+    expect(controller.pdfState.value).toBe('error')
+    expect(pdfFailed).toHaveBeenCalledWith(failure)
+    controller.dispose()
+  })
+
+  it('does not report a stale PDF failure after the active tab changes', async () => {
+    const pending = deferred<BrowserPdfExport>()
+    const { activeTab, browser, controller, pdfFailed } = createController()
+    browser.savePdf.mockImplementationOnce(() => pending.promise)
+
+    const saving = controller.savePdf()
+    activeTab.value = { ...tab(), id: 'tab-2' }
+    await nextTick()
+    pending.reject(new Error('Old tab export failed'))
+    await saving
+
+    expect(pdfFailed).not.toHaveBeenCalled()
     controller.dispose()
   })
 })

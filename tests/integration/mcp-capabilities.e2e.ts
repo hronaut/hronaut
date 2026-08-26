@@ -1361,6 +1361,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     await expect(commandedTab).not.toHaveClass(/mcp-active/, { timeout: 3_000 })
 
     await openPageTool('Save page as PDF')
+    await expect(appWindow.getByRole('status', { name: 'Save as PDF' })).toContainText('PDF saved to')
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageToolsAfterPdf = appWindow.getByRole('dialog', { name: 'Page tools' })
     await expect(pageToolsAfterPdf.getByRole('button', { name: /PDF saved to/ })).toBeVisible()

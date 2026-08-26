@@ -698,6 +698,16 @@ const pageExportController = usePageExportController({
     'error',
     t('runtime.toast.pageSnapshotFailed'),
     friendlyUiError(error, t('runtime.toast.pageSnapshotDescription'))
+  ),
+  pdfSaved: (result) => showAppToast(
+    'success',
+    t('shell.pageTools.savePdf'),
+    t('runtime.pdf.saved', { path: result.path })
+  ),
+  pdfFailed: (error) => showAppToast(
+    'error',
+    t('runtime.pdf.failed'),
+    friendlyUiError(error, t('runtime.pdf.failed'))
   )
 })
 const {

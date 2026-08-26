@@ -13,6 +13,8 @@ export interface PageExportControllerOptions {
   browser: PageExportBrowserApi
   snapshotCopied: (result: BrowserSnapshotCopyResult) => void
   snapshotFailed: (error: unknown) => void
+  pdfSaved: (result: BrowserPdfExport) => void
+  pdfFailed: (error: unknown) => void
 }
 
 interface PageRequest {
@@ -96,9 +98,11 @@ export function usePageExportController(options: PageExportControllerOptions) {
       if (!current('pdf', request)) return
       pdfExport.value = exported
       pdfState.value = 'saved'
-    } catch {
+      options.pdfSaved(exported)
+    } catch (error) {
       if (!current('pdf', request)) return
       pdfState.value = 'error'
+      options.pdfFailed(error)
     }
     pdfResetTimer = window.setTimeout(() => {
       if (!current('pdf', request)) return
