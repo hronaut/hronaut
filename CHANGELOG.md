@@ -18,6 +18,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent an already-finished page from timing out when loading stops between `browser_wait`'s state check and lifecycle-listener registration.
 - Honor accept and dismiss consistently for alerts, confirmations, and prompts opened by agent clicks without racing another dialog handler.
 - Keep hidden-tab screenshots, PDF exports, and visual comparisons reliable when Chromium renders the offscreen surface but omits its first presentation callback under load.
 

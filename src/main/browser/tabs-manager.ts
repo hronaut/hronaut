@@ -5379,7 +5379,7 @@ export class BrowserTabsManager {
     const webContents = tab.webContents
     if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page.')
     try {
-      if (!tab.loading && !webContents.isLoading()) return
+      if (!webContents.isLoading()) return
     } catch {
       throw new Error('The tab closed while waiting for the page.')
     }
@@ -5406,8 +5406,18 @@ export class BrowserTabsManager {
       webContents.once('did-stop-loading', done)
       webContents.once('did-fail-load', done)
       webContents.once('destroyed', onDestroyed)
-      // Close can race between the initial guard and listener registration.
-      if (webContents.isDestroyed()) onDestroyed()
+      // Loading can finish, or the tab can close, between the initial state
+      // check and listener registration. Recheck both after every listener is
+      // installed so neither terminal state can leave this wait stranded.
+      if (webContents.isDestroyed()) {
+        onDestroyed()
+      } else {
+        try {
+          if (!webContents.isLoading()) done()
+        } catch {
+          onDestroyed()
+        }
+      }
     })
   }
 

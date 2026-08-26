@@ -344,6 +344,38 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     }) as CallToolResult
     expect(persistent.isError).toBe(true)
     expect(text(persistent)).toContain('Timed out waiting for text to disappear: Persistent status')
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Page wait race WebContents was not found')
+      const original = page.isLoading.bind(page)
+      let reads = 0
+      ;(globalThis as typeof globalThis & {
+        __hronautPageWaitRace?: { page: Electron.WebContents; original: typeof original }
+      }).__hronautPageWaitRace = { page, original }
+      Object.defineProperty(page, 'isLoading', {
+        configurable: true,
+        value: () => {
+          reads += 1
+          return reads === 1
+        }
+      })
+    }, persistentUrl)
+    const pageRace = await client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: persistentTabId, timeoutMs: 500 }
+    }) as CallToolResult
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautPageWaitRace?: { page: Electron.WebContents; original: Electron.WebContents['isLoading'] }
+      }
+      const control = mainGlobal.__hronautPageWaitRace
+      if (!control) throw new Error('Page wait race control was not installed')
+      Object.defineProperty(control.page, 'isLoading', { configurable: true, value: control.original })
+      delete mainGlobal.__hronautPageWaitRace
+    })
+    expect(pageRace.isError, text(pageRace)).not.toBe(true)
+    expect(text(pageRace)).toBe('Page is no longer loading.')
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(persistentTabId)})`)
 
     const opened = await client.callTool({
