@@ -49,6 +49,14 @@ function createController() {
     settings.value = { ...settings.value, memorySaverTimeoutMinutes: minutes }
     return settings.value
   })
+  const resetSettings = vi.fn(async () => {
+    settings.value = {
+      ...settings.value,
+      memorySaverEnabled: true,
+      memorySaverTimeoutMinutes: 60
+    }
+    return settings.value
+  })
   const sleepInactiveTabs = vi.fn(async () => browserState(true))
   const syncBrowserState = vi.fn(async (operation: Promise<BrowserState>) => {
     const next = await operation
@@ -61,12 +69,13 @@ function createController() {
     browserState: state,
     setEnabled,
     setTimeout,
+    resetSettings,
     sleepInactiveTabs,
     syncBrowserState,
     formatError: (error) => error instanceof Error ? error.message : String(error),
     onError
   })
-  return { controller, onError, setEnabled, setTimeout, settings, sleepInactiveTabs, state, syncBrowserState }
+  return { controller, onError, resetSettings, setEnabled, setTimeout, settings, sleepInactiveTabs, state, syncBrowserState }
 }
 
 describe('performance settings controller', () => {
@@ -102,14 +111,34 @@ describe('performance settings controller', () => {
     controller.dispose()
   })
 
-  it('stops reset after a failed first mutation and reports the failure', async () => {
-    const { controller, onError, setEnabled, setTimeout } = createController()
-    setEnabled.mockRejectedValueOnce(new Error('settings vault unavailable'))
+  it('reports a failed reset transaction without running individual mutations', async () => {
+    const { controller, onError, resetSettings, setEnabled, setTimeout } = createController()
+    resetSettings.mockRejectedValueOnce(new Error('settings vault unavailable'))
 
     await expect(controller.reset()).resolves.toBe(false)
 
+    expect(setEnabled).not.toHaveBeenCalled()
     expect(setTimeout).not.toHaveBeenCalled()
     expect(controller.errorMessage.value).toBe('settings vault unavailable')
+    expect(onError).toHaveBeenCalledWith(expect.any(Error), 'saving')
+    controller.dispose()
+  })
+
+  it('does not partially reset Memory Saver when persistence fails', async () => {
+    const { controller, onError, resetSettings, settings } = createController()
+    settings.value = {
+      ...settings.value,
+      memorySaverEnabled: false,
+      memorySaverTimeoutMinutes: 15
+    }
+    resetSettings.mockRejectedValueOnce(new Error('settings vault unavailable'))
+
+    await expect(controller.reset()).resolves.toBe(false)
+
+    expect(settings.value).toMatchObject({
+      memorySaverEnabled: false,
+      memorySaverTimeoutMinutes: 15
+    })
     expect(onError).toHaveBeenCalledWith(expect.any(Error), 'saving')
     controller.dispose()
   })

@@ -283,6 +283,7 @@ const settingsApi: HronautSettingsApi = {
   setMemorySaverEnabled: (enabled: boolean) => ipcRenderer.invoke('settings:set-memory-saver-enabled', enabled),
   setMemorySaverTimeoutMinutes: (timeoutMinutes: MemorySaverTimeoutMinutes) =>
     ipcRenderer.invoke('settings:set-memory-saver-timeout', timeoutMinutes),
+  resetMemorySaver: () => ipcRenderer.invoke('settings:reset-memory-saver'),
   setCheckForUpdatesOnStartup: (enabled: boolean) => ipcRenderer.invoke('settings:set-check-on-startup', enabled),
   setLanguagePreference: (preference: LanguagePreference) => ipcRenderer.invoke('settings:set-language-preference', preference),
   onChanged: (listener: (settings: AppSettings) => void) => {

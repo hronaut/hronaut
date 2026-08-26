@@ -38,6 +38,7 @@ function renderPanel() {
     browserState: state,
     setEnabled,
     setTimeout,
+    resetSettings: async () => settings.value,
     sleepInactiveTabs,
     syncBrowserState: async (operation) => operation,
     formatError: (error) => error instanceof Error ? error.message : String(error),

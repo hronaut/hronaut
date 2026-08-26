@@ -2326,6 +2326,7 @@ export interface HronautSettingsApi {
   openDownloadDirectory(): Promise<void>
   setMemorySaverEnabled(enabled: boolean): Promise<AppSettings>
   setMemorySaverTimeoutMinutes(timeoutMinutes: MemorySaverTimeoutMinutes): Promise<AppSettings>
+  resetMemorySaver(): Promise<AppSettings>
   setCheckForUpdatesOnStartup(enabled: boolean): Promise<AppSettings>
   setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState>
   onChanged(listener: (settings: AppSettings) => void): () => void

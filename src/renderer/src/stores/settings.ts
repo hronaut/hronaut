@@ -149,6 +149,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const resetDownloads = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetDownloads())
   const setMemorySaverEnabled = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverEnabled(enabled))
   const setMemorySaverTimeoutMinutes = (minutes: MemorySaverTimeoutMinutes): Promise<AppSettings> => applySettings(window.hronautSettings.setMemorySaverTimeoutMinutes(minutes))
+  const resetMemorySaver = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetMemorySaver())
   const setCheckForUpdatesOnStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setCheckForUpdatesOnStartup(enabled))
 
   async function setLanguagePreference(preference: LanguagePreference): Promise<RendererSettingsState> {
@@ -199,6 +200,7 @@ export const useSettingsStore = defineStore('settings', () => {
     resetDownloads,
     setMemorySaverEnabled,
     setMemorySaverTimeoutMinutes,
+    resetMemorySaver,
     setCheckForUpdatesOnStartup,
     setLanguagePreference
   }

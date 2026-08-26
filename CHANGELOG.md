@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep Site Storage controls locked while a write, delete, or clear is pending so rapid actions cannot overlap, show stale entries, or discard a newer edit draft.
+- Reset both Memory Saver preferences in one persisted transaction so a write failure cannot leave only half of the defaults applied.
 
 ## [1.6.1] - 2026-08-26
 

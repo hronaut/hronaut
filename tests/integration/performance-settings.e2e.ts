@@ -85,6 +85,20 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     await expect(sleepNow).toBeDisabled()
     await expect(appWindow.getByText('0 sleeping')).toBeVisible()
 
+    await mkdir(blockedTemporaryPath)
+    try {
+      await appWindow.getByRole('button', { name: 'Reset to default' }).click()
+      await expect(appWindow.getByRole('alert', { name: 'Setting not saved' }).last()).toBeVisible()
+      await expect(automatic).not.toBeChecked()
+      await expect(timeout).toHaveValue('15')
+      await expect.poll(() => appWindow.evaluate('window.hronautSettings.get()')).toMatchObject({
+        memorySaverEnabled: false,
+        memorySaverTimeoutMinutes: 15
+      })
+    } finally {
+      await rm(blockedTemporaryPath, { recursive: true, force: true })
+    }
+
     await appWindow.getByRole('button', { name: 'Reset to default' }).click()
     await expect(automatic).toBeChecked()
     await expect(timeout).toHaveValue('60')

@@ -55,7 +55,10 @@ import {
 } from './mcp/server.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { DEFAULT_SETTINGS, isThemeName, SettingsStore } from './settings-store.js'
-import { isMemorySaverTimeoutMinutes } from '../shared/memory-saver.js'
+import {
+  DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
+  isMemorySaverTimeoutMinutes
+} from '../shared/memory-saver.js'
 import { isInterfaceScale, scaleShellMetric } from '../shared/interface-scale.js'
 import { isTabPosition } from '../shared/tab-position.js'
 import {
@@ -2831,6 +2834,16 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
     await updateSettings({ memorySaverTimeoutMinutes: timeoutMinutes })
+    tabsManager?.setMemorySaverSettings(settings.memorySaverEnabled, settings.memorySaverTimeoutMinutes)
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:reset-memory-saver', async (event) => {
+    assertTrustedShellSender(event)
+    await updateSettings({
+      memorySaverEnabled: true,
+      memorySaverTimeoutMinutes: DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
+    })
     tabsManager?.setMemorySaverSettings(settings.memorySaverEnabled, settings.memorySaverTimeoutMinutes)
     publishSettings()
     return { ...settings }

@@ -405,6 +405,7 @@ const performanceSettingsController = usePerformanceSettingsController({
   browserState: state,
   setEnabled: (enabled) => settingsStore.setMemorySaverEnabled(enabled),
   setTimeout: (minutes) => settingsStore.setMemorySaverTimeoutMinutes(minutes),
+  resetSettings: () => settingsStore.resetMemorySaver(),
   sleepInactiveTabs: () => browser.sleepInactiveTabs(),
   syncBrowserState: (operation) => browserStore.syncOperation(operation),
   formatError: (error, operation) => friendlyUiError(

@@ -4,13 +4,13 @@ import type {
   BrowserState,
   MemorySaverTimeoutMinutes
 } from '../../../shared/types.js'
-import { DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES } from '../../../shared/memory-saver.js'
 
 export interface PerformanceSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
   browserState: Readonly<Ref<BrowserState>>
   setEnabled: (enabled: boolean) => Promise<AppSettings>
   setTimeout: (minutes: MemorySaverTimeoutMinutes) => Promise<AppSettings>
+  resetSettings: () => Promise<AppSettings>
   sleepInactiveTabs: () => Promise<BrowserState>
   syncBrowserState: (operation: Promise<BrowserState>) => Promise<BrowserState>
   formatError: (error: unknown, operation: Exclude<OperationState, 'idle'>) => string
@@ -58,10 +58,7 @@ export function usePerformanceSettingsController(options: PerformanceSettingsCon
   }
 
   function reset(): Promise<boolean> {
-    return save(async () => {
-      await options.setEnabled(true)
-      await options.setTimeout(DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES)
-    })
+    return save(options.resetSettings)
   }
 
   async function sleepNow(): Promise<boolean> {
