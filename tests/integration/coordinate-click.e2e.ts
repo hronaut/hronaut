@@ -9,7 +9,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('clicks canvas coordinates and rejects ambiguous or offscreen points', async ({
+test('clicks and hovers canvas coordinates while rejecting ambiguous or offscreen points', async ({
   mcpToken,
   mcpPort
 }) => {
@@ -32,6 +32,7 @@ test('clicks canvas coordinates and rejects ambiguous or offscreen points', asyn
     await useMcpWorkspace(client, 'Coordinate click tests')
     const tools = await client.listTools()
     expect(tools.tools.find((tool) => tool.name === 'browser_click')?.description).toContain('viewport coordinates')
+    expect(tools.tools.find((tool) => tool.name === 'browser_hover')?.description).toContain('viewport coordinates')
     const html = `<!doctype html><title>Coordinate click fixture</title>
       <canvas id="surface" width="240" height="120" style="display:block;width:240px;height:120px;border:1px solid black"></canvas>
       <p>Canvas target ready</p>
@@ -50,6 +51,7 @@ test('clicks canvas coordinates and rejects ambiguous or offscreen points', asyn
         };
         surface.addEventListener('click', record);
         surface.addEventListener('dblclick', record);
+        surface.addEventListener('mousemove', record);
       </script>`
     const created = await client.callTool({
       name: 'browser_new_tab',
@@ -73,6 +75,18 @@ test('clicks canvas coordinates and rejects ambiguous or offscreen points', asyn
       }
     }) as CallToolResult
     const point = JSON.parse(text(pointResult)) as { x: number; y: number; width: number; height: number }
+
+    const hovered = await client.callTool({
+      name: 'browser_hover',
+      arguments: { tabId, x: point.x + 20, y: point.y + 10 }
+    }) as CallToolResult
+    expect(hovered.isError, text(hovered)).not.toBe(true)
+    expect(JSON.parse(text(hovered))).toMatchObject({ ok: true, x: point.x + 20, y: point.y + 10 })
+    const hoverState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { tabId, script: "document.querySelector('#surface').dataset.lastPointer" }
+    }) as CallToolResult
+    expect(JSON.parse(text(hoverState))).toEqual({ type: 'mousemove', x: 93, y: 51 })
 
     const clicked = await client.callTool({
       name: 'browser_click',
@@ -134,6 +148,27 @@ test('clicks canvas coordinates and rejects ambiguous or offscreen points', asyn
     }) as CallToolResult
     expect(offscreen.isError).toBe(true)
     expect(text(offscreen)).toContain('inside the visible viewport')
+
+    const incompleteHover = await client.callTool({
+      name: 'browser_hover',
+      arguments: { tabId, x: point.x }
+    }) as CallToolResult
+    expect(incompleteHover.isError).toBe(true)
+    expect(text(incompleteHover)).toContain('Provide both x and y')
+
+    const ambiguousHover = await client.callTool({
+      name: 'browser_hover',
+      arguments: { tabId, selector: '#surface', x: point.x, y: point.y }
+    }) as CallToolResult
+    expect(ambiguousHover.isError).toBe(true)
+    expect(text(ambiguousHover)).toContain('Provide a target or coordinates, not both')
+
+    const offscreenHover = await client.callTool({
+      name: 'browser_hover',
+      arguments: { tabId, x: point.width, y: point.height }
+    }) as CallToolResult
+    expect(offscreenHover.isError).toBe(true)
+    expect(text(offscreenHover)).toContain('inside the visible viewport')
   } finally {
     await client.close().catch(() => undefined)
   }

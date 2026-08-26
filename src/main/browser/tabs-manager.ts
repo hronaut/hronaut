@@ -3890,16 +3890,7 @@ export class BrowserTabsManager {
     y?: number
     doubleClick?: boolean
   } & BrowserDialogHandlingOptions): Promise<unknown> {
-    const coordinateClick = target.x !== undefined || target.y !== undefined
-    if (coordinateClick) {
-      if (target.x === undefined || target.y === undefined) throw new TypeError('Provide both x and y for a coordinate click')
-      if (target.ref || target.selector) throw new TypeError('Provide a target or coordinates, not both')
-      if (!Number.isFinite(target.x) || !Number.isFinite(target.y) || target.x < 0 || target.y < 0) {
-        throw new TypeError('Click coordinates must be finite non-negative numbers')
-      }
-    } else {
-      this.validateTarget(target)
-    }
+    const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
     const webContents = tab.webContents
     const dialogAction = target.dialogAction
@@ -3909,31 +3900,24 @@ export class BrowserTabsManager {
     if (target.doubleClick && dialogAction !== undefined) {
       throw new TypeError('doubleClick cannot be combined with dialogAction or promptText')
     }
-    if (coordinateClick) {
-      const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
-        width: number
-        height: number
-      }
-      if (target.x! >= viewport.width || target.y! >= viewport.height) {
-        throw new RangeError(`Click coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`)
-      }
-      const point = { x: target.x!, y: target.y! }
+    if (coordinatePoint) {
+      await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
       if (dialogAction !== undefined) {
         await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
           const contextId = await this.mainWorldContextId(webContents)
           await this.evaluateWithAttachedDebugger(
             webContents,
-            dialogAwareCoordinateClickScript(point, dialogAction, target.promptText),
+            dialogAwareCoordinateClickScript(coordinatePoint, dialogAction, target.promptText),
             contextId
           )
         }))
       } else {
         await this.withAgentInput(webContents, () => this.withDebugger(
           webContents,
-          () => this.dispatchNativeClick(webContents, point, target.doubleClick === true)
+          () => this.dispatchNativeClick(webContents, coordinatePoint, target.doubleClick === true)
         ))
       }
-      return { ok: true, ...point, ...(target.doubleClick ? { doubleClick: true } : {}) }
+      return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
     }
     if (target.doubleClick) {
       const point = await webContents.executeJavaScript(targetPointScript(target), true) as {
@@ -4017,10 +4001,21 @@ export class BrowserTabsManager {
     return this.withAgentInput(webContents, () => webContents.executeJavaScript(fillFormScript(fields), true))
   }
 
-  async hover(target: { tabId?: string; ref?: string; selector?: string }): Promise<unknown> {
-    this.validateTarget(target)
+  async hover(target: {
+    tabId?: string
+    ref?: string
+    selector?: string
+    x?: number
+    y?: number
+  }): Promise<unknown> {
+    const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'hover')
     const webContents = this.getTab(target.tabId).webContents
-    const point = await webContents.executeJavaScript(targetPointScript(target), true) as { x: number; y: number; tag: string }
+    const point = coordinatePoint ?? await webContents.executeJavaScript(targetPointScript(target), true) as {
+      x: number
+      y: number
+      tag: string
+    }
+    if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
     await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
       webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseMoved',
@@ -6883,6 +6878,41 @@ export class BrowserTabsManager {
   private validateTarget(target: { ref?: string; selector?: string }): void {
     if (!target.ref && !target.selector) throw new Error('Provide ref or selector')
     if (target.ref && target.selector) throw new Error('Provide either ref or selector, not both')
+  }
+
+  private coordinatePointOrValidateTarget(
+    target: { ref?: string; selector?: string; x?: number; y?: number },
+    action: 'click' | 'hover'
+  ): { x: number; y: number } | undefined {
+    const hasCoordinates = target.x !== undefined || target.y !== undefined
+    if (!hasCoordinates) {
+      this.validateTarget(target)
+      return undefined
+    }
+    if (target.x === undefined || target.y === undefined) {
+      throw new TypeError(`Provide both x and y for a coordinate ${action}`)
+    }
+    if (target.ref || target.selector) throw new TypeError('Provide a target or coordinates, not both')
+    if (!Number.isFinite(target.x) || !Number.isFinite(target.y) || target.x < 0 || target.y < 0) {
+      throw new TypeError(`${action === 'click' ? 'Click' : 'Hover'} coordinates must be finite non-negative numbers`)
+    }
+    return { x: target.x, y: target.y }
+  }
+
+  private async assertPointInsideVisibleViewport(
+    webContents: BrowserTab['view']['webContents'],
+    point: { x: number; y: number },
+    action: 'click' | 'hover'
+  ): Promise<void> {
+    const viewport = await webContents.executeJavaScript('({ width: innerWidth, height: innerHeight })', true) as {
+      width: number
+      height: number
+    }
+    if (point.x >= viewport.width || point.y >= viewport.height) {
+      throw new RangeError(
+        `${action === 'click' ? 'Click' : 'Hover'} coordinates must be inside the visible viewport (${viewport.width} x ${viewport.height})`
+      )
+    }
   }
 
   private networkRequestSummary(request: BrowserNetworkRequestRecord): BrowserNetworkRequest {

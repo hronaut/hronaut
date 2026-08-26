@@ -654,6 +654,7 @@
   display: flex;
   width: auto;
   min-width: 28px;
+  flex: 0 0 auto;
   gap: 5px;
   padding: 0 8px;
   align-items: center;

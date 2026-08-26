@@ -72,10 +72,12 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
 
     const workspaceNewTab = appWindow.getByRole('button', { name: 'New tab in Empty investigation workspace' })
     const createWorkspaceButton = appWindow.getByRole('button', { name: 'Create workspace' })
-    const [workspaceBounds, newTabBounds, createBounds] = await Promise.all([
+    const createWorkspaceLabel = createWorkspaceButton.locator('span')
+    const [workspaceBounds, newTabBounds, createBounds, createLabelBounds] = await Promise.all([
       workspaceControl.boundingBox(),
       workspaceNewTab.boundingBox(),
-      createWorkspaceButton.boundingBox()
+      createWorkspaceButton.boundingBox(),
+      createWorkspaceLabel.boundingBox()
     ])
     expect(Math.round(workspaceBounds?.height ?? 0)).toBe(28)
     expect(Math.round(newTabBounds?.height ?? 0)).toBe(28)
@@ -83,7 +85,14 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
     expect(Math.round(newTabBounds?.y ?? 0)).toBe(Math.round(workspaceBounds?.y ?? -1))
     expect(Math.round(createBounds?.y ?? 0)).toBe(Math.round(workspaceBounds?.y ?? -1))
     expect(Math.abs((workspaceBounds?.x ?? 0) + (workspaceBounds?.width ?? 0) - (newTabBounds?.x ?? 0))).toBeLessThanOrEqual(1)
+    expect(createLabelBounds?.x ?? 0).toBeGreaterThanOrEqual(createBounds?.x ?? 1)
+    expect((createLabelBounds?.x ?? 0) + (createLabelBounds?.width ?? 0))
+      .toBeLessThanOrEqual((createBounds?.x ?? 0) + (createBounds?.width ?? 0))
     await expect(createWorkspaceButton).toHaveText('Workspace')
+    await createWorkspaceLabel.click()
+    const createWorkspaceDialog = appWindow.getByRole('dialog', { name: 'Create workspace' })
+    await expect(createWorkspaceDialog).toBeVisible()
+    await createWorkspaceDialog.getByRole('button', { name: 'Cancel' }).click()
 
     await workspaceNewTab.click()
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({

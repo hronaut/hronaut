@@ -229,7 +229,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
   { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
-  { name: 'browser_hover', category: 'Interaction', description: 'Hover an element to reveal menus, tooltips, or hover states.' },
+  { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element.' },
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
   { name: 'browser_press', category: 'Interaction', description: 'Send a keyboard key or modifier combination to the active page.' },
@@ -956,9 +956,21 @@ function createBrowserMcpServer(
     'browser_hover',
     {
       description: toolDescription('browser_hover'),
-      inputSchema: { tabId: tabIdSchema.optional(), ref: z.string().optional(), selector: z.string().optional() }
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ref: z.string().optional(),
+        selector: z.string().optional(),
+        x: z.number().finite().nonnegative().optional(),
+        y: z.number().finite().nonnegative().optional()
+      }
     },
-    tabTool('browser_hover', async (input: { tabId?: string; ref?: string; selector?: string }) => textResult(await manager.hover(input)))
+    tabTool('browser_hover', async (input: {
+      tabId?: string
+      ref?: string
+      selector?: string
+      x?: number
+      y?: number
+    }) => textResult(await manager.hover(input)))
   )
   registerWorkspaceTool(
     'browser_drag',
