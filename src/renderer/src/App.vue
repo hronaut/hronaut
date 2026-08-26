@@ -107,6 +107,7 @@ import { useDetachedPanelPresentationController } from './composables/useDetache
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
+import { useSettingsNavigationController } from './composables/useSettingsNavigationController'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
@@ -1295,6 +1296,22 @@ const {
   tabTooltip,
   pageProblemDetails
 } = activeTabPresentationController
+const settingsNavigationController = useSettingsNavigationController({
+  closeSiteControls: () => (siteControlsOpen.value = false),
+  usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
+  activeOrigin: () => activeOrigin.value,
+  openSiteStorage,
+  openPrivacySettings,
+  openSettingsSection,
+  settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
+  closeHelp: closeHelpDialog,
+  closeTransientCollections: () => {
+    tabSearchOpen.value = false
+    downloadsOpen.value = false
+    bookmarksOpen.value = false
+    historyOpen.value = false
+  }
+})
 const {
   fillSavedPassword,
   fillSelectedCredential
@@ -1440,17 +1457,11 @@ async function refreshSiteDataSummary(): Promise<void> {
 }
 
 async function openSitePrivacySettings(): Promise<void> {
-  siteControlsOpen.value = false
-  if (!activeTabUsesDefaultProfile.value) {
-    await openSiteStorage()
-    return
-  }
-  await openPrivacySettings(activeOrigin.value ?? undefined)
+  await settingsNavigationController.openSitePrivacySettings()
 }
 
 function openSitePermissionSettings(): void {
-  siteControlsOpen.value = false
-  openSettingsSection('permissions')
+  settingsNavigationController.openSitePermissionSettings()
 }
 
 function handleWindowResize(): void {
@@ -1469,13 +1480,7 @@ function describeTabEmulation(tab: BrowserTabState): string {
 }
 
 function openUpdateSettings(): void {
-  if (workspaceEditorOpen.value || credentialPickerOpen.value) return
-  closeHelpDialog()
-  tabSearchOpen.value = false
-  downloadsOpen.value = false
-  bookmarksOpen.value = false
-  historyOpen.value = false
-  openSettingsSection('updates')
+  settingsNavigationController.openUpdateSettings()
 }
 
 function closeTransientPanels(): void {

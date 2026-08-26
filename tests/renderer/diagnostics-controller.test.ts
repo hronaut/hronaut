@@ -2,6 +2,7 @@ import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
 import type {
+  BrowserDebugReport,
   BrowserDomChangesReport,
   BrowserPerformanceReport,
   BrowserTabState
@@ -89,6 +90,7 @@ function domReport(active = true): BrowserDomChangesReport {
 
 function createController() {
   const activeTab = ref<BrowserTabState | undefined>(tab())
+  const copyText = vi.fn(async () => true)
   const browser = {
     measurePerformance: vi.fn(async () => performanceReport()),
     inspectDesign: vi.fn(),
@@ -110,11 +112,11 @@ function createController() {
     activeTab,
     browser,
     translate: (key) => key,
-    copyText: async () => true,
+    copyText,
     closeTransientPanels: vi.fn(),
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, browser, controller }
+  return { activeTab, browser, controller, copyText }
 }
 
 afterEach(() => {
@@ -204,5 +206,43 @@ describe('diagnostics controller', () => {
     controller.dispose()
     await vi.advanceTimersByTimeAsync(2_000)
     expect(browser.manageDomChanges).toHaveBeenCalledTimes(2)
+  })
+
+  it('restarts copied feedback when the same diagnostic report is copied again', async () => {
+    vi.useFakeTimers()
+    const { controller } = createController()
+    controller.debugReport.value = {
+      tabId: 'tab-1',
+      url: 'https://example.test/app'
+    } as BrowserDebugReport
+
+    await controller.copyDebugReport()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await controller.copyDebugReport()
+    await vi.advanceTimersByTimeAsync(600)
+
+    expect(controller.debugReportCopied.value).toBe(true)
+    await vi.advanceTimersByTimeAsync(900)
+    expect(controller.debugReportCopied.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('does not show copied feedback after the diagnostic page changes during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { activeTab, controller, copyText } = createController()
+    controller.debugReport.value = {
+      tabId: 'tab-1',
+      url: 'https://example.test/app'
+    } as BrowserDebugReport
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyDebugReport()
+    activeTab.value = { ...tab(), url: 'https://example.test/next' }
+    await nextTick()
+    copying.resolve(true)
+    await operation
+
+    expect(controller.debugReportCopied.value).toBe(false)
+    controller.dispose()
   })
 })

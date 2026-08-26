@@ -17,11 +17,13 @@ All notable changes to Hronaut are documented in this file.
 - Clear stale Downloads actions when the panel is closed so an older reveal, cancel, or cleanup cannot lock or report errors in a reopened panel.
 - Keep an externally reopened Downloads panel visible when an older refresh fails after another shell action or download event changed its visibility.
 - Prevent queued Network refresh and request-condition actions from running inside a panel that was closed and reopened by newer shell coordination.
+- Keep diagnostic “Copied” feedback scoped to the current page and restart its confirmation timeout when the same report is copied again.
 
 ### Changed
 
 - Move bookmark and history entry navigation out of `App.vue` into the existing browser-collections shell controller.
 - Move guarded, serialized Chromium Developer Tools toggles out of `App.vue` into the browser-tab action controller.
+- Move site and update settings-entry policy out of `App.vue` into a focused navigation controller.
 
 ## [1.8.0] - 2026-08-27
 

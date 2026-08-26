@@ -56,6 +56,7 @@ type Domain =
   | 'dom'
   | 'visual'
   | 'issues'
+type CopyFeedback = 'debug' | 'repro' | 'repro-playwright' | 'dom' | 'visual' | 'issues' | 'quality'
 
 export interface DiagnosticsControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -150,7 +151,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     issues: 0
   }
   let domRefreshTimer: number | undefined
-  const feedbackTimers = new Set<number>()
+  const feedbackTimers = new Map<CopyFeedback, number>()
 
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
     const tab = options.activeTab.value
@@ -165,12 +166,33 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       && options.activeTab.value.url === request.tab.url
   }
 
-  function scheduleFeedbackReset(callback: () => void): void {
+  function scheduleFeedbackReset(key: CopyFeedback, callback: () => void): void {
+    const previous = feedbackTimers.get(key)
+    if (previous !== undefined) window.clearTimeout(previous)
     const timer = window.setTimeout(() => {
-      feedbackTimers.delete(timer)
+      feedbackTimers.delete(key)
       callback()
     }, 1_500)
-    feedbackTimers.add(timer)
+    feedbackTimers.set(key, timer)
+  }
+
+  function resetCopyFeedback(): void {
+    for (const timer of feedbackTimers.values()) window.clearTimeout(timer)
+    feedbackTimers.clear()
+    debugReportCopied.value = false
+    reproCopied.value = false
+    reproPlaywrightCopied.value = false
+    domChangesCopied.value = false
+    visualCompareCopied.value = false
+    inspectorIssuesCopied.value = false
+    qualityAuditCopied.value = false
+  }
+
+  async function copyWithFeedback(key: CopyFeedback, payload: string, copied: Ref<boolean>): Promise<void> {
+    const expectedGeneration = generation
+    if (!await options.copyText(payload) || expectedGeneration !== generation) return
+    copied.value = true
+    scheduleFeedbackReset(key, () => (copied.value = false))
   }
 
   async function runPerformanceReport(action: BrowserPerformanceAction = 'measure'): Promise<void> {
@@ -428,9 +450,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function copyDebugReport(): Promise<void> {
-    if (!debugReport.value || !await options.copyText(JSON.stringify(debugReport.value, null, 2))) return
-    debugReportCopied.value = true
-    scheduleFeedbackReset(() => (debugReportCopied.value = false))
+    if (!debugReport.value) return
+    await copyWithFeedback('debug', JSON.stringify(debugReport.value, null, 2), debugReportCopied)
   }
 
   async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear'): Promise<void> {
@@ -467,15 +488,13 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const clearReproRecording = (): Promise<void> => manageRepro('clear')
 
   async function copyReproRecording(): Promise<void> {
-    if (!reproRecording.value || !await options.copyText(JSON.stringify(reproRecording.value, null, 2))) return
-    reproCopied.value = true
-    scheduleFeedbackReset(() => (reproCopied.value = false))
+    if (!reproRecording.value) return
+    await copyWithFeedback('repro', JSON.stringify(reproRecording.value, null, 2), reproCopied)
   }
 
   async function copyReproPlaywright(): Promise<void> {
-    if (!reproRecording.value || !await options.copyText(formatReproAsPlaywright(reproRecording.value))) return
-    reproPlaywrightCopied.value = true
-    scheduleFeedbackReset(() => (reproPlaywrightCopied.value = false))
+    if (!reproRecording.value) return
+    await copyWithFeedback('repro-playwright', formatReproAsPlaywright(reproRecording.value), reproPlaywrightCopied)
   }
 
   async function manageDomChanges(action: 'start' | 'get' | 'stop' | 'clear', quiet = false): Promise<void> {
@@ -505,9 +524,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function copyDomChanges(): Promise<void> {
-    if (!domChangesReport.value || !await options.copyText(JSON.stringify(domChangesReport.value, null, 2))) return
-    domChangesCopied.value = true
-    scheduleFeedbackReset(() => (domChangesCopied.value = false))
+    if (!domChangesReport.value) return
+    await copyWithFeedback('dom', JSON.stringify(domChangesReport.value, null, 2), domChangesCopied)
   }
 
   async function manageVisualCompare(action: 'get' | 'set-baseline' | 'compare' | 'clear'): Promise<void> {
@@ -545,7 +563,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       await options.browser.copyVisualDiff(request.tab.id)
       if (!current('visual', request)) return
       visualCompareCopied.value = true
-      scheduleFeedbackReset(() => (visualCompareCopied.value = false))
+      scheduleFeedbackReset('visual', () => (visualCompareCopied.value = false))
     } catch (cause) {
       if (!current('visual', request)) return
       visualCompareState.value = 'error'
@@ -583,9 +601,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const clearInspectorIssues = (): Promise<void> => refreshInspectorIssues(true)
 
   async function copyInspectorIssues(): Promise<void> {
-    if (!inspectorIssuesReport.value || !await options.copyText(JSON.stringify(inspectorIssuesReport.value, null, 2))) return
-    inspectorIssuesCopied.value = true
-    scheduleFeedbackReset(() => (inspectorIssuesCopied.value = false))
+    if (!inspectorIssuesReport.value) return
+    await copyWithFeedback('issues', JSON.stringify(inspectorIssuesReport.value, null, 2), inspectorIssuesCopied)
   }
 
   async function runAccessibilityAudit(): Promise<void> {
@@ -645,14 +662,14 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function copyQualityAudit(): Promise<void> {
-    if (!qualityAuditReport.value || !await options.copyText(JSON.stringify(qualityAuditReport.value, null, 2))) return
-    qualityAuditCopied.value = true
-    scheduleFeedbackReset(() => (qualityAuditCopied.value = false))
+    if (!qualityAuditReport.value) return
+    await copyWithFeedback('quality', JSON.stringify(qualityAuditReport.value, null, 2), qualityAuditCopied)
   }
 
   function resetForContext(): void {
     generation += 1
     for (const domain of Object.keys(sequences) as Domain[]) sequences[domain] += 1
+    resetCopyFeedback()
     const keepOpen = options.keepsSeparatePanelOpen()
     const closeForContextChange = (open: Ref<boolean>): void => {
       if (!keepOpen && open.value) open.value = false
@@ -677,7 +694,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     qualityAuditReport.value = null
     qualityAuditState.value = 'idle'
     qualityAuditError.value = ''
-    qualityAuditCopied.value = false
     performanceReport.value = null
     performanceState.value = 'idle'
     performanceError.value = ''
@@ -774,8 +790,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     stopDomTabWatcher()
     stopDomOpenWatcher()
     if (domRefreshTimer !== undefined) window.clearInterval(domRefreshTimer)
-    for (const timer of feedbackTimers) window.clearTimeout(timer)
-    feedbackTimers.clear()
+    resetCopyFeedback()
   }
 
   return {
