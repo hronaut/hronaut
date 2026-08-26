@@ -53,4 +53,23 @@ describe('Scoop package QA', () => {
     expect(profile).toContain('...(token ? { requestInit:')
     expect(profile).toContain("typedPhase !== 'write'")
   })
+
+  it('publishes the verified Scoop hash and dispatches its post-release gates', async () => {
+    const [releaseWorkflow, ciWorkflow, updater] = await Promise.all([
+      read('.github/workflows/release.yml'),
+      read('.github/workflows/ci.yml'),
+      read('scripts/update-scoop-manifest.ts')
+    ])
+
+    expect(releaseWorkflow).toContain('name: Publish verified Scoop manifest')
+    expect(releaseWorkflow).toContain('Guard against a newer release on main')
+    expect(releaseWorkflow).toContain('gh attestation verify release-checksums/hashes.txt')
+    expect(releaseWorkflow).toContain('node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt')
+    expect(releaseWorkflow).toContain('git push origin HEAD:main')
+    expect(releaseWorkflow).toContain('gh workflow run ci.yml')
+    expect(releaseWorkflow).toContain('gh workflow run scoop-smoke.yml')
+    expect(ciWorkflow).toMatch(/on:\n[ ]{2}workflow_dispatch:/)
+    expect(updater).toContain('Expected exactly one checksum')
+    expect(updater).toContain('Scoop manifest URL does not match')
+  })
 })

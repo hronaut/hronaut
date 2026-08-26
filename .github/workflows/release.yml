@@ -433,3 +433,89 @@ jobs:
         env:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/verify-public-release.ts "$VERSION"
+
+  update-scoop-manifest:
+    name: Publish verified Scoop manifest
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - publish-release
+      - verify-public-release
+    permissions:
+      actions: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up manifest runtime
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Guard against a newer release on main
+        id: current
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          current_version="$(node -p "require('./package.json').version")"
+          if [[ "$current_version" != "$VERSION" ]]; then
+            echo "Skipping Scoop update for v$VERSION because main is already v$current_version."
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download published checksum manifest
+        if: steps.current.outputs.update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern hashes.txt --dir release-checksums
+          gh attestation verify release-checksums/hashes.txt --repo "$GITHUB_REPOSITORY"
+
+      - name: Update and test the Scoop manifest
+        if: steps.current.outputs.update == 'true'
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt
+          npm ci
+          npx vitest run tests/update-scoop-manifest.test.ts tests/scoop-packaging.test.ts
+
+      - name: Push the verified manifest
+        id: push
+        if: steps.current.outputs.update == 'true'
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- packaging/scoop/hronaut.json; then
+            echo "Scoop manifest already matches v$VERSION."
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/scoop/hronaut.json
+          git commit -m "Publish Scoop manifest for Hronaut $VERSION"
+          git push origin HEAD:main
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch post-release CI and Scoop smoke
+        if: steps.push.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run scoop-smoke.yml --repo "$GITHUB_REPOSITORY" --ref main

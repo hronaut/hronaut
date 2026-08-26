@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Publish the verified Windows portable checksum into the Scoop manifest after each release, then automatically dispatch full CI and the Windows install/reinstall smoke.
+
 ### Fixed
 
 ## [1.6.1] - 2026-08-26
