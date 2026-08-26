@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move Help and support shell orchestration out of `App.vue` into a focused controller.
 - Verify after every published release that `hronaut.dev` resolves the new version and every platform download.
 - Move detached-panel refresh dispatch out of `App.vue` into a focused, exhaustively tested controller.
 - Reset all Appearance preferences in one authoritative transaction and prevent conflicting settings edits while a reset is pending.
@@ -21,6 +22,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Report failed Help and support link navigation instead of silently closing the dialog.
 - Keep committed language changes authoritative when the follow-up Home refresh fails.
 - Keep committed MCP authentication changes authoritative when the follow-up Home refresh fails.
 - Make tab mute and close actions keyboard-operable from the focused tab and remove invalid nested button semantics.

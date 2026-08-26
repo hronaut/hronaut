@@ -1341,6 +1341,29 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)')).toBe('https://github.com/hronaut/hronaut')
 })
 
+test('reports a failed About link without leaving the shell in an unhandled state', async ({ appWindow, electronApp }) => {
+  await electronApp.evaluate(({ BrowserWindow, Menu, ipcMain }) => {
+    ipcMain.removeHandler('browser:new-tab')
+    ipcMain.handle('browser:new-tab', () => {
+      throw new Error('Help link navigation unavailable for regression test')
+    })
+    const help = Menu.getApplicationMenu()?.items.find((item) => item.label === 'Help')
+    const about = help?.submenu?.items.find((item) => item.label === 'About Hronaut')
+    if (!about?.click) throw new Error('About Hronaut menu item was not found')
+    about.click(about, BrowserWindow.getAllWindows()[0], {} as Electron.KeyboardEvent)
+  })
+
+  const aboutDialog = appWindow.getByRole('dialog', { name: 'About Hronaut' })
+  await expect(aboutDialog).toBeVisible()
+  await aboutDialog.getByRole('button', { name: 'GitHub repository' }).click()
+
+  await expect(aboutDialog).toBeHidden()
+  await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText(
+    'Help link navigation unavailable for regression test'
+  )
+  await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeEnabled()
+})
+
 test('reloads the active website from View and bypasses cached subresources on demand', async ({ appWindow, electronApp }) => {
   let scriptRequests = 0
   const server = createServer((request, response) => {

@@ -26,7 +26,6 @@ import {
   BrowserTabState,
   BrowserBookmark,
   BrowserHistoryEntry,
-  HelpMenuAction,
   DetachablePanelId,
   PanelDock
 } from '../../shared/types'
@@ -64,6 +63,7 @@ import { useCredentialsController } from './composables/useCredentialsController
 import { useDownloadSettingsController } from './composables/useDownloadSettingsController'
 import { useEnvironmentPanelController } from './composables/useEnvironmentPanelController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
+import { useHelpShellController } from './composables/useHelpShellController'
 import { useMcpSettingsController } from './composables/useMcpSettingsController'
 import { useMcpActivityController } from './composables/useMcpActivityController'
 import { useMcpStatusController } from './composables/useMcpStatusController'
@@ -930,6 +930,23 @@ const {
   run: runShellAction,
   dispose: disposeUiActionController
 } = useUiActionController({ onError: reportShellActionError })
+const {
+  openDialog: openHelpDialog,
+  openSupportSettings,
+  handleRequested: handleHelpRequested,
+  openUrl: openSupport,
+  purchaseCommercialLicense
+} = useHelpShellController({
+  commandPaletteOpen,
+  blocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
+  closeSettings,
+  closeHelpDialog,
+  showHelpDialog,
+  showSupportSettings: () => openSettingsSection('support'),
+  navigate: (url) => syncState(browser.newTab({ url, active: true })),
+  openPurchase: () => window.hronautLicense.openPurchase(),
+  runAction: runShellAction
+})
 const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncController({
   api: window.hronautPanelWindow,
   detachedWindow: isDetachedPanelWindow,
@@ -1496,16 +1513,6 @@ function openUpdateSettings(): void {
   openSettingsSection('updates')
 }
 
-async function openSupport(url: string): Promise<void> {
-  closeHelpDialog()
-  closeSettings()
-  await syncState(browser.newTab({ url, active: true }))
-}
-
-function purchaseCommercialLicense(): void {
-  void runShellAction(() => window.hronautLicense.openPurchase())
-}
-
 function closeTransientPanels(): void {
   transientPanelsController.close()
 }
@@ -1519,21 +1526,6 @@ function togglePageTools(): void {
   pageToolsOpen.value = true
 }
 
-function openHelpDialog(dialog: 'shortcuts' | 'about'): void {
-  commandPaletteOpen.value = false
-  closeSettings()
-  showHelpDialog(dialog)
-}
-
-function handleHelpRequested(action: HelpMenuAction): void {
-  if (workspaceEditorOpen.value || credentialPickerOpen.value) return
-  if (action === 'support') {
-    openSupportSettings()
-    return
-  }
-  openHelpDialog(action)
-}
-
 async function toggleDeveloperTools(): Promise<void> {
   const tab = activeTab.value
   if (!tab || activeIsHome.value || tab.humanInteractionLocked) return
@@ -1541,10 +1533,6 @@ async function toggleDeveloperTools(): Promise<void> {
   closeSettings()
   closeTransientPanels()
   await browser.toggleDevTools(tab.id)
-}
-
-function openSupportSettings(): void {
-  openSettingsSection('support')
 }
 
 useShellWindowLifecycle({
