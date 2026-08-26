@@ -110,7 +110,7 @@ test('recovers from an initial renderer settings failure before Vue mounts', asy
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeEnabled()
 })
 
-test('continues initializing independent services when live settings synchronization fails', async ({ appWindow, electronApp }) => {
+test('retries only the transiently failed startup service and reports recovery', async ({ appWindow, electronApp }) => {
   const settingsState = await appWindow.evaluate('window.hronautSettings.getRendererState()') as RendererSettingsState
   await appWindow.addInitScript(() => {
     type RejectionEvent = { reason: unknown; preventDefault: () => void }
@@ -139,8 +139,10 @@ test('continues initializing independent services when live settings synchroniza
       if (!marked) return state
       const calls = (mainGlobal as typeof mainGlobal & { __hronautStartupSettingsCalls?: number })
       calls.__hronautStartupSettingsCalls = (calls.__hronautStartupSettingsCalls ?? 0) + 1
-      if (calls.__hronautStartupSettingsCalls === 1) return state
-      throw new Error('Live renderer settings unavailable for regression test')
+      if (calls.__hronautStartupSettingsCalls === 2) {
+        throw new Error('Live renderer settings unavailable for regression test')
+      }
+      return state
     })
     ipcMain.removeHandler('downloads:list')
     ipcMain.handle('downloads:list', () => {
@@ -153,9 +155,12 @@ test('continues initializing independent services when live settings synchroniza
 
   const failure = appWindow.getByRole('alert', { name: 'Startup incomplete' })
   await expect(failure).toContainText('Live renderer settings unavailable for regression test')
+  await expect(appWindow.getByRole('status', { name: 'Startup recovered' })).toContainText(
+    'All Hronaut services are available again.'
+  )
   await expect.poll(() => electronApp.evaluate(() => (
     globalThis as typeof globalThis & { __hronautStartupDownloadsListCount?: number }
-  ).__hronautStartupDownloadsListCount)).toBeGreaterThan(0)
+  ).__hronautStartupDownloadsListCount)).toBe(1)
   expect(await appWindow.evaluate(() => {
     type RejectionEvent = { reason: unknown; preventDefault: () => void }
     const shellWindow = globalThis as typeof globalThis & {

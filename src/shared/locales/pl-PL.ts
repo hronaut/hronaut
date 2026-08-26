@@ -742,6 +742,8 @@ export const plPL = {
       "passwordRemoveDescription": "Nie udało się usunąć zapisanego konta.",
       "startupIncomplete": "Niepełne uruchomienie",
       "startupIncompleteDescription": "Niektóre usługi Hronaut nie zakończyły uruchamiania. Nadal możesz korzystać z dostępnych funkcji.",
+      "startupRecovered": "Uruchamianie przywrócone",
+      "startupRecoveredDescription": "Wszystkie usługi Hronaut są ponownie dostępne.",
       "actionFailed": "Nie udało się wykonać żądanej czynności przeglądarki."
     },
     "downloadSettings": {

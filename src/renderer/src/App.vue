@@ -4,20 +4,13 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'v
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
-import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
-import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHandyman from '~icons/material-symbols/handyman-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
-import IconRefresh from '~icons/material-symbols/refresh-rounded'
-import IconSearch from '~icons/material-symbols/search-rounded'
 import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
-import IconStar from '~icons/material-symbols/star-rounded'
-import IconStarOutline from '~icons/material-symbols/star-outline-rounded'
-import IconStop from '~icons/material-symbols/stop-rounded'
 import {
   PANEL_DOCKS,
   BrowserState,
@@ -29,6 +22,7 @@ import {
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
 import BrowserAddressBar from './components/BrowserAddressBar.vue'
+import BrowserNavigationControls from './components/BrowserNavigationControls.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
 import AppTopbarActions from './components/AppTopbarActions.vue'
 import BookmarksPanel from './components/BookmarksPanel.vue'
@@ -117,6 +111,7 @@ import { useDeveloperPanelsShellController } from './composables/useDeveloperPan
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
+import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 
 function isPanelDock(value: string | null): value is PanelDock {
   return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
@@ -966,6 +961,20 @@ const appBootstrapController = useAppBootstrapController({
   ],
   onFailure: reportAppBootstrapFailure
 })
+const {
+  start: startAppStartupRecovery,
+  dispose: disposeAppStartupRecoveryController
+} = useStartupRecoveryController({
+  initialize: appBootstrapController.initialize,
+  onAttemptSettled: () => {
+    void nextTick().then(reportShellHeight)
+  },
+  onRecovered: () => showAppToast(
+    'success',
+    t('runtime.toast.startupRecovered'),
+    t('runtime.toast.startupRecoveredDescription')
+  )
+})
 const commandPaletteShellController = useCommandPaletteShellController({
   open: commandPaletteOpen,
   panel: commandPalette,
@@ -1510,13 +1519,11 @@ useShellWindowLifecycle({
 
 onMounted(() => {
   bindFoley()
-  void appBootstrapController.initialize().then(async () => {
-    await nextTick()
-    reportShellHeight()
-  })
+  startAppStartupRecovery()
 })
 
 onBeforeUnmount(() => {
+  disposeAppStartupRecoveryController()
   disposeMcpActivityController()
   disposeShellOverlayCoordinationController()
   disposeActiveTabContextController()
@@ -1636,69 +1643,43 @@ onBeforeUnmount(() => {
       />
     </div>
     <div v-if="!activeIsHome" class="toolbar">
-      <button class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="runShellAction(() => syncState(browser.back()))"><IconArrowBack aria-hidden="true" /></button>
-      <button class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="runShellAction(() => syncState(browser.forward()))"><IconArrowForward aria-hidden="true" /></button>
-      <button class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" @click="runShellAction(() => syncState(activeTab?.loading ? browser.stop() : browser.reload()))">
-        <IconStop v-if="activeTab?.loading" aria-hidden="true" />
-        <IconRefresh v-else aria-hidden="true" />
-      </button>
-      <BrowserAddressBar
-        v-model:site-controls-open="siteControlsOpen"
-        v-model:panel-dock="panelDock"
-        :address-controller="addressBarController"
-        :active-tab-presentation="activeTabPresentationController"
-        :emulation-controller="emulationController"
-        :page-tools-presentation="pageToolsPresentationController"
-        :site-data-controller="siteDataController"
-        :site-permissions-controller="sitePermissionsController"
-        :locale="resolvedLocale"
-        :format-number="localNumber"
-        :run-action="runShellAction"
-        :actions="{
-          toggleSiteControls,
-          resetActiveTabEmulation,
-          openRequestConditions,
-          setSitePermission: setSitePermissionDecision,
-          resetSitePermission: removeSitePermission,
-          openSitePermissionSettings,
-          openSitePrivacySettings
-        }"
-      />
-      <button
-        class="icon-button find-button"
-        type="button"
-        :title="t('shell.toolbar.findTitle')"
-        :aria-label="t('shell.toolbar.find')"
-        aria-keyshortcuts="Control+F Meta+F"
-        :disabled="!activeTab"
-        @click="runShellAction(openFind)"
+      <BrowserNavigationControls
+        :active-tab="activeTab"
+        :zoom-open="zoomOpen"
+        :bookmarks-open="bookmarksOpen"
+        :current-bookmark="Boolean(currentBookmark)"
+        :format-percent="localPercent"
+        @back="runShellAction(() => syncState(browser.back()))"
+        @forward="runShellAction(() => syncState(browser.forward()))"
+        @reload="runShellAction(() => syncState(browser.reload()))"
+        @stop="runShellAction(() => syncState(browser.stop()))"
+        @find="runShellAction(openFind)"
+        @toggle-zoom="runShellAction(toggleZoom)"
+        @toggle-bookmarks="runShellAction(toggleBookmarks)"
       >
-        <IconSearch aria-hidden="true" />
-      </button>
-      <button
-        class="zoom-button"
-        type="button"
-        :title="t('runtime.address.zoom', { percent: localPercent(activeTab?.zoomPercent ?? 100) })"
-        :aria-label="t('shell.toolbar.zoom')"
-        :aria-expanded="zoomOpen"
-        :disabled="!activeTab"
-        @click="runShellAction(toggleZoom)"
-      >
-        {{ activeTab?.zoomPercent ?? 100 }}%
-      </button>
-      <button
-        class="icon-button bookmarks-button"
-        :class="{ bookmarked: Boolean(currentBookmark) }"
-        type="button"
-        :title="t(currentBookmark ? 'runtime.tabs.bookmarkSaved' : 'runtime.tabs.bookmarkSave')"
-        :aria-label="t('shell.toolbar.bookmarks')"
-        aria-keyshortcuts="Control+D Meta+D"
-        :aria-expanded="bookmarksOpen"
-        @click="runShellAction(toggleBookmarks)"
-      >
-        <IconStar v-if="currentBookmark" aria-hidden="true" />
-        <IconStarOutline v-else aria-hidden="true" />
-      </button>
+        <BrowserAddressBar
+          v-model:site-controls-open="siteControlsOpen"
+          v-model:panel-dock="panelDock"
+          :address-controller="addressBarController"
+          :active-tab-presentation="activeTabPresentationController"
+          :emulation-controller="emulationController"
+          :page-tools-presentation="pageToolsPresentationController"
+          :site-data-controller="siteDataController"
+          :site-permissions-controller="sitePermissionsController"
+          :locale="resolvedLocale"
+          :format-number="localNumber"
+          :run-action="runShellAction"
+          :actions="{
+            toggleSiteControls,
+            resetActiveTabEmulation,
+            openRequestConditions,
+            setSitePermission: setSitePermissionDecision,
+            resetSitePermission: removeSitePermission,
+            openSitePermissionSettings,
+            openSitePrivacySettings
+          }"
+        />
+      </BrowserNavigationControls>
       <div
         class="interaction-locks"
         role="group"

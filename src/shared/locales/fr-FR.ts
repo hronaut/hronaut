@@ -742,6 +742,8 @@ export const frFR = {
       "passwordRemoveDescription": "Impossible de supprimer le compte enregistré.",
       "startupIncomplete": "Démarrage incomplet",
       "startupIncompleteDescription": "Certains services Hronaut n’ont pas terminé leur démarrage. Vous pouvez continuer à utiliser les fonctions disponibles.",
+      "startupRecovered": "Démarrage rétabli",
+      "startupRecoveredDescription": "Tous les services Hronaut sont de nouveau disponibles.",
       "actionFailed": "Impossible d’effectuer l’action demandée dans le navigateur."
     },
     "downloadSettings": {

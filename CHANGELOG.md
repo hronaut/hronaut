@@ -8,7 +8,11 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move browser navigation, address, find, zoom, and bookmark controls out of `App.vue` into a focused component.
+
 ### Fixed
+
+- Retry transient renderer service startup failures without requiring an application restart, while keeping retries bounded and reporting recovery.
 
 ## [1.6.0] - 2026-08-26
 

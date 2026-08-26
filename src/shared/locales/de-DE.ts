@@ -742,6 +742,8 @@ export const deDE = {
       "passwordRemoveDescription": "Das gespeicherte Konto konnte nicht entfernt werden.",
       "startupIncomplete": "Start unvollständig",
       "startupIncompleteDescription": "Einige Hronaut-Dienste konnten nicht vollständig gestartet werden. Verfügbare Funktionen können weiterhin verwendet werden.",
+      "startupRecovered": "Start wiederhergestellt",
+      "startupRecoveredDescription": "Alle Hronaut-Dienste sind wieder verfügbar.",
       "actionFailed": "Die angeforderte Browseraktion konnte nicht abgeschlossen werden."
     },
     "downloadSettings": {

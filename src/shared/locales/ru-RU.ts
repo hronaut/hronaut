@@ -742,6 +742,8 @@ export const ruRU = {
       "passwordRemoveDescription": "Не удалось удалить сохранённую учётную запись.",
       "startupIncomplete": "Запуск завершён не полностью",
       "startupIncompleteDescription": "Некоторые службы Hronaut не завершили запуск. Доступными функциями можно продолжать пользоваться.",
+      "startupRecovered": "Запуск восстановлен",
+      "startupRecoveredDescription": "Все службы Hronaut снова доступны.",
       "actionFailed": "Не удалось выполнить запрошенное действие браузера."
     },
     "downloadSettings": {

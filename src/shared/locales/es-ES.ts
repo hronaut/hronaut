@@ -742,6 +742,8 @@ export const esES = {
       "passwordRemoveDescription": "No se pudo eliminar la cuenta guardada.",
       "startupIncomplete": "Inicio incompleto",
       "startupIncompleteDescription": "Algunos servicios de Hronaut no terminaron de iniciarse. Puedes seguir usando las funciones disponibles.",
+      "startupRecovered": "Inicio recuperado",
+      "startupRecoveredDescription": "Todos los servicios de Hronaut vuelven a estar disponibles.",
       "actionFailed": "No se pudo completar la acción solicitada del navegador."
     },
     "downloadSettings": {
