@@ -48,6 +48,7 @@ describe('Scoop package QA', () => {
     expect(smoke).toContain('scripts/profile-smoke.ts\", \"write\"')
     expect(smoke).toContain('scripts/profile-smoke.ts\", \"read\"')
     expect(smoke).toContain('scripts/mcp-smoke.ts')
+    expect(smoke).toContain('Wait-ForPackageProcessExit -Executable $Executable')
     expect(smoke).toContain('uninstall\", \"hronaut\"')
     expect(profile).toContain('...(token ? { requestInit:')
     expect(profile).toContain("typedPhase !== 'write'")

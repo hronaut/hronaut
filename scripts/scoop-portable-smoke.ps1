@@ -60,6 +60,26 @@ function Wait-ForEndpoint {
   throw "Endpoint $Url did not reach availability=$Available within $TimeoutSeconds seconds"
 }
 
+function Wait-ForPackageProcessExit {
+  param(
+    [string]$Executable,
+    [int]$TimeoutSeconds = 15
+  )
+
+  $processName = [System.IO.Path]::GetFileNameWithoutExtension($Executable)
+  $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    $matchingProcesses = @(Get-Process -Name $processName -ErrorAction SilentlyContinue)
+    if ($matchingProcesses.Count -eq 0) {
+      return
+    }
+    Start-Sleep -Milliseconds 250
+  }
+
+  $remainingIds = (@(Get-Process -Name $processName -ErrorAction SilentlyContinue) | ForEach-Object { $_.Id }) -join ", "
+  throw "Hronaut process $processName did not exit within $TimeoutSeconds seconds (remaining PIDs: $remainingIds)"
+}
+
 function Start-Hronaut {
   param(
     [string]$Executable,
@@ -81,6 +101,7 @@ function Stop-Hronaut {
 
   Start-Process -FilePath $Executable -ArgumentList "--quit" -Wait | Out-Null
   Wait-ForEndpoint -Url "http://127.0.0.1:$Port/healthz" -Available $false
+  Wait-ForPackageProcessExit -Executable $Executable
 }
 
 $manifest = Get-Content -Raw $ManifestPath | ConvertFrom-Json
