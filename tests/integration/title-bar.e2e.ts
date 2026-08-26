@@ -110,10 +110,14 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   await expect.poll(async () => {
     const [left, right] = await Promise.all([rail.boundingBox(), toolbar.boundingBox()])
     return left && right ? {
+      compact: await appWindow.locator('.shell').evaluate((element) => (
+        element.classList.contains('compact-vertical-tab-rail')
+      )),
+      railWidth: Math.round(left.width),
       joined: right.x >= left.x + left.width - 1,
       withinViewport: right.x + right.width <= await appWindow.evaluate(() => window.innerWidth) + 1
     } : null
-  }).toEqual({ joined: true, withinViewport: true })
+  }).toEqual({ compact: true, railWidth: 56, joined: true, withinViewport: true })
   const compactToolbar = await toolbar.evaluate((element) => {
     const address = element.querySelector('.address-form')?.getBoundingClientRect()
     return {
@@ -128,6 +132,19 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeVisible()
   await expect.poll(() => rail.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(280)
   await expect.poll(() => railTitle.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(280)
+  const expandedToolbar = await toolbar.evaluate((element) => {
+    const bounds = element.getBoundingClientRect()
+    const address = element.querySelector('.address-form')?.getBoundingClientRect()
+    return {
+      x: Math.round(bounds.x),
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      addressWidth: Math.round(address?.width ?? 0)
+    }
+  })
+  expect(expandedToolbar.x).toBe(56)
+  expect(expandedToolbar.scrollWidth).toBeLessThanOrEqual(expandedToolbar.clientWidth)
+  expect(expandedToolbar.addressWidth).toBeGreaterThanOrEqual(120)
   await toolbar.hover()
   await expect.poll(() => rail.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(56)
   await expect.poll(() => railTitle.evaluate((element) => Math.round(element.getBoundingClientRect().width))).toBe(56)

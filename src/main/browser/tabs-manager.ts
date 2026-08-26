@@ -2372,18 +2372,15 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) return
     const websiteTabs = this.orderedTabs().filter((candidate) => !isHronautHomeUrl(candidate.url))
-    const websiteIndex = websiteTabs.indexOf(tab)
-    const peers = this.orderedTabs().filter((candidate) => (
-      !isHronautHomeUrl(candidate.url)
-      && candidate.pinned === tab.pinned
-      && candidate.mcpGroupId === tab.mcpGroupId
-    ))
+    const workspaceTabs = websiteTabs.filter((candidate) => candidate.mcpGroupId === tab.mcpGroupId)
+    const workspaceIndex = workspaceTabs.indexOf(tab)
+    const peers = workspaceTabs.filter((candidate) => candidate.pinned === tab.pinned)
     const peerIndex = peers.indexOf(tab)
-    const otherTabs = websiteTabs.filter((candidate) => !candidate.pinned && candidate.id !== tab.id)
+    const otherTabs = workspaceTabs.filter((candidate) => !candidate.pinned && candidate.id !== tab.id)
     const tabsToRight = tab.pinned
       ? []
-      : websiteTabs.slice(websiteIndex + 1).filter((candidate) => !candidate.pinned)
-    const duplicateTabs = websiteTabs.filter((candidate) => (
+      : workspaceTabs.slice(workspaceIndex + 1).filter((candidate) => !candidate.pinned)
+    const duplicateTabs = workspaceTabs.filter((candidate) => (
       !candidate.pinned && candidate.id !== tab.id && candidate.url === tab.url
     ))
     const activeWebsiteTab = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined

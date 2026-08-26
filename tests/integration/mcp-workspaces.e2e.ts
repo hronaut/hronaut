@@ -440,6 +440,126 @@ test('does not offer or attempt tab reordering across workspace boundaries', asy
   await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toHaveCount(0)
 })
 
+test('keeps destructive tab cleanup actions inside the selected workspace', async ({
+  appWindow,
+  electronApp
+}) => {
+  const sharedUrl = 'data:text/html,<title>Workspace cleanup duplicate</title><main>Duplicate</main>'
+  const defaultRightUrl = 'data:text/html,<title>Default cleanup right</title><main>Default right</main>'
+  const isolatedOtherUrl = 'data:text/html,<title>Isolated cleanup survivor</title><main>Isolated survivor</main>'
+  const defaultOtherUrl = 'data:text/html,<title>Default cleanup other</title><main>Default other</main>'
+  const initial = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+  const defaultWorkspaceId = initial.mcpTabGroups.find((workspace) => workspace.isDefault)?.id
+  expect(defaultWorkspaceId).toMatch(UUID_V7_PATTERN)
+
+  const defaultSourceId = await appWindow.evaluate(`window.hronaut.newTab({
+    url: ${JSON.stringify(sharedUrl)},
+    active: true,
+    mcpGroupId: ${JSON.stringify(defaultWorkspaceId)}
+  }).then((state) => state.activeTabId)`) as string
+  const defaultDuplicateId = await appWindow.evaluate(`window.hronaut.newTab({
+    url: ${JSON.stringify(sharedUrl)},
+    active: false,
+    mcpGroupId: ${JSON.stringify(defaultWorkspaceId)}
+  }).then((state) => state.tabs.find((tab) => tab.id !== ${JSON.stringify(defaultSourceId)} && tab.url === ${JSON.stringify(sharedUrl)})?.id)`) as string
+  const defaultRightId = await appWindow.evaluate(`window.hronaut.newTab({
+    url: ${JSON.stringify(defaultRightUrl)},
+    active: false,
+    mcpGroupId: ${JSON.stringify(defaultWorkspaceId)}
+  }).then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(defaultRightUrl)})?.id)`) as string
+
+  const isolatedState = await appWindow.evaluate(`window.hronaut.createWorkspace({
+    name: 'Cleanup isolation',
+    color: 'cyan',
+    storage: 'scratch'
+  })`) as BrowserState
+  const isolatedWorkspaceId = isolatedState.mcpTabGroups.find((workspace) => workspace.name === 'Cleanup isolation')?.id
+  const isolatedDuplicateId = isolatedState.activeTabId
+  expect(isolatedWorkspaceId).toMatch(UUID_V7_PATTERN)
+  expect(isolatedDuplicateId).toMatch(UUID_V7_PATTERN)
+  await appWindow.evaluate(`window.hronaut.navigate({
+    tabId: ${JSON.stringify(isolatedDuplicateId)},
+    url: ${JSON.stringify(sharedUrl)}
+  })`)
+  const isolatedOtherId = await appWindow.evaluate(`window.hronaut.newTab({
+    url: ${JSON.stringify(isolatedOtherUrl)},
+    active: false,
+    mcpGroupId: ${JSON.stringify(isolatedWorkspaceId)}
+  }).then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(isolatedOtherUrl)})?.id)`) as string
+
+  await electronApp.evaluate(({ Menu }) => {
+    ;(globalThis as typeof globalThis & { __hronautWorkspaceCleanupMenu?: Electron.Menu })
+      .__hronautWorkspaceCleanupMenu = undefined
+    Menu.prototype.popup = function (): void {
+      ;(globalThis as typeof globalThis & { __hronautWorkspaceCleanupMenu?: Electron.Menu })
+        .__hronautWorkspaceCleanupMenu = this
+    }
+  })
+  const openSourceMenu = async (): Promise<void> => {
+    await appWindow.getByRole('tab', { name: /^Workspace cleanup duplicate/ }).first().click({ button: 'right' })
+  }
+  const clickMenuItem = (id: string): Promise<void> => electronApp.evaluate((_electron, menuId) => {
+    const menu = (globalThis as typeof globalThis & { __hronautWorkspaceCleanupMenu?: Electron.Menu })
+      .__hronautWorkspaceCleanupMenu
+    const item = menu?.getMenuItemById(menuId)
+    if (!item?.click || !item.enabled) throw new Error(`Enabled ${menuId} context action was not found`)
+    ;(item.click as unknown as () => void)()
+  }, id)
+  const openTabIds = (): Promise<string[]> => appWindow.evaluate(
+    'window.hronaut.getState().then((state) => state.tabs.map((tab) => tab.id))'
+  )
+
+  await openSourceMenu()
+  await clickMenuItem('close-duplicate-tabs')
+  await expect.poll(openTabIds).toEqual(expect.arrayContaining([
+    defaultSourceId,
+    defaultRightId,
+    isolatedDuplicateId,
+    isolatedOtherId
+  ]))
+  await expect.poll(openTabIds).not.toContain(defaultDuplicateId)
+
+  await openSourceMenu()
+  await expect.poll(() => electronApp.evaluate(() => {
+    const menu = (globalThis as typeof globalThis & { __hronautWorkspaceCleanupMenu?: Electron.Menu })
+      .__hronautWorkspaceCleanupMenu
+    return menu?.getMenuItemById('close-duplicate-tabs')?.enabled
+  })).toBe(false)
+  await clickMenuItem('close-tabs-to-right')
+  await expect.poll(openTabIds).toEqual(expect.arrayContaining([
+    defaultSourceId,
+    isolatedDuplicateId,
+    isolatedOtherId
+  ]))
+  await expect.poll(openTabIds).not.toContain(defaultRightId)
+
+  await openSourceMenu()
+  await expect.poll(() => electronApp.evaluate(() => {
+    const menu = (globalThis as typeof globalThis & { __hronautWorkspaceCleanupMenu?: Electron.Menu })
+      .__hronautWorkspaceCleanupMenu
+    return ['close-other-tabs', 'close-tabs-to-right', 'close-duplicate-tabs']
+      .map((id) => ({ id, enabled: menu?.getMenuItemById(id)?.enabled }))
+  })).toEqual([
+    { id: 'close-other-tabs', enabled: false },
+    { id: 'close-tabs-to-right', enabled: false },
+    { id: 'close-duplicate-tabs', enabled: false }
+  ])
+
+  const defaultOtherId = await appWindow.evaluate(`window.hronaut.newTab({
+    url: ${JSON.stringify(defaultOtherUrl)},
+    active: false,
+    mcpGroupId: ${JSON.stringify(defaultWorkspaceId)}
+  }).then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(defaultOtherUrl)})?.id)`) as string
+  await openSourceMenu()
+  await clickMenuItem('close-other-tabs')
+  await expect.poll(openTabIds).toEqual(expect.arrayContaining([
+    defaultSourceId,
+    isolatedDuplicateId,
+    isolatedOtherId
+  ]))
+  await expect.poll(openTabIds).not.toContain(defaultOtherId)
+})
+
 test('requires visible workspaces and keeps each tool inside its selected workspace', async ({
   appWindow,
   mcpPort,
