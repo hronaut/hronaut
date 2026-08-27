@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.4] - 2026-08-27
+
 ### Changed
 
 - Move settings, update, MCP, license, privacy, permission, credential, download, performance, and search feature composition out of `App.vue` into a focused controller.
