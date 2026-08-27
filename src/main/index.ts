@@ -36,6 +36,7 @@ import { BookmarkStore } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
+import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
 import {
   COMMERCIAL_LICENSE_API_BASE_URL,
@@ -2995,21 +2996,22 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
     if (typeof credentialId !== 'string') throw new TypeError('Invalid credential ID')
-    if (!credentialStorageStatus.available || !credentialStore || !tabsManager) return false
-    const context = tabsManager.credentialContext(tabId)
+    const activeCredentialStore = credentialStore
+    const activeTabsManager = tabsManager
+    if (!credentialStorageStatus.available || !activeCredentialStore || !activeTabsManager) return false
+    const context = activeTabsManager.credentialContext(tabId)
     if (!context) return false
-    const selected = credentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
+    const selected = activeCredentialStore.list().find((credential) => credential.id === credentialId && credential.origin === context.origin)
     if (!selected) return false
-    setMcpPaused(true)
-    const waitStartedAt = Date.now()
-    while ((mcpServer?.getActiveRequestCount() ?? 0) > 0 && Date.now() - waitStartedAt < 5_000) {
-      await new Promise((resolve) => setTimeout(resolve, 25))
-    }
-    if ((mcpServer?.getActiveRequestCount() ?? 0) > 0) {
-      throw new Error('Could not fill the password while an MCP command was still active')
-    }
-    const password = await credentialStore.password(selected.id)
-    return tabsManager.fillCredential(tabId, context, selected.username, password)
+    return fillCredentialWhileMcpPaused({
+      pausePersistently: () => { setMcpPaused(true) },
+      acquireTemporaryPause: acquireTemporaryMcpPause,
+      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? 0,
+      fill: async () => {
+        const password = await activeCredentialStore.password(selected.id)
+        return activeTabsManager.fillCredential(tabId, context, selected.username, password)
+      }
+    })
   })
   ipcMain.handle('credentials:remove', async (event, id: unknown) => {
     assertTrustedShellSender(event)

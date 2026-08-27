@@ -4,8 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-08-27
+
+### Changed
+
+- Document the release-synchronized Scoop command for installing the verified Windows x64 portable build and Start Menu shortcut.
+
 ### Fixed
 
+- Keep MCP paused until password decryption and page injection finish, even when the user requests Resume during the fill.
 - Keep MCP paused for the full browsing-data cleanup and preserve newer user or credential-fill pause intent when cleanup finishes.
 - Complete renderer teardown even when one native listener or controller disposer throws, preventing later IPC subscriptions, timers, and shell resources from surviving an unmount.
 - Roll back earlier native event subscriptions when a later subscription fails during renderer startup, preventing duplicate or orphaned IPC listeners after a retry.

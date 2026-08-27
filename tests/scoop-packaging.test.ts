@@ -4,6 +4,17 @@ import { describe, expect, it } from 'vitest'
 const read = (path: string): Promise<string> => readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 
 describe('Scoop package QA', () => {
+  it('documents the verified Scoop install path without pinning a release', async () => {
+    const readme = await read('README.md')
+    const command = 'scoop install https://raw.githubusercontent.com/hronaut/hronaut/main/packaging/scoop/hronaut.json'
+
+    expect(readme).toContain('Windows x64')
+    expect(readme).toContain('verified portable build and Start Menu shortcut')
+    expect(readme).toContain(command)
+    expect(readme).toMatch(/Windows binary remains unsigned/i)
+    expect(command).not.toMatch(/v\d+\.\d+\.\d+/)
+  })
+
   it('keeps the candidate manifest aligned with the current portable release', async () => {
     const [packageSource, manifestSource] = await Promise.all([
       read('package.json'),

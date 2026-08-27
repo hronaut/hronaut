@@ -28,7 +28,13 @@ Not sure which browser model fits your workflow? Read the source-backed [Browser
 
 Download the latest package for Windows, macOS, or Linux from [GitHub Releases](https://github.com/hronaut/hronaut/releases/latest).
 
-The initial release artifacts are not platform code-signed or Apple-notarized, so Windows SmartScreen or macOS Gatekeeper may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
+On Windows x64, install the verified portable build and Start Menu shortcut with Scoop:
+
+```powershell
+scoop install https://raw.githubusercontent.com/hronaut/hronaut/main/packaging/scoop/hronaut.json
+```
+
+The Windows binary remains unsigned, and the macOS packages are not Apple-notarized, so Windows SmartScreen or macOS Gatekeeper may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
 
 ## Run from source
 
