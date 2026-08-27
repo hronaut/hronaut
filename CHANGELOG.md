@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-08-27
+
 ### Fixed
 
 - Ignore late shell notifications after renderer teardown so delayed clipboard or browser-action failures cannot recreate toast state and timers after the app has unmounted.
