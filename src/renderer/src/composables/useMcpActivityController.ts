@@ -1,5 +1,6 @@
 import { ref, watch, type Ref } from 'vue'
 import type { HronautApi, McpTabActivity } from '../../../shared/types.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 type McpActivityApi = Pick<HronautApi, 'onMcpTabActivity'>
 
@@ -17,6 +18,7 @@ export function useMcpActivityController(options: McpActivityControllerOptions) 
   const activeRequestsByTab = new Map<string, Map<string, McpTabActivity>>()
   const lingerTimers = new Map<string, number>()
   const lingerMs = options.lingerMs ?? DEFAULT_LINGER_MS
+  let cleanupCallbacks: (() => void)[] = []
   let disposed = false
 
   function clearLinger(tabId: string): void {
@@ -69,33 +71,46 @@ export function useMcpActivityController(options: McpActivityControllerOptions) 
     lingerTimers.set(activity.tabId, timer)
   }
 
-  const unsubscribe = options.api.onMcpTabActivity(accept)
-  const stopTabWatcher = watch(
-    [options.hydrated, () => options.tabIds.value.join('\u0000')],
-    ([hydrated]) => {
-      if (!hydrated) return
-      const validTabIds = new Set(options.tabIds.value)
-      const trackedTabIds = new Set([
-        ...Object.keys(activityByTab.value),
-        ...activeRequestsByTab.keys(),
-        ...lingerTimers.keys()
-      ])
-      for (const tabId of trackedTabIds) {
-        if (!validTabIds.has(tabId)) removeTab(tabId)
-      }
-    },
-    { immediate: true }
-  )
-
-  function dispose(): void {
-    if (disposed) return
-    disposed = true
-    unsubscribe()
-    stopTabWatcher()
+  function finishDisposal(): void {
     for (const timer of lingerTimers.values()) window.clearTimeout(timer)
     lingerTimers.clear()
     activeRequestsByTab.clear()
     activityByTab.value = {}
+  }
+
+  cleanupCallbacks = registerDisposers([
+    () => options.api.onMcpTabActivity(accept),
+    () => watch(
+      [options.hydrated, () => options.tabIds.value.join('\u0000')],
+      ([hydrated]) => {
+        if (disposed || !hydrated) return
+        const validTabIds = new Set(options.tabIds.value)
+        const trackedTabIds = new Set([
+          ...Object.keys(activityByTab.value),
+          ...activeRequestsByTab.keys(),
+          ...lingerTimers.keys()
+        ])
+        for (const tabId of trackedTabIds) {
+          if (!validTabIds.has(tabId)) removeTab(tabId)
+        }
+      },
+      { immediate: true }
+    )
+  ], () => {
+    disposed = true
+    finishDisposal()
+  })
+
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    const callbacks = cleanupCallbacks
+    cleanupCallbacks = []
+    try {
+      disposeAll(callbacks)
+    } finally {
+      finishDisposal()
+    }
   }
 
   return { activityByTab, accept, dispose }

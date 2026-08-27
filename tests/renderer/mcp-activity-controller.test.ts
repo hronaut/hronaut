@@ -110,4 +110,43 @@ describe('MCP activity controller', () => {
     expect(harness.unsubscribe).toHaveBeenCalledOnce()
     expect(harness.controller.activityByTab.value).toEqual({})
   })
+
+  it('rolls back the native activity listener when tab tracking setup fails', () => {
+    const setupError = new Error('tab ids unavailable')
+    const unsubscribe = vi.fn()
+    const onMcpTabActivity = vi.fn(() => unsubscribe)
+    const tabIds = ref<readonly string[]>([])
+    Object.defineProperty(tabIds, 'value', {
+      configurable: true,
+      get() {
+        throw setupError
+      }
+    })
+
+    expect(() => useMcpActivityController({
+      api: { onMcpTabActivity },
+      tabIds,
+      hydrated: ref(true),
+      lingerMs: 100
+    })).toThrow(setupError)
+
+    expect(onMcpTabActivity).toHaveBeenCalledOnce()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('clears every activity resource when the native unsubscriber throws', () => {
+    const harness = createController()
+    harness.listener(activity('lingering', 'started'))
+    harness.listener(activity('lingering', 'finished'))
+    expect(vi.getTimerCount()).toBe(1)
+    expect(harness.controller.activityByTab.value['tab-1']).toBeDefined()
+    harness.unsubscribe.mockImplementationOnce(() => {
+      throw new Error('activity listener already closed')
+    })
+
+    expect(() => harness.controller.dispose()).toThrow('activity listener already closed')
+
+    expect(vi.getTimerCount()).toBe(0)
+    expect(harness.controller.activityByTab.value).toEqual({})
+  })
 })
