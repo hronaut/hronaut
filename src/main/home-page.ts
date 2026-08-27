@@ -61,7 +61,8 @@ function agentGuides(
       location: '~/.codex/config.toml',
       code: authenticationDisabled
         ? `codex mcp add hronaut --url ${endpoint}`
-        : `${tokenSetup}codex mcp add hronaut --url ${endpoint} --bearer-token-env-var HRONAUT_MCP_TOKEN`
+        : `${tokenSetup}codex mcp add hronaut --url ${endpoint} --bearer-token-env-var HRONAUT_MCP_TOKEN`,
+      verifyCommand: 'codex mcp list'
     },
     {
       id: 'claude-code',
@@ -70,7 +71,8 @@ function agentGuides(
       location: '~/.claude.json',
       code: authenticationDisabled
         ? `claude mcp add --transport http --scope user hronaut ${endpoint}`
-        : `${tokenSetup}claude mcp add --transport http --scope user --header "Authorization: Bearer $HRONAUT_MCP_TOKEN" hronaut ${endpoint}`
+        : `${tokenSetup}claude mcp add --transport http --scope user --header "Authorization: Bearer $HRONAUT_MCP_TOKEN" hronaut ${endpoint}`,
+      verifyCommand: 'claude mcp get hronaut'
     },
     {
       id: 'cursor',
@@ -456,9 +458,21 @@ export function renderHomePage(options: HomePageOptions): string {
 
     function renderGuide() {
       const guide = guides.find((item) => item.id === selectedGuide) || guides[0];
-      document.getElementById('agent-list').innerHTML = guides.map((item) =>
-        '<button class="agent-button ' + (item.id === guide.id ? 'active' : '') + '" type="button" data-guide="' + item.id + '">' + escapeText(item.name) + '</button>'
-      ).join('');
+      const agentList = document.getElementById('agent-list');
+      if (!agentList.childElementCount) {
+        agentList.innerHTML = guides.map((item) =>
+          '<button class="agent-button" type="button" data-guide="' + item.id + '" aria-pressed="false">' + escapeText(item.name) + '</button>'
+        ).join('');
+        agentList.querySelectorAll('[data-guide]').forEach((button) => button.addEventListener('click', () => {
+          selectedGuide = button.dataset.guide;
+          renderGuide();
+        }));
+      }
+      agentList.querySelectorAll('[data-guide]').forEach((button) => {
+        const active = button.dataset.guide === guide.id;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
       document.getElementById('guide-name').textContent = guide.name;
       document.getElementById('guide-note').textContent = guide.note;
       document.getElementById('guide-location').textContent = guide.location;
@@ -468,10 +482,6 @@ export function renderHomePage(options: HomePageOptions): string {
       verify.hidden = !guide.verifyCommand;
       verifyCommand.textContent = guide.verifyCommand || '';
       document.querySelectorAll('[data-copy-target^="guide-"]').forEach(resetCopyButton);
-      document.querySelectorAll('[data-guide]').forEach((button) => button.addEventListener('click', () => {
-        selectedGuide = button.dataset.guide;
-        renderGuide();
-      }));
     }
 
     function renderDashboard() {

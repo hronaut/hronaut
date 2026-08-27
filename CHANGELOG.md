@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Show copy-ready connection verification commands for Codex and Claude Code on Hronaut Home, matching the existing OpenCode and Gemini CLI guidance.
 - Advertise Hronaut's persistent-workspace, semantic-inspection, and human-handoff workflow through MCP server instructions during client initialization.
 - Let agents hover bounded viewport coordinates to reveal tooltips and hover states on canvas, WebGL, maps, remote desktops, and other visual-only surfaces.
 - Let agents drag between bounded viewport coordinates for canvas, maps, custom controls, remote desktops, and other pixel-precise targets.
@@ -14,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve keyboard focus when switching Hronaut Home setup guides and expose the selected client as an accessible pressed button.
 - Close About before opening Commercial license settings so the two modal surfaces never stack.
 - Keep Find cleanup running when a competing shell action throws synchronously.
 - Make the complete horizontal “Workspace” action, including its visible label, clickable instead of limiting its title-bar hit target to the plus icon.

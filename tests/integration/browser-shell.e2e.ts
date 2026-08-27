@@ -448,6 +448,34 @@ test('does not show stale Home copy success after switching setup guides', async
   expect(feedback).toEqual({ copyLabel: 'Copy', guideName: 'Gemini CLI' })
 })
 
+test('keeps keyboard focus and selection state when switching Home setup guides', async ({ electronApp }) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  )).toBe(true)
+
+  const selection = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(() => {
+      const button = document.querySelector('[data-guide="opencode"]');
+      button.focus();
+      button.click();
+      const selected = document.querySelector('[data-guide="opencode"]');
+      return {
+        activeGuide: document.activeElement?.dataset?.guide ?? null,
+        selected: selected?.getAttribute('aria-pressed') ?? null,
+        guideName: document.getElementById('guide-name').textContent
+      };
+    })()`)
+  })
+
+  expect(selection).toEqual({
+    activeGuide: 'opencode',
+    selected: 'true',
+    guideName: 'OpenCode'
+  })
+})
+
 test('shows an error status when the MCP port is already in use', async ({
   mcpPort,
   profileDirectory
