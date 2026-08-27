@@ -32,6 +32,7 @@ import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
+import { dispatchNativeDrag } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
 import { buildBrowserDebugReport, redactDiagnosticText, sanitizeConsoleMessage } from '../../shared/debug-report.js'
@@ -4051,32 +4052,9 @@ export class BrowserTabsManager {
     }
     await this.withAgentInput(webContents, () => this.withDebugger(
       webContents,
-      () => this.dispatchNativeDrag(webContents, from, to)
+      () => dispatchNativeDrag(webContents.debugger, from, to)
     ))
     return { ok: true, from, to }
-  }
-
-  private async dispatchNativeDrag(
-    webContents: BrowserTab['view']['webContents'],
-    from: { x: number; y: number },
-    to: { x: number; y: number }
-  ): Promise<void> {
-    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y })
-    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1
-    })
-    for (let step = 1; step <= 8; step += 1) {
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-        type: 'mouseMoved',
-        x: from.x + ((to.x - from.x) * step) / 8,
-        y: from.y + ((to.y - from.y) * step) / 8,
-        button: 'left',
-        buttons: 1
-      })
-    }
-    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
-      type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1
-    })
   }
 
   async resizeViewport(width: number | undefined, height: number | undefined, reset: boolean, tabId?: string): Promise<unknown> {
