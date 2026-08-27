@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-08-27
+
 ### Changed
 
 - Move panel-dock preference validation and persistence out of `App.vue` into a focused controller shared by shell layout behavior.
