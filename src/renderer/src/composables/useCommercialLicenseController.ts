@@ -35,11 +35,17 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
     errorMessage.value = ''
   }
 
+  function detachListener(): void {
+    const current = unsubscribe
+    unsubscribe = null
+    current?.()
+  }
+
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
     const currentGeneration = ++generation
     const initialRevision = revision
-    unsubscribe?.()
+    detachListener()
     unsubscribe = options.api.onChanged((next) => {
       if (generation === currentGeneration) accept(next)
     })
@@ -49,10 +55,19 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
-        unsubscribe?.()
-        unsubscribe = null
-        errorMessage.value = options.formatError(error)
-        throw error
+        const failures = [error]
+        try {
+          detachListener()
+        } catch (cleanupError) {
+          failures.push(cleanupError)
+        }
+        try {
+          errorMessage.value = options.formatError(error)
+        } catch (reportingError) {
+          failures.push(reportingError)
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'License initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
         if (generation === currentGeneration) initializePromise = null
@@ -104,10 +119,9 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
 
   function dispose(): void {
     generation += 1
-    unsubscribe?.()
-    unsubscribe = null
     initializePromise = null
     action.value = 'idle'
+    detachListener()
   }
 
   return {

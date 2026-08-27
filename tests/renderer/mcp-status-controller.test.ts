@@ -5,8 +5,12 @@ import type { HronautMcpApi, McpControlState } from '../../src/shared/types.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => { resolve = next })
-  return { promise, resolve }
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
 }
 
 function control(overrides: Partial<McpControlState> = {}): McpControlState {
@@ -16,12 +20,13 @@ function control(overrides: Partial<McpControlState> = {}): McpControlState {
 function createController(getState: () => Promise<McpControlState> = async () => control()) {
   let listener: ((state: McpControlState) => void) | undefined
   const setPaused = vi.fn(async (paused: boolean) => control({ status: paused ? 'paused' : 'ready', paused }))
+  const unsubscribe = vi.fn(() => { listener = undefined })
   const api: HronautMcpApi = {
     getState: vi.fn(getState),
     setPaused,
     onChanged: vi.fn((next: (state: McpControlState) => void) => {
       listener = next
-      return () => { listener = undefined }
+      return unsubscribe
     })
   }
   const copyText = vi.fn(async () => true)
@@ -34,7 +39,8 @@ function createController(getState: () => Promise<McpControlState> = async () =>
     endpoint,
     emit: (state: McpControlState) => listener?.(state),
     onPauseError,
-    setPaused
+    setPaused,
+    unsubscribe
   }
 }
 
@@ -147,5 +153,43 @@ describe('MCP status controller', () => {
     await expect(operation).resolves.toBe(false)
     expect(controller.copied.value).toBe(false)
     controller.dispose()
+  })
+
+  it('reports the MCP source error when listener cleanup also fails', async () => {
+    const initial = deferred<McpControlState>()
+    const sourceError = new Error('MCP status unavailable')
+    const { controller, onPauseError, unsubscribe } = createController(() => initial.promise)
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('MCP listener already closed')
+    })
+
+    const initializing = controller.initialize()
+    initial.reject(sourceError)
+    await expect(initializing).rejects.toThrow()
+
+    expect(onPauseError).toHaveBeenCalledWith(sourceError)
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('clears pending MCP feedback and pause state when listener disposal fails', async () => {
+    vi.useFakeTimers()
+    const pausing = deferred<McpControlState>()
+    const { controller, setPaused, unsubscribe } = createController()
+    await controller.initialize()
+    await controller.copyEndpoint()
+    setPaused.mockReturnValueOnce(pausing.promise)
+    const pauseOperation = controller.togglePaused()
+    expect(controller.copied.value).toBe(true)
+    expect(controller.pauseBusy.value).toBe(true)
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('MCP listener already closed')
+    })
+
+    expect(() => controller.dispose()).toThrow('MCP listener already closed')
+
+    expect(controller.copied.value).toBe(false)
+    expect(controller.pauseBusy.value).toBe(false)
+    pausing.resolve(control({ status: 'paused', paused: true }))
+    await expect(pauseOperation).resolves.toBe(false)
   })
 })

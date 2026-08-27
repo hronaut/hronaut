@@ -29,6 +29,7 @@ function createController(
   const activate = vi.fn(async () => license({ status: 'active', active: true, maskedKey: '••••-TEST' }))
   const refresh = vi.fn(async () => license({ status: 'active', active: true, maskedKey: '••••-TEST' }))
   const deactivate = vi.fn(async () => license())
+  const unsubscribe = vi.fn(() => { listener = undefined })
   const api: HronautLicenseApi = {
     getState: vi.fn(getState),
     activate,
@@ -38,7 +39,7 @@ function createController(
     onChanged: vi.fn((next: (state: CommercialLicenseState) => void) => {
       listener = next
       onSubscribe?.(next)
-      return () => { listener = undefined }
+      return unsubscribe
     })
   }
   const confirmDeactivate = vi.fn(() => true)
@@ -54,7 +55,8 @@ function createController(
     controller,
     deactivate,
     emit: (state: CommercialLicenseState) => listener?.(state),
-    refresh
+    refresh,
+    unsubscribe
   }
 }
 
@@ -126,5 +128,40 @@ describe('commercial license controller', () => {
 
     expect(deactivate).not.toHaveBeenCalled()
     controller.dispose()
+  })
+
+  it('shows the license source error when listener cleanup also fails', async () => {
+    const initial = deferred<CommercialLicenseState>()
+    const sourceError = new Error('license service unavailable')
+    const { controller, unsubscribe } = createController(() => initial.promise)
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('license listener already closed')
+    })
+
+    const initializing = controller.initialize()
+    initial.reject(sourceError)
+    await expect(initializing).rejects.toThrow()
+
+    expect(controller.errorMessage.value).toBe('license service unavailable')
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('clears a pending license action when listener disposal fails', async () => {
+    const activating = deferred<CommercialLicenseState>()
+    const { activate, controller, unsubscribe } = createController()
+    await controller.initialize()
+    activate.mockReturnValueOnce(activating.promise)
+    controller.keyDraft.value = 'ABCD-EFGH-IJKL-MNOP'
+    const activation = controller.activate()
+    expect(controller.action.value).toBe('activating')
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('license listener already closed')
+    })
+
+    expect(() => controller.dispose()).toThrow('license listener already closed')
+
+    expect(controller.action.value).toBe('idle')
+    activating.resolve(license({ status: 'active', active: true }))
+    await expect(activation).resolves.toBe(false)
   })
 })

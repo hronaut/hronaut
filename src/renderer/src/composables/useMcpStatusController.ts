@@ -29,11 +29,17 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     state.value = next
   }
 
+  function detachListener(): void {
+    const current = unsubscribe
+    unsubscribe = null
+    current?.()
+  }
+
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
     const currentGeneration = ++generation
     const initialRevision = revision
-    unsubscribe?.()
+    detachListener()
     unsubscribe = options.api.onChanged((next) => {
       if (generation === currentGeneration) accept(next)
     })
@@ -43,10 +49,19 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
-        unsubscribe?.()
-        unsubscribe = null
-        options.onPauseError(error)
-        throw error
+        const failures = [error]
+        try {
+          detachListener()
+        } catch (cleanupError) {
+          failures.push(cleanupError)
+        }
+        try {
+          options.onPauseError(error)
+        } catch (reportingError) {
+          failures.push(reportingError)
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'MCP initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
         if (generation === currentGeneration) initializePromise = null
@@ -95,13 +110,12 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   function dispose(): void {
     generation += 1
     copySequence += 1
-    unsubscribe?.()
-    unsubscribe = null
     initializePromise = null
     pauseBusy.value = false
     if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
     copiedTimer = undefined
     copied.value = false
+    detachListener()
   }
 
   return {
