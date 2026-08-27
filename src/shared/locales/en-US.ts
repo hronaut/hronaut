@@ -305,7 +305,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '7 clients',
+      clients: '8 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -317,6 +317,7 @@ export const enUS = {
         vscode: 'Save in the workspace, or use MCP: Open User Configuration for global access.',
         opencode: 'Adds Hronaut as a remote Streamable HTTP server in OpenCode.',
         geminiCli: 'Adds Hronaut as a user-scoped Streamable HTTP server in Gemini CLI.',
+        cline: 'Adds Hronaut to Cline with its recommended Streamable HTTP transport.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

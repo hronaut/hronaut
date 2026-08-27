@@ -62,6 +62,20 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+    const cline = renderedGuides(html).find((guide) => guide.id === 'cline')
+    expect(cline?.location).toBe('Cline MCP settings')
+    expect(cline?.verifyCommand).toBe('cline config mcp --json')
+    expect(JSON.parse(cline?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamableHttp',
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' },
+          disabled: false,
+          autoApprove: []
+        }
+      }
+    })
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -96,6 +110,18 @@ describe('Hronaut Home localization', () => {
         hronaut: {
           httpUrl: dashboard.endpoint,
           headers: { Authorization: `Bearer <paste token from ${tokenPath}>` }
+        }
+      }
+    })
+    const cline = renderedGuides(html).find((guide) => guide.id === 'cline')
+    expect(JSON.parse(cline?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamableHttp',
+          url: dashboard.endpoint,
+          headers: { Authorization: `Bearer <paste token from ${tokenPath}>` },
+          disabled: false,
+          autoApprove: []
         }
       }
     })
@@ -134,6 +160,27 @@ describe('Hronaut Home localization', () => {
 
     expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
       mcpServers: { hronaut: { httpUrl: dashboard.endpoint } }
+    })
+  })
+
+  it('renders Cline Streamable HTTP setup without an authentication header when local authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const cline = renderedGuides(html).find((guide) => guide.id === 'cline')
+
+    expect(JSON.parse(cline?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamableHttp',
+          url: dashboard.endpoint,
+          disabled: false,
+          autoApprove: []
+        }
+      }
     })
   })
 })

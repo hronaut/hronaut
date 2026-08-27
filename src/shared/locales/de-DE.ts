@@ -2556,7 +2556,7 @@ export const deDE = {
     "connect": {
       "heading": "Coding-Agenten verbinden",
       "description": "Wählen Sie einen Client, kopieren Sie die Einrichtung und erstellen Sie vor dem Surfen einen benannten Arbeitsbereich.",
-      "clients": "7 Clients",
+      "clients": "8 Clients",
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
@@ -2568,6 +2568,7 @@ export const deDE = {
         "vscode": "Im Arbeitsbereich speichern oder für globalen Zugriff MCP: Open User Configuration verwenden.",
         "opencode": "Fügt Hronaut in OpenCode als Remote-Streamable-HTTP-Server hinzu.",
         "geminiCli": "Fügt Hronaut als benutzerweiten Streamable-HTTP-Server in Gemini CLI hinzu.",
+        "cline": "Fügt Hronaut mit dem empfohlenen Streamable-HTTP-Transport zu Cline hinzu.",
         "generic": "Streamable HTTP verwenden und den Client direkt auf Hronaut verweisen.",
         "genericLocation": "MCP-Einstellungen des Clients"
       }

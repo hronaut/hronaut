@@ -55,11 +55,15 @@ export class CommercialLicenseStore {
   async load(): Promise<void> {
     try {
       const parsed = parsedState(JSON.parse(await readFile(this.path, 'utf8')))
-      if (parsed) this.value = parsed
+      if (parsed) {
+        this.value = parsed
+        return
+      }
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
     }
+    await this.persist()
   }
 
   installationName(): string {

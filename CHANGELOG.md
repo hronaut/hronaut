@@ -4,14 +4,20 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add localized, profile-aware Cline setup to Hronaut Home with explicit Streamable HTTP configuration, authentication-aware headers, approval-safe defaults, and a connection verification command.
+
 ### Changed
 
 - Extract responsive-preview and environment-emulation composition from `App.vue` into a focused feature controller.
+- Extract Downloads, Bookmarks, and History composition from `App.vue` into a focused browser-collections feature controller.
 
 ### Fixed
 
 - Make concurrent first-start MCP token loads converge on one atomically published owner-only token without temporary-file collisions or token replacement.
 - Include IPv6 cookie-only sites in browsing-data inventories without producing double-bracketed invalid origins.
+- Persist the anonymous commercial-license installation identity on first load so activation device names remain stable across restarts.
 
 ## [1.9.5] - 2026-08-27
 

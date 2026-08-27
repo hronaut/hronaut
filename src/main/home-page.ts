@@ -133,6 +133,24 @@ function agentGuides(
       verifyCommand: 'gemini mcp list'
     },
     {
+      id: 'cline',
+      name: 'Cline',
+      note: home.connect.guides.cline,
+      location: 'Cline MCP settings',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            type: 'streamableHttp',
+            url: endpoint,
+            ...(headers && { headers }),
+            disabled: false,
+            autoApprove: []
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'cline config mcp --json'
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,

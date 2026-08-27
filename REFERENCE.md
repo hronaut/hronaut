@@ -20,12 +20,17 @@ Project home: https://github.com/hronaut/hronaut
 
 ## Appearance
 
-Open **Settings** from the gear button in the top strip. Hronaut includes four application themes:
+Open **Settings** from the gear button in the top strip. Hronaut includes nine application themes:
 
 - **System** follows the operating system's light or dark appearance as it changes.
 - **Light** for a bright, neutral browser shell.
 - **Dark** for a low-glare browser shell.
+- **Midnight** for a deep blue-black browser shell.
+- **Sepia** for a warm paper-toned browser shell.
 - **Cyberpunk** for a neon cyan and magenta browser shell.
+- **Matrix** for a green terminal-inspired browser shell.
+- **Machine** for an industrial red and graphite browser shell.
+- **Galactic** for a space-inspired violet and blue browser shell.
 
 The selected theme is applied immediately and survives application restarts. System mode keeps Hronaut's renderer, native menus, and window background aligned with Electron's current operating-system theme. A fixed theme changes Hronaut's controls and native color preference without injecting styles into websites.
 
@@ -65,7 +70,7 @@ You can also check manually from Settings, the Hronaut application menu, or the 
 
 The dedicated **Home** application button sits outside the browser tab list and opens **Hronaut Home**, an internal dashboard that stays inside the persistent browser partition. It is app navigation, not a reserved browser tab. While Home is active, Hronaut keeps the top strip for switching to open websites but removes the website-only Back, Forward, address, and page-action row, giving the dashboard the reclaimed space. Application-wide Search tabs, Downloads, History, Hronaut lock, MCP, and Settings controls remain in the same top-strip positions on Home and websites; only page-specific navigation and tools appear beside the address. Hronaut keeps Home as a singleton: clicking the button focuses the existing Home page or recreates it if needed. Regular new tabs remain blank. Home provides:
 
-- Copy-ready setup instructions for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, OpenCode, Gemini CLI, and generic Streamable HTTP clients, including CLI verification commands where the client provides one.
+- Copy-ready setup instructions for Codex, Claude Code, Cursor, Cline, VS Code/GitHub Copilot, OpenCode, Gemini CLI, and generic Streamable HTTP clients, including CLI verification commands where the client provides one.
 - A live list of active requests and recently seen MCP clients.
 - The current browser tool catalog, grouped by session, navigation, interaction, and inspection.
 - A privacy-safe activity dashboard with recent tab actions, duration, outcome, and per-launch impact totals. It records no URLs, selectors, typed text, screenshots, or page content.

@@ -56,13 +56,12 @@ import { useShellOverlayCoordinationController } from './composables/useShellOve
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
+import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import {
   useShellKeyboardController,
   type ShellKeyboardSurface
 } from './composables/useShellKeyboardController'
 import { useTabNavigationController } from './composables/useTabNavigationController'
-import { useBrowserCollectionsController } from './composables/useBrowserCollectionsController'
-import { useBrowserCollectionsShellController } from './composables/useBrowserCollectionsShellController'
 import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
 import { useSiteStorageShellController } from './composables/useSiteStorageShellController'
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
@@ -182,23 +181,6 @@ const zoomOpen = ref(false)
 const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
 const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
 const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
-const downloadsOpen = ref(false)
-const browserCollectionsController = useBrowserCollectionsController({
-  downloadsApi: window.hronautDownloads,
-  bookmarksApi: window.hronautBookmarks,
-  historyApi: window.hronautHistory,
-  shouldAutoOpenDownloads: () => !settingsOpen.value,
-  openDownloads: () => (downloadsOpen.value = true)
-})
-const {
-  downloads,
-  bookmarks,
-  history: visitHistory
-} = browserCollectionsController
-const bookmarksOpen = ref(false)
-const bookmarksPanel = ref<InstanceType<typeof BookmarksPanel> | null>(null)
-const historyOpen = ref(false)
-const historyPanel = ref<InstanceType<typeof HistoryPanel> | null>(null)
 const siteStorageOpen = ref(false)
 const siteStoragePanel = ref<InstanceType<typeof SiteStoragePanel> | null>(null)
 const pageToolsOpen = ref(false)
@@ -332,25 +314,33 @@ const {
   close: closeSettings,
   toggle: toggleSettings
 } = settingsDialogController
+const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
+  browser,
+  downloadsApi: window.hronautDownloads,
+  bookmarksApi: window.hronautBookmarks,
+  historyApi: window.hronautHistory,
+  settingsOpen,
+  tabSearchOpen,
+  syncState
+})
 const {
+  browserCollectionsController,
+  downloads,
+  bookmarks,
+  visitHistory,
+  downloadsOpen,
+  bookmarksOpen,
+  bookmarksPanel,
+  historyOpen,
+  historyPanel,
   toggleDownloads,
   toggleBookmarks,
   toggleCurrentBookmark,
   toggleVisitHistory,
   openBookmark,
   openHistoryEntry,
-  dispose: disposeBrowserCollectionsShellController
-} = useBrowserCollectionsShellController({
-  settingsOpen,
-  downloadsOpen,
-  bookmarksOpen,
-  historyOpen,
-  tabSearchOpen,
-  bookmarksPanel,
-  historyPanel,
-  refreshDownloads: browserCollectionsController.refreshDownloads,
-  openUrl: (url) => syncState(browser.newTab({ url, active: true }))
-})
+  dispose: disposeAppBrowserCollectionsFeatureController
+} = browserCollectionsFeatureController
 const fullModalOpen = computed(() => settingsOpen.value
   || commandPaletteOpen.value
   || helpDialogOpen.value
@@ -698,7 +688,7 @@ const appBootstrapController = useAppBootstrapController({
     { id: 'settings', run: () => settingsStore.initialize() },
     { id: 'browser', run: () => browserStore.initialize() },
     ...settingsFeatureBootstrapTasks,
-    { id: 'collections', run: () => browserCollectionsController.initialize() }
+    { id: 'collections', run: browserCollectionsFeatureController.initialize }
   ],
   onFailure: reportAppBootstrapFailure
 })
@@ -1162,8 +1152,7 @@ useAppLifecycleController({
     disposeSiteControlsShellController,
     disposeSiteStorageShellController,
     disposeAppSettingsFeatureController,
-    disposeBrowserCollectionsShellController,
-    browserCollectionsController.dispose,
+    disposeAppBrowserCollectionsFeatureController,
     disposeAppPageToolsDiagnostics,
     disposeAppToastController
   ]

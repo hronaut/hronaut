@@ -2556,7 +2556,7 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "7 klientów",
+      "clients": "8 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
@@ -2568,6 +2568,7 @@ export const plPL = {
         "vscode": "Zapisz w obszarze roboczym lub użyj MCP: Open User Configuration, aby uzyskać dostęp globalny.",
         "opencode": "Dodaje Hronaut do OpenCode jako zdalny serwer strumieniowego HTTP.",
         "geminiCli": "Dodaje Hronaut jako serwer Streamable HTTP na poziomie użytkownika w Gemini CLI.",
+        "cline": "Dodaje Hronaut do Cline przez zalecany transport Streamable HTTP.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }

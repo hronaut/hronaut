@@ -24,6 +24,20 @@ async function createStore(): Promise<{ path: string; store: CommercialLicenseSt
 }
 
 describe('CommercialLicenseStore', () => {
+  it('keeps a stable anonymous installation name before activation', async () => {
+    const { path, store } = await createStore()
+    const installationName = store.installationName()
+
+    const restarted = new CommercialLicenseStore(path, encryption)
+    await restarted.load()
+
+    expect(restarted.installationName()).toBe(installationName)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({
+      version: 1,
+      installationId: expect.any(String)
+    })
+  })
+
   it('persists the license key encrypted and exposes only a suffix', async () => {
     const { path, store } = await createStore()
     await store.saveActivation('ABCD-EFGH-IJKL-MNOP', {
