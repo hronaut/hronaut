@@ -56,6 +56,10 @@ import {
 } from './mcp/server.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { McpPauseState } from './mcp-pause-state.js'
+import {
+  stageMcpRuntimeCandidate,
+  synchronizeMcpRuntimeCandidate
+} from './mcp-runtime-candidate.js'
 import { DEFAULT_SETTINGS, isThemeName, SettingsStore } from './settings-store.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -3481,7 +3485,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   if (port === mcpPort && mcpRuntimeStatus === 'ready') return { ...settings }
 
   const candidate = createRuntimeMcpServer(port)
-  candidate.setPaused(mcpPauseState.paused)
+  stageMcpRuntimeCandidate(candidate)
   try {
     await candidate.start()
   } catch (error) {
@@ -3496,6 +3500,10 @@ async function setMcpPort(port: number): Promise<AppSettings> {
     throw error
   }
 
+  synchronizeMcpRuntimeCandidate(candidate, () => ({
+    paused: mcpPauseState.paused,
+    authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
+  }))
   const previous = mcpServer
   mcpServer = candidate
   mcpPort = port
@@ -3523,11 +3531,11 @@ async function resetMcpSettings(): Promise<AppSettings> {
     return { ...settings }
   }
 
-  // Keep the candidate listener under the current authentication policy until both settings have committed.
-  // A bind or persistence failure therefore leaves the current runtime and
-  // settings untouched instead of applying half of the reset.
+  // Keep the candidate listener paused until both reset settings have
+  // committed. A bind or persistence failure therefore leaves the current
+  // runtime and settings untouched instead of applying half of the reset.
   const candidate = createRuntimeMcpServer(DEFAULT_MCP_PORT, settings.mcpAuthentication)
-  candidate.setPaused(mcpPauseState.paused)
+  stageMcpRuntimeCandidate(candidate)
   try {
     await candidate.start()
   } catch (error) {
@@ -3547,7 +3555,10 @@ async function resetMcpSettings(): Promise<AppSettings> {
     throw error
   }
 
-  candidate.setAuthenticationToken(undefined)
+  synchronizeMcpRuntimeCandidate(candidate, () => ({
+    paused: mcpPauseState.paused,
+    authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
+  }))
   const previous = mcpServer
   mcpServer = candidate
   mcpPort = DEFAULT_MCP_PORT

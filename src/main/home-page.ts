@@ -125,8 +125,7 @@ function agentGuides(
       code: JSON.stringify({
         mcpServers: {
           hronaut: {
-            url: endpoint,
-            type: 'http',
+            httpUrl: endpoint,
             ...(headers && { headers })
           }
         }

@@ -5084,17 +5084,39 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
       document.querySelector('[data-guide="opencode"]')?.click();
-      return {
+      const result = {
         heading: document.querySelector('h1')?.textContent,
         agents: [...document.querySelectorAll('[data-guide]')].map((node) => node.textContent),
         tools: document.querySelectorAll('.tool').length,
         activeCount: document.getElementById('active-count')?.textContent,
         requestCount: document.getElementById('request-count')?.textContent,
         verifyCommand: document.getElementById('guide-verify-command')?.textContent,
-        verifyHidden: document.getElementById('guide-verify')?.hidden
+        verifyHidden: document.getElementById('guide-verify')?.hidden,
+        geminiConfig: null
       };
+      document.querySelector('[data-guide="gemini-cli"]')?.click();
+      result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      return result;
     })()`)
-  }) as { heading: string; agents: string[]; tools: number; activeCount: string; requestCount: string; verifyCommand: string; verifyHidden: boolean }
+  }) as {
+    heading: string
+    agents: string[]
+    tools: number
+    activeCount: string
+    requestCount: string
+    verifyCommand: string
+    verifyHidden: boolean
+    geminiConfig: {
+      mcpServers?: {
+        hronaut?: {
+          httpUrl?: string
+          url?: string
+          type?: string
+          headers?: { Authorization?: string }
+        }
+      }
+    }
+  }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
   expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
@@ -5102,6 +5124,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
   expect(homeContent.verifyCommand).toBe('opencode mcp list')
   expect(homeContent.verifyHidden).toBe(false)
+  expect(homeContent.geminiConfig.mcpServers?.hronaut).toEqual({
+    httpUrl: `http://127.0.0.1:${mcpPort}/mcp`
+  })
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

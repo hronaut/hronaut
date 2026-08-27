@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Move settings, update, MCP, license, privacy, permission, credential, download, performance, and search feature composition out of `App.vue` into a focused controller.
+
+### Fixed
+
+- Keep replacement MCP listeners paused while port or reset settings are staging, then apply the latest pause and authentication state atomically at cutover.
+- Generate Gemini CLI Streamable HTTP setup with its documented `httpUrl` schema so copied Hronaut Home configuration connects successfully.
+
 ## [1.9.3] - 2026-08-27
 
 ### Changed

@@ -39,28 +39,17 @@ import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
+import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
 import { useDiagnosticsController } from './composables/useDiagnosticsController'
-import { useCredentialsController } from './composables/useCredentialsController'
-import { useDownloadSettingsController } from './composables/useDownloadSettingsController'
 import { useEnvironmentPanelController } from './composables/useEnvironmentPanelController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
-import { useMcpSettingsController } from './composables/useMcpSettingsController'
 import { useMcpActivityController } from './composables/useMcpActivityController'
-import { useMcpStatusController } from './composables/useMcpStatusController'
 import { usePageCaptureController } from './composables/usePageCaptureController'
 import { usePageExportController } from './composables/usePageExportController'
 import { useDiagnosticLogPreservationController } from './composables/useDiagnosticLogPreservationController'
-import { usePerformanceSettingsController } from './composables/usePerformanceSettingsController'
-import { usePrivacySettingsController } from './composables/usePrivacySettingsController'
-import { useSearchSettingsController } from './composables/useSearchSettingsController'
-import { useSettingsDialogController } from './composables/useSettingsDialogController'
-import { useSettingsSectionResetController } from './composables/useSettingsSectionResetController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
-import { useSitePermissionsController } from './composables/useSitePermissionsController'
-import { useCommercialLicenseController } from './composables/useCommercialLicenseController'
-import { useUpdateSettingsController } from './composables/useUpdateSettingsController'
 import { useAddressBarController } from './composables/useAddressBarController'
 import { usePanelDockLayout } from './composables/usePanelDockLayout'
 import { usePanelDockPreferenceController } from './composables/usePanelDockPreferenceController'
@@ -101,7 +90,6 @@ import { usePageToolsPresentationController } from './composables/usePageToolsPr
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
-import { useUpdateNoticePresentationController } from './composables/useUpdateNoticePresentationController'
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
@@ -197,48 +185,6 @@ const {
   keepsSeparatePanelOpen,
   persistDock: persistPanelDock
 } = usePanelDockPreferenceController({ detachedWindow: isDetachedPanelWindow })
-const sitePermissionsController = useSitePermissionsController({
-  api: window.hronautPermissions,
-  translate: (key) => t(key),
-  onError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.settingNotSaved'),
-    friendlyUiError(error, t('runtime.toast.settingKept'))
-  )
-})
-const {
-  entries: sitePermissions,
-  busy: sitePermissionsBusy,
-  initialize: initializeSitePermissions,
-  replace: replaceSitePermissions,
-  setDecision: setSitePermissionDecision,
-  remove: removeSitePermission,
-  clear: clearSitePermissions,
-  dispose: disposeSitePermissionsController
-} = sitePermissionsController
-const credentialsController = useCredentialsController({
-  api: window.hronautCredentials,
-  initializingReason: t('runtime.initializingStorage'),
-  missingCredentialMessage: t('runtimeActions.credential.noLongerExists'),
-  formatError: (error) => friendlyUiError(error, t('runtime.toast.passwordRemoveDescription')),
-  onRemoved: () => showAppToast(
-    'success',
-    t('runtime.toast.passwordRemoved'),
-    t('runtime.toast.passwordRemovedDescription')
-  ),
-  onError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.passwordRemoveFailed'),
-    friendlyUiError(error, t('runtime.toast.passwordRemoveDescription'))
-  )
-})
-const {
-  entries: credentials,
-  storage: credentialStorage,
-  initialize: initializeCredentials,
-  replace: replaceCredentials,
-  dispose: disposeCredentialsController
-} = credentialsController
 const credentialPickerOpen = ref(false)
 const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
 const shell = ref<HTMLElement | null>(null)
@@ -315,20 +261,6 @@ const {
 } = environmentController
 const workspaceEditorOpen = ref(false)
 const workspaceEditor = ref<InstanceType<typeof WorkspaceEditor> | null>(null)
-const privacySettingsController = usePrivacySettingsController({
-  api: window.hronautBrowsingData,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
-  confirm: (message) => window.confirm(message),
-  formatNumber: localNumber
-})
-const {
-  search: janitorSearch,
-  refresh: refreshPrivacySettings,
-  resetSelection: resetPrivacySelection,
-  dispose: disposePrivacySettingsController
-} = privacySettingsController
 const siteControlsOpen = ref(false)
 const siteDataController = useSiteDataSummaryController({
   current: () => activeTab.value && activeWebUrl.value
@@ -341,133 +273,6 @@ const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
 const commandPaletteOpen = ref(false)
 const commandPalette = ref<InstanceType<typeof CommandPalette> | null>(null)
 const browserTabsBar = ref<InstanceType<typeof BrowserTabsBar> | null>(null)
-const updateNoticeOpen = ref(false)
-const updateSettingsController = useUpdateSettingsController({
-  api: window.hronautUpdates,
-  settings,
-  setCheckOnStartup: (enabled) => settingsStore.setCheckForUpdatesOnStartup(enabled),
-  onCheckStarted: () => (updateNoticeOpen.value = true),
-  onStateAccepted: (next) => {
-    if (
-      next.status === 'available'
-      || next.status === 'downloading'
-      || next.status === 'downloaded'
-      || next.status === 'up-to-date'
-      || next.status === 'error'
-      || next.status === 'install-error'
-    ) updateNoticeOpen.value = true
-  },
-  onSettingError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.settingNotSaved'),
-    friendlyUiError(error, t('runtime.toast.settingKept'))
-  ),
-  onActionError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.actionFailed'),
-    friendlyUiError(error, t('runtime.toast.actionFailed'))
-  )
-})
-const {
-  state: updateState,
-  busy: updateSettingsBusy,
-  initialize: initializeUpdateSettings,
-  reset: resetUpdateSettings,
-  dispose: disposeUpdateSettingsController
-} = updateSettingsController
-const commercialLicenseController = useCommercialLicenseController({
-  api: window.hronautLicense,
-  confirmDeactivate: () => window.confirm(t('runtimeDetails.deactivate')),
-  emptyKeyMessage: () => t('runtime.license.enterKey'),
-  formatError: (error) => error instanceof Error ? error.message : String(error)
-})
-const {
-  initialize: initializeCommercialLicense,
-  dispose: disposeCommercialLicenseController
-} = commercialLicenseController
-const mcpStatusController = useMcpStatusController({
-  api: window.hronautMcp,
-  endpoint: computed(() => state.value.mcpUrl),
-  copyText: copyAppText,
-  onPauseError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.actionFailed'),
-    friendlyUiError(error, t('runtime.toast.actionFailed'))
-  )
-})
-const {
-  state: mcpControl,
-  initialize: initializeMcpStatus,
-  togglePaused: toggleMcpPaused,
-  dispose: disposeMcpStatusController
-} = mcpStatusController
-const defaultDownloadDirectory = ref('')
-const downloadSettingsController = useDownloadSettingsController({
-  api: window.hronautSettings,
-  settings,
-  defaultDirectory: defaultDownloadDirectory,
-  applySettings: applyTheme,
-  translate: (key) => t(key)
-})
-const {
-  busy: downloadSettingsBusy,
-  reset: resetDownloadSettings,
-  dispose: disposeDownloadSettingsController
-} = downloadSettingsController
-const performanceSettingsController = usePerformanceSettingsController({
-  settings,
-  browserState: state,
-  setEnabled: (enabled) => settingsStore.setMemorySaverEnabled(enabled),
-  setTimeout: (minutes) => settingsStore.setMemorySaverTimeoutMinutes(minutes),
-  resetSettings: () => settingsStore.resetMemorySaver(),
-  sleepInactiveTabs: () => browser.sleepInactiveTabs(),
-  syncBrowserState: (operation) => browserStore.syncOperation(operation),
-  formatError: (error, operation) => friendlyUiError(
-    error,
-    t(operation === 'saving' ? 'runtime.toast.settingKept' : 'runtime.toast.actionFailed')
-  ),
-  onError: (error, operation) => showAppToast(
-    'error',
-    t(operation === 'saving' ? 'runtime.toast.settingNotSaved' : 'runtime.toast.actionFailed'),
-    friendlyUiError(error, t(operation === 'saving' ? 'runtime.toast.settingKept' : 'runtime.toast.actionFailed'))
-  )
-})
-const {
-  busy: performanceSettingsBusy,
-  reset: resetPerformanceSettings,
-  dispose: disposePerformanceSettingsController
-} = performanceSettingsController
-const mcpSettingsController = useMcpSettingsController({
-  settings,
-  endpoint: computed(() => state.value.mcpUrl),
-  listenerFailed: computed(() => mcpControl.value.status === 'error'),
-  setAuthentication: (enabled) => settingsStore.setMcpAuthentication(enabled),
-  setPort: (port) => settingsStore.setMcpPort(port),
-  resetSettings: () => settingsStore.resetMcp(),
-  confirmDisableAuthentication: () => window.confirm(t('runtimeActions.mcp.disableConfirm')),
-  translate: (key, parameters) => t(key, parameters ?? {}),
-  formatPortError: (error) => error instanceof Error ? error.message : String(error),
-  onAuthenticationError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.settingNotSaved'),
-    friendlyUiError(error, t('runtime.toast.settingKept'))
-  )
-})
-const {
-  busy: mcpSettingsBusy,
-  reset: resetMcpSettings,
-  dispose: disposeMcpSettingsController
-} = mcpSettingsController
-const searchSettingsController = useSearchSettingsController({
-  settings,
-  setSearchEngine: (searchEngine) => settingsStore.setSearchEngine(searchEngine),
-  onError: handleExtractedSettingError
-})
-const {
-  busy: searchSettingsBusy,
-  reset: resetSearchSettings,
-  dispose: disposeSearchSettingsController
-} = searchSettingsController
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
   translate: (key) => t(key)
@@ -478,50 +283,75 @@ const {
   close: closeHelpDialog,
   dispose: disposeHelpDialogController
 } = helpDialogController
-const { reset: resetSettingsSection } = useSettingsSectionResetController({
-  resetAppearance: async () => { await settingsStore.resetAppearance(); return true },
-  resetSearch: resetSearchSettings,
-  resetDownloads: resetDownloadSettings,
-  resetPerformance: resetPerformanceSettings,
-  resetPrivacySelection,
-  clearSitePermissions,
-  resetMcp: resetMcpSettings,
-  resetUpdates: resetUpdateSettings
-})
-const settingsDialogController = useSettingsDialogController({
-  beforeOpen: () => {
-    commandPaletteOpen.value = false
-    closeHelpDialog()
-    closeTransientPanels()
+const appSettingsFeatureController = useAppSettingsFeatureController({
+  settings,
+  browserState: state,
+  settingsStore,
+  syncBrowserState: browserStore.syncOperation,
+  apis: {
+    browser,
+    browsingData: window.hronautBrowsingData,
+    settings: window.hronautSettings,
+    mcp: window.hronautMcp,
+    permissions: window.hronautPermissions,
+    credentials: window.hronautCredentials,
+    updates: window.hronautUpdates,
+    license: window.hronautLicense
   },
-  resetSection: resetSettingsSection,
-  isResetDisabled: (section) => (
-    (section === 'search' && searchSettingsBusy.value)
-    || (section === 'downloads' && downloadSettingsBusy.value)
-    || (section === 'performance' && performanceSettingsBusy.value)
-    || (section === 'privacy' && privacySettingsController.clearing.value)
-    || (section === 'permissions' && sitePermissionsBusy.value)
-    || (section === 'mcp' && mcpSettingsBusy.value)
-    || (section === 'updates' && updateSettingsBusy.value)
-  ),
-  onResetError: handleExtractedSettingError
+  commandPaletteOpen,
+  closeHelpDialog,
+  closeTransientPanels,
+  applyTheme,
+  copyText: copyAppText,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  confirm: (message) => window.confirm(message),
+  showToast: showAppToast,
+  onSettingError: handleExtractedSettingError
 })
+const {
+  updateNoticeOpen,
+  sitePermissionsController,
+  credentialsController,
+  privacySettingsController,
+  updateSettingsController,
+  commercialLicenseController,
+  mcpStatusController,
+  downloadSettingsController,
+  performanceSettingsController,
+  mcpSettingsController,
+  searchSettingsController,
+  settingsDialogController,
+  showUpdateStatusPill,
+  bootstrapTasks: settingsFeatureBootstrapTasks,
+  dispose: disposeAppSettingsFeatureController
+} = appSettingsFeatureController
+const {
+  entries: sitePermissions,
+  replace: replaceSitePermissions,
+  setDecision: setSitePermissionDecision,
+  remove: removeSitePermission
+} = sitePermissionsController
+const {
+  entries: credentials,
+  storage: credentialStorage,
+  replace: replaceCredentials
+} = credentialsController
+const {
+  search: janitorSearch,
+  refresh: refreshPrivacySettings
+} = privacySettingsController
+const { state: updateState } = updateSettingsController
+const { togglePaused: toggleMcpPaused } = mcpStatusController
 const {
   open: settingsOpen,
   section: settingsSection,
   openSection: openSettingsSection,
   close: closeSettings,
-  toggle: toggleSettings,
-  dispose: disposeSettingsDialogController
+  toggle: toggleSettings
 } = settingsDialogController
-const {
-  showStatusPill: showUpdateStatusPill,
-  dispose: disposeUpdateNoticePresentationController
-} = useUpdateNoticePresentationController({
-  open: updateNoticeOpen,
-  settingsOpen,
-  state: updateState
-})
 const {
   toggleDownloads,
   toggleBookmarks,
@@ -990,20 +820,7 @@ const appBootstrapController = useAppBootstrapController({
   tasks: [
     { id: 'settings', run: () => settingsStore.initialize() },
     { id: 'browser', run: () => browserStore.initialize() },
-    { id: 'updates', run: initializeUpdateSettings },
-    { id: 'license', run: initializeCommercialLicense },
-    { id: 'mcp', run: initializeMcpStatus },
-    {
-      id: 'download-directory',
-      run: async () => {
-        defaultDownloadDirectory.value = await window.hronautSettings.getDefaultDownloadDirectory()
-      }
-    },
-    { id: 'permissions', run: () => initializeSitePermissions(window.hronautPermissions.list()) },
-    {
-      id: 'credentials',
-      run: () => initializeCredentials(window.hronautCredentials.status(), window.hronautCredentials.list())
-    },
+    ...settingsFeatureBootstrapTasks,
     { id: 'collections', run: () => browserCollectionsController.initialize() }
   ],
   onFailure: reportAppBootstrapFailure
@@ -1515,25 +1332,14 @@ useAppLifecycleController({
     disposeDetachedPanelRefreshController,
     disposePanelWindowSyncController,
     disposePanelWindowEventsController,
-    disposeUpdateNoticePresentationController,
     disposePageCaptureController,
     disposePageExportController,
     disposeDiagnosticLogPreservationController,
-    disposeDownloadSettingsController,
-    disposePerformanceSettingsController,
-    disposeMcpSettingsController,
-    disposeSearchSettingsController,
     disposeHelpDialogController,
-    disposeSettingsDialogController,
     disposePrivacySettingsShellController,
     disposeSiteControlsShellController,
     disposeSiteStorageShellController,
-    disposeUpdateSettingsController,
-    disposeCommercialLicenseController,
-    disposeMcpStatusController,
-    disposePrivacySettingsController,
-    disposeSitePermissionsController,
-    disposeCredentialsController,
+    disposeAppSettingsFeatureController,
     disposeBrowserCollectionsShellController,
     browserCollectionsController.dispose,
     disposeDeveloperPanelsShellController,

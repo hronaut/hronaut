@@ -94,8 +94,7 @@ describe('Hronaut Home localization', () => {
     expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
       mcpServers: {
         hronaut: {
-          url: dashboard.endpoint,
-          type: 'http',
+          httpUrl: dashboard.endpoint,
           headers: { Authorization: `Bearer <paste token from ${tokenPath}>` }
         }
       }
@@ -134,7 +133,7 @@ describe('Hronaut Home localization', () => {
     const gemini = renderedGuides(html).find((guide) => guide.id === 'gemini-cli')
 
     expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
-      mcpServers: { hronaut: { url: dashboard.endpoint, type: 'http' } }
+      mcpServers: { hronaut: { httpUrl: dashboard.endpoint } }
     })
   })
 })

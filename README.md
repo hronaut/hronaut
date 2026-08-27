@@ -68,7 +68,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home also includes Gemini CLI and contains the current profile-specific version for every client, including the right endpoint and authentication settings.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every client, including the right endpoint and authentication settings.
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
@@ -106,7 +106,7 @@ Start Hronaut, then verify the connection with `opencode mcp list`. If MCP authe
 
 ### Gemini CLI
 
-Hronaut Home generates the current user-level `~/.gemini/settings.json` entry with Streamable HTTP and authentication-aware headers. After saving it, run `gemini mcp list` to verify that Hronaut is connected. See Gemini CLI's [official MCP server guide](https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md) for configuration scope, transport, and diagnostic details.
+Hronaut Home generates the current user-level `~/.gemini/settings.json` entry with Gemini CLI's documented `httpUrl` field and authentication-aware headers. After saving it, run `gemini mcp list` to verify that Hronaut is connected. The public [Gemini CLI browser MCP guide](https://hronaut.dev/gemini-cli-browser-mcp) covers setup, observable verification, browser-lifecycle tradeoffs, and security boundaries. See Gemini CLI's [official v0.57.0 MCP server guide](https://github.com/google-gemini/gemini-cli/blob/v0.57.0/docs/tools/mcp-server.md#L152-L174) for the verified configuration schema.
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 
