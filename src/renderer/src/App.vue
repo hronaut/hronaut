@@ -66,13 +66,12 @@ import { useTabSearchShellController } from './composables/useTabSearchShellCont
 import { useZoomShellController } from './composables/useZoomShellController'
 import { useAppCommandPaletteFeatureController } from './composables/useAppCommandPaletteFeatureController'
 import { useUiActionController } from './composables/useUiActionController'
-import { useAppBootstrapController } from './composables/useAppBootstrapController'
+import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
-import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 
@@ -643,20 +642,17 @@ const { dispose: disposeActiveTabContextController } = useActiveTabContextContro
     rememberWebsiteTab(tab)
   }
 })
-const appBootstrapController = useAppBootstrapController({
+const {
+  start: startAppStartupRecovery,
+  dispose: disposeAppStartupFeatureController
+} = useAppStartupFeatureController({
   tasks: [
     { id: 'settings', run: () => settingsStore.initialize() },
     { id: 'browser', run: () => browserStore.initialize() },
     ...settingsFeatureBootstrapTasks,
     { id: 'collections', run: browserCollectionsFeatureController.initialize }
   ],
-  onFailure: reportAppBootstrapFailure
-})
-const {
-  start: startAppStartupRecovery,
-  dispose: disposeAppStartupRecoveryController
-} = useStartupRecoveryController({
-  initialize: appBootstrapController.initialize,
+  onFailure: reportAppBootstrapFailure,
   onAttemptSettled: () => {
     void nextTick().then(reportShellHeight)
   },
@@ -981,14 +977,13 @@ useAppLifecycleController({
     startAppStartupRecovery()
   },
   disposers: [
-    disposeAppStartupRecoveryController,
+    disposeAppStartupFeatureController,
     disposeMcpActivityController,
     disposeShellOverlayCoordinationController,
     disposeActiveTabContextController,
     disposeAppEmulationFeatureController,
     disposeBrowserShortcutController,
     disposeUiActionController,
-    appBootstrapController.dispose,
     browserStore.dispose,
     settingsStore.dispose,
     disposeAppEventsController,

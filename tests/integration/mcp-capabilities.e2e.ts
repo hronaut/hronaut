@@ -619,7 +619,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(accessibilityAudit).toMatchObject({
       tabId,
       standard: 'wcag-aa',
-      engine: { name: 'axe-core', version: '4.12.1' }
+      engine: { name: 'axe-core', version: '4.13.0' }
     })
     expect(accessibilityAudit.violationCount).toBeGreaterThan(0)
     expect(accessibilityAudit.violations).toEqual(expect.arrayContaining([
@@ -723,7 +723,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       tabId,
       action: 'measure',
       scope: 'current-visit',
-      engine: { name: 'web-vitals', version: '6.1.0' },
+      engine: { name: 'web-vitals', version: '6.2.1' },
       resources: { count: expect.any(Number) },
       longTasks: { count: expect.any(Number) },
       longAnimationFrames: {

@@ -7,10 +7,13 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Extract shell appearance, custom title-bar, detached-panel, tab-rail, and panel-dock presentation composition from `App.vue` into a focused feature controller.
+- Extract startup task aggregation, bounded recovery, and coordinated teardown from `App.vue` into a focused feature controller.
+- Update the embedded accessibility and performance audit engines to axe-core 4.13.0 and web-vitals 6.2.1.
 
 ### Fixed
 
 - Recover from malformed profile MCP token files by generating one new owner-only token instead of leaving Hronaut running without a window or MCP listener.
+- Keep simultaneous same-named website downloads in distinct collision-safe files instead of silently overwriting one response.
 
 ## [1.9.6] - 2026-08-28
 

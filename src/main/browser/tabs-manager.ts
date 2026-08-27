@@ -856,6 +856,7 @@ export class BrowserTabsManager {
   private readonly webContentsToTab = new Map<number, string>()
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
+  private readonly reservedDownloadPaths = new Set<string>()
   private readonly debuggerQueues = new Map<number, Promise<void>>()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaiters = new Map<string, Set<BrowserNetworkWaiter>>()
@@ -5688,6 +5689,7 @@ export class BrowserTabsManager {
     this.mcpActivitiesByTab.clear()
     this.webContentsToTab.clear()
     this.downloadItems.clear()
+    this.reservedDownloadPaths.clear()
     this.debuggerQueues.clear()
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)
@@ -8548,14 +8550,19 @@ export class BrowserTabsManager {
         }
         const id = randomUUID()
         const tabId = webContents ? this.webContentsToTab.get(webContents.id) : undefined
-        const suggestedPath = this.availableDownloadPath(item.getFilename())
-        if (this.options.askWhereToSaveDownloads) {
-          item.setSaveDialogOptions({
-            title: this.text('native.dialog.saveDownload'),
-            defaultPath: suggestedPath
-          })
-        } else {
-          item.setSavePath(suggestedPath)
+        const suggestedPath = this.reserveAvailableDownloadPath(item.getFilename())
+        try {
+          if (this.options.askWhereToSaveDownloads) {
+            item.setSaveDialogOptions({
+              title: this.text('native.dialog.saveDownload'),
+              defaultPath: suggestedPath
+            })
+          } else {
+            item.setSavePath(suggestedPath)
+          }
+        } catch (error) {
+          this.reservedDownloadPaths.delete(suggestedPath)
+          throw error
         }
         const download: BrowserDownloadState = {
           id,
@@ -8579,6 +8586,7 @@ export class BrowserTabsManager {
           this.notifyDownloadsChanged()
         })
         item.once('done', (_downloadEvent, state) => {
+          this.reservedDownloadPaths.delete(suggestedPath)
           download.state = state
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
@@ -8592,15 +8600,20 @@ export class BrowserTabsManager {
     }
   }
 
-  private availableDownloadPath(filename: string): string {
+  private reserveAvailableDownloadPath(filename: string): string {
     const safeFilename = basename(filename) || 'download'
     const direct = join(this.options.downloadDirectory, safeFilename)
-    if (!existsSync(direct)) return direct
+    if (!existsSync(direct) && !this.reservedDownloadPaths.has(direct)) {
+      this.reservedDownloadPaths.add(direct)
+      return direct
+    }
     const extension = extname(safeFilename)
     const stem = safeFilename.slice(0, safeFilename.length - extension.length)
     for (let index = 1; index <= 9_999; index += 1) {
       const candidate = join(this.options.downloadDirectory, `${stem} (${index})${extension}`)
-      if (!existsSync(candidate)) return candidate
+      if (existsSync(candidate) || this.reservedDownloadPaths.has(candidate)) continue
+      this.reservedDownloadPaths.add(candidate)
+      return candidate
     }
     throw new Error(`Could not allocate a unique download path for ${safeFilename}`)
   }
