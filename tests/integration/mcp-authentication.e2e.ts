@@ -1,9 +1,33 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { get } from 'node:http'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+test('repairs a malformed profile token before starting the browser and MCP listener', async ({
+  profileDirectory,
+  mcpPort
+}) => {
+  const tokenPath = join(profileDirectory, 'mcp-token')
+  await writeFile(tokenPath, 'truncated-token\n', 'utf8')
+
+  const instance = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    const repairedToken = (await readFile(tokenPath, 'utf8')).trim()
+    expect(repairedToken).toMatch(/^[A-Za-z0-9_-]{32,}$/)
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).status
+      } catch {
+        return 0
+      }
+    }).toBe(200)
+    await expect(instance.window.getByRole('button', { name: 'Home' })).toBeVisible()
+  } finally {
+    await closeHronaut(instance.app)
+  }
+})
 
 test('starts without MCP authentication and can enable or disable it in Settings', async ({
   appWindow,

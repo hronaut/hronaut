@@ -4,20 +4,24 @@ import { dirname } from 'node:path'
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,}$/
 
+class InvalidMcpTokenFileError extends Error {}
+
 export interface McpTokenConfiguration {
   token: string
   tokenPath?: string
   source: 'environment' | 'profile'
 }
 
+const profileTokenLoads = new Map<string, Promise<McpTokenConfiguration>>()
+
 async function readProfileToken(path: string): Promise<McpTokenConfiguration> {
   const token = (await readFile(path, 'utf8')).trim()
-  if (!TOKEN_PATTERN.test(token)) throw new Error(`Invalid MCP token file: ${path}`)
+  if (!TOKEN_PATTERN.test(token)) throw new InvalidMcpTokenFileError(`Invalid MCP token file: ${path}`)
   await chmod(path, 0o600)
   return { token, tokenPath: path, source: 'profile' }
 }
 
-async function removeTemporaryToken(path: string): Promise<void> {
+async function removeFileIfPresent(path: string): Promise<void> {
   try {
     await unlink(path)
   } catch (error) {
@@ -25,18 +29,12 @@ async function removeTemporaryToken(path: string): Promise<void> {
   }
 }
 
-export async function loadMcpToken(path: string, environmentToken?: string): Promise<McpTokenConfiguration> {
-  if (environmentToken) {
-    if (!TOKEN_PATTERN.test(environmentToken)) {
-      throw new Error('HRONAUT_MCP_TOKEN must contain at least 32 URL-safe characters')
-    }
-    return { token: environmentToken, source: 'environment' }
-  }
-
+async function loadProfileMcpToken(path: string): Promise<McpTokenConfiguration> {
   try {
     return await readProfileToken(path)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    if (error instanceof InvalidMcpTokenFileError) await removeFileIfPresent(path)
+    else if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }
 
   const token = randomBytes(32).toString('base64url')
@@ -53,10 +51,30 @@ export async function loadMcpToken(path: string, environmentToken?: string): Pro
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
     }
   } finally {
-    await removeTemporaryToken(temporaryPath)
+    await removeFileIfPresent(temporaryPath)
   }
 
   return createdProfileToken
     ? { token, tokenPath: path, source: 'profile' }
     : readProfileToken(path)
+}
+
+export async function loadMcpToken(path: string, environmentToken?: string): Promise<McpTokenConfiguration> {
+  if (environmentToken) {
+    if (!TOKEN_PATTERN.test(environmentToken)) {
+      throw new Error('HRONAUT_MCP_TOKEN must contain at least 32 URL-safe characters')
+    }
+    return { token: environmentToken, source: 'environment' }
+  }
+
+  const existingLoad = profileTokenLoads.get(path)
+  if (existingLoad) return existingLoad
+
+  const load = loadProfileMcpToken(path)
+  profileTokenLoads.set(path, load)
+  try {
+    return await load
+  } finally {
+    if (profileTokenLoads.get(path) === load) profileTokenLoads.delete(path)
+  }
 }

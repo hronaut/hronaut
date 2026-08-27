@@ -4076,6 +4076,10 @@ test('shows a native webpage context menu and suppresses it while human interact
     await new Promise((resolve) => setTimeout(resolve, 800))
 
     await rightClick('#link')
+    await expect.poll(contextMenuItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'reload', label: 'Reload' }),
+      expect.objectContaining({ id: 'save-link', label: 'Save Link' })
+    ]))
     const staleTabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)') as string
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(staleTabId)})`)
     await electronApp.evaluate(() => {

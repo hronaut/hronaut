@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -21,6 +21,22 @@ describe('loadMcpToken', () => {
     expect(created).toEqual(loaded)
     expect(created.token).toMatch(/^[A-Za-z0-9_-]{32,}$/)
     expect((await readFile(path, 'utf8')).trim()).toBe(created.token)
+    if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+
+  it('coalesces concurrent repair of a malformed profile token instead of preventing startup', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-token-corrupt-'))
+    temporaryDirectories.push(directory)
+    const path = join(directory, 'mcp-token')
+    await writeFile(path, 'truncated-token\n', 'utf8')
+
+    const loaded = await Promise.all(Array.from({ length: 20 }, () => loadMcpToken(path)))
+
+    expect(new Set(loaded.map(({ token }) => token))).toHaveProperty('size', 1)
+    expect(loaded.every(({ source, tokenPath }) => source === 'profile' && tokenPath === path)).toBe(true)
+    expect(loaded[0]!.token).toMatch(/^[A-Za-z0-9_-]{32,}$/)
+    expect((await readFile(path, 'utf8')).trim()).toBe(loaded[0]!.token)
+    expect(await readdir(directory)).toEqual(['mcp-token'])
     if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
   })
 

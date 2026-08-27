@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Extract shell appearance, custom title-bar, detached-panel, tab-rail, and panel-dock presentation composition from `App.vue` into a focused feature controller.
+
+### Fixed
+
+- Recover from malformed profile MCP token files by generating one new owner-only token instead of leaving Hronaut running without a window or MCP listener.
+
 ## [1.9.6] - 2026-08-28
 
 ### Added

@@ -43,7 +43,7 @@ import { useAppPanelFeatureController } from './composables/useAppPanelFeatureCo
 import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppSiteManagementFeatureController } from './composables/useAppSiteManagementFeatureController'
-import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
+import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
 import { useMcpActivityController } from './composables/useMcpActivityController'
@@ -51,7 +51,6 @@ import { useDiagnosticLogPreservationController } from './composables/useDiagnos
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useAddressBarController } from './composables/useAddressBarController'
 import { usePanelDockLayout } from './composables/usePanelDockLayout'
-import { usePanelDockPreferenceController } from './composables/usePanelDockPreferenceController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
@@ -73,9 +72,7 @@ import { useShellFeedbackController } from './composables/useShellFeedbackContro
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
-import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
-import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 
@@ -134,17 +131,9 @@ const {
   detachedPanelId,
   isDetachedPanelWindow,
   panelLabel: detachedPanelLabel,
-  setActivePanelTitle: setDetachedPanelTitle
-} = useDetachedPanelPresentationController({
-  search: window.location.search,
-  translate: (key, params) => params ? t(key, params) : t(key),
-  targetDocument: document
-})
-const {
+  setActivePanelTitle: setDetachedPanelTitle,
   overlayEnabled: customTitleBar,
-  syncGeometry: syncTitleBarGeometry
-} = useTitleBarPresentationController(window.hronautShell.windowChrome)
-const {
+  syncGeometry: syncTitleBarGeometry,
   tabRailWidth,
   tabOrientation,
   compactVerticalTabRail,
@@ -157,13 +146,18 @@ const {
   updateViewportWidth,
   revealVerticalTabRail,
   concealVerticalTabRail,
-  handleVerticalTabRailFocusOut
-} = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
-const {
+  handleVerticalTabRailFocusOut,
   panelDock,
   keepsSeparatePanelOpen,
   persistDock: persistPanelDock
-} = usePanelDockPreferenceController({ detachedWindow: isDetachedPanelWindow })
+} = useAppShellPresentationFeatureController({
+  settings,
+  systemTheme,
+  search: window.location.search,
+  translate: (key, params) => params ? t(key, params) : t(key),
+  targetDocument: document,
+  windowChrome: window.hronautShell.windowChrome
+})
 const credentialPickerOpen = ref(false)
 const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
 const shell = ref<HTMLElement | null>(null)
