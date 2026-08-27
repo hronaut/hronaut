@@ -66,6 +66,16 @@ function agentGuides(
   const kiloHeaders = authenticationDisabled
     ? undefined
     : { Authorization: tokenPath ? `Bearer {file:${tokenPath}}` : 'Bearer {env:HRONAUT_MCP_TOKEN}' }
+  const devinHeaders = authenticationDisabled
+    ? undefined
+    : {
+        Authorization: tokenPath
+          ? `Bearer \${file:${tokenPath}}`
+          : `Bearer ${tokenPlaceholder}`
+      }
+  const zedHeaders = authenticationDisabled
+    ? { Authorization: 'Hronaut local-no-auth' }
+    : headers
   return [
     {
       id: 'codex',
@@ -186,6 +196,37 @@ function agentGuides(
         }
       }, null, 2),
       verifyCommand: '/mcp'
+    },
+    {
+      id: 'devin-local',
+      name: 'Devin Local',
+      note: home.connect.guides.devinLocal,
+      location: windows ? '%APPDATA%\\devin\\mcp_config.json' : '~/.config/devin/mcp_config.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            url: endpoint,
+            transport: 'http',
+            ...(devinHeaders && { headers: devinHeaders })
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'devin mcp list && devin mcp get hronaut'
+    },
+    {
+      id: 'zed',
+      name: 'Zed',
+      note: home.connect.guides.zed,
+      location: 'Zed user settings.json',
+      code: JSON.stringify({
+        context_servers: {
+          hronaut: {
+            url: endpoint,
+            headers: zedHeaders
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'Settings → AI → MCP Servers: Server is active'
     },
     {
       id: 'generic',

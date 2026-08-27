@@ -7,6 +7,10 @@ describe('MCP HTTP authentication', () => {
     expect(mcpRequestAuthorized(token, undefined)).toBe(false)
     expect(mcpRequestAuthorized(token, 'Bearer wrong')).toBe(false)
     expect(mcpRequestAuthorized(token, `Bearer ${token}`)).toBe(true)
+    expect(mcpRequestAuthorized(token, `bearer ${token}`)).toBe(true)
+    expect(mcpRequestAuthorized(token, `BEARER  ${token}`)).toBe(true)
+    expect(mcpRequestAuthorized(token, `bearer ${token}extra`)).toBe(false)
+    expect(mcpRequestAuthorized(token, `Bearer\t${token}`)).toBe(false)
   })
 
   it('allows requests when authentication is explicitly disabled', () => {

@@ -4,14 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.6] - 2026-08-28
+
 ### Added
 
+- Add localized, profile-aware Zed setup to Hronaut Home with its remote `context_servers` schema, explicit non-OAuth marker for unprotected profiles, and live status verification.
+- Add localized, profile-aware Devin Local setup to Hronaut Home with current user-scoped configuration, owner-token file interpolation, and connection verification commands.
 - Add localized, profile-aware JetBrains Junie setup to Hronaut Home using the user-level MCP configuration shared by Junie CLI and JetBrains IDEs.
 - Add localized, profile-aware Kilo Code setup to Hronaut Home with trusted token-file references and a connection verification command.
 - Add localized, profile-aware Cline setup to Hronaut Home with explicit Streamable HTTP configuration, authentication-aware headers, approval-safe defaults, and a connection verification command.
 
 ### Changed
 
+- Extract workspace-editor visibility and create, edit, and close routing from `App.vue` into a focused shell controller.
 - Refresh patch-level application dependencies and expand release/setup-feedback client discoverability for current MCP clients.
 - Extract app-level keyboard surface priority and shortcut composition from `App.vue` into a focused feature controller.
 - Extract application command-palette routing from `App.vue` into a focused feature controller.
@@ -21,6 +26,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Accept the case-insensitive HTTP `Bearer` authentication scheme used by standards-compliant MCP clients.
 - Recover with safe defaults when profile persistence files contain a valid JSON value with the wrong shape instead of failing Hronaut startup.
 - Make a first-instance `--quit` request exit cleanly instead of launching a new Hronaut window and MCP listener.
 - Keep launch-only MCP port overrides separate from saved preferences so unrelated settings changes cannot persist the temporary port.

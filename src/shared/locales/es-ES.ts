@@ -2556,7 +2556,7 @@ export const esES = {
     "connect": {
       "heading": "Conecta tu agente de programación",
       "description": "Elige un cliente, copia la configuración y crea un espacio de trabajo con nombre antes de navegar.",
-      "clients": "10 clientes",
+      "clients": "12 clientes",
       "agentsLabel": "Agentes de programación",
       "instructions": "Instrucciones de configuración",
       "copy": "Copiar",
@@ -2571,6 +2571,8 @@ export const esES = {
         "cline": "Añade Hronaut a Cline con el transporte HTTP Streamable recomendado.",
         "kilo": "Añade Hronaut como servidor HTTP Streamable remoto compartido por Kilo Code.",
         "jetbrainsJunie": "Añade Hronaut a la configuración MCP de usuario compartida por Junie CLI y los IDE de JetBrains.",
+        "devinLocal": "Añade Hronaut a la configuración de usuario utilizada por Devin Local y las nuevas pestañas de Devin Desktop.",
+        "zed": "Añade Hronaut como servidor remoto personalizado para Zed Agent y agentes externos reenviados mediante ACP.",
         "generic": "Usa HTTP transmitible y dirige el cliente directamente a Hronaut.",
         "genericLocation": "Ajustes MCP del cliente"
       }

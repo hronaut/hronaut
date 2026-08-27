@@ -77,6 +77,7 @@ import { useDetachedPanelPresentationController } from './composables/useDetache
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
+import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -211,8 +212,13 @@ const {
   toggleEnvironment,
   dispose: disposeAppEmulationFeatureController
 } = appEmulationFeatureController
-const workspaceEditorOpen = ref(false)
-const workspaceEditor = ref<InstanceType<typeof WorkspaceEditor> | null>(null)
+const {
+  open: workspaceEditorOpen,
+  panel: workspaceEditor,
+  openExisting: openTabGroupEditor,
+  openNew: openNewWorkspaceEditor,
+  close: closeWorkspaceEditor
+} = useWorkspaceEditorShellController()
 const siteControlsOpen = ref(false)
 const siteDataController = useSiteDataSummaryController({
   current: () => activeTab.value && activeWebUrl.value
@@ -894,18 +900,6 @@ const detachedPanelUnavailable = computed(() => (
 const detachedPanelLabelText = computed(() => (
   activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
 ))
-async function openTabGroupEditor(groupId: string): Promise<void> {
-  await workspaceEditor.value?.openExisting(groupId)
-}
-
-async function openNewWorkspaceEditor(): Promise<void> {
-  await workspaceEditor.value?.openNew()
-}
-
-function closeWorkspaceEditor(): void {
-  workspaceEditor.value?.close()
-}
-
 const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCoordinationController({
   layoutSources: [
     settingsOpen,

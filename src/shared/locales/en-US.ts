@@ -305,7 +305,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '10 clients',
+      clients: '12 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -320,6 +320,8 @@ export const enUS = {
         cline: 'Adds Hronaut to Cline with its recommended Streamable HTTP transport.',
         kilo: 'Adds Hronaut as a remote Streamable HTTP server shared by Kilo Code surfaces.',
         jetbrainsJunie: 'Adds Hronaut to the user-level MCP configuration shared by Junie CLI and JetBrains IDEs.',
+        devinLocal: 'Adds Hronaut to the user-level configuration used by Devin Local and new Devin Desktop tabs.',
+        zed: 'Adds Hronaut as a custom remote server for Zed Agent and ACP-forwarded external agents.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

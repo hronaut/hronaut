@@ -307,7 +307,7 @@ export const ukUA = {
     connect: {
       heading: 'Під’єднайте агента програмування',
       description: 'Виберіть клієнт, скопіюйте налаштування, а потім створіть іменований робочий простір перед переглядом.',
-      clients: '10 клієнтів',
+      clients: '12 клієнтів',
       agentsLabel: 'Агенти програмування',
       instructions: 'Інструкції з налаштування',
       copy: 'Копіювати',
@@ -322,6 +322,8 @@ export const ukUA = {
         cline: 'Додає Hronaut до Cline через рекомендований транспорт Streamable HTTP.',
         kilo: 'Додає Hronaut як віддалений сервер Streamable HTTP для клієнтів Kilo Code.',
         jetbrainsJunie: 'Додає Hronaut до користувацької конфігурації MCP, спільної для Junie CLI та IDE JetBrains.',
+        devinLocal: 'Додає Hronaut до користувацької конфігурації Devin Local і нових вкладок Devin Desktop.',
+        zed: 'Додає Hronaut як власний віддалений сервер для Zed Agent і зовнішніх агентів через ACP.',
         generic: 'Використовуйте потоковий HTTP і спрямуйте клієнт безпосередньо на Hronaut.',
         genericLocation: 'Налаштування MCP клієнта'
       }

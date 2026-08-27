@@ -13,6 +13,7 @@ test('starts without MCP authentication and can enable or disable it in Settings
 }) => {
   const health = `http://127.0.0.1:${mcpPort}/healthz`
   const authorization = { authorization: `Bearer ${mcpToken}` }
+  const lowercaseAuthorization = { authorization: `bearer ${mcpToken}` }
   const healthStatus = (headers?: Record<string, string>, url = health): Promise<number> => new Promise((resolve) => {
     const request = get(url, { headers, agent: false }, (response) => {
       response.resume()
@@ -32,6 +33,7 @@ test('starts without MCP authentication and can enable or disable it in Settings
   await authentication.check()
   await expect.poll(() => healthStatus()).toBe(401)
   await expect.poll(() => healthStatus(authorization)).toBe(200)
+  await expect.poll(() => healthStatus(lowercaseAuthorization)).toBe(200)
   await expect
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpAuthentication)
     .toBe(true)

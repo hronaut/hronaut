@@ -132,7 +132,9 @@ export interface McpDashboardState {
 }
 
 export function mcpRequestAuthorized(configuredToken: string | undefined, authorization: string | undefined): boolean {
-  return configuredToken === undefined || authorization === `Bearer ${configuredToken}`
+  if (configuredToken === undefined) return true
+  const bearer = authorization?.match(/^Bearer +(\S+)$/i)
+  return bearer?.[1] === configuredToken
 }
 
 export function assertMcpToolRegistrationContract(

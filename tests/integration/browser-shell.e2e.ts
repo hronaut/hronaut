@@ -5103,7 +5103,11 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         kiloConfig: null,
         kiloVerifyCommand: null,
         junieConfig: null,
-        junieVerifyCommand: null
+        junieVerifyCommand: null,
+        devinConfig: null,
+        devinVerifyCommand: null,
+        zedConfig: null,
+        zedVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
@@ -5113,6 +5117,12 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       document.querySelector('[data-guide="jetbrains-junie"]')?.click();
       result.junieConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
       result.junieVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="devin-local"]')?.click();
+      result.devinConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      result.devinVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="zed"]')?.click();
+      result.zedConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      result.zedVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -5154,9 +5164,28 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       }
     }
     junieVerifyCommand: string
+    devinConfig: {
+      mcpServers?: {
+        hronaut?: {
+          url?: string
+          transport?: string
+          headers?: { Authorization?: string }
+        }
+      }
+    }
+    devinVerifyCommand: string
+    zedConfig: {
+      context_servers?: {
+        hronaut?: {
+          url?: string
+          headers?: { Authorization?: string }
+        }
+      }
+    }
+    zedVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kilo Code', 'JetBrains Junie', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -5176,6 +5205,16 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     url: `http://127.0.0.1:${mcpPort}/mcp`
   })
   expect(homeContent.junieVerifyCommand).toBe('/mcp')
+  expect(homeContent.devinConfig.mcpServers?.hronaut).toEqual({
+    url: `http://127.0.0.1:${mcpPort}/mcp`,
+    transport: 'http'
+  })
+  expect(homeContent.devinVerifyCommand).toBe('devin mcp list && devin mcp get hronaut')
+  expect(homeContent.zedConfig.context_servers?.hronaut).toEqual({
+    url: `http://127.0.0.1:${mcpPort}/mcp`,
+    headers: { Authorization: 'Hronaut local-no-auth' }
+  })
+  expect(homeContent.zedVerifyCommand).toBe('Settings → AI → MCP Servers: Server is active')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

@@ -37,6 +37,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
+    expect(html).toContain('12 clients')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -82,6 +83,29 @@ describe('Hronaut Home localization', () => {
     expect(junie?.verifyCommand).toBe('/mcp')
     expect(JSON.parse(junie?.code ?? '{}')).toEqual({
       mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
+        }
+      }
+    })
+    const devin = renderedGuides(html).find((guide) => guide.id === 'devin-local')
+    expect(devin?.location).toBe('~/.config/devin/mcp_config.json')
+    expect(devin?.verifyCommand).toBe('devin mcp list && devin mcp get hronaut')
+    expect(JSON.parse(devin?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          transport: 'http',
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
+        }
+      }
+    })
+    const zed = renderedGuides(html).find((guide) => guide.id === 'zed')
+    expect(zed?.location).toBe('Zed user settings.json')
+    expect(zed?.verifyCommand).toBe('Settings → AI → MCP Servers: Server is active')
+    expect(JSON.parse(zed?.code ?? '{}')).toEqual({
+      context_servers: {
         hronaut: {
           url: dashboard.endpoint,
           headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
@@ -166,6 +190,26 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+    const devin = renderedGuides(html).find((guide) => guide.id === 'devin-local')
+    expect(JSON.parse(devin?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          transport: 'http',
+          headers: { Authorization: `Bearer \${file:${tokenPath}}` }
+        }
+      }
+    })
+    expect(devin?.code).not.toContain('<paste token')
+    const zed = renderedGuides(html).find((guide) => guide.id === 'zed')
+    expect(JSON.parse(zed?.code ?? '{}')).toEqual({
+      context_servers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: `Bearer <paste token from ${tokenPath}>` }
+        }
+      }
+    })
   })
 
   it('renders PowerShell-safe authenticated CLI guides on Windows', () => {
@@ -215,6 +259,44 @@ describe('Hronaut Home localization', () => {
 
     expect(JSON.parse(junie?.code ?? '{}')).toEqual({
       mcpServers: { hronaut: { url: dashboard.endpoint } }
+    })
+  })
+
+  it('renders Devin Local user setup without an authentication header when local authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const devin = renderedGuides(html).find((guide) => guide.id === 'devin-local')
+
+    expect(JSON.parse(devin?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          transport: 'http'
+        }
+      }
+    })
+  })
+
+  it('renders the Zed OAuth-bypass marker only while Hronaut authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const zed = renderedGuides(html).find((guide) => guide.id === 'zed')
+
+    expect(JSON.parse(zed?.code ?? '{}')).toEqual({
+      context_servers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Hronaut local-no-auth' }
+        }
+      }
     })
   })
 
@@ -276,5 +358,24 @@ describe('Hronaut Home localization', () => {
     }
 
     expect(config.mcp?.hronaut?.headers?.Authorization).toBe(`Bearer {file:${tokenPath}}`)
+  })
+
+  it('uses the Windows Devin Local path and keeps owner-token file interpolation local', () => {
+    const tokenPath = "C:\\Users\\Yevhen O'Brien\\AppData\\Roaming\\Hronaut\\mcp-token"
+    const guides = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      tokenPath,
+      platform: 'win32'
+    }))
+    const devin = guides.find((guide) => guide.id === 'devin-local')
+    const config = JSON.parse(devin?.code ?? '{}') as {
+      mcpServers?: { hronaut?: { headers?: { Authorization?: string } } }
+    }
+
+    expect(devin?.location).toBe('%APPDATA%\\devin\\mcp_config.json')
+    expect(config.mcpServers?.hronaut?.headers?.Authorization).toBe(`Bearer \${file:${tokenPath}}`)
+    expect(devin?.code).not.toContain('<paste token')
   })
 })

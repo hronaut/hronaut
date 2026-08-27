@@ -2556,7 +2556,7 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "10 klientów",
+      "clients": "12 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
@@ -2571,6 +2571,8 @@ export const plPL = {
         "cline": "Dodaje Hronaut do Cline przez zalecany transport Streamable HTTP.",
         "kilo": "Dodaje Hronaut jako zdalny serwer Streamable HTTP współdzielony przez Kilo Code.",
         "jetbrainsJunie": "Dodaje Hronaut do konfiguracji MCP użytkownika współdzielonej przez Junie CLI i środowiska JetBrains IDE.",
+        "devinLocal": "Dodaje Hronaut do konfiguracji użytkownika używanej przez Devin Local i nowe karty Devin Desktop.",
+        "zed": "Dodaje Hronaut jako niestandardowy serwer zdalny dla Zed Agent i agentów zewnętrznych przekazywanych przez ACP.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }

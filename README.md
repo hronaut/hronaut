@@ -2,7 +2,7 @@
 
 Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
 
-[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [JetBrains Junie guide](https://hronaut.dev/jetbrains-junie-browser-mcp) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
+[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Zed guide](https://hronaut.dev/zed-browser-mcp) · [Devin Local guide](https://hronaut.dev/devin-local-browser-mcp) · [JetBrains Junie guide](https://hronaut.dev/jetbrains-junie-browser-mcp) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
 
@@ -68,7 +68,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, JetBrains Junie, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every client, including the right endpoint and authentication settings.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, JetBrains Junie, Devin Local, Zed, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every client, including the right endpoint and authentication settings.
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
@@ -119,6 +119,14 @@ Hronaut Home generates Kilo Code's global `~/.config/kilo/kilo.jsonc` remote MCP
 ### JetBrains Junie
 
 Hronaut Home generates Junie's user-level `~/.junie/mcp/mcp.json` remote MCP entry for the current local endpoint. The same configuration is shared by Junie CLI and Junie in JetBrains IDEs. Open Junie's `/mcp` screen to verify that Hronaut is active. When authentication is enabled, Hronaut uses a copy-safe token placeholder rather than displaying the owner token; paste the token locally and do not commit it in a project-scoped `.junie/mcp/mcp.json`. See the [focused JetBrains Junie browser MCP guide](https://hronaut.dev/jetbrains-junie-browser-mcp) and Junie's [official MCP configuration guide](https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html).
+
+### Devin Local
+
+Hronaut Home generates Devin Local's user-level `~/.config/devin/mcp_config.json` entry on macOS and Linux or `%APPDATA%\devin\mcp_config.json` on Windows. It uses the current HTTP transport and, when authentication is enabled, references Hronaut's owner-token file without embedding the token in JSON. Run `devin mcp list` and `devin mcp get hronaut` to verify the saved server. This local setup also serves the default agent in new Devin Desktop tabs; Cloud Devin cannot reach Hronaut's loopback endpoint. See the [focused Devin Local browser MCP guide](https://hronaut.dev/devin-local-browser-mcp) and Devin's [official MCP configuration guide](https://docs.devin.ai/cli/extensibility/mcp/configuration).
+
+### Zed
+
+Hronaut Home generates Zed's user-level `context_servers` entry for the current loopback endpoint. For an unprotected Hronaut profile it includes a non-secret local marker header, preventing Zed from starting an OAuth flow that Hronaut does not implement; protected profiles receive a copy-safe owner-token placeholder instead. Verify the live server through **Settings → AI → MCP Servers** and confirm its green **Server is active** status. Zed Agent uses the server directly and can forward it to external ACP agents, while terminal threads use their CLI's own MCP configuration. See the [focused Zed browser MCP guide](https://hronaut.dev/zed-browser-mcp) and Zed's [official MCP documentation](https://zed.dev/docs/ai/mcp).
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 
