@@ -18,6 +18,14 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('ignores a bookmark file containing JSON null', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(store.load()).resolves.toEqual([])
+  })
+
   it('atomically persists, restores, renames, and removes bookmarks', async () => {
     const { path, store } = await createStore()
     const first = await store.add({ url: 'https://example.com/docs', title: '  Example   docs  ' })

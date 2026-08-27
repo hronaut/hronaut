@@ -58,7 +58,9 @@ export class BookmarkStore {
   async load(): Promise<BrowserBookmark[]> {
     this.entries.clear()
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedBookmarks>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      const value = parsed as Partial<PersistedBookmarks>
       if (value.version !== 1 || !Array.isArray(value.bookmarks)) return []
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()

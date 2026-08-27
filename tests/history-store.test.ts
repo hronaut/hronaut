@@ -18,6 +18,13 @@ async function storeAt(now = Date.UTC(2026, 7, 13)): Promise<{ path: string; sto
 }
 
 describe('HistoryStore', () => {
+  it('ignores a history file containing JSON null', async () => {
+    const { path, store } = await storeAt()
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(store.load()).resolves.toEqual([])
+  })
+
   it('normalizes safe web addresses and removes credentials and fragments', () => {
     expect(normalizeHistoryUrl('https://user:secret@example.com/path?q=1#private')).toBe('https://example.com/path?q=1')
     expect(normalizeHistoryUrl('hronaut://home/')).toBeNull()

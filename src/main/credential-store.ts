@@ -69,7 +69,9 @@ export class CredentialStore {
   async load(): Promise<CredentialSummary[]> {
     this.entries.clear()
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedCredentialVault>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      const value = parsed as Partial<PersistedCredentialVault>
       if (value.version !== 1 || !Array.isArray(value.credentials)) return []
       const accounts = new Map<string, PersistedCredential>()
       let repairedPersistedVault = false

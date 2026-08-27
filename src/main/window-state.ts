@@ -27,7 +27,9 @@ export class WindowStateStore {
 
   async load(): Promise<SavedWindowState | null> {
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<SavedWindowState>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+      const value = parsed as Partial<SavedWindowState>
       if (!isRectangle(value.bounds) || !Number.isFinite(value.displayId)) return null
       return {
         bounds: value.bounds,

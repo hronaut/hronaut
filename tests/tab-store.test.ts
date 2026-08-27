@@ -205,5 +205,7 @@ describe('TabStateStore', () => {
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, '{not json', 'utf8')
     expect(await store.load()).toBeNull()
+    await writeFile(path, 'null\n', 'utf8')
+    expect(await store.load()).toBeNull()
   })
 })

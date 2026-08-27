@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -22,6 +22,14 @@ async function createStore(credentialEncryption: CredentialEncryption = encrypti
 }
 
 describe('CredentialStore', () => {
+  it('ignores a credential vault containing JSON null', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(store.load()).resolves.toEqual([])
+  })
+
   it('persists encrypted passwords and exposes metadata only', async () => {
     const { path, store } = await createStore()
     const saved = await store.save('https://example.com/login', 'person@example.com', 'correct horse battery staple')

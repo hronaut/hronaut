@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley } from '@foleyjs/core'
-import { computed, nextTick, ref, type Ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -58,10 +58,7 @@ import { useAppEventsController } from './composables/useAppEventsController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
-import {
-  useShellKeyboardController,
-  type ShellKeyboardSurface
-} from './composables/useShellKeyboardController'
+import { useAppShellKeyboardFeatureController } from './composables/useAppShellKeyboardFeatureController'
 import { useTabNavigationController } from './composables/useTabNavigationController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useFindShellController } from './composables/useFindShellController'
@@ -80,10 +77,6 @@ import { useDetachedPanelPresentationController } from './composables/useDetache
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
-
-function refKeyboardSurface(open: Ref<boolean>, close: () => void = () => (open.value = false)): ShellKeyboardSurface {
-  return { isOpen: () => open.value, close }
-}
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -471,26 +464,11 @@ const {
   elementPickerMode,
   areaCaptureState,
   toggleElementPicker,
-  cancelActiveElementPicker,
   toggleAreaCapture,
   pageSnapshotState,
   pdfExportState,
   copyPageSnapshot,
   saveActivePdf,
-  accessibilityPanelOpen,
-  qualityAuditPanelOpen,
-  performancePanelOpen,
-  designOverviewPanelOpen,
-  pageMetadataPanelOpen,
-  securityPanelOpen,
-  coveragePanelOpen,
-  cpuProfilePanelOpen,
-  memoryPanelOpen,
-  debugReportPanelOpen,
-  reproPanelOpen,
-  domChangesPanelOpen,
-  visualComparePanelOpen,
-  inspectorIssuesOpen,
   pageToolsLabels,
   activeNetworkRouteCount,
   activeInspectorIssueCount,
@@ -773,55 +751,33 @@ const {
   run: runBrowserShortcut,
   dispose: disposeBrowserShortcutController
 } = browserShortcutController
-const shellKeyboardController = useShellKeyboardController({
+const shellKeyboardController = useAppShellKeyboardFeatureController({
   allInteractionLocked: () => state.value.allHumanInteractionLocked,
-  commandPalette: refKeyboardSurface(commandPaletteOpen),
-  modalSurfaces: [
-    refKeyboardSurface(workspaceEditorOpen, closeWorkspaceEditor),
-    refKeyboardSurface(credentialPickerOpen),
-    refKeyboardSurface(helpDialogOpen, closeHelpDialog),
-    refKeyboardSurface(settingsOpen, closeSettings)
-  ],
-  escapeSurfaces: [
-    refKeyboardSurface(siteStorageOpen),
-    refKeyboardSurface(siteControlsOpen),
-    refKeyboardSurface(addressSuggestionsOpen),
-    refKeyboardSurface(findOpen, () => { void closeFind() }),
-    refKeyboardSurface(tabSearchOpen),
-    refKeyboardSurface(splitMenuOpen),
-    refKeyboardSurface(zoomOpen),
-    refKeyboardSurface(downloadsOpen),
-    refKeyboardSurface(bookmarksOpen, () => bookmarksPanel.value?.handleEscape()),
-    refKeyboardSurface(historyOpen),
-    refKeyboardSurface(pageToolsOpen),
-    refKeyboardSurface(accessibilityPanelOpen),
-    refKeyboardSurface(qualityAuditPanelOpen),
-    refKeyboardSurface(performancePanelOpen),
-    refKeyboardSurface(designOverviewPanelOpen),
-    refKeyboardSurface(pageMetadataPanelOpen),
-    refKeyboardSurface(securityPanelOpen),
-    refKeyboardSurface(coveragePanelOpen),
-    refKeyboardSurface(cpuProfilePanelOpen),
-    refKeyboardSurface(memoryPanelOpen),
-    refKeyboardSurface(consolePanelOpen),
-    refKeyboardSurface(debugReportPanelOpen),
-    refKeyboardSurface(reproPanelOpen),
-    refKeyboardSurface(domChangesPanelOpen),
-    refKeyboardSurface(visualComparePanelOpen),
-    refKeyboardSurface(inspectorIssuesOpen),
-    refKeyboardSurface(networkMonitorOpen),
-    refKeyboardSurface(responsivePanelOpen, () => responsivePanel.value?.handleEscape()),
-    refKeyboardSurface(environmentPanelOpen),
-    {
-      isOpen: () => areaCaptureState.value === 'picking',
-      close: () => { void toggleAreaCapture() }
-    },
-    {
-      isOpen: () => elementPickerState.value === 'picking',
-      close: () => { void cancelActiveElementPicker() }
-    },
-    refKeyboardSurface(updateNoticeOpen)
-  ],
+  commandPalette: commandPaletteOpen,
+  modals: {
+    workspaceEditor: { open: workspaceEditorOpen, close: closeWorkspaceEditor },
+    credentialPicker: credentialPickerOpen,
+    helpDialog: { open: helpDialogOpen, close: closeHelpDialog },
+    settings: { open: settingsOpen, close: closeSettings }
+  },
+  overlays: {
+    siteStorage: siteStorageOpen,
+    siteControls: siteControlsOpen,
+    addressSuggestions: addressSuggestionsOpen,
+    find: { open: findOpen, close: () => { void closeFind() } },
+    tabSearch: tabSearchOpen,
+    splitMenu: splitMenuOpen,
+    zoom: zoomOpen,
+    updateNotice: updateNoticeOpen
+  },
+  collections: browserCollectionsFeatureController,
+  pageTools: { panelOpen: pageToolsOpen, ...appPageToolsFeatureController },
+  developerPanels: { console: consolePanelOpen, network: networkMonitorOpen },
+  responsivePreview: {
+    open: responsivePanelOpen,
+    close: () => responsivePanel.value?.handleEscape()
+  },
+  environmentPanel: environmentPanelOpen,
   runShortcut: (shortcut) => { void runBrowserShortcut(shortcut) }
 })
 const {

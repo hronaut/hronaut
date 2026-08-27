@@ -104,6 +104,14 @@ describe('SettingsStore', () => {
     expect(await store.load()).toEqual(DEFAULT_SETTINGS)
   })
 
+  it('uses safe defaults when the settings file contains JSON null', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(store.load()).resolves.toEqual(DEFAULT_SETTINGS)
+  })
+
   it('defaults startup update checks on for older settings files', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -63,6 +63,16 @@ describe('restoreWindowBounds', () => {
 })
 
 describe('WindowStateStore', () => {
+  it('ignores a window-state file containing JSON null', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-window-state-test-'))
+    temporaryDirectories.push(directory)
+    const path = join(directory, 'profile', 'window-state.json')
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(new WindowStateStore(path).load()).resolves.toBeNull()
+  })
+
   it('serializes concurrent saves and keeps the last queued window state', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-window-state-test-'))
     temporaryDirectories.push(directory)

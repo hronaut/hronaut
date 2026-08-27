@@ -48,7 +48,9 @@ export class SettingsStore {
 
   async load(): Promise<AppSettings> {
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<AppSettings> & { autoUpdate?: unknown }
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ...DEFAULT_SETTINGS }
+      const value = parsed as Partial<AppSettings> & { autoUpdate?: unknown }
       const checkForUpdatesOnStartup = typeof value.autoUpdate === 'boolean'
         ? value.autoUpdate && (typeof value.checkForUpdatesOnStartup === 'boolean' ? value.checkForUpdatesOnStartup : true)
         : typeof value.checkForUpdatesOnStartup === 'boolean'

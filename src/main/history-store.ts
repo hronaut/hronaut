@@ -62,7 +62,9 @@ export class HistoryStore {
   async load(): Promise<BrowserHistoryEntry[]> {
     this.entries.clear()
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedHistory>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      const value = parsed as Partial<PersistedHistory>
       if (value.version !== HISTORY_VERSION || !Array.isArray(value.entries)) return []
       const oldestAllowed = this.now() - HISTORY_RETENTION_MS
       const validEntries = value.entries.filter((entry) => validEntry(entry, oldestAllowed))

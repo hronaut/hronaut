@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Refresh patch-level application dependencies and expand release/setup-feedback client discoverability for current MCP clients.
+- Extract app-level keyboard surface priority and shortcut composition from `App.vue` into a focused feature controller.
 - Extract application command-palette routing from `App.vue` into a focused feature controller.
 - Extract site controls, storage, privacy, and settings navigation composition from `App.vue` into a focused feature controller.
 - Extract responsive-preview and environment-emulation composition from `App.vue` into a focused feature controller.
@@ -20,6 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Recover with safe defaults when profile persistence files contain a valid JSON value with the wrong shape instead of failing Hronaut startup.
 - Make a first-instance `--quit` request exit cleanly instead of launching a new Hronaut window and MCP listener.
 - Keep launch-only MCP port overrides separate from saved preferences so unrelated settings changes cannot persist the temporary port.
 - Ignore unchanged MCP port submissions while the healthy listener is already running, while still allowing same-port recovery after a listener failure.

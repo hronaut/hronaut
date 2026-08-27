@@ -55,7 +55,9 @@ export class SitePermissionStore {
   async load(): Promise<SitePermissionEntry[]> {
     this.entries.clear()
     try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedSitePermissions>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
+      const value = parsed as Partial<PersistedSitePermissions>
       if (value.version !== 1 || !Array.isArray(value.permissions)) return []
       let repairedPersistedPermissions = false
       for (const entry of value.permissions) {

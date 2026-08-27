@@ -18,6 +18,14 @@ async function createStore(): Promise<{ path: string; store: SitePermissionStore
 }
 
 describe('SitePermissionStore', () => {
+  it('ignores a site-permissions file containing JSON null', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, 'null\n', 'utf8')
+
+    await expect(store.load()).resolves.toEqual([])
+  })
+
   it('persists exact per-origin permission decisions', async () => {
     const { path, store } = await createStore()
     await store.load()

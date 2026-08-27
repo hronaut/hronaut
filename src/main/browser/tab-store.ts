@@ -93,7 +93,9 @@ export class TabStateStore {
 
   async load(): Promise<PersistedBrowserState | null> {
     try {
-      const data = JSON.parse(await readFile(this.path, 'utf8')) as Record<string, unknown>
+      const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
+      if (!isRecord(parsed)) return null
+      const data = parsed
       if (
         data.version !== TAB_STATE_VERSION
         || !Array.isArray(data.tabs)
