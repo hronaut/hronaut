@@ -385,6 +385,34 @@ test('keeps the newest Home dashboard refresh when status responses resolve out 
   expect(renderedVersion).toBe('Hronaut newer')
 })
 
+test('does not overlap Home dashboard polling while a status response is pending', async ({
+  electronApp
+}) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  )).toBe(true)
+
+  const concurrentRequests = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(async () => {
+      const pending = [];
+      const originalFetch = window.fetch;
+      window.fetch = () => new Promise((resolve) => pending.push(resolve));
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 4200));
+        return pending.length;
+      } finally {
+        const response = { ok: true, json: async () => dashboard };
+        pending.splice(0).forEach((resolve) => resolve(response));
+        window.fetch = originalFetch;
+      }
+    })()`)
+  })
+
+  expect(concurrentRequests).toBe(1)
+})
+
 test('restarts Home copy feedback after repeated setup copies', async ({ electronApp }) => {
   await expect.poll(() => electronApp.evaluate(({ webContents }) =>
     webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))

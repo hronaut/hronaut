@@ -554,6 +554,11 @@ export function renderHomePage(options: HomePageOptions): string {
       }
     }
 
+    async function pollDashboard() {
+      await refreshDashboard();
+      setTimeout(pollDashboard, 2000);
+    }
+
     document.querySelectorAll('[data-copy-target]').forEach((button) => {
       const state = {
         label: button.textContent,
@@ -590,8 +595,7 @@ export function renderHomePage(options: HomePageOptions): string {
 
     renderGuide();
     renderDashboard();
-    refreshDashboard();
-    setInterval(refreshDashboard, 2000);
+    pollDashboard();
   </script>
 </body>
 </html>`

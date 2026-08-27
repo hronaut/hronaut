@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Ignore late shell notifications after renderer teardown so delayed clipboard or browser-action failures cannot recreate toast state and timers after the app has unmounted.
+- Serialize Hronaut Home status polling so a slow local MCP response cannot create overlapping requests, starve dashboard updates as stale, or accumulate pending work.
 
 ## [1.9.1] - 2026-08-27
 
