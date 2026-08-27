@@ -64,4 +64,18 @@ describe('app toast controller', () => {
     await vi.runAllTimersAsync()
     expect(controller.toasts.value).toEqual([])
   })
+
+  it('ignores notifications that arrive after disposal', async () => {
+    vi.useFakeTimers()
+    const controller = useAppToastController()
+
+    controller.show('info', 'Notice', 'Before teardown')
+    controller.dispose()
+    controller.show('error', 'Late failure', 'After teardown')
+
+    expect(controller.toasts.value).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+    await vi.runAllTimersAsync()
+    expect(controller.toasts.value).toEqual([])
+  })
 })

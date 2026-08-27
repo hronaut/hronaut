@@ -22,6 +22,7 @@ export function useAppToastController() {
   const toasts = ref<AppToast[]>([])
   const timers = new Map<number, number>()
   let nextId = 1
+  let disposed = false
 
   function dismiss(id: number): void {
     const timer = timers.get(id)
@@ -31,6 +32,7 @@ export function useAppToastController() {
   }
 
   function show(tone: AppToastTone, title: string, message: string): void {
+    if (disposed) return
     const boundedTitle = title.trim().slice(0, 120)
     const boundedMessage = message.trim().slice(0, 1_000)
     for (const toast of [...toasts.value]) dismiss(toast.id)
@@ -41,6 +43,8 @@ export function useAppToastController() {
   }
 
   function dispose(): void {
+    if (disposed) return
+    disposed = true
     for (const timer of timers.values()) window.clearTimeout(timer)
     timers.clear()
     toasts.value = []
