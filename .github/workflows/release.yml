@@ -381,7 +381,7 @@ jobs:
             echo
             echo '- [Watch the 35-second product demo](https://hronaut.dev/#demo)'
             echo '- [Choose the right Windows, macOS, or Linux package](https://hronaut.dev/download)'
-            echo '- [Connect Codex, Claude Code, Cursor, Copilot, OpenCode, or another MCP client](https://hronaut.dev/setup)'
+            echo '- [Connect Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, or another MCP client](https://hronaut.dev/setup)'
             echo
             echo 'Hronaut is source-available under [PolyForm Noncommercial 1.0.0](https://github.com/hronaut/hronaut/blob/main/LICENSE). Permitted noncommercial use is free; other use requires an active commercial license.'
             echo

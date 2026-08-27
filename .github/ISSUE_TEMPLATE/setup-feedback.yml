@@ -21,6 +21,11 @@ body:
         - Cursor
         - VS Code / GitHub Copilot
         - OpenCode
+        - Gemini CLI
+        - Cline
+        - Kiro
+        - Kilo Code
+        - JetBrains Junie
         - Another MCP client
     validations:
       required: true

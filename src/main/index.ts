@@ -405,6 +405,7 @@ const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
 
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) app.quit()
+const quitRequestedAtStartup = process.argv.includes('--quit')
 
 function showWindow(): void {
   if (!mainWindow) return
@@ -3608,6 +3609,14 @@ app.on('before-quit', () => {
 
 app.whenReady().then(async () => {
   if (!gotLock) return
+  // A secondary --quit invocation is delivered to the existing owner through
+  // the second-instance event above. When no owner exists, this process gets
+  // the lock itself, so honor the same command without starting the browser,
+  // tray, or MCP listener.
+  if (quitRequestedAtStartup) {
+    app.quit()
+    return
+  }
   nativeTheme.on('updated', () => {
     const systemTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
     if (settings.theme === 'system') {

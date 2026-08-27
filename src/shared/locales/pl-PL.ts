@@ -2556,7 +2556,7 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "9 klientów",
+      "clients": "10 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
@@ -2570,6 +2570,7 @@ export const plPL = {
         "geminiCli": "Dodaje Hronaut jako serwer Streamable HTTP na poziomie użytkownika w Gemini CLI.",
         "cline": "Dodaje Hronaut do Cline przez zalecany transport Streamable HTTP.",
         "kilo": "Dodaje Hronaut jako zdalny serwer Streamable HTTP współdzielony przez Kilo Code.",
+        "jetbrainsJunie": "Dodaje Hronaut do konfiguracji MCP użytkownika współdzielonej przez Junie CLI i środowiska JetBrains IDE.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }

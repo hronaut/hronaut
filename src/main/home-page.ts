@@ -173,6 +173,21 @@ function agentGuides(
       verifyCommand: 'kilo mcp list'
     },
     {
+      id: 'jetbrains-junie',
+      name: 'JetBrains Junie',
+      note: home.connect.guides.jetbrainsJunie,
+      location: '~/.junie/mcp/mcp.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            url: endpoint,
+            ...(headers && { headers })
+          }
+        }
+      }, null, 2),
+      verifyCommand: '/mcp'
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,

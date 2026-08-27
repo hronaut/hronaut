@@ -68,7 +68,7 @@ import { useFindShellController } from './composables/useFindShellController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
 import { useTabSearchShellController } from './composables/useTabSearchShellController'
 import { useZoomShellController } from './composables/useZoomShellController'
-import { useCommandPaletteShellController } from './composables/useCommandPaletteShellController'
+import { useAppCommandPaletteFeatureController } from './composables/useAppCommandPaletteFeatureController'
 import { useUiActionController } from './composables/useUiActionController'
 import { useAppBootstrapController } from './composables/useAppBootstrapController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
@@ -473,7 +473,6 @@ const {
   toggleElementPicker,
   cancelActiveElementPicker,
   toggleAreaCapture,
-  capturePageScreenshot,
   pageSnapshotState,
   pdfExportState,
   copyPageSnapshot,
@@ -492,20 +491,6 @@ const {
   domChangesPanelOpen,
   visualComparePanelOpen,
   inspectorIssuesOpen,
-  togglePerformanceReport,
-  toggleDesignOverview,
-  togglePageMetadata,
-  toggleSecurityReport,
-  toggleCodeCoverage,
-  toggleCpuProfile,
-  toggleMemoryReport,
-  toggleDebugReport,
-  toggleReproRecorder,
-  toggleDomChanges,
-  toggleVisualCompare,
-  toggleInspectorIssues,
-  toggleAccessibilityAudit,
-  toggleQualityAudit,
   pageToolsLabels,
   activeNetworkRouteCount,
   activeInspectorIssueCount,
@@ -703,7 +688,7 @@ const {
     t('runtime.toast.startupRecoveredDescription')
   )
 })
-const commandPaletteShellController = useCommandPaletteShellController({
+const commandPaletteShellController = useAppCommandPaletteFeatureController({
   open: commandPaletteOpen,
   panel: commandPalette,
   beforeOpen: () => {
@@ -711,51 +696,23 @@ const commandPaletteShellController = useCommandPaletteShellController({
     closeHelpDialog()
     closeTransientPanels()
   },
-  actions: {
-    home: openApplicationHome,
-    'new-tab': () => browserShortcutController.run('new-tab'),
-    'search-tabs': toggleTabSearch,
-    downloads: toggleDownloads,
-    bookmarks: toggleBookmarks,
-    history: toggleVisitHistory,
-    find: openFind,
-    reload: () => browserShortcutController.run('reload'),
-    'reload-ignoring-cache': () => browserShortcutController.run('reload-ignoring-cache'),
-    'capture-area': toggleAreaCapture,
-    'capture-element': () => toggleElementPicker('screenshot'),
-    'capture-viewport': () => capturePageScreenshot('viewport'),
-    'capture-full-page': () => capturePageScreenshot('full-page'),
-    'copy-snapshot': copyPageSnapshot,
-    'pick-element': () => toggleElementPicker('context'),
-    'page-tools': togglePageTools,
-    'site-storage': toggleSiteStorage,
-    'responsive-preview': toggleResponsivePreview,
-    environment: toggleEnvironment,
-    console: toggleConsole,
-    network: toggleNetworkMonitor,
-    'request-conditions': openRequestConditions,
-    issues: toggleInspectorIssues,
-    'debug-report': toggleDebugReport,
-    'repro-recorder': toggleReproRecorder,
-    'dom-changes': toggleDomChanges,
-    'visual-compare': toggleVisualCompare,
-    'quality-audit': toggleQualityAudit,
-    accessibility: toggleAccessibilityAudit,
-    performance: togglePerformanceReport,
-    'design-overview': toggleDesignOverview,
-    'page-metadata': togglePageMetadata,
-    security: toggleSecurityReport,
-    coverage: toggleCodeCoverage,
-    'cpu-profile': toggleCpuProfile,
-    memory: toggleMemoryReport,
-    'developer-tools': toggleDeveloperTools,
-    settings: () => openSettingsSection('appearance'),
-    privacy: openPrivacySettings,
-    'site-permissions': () => openSettingsSection('permissions'),
-    'mcp-security': () => openSettingsSection('mcp'),
-    updates: openUpdateSettings,
-    'keyboard-shortcuts': () => openHelpDialog('shortcuts'),
-    'toggle-mcp-pause': toggleMcpPaused
+  browser: {
+    openHome: openApplicationHome,
+    runShortcut: (action) => browserShortcutController.run(action),
+    toggleTabSearch,
+    openFind,
+    togglePageTools,
+    toggleDeveloperTools
+  },
+  collections: browserCollectionsFeatureController,
+  emulation: appEmulationFeatureController,
+  pageTools: appPageToolsFeatureController,
+  panels: appPanelFeatureController,
+  site: appSiteManagementFeatureController,
+  settings: {
+    openSection: openSettingsSection,
+    openHelp: openHelpDialog,
+    toggleMcpPaused
   }
 })
 const {

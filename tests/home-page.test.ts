@@ -77,6 +77,17 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+    const junie = renderedGuides(html).find((guide) => guide.id === 'jetbrains-junie')
+    expect(junie?.location).toBe('~/.junie/mcp/mcp.json')
+    expect(junie?.verifyCommand).toBe('/mcp')
+    expect(JSON.parse(junie?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
+        }
+      }
+    })
     const cline = renderedGuides(html).find((guide) => guide.id === 'cline')
     expect(cline?.location).toBe('Cline MCP settings')
     expect(cline?.verifyCommand).toBe('cline config mcp --json')
@@ -146,6 +157,15 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+    const junie = renderedGuides(html).find((guide) => guide.id === 'jetbrains-junie')
+    expect(JSON.parse(junie?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: `Bearer <paste token from ${tokenPath}>` }
+        }
+      }
+    })
   })
 
   it('renders PowerShell-safe authenticated CLI guides on Windows', () => {
@@ -181,6 +201,20 @@ describe('Hronaut Home localization', () => {
 
     expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
       mcpServers: { hronaut: { httpUrl: dashboard.endpoint } }
+    })
+  })
+
+  it('renders JetBrains Junie user setup without an authentication header when local authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const junie = renderedGuides(html).find((guide) => guide.id === 'jetbrains-junie')
+
+    expect(JSON.parse(junie?.code ?? '{}')).toEqual({
+      mcpServers: { hronaut: { url: dashboard.endpoint } }
     })
   })
 

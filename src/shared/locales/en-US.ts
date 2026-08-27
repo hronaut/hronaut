@@ -305,7 +305,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '9 clients',
+      clients: '10 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -319,6 +319,7 @@ export const enUS = {
         geminiCli: 'Adds Hronaut as a user-scoped Streamable HTTP server in Gemini CLI.',
         cline: 'Adds Hronaut to Cline with its recommended Streamable HTTP transport.',
         kilo: 'Adds Hronaut as a remote Streamable HTTP server shared by Kilo Code surfaces.',
+        jetbrainsJunie: 'Adds Hronaut to the user-level MCP configuration shared by Junie CLI and JetBrains IDEs.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

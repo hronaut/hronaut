@@ -41,6 +41,20 @@ describe('setup feedback issue form', () => {
       expect(items.find((item) => item.id === id)?.validations?.required, id).toBe(true)
     }
 
+    expect(items.find((item) => item.id === 'client')?.attributes?.options).toEqual([
+      'Codex',
+      'Claude Code',
+      'Cursor',
+      'VS Code / GitHub Copilot',
+      'OpenCode',
+      'Gemini CLI',
+      'Cline',
+      'Kiro',
+      'Kilo Code',
+      'JetBrains Junie',
+      'Another MCP client'
+    ])
+
     const privacy = items.find((item) => item.id === 'privacy')
     expect(privacy?.type).toBe('checkboxes')
     expect(privacy?.attributes?.options).toEqual([

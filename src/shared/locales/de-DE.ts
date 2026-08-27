@@ -2556,7 +2556,7 @@ export const deDE = {
     "connect": {
       "heading": "Coding-Agenten verbinden",
       "description": "Wählen Sie einen Client, kopieren Sie die Einrichtung und erstellen Sie vor dem Surfen einen benannten Arbeitsbereich.",
-      "clients": "9 Clients",
+      "clients": "10 Clients",
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
@@ -2570,6 +2570,7 @@ export const deDE = {
         "geminiCli": "Fügt Hronaut als benutzerweiten Streamable-HTTP-Server in Gemini CLI hinzu.",
         "cline": "Fügt Hronaut mit dem empfohlenen Streamable-HTTP-Transport zu Cline hinzu.",
         "kilo": "Fügt Hronaut als gemeinsam genutzten entfernten Streamable-HTTP-Server zu Kilo Code hinzu.",
+        "jetbrainsJunie": "Fügt Hronaut zur benutzerweiten MCP-Konfiguration hinzu, die Junie CLI und JetBrains-IDEs gemeinsam verwenden.",
         "generic": "Streamable HTTP verwenden und den Client direkt auf Hronaut verweisen.",
         "genericLocation": "MCP-Einstellungen des Clients"
       }

@@ -43,6 +43,7 @@ describe('release quality gates', () => {
     expect(workflow).toContain('https://hronaut.dev/#demo')
     expect(workflow).toContain('https://hronaut.dev/download')
     expect(workflow).toContain('https://hronaut.dev/setup')
+    expect(workflow).toContain('Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, or another MCP client')
     expect(workflow).toContain('PolyForm Noncommercial 1.0.0')
     expect(workflow.indexOf('<!-- unsigned-release-warning -->')).toBeLessThan(workflow.indexOf("echo '## Start here'"))
     expect(workflow.indexOf("echo '## Start here'")).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))

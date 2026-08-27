@@ -2,7 +2,7 @@
 
 Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
 
-[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
+[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [JetBrains Junie guide](https://hronaut.dev/jetbrains-junie-browser-mcp) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
 
@@ -68,7 +68,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every client, including the right endpoint and authentication settings.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, JetBrains Junie, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every client, including the right endpoint and authentication settings.
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
@@ -115,6 +115,10 @@ Hronaut Home generates Cline's explicit `streamableHttp` server definition with 
 ### Kilo Code
 
 Hronaut Home generates Kilo Code's global `~/.config/kilo/kilo.jsonc` remote MCP entry with an owner-token file reference when authentication is enabled. Run `kilo mcp list` to verify the local connection. Use Kilo's built-in browser for disposable task-owned automation; use Hronaut when a visible named workspace must survive the task and remain available to Kilo CLI, the IDE, or another local client. Current Kilo Cloud Agents cannot reach Hronaut's loopback endpoint. See the [focused Kilo Code browser MCP guide](https://hronaut.dev/kilo-code-browser-mcp) and Kilo's [official MCP guide](https://kilo.ai/docs/automate/mcp/using-in-kilo-code).
+
+### JetBrains Junie
+
+Hronaut Home generates Junie's user-level `~/.junie/mcp/mcp.json` remote MCP entry for the current local endpoint. The same configuration is shared by Junie CLI and Junie in JetBrains IDEs. Open Junie's `/mcp` screen to verify that Hronaut is active. When authentication is enabled, Hronaut uses a copy-safe token placeholder rather than displaying the owner token; paste the token locally and do not commit it in a project-scoped `.junie/mcp/mcp.json`. See the [focused JetBrains Junie browser MCP guide](https://hronaut.dev/jetbrains-junie-browser-mcp) and Junie's [official MCP configuration guide](https://junie.jetbrains.com/docs/junie-cli-mcp-configuration.html).
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 

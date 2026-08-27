@@ -1,6 +1,65 @@
+import { spawn, type ChildProcess } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+const electronPath = join(
+  repositoryRoot,
+  'node_modules',
+  'electron',
+  'dist',
+  process.platform === 'win32' ? 'electron.exe' : 'electron'
+)
+
+async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return true
+  return new Promise((resolve) => {
+    const finish = (exited: boolean): void => {
+      clearTimeout(timer)
+      child.off('exit', onExit)
+      resolve(exited)
+    }
+    const onExit = (): void => finish(true)
+    const timer = setTimeout(() => finish(false), timeoutMs)
+    child.once('exit', onExit)
+    if (child.exitCode !== null || child.signalCode !== null) finish(true)
+  })
+}
+
+test('exits when --quit is invoked without an existing instance', async ({
+  profileDirectory,
+  mcpPort
+}) => {
+  const child = spawn(electronPath, ['.', '--no-sandbox', '--quit'], {
+    cwd: repositoryRoot,
+    env: {
+      ...process.env,
+      HRONAUT_DISABLE_MCP_AUTH: '1',
+      HRONAUT_MCP_HOST: '127.0.0.1',
+      HRONAUT_MCP_PORT: String(mcpPort),
+      HRONAUT_USER_DATA_DIR: profileDirectory
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  let output = ''
+  child.stdout?.on('data', (chunk) => { output += String(chunk) })
+  child.stderr?.on('data', (chunk) => { output += String(chunk) })
+
+  try {
+    expect(
+      await waitForChildExit(child, 3_000),
+      `A first-instance --quit request launched Hronaut instead of exiting:\n${output}`
+    ).toBe(true)
+    expect(child.exitCode).toBe(0)
+  } finally {
+    if (child.exitCode === null) {
+      child.kill('SIGTERM')
+      if (!await waitForChildExit(child, 2_000)) child.kill('SIGKILL')
+    }
+  }
+})
 
 test('waits for Default and isolated browser profiles to flush before exiting', async ({
   profileDirectory,

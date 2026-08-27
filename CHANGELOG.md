@@ -6,17 +6,21 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add localized, profile-aware JetBrains Junie setup to Hronaut Home using the user-level MCP configuration shared by Junie CLI and JetBrains IDEs.
 - Add localized, profile-aware Kilo Code setup to Hronaut Home with trusted token-file references and a connection verification command.
 - Add localized, profile-aware Cline setup to Hronaut Home with explicit Streamable HTTP configuration, authentication-aware headers, approval-safe defaults, and a connection verification command.
 
 ### Changed
 
+- Refresh patch-level application dependencies and expand release/setup-feedback client discoverability for current MCP clients.
+- Extract application command-palette routing from `App.vue` into a focused feature controller.
 - Extract site controls, storage, privacy, and settings navigation composition from `App.vue` into a focused feature controller.
 - Extract responsive-preview and environment-emulation composition from `App.vue` into a focused feature controller.
 - Extract Downloads, Bookmarks, and History composition from `App.vue` into a focused browser-collections feature controller.
 
 ### Fixed
 
+- Make a first-instance `--quit` request exit cleanly instead of launching a new Hronaut window and MCP listener.
 - Keep launch-only MCP port overrides separate from saved preferences so unrelated settings changes cannot persist the temporary port.
 - Ignore unchanged MCP port submissions while the healthy listener is already running, while still allowing same-port recovery after a listener failure.
 - Make concurrent first-start MCP token loads converge on one atomically published owner-only token without temporary-file collisions or token replacement.
