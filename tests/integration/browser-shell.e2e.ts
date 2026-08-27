@@ -1604,7 +1604,10 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   await expect(aboutDialog).toContainText('A persistent, visible browser')
   await expect(aboutDialog.getByRole('button', { name: 'PolyForm Noncommercial license' })).toBeVisible()
   await expect(aboutDialog.getByRole('button', { name: 'Contribute' })).toBeVisible()
-  await aboutDialog.getByRole('button', { name: 'Close help' }).click()
+  await aboutDialog.getByRole('button', { name: 'Commercial license', exact: true }).click()
+  await expect(aboutDialog).toBeHidden()
+  await expect(appWindow.locator('.settings-dialog')).toContainText('Commercial license')
+  await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
   await clickMenuItem('Help', 'Commercial License')
   await expect(appWindow.locator('.settings-dialog')).toContainText('Commercial license')
@@ -5060,6 +5063,13 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     })
   })
   expect(initial.ok).toBe(true)
+  const initialization = await initial.json() as {
+    result?: { instructions?: string }
+  }
+  expect(initialization.result?.instructions).toContain('create a fresh isolated workspace')
+  expect(initialization.result?.instructions).toContain('browser_snapshot')
+  expect(initialization.result?.instructions).toContain('browser_request_user_attention')
+  expect(initialization.result?.instructions).toContain('persist after this MCP client disconnects')
 
   await expect
     .poll(() =>

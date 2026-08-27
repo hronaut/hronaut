@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BROWSER_TOOL_CATALOG } from '../src/main/mcp/server.js'
+import {
+  BROWSER_SERVER_INSTRUCTIONS,
+  BROWSER_TOOL_CATALOG
+} from '../src/main/mcp/server.js'
 
 describe('MCP workspace guidance', () => {
   const description = BROWSER_TOOL_CATALOG.find((tool) => tool.name === 'browser_workspaces')?.description
@@ -24,5 +27,13 @@ describe('MCP workspace guidance', () => {
     ])
     expect(description).toContain('must never pass the workspace marked isDefault to page tools')
     expect(description).not.toContain('Its stable id')
+  })
+
+  it('advertises the cross-tool workflow during MCP initialization', () => {
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('persist after this MCP client disconnects')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('create a fresh isolated workspace')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('Never browse in Default')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_snapshot and browser_find')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_request_user_attention only when')
   })
 })

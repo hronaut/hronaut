@@ -6,10 +6,14 @@ export interface FindTransitionControllerOptions {
 }
 
 export function useFindTransitionController(options: FindTransitionControllerOptions) {
+  async function start(operation: () => void | Promise<void>): Promise<void> {
+    await operation()
+  }
+
   async function run(action: () => void | Promise<void>): Promise<void> {
     const shouldCloseFind = options.findOpen.value
-    const actionResult = action()
-    const cleanupResult = shouldCloseFind ? options.closeFind() : undefined
+    const actionResult = start(action)
+    const cleanupResult = shouldCloseFind ? start(options.closeFind) : undefined
     await Promise.all([actionResult, cleanupResult])
   }
 

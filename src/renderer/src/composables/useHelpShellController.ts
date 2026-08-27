@@ -22,6 +22,8 @@ export function useHelpShellController(options: HelpShellControllerOptions) {
   }
 
   function openSupportSettings(): void {
+    options.commandPaletteOpen.value = false
+    options.closeHelpDialog()
     options.showSupportSettings()
   }
 

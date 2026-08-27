@@ -273,6 +273,8 @@ For text-first context, choose **Page tools → Copy page snapshot** or search t
 
 ## MCP tools
 
+Hronaut includes concise workflow instructions in the MCP initialization response. Compatible clients learn to create a fresh isolated workspace before browsing, prefer semantic snapshots and refs over coordinates, bring the visible browser forward for observation or takeover, and request attention only for a manual step. Client behavior is never treated as a security boundary: Hronaut still validates workspace ownership, tab identities, input bounds, authorization, and interaction locks in the server.
+
 - `browser_workspaces`, `browser_saved_workspaces`
 - `browser_status`, `browser_show`, `browser_tabs`
 - `browser_request_user_attention`

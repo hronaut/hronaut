@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley } from '@foleyjs/core'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -40,7 +40,7 @@ import DetachedPanelUnavailableState from './components/DetachedPanelUnavailable
 import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
-import { useShellWindowLifecycle } from './composables/useShellWindowLifecycle'
+import { useAppLifecycleController } from './composables/useAppLifecycleController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
 import { useDiagnosticsController } from './composables/useDiagnosticsController'
 import { useCredentialsController } from './composables/useCredentialsController'
@@ -1496,58 +1496,56 @@ function togglePageTools(): void {
   pageToolsOpen.value = true
 }
 
-useShellWindowLifecycle({
+useAppLifecycleController({
   shell,
   onKeyDown: handleKeyDown,
   onWindowResize: handleWindowResize,
-  onShellResize: reportShellHeight
-})
-
-onMounted(() => {
-  bindFoley()
-  startAppStartupRecovery()
-})
-
-onBeforeUnmount(() => {
-  disposeAppStartupRecoveryController()
-  disposeMcpActivityController()
-  disposeShellOverlayCoordinationController()
-  disposeActiveTabContextController()
-  disposeEnvironmentPanelController()
-  disposeEmulationController()
-  disposeBrowserShortcutController()
-  disposeUiActionController()
-  appBootstrapController.dispose()
-  browserStore.dispose()
-  settingsStore.dispose()
-  disposeAppEventsController()
-  disposeDetachedPanelRefreshController()
-  disposePanelWindowSyncController()
-  disposePanelWindowEventsController()
-  disposeUpdateNoticePresentationController()
-  disposePageCaptureController()
-  disposePageExportController()
-  disposeDiagnosticLogPreservationController()
-  disposeDownloadSettingsController()
-  disposePerformanceSettingsController()
-  disposeMcpSettingsController()
-  disposeSearchSettingsController()
-  disposeHelpDialogController()
-  disposeSettingsDialogController()
-  disposePrivacySettingsShellController()
-  disposeSiteControlsShellController()
-  disposeSiteStorageShellController()
-  disposeUpdateSettingsController()
-  disposeCommercialLicenseController()
-  disposeMcpStatusController()
-  disposePrivacySettingsController()
-  disposeSitePermissionsController()
-  disposeCredentialsController()
-  disposeBrowserCollectionsShellController()
-  browserCollectionsController.dispose()
-  disposeDeveloperPanelsShellController()
-  disposeDiagnosticsController()
-  disposeAppToastController()
+  onShellResize: reportShellHeight,
+  start: () => {
+    bindFoley()
+    startAppStartupRecovery()
+  },
+  disposers: [
+    disposeAppStartupRecoveryController,
+    disposeMcpActivityController,
+    disposeShellOverlayCoordinationController,
+    disposeActiveTabContextController,
+    disposeEnvironmentPanelController,
+    disposeEmulationController,
+    disposeBrowserShortcutController,
+    disposeUiActionController,
+    appBootstrapController.dispose,
+    browserStore.dispose,
+    settingsStore.dispose,
+    disposeAppEventsController,
+    disposeDetachedPanelRefreshController,
+    disposePanelWindowSyncController,
+    disposePanelWindowEventsController,
+    disposeUpdateNoticePresentationController,
+    disposePageCaptureController,
+    disposePageExportController,
+    disposeDiagnosticLogPreservationController,
+    disposeDownloadSettingsController,
+    disposePerformanceSettingsController,
+    disposeMcpSettingsController,
+    disposeSearchSettingsController,
+    disposeHelpDialogController,
+    disposeSettingsDialogController,
+    disposePrivacySettingsShellController,
+    disposeSiteControlsShellController,
+    disposeSiteStorageShellController,
+    disposeUpdateSettingsController,
+    disposeCommercialLicenseController,
+    disposeMcpStatusController,
+    disposePrivacySettingsController,
+    disposeSitePermissionsController,
+    disposeCredentialsController,
+    disposeBrowserCollectionsShellController,
+    browserCollectionsController.dispose,
+    disposeDeveloperPanelsShellController,
+    disposeDiagnosticsController,
+    disposeAppToastController
+  ]
 })
 </script>
 

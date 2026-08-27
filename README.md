@@ -64,6 +64,8 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 
 The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Cursor, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home also includes Gemini CLI and contains the current profile-specific version for every client, including the right endpoint and authentication settings.
 
+Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
+
 After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
 
 ### First successful run

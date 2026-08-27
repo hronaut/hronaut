@@ -74,6 +74,18 @@ describe('useFindTransitionController', () => {
     await expect(transition).rejects.toBe(failure)
   })
 
+  it('starts cleanup even when the action throws synchronously', async () => {
+    const findOpen = ref(true)
+    const failure = new Error('Home action failed before returning a promise')
+    const closeFind = vi.fn<() => Promise<void>>(async () => undefined)
+    const controller = useFindTransitionController({ findOpen, closeFind })
+
+    const transition = controller.run(() => { throw failure })
+
+    expect(closeFind).toHaveBeenCalledOnce()
+    await expect(transition).rejects.toBe(failure)
+  })
+
   it('preserves a cleanup failure after the action succeeds', async () => {
     const findOpen = ref(true)
     const failure = new Error('Find cleanup unavailable')

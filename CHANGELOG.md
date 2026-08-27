@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Advertise Hronaut's persistent-workspace, semantic-inspection, and human-handoff workflow through MCP server instructions during client initialization.
 - Let agents hover bounded viewport coordinates to reveal tooltips and hover states on canvas, WebGL, maps, remote desktops, and other visual-only surfaces.
 - Let agents drag between bounded viewport coordinates for canvas, maps, custom controls, remote desktops, and other pixel-precise targets.
 - Add first-class Gemini CLI setup, authentication-aware configuration, and connection verification to Hronaut Home.
@@ -13,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Close About before opening Commercial license settings so the two modal surfaces never stack.
+- Keep Find cleanup running when a competing shell action throws synchronously.
 - Make the complete horizontal “Workspace” action, including its visible label, clickable instead of limiting its title-bar hit target to the plus icon.
 - Keep a horizontal-only `browser_scroll` action from also applying the default vertical scroll distance.
 - Prevent an older bookmark or history navigation from closing a panel that the user reopened while that navigation was still pending.
@@ -25,6 +28,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move renderer startup, window-listener wiring, and idempotent resource disposal out of `App.vue` into a focused lifecycle controller.
 - Move bookmark and history entry navigation out of `App.vue` into the existing browser-collections shell controller.
 - Move guarded, serialized Chromium Developer Tools toggles out of `App.vue` into the browser-tab action controller.
 - Move site and update settings-entry policy out of `App.vue` into a focused navigation controller.

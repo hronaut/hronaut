@@ -164,6 +164,14 @@ const BROWSER_WORKSPACES_DESCRIPTION = [
   'Listing is for awareness and name-collision avoidance only: never use, rename, recolor, archive, or close a workspace you did not create.'
 ].join('\n')
 
+export const BROWSER_SERVER_INSTRUCTIONS = [
+  'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
+  'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a unique task name. Never browse in Default or reuse a workspace or tab created by another task.',
+  'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. Use coordinate-based visual tools only when the target has no usable semantic representation.',
+  'Call browser_show when the person should watch or take over. Call browser_request_user_attention only when a person must complete a manual browser step.',
+  'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
+].join('\n')
+
 export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   {
     name: 'browser_workspaces',
@@ -345,7 +353,10 @@ function createBrowserMcpServer(
   version: string,
   onTabActivity?: (activity: McpTabActivity) => void
 ): McpServer {
-  const server = new McpServer({ name: 'hronaut', version })
+  const server = new McpServer(
+    { name: 'hronaut', version },
+    { instructions: BROWSER_SERVER_INSTRUCTIONS }
+  )
   const tool = <T>(handler: (input: T) => Promise<CallToolResult> | CallToolResult) => async (input: T): Promise<CallToolResult> => {
     try {
       return await handler(input)

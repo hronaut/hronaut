@@ -50,11 +50,13 @@ describe('Help shell controller', () => {
     expect(options.showSupportSettings).not.toHaveBeenCalled()
   })
 
-  it('routes a native support request to Support settings', () => {
-    const { options, controller } = createController()
+  it('closes Help before routing a support request to Support settings', () => {
+    const { commandPaletteOpen, options, controller } = createController()
 
     controller.handleRequested('support')
 
+    expect(commandPaletteOpen.value).toBe(false)
+    expect(options.closeHelpDialog).toHaveBeenCalledOnce()
     expect(options.showSupportSettings).toHaveBeenCalledOnce()
     expect(options.showHelpDialog).not.toHaveBeenCalled()
   })
