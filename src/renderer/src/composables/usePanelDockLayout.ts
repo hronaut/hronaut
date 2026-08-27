@@ -1,6 +1,11 @@
 import { nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { shellHeightForBrowserContent } from '../../../shared/update-presentation.js'
 import type { PanelDock } from '../../../shared/types.js'
+import {
+  readLocalPreference,
+  removeLocalPreference,
+  writeLocalPreference
+} from '../local-preferences.js'
 
 type DockedPanelPosition = Exclude<PanelDock, 'window'>
 
@@ -31,7 +36,7 @@ const HORIZONTAL_SIZE_KEY = 'hronaut:panel-dock-size-horizontal'
 const VERTICAL_SIZE_KEY = 'hronaut:panel-dock-size-vertical'
 
 function storedPositiveNumber(key: string): number | null {
-  const value = Number(window.localStorage.getItem(key))
+  const value = Number(readLocalPreference(key))
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
@@ -106,7 +111,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     const horizontal = isHorizontalDock(dock)
     if (horizontal) horizontalSize.value = next
     else verticalSize.value = next
-    if (persist) window.localStorage.setItem(horizontal ? HORIZONTAL_SIZE_KEY : VERTICAL_SIZE_KEY, String(next))
+    if (persist) writeLocalPreference(horizontal ? HORIZONTAL_SIZE_KEY : VERTICAL_SIZE_KEY, String(next))
     reportShellHeight()
   }
 
@@ -184,10 +189,10 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     const dock = options.dock.value
     if (isHorizontalDock(dock)) {
       horizontalSize.value = null
-      window.localStorage.removeItem(HORIZONTAL_SIZE_KEY)
+      removeLocalPreference(HORIZONTAL_SIZE_KEY)
     } else {
       verticalSize.value = null
-      window.localStorage.removeItem(VERTICAL_SIZE_KEY)
+      removeLocalPreference(VERTICAL_SIZE_KEY)
     }
     reportShellHeight()
   }

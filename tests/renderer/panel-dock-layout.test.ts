@@ -146,6 +146,44 @@ describe('usePanelDockLayout', () => {
     harness.wrapper.unmount()
   })
 
+  it('falls back to default dock sizes when local preference storage cannot be read', () => {
+    const storage = memoryStorage()
+    vi.spyOn(storage, 'getItem').mockImplementation(() => {
+      throw new Error('local preferences unavailable')
+    })
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage })
+
+    let harness: Harness | undefined
+    expect(() => {
+      harness = mountHarness()
+    }).not.toThrow()
+    harness?.controller.reportShellHeight()
+    expect(harness?.controller.size.value).toBe(480)
+    harness?.wrapper.unmount()
+  })
+
+  it('finishes resize and reset actions when local preference storage cannot be written', () => {
+    const storage = memoryStorage()
+    vi.spyOn(storage, 'setItem').mockImplementation(() => {
+      throw new Error('local preferences unavailable')
+    })
+    vi.spyOn(storage, 'removeItem').mockImplementation(() => {
+      throw new Error('local preferences unavailable')
+    })
+    Object.defineProperty(window, 'localStorage', { configurable: true, value: storage })
+    const harness = mountHarness()
+    harness.controller.reportShellHeight()
+    const { handle } = resizeHandle()
+
+    harness.controller.startResize(pointerEvent(handle, { pointerId: 9, clientX: 700 }))
+    expect(() => {
+      harness.controller.finishResize(pointerEvent(handle, { pointerId: 9, clientX: 620 }))
+    }).not.toThrow()
+    expect(harness.controller.resizeGesture.value).toBeNull()
+    expect(() => harness.controller.resetSize()).not.toThrow()
+    harness.wrapper.unmount()
+  })
+
   it('finishes a resize against its starting axis when the panel is redocked mid-gesture', async () => {
     const harness = mountHarness()
     harness.controller.reportShellHeight()

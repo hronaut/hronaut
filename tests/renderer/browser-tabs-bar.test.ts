@@ -270,6 +270,19 @@ describe('BrowserTabsBar', () => {
     expect(JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? 'null')).toEqual([])
   })
 
+  it('keeps workspace collapse usable when local preference storage cannot be written', async () => {
+    vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+      throw new Error('local preferences unavailable')
+    })
+    renderTabs()
+
+    const group = screen.getByRole('button', { name: 'Collapse workspace Research, 1 tab' })
+    await userEvent.setup().click(group)
+
+    expect(group).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('tab', { name: 'Page first' })).not.toBeInTheDocument()
+  })
+
   it('reveals a tab when external activation enters its collapsed workspace', async () => {
     window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify(['workspace-1']))
     const initial = browserState()

@@ -23,6 +23,7 @@ import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabGroupColor, BrowserTabState, McpTabActivity } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
+import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 
 const props = defineProps<{
   state: BrowserState
@@ -188,7 +189,7 @@ function tabGroupColorStyle(color: BrowserTabGroupColor): Record<string, string>
 
 function loadCollapsedTabGroupIds(): string[] {
   try {
-    const stored: unknown = JSON.parse(window.localStorage.getItem('hronaut:collapsed-tab-groups') ?? '[]')
+    const stored: unknown = JSON.parse(readLocalPreference('hronaut:collapsed-tab-groups') ?? '[]')
     return Array.isArray(stored) ? stored.filter((value): value is string => typeof value === 'string') : []
   } catch {
     return []
@@ -289,7 +290,7 @@ function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
 }
 
 function persistCollapsedTabGroups(): void {
-  window.localStorage.setItem('hronaut:collapsed-tab-groups', JSON.stringify([...collapsedTabGroupIds.value]))
+  writeLocalPreference('hronaut:collapsed-tab-groups', JSON.stringify([...collapsedTabGroupIds.value]))
 }
 
 function toggleTabGroup(groupId: string): void {

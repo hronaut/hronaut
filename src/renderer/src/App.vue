@@ -4,11 +4,9 @@ import { computed, nextTick, ref, type Ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
-  PANEL_DOCKS,
   BrowserState,
   BrowserEmulationState,
-  BrowserTabState,
-  PanelDock
+  BrowserTabState
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
 import BrowserAddressBar from './components/BrowserAddressBar.vue'
@@ -65,6 +63,7 @@ import { useCommercialLicenseController } from './composables/useCommercialLicen
 import { useUpdateSettingsController } from './composables/useUpdateSettingsController'
 import { useAddressBarController } from './composables/useAddressBarController'
 import { usePanelDockLayout } from './composables/usePanelDockLayout'
+import { usePanelDockPreferenceController } from './composables/usePanelDockPreferenceController'
 import { usePanelRegistryController } from './composables/usePanelRegistryController'
 import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
 import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
@@ -108,10 +107,6 @@ import { useStartupRecoveryController } from './composables/useStartupRecoveryCo
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useSettingsNavigationController } from './composables/useSettingsNavigationController'
-
-function isPanelDock(value: string | null): value is PanelDock {
-  return value !== null && (PANEL_DOCKS as readonly string[]).includes(value)
-}
 
 function refKeyboardSurface(open: Ref<boolean>, close: () => void = () => (open.value = false)): ShellKeyboardSurface {
   return { isOpen: () => open.value, close }
@@ -197,12 +192,11 @@ const {
   concealVerticalTabRail,
   handleVerticalTabRailFocusOut
 } = useAppearancePresentationController({ settings, systemTheme, detachedWindow: isDetachedPanelWindow })
-const savedPanelDock = window.localStorage.getItem('hronaut:panel-dock')
-const panelDock = ref<PanelDock>(isDetachedPanelWindow ? 'window' : isPanelDock(savedPanelDock) ? savedPanelDock : 'right')
-
-function keepsSeparatePanelOpen(): boolean {
-  return isDetachedPanelWindow || panelDock.value === 'window'
-}
+const {
+  panelDock,
+  keepsSeparatePanelOpen,
+  persistDock: persistPanelDock
+} = usePanelDockPreferenceController({ detachedWindow: isDetachedPanelWindow })
 const sitePermissionsController = useSitePermissionsController({
   api: window.hronautPermissions,
   translate: (key) => t(key),
@@ -950,7 +944,7 @@ const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncControll
   panelDock,
   activePanelId,
   syncingMainPanelState,
-  persistDock: (dock) => window.localStorage.setItem('hronaut:panel-dock', dock),
+  persistDock: persistPanelDock,
   onError: reportShellActionError
 })
 const {

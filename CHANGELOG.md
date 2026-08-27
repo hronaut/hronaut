@@ -4,9 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Move panel-dock preference validation and persistence out of `App.vue` into a focused controller shared by shell layout behavior.
+
 ### Fixed
 
 - Always release Chromium's native pointer when an element or coordinate drag fails mid-movement so later human and agent input cannot remain stuck in a pressed state.
+- Keep Hronaut usable when local layout preference storage cannot be read or written, falling back to safe panel sizes and preserving live dock and workspace-collapse actions.
 
 ## [1.9.0] - 2026-08-27
 
