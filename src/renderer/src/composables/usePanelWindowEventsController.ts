@@ -4,6 +4,7 @@ import type {
   DetachablePanelId,
   PanelRedockRequest
 } from '../../../shared/types.js'
+import { disposeAll } from './dispose-all.js'
 
 export interface PanelWindowEventsControllerOptions {
   api: Pick<
@@ -61,10 +62,13 @@ export function usePanelWindowEventsController(options: PanelWindowEventsControl
   function dispose(): void {
     if (disposed) return
     disposed = true
-    for (const unsubscribe of unsubscribers) unsubscribe()
-    if (resetTimer !== undefined) window.clearTimeout(resetTimer)
-    resetTimer = undefined
-    syncingMainPanelState.value = false
+    try {
+      disposeAll(unsubscribers)
+    } finally {
+      if (resetTimer !== undefined) window.clearTimeout(resetTimer)
+      resetTimer = undefined
+      syncingMainPanelState.value = false
+    }
   }
 
   return { syncingMainPanelState, dispose }

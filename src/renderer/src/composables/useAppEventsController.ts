@@ -9,6 +9,7 @@ import type {
   HelpMenuAction,
   SitePermissionEntry
 } from '../../../shared/types.js'
+import { disposeAll } from './dispose-all.js'
 
 interface ShellEventsApi {
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
@@ -70,7 +71,7 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
   function dispose(): void {
     if (disposed) return
     disposed = true
-    for (const unsubscribe of unsubscribers) unsubscribe()
+    disposeAll(unsubscribers)
   }
 
   return { dispose }

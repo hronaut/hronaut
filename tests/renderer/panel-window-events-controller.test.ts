@@ -119,4 +119,16 @@ describe('panel window events controller', () => {
 
     detached.controller.dispose()
   })
+
+  it('unsubscribes every panel event and clears pending state when one unsubscriber throws', () => {
+    const main = createHarness(false)
+    const failure = new Error('panel event bridge unavailable')
+    main.listeners.active?.('console')
+    main.unsubscribers[0].mockImplementationOnce(() => { throw failure })
+
+    expect(main.controller.dispose).toThrow(failure)
+    expect(main.unsubscribers.every((unsubscribe) => unsubscribe.mock.calls.length === 1)).toBe(true)
+    expect(main.controller.syncingMainPanelState.value).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })

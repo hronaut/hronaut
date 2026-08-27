@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Complete renderer teardown even when one native listener or controller disposer throws, preventing later IPC subscriptions, timers, and shell resources from surviving an unmount.
+
 ## [1.9.2] - 2026-08-27
 
 ### Fixed

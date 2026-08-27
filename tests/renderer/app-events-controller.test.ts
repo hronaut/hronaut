@@ -153,4 +153,16 @@ describe('app events controller', () => {
 
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
   })
+
+  it('unsubscribes every native event when one unsubscriber throws', () => {
+    const harness = createHarness()
+    const failure = new Error('native event bridge unavailable')
+    harness.unsubscribers[0].mockImplementationOnce(() => { throw failure })
+
+    expect(harness.controller.dispose).toThrow(failure)
+    expect(harness.unsubscribers.every((unsubscribe) => unsubscribe.mock.calls.length === 1)).toBe(true)
+
+    harness.listeners.help?.('about')
+    expect(harness.callbacks.onHelp).not.toHaveBeenCalled()
+  })
 })

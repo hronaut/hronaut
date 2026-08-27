@@ -3,6 +3,7 @@ import {
   useShellWindowLifecycle,
   type ShellWindowLifecycleOptions
 } from './useShellWindowLifecycle.js'
+import { disposeAll } from './dispose-all.js'
 
 export interface AppLifecycleControllerOptions extends ShellWindowLifecycleOptions {
   start: () => void
@@ -25,7 +26,7 @@ export function useAppLifecycleController(
   function dispose(): void {
     if (disposed) return
     disposed = true
-    for (const disposer of disposers) disposer()
+    disposeAll(disposers)
   }
 
   onBeforeUnmount(dispose)
