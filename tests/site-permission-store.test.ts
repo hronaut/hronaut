@@ -72,6 +72,12 @@ describe('SitePermissionStore', () => {
     expect(await store.load()).toEqual([
       { origin: 'https://safe.example', permission: 'geolocation', decision: 'allow' }
     ])
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({
+      version: 1,
+      permissions: [
+        { origin: 'https://safe.example', permission: 'geolocation', decision: 'allow' }
+      ]
+    })
     await expect(store.set('hronaut://home', 'geolocation', 'allow')).rejects.toThrow('HTTP or HTTPS origin')
     expect(normalizeSitePermissionOrigin('https://EXAMPLE.com:443/path')).toBe('https://example.com')
     expect(normalizeSitePermissionOrigin('not a URL')).toBeNull()

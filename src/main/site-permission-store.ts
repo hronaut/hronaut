@@ -57,9 +57,17 @@ export class SitePermissionStore {
     try {
       const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedSitePermissions>
       if (value.version !== 1 || !Array.isArray(value.permissions)) return []
+      let repairedPersistedPermissions = false
       for (const entry of value.permissions) {
-        if (validEntry(entry)) this.entries.set(keyFor(entry.origin, entry.permission), { ...entry })
+        if (!validEntry(entry)) {
+          repairedPersistedPermissions = true
+          continue
+        }
+        const key = keyFor(entry.origin, entry.permission)
+        if (this.entries.has(key)) repairedPersistedPermissions = true
+        this.entries.set(key, { ...entry })
       }
+      if (repairedPersistedPermissions) await this.persist()
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error

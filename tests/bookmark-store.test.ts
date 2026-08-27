@@ -51,6 +51,8 @@ describe('BookmarkStore', () => {
       ]
     }), 'utf8')
     expect(await store.load()).toEqual([expect.objectContaining({ id: 'one' })])
+    expect((JSON.parse(await readFile(path, 'utf8')) as { bookmarks: Array<{ id: string }> }).bookmarks)
+      .toEqual([expect.objectContaining({ id: 'one' })])
   })
 
   it('repairs duplicate persisted IDs without dropping distinct bookmarks', async () => {
@@ -93,5 +95,37 @@ describe('BookmarkStore', () => {
 
   it.each(['javascript:alert(1)', 'file:///tmp/test', 'about:blank', 'not a URL'])('rejects unsafe bookmark URL %s', (url) => {
     expect(normalizeBookmarkUrl(url)).toBeNull()
+  })
+
+  it('strips embedded credentials before storing a bookmark URL', async () => {
+    const { path, store } = await createStore()
+    const saved = await store.add({
+      url: 'https://person:super-secret@example.com/docs#setup',
+      title: 'Private docs'
+    })
+
+    expect(saved.url).toBe('https://example.com/docs#setup')
+    expect(await readFile(path, 'utf8')).not.toContain('super-secret')
+  })
+
+  it('repairs embedded credentials in an existing bookmark without dropping it', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const now = new Date().toISOString()
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [{
+        id: 'private-bookmark',
+        url: 'https://person:old-secret@example.com/docs',
+        title: 'Existing docs',
+        createdAt: now,
+        updatedAt: now
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([
+      expect.objectContaining({ id: 'private-bookmark', url: 'https://example.com/docs' })
+    ])
+    expect(await readFile(path, 'utf8')).not.toContain('old-secret')
   })
 })

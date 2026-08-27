@@ -17,6 +17,8 @@ export function normalizeBookmarkUrl(value: string): string | null {
   try {
     const url = new URL(value)
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
+    url.username = ''
+    url.password = ''
     return url.href
   } catch {
     return null
@@ -33,7 +35,7 @@ function validBookmark(value: unknown): value is BrowserBookmark {
   const entry = value as Partial<BrowserBookmark>
   return (
     typeof entry.id === 'string' && entry.id.length > 0 && entry.id.length <= 128 &&
-    typeof entry.url === 'string' && normalizeBookmarkUrl(entry.url) === entry.url &&
+    typeof entry.url === 'string' && normalizeBookmarkUrl(entry.url) !== null &&
     typeof entry.title === 'string' && entry.title.length > 0 && entry.title.length <= MAX_BOOKMARK_TITLE &&
     typeof entry.createdAt === 'string' && Number.isFinite(Date.parse(entry.createdAt)) &&
     typeof entry.updatedAt === 'string' && Number.isFinite(Date.parse(entry.updatedAt))
@@ -60,16 +62,26 @@ export class BookmarkStore {
       if (value.version !== 1 || !Array.isArray(value.bookmarks)) return []
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
-      let repairedDuplicateId = false
+      let repairedPersistedBookmarks = false
       for (const entry of value.bookmarks) {
-        if (!validBookmark(entry) || seenUrls.has(entry.url) || this.entries.size >= MAX_BOOKMARKS) continue
-        seenUrls.add(entry.url)
-        const restored = seenIds.has(entry.id) ? { ...entry, id: randomUUID() } : { ...entry }
-        if (restored.id !== entry.id) repairedDuplicateId = true
+        if (!validBookmark(entry)) {
+          repairedPersistedBookmarks = true
+          continue
+        }
+        const normalizedUrl = normalizeBookmarkUrl(entry.url)!
+        if (seenUrls.has(normalizedUrl) || this.entries.size >= MAX_BOOKMARKS) {
+          repairedPersistedBookmarks = true
+          continue
+        }
+        seenUrls.add(normalizedUrl)
+        const normalized = { ...entry, url: normalizedUrl }
+        if (normalizedUrl !== entry.url) repairedPersistedBookmarks = true
+        const restored = seenIds.has(entry.id) ? { ...normalized, id: randomUUID() } : normalized
+        if (restored.id !== entry.id) repairedPersistedBookmarks = true
         seenIds.add(restored.id)
         this.entries.set(restored.id, restored)
       }
-      if (repairedDuplicateId) await this.persist()
+      if (repairedPersistedBookmarks) await this.persist()
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error

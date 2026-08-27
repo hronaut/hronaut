@@ -79,6 +79,8 @@ describe('HistoryStore', () => {
     }))
     await store.load()
     expect(store.list()).toEqual([expect.objectContaining({ id: 'new' })])
+    expect((JSON.parse(await readFile(path, 'utf8')) as { entries: Array<{ id: string }> }).entries)
+      .toEqual([expect.objectContaining({ id: 'new' })])
   })
 
   it('repairs duplicate persisted IDs without dropping distinct history entries', async () => {

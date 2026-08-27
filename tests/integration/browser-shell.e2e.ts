@@ -424,9 +424,15 @@ test('restarts Home copy feedback after repeated setup copies', async ({ electro
     return home.executeJavaScript(`(async () => {
       const callbacks = [];
       const originalSetTimeout = window.setTimeout;
-      window.setTimeout = (callback) => {
+      const originalClearTimeout = window.clearTimeout;
+      window.setTimeout = (callback, delay, ...args) => {
+        if (delay !== 1200) return originalSetTimeout(callback, delay, ...args);
         callbacks.push(callback);
-        return callbacks.length;
+        return 100000 + callbacks.length;
+      };
+      window.clearTimeout = (handle) => {
+        if (Number(handle) > 100000) return;
+        originalClearTimeout(handle);
       };
       const waitFor = async (condition) => {
         for (let attempt = 0; attempt < 100 && !condition(); attempt += 1) {
@@ -446,6 +452,7 @@ test('restarts Home copy feedback after repeated setup copies', async ({ electro
         return { afterFirstTimeout, afterSecondTimeout: button.textContent };
       } finally {
         window.setTimeout = originalSetTimeout;
+        window.clearTimeout = originalClearTimeout;
       }
     })()`)
   })

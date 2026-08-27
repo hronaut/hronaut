@@ -65,21 +65,24 @@ export class HistoryStore {
       const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedHistory>
       if (value.version !== HISTORY_VERSION || !Array.isArray(value.entries)) return []
       const oldestAllowed = this.now() - HISTORY_RETENTION_MS
-      const sorted = value.entries
-        .filter((entry) => validEntry(entry, oldestAllowed))
+      const validEntries = value.entries.filter((entry) => validEntry(entry, oldestAllowed))
+      let repairedPersistedHistory = validEntries.length !== value.entries.length
+      const sorted = validEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
-      let repairedDuplicateId = false
       for (const entry of sorted) {
-        if (seenUrls.has(entry.url) || this.entries.size >= MAX_HISTORY_ENTRIES) continue
+        if (seenUrls.has(entry.url) || this.entries.size >= MAX_HISTORY_ENTRIES) {
+          repairedPersistedHistory = true
+          continue
+        }
         seenUrls.add(entry.url)
         const restored = seenIds.has(entry.id) ? { ...entry, id: randomUUID() } : { ...entry }
-        if (restored.id !== entry.id) repairedDuplicateId = true
+        if (restored.id !== entry.id) repairedPersistedHistory = true
         seenIds.add(restored.id)
         this.entries.set(restored.id, restored)
       }
-      if (repairedDuplicateId) await this.persist()
+      if (repairedPersistedHistory) await this.persist()
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error

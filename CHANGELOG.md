@@ -4,13 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.5] - 2026-08-27
+
 ### Changed
 
 - Extract panel registration, transient-panel coordination, detached-window synchronization, and developer-panel actions from `App.vue` into a focused feature controller.
+- Extract page capture, export, diagnostics, and page-tools presentation composition from `App.vue` into a focused feature controller.
+- Update Electron 42 to 42.10.1 for upstream window, Wayland, shutdown, printing, and renderer reliability fixes while the Electron 43+ migration remains blocked upstream.
 
 ### Fixed
 
 - Release failed detached-panel windows and clear their runtime owner so a later detach request can retry after a renderer load failure.
+- Remove malformed, duplicate, unsafe, expired, and overflow bookmark, credential, permission, and visit-history records from the persisted profile during startup repair instead of leaving filtered private data on disk.
+- Strip embedded usernames and passwords from HTTP(S) bookmark URLs before storing them.
 
 ## [1.9.4] - 2026-08-27
 

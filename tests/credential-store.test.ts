@@ -191,6 +191,28 @@ describe('CredentialStore', () => {
     expect(new Set(repaired.credentials.map((account) => account.id))).toHaveProperty('size', 2)
   })
 
+  it('removes malformed persisted credentials from the encrypted vault file', async () => {
+    const { path, store } = await createStore()
+    const saved = await store.save('https://example.com', 'person', 'valid password')
+    const persisted = JSON.parse(await readFile(path, 'utf8')) as {
+      version: 1
+      credentials: Array<Record<string, string>>
+    }
+    persisted.credentials.push({
+      ...persisted.credentials[0]!,
+      id: 'unsafe-origin',
+      origin: 'file:///tmp/private.html',
+      encryptedPassword: 'invalid-private-payload'
+    })
+    await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new CredentialStore(path, encryption)
+    expect(await restored.load()).toEqual([saved])
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toContain('invalid-private-payload')
+    expect((JSON.parse(repaired) as { credentials: unknown[] }).credentials).toHaveLength(1)
+  })
+
   it('keeps the in-memory vault unchanged when persistence fails', async () => {
     const { path, store } = await createStore()
     const saved = await store.save('https://example.com', 'person', 'original password')

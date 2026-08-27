@@ -1,6 +1,6 @@
 {
   "name": "hronaut",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "description": "A persistent, visible Electron browser controlled through MCP",
   "desktopName": "Hronaut",
   "author": "Hronaut",
@@ -74,7 +74,7 @@
     "@types/node": "^26.2.0",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/test-utils": "^2.4.11",
-    "electron": "42.9.3",
+    "electron": "42.10.1",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^10.8.1",

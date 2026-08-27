@@ -72,26 +72,29 @@ export class CredentialStore {
       const value = JSON.parse(await readFile(this.path, 'utf8')) as Partial<PersistedCredentialVault>
       if (value.version !== 1 || !Array.isArray(value.credentials)) return []
       const accounts = new Map<string, PersistedCredential>()
-      let repairedDuplicates = false
+      let repairedPersistedVault = false
       for (const entry of value.credentials) {
-        if (!validPersistedCredential(entry)) continue
+        if (!validPersistedCredential(entry)) {
+          repairedPersistedVault = true
+          continue
+        }
         const key = credentialIdentity(entry)
         const existing = accounts.get(key)
         if (!existing || existing.updatedAt.localeCompare(entry.updatedAt) <= 0) {
-          if (existing) repairedDuplicates = true
+          if (existing) repairedPersistedVault = true
           accounts.set(key, { ...entry })
         } else {
-          repairedDuplicates = true
+          repairedPersistedVault = true
         }
       }
       const usedIds = new Set<string>()
       for (const entry of accounts.values()) {
         const restored = usedIds.has(entry.id) ? { ...entry, id: randomUUID() } : entry
-        if (restored !== entry) repairedDuplicates = true
+        if (restored !== entry) repairedPersistedVault = true
         usedIds.add(restored.id)
         this.entries.set(restored.id, restored)
       }
-      if (repairedDuplicates) await this.persist()
+      if (repairedPersistedVault) await this.persist()
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error

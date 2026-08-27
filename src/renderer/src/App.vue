@@ -40,15 +40,13 @@ import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
 import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
+import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
-import { useDiagnosticsController } from './composables/useDiagnosticsController'
 import { useEnvironmentPanelController } from './composables/useEnvironmentPanelController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
 import { useMcpActivityController } from './composables/useMcpActivityController'
-import { usePageCaptureController } from './composables/usePageCaptureController'
-import { usePageExportController } from './composables/usePageExportController'
 import { useDiagnosticLogPreservationController } from './composables/useDiagnosticLogPreservationController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useAddressBarController } from './composables/useAddressBarController'
@@ -81,7 +79,6 @@ import { useAppBootstrapController } from './composables/useAppBootstrapControll
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
-import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
@@ -474,97 +471,37 @@ const {
   refresh: refreshPrivacySettings,
   onRefreshError: reportShellActionError
 })
-const pageCaptureController = usePageCaptureController({
+const appPageToolsFeatureController = useAppPageToolsFeatureController({
   activeTab,
   browser,
-  onElementCopied: (mode) => showAppToast(
-    'success',
-    t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotCopied' : 'runtime.toast.elementCopied'),
-    t(mode === 'screenshot' ? 'runtime.capture.pastePng' : 'runtime.capture.safeContext')
-  ),
-  onElementFailed: (mode, error) => showAppToast(
-    'error',
-    t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotFailed' : 'runtime.toast.elementFailed'),
-    friendlyUiError(error, t(mode === 'screenshot' ? 'runtime.toast.elementScreenshotDescription' : 'runtime.toast.elementDescription'))
-  ),
-  onCaptureCopied: (mode) => showAppToast(
-    'success',
-    t(mode === 'area'
-      ? 'runtime.toast.areaCopied'
-      : mode === 'full-page'
-        ? 'runtime.toast.fullCopied'
-        : 'runtime.toast.viewportCopied'),
-    t('runtime.capture.pastePng')
-  ),
-  onCaptureFailed: (mode, error) => {
-    const captureName = mode === 'area'
-      ? ''
-      : t(mode === 'full-page' ? 'runtimeActions.capture.fullPage' : 'runtimeActions.capture.viewport')
-    const message = friendlyUiError(
-      error,
-      mode === 'area'
-        ? t('runtimeActions.capture.areaFallback')
-        : t('runtimeActions.capture.pageFallback', { area: captureName })
-    )
-    showAppToast('error', t('runtime.capture.screenshotFailed'), message)
-    return mode === 'area'
-      ? t('runtimeActions.capture.areaCopyFailed', { error: message })
-      : t('runtimeActions.capture.pageCopyFailed', { area: captureName, error: message })
-  }
-})
-const {
-  elementState: elementPickerState,
-  elementMode: elementPickerMode,
-  captureState: areaCaptureState,
-  toggleElementPicker,
-  cancelElementPicker: cancelActiveElementPicker,
-  toggleAreaCapture,
-  capturePage: capturePageScreenshot,
-  dispose: disposePageCaptureController
-} = pageCaptureController
-const pageExportController = usePageExportController({
-  activeTab,
-  browser,
-  snapshotCopied: (result) => showAppToast(
-    'success',
-    t('runtimeActions.pageSnapshot.copied'),
-    t('runtimeActions.pageSnapshot.ready', {
-      count: localNumber(result.characters),
-      limit: t(result.truncated ? 'runtimeActions.pageSnapshot.bounded' : 'runtimeActions.pageSnapshot.period')
-    })
-  ),
-  snapshotFailed: (error) => showAppToast(
-    'error',
-    t('runtime.toast.pageSnapshotFailed'),
-    friendlyUiError(error, t('runtime.toast.pageSnapshotDescription'))
-  ),
-  pdfSaved: (result) => showAppToast(
-    'success',
-    t('shell.pageTools.savePdf'),
-    t('runtime.pdf.saved', { path: result.path })
-  ),
-  pdfFailed: (error) => showAppToast(
-    'error',
-    t('runtime.pdf.failed'),
-    friendlyUiError(error, t('runtime.pdf.failed'))
-  )
-})
-const {
-  snapshotState: pageSnapshotState,
-  pdfState: pdfExportState,
-  copySnapshot: copyPageSnapshot,
-  savePdf: saveActivePdf,
-  dispose: disposePageExportController
-} = pageExportController
-const diagnosticsController = useDiagnosticsController({
-  activeTab,
-  browser,
-  translate: (message, parameters) => t(message, parameters ?? {}),
+  emulation: emulationController,
+  environmentState,
+  environmentOverrideCount: activeEnvironmentOverrideCount,
   copyText: copyAppText,
   closeTransientPanels,
-  keepsSeparatePanelOpen
+  keepsSeparatePanelOpen,
+  translate: (key, parameters, plural) => plural === undefined
+    ? t(key, parameters ?? {})
+    : t(key, parameters ?? {}, plural),
+  formatNumber: localNumber,
+  formatPercent: localPercent,
+  formatBytes,
+  showToast: showAppToast
 })
 const {
+  diagnosticsController,
+  pageToolsPresentationController,
+  elementPickerState,
+  elementPickerMode,
+  areaCaptureState,
+  toggleElementPicker,
+  cancelActiveElementPicker,
+  toggleAreaCapture,
+  capturePageScreenshot,
+  pageSnapshotState,
+  pdfExportState,
+  copyPageSnapshot,
+  saveActivePdf,
   accessibilityPanelOpen,
   qualityAuditPanelOpen,
   performancePanelOpen,
@@ -593,8 +530,16 @@ const {
   toggleInspectorIssues,
   toggleAccessibilityAudit,
   toggleQualityAudit,
-  dispose: disposeDiagnosticsController
-} = diagnosticsController
+  pageToolsLabels,
+  activeNetworkRouteCount,
+  activeInspectorIssueCount,
+  debugReportSignalCount,
+  elementPickerLabel,
+  elementPickerTitle,
+  areaCaptureLabel,
+  disposeCaptureAndExport: disposeAppPageToolsCaptureAndExport,
+  disposeDiagnostics: disposeAppPageToolsDiagnostics
+} = appPageToolsFeatureController
 const consolePanelOpen = ref(false)
 const consolePanel = ref<InstanceType<typeof ConsolePanelContainer> | null>(null)
 const networkMonitorOpen = ref(false)
@@ -996,30 +941,6 @@ const {
   resizeWithKeyboard: resizePanelWithKeyboard,
   resetSize: resetPanelDockSize
 } = panelDockLayout
-const pageToolsPresentationController = usePageToolsPresentationController({
-  activeTab,
-  emulation: emulationController,
-  environmentState,
-  environmentOverrideCount: activeEnvironmentOverrideCount,
-  diagnostics: diagnosticsController,
-  capture: pageCaptureController,
-  pageExport: pageExportController,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
-  formatNumber: localNumber,
-  formatPercent: localPercent,
-  formatBytes
-})
-const {
-  labels: pageToolsLabels,
-  activeNetworkRouteCount,
-  activeInspectorIssueCount,
-  debugReportSignalCount,
-  elementPickerLabel,
-  elementPickerTitle,
-  areaCaptureLabel
-} = pageToolsPresentationController
 const activeTabPresentationController = useActiveTabPresentationController({
   state,
   activeTab,
@@ -1273,8 +1194,7 @@ useAppLifecycleController({
     settingsStore.dispose,
     disposeAppEventsController,
     disposeAppPanelFeatureController,
-    disposePageCaptureController,
-    disposePageExportController,
+    disposeAppPageToolsCaptureAndExport,
     disposeDiagnosticLogPreservationController,
     disposeHelpDialogController,
     disposePrivacySettingsShellController,
@@ -1283,7 +1203,7 @@ useAppLifecycleController({
     disposeAppSettingsFeatureController,
     disposeBrowserCollectionsShellController,
     browserCollectionsController.dispose,
-    disposeDiagnosticsController,
+    disposeAppPageToolsDiagnostics,
     disposeAppToastController
   ]
 })
