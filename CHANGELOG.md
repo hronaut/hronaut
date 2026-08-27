@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - Let agents hover bounded viewport coordinates to reveal tooltips and hover states on canvas, WebGL, maps, remote desktops, and other visual-only surfaces.
 - Let agents drag between bounded viewport coordinates for canvas, maps, custom controls, remote desktops, and other pixel-precise targets.
 - Add first-class Gemini CLI setup, authentication-aware configuration, and connection verification to Hronaut Home.
+- Add a localized, copy-ready first-success task to Hronaut Home so a newly connected agent can prove isolated workspace creation, navigation, and semantic inspection immediately.
 
 ### Fixed
 
@@ -20,6 +21,7 @@ All notable changes to Hronaut are documented in this file.
 - Prevent queued Network refresh and request-condition actions from running inside a panel that was closed and reopened by newer shell coordination.
 - Keep diagnostic “Copied” feedback scoped to the current page and restart its confirmation timeout when the same report is copied again.
 - Keep Console, Network, Site Storage, and MCP endpoint copy confirmations scoped to the latest clipboard action and current context, with full confirmation time after repeated copies.
+- Keep Hronaut Home on the newest status response and prevent repeated or guide-switched setup copies from clearing, sticking, or showing stale feedback.
 
 ### Changed
 

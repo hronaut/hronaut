@@ -313,6 +313,16 @@ test('copies Home setup natively, reports failures in shell chrome, and withhold
     return home?.executeJavaScript(`document.querySelector('[data-copy-target="guide-code"]').textContent`)
   })).toBe('Copied')
 
+  await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    await home.executeJavaScript(`document.querySelector('[data-copy-target="first-run-prompt"]').click()`)
+  })
+  await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
+    .toContain('Hronaut first run')
+  await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
+    .toContain('Do not use the Default workspace')
+
   await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Clipboard boundary</title>', active: true })`)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
     .toBe('Clipboard boundary')
@@ -337,6 +347,105 @@ test('copies Home setup natively, reports failures in shell chrome, and withhold
   const toast = appWindow.getByRole('alert', { name: 'Copy failed' })
   await expect(toast).toBeVisible()
   await expect(toast).toContainText('maximum 8 MB')
+})
+
+test('keeps the newest Home dashboard refresh when status responses resolve out of order', async ({
+  electronApp
+}) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  )).toBe(true)
+
+  const renderedVersion = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(async () => {
+      const pending = [];
+      const originalFetch = window.fetch;
+      window.fetch = () => new Promise((resolve) => pending.push(resolve));
+      try {
+        const olderRefresh = refreshDashboard();
+        const newerRefresh = refreshDashboard();
+        while (pending.length < 2) await Promise.resolve();
+        const response = (version) => ({
+          ok: true,
+          json: async () => ({ ...dashboard, version })
+        });
+        pending[1](response('newer'));
+        await newerRefresh;
+        pending[0](response('older'));
+        await olderRefresh;
+        return document.getElementById('server-version').textContent;
+      } finally {
+        window.fetch = originalFetch;
+      }
+    })()`)
+  })
+
+  expect(renderedVersion).toBe('Hronaut newer')
+})
+
+test('restarts Home copy feedback after repeated setup copies', async ({ electronApp }) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  )).toBe(true)
+
+  const feedback = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(async () => {
+      const callbacks = [];
+      const originalSetTimeout = window.setTimeout;
+      window.setTimeout = (callback) => {
+        callbacks.push(callback);
+        return callbacks.length;
+      };
+      const waitFor = async (condition) => {
+        for (let attempt = 0; attempt < 100 && !condition(); attempt += 1) {
+          await new Promise((resolve) => originalSetTimeout(resolve, 10));
+        }
+        if (!condition()) throw new Error('Timed out waiting for Home copy feedback');
+      };
+      try {
+        const button = document.querySelector('[data-copy-target="guide-code"]');
+        button.click();
+        await waitFor(() => callbacks.length === 1 && button.textContent === messages.copy.copied);
+        button.click();
+        await waitFor(() => callbacks.length === 2);
+        callbacks[0]();
+        const afterFirstTimeout = button.textContent;
+        callbacks[1]();
+        return { afterFirstTimeout, afterSecondTimeout: button.textContent };
+      } finally {
+        window.setTimeout = originalSetTimeout;
+      }
+    })()`)
+  })
+
+  expect(feedback).toEqual({ afterFirstTimeout: 'Copied', afterSecondTimeout: 'Copy' })
+})
+
+test('does not show stale Home copy success after switching setup guides', async ({ electronApp }) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  )).toBe(true)
+
+  const feedback = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(async () => {
+      const copyButton = document.querySelector('[data-copy-target="guide-code"]');
+      copyButton.click();
+      document.querySelector('[data-guide="gemini-cli"]').click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return {
+        copyLabel: copyButton.textContent,
+        guideName: document.getElementById('guide-name').textContent
+      };
+    })()`)
+  })
+
+  expect(feedback).toEqual({ copyLabel: 'Copy', guideName: 'Gemini CLI' })
 })
 
 test('shows an error status when the MCP port is already in use', async ({

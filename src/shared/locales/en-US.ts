@@ -331,6 +331,13 @@ export const enUS = {
       emptyHeading: 'No clients connected yet', emptyDescription: 'Copy a setup snippet, refresh your coding agent, and its activity will appear here.',
       versionUnknown: 'Version not reported', active: 'Active', recent: 'Recent'
     },
+    firstRun: {
+      kicker: 'First success',
+      heading: 'Try Hronaut with one safe task',
+      description: 'After connecting, copy this prompt into your coding agent. You will see it create an isolated workspace and inspect a page without using Default.',
+      prompt: 'Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.',
+      copy: 'Copy prompt'
+    },
     activity: {
       heading: 'Agent activity', description: 'A local, content-free view of what Hronaut handled during this launch.',
       tabActionsCompleted: 'Tab actions completed', toolsUsed: 'Tools used', successfulActions: 'Successful actions', recent: 'Recent activity',

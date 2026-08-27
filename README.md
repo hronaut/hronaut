@@ -66,6 +66,16 @@ The public [setup guide](https://hronaut.dev/setup) provides tested commands for
 
 After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
 
+### First successful run
+
+After your client reports Hronaut as connected, paste this into the coding agent:
+
+```text
+Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.
+```
+
+Hronaut Home provides the same prompt with a copy button. A successful run visibly creates a separate workspace, opens the page, and records content-free tool activity on Home; the workspace and its browser profile remain available after the coding-agent conversation ends.
+
 ### OpenCode
 
 For a new Hronaut profile with MCP authentication disabled, add this server to the global `~/.config/opencode/opencode.json` or a project's `opencode.json`:

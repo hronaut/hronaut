@@ -230,6 +230,12 @@ export function renderHomePage(options: HomePageOptions): string {
     .verify code { min-width: 0; flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--soft); font: 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
     .verify .copy-button { padding: 7px 10px; }
     .connections-body { min-height: 360px; padding: 10px 14px 14px; }
+    .first-run { display: grid; grid-template-columns: minmax(230px,.62fr) minmax(0,1.38fr); gap: 22px; align-items: center; margin-top: 20px; padding: 22px 24px; }
+    .first-run-kicker { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+    .first-run h2 { margin-top: 7px; }
+    .first-run p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .first-run .code-wrap { min-width: 0; }
+    .first-run pre { min-height: 0; padding-right: 130px; }
     .empty { display: grid; min-height: 250px; place-items: center; padding: 30px; color: var(--muted); text-align: center; }
     .empty strong { display: block; color: var(--text); font-size: 15px; }
     .empty span { display: block; max-width: 280px; margin-top: 6px; font-size: 13px; line-height: 1.55; }
@@ -276,6 +282,7 @@ export function renderHomePage(options: HomePageOptions): string {
       .hero { grid-template-columns: 1fr; }
       .hero-status { min-width: 0; }
       .grid { grid-template-columns: 1fr; }
+      .first-run { grid-template-columns: 1fr; }
       .activity-layout { grid-template-columns: 1fr; }
       .tool-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
@@ -349,6 +356,18 @@ export function renderHomePage(options: HomePageOptions): string {
       </section>
     </div>
 
+    <section class="panel first-run" aria-labelledby="first-run-title">
+      <div>
+        <span class="first-run-kicker">${escapeHtml(home.firstRun.kicker)}</span>
+        <h2 id="first-run-title">${escapeHtml(home.firstRun.heading)}</h2>
+        <p>${escapeHtml(home.firstRun.description)}</p>
+      </div>
+      <div class="code-wrap">
+        <pre><code id="first-run-prompt">${escapeHtml(home.firstRun.prompt)}</code></pre>
+        <button class="copy-button code-copy" type="button" data-copy-target="first-run-prompt">${escapeHtml(home.firstRun.copy)}</button>
+      </div>
+    </section>
+
     <section class="panel activity" aria-labelledby="activity-title">
       <header class="panel-heading">
         <div><h2 id="activity-title">${escapeHtml(home.activity.heading)}</h2><p>${escapeHtml(home.activity.description)}</p></div>
@@ -391,6 +410,17 @@ export function renderHomePage(options: HomePageOptions): string {
     const locale = ${serialized(options.locale)};
     let dashboard = ${serialized(options.initialState)};
     let selectedGuide = guides[0].id;
+    const copyButtonStates = new WeakMap();
+
+    function resetCopyButton(button) {
+      const state = copyButtonStates.get(button);
+      if (!state) return;
+      state.sequence += 1;
+      if (state.timer !== undefined) clearTimeout(state.timer);
+      state.timer = undefined;
+      button.textContent = state.label;
+      button.title = state.title;
+    }
 
     function escapeText(value) {
       const node = document.createElement('span');
@@ -437,6 +467,7 @@ export function renderHomePage(options: HomePageOptions): string {
       const verifyCommand = document.getElementById('guide-verify-command');
       verify.hidden = !guide.verifyCommand;
       verifyCommand.textContent = guide.verifyCommand || '';
+      document.querySelectorAll('[data-copy-target^="guide-"]').forEach(resetCopyButton);
       document.querySelectorAll('[data-guide]').forEach((button) => button.addEventListener('click', () => {
         selectedGuide = button.dataset.guide;
         renderGuide();
@@ -497,30 +528,55 @@ export function renderHomePage(options: HomePageOptions): string {
       ).join('');
     }
 
+    let dashboardRefreshSequence = 0;
+
     async function refreshDashboard() {
+      const sequence = ++dashboardRefreshSequence;
       try {
         const response = await fetch('/api/status', { cache: 'no-store' });
-        if (response.ok) dashboard = await response.json();
+        const nextDashboard = response.ok ? await response.json() : null;
+        if (sequence !== dashboardRefreshSequence) return;
+        if (nextDashboard) dashboard = nextDashboard;
         renderDashboard();
       } catch {
+        if (sequence !== dashboardRefreshSequence) return;
         document.getElementById('request-count').textContent = messages.status.reconnecting;
       }
     }
 
-    document.querySelectorAll('[data-copy-target]').forEach((button) => button.addEventListener('click', async () => {
-      const target = document.getElementById(button.dataset.copyTarget);
-      const label = button.textContent;
-      const title = button.title;
-      try {
-        if (!window.hronautHome?.copyText) throw new Error(messages.copy.unavailable);
-        await window.hronautHome.copyText(target.textContent || '');
-        button.textContent = messages.copy.copied;
-      } catch (error) {
-        button.textContent = messages.copy.failed;
-        button.title = error instanceof Error ? error.message : messages.copy.rejected;
-      }
-      setTimeout(() => { button.textContent = label; button.title = title; }, 1200);
-    }));
+    document.querySelectorAll('[data-copy-target]').forEach((button) => {
+      const state = {
+        label: button.textContent,
+        title: button.title,
+        sequence: 0,
+        timer: undefined
+      };
+      copyButtonStates.set(button, state);
+      button.addEventListener('click', async () => {
+        const target = document.getElementById(button.dataset.copyTarget);
+        const value = target.textContent || '';
+        const sequence = ++state.sequence;
+        if (state.timer !== undefined) clearTimeout(state.timer);
+        state.timer = undefined;
+        button.title = state.title;
+        try {
+          if (!window.hronautHome?.copyText) throw new Error(messages.copy.unavailable);
+          await window.hronautHome.copyText(value);
+          if (sequence !== state.sequence || target.textContent !== value) return;
+          button.textContent = messages.copy.copied;
+        } catch (error) {
+          if (sequence !== state.sequence || target.textContent !== value) return;
+          button.textContent = messages.copy.failed;
+          button.title = error instanceof Error ? error.message : messages.copy.rejected;
+        }
+        state.timer = setTimeout(() => {
+          if (sequence !== state.sequence) return;
+          state.timer = undefined;
+          button.textContent = state.label;
+          button.title = state.title;
+        }, 1200);
+      });
+    });
 
     renderGuide();
     renderDashboard();

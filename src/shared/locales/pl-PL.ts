@@ -2586,6 +2586,13 @@ export const plPL = {
       "active": "Aktywne",
       "recent": "Ostatnie"
     },
+    "firstRun": {
+      "kicker": "Pierwszy sukces",
+      "heading": "Wypróbuj Hronaut w jednym bezpiecznym zadaniu",
+      "description": "Po połączeniu skopiuj ten prompt do agenta programistycznego. Zobaczysz, jak tworzy odizolowany obszar roboczy i sprawdza stronę bez używania obszaru Domyślnego.",
+      "prompt": "Korzystając z Hronaut, utwórz nowy odizolowany obszar roboczy o nazwie „Pierwsze uruchomienie Hronaut”, otwórz https://example.com, wykonaj semantyczny zrzut i podaj nagłówek strony. Nie używaj obszaru roboczego Domyślnego.",
+      "copy": "Kopiuj prompt"
+    },
     "activity": {
       "heading": "Aktywność agentów",
       "description": "Lokalny, pozbawiony treści widok działań obsłużonych przez Hronaut podczas tego uruchomienia.",

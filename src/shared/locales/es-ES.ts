@@ -2586,6 +2586,13 @@ export const esES = {
       "active": "Activo",
       "recent": "Reciente"
     },
+    "firstRun": {
+      "kicker": "Primer éxito",
+      "heading": "Prueba Hronaut con una tarea segura",
+      "description": "Después de conectar, copia este mensaje en tu agente de programación. Verás cómo crea un espacio de trabajo aislado e inspecciona una página sin usar el espacio Predeterminado.",
+      "prompt": "Usando Hronaut, crea un nuevo espacio de trabajo aislado llamado «Primera ejecución de Hronaut», abre https://example.com, toma una instantánea semántica y dime el encabezado de la página. No uses el espacio de trabajo Predeterminado.",
+      "copy": "Copiar mensaje"
+    },
     "activity": {
       "heading": "Actividad de los agentes",
       "description": "Una vista local y sin contenido de lo que Hronaut gestionó durante este inicio.",

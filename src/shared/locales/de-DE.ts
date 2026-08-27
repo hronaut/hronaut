@@ -2586,6 +2586,13 @@ export const deDE = {
       "active": "Aktiv",
       "recent": "Kürzlich"
     },
+    "firstRun": {
+      "kicker": "Erster Erfolg",
+      "heading": "Hronaut mit einer sicheren Aufgabe ausprobieren",
+      "description": "Kopieren Sie nach dem Verbinden diesen Prompt in Ihren Coding-Agenten. Sie sehen, wie er einen isolierten Arbeitsbereich erstellt und eine Seite prüft, ohne Standard zu verwenden.",
+      "prompt": "Erstelle mit Hronaut einen neuen isolierten Arbeitsbereich namens „Hronaut erster Lauf“, öffne https://example.com, erstelle einen semantischen Snapshot und nenne mir die Seitenüberschrift. Verwende nicht den Arbeitsbereich Standard.",
+      "copy": "Prompt kopieren"
+    },
     "activity": {
       "heading": "Agentenaktivität",
       "description": "Eine lokale, inhaltsfreie Ansicht dessen, was Hronaut bei diesem Start verarbeitet hat.",

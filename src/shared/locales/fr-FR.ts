@@ -2586,6 +2586,13 @@ export const frFR = {
       "active": "Actif",
       "recent": "Récent"
     },
+    "firstRun": {
+      "kicker": "Premier succès",
+      "heading": "Essayez Hronaut avec une tâche sûre",
+      "description": "Après la connexion, copiez cette consigne dans votre agent de programmation. Vous le verrez créer un espace de travail isolé et inspecter une page sans utiliser l’espace Par défaut.",
+      "prompt": "Avec Hronaut, crée un nouvel espace de travail isolé nommé « Premier lancement Hronaut », ouvre https://example.com, prends un instantané sémantique et indique-moi le titre de la page. N’utilise pas l’espace de travail Par défaut.",
+      "copy": "Copier la consigne"
+    },
     "activity": {
       "heading": "Activité des agents",
       "description": "Une vue locale, sans contenu, de ce que Hronaut a traité pendant ce lancement.",
