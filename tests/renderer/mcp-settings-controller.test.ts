@@ -106,6 +106,26 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
+  it('does not restart a healthy listener when the unchanged port is submitted', async () => {
+    const { controller, setPort } = createController()
+
+    await expect(controller.applyPort()).resolves.toBe(false)
+
+    expect(setPort).not.toHaveBeenCalled()
+    expect(controller.portState.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('retries the current port when the listener is unhealthy', async () => {
+    const { controller, listenerFailed, setPort } = createController()
+    listenerFailed.value = true
+
+    await expect(controller.applyPort()).resolves.toBe(true)
+
+    expect(setPort).toHaveBeenCalledWith(DEFAULT_RENDERER_SETTINGS.mcpPort)
+    controller.dispose()
+  })
+
   it('blocks authentication mutations while a port move is in flight', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setAuthentication, setPort } = createController()

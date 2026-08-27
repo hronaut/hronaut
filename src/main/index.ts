@@ -220,6 +220,7 @@ const commercialLicenseOperations = new CommercialLicenseOperationCoordinator()
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
 let credentialStorageStatus: CredentialStorageStatus = { available: false, reason: 'Secure storage is initializing.' }
+let persistedSettings: AppSettings = { ...DEFAULT_SETTINGS }
 let settings: AppSettings = { ...DEFAULT_SETTINGS }
 let systemLocale: SupportedLocale = 'en-US'
 let resolvedLocale: SupportedLocale = 'en-US'
@@ -351,7 +352,9 @@ function updateSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
   let committed: AppSettings | undefined
   const operation = settingsMutationQueue.then(async () => {
     const next = { ...settings, ...updates }
-    await settingsStore!.save(next)
+    const nextPersisted = { ...persistedSettings, ...updates }
+    await settingsStore!.save(nextPersisted)
+    persistedSettings = nextPersisted
     settings = next
     committed = { ...settings }
   })
@@ -1348,7 +1351,7 @@ function createTray(): void {
     if (settings.hideInTray) {
       settings = { ...settings, hideInTray: false }
       publishSettings()
-      void settingsStore?.save(settings).catch((saveError) =>
+      void updateSettings({ hideInTray: false }).catch((saveError) =>
         console.error('[tray] Failed to disable hide-in-tray after tray creation failed:', saveError)
       )
     }
@@ -3082,7 +3085,8 @@ function registerIpc(): void {
 
 async function loadAuthoritativeSettings(): Promise<void> {
   settingsStore = new SettingsStore(join(app.getPath('userData'), 'settings.json'))
-  settings = await settingsStore.load()
+  persistedSettings = await settingsStore.load()
+  settings = { ...persistedSettings }
   systemLocale = resolveSupportedLocale(app.getLocale())
   resolvedLocale = resolveLocalePreference(settings.languagePreference, systemLocale)
   if (process.env.HRONAUT_MCP_PORT !== undefined) {
@@ -3489,7 +3493,10 @@ function createRuntimeMcpServer(
 
 async function setMcpPort(port: number): Promise<AppSettings> {
   if (!isValidMcpPort(port)) throw new TypeError('MCP port must be an integer from 1024 through 65535')
-  if (port === mcpPort && mcpRuntimeStatus === 'ready') return { ...settings }
+  if (port === mcpPort && mcpRuntimeStatus === 'ready') {
+    if (persistedSettings.mcpPort !== port) await updateSettings({ mcpPort: port })
+    return { ...settings }
+  }
 
   const candidate = createRuntimeMcpServer(port)
   stageMcpRuntimeCandidate(candidate)

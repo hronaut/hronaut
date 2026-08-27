@@ -307,7 +307,7 @@ export const ukUA = {
     connect: {
       heading: 'Під’єднайте агента програмування',
       description: 'Виберіть клієнт, скопіюйте налаштування, а потім створіть іменований робочий простір перед переглядом.',
-      clients: '8 клієнтів',
+      clients: '9 клієнтів',
       agentsLabel: 'Агенти програмування',
       instructions: 'Інструкції з налаштування',
       copy: 'Копіювати',
@@ -320,6 +320,7 @@ export const ukUA = {
         opencode: 'Додає Hronaut до OpenCode як віддалений сервер потокового HTTP.',
         geminiCli: 'Додає Hronaut як користувацький сервер потокового HTTP у Gemini CLI.',
         cline: 'Додає Hronaut до Cline через рекомендований транспорт Streamable HTTP.',
+        kilo: 'Додає Hronaut як віддалений сервер Streamable HTTP для клієнтів Kilo Code.',
         generic: 'Використовуйте потоковий HTTP і спрямуйте клієнт безпосередньо на Hronaut.',
         genericLocation: 'Налаштування MCP клієнта'
       }

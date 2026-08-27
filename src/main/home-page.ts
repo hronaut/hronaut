@@ -63,6 +63,9 @@ function agentGuides(
     : tokenPath
       ? { Authorization: `Bearer {file:${tokenPath}}` }
       : headers
+  const kiloHeaders = authenticationDisabled
+    ? undefined
+    : { Authorization: tokenPath ? `Bearer {file:${tokenPath}}` : 'Bearer {env:HRONAUT_MCP_TOKEN}' }
   return [
     {
       id: 'codex',
@@ -149,6 +152,25 @@ function agentGuides(
         }
       }, null, 2),
       verifyCommand: 'cline config mcp --json'
+    },
+    {
+      id: 'kilo',
+      name: 'Kilo Code',
+      note: home.connect.guides.kilo,
+      location: '~/.config/kilo/kilo.jsonc',
+      code: JSON.stringify({
+        $schema: 'https://app.kilo.ai/config.json',
+        mcp: {
+          hronaut: {
+            type: 'remote',
+            url: endpoint,
+            enabled: true,
+            oauth: false,
+            ...(kiloHeaders && { headers: kiloHeaders })
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'kilo mcp list'
     },
     {
       id: 'generic',

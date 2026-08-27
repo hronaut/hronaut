@@ -59,7 +59,7 @@ test('starts without MCP authentication and can enable or disable it in Settings
     await expect.poll(() => healthStatus(authorization)).toBe(200)
     await expect
       .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')))
-      .toMatchObject({ mcpAuthentication: true, mcpPort })
+      .toMatchObject({ mcpAuthentication: true, mcpPort: DEFAULT_MCP_PORT })
   } finally {
     if (reservedDefaultPort) {
       await new Promise<void>((resolve) => defaultPortOwner.close(() => resolve()))

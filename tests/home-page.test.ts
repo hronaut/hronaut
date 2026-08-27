@@ -62,6 +62,21 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+    const kilo = renderedGuides(html).find((guide) => guide.id === 'kilo')
+    expect(kilo?.location).toBe('~/.config/kilo/kilo.jsonc')
+    expect(kilo?.verifyCommand).toBe('kilo mcp list')
+    expect(JSON.parse(kilo?.code ?? '{}')).toEqual({
+      $schema: 'https://app.kilo.ai/config.json',
+      mcp: {
+        hronaut: {
+          type: 'remote',
+          url: dashboard.endpoint,
+          enabled: true,
+          oauth: false,
+          headers: { Authorization: 'Bearer {env:HRONAUT_MCP_TOKEN}' }
+        }
+      }
+    })
     const cline = renderedGuides(html).find((guide) => guide.id === 'cline')
     expect(cline?.location).toBe('Cline MCP settings')
     expect(cline?.verifyCommand).toBe('cline config mcp --json')
@@ -102,6 +117,12 @@ describe('Hronaut Home localization', () => {
     }
     expect(openCodeConfig.mcp?.hronaut?.headers?.Authorization).toBe('Bearer {file:/tmp/hronaut-owner-token}')
     expect(openCode?.code).not.toContain('<paste token')
+    const kilo = renderedGuides(html).find((guide) => guide.id === 'kilo')
+    const kiloConfig = JSON.parse(kilo?.code ?? '{}') as {
+      mcp?: { hronaut?: { headers?: { Authorization?: string } } }
+    }
+    expect(kiloConfig.mcp?.hronaut?.headers?.Authorization).toBe('Bearer {file:/tmp/hronaut-owner-token}')
+    expect(kilo?.code).not.toContain('<paste token')
     const gemini = renderedGuides(html).find((guide) => guide.id === 'gemini-cli')
     expect(gemini?.location).toBe('~/.gemini/settings.json')
     expect(gemini?.verifyCommand).toBe('gemini mcp list')
@@ -182,5 +203,44 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+  })
+
+  it('renders Kilo Code remote MCP setup without an authentication header when local authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const kilo = renderedGuides(html).find((guide) => guide.id === 'kilo')
+
+    expect(JSON.parse(kilo?.code ?? '{}')).toEqual({
+      $schema: 'https://app.kilo.ai/config.json',
+      mcp: {
+        hronaut: {
+          type: 'remote',
+          url: dashboard.endpoint,
+          enabled: true,
+          oauth: false
+        }
+      }
+    })
+  })
+
+  it('keeps Windows token paths literal inside Kilo trusted file references', () => {
+    const tokenPath = "C:\\Users\\Yevhen O'Brien\\AppData\\Roaming\\Hronaut\\mcp-token"
+    const guides = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      tokenPath,
+      platform: 'win32'
+    }))
+    const kilo = guides.find((guide) => guide.id === 'kilo')
+    const config = JSON.parse(kilo?.code ?? '{}') as {
+      mcp?: { hronaut?: { headers?: { Authorization?: string } } }
+    }
+
+    expect(config.mcp?.hronaut?.headers?.Authorization).toBe(`Bearer {file:${tokenPath}}`)
   })
 })

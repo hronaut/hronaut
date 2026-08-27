@@ -5099,10 +5099,15 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         requestCount: document.getElementById('request-count')?.textContent,
         verifyCommand: document.getElementById('guide-verify-command')?.textContent,
         verifyHidden: document.getElementById('guide-verify')?.hidden,
-        geminiConfig: null
+        geminiConfig: null,
+        kiloConfig: null,
+        kiloVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      document.querySelector('[data-guide="kilo"]')?.click();
+      result.kiloConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      result.kiloVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -5123,9 +5128,21 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         }
       }
     }
+    kiloConfig: {
+      mcp?: {
+        hronaut?: {
+          type?: string
+          url?: string
+          enabled?: boolean
+          oauth?: boolean
+          headers?: { Authorization?: string }
+        }
+      }
+    }
+    kiloVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kilo Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -5134,6 +5151,13 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(homeContent.geminiConfig.mcpServers?.hronaut).toEqual({
     httpUrl: `http://127.0.0.1:${mcpPort}/mcp`
   })
+  expect(homeContent.kiloConfig.mcp?.hronaut).toEqual({
+    type: 'remote',
+    url: `http://127.0.0.1:${mcpPort}/mcp`,
+    enabled: true,
+    oauth: false
+  })
+  expect(homeContent.kiloVerifyCommand).toBe('kilo mcp list')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

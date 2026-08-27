@@ -2556,7 +2556,7 @@ export const ruRU = {
     "connect": {
       "heading": "Подключите агента программирования",
       "description": "Выберите клиент, скопируйте настройку, затем создайте именованную рабочую область перед просмотром.",
-      "clients": "8 клиентов",
+      "clients": "9 клиентов",
       "agentsLabel": "Агенты программирования",
       "instructions": "Инструкции по настройке",
       "copy": "Копировать",
@@ -2569,6 +2569,7 @@ export const ruRU = {
         "opencode": "Добавляет Hronaut в OpenCode как удалённый сервер потокового HTTP.",
         "geminiCli": "Добавляет Hronaut в Gemini CLI как пользовательский сервер Streamable HTTP.",
         "cline": "Добавляет Hronaut в Cline через рекомендуемый транспорт Streamable HTTP.",
+        "kilo": "Добавляет Hronaut как удалённый сервер Streamable HTTP для клиентов Kilo Code.",
         "generic": "Используйте потоковый HTTP и направьте клиент прямо на Hronaut.",
         "genericLocation": "Настройки MCP клиента"
       }

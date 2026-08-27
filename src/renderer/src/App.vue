@@ -42,6 +42,7 @@ import { useAppEmulationFeatureController } from './composables/useAppEmulationF
 import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
 import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
+import { useAppSiteManagementFeatureController } from './composables/useAppSiteManagementFeatureController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
@@ -62,9 +63,6 @@ import {
   type ShellKeyboardSurface
 } from './composables/useShellKeyboardController'
 import { useTabNavigationController } from './composables/useTabNavigationController'
-import { useSiteControlsShellController } from './composables/useSiteControlsShellController'
-import { useSiteStorageShellController } from './composables/useSiteStorageShellController'
-import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useFindShellController } from './composables/useFindShellController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
@@ -82,7 +80,6 @@ import { useDetachedPanelPresentationController } from './composables/useDetache
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
 import { useTitleBarPresentationController } from './composables/useTitleBarPresentationController'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
-import { useSettingsNavigationController } from './composables/useSettingsNavigationController'
 
 function refKeyboardSurface(open: Ref<boolean>, close: () => void = () => (open.value = false)): ShellKeyboardSurface {
   return { isOpen: () => open.value, close }
@@ -410,29 +407,13 @@ const {
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
 } = addressBarController
-const {
-  reset: resetSiteStorageView,
-  refresh: refreshSiteStorage,
-  open: openSiteStorage,
-  toggle: toggleSiteStorage,
-  dispose: disposeSiteStorageShellController
-} = useSiteStorageShellController({
-  open: siteStorageOpen,
-  panel: siteStoragePanel,
-  keepsSeparatePanelOpen,
-  settingsOpen,
+const appSiteManagementFeatureController = useAppSiteManagementFeatureController({
+  siteDataController,
   siteControlsOpen,
-  downloadsOpen,
-  bookmarksOpen,
-  historyOpen,
-  tabSearchOpen,
-  zoomOpen,
-  addressSuggestionsOpen
-})
-const {
-  open: openPrivacySettings,
-  dispose: disposePrivacySettingsShellController
-} = usePrivacySettingsShellController({
+  siteStorageOpen,
+  siteStoragePanel,
+  keepsSeparatePanelOpen,
+  canOpenSiteControls: () => Boolean(activeWebUrl.value),
   settingsOpen,
   settingsSection,
   updateNoticeOpen,
@@ -443,13 +424,29 @@ const {
   zoomOpen,
   addressSuggestionsOpen,
   findOpen,
-  search: janitorSearch,
-  openSection: openSettingsSection,
+  janitorSearch,
+  usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
+  activeOrigin: () => activeOrigin.value,
+  settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
+  openSettingsSection,
   closeSettings,
+  closeHelp: closeHelpDialog,
   closeFind,
-  refresh: refreshPrivacySettings,
-  onRefreshError: reportShellActionError
+  refreshPrivacySettings,
+  onActionError: reportShellActionError
 })
+const {
+  refreshSiteDataSummary,
+  resetSiteStorageView,
+  refreshSiteStorage,
+  toggleSiteStorage,
+  openPrivacySettings,
+  toggleSiteControls,
+  openSitePrivacySettings,
+  openSitePermissionSettings,
+  openUpdateSettings,
+  dispose: disposeAppSiteManagementFeatureController
+} = appSiteManagementFeatureController
 const appPageToolsFeatureController = useAppPageToolsFeatureController({
   activeTab,
   browser,
@@ -950,22 +947,6 @@ const {
   tabTooltip,
   pageProblemDetails
 } = activeTabPresentationController
-const settingsNavigationController = useSettingsNavigationController({
-  closeSiteControls: () => (siteControlsOpen.value = false),
-  usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
-  activeOrigin: () => activeOrigin.value,
-  openSiteStorage,
-  openPrivacySettings,
-  openSettingsSection,
-  settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
-  closeHelp: closeHelpDialog,
-  closeTransientCollections: () => {
-    tabSearchOpen.value = false
-    downloadsOpen.value = false
-    bookmarksOpen.value = false
-    historyOpen.value = false
-  }
-})
 const {
   fillSavedPassword,
   fillSelectedCredential
@@ -988,24 +969,6 @@ const {
     t('runtime.toast.passwordFillFailed'),
     friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
   )
-})
-const {
-  toggle: toggleSiteControls,
-  dispose: disposeSiteControlsShellController
-} = useSiteControlsShellController({
-  open: siteControlsOpen,
-  canOpen: () => Boolean(activeWebUrl.value),
-  settingsOpen,
-  updateNoticeOpen,
-  downloadsOpen,
-  bookmarksOpen,
-  historyOpen,
-  tabSearchOpen,
-  zoomOpen,
-  addressSuggestionsOpen,
-  findOpen,
-  closeFind,
-  refresh: refreshSiteDataSummary
 })
 function expandTabGroupForTab(tab: BrowserTabState): void {
   browserTabsBar.value?.expandTabGroupForTab(tab)
@@ -1079,18 +1042,6 @@ async function syncState(next: Promise<BrowserState> | BrowserState): Promise<vo
   await browserStore.syncOperation(Promise.resolve(next))
 }
 
-async function refreshSiteDataSummary(): Promise<void> {
-  await siteDataController.refresh()
-}
-
-async function openSitePrivacySettings(): Promise<void> {
-  await settingsNavigationController.openSitePrivacySettings()
-}
-
-function openSitePermissionSettings(): void {
-  settingsNavigationController.openSitePermissionSettings()
-}
-
 function handleWindowResize(): void {
   syncTitleBarGeometry()
   updateViewportWidth()
@@ -1104,10 +1055,6 @@ async function closeFind(): Promise<void> {
 
 function describeTabEmulation(tab: BrowserTabState): string {
   return tab.emulation ? emulationDescription(tab.emulation) : ''
-}
-
-function openUpdateSettings(): void {
-  settingsNavigationController.openUpdateSettings()
 }
 
 function closeTransientPanels(): void {
@@ -1148,9 +1095,7 @@ useAppLifecycleController({
     disposeAppPageToolsCaptureAndExport,
     disposeDiagnosticLogPreservationController,
     disposeHelpDialogController,
-    disposePrivacySettingsShellController,
-    disposeSiteControlsShellController,
-    disposeSiteStorageShellController,
+    disposeAppSiteManagementFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
     disposeAppPageToolsDiagnostics,

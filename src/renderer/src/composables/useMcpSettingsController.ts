@@ -112,6 +112,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   async function applyPort(): Promise<boolean> {
     if (busy.value) return false
     if (!portValid.value) return invalidPort()
+    if (!portChanged.value && !options.listenerFailed.value) return false
     const operationGeneration = generation
     const startingDraftRevision = draftRevision
     const requestedPort = parsedPort.value

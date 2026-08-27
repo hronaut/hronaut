@@ -6,15 +6,19 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add localized, profile-aware Kilo Code setup to Hronaut Home with trusted token-file references and a connection verification command.
 - Add localized, profile-aware Cline setup to Hronaut Home with explicit Streamable HTTP configuration, authentication-aware headers, approval-safe defaults, and a connection verification command.
 
 ### Changed
 
+- Extract site controls, storage, privacy, and settings navigation composition from `App.vue` into a focused feature controller.
 - Extract responsive-preview and environment-emulation composition from `App.vue` into a focused feature controller.
 - Extract Downloads, Bookmarks, and History composition from `App.vue` into a focused browser-collections feature controller.
 
 ### Fixed
 
+- Keep launch-only MCP port overrides separate from saved preferences so unrelated settings changes cannot persist the temporary port.
+- Ignore unchanged MCP port submissions while the healthy listener is already running, while still allowing same-port recovery after a listener failure.
 - Make concurrent first-start MCP token loads converge on one atomically published owner-only token without temporary-file collisions or token replacement.
 - Include IPv6 cookie-only sites in browsing-data inventories without producing double-bracketed invalid origins.
 - Persist the anonymous commercial-license installation identity on first load so activation device names remain stable across restarts.

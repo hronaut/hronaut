@@ -2556,7 +2556,7 @@ export const frFR = {
     "connect": {
       "heading": "Connectez votre agent de programmation",
       "description": "Choisissez un client, copiez la configuration, puis créez un espace de travail nommé avant de naviguer.",
-      "clients": "8 clients",
+      "clients": "9 clients",
       "agentsLabel": "Agents de programmation",
       "instructions": "Instructions de configuration",
       "copy": "Copier",
@@ -2569,6 +2569,7 @@ export const frFR = {
         "opencode": "Ajoute Hronaut à OpenCode comme serveur HTTP diffusé distant.",
         "geminiCli": "Ajoute Hronaut à Gemini CLI en tant que serveur HTTP Streamable de portée utilisateur.",
         "cline": "Ajoute Hronaut à Cline avec le transport HTTP Streamable recommandé.",
+        "kilo": "Ajoute Hronaut comme serveur HTTP Streamable distant partagé par Kilo Code.",
         "generic": "Utilisez HTTP diffusé et dirigez le client directement vers Hronaut.",
         "genericLocation": "Paramètres MCP du client"
       }
