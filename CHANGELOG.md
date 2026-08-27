@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Extract responsive-preview and environment-emulation composition from `App.vue` into a focused feature controller.
+
+### Fixed
+
+- Make concurrent first-start MCP token loads converge on one atomically published owner-only token without temporary-file collisions or token replacement.
+- Include IPv6 cookie-only sites in browsing-data inventories without producing double-bracketed invalid origins.
+
 ## [1.9.5] - 2026-08-27
 
 ### Changed

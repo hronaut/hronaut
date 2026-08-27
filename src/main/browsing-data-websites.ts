@@ -35,7 +35,12 @@ function cookieHostname(cookie: BrowsingDataCookie): string | null {
   const hostname = cookie.domain?.replace(/^\./, '').toLocaleLowerCase()
   if (!hostname || hostname.includes('/') || hostname.includes(' ')) return null
   try {
-    return new URL(`http://${hostname}`).hostname.toLocaleLowerCase()
+    const address = hostname.startsWith('[') && hostname.endsWith(']')
+      ? hostname
+      : hostname.includes(':')
+        ? `[${hostname}]`
+        : hostname
+    return new URL(`http://${address}`).hostname.toLocaleLowerCase()
   } catch {
     return null
   }
@@ -44,7 +49,7 @@ function cookieHostname(cookie: BrowsingDataCookie): string | null {
 function cookieOrigin(cookie: BrowsingDataCookie): string | null {
   const hostname = cookieHostname(cookie)
   if (!hostname) return null
-  const address = hostname.includes(':') ? `[${hostname}]` : hostname
+  const address = hostname.startsWith('[') ? hostname : hostname.includes(':') ? `[${hostname}]` : hostname
   return `${cookie.secure ? 'https' : 'http'}://${address}`
 }
 

@@ -5,7 +5,6 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
   BrowserState,
-  BrowserEmulationState,
   BrowserTabState
 } from '../../shared/types'
 import BrowserTabsBar from './components/BrowserTabsBar.vue'
@@ -39,11 +38,11 @@ import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
+import { useAppEmulationFeatureController } from './composables/useAppEmulationFeatureController'
 import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
 import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
-import { useEnvironmentPanelController } from './composables/useEnvironmentPanelController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
 import { useMcpActivityController } from './composables/useMcpActivityController'
@@ -55,7 +54,6 @@ import { usePanelDockPreferenceController } from './composables/usePanelDockPref
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
-import { useEmulationController } from './composables/useEmulationController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
 import {
@@ -207,49 +205,40 @@ const pageToolsOpen = ref(false)
 const responsivePanelOpen = ref(false)
 const responsivePanel = ref<InstanceType<typeof ResponsivePreviewPanel> | null>(null)
 const environmentPanelOpen = ref(false)
-const emulationController = useEmulationController({
+const appEmulationFeatureController = useAppEmulationFeatureController({
   activeTab,
-  resetTabEmulation: (tabId) => browser.resetTabEmulation(tabId),
+  browser,
   syncState,
-  responsivePanelOpen: () => responsivePanelOpen.value,
-  loadResponsiveDraft,
-  environmentPanelOpen: () => environmentPanelOpen.value,
-  loadEnvironmentDraft,
+  responsivePanelOpen,
+  responsivePanel,
+  environmentPanelOpen,
+  closeTransientPanels,
   translate: (key, parameters, plural) => plural === undefined
     ? t(key, parameters ?? {})
     : t(key, parameters ?? {}, plural),
   formatNumber: localNumber,
   formatPercent: localPercent,
-  onResetError: (error) => showAppToast(
-    'error',
-    t('runtimeDetails.browserAction'),
-    friendlyUiError(error, t('runtime.toast.actionFailed'))
-  )
+  showToast: showAppToast
 })
 const {
+  emulationController,
+  environmentController,
   activeEmulation,
-  describe: emulationDescription,
-  beginMutation: beginEmulationMutation,
-  invalidateMutation: invalidateEmulationMutation,
-  isMutationCurrent: isEmulationMutationCurrent,
-  resetActive: resetActiveTabEmulation,
-  dispose: disposeEmulationController
-} = emulationController
-const environmentController = useEnvironmentPanelController({
-  open: environmentPanelOpen,
-  activeTab,
-  setTabEnvironment: (tabId, environment) => browser.setTabEnvironment(tabId, environment),
-  reloadIgnoringCache: (tabId) => browser.reloadIgnoringCache(tabId),
-  syncState,
-  beginMutation: beginEmulationMutation,
-  isMutationCurrent: isEmulationMutationCurrent,
-  closeTransientPanels
-})
-const {
-  state: environmentState,
-  activeOverrideCount: activeEnvironmentOverrideCount,
-  dispose: disposeEnvironmentPanelController
-} = environmentController
+  emulationDescription,
+  beginEmulationMutation,
+  invalidateEmulationMutation,
+  isEmulationMutationCurrent,
+  resetActiveTabEmulation,
+  environmentState,
+  activeEnvironmentOverrideCount,
+  setResponsiveTabViewport,
+  loadResponsiveDraft,
+  resetResponsiveFeedback,
+  toggleResponsivePreview,
+  loadEnvironmentDraft,
+  toggleEnvironment,
+  dispose: disposeAppEmulationFeatureController
+} = appEmulationFeatureController
 const workspaceEditorOpen = ref(false)
 const workspaceEditor = ref<InstanceType<typeof WorkspaceEditor> | null>(null)
 const siteControlsOpen = ref(false)
@@ -1051,33 +1040,6 @@ function closeWorkspaceEditor(): void {
   workspaceEditor.value?.close()
 }
 
-function setResponsiveTabViewport(
-  tabId: string,
-  viewport: NonNullable<BrowserEmulationState['viewport']> | null
-): Promise<BrowserState> {
-  return browser.setTabViewport(tabId, viewport)
-}
-
-function loadResponsiveDraft(viewport = activeEmulation.value?.viewport): void {
-  responsivePanel.value?.loadDraft(viewport)
-}
-
-function resetResponsiveFeedback(): void {
-  responsivePanel.value?.resetFeedback()
-}
-
-function toggleResponsivePreview(): void {
-  responsivePanel.value?.toggle()
-}
-
-function loadEnvironmentDraft(emulation = activeEmulation.value): void {
-  environmentController.loadDraft(emulation)
-}
-
-function toggleEnvironment(): void {
-  environmentController.toggle()
-}
-
 const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCoordinationController({
   layoutSources: [
     settingsOpen,
@@ -1185,8 +1147,7 @@ useAppLifecycleController({
     disposeMcpActivityController,
     disposeShellOverlayCoordinationController,
     disposeActiveTabContextController,
-    disposeEnvironmentPanelController,
-    disposeEmulationController,
+    disposeAppEmulationFeatureController,
     disposeBrowserShortcutController,
     disposeUiActionController,
     appBootstrapController.dispose,

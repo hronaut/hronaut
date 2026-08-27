@@ -49,4 +49,23 @@ describe('buildBrowsingDataWebsiteInventory', () => {
     expect(websites.find((site) => site.origin === 'http://secure.test')?.cookieCount).toBe(0)
     expect(websites.find((site) => site.origin === 'https://secure.test')?.cookieCount).toBe(1)
   })
+
+  it('includes cookie-only IPv6 websites without double-bracketing their origin', () => {
+    const websites = buildBrowsingDataWebsiteInventory({
+      history: [],
+      cookies: [{ domain: '[::1]', hostOnly: true, secure: false }],
+      bookmarks: [],
+      credentials: [],
+      permissions: [],
+      tabs: []
+    })
+
+    expect(websites).toEqual([
+      expect.objectContaining({
+        origin: 'http://[::1]',
+        hostname: '[::1]',
+        cookieCount: 1
+      })
+    ])
+  })
 })
