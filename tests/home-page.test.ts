@@ -102,6 +102,28 @@ describe('Hronaut Home localization', () => {
     })
   })
 
+  it('renders PowerShell-safe authenticated CLI guides on Windows', () => {
+    const tokenPath = "C:\\Users\\Yevhen O'Brien\\AppData\\Roaming\\Hronaut\\mcp-token"
+    const options = {
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US' as const,
+      tokenPath,
+      platform: 'win32' as const
+    }
+    const guides = renderedGuides(renderHomePage(options))
+    const codex = guides.find((guide) => guide.id === 'codex')
+    const claudeCode = guides.find((guide) => guide.id === 'claude-code')
+
+    expect(codex?.code).toContain(
+      "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
+    )
+    expect(codex?.code).not.toContain('export ')
+    expect(codex?.code).not.toContain('$(cat ')
+    expect(claudeCode?.code).toContain('Authorization: Bearer $env:HRONAUT_MCP_TOKEN')
+    expect(claudeCode?.code).not.toContain('Authorization: Bearer $HRONAUT_MCP_TOKEN')
+  })
+
   it('renders Gemini CLI without an authentication header when local authentication is disabled', () => {
     const html = renderHomePage({
       endpoint: dashboard.endpoint,

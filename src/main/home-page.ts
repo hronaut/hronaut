@@ -8,6 +8,7 @@ interface HomePageOptions {
   authenticationDisabled?: boolean
   initialState: McpDashboardState
   locale: SupportedLocale
+  platform?: NodeJS.Platform
 }
 
 interface AgentGuide {
@@ -36,16 +37,25 @@ function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`
 }
 
+function powershellQuote(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
+}
+
 function agentGuides(
   endpoint: string,
   locale: SupportedLocale,
   tokenPath?: string,
-  authenticationDisabled = false
+  authenticationDisabled = false,
+  platform: NodeJS.Platform = process.platform
 ): AgentGuide[] {
   const home = localeMessages[locale].home
+  const windows = platform === 'win32'
   const tokenSetup = tokenPath
-    ? `export HRONAUT_MCP_TOKEN="$(cat ${shellQuote(tokenPath)})"\n`
+    ? windows
+      ? `$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw ${powershellQuote(tokenPath)}).Trim()\n`
+      : `export HRONAUT_MCP_TOKEN="$(cat ${shellQuote(tokenPath)})"\n`
     : ''
+  const tokenEnvironmentReference = windows ? '$env:HRONAUT_MCP_TOKEN' : '$HRONAUT_MCP_TOKEN'
   const tokenPlaceholder = tokenPath ? `<paste token from ${tokenPath}>` : '<HRONAUT_MCP_TOKEN>'
   const headers = authenticationDisabled ? undefined : { Authorization: `Bearer ${tokenPlaceholder}` }
   const openCodeHeaders = authenticationDisabled
@@ -71,7 +81,7 @@ function agentGuides(
       location: '~/.claude.json',
       code: authenticationDisabled
         ? `claude mcp add --transport http --scope user hronaut ${endpoint}`
-        : `${tokenSetup}claude mcp add --transport http --scope user --header "Authorization: Bearer $HRONAUT_MCP_TOKEN" hronaut ${endpoint}`,
+        : `${tokenSetup}claude mcp add --transport http --scope user --header "Authorization: Bearer ${tokenEnvironmentReference}" hronaut ${endpoint}`,
       verifyCommand: 'claude mcp get hronaut'
     },
     {
@@ -136,7 +146,13 @@ function agentGuides(
 export function renderHomePage(options: HomePageOptions): string {
   const home = localeMessages[options.locale].home
   const endpoint = escapeHtml(options.endpoint)
-  const guides = agentGuides(options.endpoint, options.locale, options.tokenPath, options.authenticationDisabled)
+  const guides = agentGuides(
+    options.endpoint,
+    options.locale,
+    options.tokenPath,
+    options.authenticationDisabled,
+    options.platform
+  )
   const securityNote = options.authenticationDisabled
     ? home.security.disabled
     : options.tokenPath

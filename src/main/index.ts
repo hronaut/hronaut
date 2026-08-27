@@ -1129,7 +1129,8 @@ function registerHomeProtocol(): void {
         tokenPath: mcpTokenConfiguration?.tokenPath,
         authenticationDisabled: !settings.mcpAuthentication,
         initialState: homeDashboardState(),
-        locale: resolvedLocale
+        locale: resolvedLocale,
+        platform: process.platform
       }),
       {
         headers: {
