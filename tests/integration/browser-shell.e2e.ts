@@ -3008,6 +3008,9 @@ test('rolls back pinning when a sleeping tab cannot wake and permits a retry', a
     })()`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Rejected sleeping pin")?.id)')).toBeTruthy()
     const tabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.title === "Rejected sleeping pin")?.id)') as string
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((candidate) => candidate.id === ${JSON.stringify(tabId)})?.loading
+    ))`)).toBe(false)
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))?.id ?? null
