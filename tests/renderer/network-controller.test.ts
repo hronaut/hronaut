@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
 import type {
   BrowserNetworkRequest,
@@ -136,17 +136,22 @@ function createController() {
     clearNetworkRoutes: vi.fn(async () => state(tab('tab-1'))),
     getState: vi.fn(async () => state(tab('tab-1')))
   }
+  const copyText = vi.fn(async () => true)
   const controller = useNetworkController({
     activeTab,
     open: ref(true),
     browser,
     translate: (key) => key,
-    copyText: async () => true,
+    copyText,
     syncState: async (operation) => { synced.push(await operation) },
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, synced, browser, controller }
+  return { activeTab, synced, browser, controller, copyText }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('network controller', () => {
   it('invalidates an in-flight request list when reset on the same tab', async () => {
@@ -226,5 +231,72 @@ describe('network controller', () => {
 
     expect(controller.routes.value).toEqual([route('new')])
     expect(controller.routeState.value).toBe('ready')
+  })
+
+  it('restarts copied feedback when the same request format is copied again', async () => {
+    vi.useFakeTimers()
+    const { controller } = createController()
+    controller.requestDetails.value = details('copy')
+
+    await controller.copyDetails('curl')
+    await vi.advanceTimersByTimeAsync(1_000)
+    await controller.copyDetails('curl')
+    await vi.advanceTimersByTimeAsync(600)
+
+    expect(controller.detailsCopied.value).toBe('curl')
+    await vi.advanceTimersByTimeAsync(900)
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('does not restore request copy feedback after a context reset during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyDetails()
+    controller.reset()
+    copying.resolve(true)
+    await operation
+
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('keeps the newest request copy format when clipboard writes finish out of order', async () => {
+    const older = deferred<boolean>()
+    const newer = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('copy')
+    copyText
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise)
+
+    const copyJson = controller.copyDetails('json')
+    const copyCurl = controller.copyDetails('curl')
+    newer.resolve(true)
+    await copyCurl
+    older.resolve(true)
+    await copyJson
+
+    expect(controller.detailsCopied.value).toBe('curl')
+    controller.dispose()
+  })
+
+  it('does not show copy feedback on a request selected during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.requestDetails.value = details('older')
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const copy = controller.copyDetails()
+    await controller.selectRequest(request('newer'))
+    copying.resolve(true)
+    await copy
+
+    expect(controller.requestDetails.value?.id).toBe('newer')
+    expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
   })
 })

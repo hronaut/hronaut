@@ -36,6 +36,7 @@ import {
   isNetworkRequestFailure,
   normalizeNetworkHarOptions
 } from '../../../shared/network-har.js'
+import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 
 type NetworkBrowserApi = Pick<
   HronautApi,
@@ -109,8 +110,9 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let routeRequestSequence = 0
   let routeMutationSequence = 0
   let requestDetailsSequence = 0
+  let detailsCopySequence = 0
   let replayConfirmTimer: number | undefined
-  const feedbackTimers = new Set<number>()
+  const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
 
   const resourceFilters = computed(() => [
     { value: '', label: options.translate('network.filters.all') },
@@ -157,14 +159,6 @@ export function useNetworkController(options: NetworkControllerOptions) {
     return generation === expectedGeneration && options.activeTab.value?.id === tabId
   }
 
-  function scheduleFeedbackReset(callback: () => void, delay: number): void {
-    const timer = window.setTimeout(() => {
-      feedbackTimers.delete(timer)
-      callback()
-    }, delay)
-    feedbackTimers.add(timer)
-  }
-
   function invalidateRequests(): void {
     generation += 1
     contentSearchSequence += 1
@@ -172,6 +166,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     routeRequestSequence += 1
     routeMutationSequence += 1
     requestDetailsSequence += 1
+    detailsCopySequence += 1
   }
 
   function beginRouteMutation(): number {
@@ -204,6 +199,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   function reset(closePanel = false): void {
     invalidateRequests()
+    feedbackTimers.clearAll()
     if (closePanel && !options.keepsSeparatePanelOpen()) options.open.value = false
     requests.value = []
     monitorState.value = 'idle'
@@ -405,6 +401,8 @@ export function useNetworkController(options: NetworkControllerOptions) {
     if (!tab) return
     const expectedGeneration = generation
     const sequence = ++requestDetailsSequence
+    detailsCopySequence += 1
+    feedbackTimers.clear('details')
     selectedRequestId.value = request.id
     requestDetails.value = null
     detailsCopied.value = null
@@ -517,18 +515,27 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   async function copyDetails(format: 'json' | BrowserNetworkRequestCopyFormat = 'json'): Promise<void> {
-    if (!requestDetails.value) return
+    const tab = options.activeTab.value
+    if (!tab || !requestDetails.value) return
+    const expectedGeneration = generation
+    const sequence = ++detailsCopySequence
     monitorError.value = ''
     try {
       const text = format === 'json'
         ? JSON.stringify(requestDetails.value, null, 2)
         : formatNetworkRequestCopy(requestDetails.value, format)
       if (!await options.copyText(text)) return
+      if (
+        sequence !== detailsCopySequence
+        || !isCurrent(tab.id, expectedGeneration)
+        || options.activeTab.value?.url !== tab.url
+      ) return
       detailsCopied.value = format
-      scheduleFeedbackReset(() => {
+      feedbackTimers.schedule('details', () => {
         if (detailsCopied.value === format) detailsCopied.value = null
-      }, 1_500)
+      })
     } catch (cause) {
+      if (sequence !== detailsCopySequence || !isCurrent(tab.id, expectedGeneration)) return
       monitorError.value = cause instanceof Error ? cause.message : String(cause)
     }
   }
@@ -555,7 +562,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (!await options.copyText(JSON.stringify(har, null, 2))) return
       if (!isCurrent(tab.id, expectedGeneration)) return
       harCopied.value = true
-      scheduleFeedbackReset(() => (harCopied.value = false), 1_500)
+      feedbackTimers.schedule('har', () => (harCopied.value = false))
     } catch (cause) {
       if (!isCurrent(tab.id, expectedGeneration)) return
       monitorError.value = cause instanceof Error ? cause.message : String(cause)
@@ -574,7 +581,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       if (!isCurrent(tab.id, expectedGeneration)) return
       harExport.value = exported
       harSaveState.value = 'saved'
-      scheduleFeedbackReset(() => {
+      feedbackTimers.schedule('har-save', () => {
         if (harSaveState.value === 'saved') harSaveState.value = 'idle'
       }, 2_500)
     } catch (cause) {
@@ -708,8 +715,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   function dispose(): void {
     invalidateRequests()
     resetReplayFeedback()
-    for (const timer of feedbackTimers) window.clearTimeout(timer)
-    feedbackTimers.clear()
+    feedbackTimers.clearAll()
   }
 
   return {

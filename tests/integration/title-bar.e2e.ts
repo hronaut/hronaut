@@ -53,6 +53,15 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
   await expect(activeTab).toHaveAttribute('draggable', 'true')
   expect(await appRegion(activeTab)).toBe('no-drag')
 
+  const createWorkspaceButton = appWindow.getByRole('button', { name: 'Create workspace' })
+  const createWorkspaceLabel = createWorkspaceButton.locator('span')
+  expect(await appRegion(createWorkspaceButton)).toBe('no-drag')
+  expect(await appRegion(createWorkspaceLabel)).toBe('no-drag')
+  await createWorkspaceLabel.click()
+  const createWorkspaceDialog = appWindow.getByRole('dialog', { name: 'Create workspace' })
+  await expect(createWorkspaceDialog).toBeVisible()
+  await createWorkspaceDialog.getByRole('button', { name: 'Cancel' }).click()
+
   const address = appWindow.getByRole('combobox', { name: 'Address' })
   await expect(address).toBeVisible()
   expect(await appRegion(address)).toBe('no-drag')

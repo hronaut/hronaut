@@ -106,6 +106,22 @@ function agentGuides(
       verifyCommand: 'opencode mcp list'
     },
     {
+      id: 'gemini-cli',
+      name: 'Gemini CLI',
+      note: home.connect.guides.geminiCli,
+      location: '~/.gemini/settings.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            url: endpoint,
+            type: 'http',
+            ...(headers && { headers })
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'gemini mcp list'
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,

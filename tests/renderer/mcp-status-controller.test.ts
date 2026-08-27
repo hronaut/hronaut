@@ -31,6 +31,7 @@ function createController(getState: () => Promise<McpControlState> = async () =>
   return {
     controller,
     copyText,
+    endpoint,
     emit: (state: McpControlState) => listener?.(state),
     onPauseError,
     setPaused
@@ -130,6 +131,20 @@ describe('MCP status controller', () => {
 
     await expect(controller.copyEndpoint()).resolves.toBe(false)
 
+    expect(controller.copied.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('does not show copied feedback for an endpoint that changed during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText, endpoint } = createController()
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyEndpoint()
+    endpoint.value = 'http://127.0.0.1:49000/mcp'
+    copying.resolve(true)
+
+    await expect(operation).resolves.toBe(false)
     expect(controller.copied.value).toBe(false)
     controller.dispose()
   })

@@ -41,6 +41,25 @@
   app-region: no-drag;
 }
 
+.custom-title-bar :where(
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [contenteditable="true"],
+  [draggable="true"],
+  [role="button"],
+  [role="checkbox"],
+  [role="combobox"],
+  [role="menuitem"],
+  [role="slider"],
+  [role="tab"]
+) * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
   --muted: var(--titlebar-muted);
   width: 100%;

@@ -79,5 +79,31 @@ describe('Hronaut Home localization', () => {
     }
     expect(openCodeConfig.mcp?.hronaut?.headers?.Authorization).toBe('Bearer {file:/tmp/hronaut-owner-token}')
     expect(openCode?.code).not.toContain('<paste token')
+    const gemini = renderedGuides(html).find((guide) => guide.id === 'gemini-cli')
+    expect(gemini?.location).toBe('~/.gemini/settings.json')
+    expect(gemini?.verifyCommand).toBe('gemini mcp list')
+    expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          type: 'http',
+          headers: { Authorization: `Bearer <paste token from ${tokenPath}>` }
+        }
+      }
+    })
+  })
+
+  it('renders Gemini CLI without an authentication header when local authentication is disabled', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const gemini = renderedGuides(html).find((guide) => guide.id === 'gemini-cli')
+
+    expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
+      mcpServers: { hronaut: { url: dashboard.endpoint, type: 'http' } }
+    })
   })
 })

@@ -2556,7 +2556,7 @@ export const esES = {
     "connect": {
       "heading": "Conecta tu agente de programación",
       "description": "Elige un cliente, copia la configuración y crea un espacio de trabajo con nombre antes de navegar.",
-      "clients": "6 clientes",
+      "clients": "7 clientes",
       "agentsLabel": "Agentes de programación",
       "instructions": "Instrucciones de configuración",
       "copy": "Copiar",
@@ -2567,6 +2567,7 @@ export const esES = {
         "cursor": "Guarda globalmente o mueve el mismo objeto a .cursor/mcp.json para un proyecto.",
         "vscode": "Guarda en el espacio de trabajo o usa MCP: Open User Configuration para el acceso global.",
         "opencode": "Añade Hronaut a OpenCode como servidor HTTP transmitible remoto.",
+        "geminiCli": "Añade Hronaut a Gemini CLI como servidor HTTP Streamable de ámbito de usuario.",
         "generic": "Usa HTTP transmitible y dirige el cliente directamente a Hronaut.",
         "genericLocation": "Ajustes MCP del cliente"
       }

@@ -14,6 +14,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   const pauseBusy = ref(false)
   let generation = 0
   let revision = 0
+  let copySequence = 0
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
   let copiedTimer: number | undefined
@@ -54,7 +55,15 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   }
 
   async function copyEndpoint(): Promise<boolean> {
-    if (!await options.copyText(options.endpoint.value)) return false
+    const endpoint = options.endpoint.value
+    const operationGeneration = generation
+    const sequence = ++copySequence
+    if (!await options.copyText(endpoint)) return false
+    if (
+      operationGeneration !== generation
+      || sequence !== copySequence
+      || options.endpoint.value !== endpoint
+    ) return false
     copied.value = true
     if (copiedTimer !== undefined) window.clearTimeout(copiedTimer)
     copiedTimer = window.setTimeout(() => {
@@ -85,6 +94,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
 
   function dispose(): void {
     generation += 1
+    copySequence += 1
     unsubscribe?.()
     unsubscribe = null
     initializePromise = null

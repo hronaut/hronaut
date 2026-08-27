@@ -10,6 +10,7 @@ import {
   filterConsoleMessages,
   type BrowserConsoleLevelFilter
 } from '../../../shared/console-messages.js'
+import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 
 type ConsoleBrowserApi = Pick<
   HronautApi,
@@ -37,8 +38,9 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const copiedEntryKey = ref<string | null>(null)
   let generation = 0
   let requestSequence = 0
+  let copySequence = 0
   let refreshTimer: number | undefined
-  const feedbackTimers = new Set<number>()
+  const feedbackTimers = createFeedbackTimerRegistry<'entry' | 'filtered' | 'all'>()
 
   const filteredMessages = computed(() => filterConsoleMessages(messages.value, search.value, level.value))
   const messageCounts = computed(() => countConsoleMessages(messages.value))
@@ -49,17 +51,11 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     return generation === expectedGeneration && options.activeTab.value?.id === tabId
   }
 
-  function scheduleFeedbackReset(callback: () => void): void {
-    const timer = window.setTimeout(() => {
-      feedbackTimers.delete(timer)
-      callback()
-    }, 1_500)
-    feedbackTimers.add(timer)
-  }
-
   function reset(closePanel = false): void {
     generation += 1
     requestSequence += 1
+    copySequence += 1
+    feedbackTimers.clearAll()
     if (closePanel && !options.keepsSeparatePanelOpen()) options.open.value = false
     messages.value = []
     state.value = 'idle'
@@ -102,6 +98,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   ): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || !nextMessages.length) return
+    const expectedGeneration = generation
+    const sequence = ++copySequence
     const payload = {
       generatedAt: new Date().toISOString(),
       tabId: tab.id,
@@ -113,15 +111,20 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       caveat: options.translate('debugReport.caveats.console')
     }
     if (!await options.copyText(JSON.stringify(payload, null, 2))) return
+    if (
+      sequence !== copySequence
+      || !isCurrent(tab.id, expectedGeneration)
+      || options.activeTab.value?.url !== tab.url
+    ) return
     if (scope === 'entry') {
       const key = selectedEntryKey ?? entryKey(nextMessages[0])
       copiedEntryKey.value = key
-      scheduleFeedbackReset(() => {
+      feedbackTimers.schedule('entry', () => {
         if (copiedEntryKey.value === key) copiedEntryKey.value = null
       })
     } else {
       copied.value = scope
-      scheduleFeedbackReset(() => {
+      feedbackTimers.schedule(scope, () => {
         if (copied.value === scope) copied.value = null
       })
     }
@@ -149,9 +152,9 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     stopOpenWatcher()
     generation += 1
     requestSequence += 1
+    copySequence += 1
     if (refreshTimer !== undefined) window.clearInterval(refreshTimer)
-    for (const timer of feedbackTimers) window.clearTimeout(timer)
-    feedbackTimers.clear()
+    feedbackTimers.clearAll()
   }
 
   return {

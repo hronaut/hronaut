@@ -13,6 +13,7 @@ import type {
   HronautApi,
   SupportedLocale
 } from '../../../shared/types.js'
+import { createFeedbackTimerRegistry } from './feedback-timer-registry.js'
 
 type SiteStorageBrowserApi = Pick<
   HronautApi,
@@ -20,6 +21,7 @@ type SiteStorageBrowserApi = Pick<
 >
 
 type Translate = (key: string, parameters?: Record<string, string | number>) => string
+type StorageFeedback = 'usage' | 'changes' | 'indexed-db' | 'pwa'
 
 export interface SiteStorageControllerOptions {
   activeTab: Readonly<Ref<BrowserTabState | undefined>>
@@ -74,7 +76,13 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   let usageSequence = 0
   let indexedDbSequence = 0
   let pwaSequence = 0
-  const feedbackTimers = new Set<number>()
+  const copySequences: Record<StorageFeedback, number> = {
+    usage: 0,
+    changes: 0,
+    'indexed-db': 0,
+    pwa: 0
+  }
+  const feedbackTimers = createFeedbackTimerRegistry<StorageFeedback>()
 
   const activeWebUrl = computed(() => {
     try {
@@ -126,12 +134,29 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     return generation === expectedGeneration && options.activeTab.value?.id === tabId
   }
 
-  function scheduleFeedbackReset(target: Ref<boolean>): void {
-    const timer = window.setTimeout(() => {
-      feedbackTimers.delete(timer)
-      target.value = false
-    }, 1_500)
-    feedbackTimers.add(timer)
+  function feedbackViewOpen(key: StorageFeedback): boolean {
+    return {
+      usage: usageOpen.value,
+      changes: changesOpen.value,
+      'indexed-db': indexedDbOpen.value,
+      pwa: pwaOpen.value
+    }[key]
+  }
+
+  async function copyReport(key: StorageFeedback, payload: string, target: Ref<boolean>): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab || !feedbackViewOpen(key)) return
+    const expectedGeneration = generation
+    const sequence = ++copySequences[key]
+    if (!await options.copyText(payload)) return
+    if (
+      sequence !== copySequences[key]
+      || !isCurrent(tab.id, expectedGeneration)
+      || options.activeTab.value?.url !== tab.url
+      || !feedbackViewOpen(key)
+    ) return
+    target.value = true
+    feedbackTimers.schedule(key, () => (target.value = false))
   }
 
   function invalidateRequests(): void {
@@ -141,10 +166,12 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     usageSequence += 1
     indexedDbSequence += 1
     pwaSequence += 1
+    for (const key of Object.keys(copySequences) as StorageFeedback[]) copySequences[key] += 1
   }
 
   function reset(closePanel = false): void {
     invalidateRequests()
+    feedbackTimers.clearAll()
     if (closePanel && !options.keepsSeparatePanelOpen()) options.open.value = false
     result.value = null
     state.value = 'idle'
@@ -280,15 +307,13 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function copyUsage(): Promise<void> {
-    if (!usageReport.value || !await options.copyText(JSON.stringify(usageReport.value, null, 2))) return
-    usageCopied.value = true
-    scheduleFeedbackReset(usageCopied)
+    if (!usageReport.value) return
+    await copyReport('usage', JSON.stringify(usageReport.value, null, 2), usageCopied)
   }
 
   async function copyChanges(): Promise<void> {
-    if (changesReport.value?.status !== 'compared' || !await options.copyText(JSON.stringify(changesReport.value, null, 2))) return
-    changesCopied.value = true
-    scheduleFeedbackReset(changesCopied)
+    if (changesReport.value?.status !== 'compared') return
+    await copyReport('changes', JSON.stringify(changesReport.value, null, 2), changesCopied)
   }
 
   async function loadIndexedDb(
@@ -374,9 +399,12 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
 
   async function copyIndexedDb(): Promise<void> {
     const report = indexedDbReport.value
-    if (!report || !await options.copyText(JSON.stringify({ ...report, entries: filteredIndexedDbEntries.value }, null, 2))) return
-    indexedDbCopied.value = true
-    scheduleFeedbackReset(indexedDbCopied)
+    if (!report) return
+    await copyReport(
+      'indexed-db',
+      JSON.stringify({ ...report, entries: filteredIndexedDbEntries.value }, null, 2),
+      indexedDbCopied
+    )
   }
 
   async function loadPwa(
@@ -442,9 +470,8 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function copyPwa(): Promise<void> {
-    if (!pwaReport.value || !await options.copyText(JSON.stringify(pwaReport.value, null, 2))) return
-    pwaCopied.value = true
-    scheduleFeedbackReset(pwaCopied)
+    if (!pwaReport.value) return
+    await copyReport('pwa', JSON.stringify(pwaReport.value, null, 2), pwaCopied)
   }
 
   async function refreshActiveView(): Promise<void> {
@@ -525,8 +552,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
 
   function dispose(): void {
     invalidateRequests()
-    for (const timer of feedbackTimers) window.clearTimeout(timer)
-    feedbackTimers.clear()
+    feedbackTimers.clearAll()
   }
 
   return {

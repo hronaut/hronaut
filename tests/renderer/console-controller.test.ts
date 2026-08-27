@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useConsoleController } from '../../src/renderer/src/composables/useConsoleController.js'
 import type { BrowserConsoleMessage, BrowserTabState } from '../../src/shared/types.js'
 
@@ -45,16 +45,21 @@ function createController() {
   const browser = {
     listConsoleMessages: vi.fn(async () => [] as BrowserConsoleMessage[])
   }
+  const copyText = vi.fn(async () => true)
   const controller = useConsoleController({
     activeTab,
     open,
     browser,
     translate: (key) => key,
-    copyText: async () => true,
+    copyText,
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, open, browser, controller }
+  return { activeTab, open, browser, controller, copyText }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('console controller', () => {
   it('invalidates an in-flight refresh when reset on the same tab', async () => {
@@ -84,6 +89,58 @@ describe('console controller', () => {
 
     expect(controller.messages.value).toEqual([])
     expect(controller.state.value).toBe('loading')
+    controller.dispose()
+  })
+
+  it('restarts copied feedback when the same console scope is copied again', async () => {
+    vi.useFakeTimers()
+    const { controller } = createController()
+    controller.messages.value = [message('copied twice')]
+
+    await controller.copyAll()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await controller.copyAll()
+    await vi.advanceTimersByTimeAsync(600)
+
+    expect(controller.copied.value).toBe('all')
+    await vi.advanceTimersByTimeAsync(900)
+    expect(controller.copied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('does not restore copied feedback after the console context resets during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.messages.value = [message('stale copy')]
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyAll()
+    controller.reset()
+    copying.resolve(true)
+    await operation
+
+    expect(controller.copied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('keeps the newest console copy scope when clipboard writes finish out of order', async () => {
+    const older = deferred<boolean>()
+    const newer = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.messages.value = [message('copy order')]
+    controller.search.value = 'copy'
+    copyText
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise)
+
+    const copyAll = controller.copyAll()
+    const copyFiltered = controller.copyFiltered()
+    newer.resolve(true)
+    await copyFiltered
+    older.resolve(true)
+    await copyAll
+
+    expect(controller.copied.value).toBe('filtered')
     controller.dispose()
   })
 

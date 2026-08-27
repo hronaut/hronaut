@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useSiteStorageController } from '../../src/renderer/src/composables/useSiteStorageController.js'
 import type {
   BrowserIndexedDbReport,
@@ -42,6 +42,24 @@ function storageResult(tabId = 'tab-1'): BrowserStorageResult {
   }
 }
 
+function usageReport(): BrowserStorageUsageReport {
+  return {
+    tabId: 'tab-1',
+    url: 'https://example.test/app',
+    origin: 'https://example.test',
+    capturedAt: '2026-08-21T12:00:00.000Z',
+    source: 'chromium-quota',
+    usage: 1_536,
+    quota: 10_240,
+    available: 8_704,
+    usagePercent: 15,
+    overrideActive: false,
+    breakdown: [{ storageType: 'indexeddb', usage: 1_536 }],
+    breakdownAvailable: true,
+    caveats: []
+  }
+}
+
 function deferred<Value>() {
   let resolve!: (value: Value) => void
   const promise = new Promise<Value>((next) => (resolve = next))
@@ -59,18 +77,23 @@ function createController(manageStorage = vi.fn(async () => storageResult())) {
     inspectPwa: vi.fn(async () => null as unknown as BrowserPwaReport),
     storageChanges: vi.fn(async () => null as unknown as BrowserStorageChangesReport)
   }
+  const copyText = vi.fn(async () => true)
   const controller = useSiteStorageController({
     activeTab,
     open,
     locale: ref('en-US'),
     browser,
     translate: (key) => key,
-    copyText: async () => true,
+    copyText,
     confirm,
     keepsSeparatePanelOpen: () => false
   })
-  return { activeTab, open, confirm, browser, controller }
+  return { activeTab, open, confirm, browser, controller, copyText }
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('site-storage controller', () => {
   it('invalidates an in-flight result when the view resets on the same tab', async () => {
@@ -131,5 +154,55 @@ describe('site-storage controller', () => {
     pending.resolve({ ...storageResult(), itemCount: 0, items: [], action: 'delete', changed: true })
     await Promise.all([firstDelete, refresh, changeKind, secondDelete])
     expect(controller.state.value).toBe('idle')
+  })
+
+  it('restarts copied feedback when the same storage report is copied again', async () => {
+    vi.useFakeTimers()
+    const { controller } = createController()
+    controller.usageReport.value = usageReport()
+    controller.usageOpen.value = true
+
+    await controller.copyUsage()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await controller.copyUsage()
+    await vi.advanceTimersByTimeAsync(600)
+
+    expect(controller.usageCopied.value).toBe(true)
+    await vi.advanceTimersByTimeAsync(900)
+    expect(controller.usageCopied.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('does not restore storage copy feedback after a context reset during clipboard write', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.usageReport.value = usageReport()
+    controller.usageOpen.value = true
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyUsage()
+    controller.reset()
+    copying.resolve(true)
+    await operation
+
+    expect(controller.usageCopied.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('does not show usage copy feedback after another storage view is selected', async () => {
+    const copying = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.usageReport.value = usageReport()
+    controller.usageOpen.value = true
+    copyText.mockImplementationOnce(() => copying.promise)
+
+    const operation = controller.copyUsage()
+    await controller.selectChanges()
+    copying.resolve(true)
+    await operation
+
+    expect(controller.changesOpen.value).toBe(true)
+    expect(controller.usageCopied.value).toBe(false)
+    controller.dispose()
   })
 })
