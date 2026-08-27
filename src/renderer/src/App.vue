@@ -50,9 +50,7 @@ import { useMcpActivityController } from './composables/useMcpActivityController
 import { useDiagnosticLogPreservationController } from './composables/useDiagnosticLogPreservationController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useAddressBarController } from './composables/useAddressBarController'
-import { usePanelDockLayout } from './composables/usePanelDockLayout'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
-import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
@@ -74,6 +72,7 @@ import { useCredentialFillController } from './composables/useCredentialFillCont
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
+import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -330,11 +329,6 @@ const {
   openHistoryEntry,
   dispose: disposeAppBrowserCollectionsFeatureController
 } = browserCollectionsFeatureController
-const fullModalOpen = computed(() => settingsOpen.value
-  || commandPaletteOpen.value
-  || helpDialogOpen.value
-  || workspaceEditorOpen.value
-  || credentialPickerOpen.value)
 const {
   reorderTab,
   selectBrowserTab,
@@ -806,15 +800,6 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   },
   onError: reportShellActionError
 })
-const panelDockLayout = usePanelDockLayout({
-  dock: panelDock,
-  shell,
-  dockedPanelOpen,
-  fullModalOpen,
-  tabRailWidth,
-  detachedWindow: isDetachedPanelWindow,
-  shellApi: window.hronautShell
-})
 const {
   size: panelDockSize,
   shellContentTop,
@@ -824,8 +809,42 @@ const {
   minimumSize: panelDockMinimumSize,
   startResize: startPanelResize,
   resizeWithKeyboard: resizePanelWithKeyboard,
-  resetSize: resetPanelDockSize
-} = panelDockLayout
+  resetSize: resetPanelDockSize,
+  dispose: disposeAppShellLayoutFeatureController
+} = useAppShellLayoutFeatureController({
+  layout: {
+    dock: panelDock,
+    shell,
+    dockedPanelOpen,
+    tabRailWidth,
+    detachedWindow: isDetachedPanelWindow,
+    shellApi: window.hronautShell
+  },
+  modals: {
+    settings: settingsOpen,
+    commandPalette: commandPaletteOpen,
+    helpDialog: helpDialogOpen,
+    workspaceEditor: workspaceEditorOpen,
+    credentialPicker: credentialPickerOpen
+  },
+  overlays: {
+    updateNotice: updateNoticeOpen,
+    find: findOpen,
+    zoom: zoomOpen,
+    activePanel: activePanelId,
+    addressSuggestions: addressSuggestionsOpen,
+    tabSearch: tabSearchOpen,
+    downloads: downloadsOpen,
+    history: historyOpen,
+    splitMenu: splitMenuOpen,
+    siteControls: siteControlsOpen,
+    siteStorage: siteStorageOpen,
+    bookmarks: bookmarksOpen
+  },
+  keepsSeparatePanelOpen,
+  closePanelsExcept: closeDockedPanelsExcept,
+  closeAddressSuggestions
+})
 const activeTabPresentationController = useActiveTabPresentationController({
   state,
   activeTab,
@@ -890,51 +909,6 @@ const detachedPanelUnavailable = computed(() => (
 const detachedPanelLabelText = computed(() => (
   activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
 ))
-const { dispose: disposeShellOverlayCoordinationController } = useShellOverlayCoordinationController({
-  layoutSources: [
-    settingsOpen,
-    updateNoticeOpen,
-    findOpen,
-    zoomOpen,
-    activePanelId,
-    addressSuggestionsOpen,
-    commandPaletteOpen,
-    tabSearchOpen,
-    downloadsOpen,
-    historyOpen,
-    splitMenuOpen,
-    workspaceEditorOpen,
-    credentialPickerOpen
-  ],
-  competingOverlayStates: [
-    settingsOpen,
-    commandPaletteOpen,
-    helpDialogOpen,
-    workspaceEditorOpen,
-    credentialPickerOpen,
-    siteControlsOpen,
-    siteStorageOpen,
-    addressSuggestionsOpen,
-    findOpen,
-    zoomOpen,
-    splitMenuOpen,
-    tabSearchOpen,
-    downloadsOpen,
-    bookmarksOpen,
-    historyOpen
-  ],
-  preservedPanels: [
-    { panel: 'site-controls', open: siteControlsOpen },
-    { panel: 'site-storage', open: siteStorageOpen },
-    { panel: 'bookmarks', open: bookmarksOpen }
-  ],
-  fullModalOpen,
-  keepsSeparatePanelOpen,
-  closePanelsExcept: closeDockedPanelsExcept,
-  closeAddressSuggestions,
-  reportLayout: reportShellHeight
-})
-
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
 }
@@ -979,7 +953,7 @@ useAppLifecycleController({
   disposers: [
     disposeAppStartupFeatureController,
     disposeMcpActivityController,
-    disposeShellOverlayCoordinationController,
+    disposeAppShellLayoutFeatureController,
     disposeActiveTabContextController,
     disposeAppEmulationFeatureController,
     disposeBrowserShortcutController,

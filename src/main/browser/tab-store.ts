@@ -86,6 +86,50 @@ function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
 }
 
+function normalizePersistedTabUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value) return null
+  const viewSourcePrefix = 'view-source:'
+  const isViewSource = value.toLowerCase().startsWith(viewSourcePrefix)
+  const source = isViewSource ? value.slice(viewSourcePrefix.length) : value
+  if (!source || source.toLowerCase().startsWith(viewSourcePrefix)) return null
+  try {
+    const url = new URL(source)
+    const hasEmbeddedHttpCredentials = (url.protocol === 'http:' || url.protocol === 'https:')
+      && (url.username || url.password)
+    const normalizedSource = hasEmbeddedHttpCredentials
+      ? (() => {
+          url.username = ''
+          url.password = ''
+          return url.href
+        })()
+      : source
+    return isViewSource ? `${viewSourcePrefix}${normalizedSource}` : normalizedSource
+  } catch {
+    return null
+  }
+}
+
+function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrowserState {
+  const sanitizeTab = <T extends { title: string; url: string }>(tab: T): T => {
+    const originalUrl = tab.url
+    const normalized = normalizePersistedTabUrl(originalUrl)
+    if (!normalized) throw new TypeError('Persisted tab URL must be an absolute URL')
+    return {
+      ...tab,
+      title: tab.title === originalUrl ? normalized : tab.title,
+      url: normalized
+    }
+  }
+  return {
+    ...state,
+    tabs: state.tabs.map(sanitizeTab),
+    savedTabGroups: state.savedTabGroups?.map((group) => ({
+      ...group,
+      tabs: group.tabs.map(sanitizeTab)
+    }))
+  }
+}
+
 export class TabStateStore {
   private saveQueue: Promise<void> = Promise.resolve()
 
@@ -112,6 +156,7 @@ export class TabStateStore {
       const activeWorkspaceIds = new Set<string>()
       const usedWorkspaceNames = new Set<string>()
       const usedStorageIds = new Set<string>()
+      let repairedPersistedState = false
       const mcpTabGroups: PersistedTabGroup[] = []
       for (const candidate of data.mcpTabGroups) {
         if (!isRecord(candidate)) return null
@@ -170,7 +215,11 @@ export class TabStateStore {
           || usedStorageIds.has(storageId)
           || candidate.tabs.length === 0
           || candidate.tabs.length > MAX_TABS
-          || candidate.tabs.some((tab) => !isRecord(tab) || typeof tab.title !== 'string' || typeof tab.url !== 'string')
+          || candidate.tabs.some((tab) => (
+            !isRecord(tab)
+            || typeof tab.title !== 'string'
+            || normalizePersistedTabUrl(tab.url) === null
+          ))
         ) return null
         usedWorkspaceIds.add(candidate.id)
         usedWorkspaceNames.add(workspaceNameKey(candidate.name))
@@ -182,36 +231,44 @@ export class TabStateStore {
           savedAt: candidate.savedAt,
           storageId,
           origins: persistedWorkspaceOrigins(candidate.origins),
-          tabs: candidate.tabs.map((tab) => ({
-            title: normalizeTabTitle(
-              (tab as Record<string, unknown>).title as string,
-              (tab as Record<string, unknown>).url as string
-            ),
-            url: (tab as Record<string, unknown>).url as string,
-            pinned: (tab as Record<string, unknown>).pinned === true
-          }))
+          tabs: candidate.tabs.map((tab) => {
+            const originalUrl = (tab as Record<string, unknown>).url as string
+            const url = normalizePersistedTabUrl(originalUrl)!
+            const title = (tab as Record<string, unknown>).title as string
+            if (url !== originalUrl) repairedPersistedState = true
+            return {
+              title: normalizeTabTitle(
+                title === originalUrl ? url : title,
+                url
+              ),
+              url,
+              pinned: (tab as Record<string, unknown>).pinned === true
+            }
+          })
         })
       }
 
       const usedTabIds = new Set<string>()
       const tabs: PersistedTab[] = []
       for (const candidate of data.tabs) {
+        const url = isRecord(candidate) ? normalizePersistedTabUrl(candidate.url) : null
         if (
           !isRecord(candidate)
           || typeof candidate.id !== 'string'
           || !isUuidV7(candidate.id)
           || usedTabIds.has(candidate.id)
           || typeof candidate.title !== 'string'
-          || typeof candidate.url !== 'string'
+          || url === null
           || (candidate.mcpGroupId !== undefined
             && (typeof candidate.mcpGroupId !== 'string' || !activeWorkspaceIds.has(candidate.mcpGroupId)))
-          || (candidate.mcpGroupId === undefined && candidate.url !== HRONAUT_HOME_URL)
+          || (candidate.mcpGroupId === undefined && url !== HRONAUT_HOME_URL)
         ) return null
+        if (url !== candidate.url) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({
           id: candidate.id,
-          title: normalizeTabTitle(candidate.title, candidate.url),
-          url: candidate.url,
+          title: normalizeTabTitle(candidate.title === candidate.url ? url : candidate.title, url),
+          url,
           pinned: candidate.pinned === true,
           humanInteractionLocked: candidate.humanInteractionLocked === true,
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
@@ -240,7 +297,7 @@ export class TabStateStore {
         : undefined
       if (data.splitView !== undefined && !splitView) return null
 
-      return {
+      const restored: PersistedBrowserState = {
         version: TAB_STATE_VERSION,
         activeTabId: typeof data.activeTabId === 'string' ? data.activeTabId : null,
         ...(splitView ? { splitView } : {}),
@@ -250,6 +307,8 @@ export class TabStateStore {
         savedTabGroups,
         tabs
       }
+      if (repairedPersistedState) await this.save(restored)
+      return restored
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
@@ -258,7 +317,7 @@ export class TabStateStore {
   }
 
   save(state: PersistedBrowserState): Promise<void> {
-    const contents = `${JSON.stringify(state, null, 2)}\n`
+    const contents = `${JSON.stringify(sanitizePersistedStateUrls(state), null, 2)}\n`
     const operation = this.saveQueue.then(async () => {
       await mkdir(dirname(this.path), { recursive: true })
       const temporaryPath = `${this.path}.tmp`

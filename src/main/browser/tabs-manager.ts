@@ -856,6 +856,7 @@ export class BrowserTabsManager {
   private readonly webContentsToTab = new Map<number, string>()
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
+  private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
   private readonly reservedDownloadPaths = new Set<string>()
   private readonly debuggerQueues = new Map<number, Promise<void>>()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
@@ -5001,12 +5002,39 @@ export class BrowserTabsManager {
       item.cancel()
     } else if (action === 'clear') {
       for (const [id, download] of this.downloads) {
-        if (download.state !== 'progressing') this.downloads.delete(id)
+        if (download.state === 'progressing') continue
+        this.downloads.delete(id)
+        this.downloadWorkspaceIds.delete(id)
       }
     }
     const downloads = this.listDownloads()
     if (action !== 'list') this.sendDownloadsChanged(downloads)
     return downloads
+  }
+
+  manageWorkspaceDownloads(
+    workspaceId: string,
+    action: 'list' | 'cancel' | 'clear',
+    downloadId?: string
+  ): BrowserDownloadState[] {
+    if (action === 'cancel') {
+      if (!downloadId) throw new Error('downloadId is required to cancel a download')
+      const item = this.downloadWorkspaceIds.get(downloadId) === workspaceId
+        ? this.downloadItems.get(downloadId)
+        : undefined
+      if (!item) throw new Error(`Active download not found: ${downloadId}`)
+      item.cancel()
+    } else if (action === 'clear') {
+      this.listDownloads()
+      for (const [id, download] of this.downloads) {
+        if (this.downloadWorkspaceIds.get(id) !== workspaceId || download.state === 'progressing') continue
+        this.downloads.delete(id)
+        this.downloadWorkspaceIds.delete(id)
+      }
+    }
+    const downloads = this.listDownloads()
+    if (action !== 'list') this.sendDownloadsChanged(downloads)
+    return downloads.filter((download) => this.downloadWorkspaceIds.get(download.id) === workspaceId)
   }
 
   showDownloadInFolder(downloadId: string): void {
@@ -5689,6 +5717,7 @@ export class BrowserTabsManager {
     this.mcpActivitiesByTab.clear()
     this.webContentsToTab.clear()
     this.downloadItems.clear()
+    this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
     this.debuggerQueues.clear()
     this.networkRouteQueues.clear()
@@ -8550,6 +8579,7 @@ export class BrowserTabsManager {
         }
         const id = randomUUID()
         const tabId = webContents ? this.webContentsToTab.get(webContents.id) : undefined
+        const workspaceId = tabId ? this.tabs.get(tabId)?.mcpGroupId : undefined
         const suggestedPath = this.reserveAvailableDownloadPath(item.getFilename())
         try {
           if (this.options.askWhereToSaveDownloads) {
@@ -8577,6 +8607,7 @@ export class BrowserTabsManager {
         }
         this.downloads.set(id, download)
         this.downloadItems.set(id, item)
+        this.downloadWorkspaceIds.set(id, workspaceId)
         this.notifyDownloadsChanged(true)
         item.on('updated', (_downloadEvent, state) => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
@@ -8648,7 +8679,9 @@ export class BrowserTabsManager {
       .filter((download) => download.state !== 'progressing')
       .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
     while (this.downloads.size >= MAX_DOWNLOAD_HISTORY && removable.length) {
-      this.downloads.delete(removable.shift()!.id)
+      const id = removable.shift()!.id
+      this.downloads.delete(id)
+      this.downloadWorkspaceIds.delete(id)
     }
   }
 

@@ -108,6 +108,57 @@ describe('TabStateStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(states.at(-1))
   })
 
+  it('does not persist embedded HTTP credentials from active or archived tabs', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.url = 'https://active-user:active-secret@shop.example/checkout'
+    state.tabs[1]!.title = state.tabs[1]!.url
+    state.savedTabGroups![0]!.tabs[0]!.url = 'view-source:https://saved-user:saved-secret@docs.example/orders'
+    state.savedTabGroups![0]!.tabs[0]!.title = state.savedTabGroups![0]!.tabs[0]!.url
+
+    await store.save(state)
+
+    const persisted = await readFile(path, 'utf8')
+    expect(persisted).not.toContain('active-user')
+    expect(persisted).not.toContain('active-secret')
+    expect(persisted).not.toContain('saved-user')
+    expect(persisted).not.toContain('saved-secret')
+    expect(JSON.parse(persisted)).toMatchObject({
+      tabs: expect.arrayContaining([
+        expect.objectContaining({
+          id: ACTIVE_TAB_ID,
+          title: 'https://shop.example/checkout',
+          url: 'https://shop.example/checkout'
+        })
+      ]),
+      savedTabGroups: [{ tabs: [{
+        title: 'view-source:https://docs.example/orders',
+        url: 'view-source:https://docs.example/orders'
+      }] }]
+    })
+  })
+
+  it('repairs embedded HTTP credentials already present in persisted tab state', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.url = 'https://active-user:active-secret@shop.example/checkout'
+    state.tabs[1]!.title = state.tabs[1]!.url
+    state.savedTabGroups![0]!.tabs[0]!.url = 'view-source:https://saved-user:saved-secret@docs.example/orders'
+    state.savedTabGroups![0]!.tabs[0]!.title = state.savedTabGroups![0]!.tabs[0]!.url
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.tabs[1]?.url).toBe('https://shop.example/checkout')
+    expect(restored?.tabs[1]?.title).toBe('https://shop.example/checkout')
+    expect(restored?.savedTabGroups?.[0]?.tabs[0]?.url).toBe('view-source:https://docs.example/orders')
+    expect(restored?.savedTabGroups?.[0]?.tabs[0]?.title).toBe('view-source:https://docs.example/orders')
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toContain('active-secret')
+    expect(repaired).not.toContain('saved-secret')
+  })
+
   it('drops unversioned legacy tab state instead of migrating or restoring it', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
@@ -169,7 +220,10 @@ describe('TabStateStore', () => {
     ['a non-UUIDv7 workspace ID', (state: PersistedBrowserState) => { state.mcpTabGroups![1]!.id = 'legacy-workspace' }],
     ['a missing isolated storage ID', (state: PersistedBrowserState) => { delete state.mcpTabGroups![1]!.storageId }],
     ['a duplicate workspace name', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.name = 'Checkout debugging' }],
-    ['a tab owned by an archived workspace', (state: PersistedBrowserState) => { state.tabs[1]!.mcpGroupId = SAVED_WORKSPACE_ID }]
+    ['a tab owned by an archived workspace', (state: PersistedBrowserState) => { state.tabs[1]!.mcpGroupId = SAVED_WORKSPACE_ID }],
+    ['a malformed active tab URL', (state: PersistedBrowserState) => { state.tabs[1]!.url = 'https://[' }],
+    ['a malformed archived tab URL', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.tabs[0]!.url = 'https://[' }],
+    ['a nested view-source URL', (state: PersistedBrowserState) => { state.tabs[1]!.url = 'view-source:view-source:https://example.com' }]
   ])('rejects current state containing %s', async (_name, corrupt) => {
     const { path, store } = await createStore()
     const state = currentState()

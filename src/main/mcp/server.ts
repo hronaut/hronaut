@@ -274,7 +274,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_network_replay', category: 'Interaction', description: 'Replay one retained XMLHttpRequest inside its original tab and session without exposing its original credentials, headers, or body. GET and HEAD replay directly; every other method requires confirmSideEffects: true because it can repeat writes or other side effects.' },
   { name: 'browser_network_har', category: 'Inspection', description: 'Return or save a property-filtered, bounded, sanitized HAR 1.2 network log with bodies omitted by default; saved files use collision-safe names in Downloads.' },
   { name: 'browser_network_routes', category: 'Inspection', description: 'List, add, prioritize, remove, or clear temporary per-tab request mocks, failures, and individual network throttles.' },
-  { name: 'browser_downloads', category: 'Inspection', description: 'List, cancel, or clear tracked downloads.' },
+  { name: 'browser_downloads', category: 'Inspection', description: 'List, cancel, or clear downloads created by the selected agent workspace.' },
   { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result.' }
 ]
 
@@ -1820,8 +1820,12 @@ function createBrowserMcpServer(
         downloadId: z.string().optional()
       }
     },
-    tool(async ({ action, downloadId }: { action?: 'list' | 'cancel' | 'clear'; downloadId?: string }) =>
-      textResult(manager.manageDownloads(action ?? 'list', downloadId))
+    tool(async ({ workspaceId, action, downloadId }: {
+      workspaceId?: string
+      action?: 'list' | 'cancel' | 'clear'
+      downloadId?: string
+    }) =>
+      textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))
     )
   )
   registerWorkspaceTool(
