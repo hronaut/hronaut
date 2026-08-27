@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createTitleBarPresentationController,
   titleBarDragSurface
@@ -17,6 +17,16 @@ class FakeWindowControlsOverlay extends EventTarget {
 function chrome(overrides: Partial<WindowChromeState> = {}): WindowChromeState {
   return { platform: 'linux', mode: 'overlay', mainWindow: true, ...overrides }
 }
+
+afterEach(() => {
+  for (const property of [
+    '--titlebar-area-x-runtime',
+    '--titlebar-area-width-runtime',
+    '--titlebar-area-height-runtime',
+    '--titlebar-controls-left-runtime',
+    '--titlebar-controls-right-runtime'
+  ]) document.documentElement.style.removeProperty(property)
+})
 
 describe('title bar presentation controller', () => {
   it('maps horizontal, vertical website, and vertical Home layouts to focused drag surfaces', () => {
@@ -83,5 +93,51 @@ describe('title bar presentation controller', () => {
     expect(document.documentElement.dataset.titleBarMode).toBe('system')
     expect(document.documentElement.style.getPropertyValue('--titlebar-area-width-runtime')).toBe('')
     controller.stop()
+  })
+
+  it('rolls back partial title-bar listener setup and permits a clean retry', () => {
+    const overlay = new FakeWindowControlsOverlay()
+    const resizeTarget = new EventTarget()
+    const addListener = vi.spyOn(resizeTarget, 'addEventListener')
+      .mockImplementationOnce(() => { throw new Error('resize listener unavailable') })
+    const controller = createTitleBarPresentationController(chrome(), {
+      documentElement: document.documentElement,
+      viewportWidth: () => 1_200,
+      windowControlsOverlay: overlay,
+      resizeTarget
+    })
+
+    expect(() => controller.start()).toThrow('resize listener unavailable')
+    overlay.rect = new DOMRect(144, 0, 1_056, 44)
+    overlay.dispatchEvent(new Event('geometrychange'))
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('')
+
+    addListener.mockRestore()
+    controller.start()
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('144px')
+    controller.stop()
+  })
+
+  it('removes later listeners and runtime geometry when one title-bar cleanup fails', () => {
+    const overlay = new FakeWindowControlsOverlay()
+    const resizeTarget = new EventTarget()
+    const controller = createTitleBarPresentationController(chrome(), {
+      documentElement: document.documentElement,
+      viewportWidth: () => 1_200,
+      windowControlsOverlay: overlay,
+      resizeTarget
+    })
+    controller.start()
+    vi.spyOn(overlay, 'removeEventListener')
+      .mockImplementationOnce(() => { throw new Error('overlay listener already removed') })
+
+    expect(() => controller.stop()).toThrow('overlay listener already removed')
+
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('')
+    overlay.rect = new DOMRect(200, 0, 1_000, 44)
+    resizeTarget.dispatchEvent(new Event('resize'))
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('')
+    overlay.dispatchEvent(new Event('geometrychange'))
+    expect(document.documentElement.style.getPropertyValue('--titlebar-area-x-runtime')).toBe('')
   })
 })

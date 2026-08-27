@@ -1,6 +1,7 @@
 import { onBeforeUnmount, onMounted } from 'vue'
 import { normalizeTitleBarArea, type WindowControlsOverlayRect } from '../../../shared/title-bar.js'
 import type { WindowChromeState } from '../../../shared/types.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 export type TitleBarDragSurface = 'tabs' | 'toolbar' | 'home'
 
@@ -48,9 +49,34 @@ export function createTitleBarPresentationController(
   const overlayEnabled = windowChrome.mainWindow && windowChrome.mode === 'overlay'
   let started = false
   let lastControlInsets: { left: number, right: number } | undefined
+  let listenerDisposers: (() => void)[] = []
 
   function clearRuntimeGeometry(): void {
     for (const property of RUNTIME_PROPERTIES) environment.documentElement.style.removeProperty(property)
+  }
+
+  function resetPresentation(): void {
+    lastControlInsets = undefined
+    clearRuntimeGeometry()
+  }
+
+  function appendFailure(failures: unknown[], error: unknown): void {
+    if (error instanceof AggregateError) failures.push(...(error.errors as unknown[]))
+    else failures.push(error)
+  }
+
+  function rollbackStartedPresentation(startError: unknown): never {
+    const currentDisposers = listenerDisposers
+    listenerDisposers = []
+    started = false
+    const failures = [startError]
+    try {
+      disposeAll([...currentDisposers, resetPresentation])
+    } catch (cleanupError) {
+      appendFailure(failures, cleanupError)
+    }
+    if (failures.length === 1) throw startError
+    throw new AggregateError(failures, 'Title-bar presentation startup failed and rollback was incomplete')
   }
 
   function syncGeometry(): void {
@@ -84,6 +110,10 @@ export function createTitleBarPresentationController(
     environment.documentElement.style.setProperty('--titlebar-controls-right-runtime', `${area.rightInset}px`)
   }
 
+  function syncActiveGeometry(): void {
+    if (started) syncGeometry()
+  }
+
   function start(): void {
     if (started) return
     started = true
@@ -93,18 +123,34 @@ export function createTitleBarPresentationController(
       clearRuntimeGeometry()
       return
     }
-    environment.windowControlsOverlay?.addEventListener('geometrychange', syncGeometry)
-    environment.resizeTarget?.addEventListener('resize', syncGeometry)
-    syncGeometry()
+    const registrations: (() => () => void)[] = []
+    const overlay = environment.windowControlsOverlay
+    const resizeTarget = environment.resizeTarget
+    if (overlay) registrations.push(() => {
+      overlay.addEventListener('geometrychange', syncActiveGeometry)
+      return () => overlay.removeEventListener('geometrychange', syncActiveGeometry)
+    })
+    if (resizeTarget) registrations.push(() => {
+      resizeTarget.addEventListener('resize', syncActiveGeometry)
+      return () => resizeTarget.removeEventListener('resize', syncActiveGeometry)
+    })
+    listenerDisposers = registerDisposers(registrations, () => {
+      started = false
+      resetPresentation()
+    })
+    try {
+      syncGeometry()
+    } catch (error) {
+      rollbackStartedPresentation(error)
+    }
   }
 
   function stop(): void {
     if (!started) return
     started = false
-    environment.windowControlsOverlay?.removeEventListener('geometrychange', syncGeometry)
-    environment.resizeTarget?.removeEventListener('resize', syncGeometry)
-    lastControlInsets = undefined
-    clearRuntimeGeometry()
+    const currentDisposers = listenerDisposers
+    listenerDisposers = []
+    disposeAll([...currentDisposers, resetPresentation])
   }
 
   return { overlayEnabled, syncGeometry, start, stop }

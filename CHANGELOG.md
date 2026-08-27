@@ -13,6 +13,7 @@ All notable changes to Hronaut are documented in this file.
 - Roll back live MCP activity subscriptions when tab tracking cannot start and always clear agent badges, request state, and linger timers even if native listener teardown fails.
 - Preserve and report the real update-service failure when listener cleanup also fails, and always clear pending update UI operations during teardown.
 - Preserve MCP and commercial-license source errors through listener cleanup failures, and clear their pending UI feedback before teardown completes.
+- Roll back partial title-bar listener setup and always remove remaining geometry listeners and safe-area styles when one cleanup fails.
 
 ## [1.9.2] - 2026-08-27
 
