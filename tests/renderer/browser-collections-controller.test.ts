@@ -118,8 +118,10 @@ function createHarness() {
     listDownloads,
     onDownloadsChanged,
     listBookmarks,
+    onBookmarksChanged,
     renameBookmark,
     listHistory,
+    onHistoryChanged,
     removeHistoryEntry,
     shouldAutoOpenDownloads,
     openDownloads,
@@ -254,6 +256,43 @@ describe('useBrowserCollectionsController', () => {
     await pending
     harness.emitDownloads([download('ignored')])
     expect(harness.controller.downloads.value.map((item) => item.id)).toEqual(['historical'])
+    expect(harness.unsubscribeDownloads).toHaveBeenCalledOnce()
+    expect(harness.unsubscribeBookmarks).toHaveBeenCalledOnce()
+    expect(harness.unsubscribeHistory).toHaveBeenCalledOnce()
+  })
+
+  it('rolls back partial subscriptions and retries all listeners after registration fails', async () => {
+    const harness = createHarness()
+    const registrationError = new Error('bookmark listener unavailable')
+    harness.onBookmarksChanged.mockImplementationOnce(() => {
+      throw registrationError
+    })
+
+    expect(() => harness.controller.initialize()).toThrow(registrationError)
+    expect(harness.unsubscribeDownloads).toHaveBeenCalledOnce()
+    expect(harness.onDownloadsChanged).toHaveBeenCalledOnce()
+    expect(harness.onBookmarksChanged).toHaveBeenCalledOnce()
+    expect(harness.onHistoryChanged).not.toHaveBeenCalled()
+
+    await harness.controller.initialize()
+
+    expect(harness.onDownloadsChanged).toHaveBeenCalledTimes(2)
+    expect(harness.onBookmarksChanged).toHaveBeenCalledTimes(2)
+    expect(harness.onHistoryChanged).toHaveBeenCalledOnce()
+    harness.emitBookmarks([bookmark('after-retry')])
+    expect(harness.controller.bookmarks.value.map((item) => item.id)).toEqual(['after-retry'])
+    harness.controller.dispose()
+  })
+
+  it('releases every collection listener when one unsubscriber throws', async () => {
+    const harness = createHarness()
+    await harness.controller.initialize()
+    harness.unsubscribeDownloads.mockImplementationOnce(() => {
+      throw new Error('download listener already closed')
+    })
+
+    expect(() => harness.controller.dispose()).toThrow('download listener already closed')
+
     expect(harness.unsubscribeDownloads).toHaveBeenCalledOnce()
     expect(harness.unsubscribeBookmarks).toHaveBeenCalledOnce()
     expect(harness.unsubscribeHistory).toHaveBeenCalledOnce()

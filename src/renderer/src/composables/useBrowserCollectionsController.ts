@@ -7,6 +7,7 @@ import type {
   BrowserDownloadState,
   BrowserHistoryEntry
 } from '../../../shared/types.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface BrowserCollectionsControllerOptions {
   downloadsApi: HronautDownloadsApi
@@ -31,9 +32,7 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
   let initializePromise: Promise<void> | undefined
   let subscriptionsAttached = false
   let disposed = false
-  let unsubscribeDownloads: (() => void) | undefined
-  let unsubscribeBookmarks: (() => void) | undefined
-  let unsubscribeHistory: (() => void) | undefined
+  let unsubscribers: (() => void)[] = []
 
   function replaceKnownDownloadIds(next: BrowserDownloadState[]): void {
     knownDownloadIds.clear()
@@ -87,10 +86,12 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
 
   function attachSubscriptions(): void {
     if (subscriptionsAttached || disposed) return
+    unsubscribers = registerDisposers([
+      () => options.downloadsApi.onChanged((next) => acceptDownloads(next, true)),
+      () => options.bookmarksApi.onChanged(acceptBookmarks),
+      () => options.historyApi.onChanged(acceptHistory)
+    ])
     subscriptionsAttached = true
-    unsubscribeDownloads = options.downloadsApi.onChanged((next) => acceptDownloads(next, true))
-    unsubscribeBookmarks = options.bookmarksApi.onChanged(acceptBookmarks)
-    unsubscribeHistory = options.historyApi.onChanged(acceptHistory)
   }
 
   function initialize(): Promise<void> {
@@ -162,13 +163,14 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     downloadsRequestSequence += 1
     bookmarksRequestSequence += 1
     historyRequestSequence += 1
-    unsubscribeDownloads?.()
-    unsubscribeBookmarks?.()
-    unsubscribeHistory?.()
-    unsubscribeDownloads = undefined
-    unsubscribeBookmarks = undefined
-    unsubscribeHistory = undefined
-    knownDownloadIds.clear()
+    const attachedUnsubscribers = unsubscribers
+    unsubscribers = []
+    subscriptionsAttached = false
+    try {
+      disposeAll(attachedUnsubscribers)
+    } finally {
+      knownDownloadIds.clear()
+    }
   }
 
   return {
