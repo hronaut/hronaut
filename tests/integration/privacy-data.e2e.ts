@@ -174,3 +174,46 @@ test('summarizes and selectively clears browsing data without removing retained 
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
+
+test('keeps MCP paused while browsing-data cleanup owns a temporary pause', async ({
+  appWindow,
+  electronApp
+}) => {
+  await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+  await electronApp.evaluate(({ session }) => {
+    const browserSession = session.fromPartition('persist:hronaut')
+    const originalClearData = browserSession.clearData.bind(browserSession)
+    let releaseClear!: () => void
+    const clearHeld = new Promise<void>((resolve) => { releaseClear = resolve })
+    ;(globalThis as typeof globalThis & { __releaseBrowsingDataClear?: () => void }).__releaseBrowsingDataClear = releaseClear
+    browserSession.clearData = async (...args: Parameters<Electron.Session['clearData']>) => {
+      browserSession.clearData = originalClearData
+      await clearHeld
+      return originalClearData(...args)
+    }
+  })
+
+  await appWindow.evaluate(`(() => {
+    globalThis.__browsingDataClear = window.hronautBrowsingData.clear({
+      history: false,
+      cookiesAndSiteData: false,
+      cache: true
+    })
+  })()`)
+  await expect.poll(() => appWindow.evaluate('window.hronautMcp.getState().then((state) => state.paused)')).toBe(true)
+
+  await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+  const pausedWhileClearWasHeld = await appWindow.evaluate('window.hronautMcp.getState().then((state) => state.paused)')
+  await appWindow.evaluate('window.hronautMcp.setPaused(true)')
+  await electronApp.evaluate(() => {
+    const release = (globalThis as typeof globalThis & { __releaseBrowsingDataClear?: () => void }).__releaseBrowsingDataClear
+    if (!release) throw new Error('Browsing-data clear release hook was not installed')
+    release()
+  })
+  await appWindow.evaluate('globalThis.__browsingDataClear')
+  const pausedAfterClear = await appWindow.evaluate('window.hronautMcp.getState().then((state) => state.paused)')
+
+  expect(pausedWhileClearWasHeld).toBe(true)
+  expect(pausedAfterClear).toBe(true)
+  await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+})

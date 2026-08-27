@@ -54,6 +54,7 @@ import {
   type UserAttentionRequest
 } from './mcp/server.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
+import { McpPauseState } from './mcp-pause-state.js'
 import { DEFAULT_SETTINGS, isThemeName, SettingsStore } from './settings-store.js'
 import {
   DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES,
@@ -190,7 +191,7 @@ let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
 let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
-let mcpPaused = false
+const mcpPauseState = new McpPauseState()
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
 let tray: Tray | null = null
@@ -446,9 +447,10 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
 }
 
 function currentMcpControlState(): McpControlState {
+  const paused = mcpPauseState.paused
   return {
-    status: mcpRuntimeStatus === 'ready' && mcpPaused ? 'paused' : mcpRuntimeStatus,
-    paused: mcpPaused,
+    status: mcpRuntimeStatus === 'ready' && paused ? 'paused' : mcpRuntimeStatus,
+    paused,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }
 }
@@ -467,9 +469,20 @@ function publishMcpControlState(): McpControlState {
 }
 
 function setMcpPaused(paused: boolean): McpControlState {
-  mcpPaused = paused
-  mcpServer?.setPaused(paused)
+  mcpPauseState.setPersistent(paused)
+  mcpServer?.setPaused(mcpPauseState.paused)
   return publishMcpControlState()
+}
+
+function acquireTemporaryMcpPause(): () => void {
+  const release = mcpPauseState.acquireTemporary()
+  mcpServer?.setPaused(mcpPauseState.paused)
+  publishMcpControlState()
+  return () => {
+    release()
+    mcpServer?.setPaused(mcpPauseState.paused)
+    publishMcpControlState()
+  }
 }
 
 async function currentBrowsingDataSummary(): Promise<BrowsingDataSummary> {
@@ -587,8 +600,7 @@ async function clearBrowsingData(
     ? { origins: [origin], originMatchingMode: 'origin-in-all-contexts' as const }
     : {}
   browsingDataClearInProgress = true
-  const resumeMcp = !mcpPaused
-  if (resumeMcp) setMcpPaused(true)
+  const releaseMcpPause = acquireTemporaryMcpPause()
   try {
     const deadline = Date.now() + 5_000
     while ((mcpServer?.getActiveRequestCount() ?? 0) > activeMcpRequestAllowance && Date.now() < deadline) {
@@ -621,7 +633,7 @@ async function clearBrowsingData(
     }
     return currentBrowsingDataSummary()
   } finally {
-    if (resumeMcp) setMcpPaused(false)
+    releaseMcpPause()
     browsingDataClearInProgress = false
   }
 }
@@ -1099,7 +1111,7 @@ function homeDashboardState(): McpDashboardState {
       startedAt: null,
       activeRequests: 0,
       totalRequests: 0,
-      paused: mcpPaused,
+      paused: mcpPauseState.paused,
       status: 'starting',
       completedToolCalls: 0,
       clients: [],
@@ -3467,7 +3479,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   if (port === mcpPort && mcpRuntimeStatus === 'ready') return { ...settings }
 
   const candidate = createRuntimeMcpServer(port)
-  candidate.setPaused(mcpPaused)
+  candidate.setPaused(mcpPauseState.paused)
   try {
     await candidate.start()
   } catch (error) {
@@ -3513,7 +3525,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   // A bind or persistence failure therefore leaves the current runtime and
   // settings untouched instead of applying half of the reset.
   const candidate = createRuntimeMcpServer(DEFAULT_MCP_PORT, settings.mcpAuthentication)
-  candidate.setPaused(mcpPaused)
+  candidate.setPaused(mcpPauseState.paused)
   try {
     await candidate.start()
   } catch (error) {
@@ -3594,7 +3606,7 @@ app.whenReady().then(async () => {
   }
   createTray()
   mcpServer = createRuntimeMcpServer(mcpPort)
-  mcpServer.setPaused(mcpPaused)
+  mcpServer.setPaused(mcpPauseState.paused)
   try {
     const url = await mcpServer.start()
     mcpRuntimeStatus = 'ready'
