@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-27
+
 ### Added
 
 - Show copy-ready connection verification commands for Codex and Claude Code on Hronaut Home, matching the existing OpenCode and Gemini CLI guidance.
@@ -12,6 +14,13 @@ All notable changes to Hronaut are documented in this file.
 - Let agents drag between bounded viewport coordinates for canvas, maps, custom controls, remote desktops, and other pixel-precise targets.
 - Add first-class Gemini CLI setup, authentication-aware configuration, and connection verification to Hronaut Home.
 - Add a localized, copy-ready first-success task to Hronaut Home so a newly connected agent can prove isolated workspace creation, navigation, and semantic inspection immediately.
+
+### Changed
+
+- Move renderer startup, window-listener wiring, and idempotent resource disposal out of `App.vue` into a focused lifecycle controller.
+- Move bookmark and history entry navigation out of `App.vue` into the existing browser-collections shell controller.
+- Move guarded, serialized Chromium Developer Tools toggles out of `App.vue` into the browser-tab action controller.
+- Move site and update settings-entry policy out of `App.vue` into a focused navigation controller.
 
 ### Fixed
 
@@ -27,13 +36,6 @@ All notable changes to Hronaut are documented in this file.
 - Keep diagnostic “Copied” feedback scoped to the current page and restart its confirmation timeout when the same report is copied again.
 - Keep Console, Network, Site Storage, and MCP endpoint copy confirmations scoped to the latest clipboard action and current context, with full confirmation time after repeated copies.
 - Keep Hronaut Home on the newest status response and prevent repeated or guide-switched setup copies from clearing, sticking, or showing stale feedback.
-
-### Changed
-
-- Move renderer startup, window-listener wiring, and idempotent resource disposal out of `App.vue` into a focused lifecycle controller.
-- Move bookmark and history entry navigation out of `App.vue` into the existing browser-collections shell controller.
-- Move guarded, serialized Chromium Developer Tools toggles out of `App.vue` into the browser-tab action controller.
-- Move site and update settings-entry policy out of `App.vue` into a focused navigation controller.
 
 ## [1.8.0] - 2026-08-27
 
