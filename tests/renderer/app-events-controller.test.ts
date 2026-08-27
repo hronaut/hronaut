@@ -165,4 +165,44 @@ describe('app events controller', () => {
     harness.listeners.help?.('about')
     expect(harness.callbacks.onHelp).not.toHaveBeenCalled()
   })
+
+  it('rolls back earlier native subscriptions when a later subscription throws', () => {
+    const firstUnsubscribe = vi.fn()
+    const secondUnsubscribe = vi.fn()
+    const failure = new Error('tab-group subscription unavailable')
+    const laterSubscription = vi.fn(() => vi.fn())
+    const callbacks = {
+      onUserAttention: vi.fn(),
+      onShortcut: vi.fn(),
+      onTabGroupEdit: vi.fn(),
+      onPermissionsChanged: vi.fn(),
+      onCredentialsChanged: vi.fn(),
+      onUpdateOpen: vi.fn(),
+      onHelp: vi.fn(),
+      onClipboardFailure: vi.fn(),
+      onActionFailure: vi.fn(),
+      onError: vi.fn()
+    }
+
+    expect(() => useAppEventsController({
+      browserApi: {
+        onUserAttentionRequested: vi.fn(() => firstUnsubscribe),
+        onShortcutRequested: vi.fn(() => secondUnsubscribe),
+        onTabGroupEditRequested: vi.fn(() => { throw failure })
+      },
+      permissionsApi: { onChanged: laterSubscription },
+      credentialsApi: { onChanged: laterSubscription },
+      updatesApi: { onOpenRequested: laterSubscription },
+      shellApi: {
+        onHelpRequested: laterSubscription,
+        onClipboardFailed: laterSubscription,
+        onActionFailed: laterSubscription
+      },
+      ...callbacks
+    })).toThrow(failure)
+
+    expect(firstUnsubscribe).toHaveBeenCalledOnce()
+    expect(secondUnsubscribe).toHaveBeenCalledOnce()
+    expect(laterSubscription).not.toHaveBeenCalled()
+  })
 })

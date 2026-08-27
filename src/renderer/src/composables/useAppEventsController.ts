@@ -9,7 +9,7 @@ import type {
   HelpMenuAction,
   SitePermissionEntry
 } from '../../../shared/types.js'
-import { disposeAll } from './dispose-all.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface ShellEventsApi {
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
@@ -56,17 +56,17 @@ export function useAppEventsController(options: AppEventsControllerOptions) {
     }
   )
 
-  const unsubscribers = [
-    options.browserApi.onUserAttentionRequested(active(options.onUserAttention)),
-    options.browserApi.onShortcutRequested(active(options.onShortcut)),
-    options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
-    options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
-    options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
-    options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),
-    options.shellApi.onHelpRequested(active(options.onHelp)),
-    options.shellApi.onClipboardFailed(active(options.onClipboardFailure)),
-    options.shellApi.onActionFailed(active(options.onActionFailure))
-  ]
+  const unsubscribers = registerDisposers([
+    () => options.browserApi.onUserAttentionRequested(active(options.onUserAttention)),
+    () => options.browserApi.onShortcutRequested(active(options.onShortcut)),
+    () => options.browserApi.onTabGroupEditRequested(active(options.onTabGroupEdit)),
+    () => options.permissionsApi.onChanged(active(options.onPermissionsChanged)),
+    () => options.credentialsApi.onChanged(active(options.onCredentialsChanged)),
+    () => options.updatesApi.onOpenRequested(active(options.onUpdateOpen)),
+    () => options.shellApi.onHelpRequested(active(options.onHelp)),
+    () => options.shellApi.onClipboardFailed(active(options.onClipboardFailure)),
+    () => options.shellApi.onActionFailed(active(options.onActionFailure))
+  ], () => { disposed = true })
 
   function dispose(): void {
     if (disposed) return

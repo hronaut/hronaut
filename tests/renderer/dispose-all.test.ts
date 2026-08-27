@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { disposeAll } from '../../src/renderer/src/composables/dispose-all.js'
+import { disposeAll, registerDisposers } from '../../src/renderer/src/composables/dispose-all.js'
 
 describe('disposeAll', () => {
   it('runs every callback before aggregating multiple cleanup failures', () => {
@@ -21,5 +21,25 @@ describe('disposeAll', () => {
     expect(laterCleanup).toHaveBeenCalledOnce()
     expect(thrown).toBeInstanceOf(AggregateError)
     expect((thrown as AggregateError).errors).toEqual([firstFailure, secondFailure])
+  })
+
+  it('reports both registration and rollback failures after marking setup inactive', () => {
+    const registrationFailure = new Error('registration failed')
+    const rollbackFailure = new Error('rollback failed')
+    const beforeRollback = vi.fn()
+    let thrown: unknown
+
+    try {
+      registerDisposers([
+        () => () => { throw rollbackFailure },
+        () => { throw registrationFailure }
+      ], beforeRollback)
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(beforeRollback).toHaveBeenCalledOnce()
+    expect(thrown).toBeInstanceOf(AggregateError)
+    expect((thrown as AggregateError).errors).toEqual([registrationFailure, rollbackFailure])
   })
 })

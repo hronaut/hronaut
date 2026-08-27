@@ -4,7 +4,7 @@ import type {
   DetachablePanelId,
   PanelRedockRequest
 } from '../../../shared/types.js'
-import { disposeAll } from './dispose-all.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 export interface PanelWindowEventsControllerOptions {
   api: Pick<
@@ -37,11 +37,17 @@ export function usePanelWindowEventsController(options: PanelWindowEventsControl
     }
   }
 
-  const unsubscribers = [
-    options.api.onPanelRequested((panel) => {
+  function finishDisposal(): void {
+    if (resetTimer !== undefined) window.clearTimeout(resetTimer)
+    resetTimer = undefined
+    syncingMainPanelState.value = false
+  }
+
+  const unsubscribers = registerDisposers([
+    () => options.api.onPanelRequested((panel) => {
       if (options.detachedWindow) invoke(() => options.showDetachedPanel(panel))
     }),
-    options.api.onActivePanelChanged((panel) => {
+    () => options.api.onActivePanelChanged((panel) => {
       if (disposed || options.detachedWindow) return
       syncingMainPanelState.value = true
       invoke(() => options.activateMainPanel(panel))
@@ -51,13 +57,16 @@ export function usePanelWindowEventsController(options: PanelWindowEventsControl
         if (!disposed) syncingMainPanelState.value = false
       }, 0)
     }),
-    options.api.onRedockRequested((request) => {
+    () => options.api.onRedockRequested((request) => {
       if (!options.detachedWindow) invoke(() => options.redockMainPanel(request))
     }),
-    options.api.onClosed(() => {
+    () => options.api.onClosed(() => {
       if (!options.detachedWindow) invoke(options.closeMainPanels)
     })
-  ]
+  ], () => {
+    disposed = true
+    finishDisposal()
+  })
 
   function dispose(): void {
     if (disposed) return
@@ -65,9 +74,7 @@ export function usePanelWindowEventsController(options: PanelWindowEventsControl
     try {
       disposeAll(unsubscribers)
     } finally {
-      if (resetTimer !== undefined) window.clearTimeout(resetTimer)
-      resetTimer = undefined
-      syncingMainPanelState.value = false
+      finishDisposal()
     }
   }
 

@@ -131,4 +131,34 @@ describe('panel window events controller', () => {
     expect(main.controller.syncingMainPanelState.value).toBe(false)
     expect(vi.getTimerCount()).toBe(0)
   })
+
+  it('rolls back earlier panel subscriptions when a later subscription throws', () => {
+    const firstUnsubscribe = vi.fn()
+    const secondUnsubscribe = vi.fn()
+    const failure = new Error('redock subscription unavailable')
+    const laterSubscription = vi.fn(() => vi.fn())
+
+    expect(() => usePanelWindowEventsController({
+      api: {
+        onPanelRequested: vi.fn(() => firstUnsubscribe),
+        onActivePanelChanged: vi.fn((listener: (panel: DetachablePanelId) => void) => {
+          listener('console')
+          return secondUnsubscribe
+        }),
+        onRedockRequested: vi.fn(() => { throw failure }),
+        onClosed: laterSubscription
+      },
+      detachedWindow: false,
+      showDetachedPanel: vi.fn(),
+      activateMainPanel: vi.fn(),
+      redockMainPanel: vi.fn(),
+      closeMainPanels: vi.fn(),
+      onError: vi.fn()
+    })).toThrow(failure)
+
+    expect(firstUnsubscribe).toHaveBeenCalledOnce()
+    expect(secondUnsubscribe).toHaveBeenCalledOnce()
+    expect(laterSubscription).not.toHaveBeenCalled()
+    expect(vi.getTimerCount()).toBe(0)
+  })
 })
