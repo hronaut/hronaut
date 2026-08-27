@@ -39,6 +39,7 @@ import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
+import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppearancePresentationController } from './composables/useAppearancePresentationController'
 import { useDiagnosticsController } from './composables/useDiagnosticsController'
@@ -53,11 +54,6 @@ import { useSiteDataSummaryController } from './composables/useSiteDataSummaryCo
 import { useAddressBarController } from './composables/useAddressBarController'
 import { usePanelDockLayout } from './composables/usePanelDockLayout'
 import { usePanelDockPreferenceController } from './composables/usePanelDockPreferenceController'
-import { usePanelRegistryController } from './composables/usePanelRegistryController'
-import { usePanelWindowEventsController } from './composables/usePanelWindowEventsController'
-import { usePanelWindowSyncController } from './composables/usePanelWindowSyncController'
-import { useDetachedPanelRefreshController } from './composables/useDetachedPanelRefreshController'
-import { useDetachedPanelActionsController } from './composables/useDetachedPanelActionsController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useShellOverlayCoordinationController } from './composables/useShellOverlayCoordinationController'
 import { useAppEventsController } from './composables/useAppEventsController'
@@ -76,7 +72,6 @@ import { useSiteStorageShellController } from './composables/useSiteStorageShell
 import { usePrivacySettingsShellController } from './composables/usePrivacySettingsShellController'
 import { useFindTransitionController } from './composables/useFindTransitionController'
 import { useFindShellController } from './composables/useFindShellController'
-import { useTransientPanelsController } from './composables/useTransientPanelsController'
 import { useSplitViewShellController } from './composables/useSplitViewShellController'
 import { useTabSearchShellController } from './composables/useTabSearchShellController'
 import { useZoomShellController } from './composables/useZoomShellController'
@@ -88,7 +83,6 @@ import { useShellFeedbackController } from './composables/useShellFeedbackContro
 import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
 import { usePageToolsPresentationController } from './composables/usePageToolsPresentationController'
 import { useCredentialFillController } from './composables/useCredentialFillController'
-import { useDeveloperPanelsShellController } from './composables/useDeveloperPanelsShellController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useDetachedPanelPresentationController } from './composables/useDetachedPanelPresentationController'
 import { useStartupRecoveryController } from './composables/useStartupRecoveryController'
@@ -605,79 +599,68 @@ const consolePanelOpen = ref(false)
 const consolePanel = ref<InstanceType<typeof ConsolePanelContainer> | null>(null)
 const networkMonitorOpen = ref(false)
 const networkPanel = ref<InstanceType<typeof NetworkPanel> | null>(null)
-const panelRegistryController = usePanelRegistryController({
-  panels: {
-    'site-controls': siteControlsOpen,
-    'site-storage': siteStorageOpen,
-    'page-tools': pageToolsOpen,
-    'responsive-preview': responsivePanelOpen,
-    environment: environmentPanelOpen,
-    accessibility: accessibilityPanelOpen,
-    'quality-audit': qualityAuditPanelOpen,
-    performance: performancePanelOpen,
-    'design-overview': designOverviewPanelOpen,
-    'page-metadata': pageMetadataPanelOpen,
-    security: securityPanelOpen,
-    coverage: coveragePanelOpen,
-    'cpu-profile': cpuProfilePanelOpen,
-    memory: memoryPanelOpen,
-    console: consolePanelOpen,
-    network: networkMonitorOpen,
-    'debug-report': debugReportPanelOpen,
-    'repro-recorder': reproPanelOpen,
-    'dom-changes': domChangesPanelOpen,
-    'visual-compare': visualComparePanelOpen,
-    issues: inspectorIssuesOpen,
-    bookmarks: bookmarksOpen
+const appPanelFeatureController = useAppPanelFeatureController({
+  registry: {
+    siteControlsOpen,
+    siteStorageOpen,
+    pageToolsOpen,
+    responsivePanelOpen,
+    environmentPanelOpen,
+    bookmarksOpen,
+    onActivate: setDetachedPanelTitle
   },
-  onActivate: (panel) => {
-    setDetachedPanelTitle(panel)
-  }
-})
-const {
-  activePanelId,
-  dockedPanelOpen,
-  closeAll: closeDockedPanels,
-  closeAllExcept: closeDockedPanelsExcept,
-  activate: activatePanel
-} = panelRegistryController
-const transientPanelsController = useTransientPanelsController({
-  shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
-  closeDockedPanels,
-  addressSuggestionsOpen,
-  zoomOpen,
-  downloadsOpen,
-  historyOpen,
-  tabSearchOpen,
-  updateNoticeOpen,
-  findOpen,
-  closeFind,
+  transient: {
+    shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
+    addressSuggestionsOpen,
+    zoomOpen,
+    downloadsOpen,
+    historyOpen,
+    tabSearchOpen,
+    updateNoticeOpen,
+    findOpen,
+    closeFind
+  },
+  developer: {
+    consoleOpen: consolePanelOpen,
+    consolePanel,
+    networkOpen: networkMonitorOpen,
+    networkPanel,
+    keepsSeparatePanelOpen
+  },
+  detached: {
+    panelId: detachedPanelId,
+    detachedWindow: isDetachedPanelWindow,
+    api: window.hronautPanelWindow,
+    context: () => ({
+      tabId: state.value.activeTabId,
+      url: activeTab.value?.url,
+      loading: activeTab.value?.loading
+    }),
+    refreshSiteData: refreshSiteDataSummary,
+    refreshSiteStorage,
+    loadResponsiveDraft,
+    loadEnvironmentDraft,
+    diagnostics: diagnosticsController
+  },
+  dock: {
+    panelDock,
+    persistDock: persistPanelDock
+  },
   onError: reportShellActionError
 })
-const developerPanelsShellController = useDeveloperPanelsShellController({
-  consoleOpen: consolePanelOpen,
-  consolePanel,
-  networkOpen: networkMonitorOpen,
-  networkPanel,
-  closeTransientPanels: transientPanelsController.close,
-  keepsSeparatePanelOpen
-})
 const {
-  resetConsole: resetConsoleView,
+  transientPanelsController,
+  activePanelId,
+  dockedPanelOpen,
+  closeDockedPanels,
+  closeDockedPanelsExcept,
+  resetConsoleView,
   toggleConsole,
-  resetNetwork: resetNetworkMonitorView,
-  toggleNetwork: toggleNetworkMonitor,
+  resetNetworkMonitorView,
+  toggleNetworkMonitor,
   openRequestConditions,
-  dispose: disposeDeveloperPanelsShellController
-} = developerPanelsShellController
-const { refresh: refreshDetachedPanel } = useDetachedPanelActionsController({
-  refreshSiteData: refreshSiteDataSummary,
-  refreshSiteStorage,
-  loadResponsiveDraft,
-  loadEnvironmentDraft,
-  diagnostics: diagnosticsController,
-  developerPanels: developerPanelsShellController
-})
+  dispose: disposeAppPanelFeatureController
+} = appPanelFeatureController
 const {
   open: splitMenuOpen,
   prepareOpen: prepareSplitViewMenu,
@@ -716,37 +699,6 @@ const { toggle: toggleZoom } = useZoomShellController({
   splitMenuOpen,
   closeTransientPanels: transientPanelsController.close
 })
-if (detachedPanelId) activatePanel(detachedPanelId)
-const {
-  show: showDetachedPanel,
-  dispose: disposeDetachedPanelRefreshController
-} = useDetachedPanelRefreshController({
-  detachedWindow: isDetachedPanelWindow,
-  activePanelId,
-  context: () => ({
-    tabId: state.value.activeTabId,
-    url: activeTab.value?.url,
-    loading: activeTab.value?.loading
-  }),
-  activate: activatePanel,
-  refresh: refreshDetachedPanel,
-  onError: reportShellActionError
-})
-const {
-  syncingMainPanelState,
-  dispose: disposePanelWindowEventsController
-} = usePanelWindowEventsController({
-  api: window.hronautPanelWindow,
-  detachedWindow: isDetachedPanelWindow,
-  showDetachedPanel,
-  activateMainPanel: activatePanel,
-  redockMainPanel: ({ panel, dock }) => {
-    panelDock.value = dock
-    activatePanel(panel)
-  },
-  closeMainPanels: closeDockedPanels,
-  onError: reportShellActionError
-})
 const {
   run: runShellAction,
   dispose: disposeUiActionController
@@ -767,15 +719,6 @@ const {
   navigate: (url) => syncState(browser.newTab({ url, active: true })),
   openPurchase: () => window.hronautLicense.openPurchase(),
   runAction: runShellAction
-})
-const { dispose: disposePanelWindowSyncController } = usePanelWindowSyncController({
-  api: window.hronautPanelWindow,
-  detachedWindow: isDetachedPanelWindow,
-  panelDock,
-  activePanelId,
-  syncingMainPanelState,
-  persistDock: persistPanelDock,
-  onError: reportShellActionError
 })
 const {
   openHome: openApplicationHome,
@@ -1329,9 +1272,7 @@ useAppLifecycleController({
     browserStore.dispose,
     settingsStore.dispose,
     disposeAppEventsController,
-    disposeDetachedPanelRefreshController,
-    disposePanelWindowSyncController,
-    disposePanelWindowEventsController,
+    disposeAppPanelFeatureController,
     disposePageCaptureController,
     disposePageExportController,
     disposeDiagnosticLogPreservationController,
@@ -1342,7 +1283,6 @@ useAppLifecycleController({
     disposeAppSettingsFeatureController,
     disposeBrowserCollectionsShellController,
     browserCollectionsController.dispose,
-    disposeDeveloperPanelsShellController,
     disposeDiagnosticsController,
     disposeAppToastController
   ]

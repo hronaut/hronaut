@@ -148,6 +148,7 @@ import {
   type WindowChromeMode
 } from '../shared/title-bar.js'
 import { writeVerifiedClipboardText } from './verified-clipboard.js'
+import { loadNativeWindowWithRollback } from './native-window-load.js'
 import type {
   AddressSuggestion,
   AddressSuggestionOverlayRequest,
@@ -1837,7 +1838,13 @@ async function openPanelWindow(panel: DetachablePanelId): Promise<void> {
       }
     })
 
-    await created.loadURL(expectedUrl)
+    await loadNativeWindowWithRollback(created, expectedUrl, () => {
+      if (panelWindow !== created) return
+      panelWindow = null
+      panelWindowUrl = null
+      panelWindowPanel = null
+      panelWindowRedocking = false
+    })
   })()
   panelWindowOpening = opening
   try {

@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Extract panel registration, transient-panel coordination, detached-window synchronization, and developer-panel actions from `App.vue` into a focused feature controller.
+
+### Fixed
+
+- Release failed detached-panel windows and clear their runtime owner so a later detach request can retry after a renderer load failure.
+
 ## [1.9.4] - 2026-08-27
 
 ### Changed
