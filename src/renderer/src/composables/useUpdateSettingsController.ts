@@ -34,11 +34,17 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
     options.onStateAccepted(next)
   }
 
+  function detachListener(): void {
+    const current = unsubscribe
+    unsubscribe = null
+    current?.()
+  }
+
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
     const currentGeneration = ++generation
     const initialRevision = revision
-    unsubscribe?.()
+    detachListener()
     unsubscribe = options.api.onChanged((next) => {
       if (generation === currentGeneration) accept(next)
     })
@@ -48,10 +54,19 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
-        unsubscribe?.()
-        unsubscribe = null
-        options.onActionError(error)
-        throw error
+        const failures = [error]
+        try {
+          detachListener()
+        } catch (cleanupError) {
+          failures.push(cleanupError)
+        }
+        try {
+          options.onActionError(error)
+        } catch (reportingError) {
+          failures.push(reportingError)
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'Update initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
         if (generation === currentGeneration) initializePromise = null
@@ -125,10 +140,9 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
 
   function dispose(): void {
     generation += 1
-    unsubscribe?.()
-    unsubscribe = null
     initializePromise = null
     operation.value = 'idle'
+    detachListener()
   }
 
   return {

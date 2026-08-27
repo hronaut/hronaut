@@ -26,6 +26,7 @@ function createController(
   let listener: ((state: AppUpdateState) => void) | undefined
   const check = vi.fn(async () => update('up-to-date'))
   const download = vi.fn(async () => update('downloaded'))
+  const unsubscribe = vi.fn(() => { listener = undefined })
   const api: HronautUpdatesApi = {
     getState: vi.fn(getState),
     check,
@@ -34,7 +35,7 @@ function createController(
     onChanged: vi.fn((next: (state: AppUpdateState) => void) => {
       listener = next
       onSubscribe?.(next)
-      return () => { listener = undefined }
+      return unsubscribe
     }),
     onOpenRequested: vi.fn(() => () => undefined)
   }
@@ -66,7 +67,8 @@ function createController(
     onSettingError,
     onStateAccepted,
     setCheckOnStartup,
-    settings
+    settings,
+    unsubscribe
   }
 }
 
@@ -136,5 +138,40 @@ describe('update settings controller', () => {
     expect(settings.value.checkForUpdatesOnStartup).toBe(true)
     expect(onSettingError).toHaveBeenCalledWith(expect.any(Error))
     controller.dispose()
+  })
+
+  it('reports the source initialization error when listener cleanup also fails', async () => {
+    const initial = deferred<AppUpdateState>()
+    const sourceError = new Error('update state unavailable')
+    const cleanupError = new Error('update listener already closed')
+    const { controller, onActionError, unsubscribe } = createController(() => initial.promise)
+    unsubscribe.mockImplementationOnce(() => {
+      throw cleanupError
+    })
+
+    const initializing = controller.initialize()
+    initial.reject(sourceError)
+    await expect(initializing).rejects.toThrow()
+
+    expect(onActionError).toHaveBeenCalledWith(sourceError)
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
+  it('clears a pending update operation when native listener disposal fails', async () => {
+    const pendingCheck = deferred<AppUpdateState>()
+    const { check, controller, unsubscribe } = createController()
+    await controller.initialize()
+    check.mockReturnValueOnce(pendingCheck.promise)
+    const checking = controller.check()
+    expect(controller.operation.value).toBe('checking')
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('update listener already closed')
+    })
+
+    expect(() => controller.dispose()).toThrow('update listener already closed')
+
+    expect(controller.operation.value).toBe('idle')
+    pendingCheck.resolve(update('up-to-date'))
+    await expect(checking).resolves.toBe(false)
   })
 })
