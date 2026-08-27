@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - Complete renderer teardown even when one native listener or controller disposer throws, preventing later IPC subscriptions, timers, and shell resources from surviving an unmount.
 - Roll back earlier native event subscriptions when a later subscription fails during renderer startup, preventing duplicate or orphaned IPC listeners after a retry.
 - Roll back partially attached Downloads, Bookmarks, and History listeners when collection startup fails, allowing a clean retry without leaked or permanently missing updates.
+- Fully tear down address-suggestion watchers and native overlay listeners after failed setup or shell disposal so queued work cannot reopen the overlay or navigate a page afterward.
 
 ## [1.9.2] - 2026-08-27
 

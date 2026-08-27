@@ -29,6 +29,8 @@ function createHarness(options: {
   activeTab?: BrowserTabState
   bookmarks?: BrowserBookmark[]
   history?: BrowserHistoryEntry[]
+  selectedUnsubscribe?: () => void
+  dismissedRegistrationError?: Error
 } = {}) {
   const activeTab = ref(options.activeTab ?? tab('first'))
   const bookmarks = ref(options.bookmarks ?? [])
@@ -38,7 +40,7 @@ function createHarness(options: {
   const onFocusLeft = vi.fn()
   let selectedListener: ((id: string) => void) | undefined
   let dismissedListener: (() => void) | undefined
-  const unsubscribeSelected = vi.fn()
+  const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
   const unsubscribeDismissed = vi.fn()
   const overlay = {
     show: vi.fn<(request: AddressSuggestionOverlayRequest) => void>(),
@@ -50,6 +52,12 @@ function createHarness(options: {
     onDismissed: vi.fn((listener: () => void) => {
       dismissedListener = listener
       return unsubscribeDismissed
+    })
+  }
+  const dismissedRegistrationError = options.dismissedRegistrationError
+  if (dismissedRegistrationError) {
+    overlay.onDismissed.mockImplementationOnce(() => {
+      throw dismissedRegistrationError
     })
   }
   let controller!: ReturnType<typeof useAddressBarController>
@@ -201,5 +209,64 @@ describe('address bar controller', () => {
     rendered.view.unmount()
     expect(rendered.unsubscribeSelected).toHaveBeenCalledOnce()
     expect(rendered.unsubscribeDismissed).toHaveBeenCalledOnce()
+  })
+
+  it('rolls back the selected listener when dismissed-listener registration fails', () => {
+    const unsubscribeSelected = vi.fn()
+    const registrationError = new Error('dismissed listener unavailable')
+
+    expect(() => createHarness({
+      selectedUnsubscribe: unsubscribeSelected,
+      dismissedRegistrationError: registrationError
+    })).toThrow(registrationError)
+
+    expect(unsubscribeSelected).toHaveBeenCalledOnce()
+  })
+
+  it('releases every native overlay resource when one unsubscriber throws', () => {
+    const rendered = createHarness()
+    rendered.unsubscribeSelected.mockImplementationOnce(() => {
+      throw new Error('selected listener already closed')
+    })
+    rendered.overlay.hide.mockClear()
+
+    expect(() => rendered.controller.dispose()).toThrow('selected listener already closed')
+
+    expect(rendered.unsubscribeSelected).toHaveBeenCalledOnce()
+    expect(rendered.unsubscribeDismissed).toHaveBeenCalledOnce()
+    expect(rendered.overlay.hide).toHaveBeenCalledOnce()
+    rendered.view.unmount()
+  })
+
+  it('does not reopen the native overlay from a watcher already queued at disposal', async () => {
+    const rendered = createHarness({
+      bookmarks: [{ id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    })
+    rendered.overlay.show.mockClear()
+    rendered.controller.address.value = 'saved'
+    rendered.controller.open.value = true
+
+    rendered.controller.dispose()
+    await nextTick()
+    await nextTick()
+
+    expect(rendered.overlay.show).not.toHaveBeenCalled()
+    rendered.view.unmount()
+  })
+
+  it('ignores a selected event already queued when the native overlay is disposed', async () => {
+    const rendered = createHarness({
+      bookmarks: [{ id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    })
+    rendered.controller.address.value = 'saved'
+    const suggestion = rendered.controller.suggestions.value[0]
+    expect(suggestion).toBeDefined()
+
+    rendered.controller.dispose()
+    rendered.selectOverlay(suggestion.id)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    rendered.view.unmount()
   })
 })

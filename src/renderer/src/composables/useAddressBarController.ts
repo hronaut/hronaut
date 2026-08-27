@@ -4,6 +4,7 @@ import { buildLocalAddressSuggestions } from '../../../shared/address-suggestion
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
@@ -47,8 +48,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const selected = computed(() => selection.value >= 0 ? suggestions.value[selection.value] : undefined)
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
-  let unsubscribeSelected: (() => void) | undefined
-  let unsubscribeDismissed: (() => void) | undefined
+  let cleanupCallbacks: (() => void)[] = []
   let disposed = false
 
   function suggestionId(suggestion: AddressSuggestion): string {
@@ -79,6 +79,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   function openSuggestions(): void {
+    if (disposed) return
     cancelBlur()
     selection.value = -1
     open.value = true
@@ -119,7 +120,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   async function submit(): Promise<void> {
-    if (!address.value.trim()) return
+    if (disposed || !address.value.trim()) return
     cancelBlur()
     dirty.value = false
     close()
@@ -127,6 +128,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   async function chooseSuggestion(suggestion: AddressSuggestion): Promise<void> {
+    if (disposed) return
     cancelBlur()
     address.value = suggestion.url
     dirty.value = false
@@ -172,6 +174,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   function syncOverlay(): void {
+    if (disposed) return
     const overlay = options.overlay
     if (!overlay) return
     if (!visible.value || !form.value) {
@@ -199,53 +202,71 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     syncOverlay()
   }
 
-  watch(() => suggestions.value.length, async (length) => {
-    if (selection.value >= length) selection.value = -1
-    await nextTick()
-    revealSelected()
-  })
-
-  watch(
-    [visible, suggestions, selection, options.theme, options.locale],
-    async () => {
+  const registrations: Array<() => () => void> = [
+    () => watch(() => suggestions.value.length, async (length) => {
+      if (disposed) return
+      if (selection.value >= length) selection.value = -1
       await nextTick()
-      syncOverlay()
-    }
-  )
-
-  watch(
-    [() => options.activeTab.value?.id, () => options.activeTab.value?.url],
-    ([tabId, url], [previousTabId]) => {
-      const tabChanged = previousTabId !== undefined && tabId !== previousTabId
-      if (tabChanged || !dirty.value) {
-        cancelBlur()
-        close()
-        address.value = displayedAddress(url)
-        dirty.value = false
+      if (!disposed) revealSelected()
+    }),
+    () => watch(
+      [visible, suggestions, selection, options.theme, options.locale],
+      async () => {
+        if (disposed) return
+        await nextTick()
+        syncOverlay()
       }
-    },
-    { immediate: true }
-  )
-
-  if (options.overlay) {
-    unsubscribeSelected = options.overlay.onSelected((id) => {
-      const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
-        ?? suggestions.value.find((candidate) => candidate.id === id)
-      if (suggestion) void chooseSuggestion(suggestion)
-    })
-    unsubscribeDismissed = options.overlay.onDismissed(() => {
-      open.value = false
-      options.overlay?.hide()
-    })
+    ),
+    () => watch(
+      [() => options.activeTab.value?.id, () => options.activeTab.value?.url],
+      ([tabId, url], [previousTabId]) => {
+        if (disposed) return
+        const tabChanged = previousTabId !== undefined && tabId !== previousTabId
+        if (tabChanged || !dirty.value) {
+          cancelBlur()
+          close()
+          address.value = displayedAddress(url)
+          dirty.value = false
+        }
+      },
+      { immediate: true }
+    )
+  ]
+  const overlay = options.overlay
+  if (overlay) {
+    registrations.push(
+      () => overlay.onSelected((id) => {
+        if (disposed) return
+        const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
+          ?? suggestions.value.find((candidate) => candidate.id === id)
+        if (suggestion) void chooseSuggestion(suggestion)
+      }),
+      () => overlay.onDismissed(() => {
+        if (disposed) return
+        open.value = false
+        overlay.hide()
+      })
+    )
   }
+  cleanupCallbacks = registerDisposers(registrations, () => {
+    disposed = true
+    cancelBlur()
+    open.value = false
+    overlay?.hide()
+  })
 
   function dispose(): void {
     if (disposed) return
     disposed = true
     cancelBlur()
-    unsubscribeSelected?.()
-    unsubscribeDismissed?.()
-    options.overlay?.hide()
+    open.value = false
+    presentedSuggestions = []
+    const callbacks = cleanupCallbacks
+    cleanupCallbacks = []
+    disposeAll([
+      ...callbacks,
+      () => overlay?.hide()
+    ])
   }
 
   onBeforeUnmount(dispose)
