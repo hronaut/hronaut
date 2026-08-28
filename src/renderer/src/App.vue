@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley } from '@foleyjs/core'
-import { computed, nextTick, ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -65,13 +65,12 @@ import { useUiActionController } from './composables/useUiActionController'
 import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
-import { useActiveTabPresentationController } from './composables/useActiveTabPresentationController'
-import { useCredentialFillController } from './composables/useCredentialFillController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
+import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -837,20 +836,8 @@ const {
   closePanelsExcept: closeDockedPanelsExcept,
   closeAddressSuggestions
 })
-const activeTabPresentationController = useActiveTabPresentationController({
-  state,
-  activeTab,
-  sitePermissions,
-  credentials,
-  downloads,
-  bookmarks,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
-  formatNumber: localNumber,
-  describeEmulation: emulationDescription
-})
 const {
+  activeTabPresentationController,
   activeIsHome,
   activeWebUrl,
   activeOrigin,
@@ -865,42 +852,54 @@ const {
   tabInteractionLockLabel,
   allInteractionLockLabel,
   tabTooltip,
-  pageProblemDetails
-} = activeTabPresentationController
-const {
+  pageProblemDetails,
   fillSavedPassword,
-  fillSelectedCredential
-} = useCredentialFillController({
-  activeTab,
-  activeCredentials,
-  pickerOpen: credentialPickerOpen,
-  openPicker: () => credentialPicker.value?.openPanel(),
-  fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
-  missingCredentialMessage: t('runtimeActions.credential.noLongerMatches'),
-  onFilled: (credential) => showAppToast(
-    'success',
-    t('runtime.toast.passwordFilled'),
-    t('runtime.toast.passwordFilledDescription', {
-      username: credential.username || t('credentialPicker.unnamed')
-    })
-  ),
-  onError: (error) => showAppToast(
-    'error',
-    t('runtime.toast.passwordFillFailed'),
-    friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
-  )
+  fillSelectedCredential,
+  detachedPanelUnavailable,
+  detachedPanelLabelText,
+  describeTabEmulation
+} = useAppActiveTabFeatureController({
+  presentation: {
+    state,
+    activeTab,
+    sitePermissions,
+    credentials,
+    downloads,
+    bookmarks,
+    translate: (key, parameters, plural) => plural === undefined
+      ? t(key, parameters ?? {})
+      : t(key, parameters ?? {}, plural),
+    formatNumber: localNumber,
+    describeEmulation: emulationDescription
+  },
+  credentialFill: {
+    pickerOpen: credentialPickerOpen,
+    openPicker: () => credentialPicker.value?.openPanel(),
+    fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
+    missingCredentialMessage: t('runtimeActions.credential.noLongerMatches'),
+    onFilled: (credential) => showAppToast(
+      'success',
+      t('runtime.toast.passwordFilled'),
+      t('runtime.toast.passwordFilledDescription', {
+        username: credential.username || t('credentialPicker.unnamed')
+      })
+    ),
+    onError: (error) => showAppToast(
+      'error',
+      t('runtime.toast.passwordFillFailed'),
+      friendlyUiError(error, t('runtime.toast.passwordFillDescription'))
+    )
+  },
+  detachedPanel: {
+    window: isDetachedPanelWindow,
+    activePanelId,
+    label: detachedPanelLabel,
+    fallbackLabel: () => t('shell.pageTools.heading')
+  }
 })
 function expandTabGroupForTab(tab: BrowserTabState): void {
   browserTabsBar.value?.expandTabGroupForTab(tab)
 }
-const detachedPanelUnavailable = computed(() => (
-  isDetachedPanelWindow
-  && activeIsHome.value
-  && activePanelId.value !== 'bookmarks'
-))
-const detachedPanelLabelText = computed(() => (
-  activePanelId.value ? detachedPanelLabel(activePanelId.value) : t('shell.pageTools.heading')
-))
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
 }
@@ -914,10 +913,6 @@ function handleWindowResize(): void {
 
 async function closeFind(): Promise<void> {
   await findBar.value?.close()
-}
-
-function describeTabEmulation(tab: BrowserTabState): string {
-  return tab.emulation ? emulationDescription(tab.emulation) : ''
 }
 
 function closeTransientPanels(): void {

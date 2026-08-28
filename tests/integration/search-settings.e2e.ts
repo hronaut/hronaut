@@ -74,6 +74,15 @@ test('uses the selected search engine for address-bar and MCP searches', async (
       (globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }).__hronautCapturedSearchUrls
     ))).toEqual(['https://duckduckgo.com/?q=human%20search%20phrase'])
 
+    await addressBar.fill('person@example.com')
+    await addressBar.press('Enter')
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }).__hronautCapturedSearchUrls
+    ))).toEqual([
+      'https://duckduckgo.com/?q=human%20search%20phrase',
+      'https://duckduckgo.com/?q=person%40example.com'
+    ])
+
     await client.connect(transport)
     await useMcpWorkspace(client, 'Search settings tests')
     await electronApp.evaluate(({ webContents }, localRedirectUrl) => {
@@ -94,6 +103,7 @@ test('uses the selected search engine for address-bar and MCP searches', async (
       (globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }).__hronautCapturedSearchUrls
     ))).toEqual([
       'https://duckduckgo.com/?q=human%20search%20phrase',
+      'https://duckduckgo.com/?q=person%40example.com',
       'https://duckduckgo.com/?q=agent%20search%20phrase'
     ])
   } finally {

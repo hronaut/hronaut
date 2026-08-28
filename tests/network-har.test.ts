@@ -80,9 +80,13 @@ describe('sanitized network HAR', () => {
   it('creates portable sanitized filenames and rejects paths', () => {
     expect(networkHarFilename(undefined, 'Example: account / overview.')).toBe('Example- account - overview.sanitized.har')
     expect(networkHarFilename(undefined, '  ...  ')).toBe('network.sanitized.har')
+    expect(networkHarFilename(undefined, 'CON')).toBe('network-CON.sanitized.har')
     expect(networkHarFilename('debug-session', 'Ignored')).toBe('debug-session.har')
     expect(networkHarFilename('debug-session.HAR', 'Ignored')).toBe('debug-session.HAR')
-    for (const filename of ['', '.', '..', '../private', 'folder\\private', 'bad?.har', 'trailing.']) {
+    for (const filename of [
+      '', '.', '..', '../private', 'folder\\private', 'bad?.har', 'trailing.',
+      'CON', 'nul.har', 'COM1.capture.har', 'lpt9', 'COM¹.har', 'LPT³.debug.har'
+    ]) {
       expect(() => networkHarFilename(filename, 'Ignored')).toThrow('portable file name')
     }
   })

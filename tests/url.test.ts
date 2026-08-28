@@ -9,6 +9,7 @@ describe('normalizeAddress', () => {
 
   it('turns host-like input into an HTTPS URL', () => {
     expect(normalizeAddress('example.com/docs')).toBe('https://example.com/docs')
+    expect(normalizeAddress('example.com/@person')).toBe('https://example.com/@person')
   })
 
   it.each([
@@ -24,6 +25,12 @@ describe('normalizeAddress', () => {
   it('turns plain text into a search', () => {
     expect(normalizeAddress('persistent electron browser')).toBe(
       'https://www.google.com/search?q=persistent%20electron%20browser'
+    )
+  })
+
+  it('searches email-shaped input instead of treating it as URL credentials', () => {
+    expect(normalizeAddress('person@example.com')).toBe(
+      'https://www.google.com/search?q=person%40example.com'
     )
   })
 

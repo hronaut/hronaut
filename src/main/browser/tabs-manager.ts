@@ -97,6 +97,7 @@ import {
   type CdpNetworkInitiator
 } from '../../shared/network-initiator.js'
 import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
+import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import {
   MAX_WEBSOCKET_MESSAGES_PER_CONNECTION,
   MAX_WEBSOCKET_MESSAGES_PER_TAB,
@@ -495,6 +496,7 @@ function pdfFilename(requested: string | undefined, title: string): string {
       || filename.length > 180
       || /[\u0000-\u001f<>:"|?*]/.test(filename)
       || /[. ]$/.test(filename)
+      || isWindowsReservedFilename(filename)
     ) throw new Error('PDF filename must be a portable file name without a directory path')
     return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`
   }
@@ -504,7 +506,8 @@ function pdfFilename(requested: string | undefined, title: string): string {
     .replace(/[. ]+$/g, '')
     .trim()
     .slice(0, 160) || 'page'
-  return `${stem}.pdf`
+  const portableStem = isWindowsReservedFilename(stem) ? `page-${stem}` : stem
+  return `${portableStem}.pdf`
 }
 
 type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'

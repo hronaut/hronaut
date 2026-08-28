@@ -3668,6 +3668,14 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     }) as CallToolResult
     expect(invalidPdf.isError).toBe(true)
     expect(text(invalidPdf)).toContain('without a directory path')
+    for (const filename of ['CON.pdf', 'nul', 'COM1.report.pdf', 'LPT³.pdf']) {
+      const reservedPdf = await client.callTool({
+        name: 'browser_pdf_save',
+        arguments: { tabId, filename }
+      }) as CallToolResult
+      expect(reservedPdf.isError, `${filename}: ${text(reservedPdf)}`).toBe(true)
+      expect(text(reservedPdf)).toContain('portable file name')
+    }
 
     await client.callTool({ name: 'browser_click', arguments: { tabId, selector: '#download' } })
     await expect

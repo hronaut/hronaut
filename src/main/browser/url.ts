@@ -15,11 +15,19 @@ function isLoopbackAddress(value: string): boolean {
   }
 }
 
+function hasSchemeLessUserInfo(value: string): boolean {
+  const authorityEnd = value.search(/[/?#]/)
+  const authority = authorityEnd < 0 ? value : value.slice(0, authorityEnd)
+  return authority.includes('@')
+}
+
 export function normalizeAddress(input: string, searchEngine: SearchEngineName = DEFAULT_SEARCH_ENGINE): string {
   const value = input.trim()
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
-  if (HOST_LIKE_PATTERN.test(value)) return `${isLoopbackAddress(value) ? 'http' : 'https'}://${value}`
+  if (!hasSchemeLessUserInfo(value) && HOST_LIKE_PATTERN.test(value)) {
+    return `${isLoopbackAddress(value) ? 'http' : 'https'}://${value}`
+  }
   if (SCHEME_PATTERN.test(value)) return value
   return searchUrl(value, searchEngine)
 }
