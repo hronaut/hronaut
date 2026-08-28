@@ -54,7 +54,8 @@ function createFeature() {
   const responsivePanel = ref({
     loadDraft: vi.fn(),
     resetFeedback: vi.fn(),
-    toggle: vi.fn()
+    toggle: vi.fn(),
+    handleEscape: vi.fn()
   })
   const environmentPanelOpen = ref(false)
   const browser = {

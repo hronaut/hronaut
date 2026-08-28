@@ -233,6 +233,7 @@ let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
 let userAttention: UserAttentionRequest | null = null
+let attentionRequestGeneration = 0
 let attentionPulseTimer: NodeJS.Timeout | null = null
 let attentionPulseOn = false
 let trayIcon: NativeImage | null = null
@@ -1252,9 +1253,16 @@ function setTrayContextMenu(): void {
           {
             label: text('native.tray.showRequested'),
             click: () => {
-              if (userAttention?.tabId) {
-                const tabId = userAttention.tabId
-                runNativeBrowserAction('show the requested tab', () => tabsManager?.selectTab(tabId))
+              const requestedAttention = userAttention
+              const requestedTabId = requestedAttention?.tabId
+              if (requestedAttention && requestedTabId) {
+                runNativeBrowserAction('show the requested tab', async () => {
+                  await tabsManager?.selectTabAndWait(requestedTabId)
+                  if (userAttention?.id !== requestedAttention.id) return
+                  showWindow()
+                  clearUserAttention()
+                })
+                return
               }
               showWindow()
               clearUserAttention()
@@ -1292,6 +1300,7 @@ function renderAttentionPulse(): void {
 }
 
 function clearUserAttention(): void {
+  attentionRequestGeneration += 1
   if (!userAttention && !attentionPulseTimer) return
   userAttention = null
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
@@ -1309,15 +1318,19 @@ function acknowledgeUserAttention(): void {
   if (activeMcpActivities.size === 0) clearUserAttention()
 }
 
-function requestUserAttention(input: UserAttentionInput): UserAttentionRequest {
+async function requestUserAttention(input: UserAttentionInput): Promise<UserAttentionRequest> {
+  const requestGeneration = ++attentionRequestGeneration
   const request: UserAttentionRequest = {
     id: randomUUID(),
     reason: input.reason.replace(/\s+/g, ' ').trim(),
     requestedAt: new Date().toISOString(),
     ...(input.tabId && { tabId: input.tabId })
   }
+  if (input.tabId) await tabsManager?.selectTabAndWait(input.tabId)
+  if (requestGeneration !== attentionRequestGeneration) {
+    throw new Error('User attention request was superseded by a newer request.')
+  }
   userAttention = request
-  if (input.tabId) tabsManager?.selectTab(input.tabId)
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
   attentionPulseTimer = setInterval(renderAttentionPulse, 650)
   attentionPulseTimer.unref()
@@ -1332,6 +1345,12 @@ function requestUserAttention(input: UserAttentionInput): UserAttentionRequest {
     mainWindow.webContents.send('attention:requested')
   }
   return { ...request }
+}
+
+if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
+  ;(globalThis as typeof globalThis & {
+    __hronautRequestUserAttentionForTest?: typeof requestUserAttention
+  }).__hronautRequestUserAttentionForTest = requestUserAttention
 }
 
 function createTray(): void {

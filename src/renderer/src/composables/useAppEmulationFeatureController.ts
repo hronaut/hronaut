@@ -24,6 +24,7 @@ export interface ResponsivePanelSurface {
   loadDraft: (viewport?: BrowserEmulationState['viewport']) => void
   resetFeedback: () => void
   toggle: () => void
+  handleEscape: () => void
 }
 
 export interface AppEmulationFeatureControllerOptions {

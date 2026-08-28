@@ -64,7 +64,7 @@ export interface McpHttpServerOptions {
   version: string
   showWindow: () => void
   getUserAttention: () => UserAttentionRequest | null
-  requestUserAttention: (request: UserAttentionInput) => UserAttentionRequest
+  requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
   bookmarks: BookmarkOperations
   history: HistoryOperations
   siteData: SiteDataOperations
@@ -348,7 +348,7 @@ function createBrowserMcpServer(
   manager: BrowserTabsManager,
   showWindow: () => void,
   getUserAttention: () => UserAttentionRequest | null,
-  requestUserAttention: (request: UserAttentionInput) => UserAttentionRequest,
+  requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>,
   bookmarks: BookmarkOperations,
   history: HistoryOperations,
   siteData: SiteDataOperations,
@@ -534,7 +534,7 @@ function createBrowserMcpServer(
     'browser_show',
     { description: toolDescription('browser_show'), inputSchema: {} },
     tool(async ({ tabId }: { tabId?: string }) => {
-      if (tabId) manager.selectTab(tabId)
+      if (tabId) await manager.selectTabAndWait(tabId)
       showWindow()
       return textResult('Browser window is visible and focused.')
     })
@@ -552,7 +552,7 @@ function createBrowserMcpServer(
       if (tabId && !manager.getState().tabs.some((tab) => tab.id === tabId)) {
         throw new Error(`Unknown tab: ${tabId}`)
       }
-      return textResult(requestUserAttention({ reason, tabId }))
+      return textResult(await requestUserAttention({ reason, tabId }))
     })
   )
   registerWorkspaceTool(

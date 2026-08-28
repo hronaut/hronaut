@@ -4,10 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Move the page-tools and developer-panel presentation layer out of `App.vue` while preserving its controller-owned panel models and imperative handles.
+
 ### Fixed
 
 - Preserve the existing browser session when Hronaut receives a quit request before cold-start tab restoration begins, instead of flushing an uninitialized empty model over `tabs.json`.
 - Keep detached tool-panel switches exclusive, preserve newer user selections and close actions over queued native presentations, and keep automatic refresh bookkeeping from cancelling a newer native request.
+- Wait for sleeping tabs to wake successfully before presenting them from tray and MCP attention actions, preserving the current visible tab when restoration fails.
 
 ## [1.9.8] - 2026-08-28
 

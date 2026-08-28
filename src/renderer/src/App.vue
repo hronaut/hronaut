@@ -14,30 +14,32 @@ import BrowserPageActions from './components/BrowserPageActions.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
 import AppTopbarActions from './components/AppTopbarActions.vue'
 import CommandPalette from './components/CommandPalette.vue'
-import ConsolePanelContainer from './components/ConsolePanelContainer.vue'
 import CredentialPicker from './components/CredentialPicker.vue'
-import DiagnosticsPanels from './components/DiagnosticsPanels.vue'
-import EnvironmentPanel from './components/EnvironmentPanel.vue'
 import FindInPageBar from './components/FindInPageBar.vue'
 import HelpDialog from './components/HelpDialog.vue'
-import NetworkPanel from './components/NetworkPanel.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
-import PageToolsPanel from './components/PageToolsPanel.vue'
-import ResponsivePreviewPanel from './components/ResponsivePreviewPanel.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
-import SiteStoragePanel from './components/SiteStoragePanel.vue'
 import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
 import AppBrowserCollectionsLayer from './components/AppBrowserCollectionsLayer.vue'
+import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
-import { useAppEmulationFeatureController } from './composables/useAppEmulationFeatureController'
+import {
+  useAppEmulationFeatureController,
+  type ResponsivePanelSurface
+} from './composables/useAppEmulationFeatureController'
 import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
+import type {
+  ConsolePanelShellHandle,
+  NetworkPanelShellHandle
+} from './composables/useDeveloperPanelsShellController'
+import type { SiteStorageShellPanel } from './composables/useSiteStorageShellController'
 import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppSiteManagementFeatureController } from './composables/useAppSiteManagementFeatureController'
@@ -154,10 +156,10 @@ const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
 const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
 const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
 const siteStorageOpen = ref(false)
-const siteStoragePanel = ref<InstanceType<typeof SiteStoragePanel> | null>(null)
+const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
 const pageToolsOpen = ref(false)
 const responsivePanelOpen = ref(false)
-const responsivePanel = ref<InstanceType<typeof ResponsivePreviewPanel> | null>(null)
+const responsivePanel = ref<ResponsivePanelSurface | null>(null)
 const environmentPanelOpen = ref(false)
 const appEmulationFeatureController = useAppEmulationFeatureController({
   activeTab,
@@ -177,20 +179,14 @@ const appEmulationFeatureController = useAppEmulationFeatureController({
 const {
   emulationController,
   environmentController,
-  activeEmulation,
   emulationDescription,
-  beginEmulationMutation,
   invalidateEmulationMutation,
-  isEmulationMutationCurrent,
   resetActiveTabEmulation,
   environmentState,
   activeEnvironmentOverrideCount,
-  setResponsiveTabViewport,
   loadResponsiveDraft,
   resetResponsiveFeedback,
-  toggleResponsivePreview,
   loadEnvironmentDraft,
-  toggleEnvironment,
   dispose: disposeAppEmulationFeatureController
 } = appEmulationFeatureController
 const {
@@ -409,7 +405,6 @@ const {
   refreshSiteDataSummary,
   resetSiteStorageView,
   refreshSiteStorage,
-  toggleSiteStorage,
   openPrivacySettings,
   toggleSiteControls,
   openSitePrivacySettings,
@@ -438,18 +433,9 @@ const {
   diagnosticsController,
   pageToolsPresentationController,
   elementPickerState,
-  elementPickerMode,
   areaCaptureState,
   toggleElementPicker,
   toggleAreaCapture,
-  pageSnapshotState,
-  pdfExportState,
-  copyPageSnapshot,
-  saveActivePdf,
-  pageToolsLabels,
-  activeNetworkRouteCount,
-  activeInspectorIssueCount,
-  debugReportSignalCount,
   elementPickerLabel,
   elementPickerTitle,
   areaCaptureLabel,
@@ -457,9 +443,15 @@ const {
   disposeDiagnostics: disposeAppPageToolsDiagnostics
 } = appPageToolsFeatureController
 const consolePanelOpen = ref(false)
-const consolePanel = ref<InstanceType<typeof ConsolePanelContainer> | null>(null)
+const consolePanel = ref<ConsolePanelShellHandle | null>(null)
 const networkMonitorOpen = ref(false)
-const networkPanel = ref<InstanceType<typeof NetworkPanel> | null>(null)
+const networkPanel = ref<NetworkPanelShellHandle | null>(null)
+const pageToolsLayerHandles = {
+  setResponsivePanel: (panel: ResponsivePanelSurface | null) => (responsivePanel.value = panel),
+  setConsolePanel: (panel: ConsolePanelShellHandle | null) => (consolePanel.value = panel),
+  setNetworkPanel: (panel: NetworkPanelShellHandle | null) => (networkPanel.value = panel),
+  setSiteStoragePanel: (panel: SiteStorageShellPanel | null) => (siteStoragePanel.value = panel)
+}
 const appPanelFeatureController = useAppPanelFeatureController({
   registry: {
     siteControlsOpen,
@@ -516,9 +508,7 @@ const {
   closeDockedPanels,
   closeDockedPanelsExcept,
   resetConsoleView,
-  toggleConsole,
   resetNetworkMonitorView,
-  toggleNetworkMonitor,
   openRequestConditions,
   dispose: disposeAppPanelFeatureController
 } = appPanelFeatureController
@@ -829,29 +819,7 @@ const {
   closePanelsExcept: closeDockedPanelsExcept,
   closeAddressSuggestions
 })
-const {
-  activeTabPresentationController,
-  activeIsHome,
-  activeWebUrl,
-  activeOrigin,
-  activeHostname,
-  activeCredentials,
-  activeDownloads,
-  activeTabUsesDefaultProfile,
-  currentBookmark,
-  downloadButtonLabel,
-  tabHumanInteractionLocked,
-  effectiveHumanInteractionLocked,
-  tabInteractionLockLabel,
-  allInteractionLockLabel,
-  tabTooltip,
-  pageProblemDetails,
-  fillSavedPassword,
-  fillSelectedCredential,
-  detachedPanelUnavailable,
-  detachedPanelLabelText,
-  describeTabEmulation
-} = useAppActiveTabFeatureController({
+const appActiveTabFeatureController = useAppActiveTabFeatureController({
   presentation: {
     state,
     activeTab,
@@ -890,6 +858,26 @@ const {
     fallbackLabel: () => t('shell.pageTools.heading')
   }
 })
+const {
+  activeTabPresentationController,
+  activeIsHome,
+  activeWebUrl,
+  activeOrigin,
+  activeDownloads,
+  activeTabUsesDefaultProfile,
+  currentBookmark,
+  downloadButtonLabel,
+  tabHumanInteractionLocked,
+  effectiveHumanInteractionLocked,
+  tabInteractionLockLabel,
+  allInteractionLockLabel,
+  tabTooltip,
+  pageProblemDetails,
+  fillSelectedCredential,
+  detachedPanelUnavailable,
+  detachedPanelLabelText,
+  describeTabEmulation
+} = appActiveTabFeatureController
 function expandTabGroupForTab(tab: BrowserTabState): void {
   browserTabsBar.value?.expandTabGroupForTab(tab)
 }
@@ -1114,99 +1102,38 @@ useAppLifecycleController({
         @toggle-page-tools="togglePageTools"
         @split-error="handleSplitViewError"
       />
-      <PageToolsPanel
-        v-model:open="pageToolsOpen"
-        v-model:dock="panelDock"
-        :active-tab="activeTab"
-        :active-web-url="activeWebUrl"
-        :hostname="activeHostname"
-        :locale="resolvedLocale"
-        :active-emulation="activeEmulation"
-        :environment-state="environmentState"
-        :environment-override-count="activeEnvironmentOverrideCount"
-        :network-route-count="activeNetworkRouteCount"
-        :inspector-issue-count="activeInspectorIssueCount"
-        :debug-report-signal-count="debugReportSignalCount"
-        :element-picker-state="elementPickerState"
-        :element-picker-mode="elementPickerMode"
-        :capture-busy="areaCaptureState === 'capturing'"
-        :snapshot-state="pageSnapshotState"
-        :pdf-state="pdfExportState"
-        :credential-storage-available="credentialStorage.available"
-        :credential-count="activeCredentials.length"
-        :diagnostics="diagnosticsController"
-        :labels="pageToolsLabels"
-        :actions="{
-          toggleSiteStorage,
-          toggleResponsivePreview,
-          toggleEnvironment,
-          toggleConsole,
-          toggleNetwork: toggleNetworkMonitor,
-          openRequestConditions,
-          toggleElementPicker,
-          copyPageSnapshot,
-          savePdf: saveActivePdf,
-          fillSavedPassword
-        }"
-      />
     </div>
+    <AppPageToolsLayer
+      v-model:dock="panelDock"
+      v-model:page-tools-open="pageToolsOpen"
+      v-model:responsive-panel-open="responsivePanelOpen"
+      v-model:environment-panel-open="environmentPanelOpen"
+      v-model:console-panel-open="consolePanelOpen"
+      v-model:network-monitor-open="networkMonitorOpen"
+      v-model:site-storage-open="siteStorageOpen"
+      :website-available="!activeIsHome"
+      :active-tab="activeTab"
+      :locale="resolvedLocale"
+      :handles="pageToolsLayerHandles"
+      :active-tab-controller="appActiveTabFeatureController"
+      :emulation-controller="appEmulationFeatureController"
+      :page-tools-controller="appPageToolsFeatureController"
+      :panel-controller="appPanelFeatureController"
+      :site-management-controller="appSiteManagementFeatureController"
+      :credential-storage-available="credentialStorage.available"
+      :sync-state="syncState"
+      :copy-text="copyAppText"
+      :close-transient-panels="closeTransientPanels"
+      :open-support="openSupport"
+      :preservation-busy="diagnosticLogPreservationBusy"
+      :update-preservation="updateDiagnosticLogPreservation"
+      :keeps-separate-panel-open="keepsSeparatePanelOpen"
+    />
     <PageProblemBar
       v-if="!activeIsHome && activeTab?.pageProblem"
       :tab="activeTab"
       :details="pageProblemDetails"
       @retry="runShellAction(retryActivePageProblem)"
-    />
-    <ResponsivePreviewPanel
-      ref="responsivePanel"
-      v-model:open="responsivePanelOpen"
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :set-tab-viewport="setResponsiveTabViewport"
-      :sync-state="syncState"
-      :begin-mutation="beginEmulationMutation"
-      :is-mutation-current="isEmulationMutationCurrent"
-      :close-transient-panels="closeTransientPanels"
-    />
-    <EnvironmentPanel
-      v-model:open="environmentPanelOpen"
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :controller="environmentController"
-      :open-responsive-preview="toggleResponsivePreview"
-    />
-    <DiagnosticsPanels
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :controller="diagnosticsController"
-      :open-support="openSupport"
-      :preservation-busy="diagnosticLogPreservationBusy"
-      :update-preservation="updateDiagnosticLogPreservation"
-    />
-    <ConsolePanelContainer
-      ref="consolePanel"
-      v-model:open="consolePanelOpen"
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :copy-text="copyAppText"
-      :preservation-busy="diagnosticLogPreservationBusy"
-      :update-preservation="updateDiagnosticLogPreservation"
-      :keeps-separate-panel-open="keepsSeparatePanelOpen"
-    />
-    <NetworkPanel
-      ref="networkPanel"
-      v-model:open="networkMonitorOpen"
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :copy-text="copyAppText"
-      :sync-state="syncState"
-      :preservation-busy="diagnosticLogPreservationBusy"
-      :update-preservation="updateDiagnosticLogPreservation"
-      :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <TabSearchPanel
       ref="tabSearchPanel"
@@ -1235,15 +1162,6 @@ useAppLifecycleController({
       :format-percent="localPercent"
       :format-date-time="localDateTime"
       :format-number="localNumber"
-    />
-    <SiteStoragePanel
-      ref="siteStoragePanel"
-      v-model:open="siteStorageOpen"
-      v-model:dock="panelDock"
-      :active-tab="activeTab"
-      :locale="resolvedLocale"
-      :copy-text="copyAppText"
-      :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <WorkspaceEditor
       ref="workspaceEditor"

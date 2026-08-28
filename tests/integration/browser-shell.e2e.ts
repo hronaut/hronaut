@@ -4512,16 +4512,22 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await electronApp.evaluate(async ({ webContents }) => {
       const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
       if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
+      const guidePoint = await home.executeJavaScript(`(() => {
+        const bounds = document.querySelector('[data-guide="opencode"]').getBoundingClientRect()
+        return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      })()`)
+      home.focus()
+      home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...guidePoint })
+      home.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...guidePoint })
       const point = await home.executeJavaScript(`(() => {
         const bounds = document.querySelector('[data-copy-target="guide-code"]').getBoundingClientRect()
         return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
       })()`)
-      home.focus()
       home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
       home.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
     })
     await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
-      .toContain('codex mcp add hronaut')
+      .toContain('https://opencode.ai/config.json')
     await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
 
