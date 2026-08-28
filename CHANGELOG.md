@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.9] - 2026-08-28
+
 ### Added
 
 - Add a focused Docker/Xvfb Playwright command for fast file- or test-level regression feedback while keeping the full Docker suite as the delivery gate.
