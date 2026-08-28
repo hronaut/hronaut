@@ -107,12 +107,14 @@ describe('BookmarkStore', () => {
 
   it('strips embedded credentials before storing a bookmark URL', async () => {
     const { path, store } = await createStore()
+    const privateUrl = 'https://person:super-secret@example.com/docs#setup'
     const saved = await store.add({
-      url: 'https://person:super-secret@example.com/docs#setup',
-      title: 'Private docs'
+      url: privateUrl,
+      title: privateUrl
     })
 
     expect(saved.url).toBe('https://example.com/docs#setup')
+    expect(saved.title).toBe('https://example.com/docs#setup')
     expect(await readFile(path, 'utf8')).not.toContain('super-secret')
   })
 
@@ -120,20 +122,49 @@ describe('BookmarkStore', () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })
     const now = new Date().toISOString()
+    const privateUrl = 'https://person:old-secret@example.com/docs'
     await writeFile(path, JSON.stringify({
       version: 1,
       bookmarks: [{
         id: 'private-bookmark',
-        url: 'https://person:old-secret@example.com/docs',
-        title: 'Existing docs',
+        url: privateUrl,
+        title: privateUrl,
         createdAt: now,
         updatedAt: now
       }]
     }), 'utf8')
 
     expect(await store.load()).toEqual([
-      expect.objectContaining({ id: 'private-bookmark', url: 'https://example.com/docs' })
+      expect.objectContaining({
+        id: 'private-bookmark',
+        url: 'https://example.com/docs',
+        title: 'https://example.com/docs'
+      })
     ])
     expect(await readFile(path, 'utf8')).not.toContain('old-secret')
+  })
+
+  it('repairs legacy URL fallback titles truncated inside embedded credentials', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const now = new Date().toISOString()
+    const privateUrl = `https://person:${'legacy-secret-'.repeat(20)}@example.com/docs`
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [{
+        id: 'truncated-private-bookmark',
+        url: privateUrl,
+        title: privateUrl.slice(0, 200),
+        createdAt: now,
+        updatedAt: now
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'truncated-private-bookmark',
+      url: 'https://example.com/docs',
+      title: 'https://example.com/docs'
+    })])
+    expect(await readFile(path, 'utf8')).not.toContain('legacy-secret')
   })
 })

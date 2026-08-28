@@ -43,6 +43,65 @@ describe('HistoryStore', () => {
     expect(restored.list()).toEqual(store.list())
   })
 
+  it('does not persist embedded HTTP credentials from a URL fallback title', async () => {
+    const { path, store } = await storeAt()
+    const privateUrl = 'https://person:history-secret@example.com/private#fragment'
+
+    const recorded = await store.record({ url: privateUrl, title: privateUrl })
+
+    expect(recorded).toMatchObject({
+      url: 'https://example.com/private',
+      title: 'https://example.com/private'
+    })
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
+  it('repairs credential-bearing persisted history URLs and matching fallback titles', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const privateUrl = 'https://person:old-history-secret@example.com/private#fragment'
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'private-history',
+        url: privateUrl,
+        title: privateUrl,
+        visitedAt: new Date(now - 1_000).toISOString(),
+        visitCount: 1
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'private-history',
+      url: 'https://example.com/private',
+      title: 'https://example.com/private'
+    })])
+    expect(await readFile(path, 'utf8')).not.toContain('old-history-secret')
+  })
+
+  it('repairs legacy URL fallback titles truncated inside embedded credentials', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const privateUrl = `https://person:${'legacy-history-secret-'.repeat(16)}@example.com/private`
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'truncated-private-history',
+        url: privateUrl,
+        title: privateUrl.slice(0, 200),
+        visitedAt: new Date(now - 1_000).toISOString(),
+        visitCount: 1
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'truncated-private-history',
+      url: 'https://example.com/private',
+      title: 'https://example.com/private'
+    })])
+    expect(await readFile(path, 'utf8')).not.toContain('legacy-history-secret')
+  })
+
   it('supports individual removal and clearing without touching another store', async () => {
     const { path, store } = await storeAt()
     const first = await store.record({ url: 'https://one.example/', title: 'One' })

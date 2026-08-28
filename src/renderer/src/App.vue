@@ -46,8 +46,6 @@ import { useAppSiteManagementFeatureController } from './composables/useAppSiteM
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
 import { useHelpShellController } from './composables/useHelpShellController'
-import { useMcpActivityController } from './composables/useMcpActivityController'
-import { useDiagnosticLogPreservationController } from './composables/useDiagnosticLogPreservationController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useAddressBarController } from './composables/useAddressBarController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
@@ -73,6 +71,7 @@ import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
+import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -105,26 +104,19 @@ const {
   translate: (key) => t(key),
   showToast: showAppToast
 })
-const activeTab = computed(() => state.value.tabs.find((tab) => tab.id === state.value.activeTabId))
 const {
-  busy: diagnosticLogPreservationBusy,
-  update: updateDiagnosticLogPreservation,
-  dispose: disposeDiagnosticLogPreservationController
-} = useDiagnosticLogPreservationController({
   activeTab,
+  diagnosticLogPreservationBusy,
+  updateDiagnosticLogPreservation,
+  mcpActivityByTab,
+  dispose: disposeAppTabRuntimeFeatureController
+} = useAppTabRuntimeFeatureController({
+  state,
+  hydrated: browserStateInitialized,
   browser,
   syncState: browserStore.syncOperation,
-  onError: handleExtractedSettingError
+  onDiagnosticError: handleExtractedSettingError
 })
-const mcpActivityController = useMcpActivityController({
-  api: browser,
-  tabIds: computed(() => state.value.tabs.map((tab) => tab.id)),
-  hydrated: browserStateInitialized
-})
-const {
-  activityByTab: mcpActivityByTab,
-  dispose: disposeMcpActivityController
-} = mcpActivityController
 const {
   detachedPanelId,
   isDetachedPanelWindow,
@@ -952,7 +944,7 @@ useAppLifecycleController({
   },
   disposers: [
     disposeAppStartupFeatureController,
-    disposeMcpActivityController,
+    disposeAppTabRuntimeFeatureController,
     disposeAppShellLayoutFeatureController,
     disposeActiveTabContextController,
     disposeAppEmulationFeatureController,
@@ -963,7 +955,6 @@ useAppLifecycleController({
     disposeAppEventsController,
     disposeAppPanelFeatureController,
     disposeAppPageToolsCaptureAndExport,
-    disposeDiagnosticLogPreservationController,
     disposeHelpDialogController,
     disposeAppSiteManagementFeatureController,
     disposeAppSettingsFeatureController,

@@ -3312,6 +3312,18 @@ function configureBrowserSession(browserSession: Session): void {
       callback(remembered === 'allow')
       return
     }
+    const requestingFrameTreeNodeId = (() => {
+      if (webContents.isDestroyed()) return null
+      if (details.isMainFrame) return webContents.mainFrame.frameTreeNodeId
+      const matchingFrames = webContents.mainFrame.framesInSubtree.filter(
+        (frame) => !frame.detached && frame.url === requestingUrl
+      )
+      return matchingFrames.length === 1 ? matchingFrames[0]?.frameTreeNodeId ?? null : null
+    })()
+    if (requestingFrameTreeNodeId === null) {
+      callback(false)
+      return
+    }
     const permissionDetail = (() => {
       if (permission === 'media' && 'mediaTypes' in details) {
         const types = details.mediaTypes?.map((type) => text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone')) ?? []
@@ -3337,6 +3349,17 @@ function configureBrowserSession(browserSession: Session): void {
       cancelId: 0
     })
       .then(async ({ response }) => {
+        const currentOrigin = webContents.isDestroyed()
+          ? null
+          : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
+            (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
+          )?.url ?? '')
+        if (currentOrigin !== origin) {
+          // The Electron permission API is callback-based; this callback completes its contract.
+          // eslint-disable-next-line promise/no-callback-in-promise
+          callback(false)
+          return
+        }
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
         try {
           if (!requiresFreshConsent) {

@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Extract active-tab derivation, diagnostic-log preservation, and MCP tab-activity composition from `App.vue` into a focused runtime feature controller.
 - Extract full-modal state, shell geometry, and competing-overlay coordination from `App.vue` into a focused layout feature controller.
 - Extract shell appearance, custom title-bar, detached-panel, tab-rail, and panel-dock presentation composition from `App.vue` into a focused feature controller.
 - Extract startup task aggregation, bounded recovery, and coordinated teardown from `App.vue` into a focused feature controller.
@@ -13,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bind native website-permission prompts to the exact requesting frame, preserving valid cross-origin iframe grants while rejecting late decisions after frame or tab navigation and destruction.
+- Strip embedded HTTP credentials from bookmark and visit-history fallback titles, and repair existing credential-bearing history records instead of dropping them.
 - Keep MCP download history, save paths, cancellation, and clearing isolated to the agent workspace that created each download.
 - Strip embedded HTTP credentials from active and archived tab URLs before persistence, and repair credential-bearing profile state during startup.
 - Recover from malformed profile MCP token files by generating one new owner-only token instead of leaving Hronaut running without a window or MCP listener.

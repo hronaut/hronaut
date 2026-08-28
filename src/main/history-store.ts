@@ -28,8 +28,23 @@ export function normalizeHistoryUrl(value: string): string | null {
   }
 }
 
-function normalizeTitle(value: string, url: string): string {
-  const title = value.replace(/\s+/g, ' ').trim().slice(0, MAX_HISTORY_TITLE)
+function hasEmbeddedHttpCredentials(value: string): boolean {
+  try {
+    const candidate = new URL(value)
+    return (candidate.protocol === 'http:' || candidate.protocol === 'https:') && Boolean(candidate.username || candidate.password)
+  } catch {
+    return false
+  }
+}
+
+function normalizeTitle(value: string, url: string, sourceUrl = url): string {
+  const isCredentialFallback = hasEmbeddedHttpCredentials(sourceUrl) && (
+    value === sourceUrl || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
+  )
+  let safeValue = value
+  if (isCredentialFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
+  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? value
+  const title = safeValue.replace(/\s+/g, ' ').trim().slice(0, MAX_HISTORY_TITLE)
   return title || new URL(url).hostname
 }
 
@@ -39,7 +54,7 @@ function validEntry(value: unknown, oldestAllowed: number): value is BrowserHist
   const visitedAt = typeof entry.visitedAt === 'string' ? Date.parse(entry.visitedAt) : Number.NaN
   return (
     typeof entry.id === 'string' && entry.id.length > 0 && entry.id.length <= 128
-    && typeof entry.url === 'string' && normalizeHistoryUrl(entry.url) === entry.url
+    && typeof entry.url === 'string' && normalizeHistoryUrl(entry.url) !== null
     && typeof entry.title === 'string' && entry.title.length > 0 && entry.title.length <= MAX_HISTORY_TITLE
     && Number.isFinite(visitedAt) && visitedAt >= oldestAllowed
     && Number.isInteger(entry.visitCount) && (entry.visitCount ?? 0) > 0
@@ -74,13 +89,17 @@ export class HistoryStore {
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
       for (const entry of sorted) {
-        if (seenUrls.has(entry.url) || this.entries.size >= MAX_HISTORY_ENTRIES) {
+        const normalizedUrl = normalizeHistoryUrl(entry.url)!
+        const normalizedTitle = normalizeTitle(entry.title, normalizedUrl, entry.url)
+        if (seenUrls.has(normalizedUrl) || this.entries.size >= MAX_HISTORY_ENTRIES) {
           repairedPersistedHistory = true
           continue
         }
-        seenUrls.add(entry.url)
-        const restored = seenIds.has(entry.id) ? { ...entry, id: randomUUID() } : { ...entry }
-        if (restored.id !== entry.id) repairedPersistedHistory = true
+        seenUrls.add(normalizedUrl)
+        const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle }
+        if (normalizedUrl !== entry.url || normalizedTitle !== entry.title) repairedPersistedHistory = true
+        const restored = seenIds.has(entry.id) ? { ...normalized, id: randomUUID() } : normalized
+        if (restored.id !== normalized.id) repairedPersistedHistory = true
         seenIds.add(restored.id)
         this.entries.set(restored.id, restored)
       }
@@ -105,7 +124,7 @@ export class HistoryStore {
       const entry: BrowserHistoryEntry = {
         id: existing?.id ?? randomUUID(),
         url,
-        title: normalizeTitle(value.title, url),
+        title: normalizeTitle(value.title, url, value.url),
         visitedAt: new Date(this.now()).toISOString(),
         visitCount: (existing?.visitCount ?? 0) + 1
       }

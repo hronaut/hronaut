@@ -25,8 +25,23 @@ export function normalizeBookmarkUrl(value: string): string | null {
   }
 }
 
-function normalizeBookmarkTitle(value: string, url: string): string {
-  const title = value.replace(/\s+/g, ' ').trim().slice(0, MAX_BOOKMARK_TITLE)
+function hasEmbeddedHttpCredentials(value: string): boolean {
+  try {
+    const candidate = new URL(value)
+    return (candidate.protocol === 'http:' || candidate.protocol === 'https:') && Boolean(candidate.username || candidate.password)
+  } catch {
+    return false
+  }
+}
+
+function normalizeBookmarkTitle(value: string, url: string, sourceUrl = url): string {
+  const isCredentialFallback = hasEmbeddedHttpCredentials(sourceUrl) && (
+    value === sourceUrl || (value.length === MAX_BOOKMARK_TITLE && sourceUrl.startsWith(value))
+  )
+  let safeValue = value
+  if (isCredentialFallback) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
+  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? value
+  const title = safeValue.replace(/\s+/g, ' ').trim().slice(0, MAX_BOOKMARK_TITLE)
   return title || new URL(url).hostname
 }
 
@@ -76,8 +91,9 @@ export class BookmarkStore {
           continue
         }
         seenUrls.add(normalizedUrl)
-        const normalized = { ...entry, url: normalizedUrl }
-        if (normalizedUrl !== entry.url) repairedPersistedBookmarks = true
+        const normalizedTitle = normalizeBookmarkTitle(entry.title, normalizedUrl, entry.url)
+        const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle }
+        if (normalizedUrl !== entry.url || normalizedTitle !== entry.title) repairedPersistedBookmarks = true
         const restored = seenIds.has(entry.id) ? { ...normalized, id: randomUUID() } : normalized
         if (restored.id !== entry.id) repairedPersistedBookmarks = true
         seenIds.add(restored.id)
@@ -118,7 +134,7 @@ export class BookmarkStore {
       const entry: BrowserBookmark = {
         id: existing?.id ?? randomUUID(),
         url,
-        title: normalizeBookmarkTitle(value.title, url),
+        title: normalizeBookmarkTitle(value.title, url, value.url),
         createdAt: existing?.createdAt ?? now,
         updatedAt: now
       }
