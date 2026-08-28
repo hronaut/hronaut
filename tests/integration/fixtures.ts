@@ -9,6 +9,7 @@ import {
   type ElectronApplication,
   type Page
 } from '@playwright/test'
+import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -123,7 +124,7 @@ export const test = base.extend<HronautFixtures>({
   profileDirectory: async ({}, use) => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-integration-'))
     await use(directory)
-    await rm(directory, { recursive: true, force: true })
+    await removeTestDirectory(directory)
   },
 
   mcpPort: async ({}, use, testInfo) => {

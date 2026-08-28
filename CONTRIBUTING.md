@@ -42,5 +42,20 @@ named case in the same pinned Docker/Xvfb environment:
 npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
 ```
 
-Arguments after `--` are passed directly to Playwright. Always run the complete
-`test:integration:docker` gate before submitting or delivering the change.
+You can also target a source line, list matching tests without launching
+Electron, or stop after the first failure:
+
+```bash
+npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts:120
+npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --list
+npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --max-failures=1
+```
+
+Arguments after `--` are passed directly to Playwright. The focused runner
+reuses a dependency-only Docker layer keyed by `package-lock.json`, bind-mounts
+the current checkout, and gives the container its own `node_modules` volume.
+Source and test edits therefore take effect immediately without rebuilding the
+full source image, while dependency changes still trigger `npm ci` in Docker.
+
+Always run the complete `test:integration:docker` gate before submitting or
+delivering the change.

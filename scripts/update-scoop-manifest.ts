@@ -56,12 +56,12 @@ export function updateScoopManifestSource(
   const manifest = assertRecord(parsed, 'Scoop manifest') as unknown as ScoopManifest
   const architecture = assertRecord(manifest.architecture, 'Scoop manifest architecture')
   const portable = assertRecord(architecture['64bit'], 'Scoop manifest 64bit package')
+  const currentVersion = String(manifest.version)
+  const currentFilename = scoopPortableAssetName(currentVersion)
+  const currentExpectedUrl = `https://github.com/hronaut/hronaut/releases/download/v${currentVersion}/${currentFilename}`
 
-  if (manifest.version !== version) {
-    throw new Error(`Scoop manifest version ${String(manifest.version)} does not match release ${version}`)
-  }
-  if (portable.url !== expectedUrl) {
-    throw new Error(`Scoop manifest URL does not match ${filename}`)
+  if (portable.url !== currentExpectedUrl) {
+    throw new Error(`Scoop manifest URL does not match ${currentFilename}`)
   }
   if (!SHA256_PATTERN.test(String(portable.hash))) {
     throw new Error('Scoop manifest contains an invalid existing SHA-256 hash')
@@ -69,20 +69,21 @@ export function updateScoopManifestSource(
   if (
     !Array.isArray(manifest.shortcuts)
     || manifest.shortcuts.length !== 1
-    || manifest.shortcuts[0]?.[0] !== filename
+    || manifest.shortcuts[0]?.[0] !== currentFilename
     || manifest.shortcuts[0]?.[1] !== 'Hronaut'
   ) {
-    throw new Error(`Scoop manifest shortcut does not match ${filename}`)
+    throw new Error(`Scoop manifest shortcut does not match ${currentFilename}`)
   }
 
   const currentHash = String(portable.hash)
   const releasedHash = releaseAssetSha256(checksums, filename)
-  if (releasedHash === currentHash) return source
-  const hashField = `"hash": "${currentHash}"`
-  if (source.split(hashField).length !== 2) {
-    throw new Error('Scoop manifest hash field is not uniquely replaceable')
-  }
-  return source.replace(hashField, `"hash": "${releasedHash}"`)
+  if (currentVersion === version && releasedHash === currentHash) return source
+
+  manifest.version = version
+  portable.url = expectedUrl
+  portable.hash = releasedHash
+  manifest.shortcuts = [[filename, 'Hronaut']]
+  return `${JSON.stringify(manifest, null, 2)}\n`
 }
 
 export async function updateScoopManifest(

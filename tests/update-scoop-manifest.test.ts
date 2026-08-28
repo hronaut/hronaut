@@ -58,9 +58,34 @@ describe('Scoop release manifest updater', () => {
     ].join('\n'), filename)).toThrow('found 2')
   })
 
-  it('refuses stale or structurally unexpected manifests', () => {
-    expect(() => updateScoopManifestSource(manifest({ version: '2.4.0' }), version, `${releasedHash}  ${filename}`))
-      .toThrow('does not match release')
+  it('advances the last published manifest only after the next portable asset is verified', () => {
+    const previousVersion = '2.4.0'
+    const previousFilename = `hronaut-${previousVersion}-x64-windows-portable.exe`
+    const source = manifest({
+      version: previousVersion,
+      architecture: {
+        '64bit': {
+          url: `https://github.com/hronaut/hronaut/releases/download/v${previousVersion}/${previousFilename}`,
+          hash: oldHash
+        }
+      },
+      shortcuts: [[previousFilename, 'Hronaut']]
+    })
+
+    expect(JSON.parse(updateScoopManifestSource(source, version, `${releasedHash}  ${filename}`))).toEqual({
+      ...JSON.parse(source),
+      version,
+      architecture: {
+        '64bit': {
+          url: `https://github.com/hronaut/hronaut/releases/download/v${version}/${filename}`,
+          hash: releasedHash
+        }
+      },
+      shortcuts: [[filename, 'Hronaut']]
+    })
+  })
+
+  it('refuses structurally unexpected manifests', () => {
     expect(() => updateScoopManifestSource(manifest({ shortcuts: [['wrong.exe', 'Hronaut']] }), version, `${releasedHash}  ${filename}`))
       .toThrow('shortcut does not match')
     expect(() => updateScoopManifestSource(manifest({

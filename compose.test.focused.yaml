@@ -1,0 +1,10 @@
+services:
+  integration:
+    build:
+      target: dependencies
+    volumes:
+      - type: bind
+        source: .
+        target: /workspace
+      - type: volume
+        target: /workspace/node_modules

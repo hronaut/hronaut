@@ -41,7 +41,7 @@
     "test:integration:headless:run": "xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:integration:run",
     "test:integration:dialogs": "node scripts/dialog-integration.ts",
     "test:integration:dialogs:headless": "xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:integration:dialogs",
-    "test:integration:docker:focused": "docker compose --file compose.test.ci.yaml run --build --rm integration bash scripts/run-focused-integration-docker.sh",
+    "test:integration:docker:focused": "docker compose --file compose.test.ci.yaml --file compose.test.focused.yaml run --build --rm integration bash scripts/run-focused-integration-docker.sh",
     "test:integration:docker": "docker compose --file compose.test.ci.yaml run --build --rm integration",
     "test:package:smoke": "node scripts/packaged-mcp-smoke.ts",
     "smoke:mcp": "node scripts/mcp-smoke.ts",

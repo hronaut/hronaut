@@ -15,7 +15,7 @@ describe('Scoop package QA', () => {
     expect(command).not.toMatch(/v\d+\.\d+\.\d+/)
   })
 
-  it('keeps the candidate manifest aligned with the current portable release', async () => {
+  it('keeps the last published manifest internally consistent during release preparation', async () => {
     const [packageSource, manifestSource] = await Promise.all([
       read('package.json'),
       read('packaging/scoop/hronaut.json')
@@ -28,12 +28,12 @@ describe('Scoop package QA', () => {
       architecture: { '64bit': { url: string; hash: string } }
       shortcuts: string[][]
     }
-    const filename = `hronaut-${packageJson.version}-x64-windows-portable.exe`
+    const filename = `hronaut-${manifest.version}-x64-windows-portable.exe`
 
-    expect(manifest.version).toBe(packageJson.version)
+    expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/)
     expect(manifest.license).toBe(packageJson.license)
     expect(manifest.architecture['64bit'].url).toBe(
-      `https://github.com/hronaut/hronaut/releases/download/v${packageJson.version}/${filename}`
+      `https://github.com/hronaut/hronaut/releases/download/v${manifest.version}/${filename}`
     )
     expect(manifest.architecture['64bit'].hash).toMatch(/^[a-f0-9]{64}$/)
     expect(manifest.shortcuts).toEqual([[filename, 'Hronaut']])
