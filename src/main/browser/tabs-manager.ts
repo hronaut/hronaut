@@ -1322,6 +1322,7 @@ export class BrowserTabsManager {
       }
       await this.closeMcpTabGroupInternal(groupId, true)
       this.savedTabGroups.set(saved.id, saved)
+      this.remapDownloadWorkspaceOwnership(groupId, saved.id)
       this.changed()
       return {
         id: saved.id,
@@ -1376,8 +1377,10 @@ export class BrowserTabsManager {
         }
         const tabs = [...this.tabs.values()].filter((tab) => tab.mcpGroupId === restored.id)
         if (tabs.length) this.selectTab(tabs[tabs.length - 1]!.id)
+        const result = this.requireMcpTabGroup(restored.id)
         this.changed()
-        return this.requireMcpTabGroup(restored.id)
+        this.remapDownloadWorkspaceOwnership(savedGroupId, restored.id)
+        return result
       } catch (error) {
         // Restoring an archive must not destroy its durable workspace storage if
         // one of the tabs fails to reopen. Re-add the archive only after the
@@ -1386,6 +1389,7 @@ export class BrowserTabsManager {
         try {
           await this.closeMcpTabGroupInternal(restored.id, true)
         } catch (rollbackError) {
+          this.remapDownloadWorkspaceOwnership(savedGroupId, restored.id)
           this.changed()
           throw new AggregateError(
             [error, rollbackError],
@@ -5042,6 +5046,12 @@ export class BrowserTabsManager {
     const downloads = this.listDownloads()
     if (action !== 'list') this.sendDownloadsChanged(downloads)
     return downloads.filter((download) => this.downloadWorkspaceIds.get(download.id) === workspaceId)
+  }
+
+  private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
+    for (const [downloadId, workspaceId] of this.downloadWorkspaceIds) {
+      if (workspaceId === sourceWorkspaceId) this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
+    }
   }
 
   showDownloadInFolder(downloadId: string): void {

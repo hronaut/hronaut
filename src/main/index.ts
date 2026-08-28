@@ -225,6 +225,7 @@ let settings: AppSettings = { ...DEFAULT_SETTINGS }
 let systemLocale: SupportedLocale = 'en-US'
 let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
+let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
 let updaterConfigured = false
 let updateInstallationInProgress = false
@@ -253,6 +254,11 @@ function queueClipboardOperation<T>(operation: () => Promise<T>): Promise<T> {
   const result = clipboardOperationQueue.then(operation)
   clipboardOperationQueue = result.then(() => undefined, () => undefined)
   return result
+}
+
+function queuePermissionRequest(operation: () => Promise<void>): void {
+  const pending = permissionRequestQueue.then(operation)
+  permissionRequestQueue = pending.catch(() => undefined)
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -3315,20 +3321,26 @@ function configureBrowserSession(browserSession: Session): void {
     return Boolean(origin && sitePermissionStore?.get(origin, permission) === 'allow')
   })
   browserSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    let responded = false
+    const respond = (allowed: boolean): void => {
+      if (responded) return
+      responded = true
+      callback(allowed)
+    }
     const requestingUrl = details.requestingUrl || webContents.getURL()
     if (requestingUrl.startsWith('hronaut://home')) {
-      callback(false)
+      respond(false)
       return
     }
     const origin = normalizeSitePermissionOrigin(requestingUrl)
     if (!origin) {
-      callback(false)
+      respond(false)
       return
     }
     const requiresFreshConsent = permission === 'media' || permission === 'fileSystem'
     const remembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
     if (remembered) {
-      callback(remembered === 'allow')
+      respond(remembered === 'allow')
       return
     }
     const requestingFrameTreeNodeId = (() => {
@@ -3340,9 +3352,14 @@ function configureBrowserSession(browserSession: Session): void {
       return matchingFrames.length === 1 ? matchingFrames[0]?.frameTreeNodeId ?? null : null
     })()
     if (requestingFrameTreeNodeId === null) {
-      callback(false)
+      respond(false)
       return
     }
+    const currentRequestOrigin = (): string | null => webContents.isDestroyed()
+      ? null
+      : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
+        (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
+      )?.url ?? '')
     const permissionDetail = (() => {
       if (permission === 'media' && 'mediaTypes' in details) {
         const types = details.mediaTypes?.map((type) => text(type === 'video' ? 'native.dialog.camera' : 'native.dialog.microphone')) ?? []
@@ -3356,27 +3373,30 @@ function configureBrowserSession(browserSession: Session): void {
       }
       return text('native.dialog.permissionRemember')
     })()
-    void showMessageBox({
-      type: 'question',
-      title: text('native.dialog.sitePermission'),
-      message: text('native.dialog.permissionRequest', { origin, permission }),
-      detail: requiresFreshConsent
-        ? text('native.dialog.permissionAskAgain', { detail: permissionDetail })
-        : text('native.dialog.permissionSettings', { detail: permissionDetail }),
-      buttons: [text('native.dialog.deny'), text('native.dialog.allow')],
-      defaultId: 0,
-      cancelId: 0
-    })
-      .then(async ({ response }) => {
-        const currentOrigin = webContents.isDestroyed()
-          ? null
-          : normalizeSitePermissionOrigin(webContents.mainFrame.framesInSubtree.find(
-            (frame) => frame.frameTreeNodeId === requestingFrameTreeNodeId && !frame.detached
-          )?.url ?? '')
-        if (currentOrigin !== origin) {
-          // The Electron permission API is callback-based; this callback completes its contract.
-          // eslint-disable-next-line promise/no-callback-in-promise
-          callback(false)
+    queuePermissionRequest(async () => {
+      try {
+        if (currentRequestOrigin() !== origin) {
+          respond(false)
+          return
+        }
+        const currentRemembered = requiresFreshConsent ? undefined : sitePermissionStore?.get(origin, permission)
+        if (currentRemembered) {
+          respond(currentRemembered === 'allow')
+          return
+        }
+        const { response } = await showMessageBox({
+          type: 'question',
+          title: text('native.dialog.sitePermission'),
+          message: text('native.dialog.permissionRequest', { origin, permission }),
+          detail: requiresFreshConsent
+            ? text('native.dialog.permissionAskAgain', { detail: permissionDetail })
+            : text('native.dialog.permissionSettings', { detail: permissionDetail }),
+          buttons: [text('native.dialog.deny'), text('native.dialog.allow')],
+          defaultId: 0,
+          cancelId: 0
+        })
+        if (currentRequestOrigin() !== origin) {
+          respond(false)
           return
         }
         const decision: SitePermissionDecision = response === 1 ? 'allow' : 'deny'
@@ -3388,12 +3408,11 @@ function configureBrowserSession(browserSession: Session): void {
         } catch (error) {
           console.error('[permissions] Failed to persist site permission:', error)
         }
-        // The Electron permission API is callback-based; this callback completes its contract.
-        // eslint-disable-next-line promise/no-callback-in-promise
-        callback(decision === 'allow')
-      })
-      // eslint-disable-next-line promise/no-callback-in-promise
-      .catch(() => callback(false))
+        respond(decision === 'allow')
+      } catch {
+        respond(false)
+      }
+    })
   })
 }
 

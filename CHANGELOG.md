@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Serialize native website permission prompts and revalidate queued requests before showing them.
+- Preserve MCP download ownership when an archived workspace is reopened with a new workspace ID.
 - Wait for in-flight workspace storage changes to finish before flushing browser profiles during shutdown.
 
 ## [1.9.9] - 2026-08-28

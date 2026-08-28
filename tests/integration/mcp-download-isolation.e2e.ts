@@ -36,8 +36,9 @@ async function downloadInWorkspace(
   await call(client, 'browser_click', { workspaceId, tabId, selector: '#download' })
 }
 
-test('keeps MCP download history isolated to the requesting workspace', async ({
+test('keeps MCP download history isolated across workspace archive and restore', async ({
   appWindow,
+  electronApp,
   mcpPort,
   mcpToken,
   profileDirectory
@@ -112,11 +113,142 @@ test('keeps MCP download history isolated to the requesting workspace', async ({
       })
     ])
 
-    await call(client, 'browser_downloads', { workspaceId: firstWorkspaceId, action: 'clear' })
+    const saved = JSON.parse(text(await call(client, 'browser_saved_workspaces', {
+      action: 'save',
+      workspaceId: firstWorkspaceId
+    }))) as { id: string }
+    const opened = JSON.parse(text(await call(client, 'browser_saved_workspaces', {
+      action: 'open',
+      savedWorkspaceId: saved.id
+    }))) as { id: string }
+    expect(opened.id).not.toBe(firstWorkspaceId)
+
+    const restoredDownloads = JSON.parse(text(await call(client, 'browser_downloads', {
+      workspaceId: opened.id
+    }))) as BrowserDownloadState[]
+    expect(restoredDownloads).toEqual([
+      expect.objectContaining({
+        filename: 'first.txt',
+        savePath: `${profileDirectory}/first.txt`,
+        state: 'completed'
+      })
+    ])
+    const isolatedAfterRestore = JSON.parse(text(await call(client, 'browser_downloads', {
+      workspaceId: secondWorkspaceId
+    }))) as BrowserDownloadState[]
+    expect(isolatedAfterRestore).toEqual([
+      expect.objectContaining({
+        filename: 'second.txt',
+        savePath: `${profileDirectory}/second.txt`,
+        state: 'completed'
+      })
+    ])
+
+    await call(client, 'browser_downloads', { workspaceId: opened.id, action: 'clear' })
     expect(await appWindow.evaluate('window.hronautDownloads.list()')).toEqual([
       expect.objectContaining({ filename: 'second.txt', state: 'completed' })
     ])
+
+    const rollbackSaved = JSON.parse(text(await call(client, 'browser_saved_workspaces', {
+      action: 'save',
+      workspaceId: secondWorkspaceId
+    }))) as { id: string }
+    await electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
+      const mainWindow = BrowserWindow.getAllWindows()[0]
+      if (!mainWindow) throw new Error('Main window is unavailable')
+      const contentView = mainWindow.contentView as unknown as {
+        removeChildView: (view: Electron.WebContentsView) => void
+      }
+      const viewPrototype = WebContentsView.prototype as unknown as {
+        setBounds: (bounds: Electron.Rectangle) => void
+      }
+      const originalRemoveChildView = contentView.removeChildView
+      const originalSetBounds = viewPrototype.setBounds
+      const existingViews = new Set(mainWindow.contentView.children)
+      let layoutFailed = false
+      let restoredView: Electron.WebContentsView | null = null
+      contentView.removeChildView = function (view): void {
+        if (layoutFailed && view === restoredView) throw new Error('Injected download ownership rollback detach failure')
+        return originalRemoveChildView.call(this, view)
+      }
+      viewPrototype.setBounds = function (this: Electron.WebContentsView, bounds): void {
+        if (!layoutFailed && !existingViews.has(this)) {
+          restoredView = this
+          layoutFailed = true
+          throw new Error('Injected download ownership restore layout failure')
+        }
+        return originalSetBounds.call(this, bounds)
+      }
+      ;(globalThis as typeof globalThis & {
+        __hronautDownloadRestoreFault?: {
+          contentView: typeof contentView
+          viewPrototype: typeof viewPrototype
+          originalRemoveChildView: typeof originalRemoveChildView
+          originalSetBounds: typeof originalSetBounds
+        }
+      }).__hronautDownloadRestoreFault = {
+        contentView,
+        viewPrototype,
+        originalRemoveChildView,
+        originalSetBounds
+      }
+    })
+    try {
+      const failedOpen = await client.callTool({
+        name: 'browser_saved_workspaces',
+        arguments: { action: 'open', savedWorkspaceId: rollbackSaved.id }
+      }) as CallToolResult
+      expect(failedOpen.isError).toBe(true)
+      expect(text(failedOpen)).toContain('could not be restored or rolled back')
+    } finally {
+      await electronApp.evaluate(() => {
+        const state = (globalThis as typeof globalThis & {
+          __hronautDownloadRestoreFault?: {
+            contentView: { removeChildView: (view: Electron.WebContentsView) => void }
+            viewPrototype: { setBounds: (bounds: Electron.Rectangle) => void }
+            originalRemoveChildView: (view: Electron.WebContentsView) => void
+            originalSetBounds: (bounds: Electron.Rectangle) => void
+          }
+        }).__hronautDownloadRestoreFault
+        if (!state) return
+        state.contentView.removeChildView = state.originalRemoveChildView
+        state.viewPrototype.setBounds = state.originalSetBounds
+        delete (globalThis as typeof globalThis & { __hronautDownloadRestoreFault?: unknown }).__hronautDownloadRestoreFault
+      })
+    }
+
+    const activeWorkspaces = JSON.parse(text(await call(client, 'browser_workspaces', {
+      action: 'list'
+    }))) as Array<{ id: string; name: string }>
+    const recoveredWorkspace = activeWorkspaces.find((workspace) => workspace.name === 'Second download workspace')
+    if (!recoveredWorkspace) throw new Error('Recoverable download workspace remained unavailable')
+    expect(recoveredWorkspace.id).not.toBe(secondWorkspaceId)
+    const recoveredDownloads = JSON.parse(text(await call(client, 'browser_downloads', {
+      workspaceId: recoveredWorkspace.id
+    }))) as BrowserDownloadState[]
+    expect(recoveredDownloads).toEqual([
+      expect.objectContaining({ filename: 'second.txt', state: 'completed' })
+    ])
+
+    const unrelatedWorkspaceId = await createWorkspace(client, 'Unrelated download workspace')
+    expect(JSON.parse(text(await call(client, 'browser_downloads', {
+      workspaceId: unrelatedWorkspaceId
+    })))).toEqual([])
   } finally {
+    await electronApp.evaluate(() => {
+      const state = (globalThis as typeof globalThis & {
+        __hronautDownloadRestoreFault?: {
+          contentView: { removeChildView: (view: Electron.WebContentsView) => void }
+          viewPrototype: { setBounds: (bounds: Electron.Rectangle) => void }
+          originalRemoveChildView: (view: Electron.WebContentsView) => void
+          originalSetBounds: (bounds: Electron.Rectangle) => void
+        }
+      }).__hronautDownloadRestoreFault
+      if (!state) return
+      state.contentView.removeChildView = state.originalRemoveChildView
+      state.viewPrototype.setBounds = state.originalSetBounds
+      delete (globalThis as typeof globalThis & { __hronautDownloadRestoreFault?: unknown }).__hronautDownloadRestoreFault
+    }).catch(() => undefined)
     await client.close().catch(() => undefined)
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
