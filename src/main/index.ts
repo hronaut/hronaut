@@ -3413,6 +3413,7 @@ async function releaseRuntimeResources(): Promise<void> {
   runtimeShutdown = (async () => {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
+      ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
       ...await Promise.allSettled([
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),

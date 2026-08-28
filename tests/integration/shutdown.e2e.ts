@@ -264,3 +264,108 @@ test('waits for Default and isolated browser profiles to flush before exiting', 
     await closeHronaut(instance.app)
   }
 })
+
+test('waits for an in-flight workspace storage transfer before exiting', async ({
+  profileDirectory,
+  mcpPort
+}) => {
+  const cookieUrl = 'https://shutdown-transfer.example/'
+  const cookieName = 'shutdown-transfer-cookie'
+  const tabsPath = join(profileDirectory, 'tabs.json')
+  let instance = await launchHronaut(profileDirectory, mcpPort)
+  const initialApp = instance.app
+  const child = initialApp.process()
+
+  try {
+    const state = await instance.window.evaluate(`window.hronaut.createWorkspace({
+      name: 'Shutdown transfer',
+      color: 'purple',
+      storage: 'scratch'
+    })`) as { mcpTabGroups: Array<{ id: string; name: string }> }
+    const workspaceId = state.mcpTabGroups.find((workspace) => workspace.name === 'Shutdown transfer')?.id
+    if (!workspaceId) throw new Error('Shutdown transfer workspace was not created')
+
+    await expect.poll(async () => {
+      try {
+        const persisted = JSON.parse(await readFile(tabsPath, 'utf8')) as {
+          mcpTabGroups?: Array<{ id?: string; storageId?: string }>
+        }
+        return persisted.mcpTabGroups?.find((workspace) => workspace.id === workspaceId)?.storageId ?? ''
+      } catch {
+        return ''
+      }
+    }).toMatch(/^[0-9a-f-]{36}$/)
+    const persisted = JSON.parse(await readFile(tabsPath, 'utf8')) as {
+      mcpTabGroups: Array<{ id: string; storageId?: string }>
+    }
+    const storageId = persisted.mcpTabGroups.find((workspace) => workspace.id === workspaceId)?.storageId
+    if (!storageId) throw new Error('Shutdown transfer workspace storage ID was not persisted')
+    const targetPartition = `persist:hronaut-workspace-${storageId}`
+
+    await initialApp.evaluate(async ({ session }, input) => {
+      const source = session.fromPartition('persist:hronaut', { cache: true })
+      await source.cookies.set({
+        url: input.cookieUrl,
+        name: input.cookieName,
+        value: 'persisted-after-shutdown',
+        path: '/',
+        expirationDate: Date.now() / 1_000 + 3_600
+      })
+      await source.cookies.flushStore()
+
+      const target = session.fromPartition(input.targetPartition, { cache: true })
+      const globals = globalThis as typeof globalThis & {
+        __shutdownTransferStarted?: boolean
+        __releaseShutdownTransfer?: () => void
+      }
+      let releaseTransfer = (): void => undefined
+      const transferGate = new Promise<void>((resolve) => { releaseTransfer = resolve })
+      globals.__shutdownTransferStarted = false
+      globals.__releaseShutdownTransfer = releaseTransfer
+      const originalSet = target.cookies.set.bind(target.cookies)
+      target.cookies.set = async (...args: Parameters<Electron.Cookies['set']>) => {
+        target.cookies.set = originalSet
+        globals.__shutdownTransferStarted = true
+        await transferGate
+        return originalSet(...args)
+      }
+    }, { cookieUrl, cookieName, targetPartition })
+
+    await instance.window.evaluate(`void (globalThis.__shutdownTransfer = window.hronaut.transferWorkspaceStorage({
+      workspaceId: ${JSON.stringify(workspaceId)},
+      direction: 'from-default'
+    }).catch(() => undefined))`)
+    await expect.poll(() => initialApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __shutdownTransferStarted?: boolean }).__shutdownTransferStarted
+    ))).toBe(true)
+
+    await initialApp.evaluate(({ app }) => { setImmediate(() => app.quit()) })
+    expect(
+      await waitForChildExit(child, 500),
+      'Hronaut exited while a workspace storage transfer was still blocked'
+    ).toBe(false)
+
+    await initialApp.evaluate(() => {
+      const globals = globalThis as typeof globalThis & { __releaseShutdownTransfer?: () => void }
+      globals.__releaseShutdownTransfer?.()
+      delete globals.__releaseShutdownTransfer
+    })
+    expect(await waitForChildExit(child, 5_000)).toBe(true)
+    expect(child.exitCode).toBe(0)
+
+    instance = await launchHronaut(profileDirectory, mcpPort)
+    const restoredCookie = await instance.app.evaluate(async ({ session }, input) => {
+      const target = session.fromPartition(input.targetPartition, { cache: true })
+      return (await target.cookies.get({ url: input.cookieUrl, name: input.cookieName }))[0]?.value
+    }, { cookieUrl, cookieName, targetPartition })
+    expect(restoredCookie).toBe('persisted-after-shutdown')
+  } finally {
+    if (child.exitCode === null) {
+      await initialApp.evaluate(() => {
+        const globals = globalThis as typeof globalThis & { __releaseShutdownTransfer?: () => void }
+        globals.__releaseShutdownTransfer?.()
+      }).catch(() => undefined)
+    }
+    await closeHronaut(instance.app)
+  }
+})

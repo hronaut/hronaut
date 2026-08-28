@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wait for in-flight workspace storage changes to finish before flushing browser profiles during shutdown.
+
 ## [1.9.9] - 2026-08-28
 
 ### Added

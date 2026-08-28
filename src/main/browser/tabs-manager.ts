@@ -300,6 +300,7 @@ const MAX_SAVED_TAB_GROUPS = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
+const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
 
 function normalizedWorkspaceName(name: string): string {
   const normalized = name.trim().normalize('NFC')
@@ -834,6 +835,7 @@ export class BrowserTabsManager {
   private readonly savedTabGroups = new Map<string, BrowserSavedTabGroupInternal>()
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
+  private readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
   private workspaceStorageOperation: BrowserWorkspaceOperation | null = null
   private readonly store: TabStateStore
   private activeTabId: string | null = null
@@ -5673,6 +5675,30 @@ export class BrowserTabsManager {
     await this.store.save(this.persistedState())
   }
 
+  async drainWorkspaceOperations(): Promise<void> {
+    const deadline = Date.now() + WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS
+    while (this.pendingWorkspaceOperationPromises.size) {
+      const pending = [...this.pendingWorkspaceOperationPromises]
+      const remainingMs = deadline - Date.now()
+      if (remainingMs <= 0) {
+        throw new Error(`Workspace operations did not finish within ${WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS} ms.`)
+      }
+      let timer: NodeJS.Timeout | undefined
+      try {
+        await Promise.race([
+          Promise.allSettled(pending).then(() => undefined),
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => {
+              reject(new Error(`Workspace operations did not finish within ${WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS} ms.`))
+            }, remainingMs)
+          })
+        ])
+      } finally {
+        if (timer) clearTimeout(timer)
+      }
+    }
+  }
+
   async flushWorkspaceProfiles(): Promise<void> {
     const storageIds = new Set<string>()
     for (const workspace of this.mcpTabGroups.values()) {
@@ -5895,7 +5921,7 @@ export class BrowserTabsManager {
     const current: BrowserWorkspaceOperation = { action, blocksNewTabs, token: Symbol(action) }
     this.workspaceOperations.set(workspaceId, current)
     try {
-      return await operation()
+      return await this.trackWorkspaceOperation(operation)
     } finally {
       if (this.workspaceOperations.get(workspaceId)?.token === current.token) {
         this.workspaceOperations.delete(workspaceId)
@@ -5917,7 +5943,7 @@ export class BrowserTabsManager {
     const current: BrowserWorkspaceOperation = { action, blocksNewTabs: true, token: Symbol(action) }
     this.savedWorkspaceOperations.set(savedWorkspaceId, current)
     try {
-      return await operation()
+      return await this.trackWorkspaceOperation(operation)
     } finally {
       if (this.savedWorkspaceOperations.get(savedWorkspaceId)?.token === current.token) {
         this.savedWorkspaceOperations.delete(savedWorkspaceId)
@@ -5946,9 +5972,19 @@ export class BrowserTabsManager {
     const current: BrowserWorkspaceOperation = { action, blocksNewTabs: false, token: Symbol(action) }
     this.workspaceStorageOperation = current
     try {
-      return await operation()
+      return await this.trackWorkspaceOperation(operation)
     } finally {
       if (this.workspaceStorageOperation?.token === current.token) this.workspaceStorageOperation = null
+    }
+  }
+
+  private async trackWorkspaceOperation<T>(operation: () => Promise<T>): Promise<T> {
+    const pending = operation()
+    this.pendingWorkspaceOperationPromises.add(pending)
+    try {
+      return await pending
+    } finally {
+      this.pendingWorkspaceOperationPromises.delete(pending)
     }
   }
 
