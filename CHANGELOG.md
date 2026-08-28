@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Move Downloads, Bookmarks, and History panel rendering out of `App.vue` into a focused browser-collections layer while preserving controller-owned panel refs and models.
 - Consolidate active-tab presentation, origin-scoped credential filling, emulation labels, and detached-panel state behind a focused feature controller, keeping `App.vue` composition-focused.
 - Extract active-tab derivation, diagnostic-log preservation, and MCP tab-activity composition from `App.vue` into a focused runtime feature controller.
 - Extract full-modal state, shell geometry, and competing-overlay coordination from `App.vue` into a focused layout feature controller.
@@ -15,6 +16,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Persist profile state through one exclusive randomized atomic-file writer, preventing predictable temp-file symlinks from redirecting credentials, license data, tabs, settings, permissions, history, bookmarks, or window-state writes onto unrelated user files.
+- Prefix Windows reserved device names suggested by websites before allocating download paths, while preserving normal filenames and collision-safe numbering.
 - Search scheme-less email-shaped address-bar input instead of interpreting it as URL credentials, while preserving `@` characters in valid URL paths.
 - Reject Windows reserved device names for requested PDF and sanitized HAR exports, and prefix title-derived reserved names so generated files remain portable across supported platforms.
 - Bind native website-permission prompts to the exact requesting frame, preserving valid cross-origin iframe grants while rejecting late decisions after frame or tab navigation and destruction.

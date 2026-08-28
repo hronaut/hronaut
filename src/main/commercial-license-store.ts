@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { CommercialLicenseProviderResult, CommercialLicenseState } from '../shared/types.js'
+import { writeTextFileAtomically } from './atomic-file.js'
 
 interface PersistedCommercialLicense {
   version: 1
@@ -173,10 +173,7 @@ export class CommercialLicenseStore {
   private persist(value: PersistedCommercialLicense = this.value): Promise<void> {
     const snapshot = { ...value }
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, `${JSON.stringify(snapshot, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 })
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, `${JSON.stringify(snapshot, null, 2)}\n`)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

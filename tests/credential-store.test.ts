@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -41,6 +41,19 @@ describe('CredentialStore', () => {
     const restored = new CredentialStore(path, encryption)
     expect(await restored.load()).toEqual([saved])
     expect(await restored.password(saved.id)).toBe('correct horse battery staple')
+  })
+
+  it.skipIf(process.platform === 'win32')('does not follow a pre-existing temporary-file symlink while saving the vault', async () => {
+    const { path, store } = await createStore()
+    const unrelatedPath = join(dirname(path), 'unrelated.txt')
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(unrelatedPath, 'keep this file intact\n', 'utf8')
+    await symlink(unrelatedPath, `${path}.tmp`)
+
+    await store.save('https://example.com', 'person', 'private password')
+
+    expect(await readFile(unrelatedPath, 'utf8')).toBe('keep this file intact\n')
+    expect(await readFile(path, 'utf8')).not.toContain('private password')
   })
 
   it('updates the matching origin and username instead of creating duplicates', async () => {

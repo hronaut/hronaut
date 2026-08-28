@@ -1,6 +1,6 @@
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('offers regular and cinematic themes in Settings', async ({ appWindow, electronApp }) => {
   const initialNativeTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
@@ -114,39 +114,36 @@ test('keeps rejected settings out of live state and later persisted changes', as
   profileDirectory
 }) => {
   const settingsPath = join(profileDirectory, 'settings.json')
-  const blockedTemporaryPath = `${settingsPath}.tmp`
-  await rm(blockedTemporaryPath, { recursive: true, force: true })
-  await mkdir(blockedTemporaryPath)
+  const restoreSettingsFile = await blockFileDestination(settingsPath)
   try {
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     await appWindow.getByTestId('theme-dark').click()
     await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toBeVisible()
     await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get()')).toMatchObject({ theme: 'system' })
-
-    await rm(blockedTemporaryPath, { recursive: true, force: true })
-    await appWindow.getByRole('button', { name: /Search engine/ }).click()
-    await appWindow.getByTestId('search-engine-duckduckgo').click()
-    await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
-      theme: 'system',
-      searchEngine: 'duckduckgo'
-    })
-    await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', 'system')
-
-    await appWindow.evaluate(`Promise.all([
-      window.hronautSettings.setTheme('cyberpunk'),
-      window.hronautSettings.setSearchEngine('brave'),
-      window.hronautSettings.setAttentionSound(false)
-    ])`)
-    await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
-      theme: 'cyberpunk',
-      searchEngine: 'brave',
-      attentionSound: false
-    })
-    await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
   } finally {
-    await rm(blockedTemporaryPath, { recursive: true, force: true })
+    await restoreSettingsFile()
   }
+
+  await appWindow.getByRole('button', { name: /Search engine/ }).click()
+  await appWindow.getByTestId('search-engine-duckduckgo').click()
+  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
+    theme: 'system',
+    searchEngine: 'duckduckgo'
+  })
+  await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', 'system')
+
+  await appWindow.evaluate(`Promise.all([
+    window.hronautSettings.setTheme('cyberpunk'),
+    window.hronautSettings.setSearchEngine('brave'),
+    window.hronautSettings.setAttentionSound(false)
+  ])`)
+  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8'))).toMatchObject({
+    theme: 'cyberpunk',
+    searchEngine: 'brave',
+    attentionSound: false
+  })
+  await expect(appWindow.locator('html')).toHaveAttribute('data-theme', 'cyberpunk')
 })
 
 test('keeps supporting text readable in Settings and page tools', async ({ appWindow }) => {

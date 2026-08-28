@@ -1,8 +1,8 @@
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 import type { BrowserState } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { blockFileDestination, expect, test } from './fixtures.js'
 
 const closeFixtureServer = async (server: ReturnType<typeof createServer>): Promise<void> => {
   await new Promise<void>((resolve) => {
@@ -53,9 +53,7 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     await expect(timeout).toHaveValue('60')
 
     const settingsPath = join(profileDirectory, 'settings.json')
-    const blockedTemporaryPath = `${settingsPath}.tmp`
-    await rm(blockedTemporaryPath, { recursive: true, force: true })
-    await mkdir(blockedTemporaryPath)
+    const restoreSettingsFile = await blockFileDestination(settingsPath)
     try {
       await automatic.click()
       await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toBeVisible()
@@ -66,7 +64,7 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
         memorySaverTimeoutMinutes: 60
       })
     } finally {
-      await rm(blockedTemporaryPath, { recursive: true, force: true })
+      await restoreSettingsFile()
     }
 
     await timeout.selectOption('15')
@@ -85,7 +83,7 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
     await expect(sleepNow).toBeDisabled()
     await expect(appWindow.getByText('0 sleeping')).toBeVisible()
 
-    await mkdir(blockedTemporaryPath)
+    const restoreSettingsFileAfterReset = await blockFileDestination(settingsPath)
     try {
       await appWindow.getByRole('button', { name: 'Reset to default' }).click()
       await expect(appWindow.getByRole('alert', { name: 'Setting not saved' }).last()).toBeVisible()
@@ -96,7 +94,7 @@ test('serializes Memory Saver settings and sleeps eligible tabs without stale sh
         memorySaverTimeoutMinutes: 15
       })
     } finally {
-      await rm(blockedTemporaryPath, { recursive: true, force: true })
+      await restoreSettingsFileAfterReset()
     }
 
     await appWindow.getByRole('button', { name: 'Reset to default' }).click()

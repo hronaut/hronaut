@@ -1,8 +1,8 @@
 import { createServer } from 'node:http'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 async function delayPermissionDialog(electronApp: ElectronApplication): Promise<void> {
   await electronApp.evaluate(({ dialog }) => {
@@ -81,9 +81,7 @@ test('manages and persists per-website permission decisions', async ({
   await expect(locationPermission).toHaveValue('allow')
 
   const permissionsPath = join(profileDirectory, 'site-permissions.json')
-  const blockedTemporaryPath = `${permissionsPath}.tmp`
-  await rm(blockedTemporaryPath, { recursive: true, force: true })
-  await mkdir(blockedTemporaryPath)
+  const restorePermissionsFile = await blockFileDestination(permissionsPath)
   try {
     await locationPermission.selectOption('deny')
     await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toBeVisible()
@@ -94,7 +92,7 @@ test('manages and persists per-website permission decisions', async ({
       decision: 'allow'
     }])
   } finally {
-    await rm(blockedTemporaryPath, { recursive: true, force: true })
+    await restorePermissionsFile()
   }
 
   await locationPermission.selectOption('deny')

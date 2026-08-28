@@ -3,7 +3,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import { basename } from 'node:path'
 import { expect, test } from './fixtures.js'
 
-test('keeps simultaneous same-named website downloads in distinct files', async ({
+test('keeps website download paths collision-safe and portable', async ({
   appWindow,
   electronApp
 }) => {
@@ -25,11 +25,21 @@ test('keeps simultaneous same-named website downloads in distinct files', async 
       }
       return
     }
+    if (request.url === '/reserved') {
+      response.writeHead(200, {
+        'content-disposition': 'attachment; filename="CON.txt"',
+        'content-length': '8',
+        'content-type': 'text/plain'
+      })
+      response.end('reserved')
+      return
+    }
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html>
       <title>Parallel download fixture</title>
       <a id="first" href="/first" download>First</a>
-      <a id="second" href="/second" download>Second</a>`)
+      <a id="second" href="/second" download>Second</a>
+      <a id="reserved" href="/reserved" download>Reserved</a>`)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -75,6 +85,23 @@ test('keeps simultaneous same-named website downloads in distinct files', async 
     ])
     await expect(Promise.all(completed.map((download) => readFile(download.savePath, 'utf8'))))
       .resolves.toEqual(expect.arrayContaining(['first', 'second']))
+
+    await electronApp.evaluate(async ({ webContents }, pageUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)
+      if (!page) throw new Error('Parallel download fixture web contents was not found')
+      await page.executeJavaScript("document.querySelector('#reserved').click()")
+    }, url)
+    await expect.poll(async () => {
+      const current = await appWindow.evaluate('window.hronautDownloads.list()') as Array<{
+        filename: string
+        savePath: string
+        state: string
+      }>
+      return current.find((download) => download.filename === 'download-CON.txt')
+    }).toMatchObject({
+      filename: 'download-CON.txt',
+      state: 'completed'
+    })
   } finally {
     for (const download of pending.splice(0)) download.response.destroy()
     await new Promise<void>((resolve) => server.close(() => resolve()))

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { BrowserBookmark } from '../shared/types.js'
+import { writeTextFileAtomically } from './atomic-file.js'
 
 const MAX_BOOKMARKS = 500
 const MAX_BOOKMARK_TITLE = 200
@@ -187,10 +187,7 @@ export class BookmarkStore {
   private persist(entries: Iterable<BrowserBookmark> = this.entries.values()): Promise<void> {
     const value: PersistedBookmarks = { version: 1, bookmarks: sortedBookmarks(entries) }
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

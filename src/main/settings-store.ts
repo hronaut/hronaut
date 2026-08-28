@@ -1,5 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { isAbsolute } from 'node:path'
 import { isAttentionSoundCue, type AppSettings } from '../shared/types.js'
 import { isThemeName } from '../shared/theme.js'
 import { DEFAULT_MCP_PORT, isValidMcpPort } from '../shared/mcp-port.js'
@@ -11,6 +11,7 @@ import {
 } from '../shared/memory-saver.js'
 import { isLanguagePreference } from '../shared/locale.js'
 import { DEFAULT_TAB_POSITION, isTabPosition } from '../shared/tab-position.js'
+import { writeTextFileAtomically } from './atomic-file.js'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -103,10 +104,7 @@ export class SettingsStore {
   save(settings: AppSettings): Promise<void> {
     const contents = `${JSON.stringify(settings, null, 2)}\n`
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, contents, 'utf8')
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, contents)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

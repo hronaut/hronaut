@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -14,6 +15,19 @@ const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 export interface HronautInstance {
   app: ElectronApplication
   window: Page
+}
+
+export async function blockFileDestination(path: string): Promise<() => Promise<void>> {
+  const backupPath = `${path}.${randomUUID()}.test-backup`
+  await rename(path, backupPath)
+  await mkdir(path)
+  let restored = false
+  return async () => {
+    if (restored) return
+    restored = true
+    await rm(path, { recursive: true, force: true })
+    await rename(backupPath, path)
+  }
 }
 
 interface HronautFixtures {

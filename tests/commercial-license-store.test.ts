@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -54,6 +54,23 @@ describe('CommercialLicenseStore', () => {
     expect(file).not.toContain('ABCD-EFGH-IJKL-MNOP')
     expect(store.summary(true)).toMatchObject({ active: true, maskedKey: '••••-MNOP', activationLimit: 3 })
     expect(await store.credentials()).toEqual({ licenseKey: 'ABCD-EFGH-IJKL-MNOP', instanceId: 'inst_abcdefgh1234' })
+  })
+
+  it.skipIf(process.platform === 'win32')('does not follow a pre-existing temporary-file symlink while saving the license', async () => {
+    const { path, store } = await createStore()
+    const unrelatedPath = join(dirname(path), 'unrelated.txt')
+    await writeFile(unrelatedPath, 'keep this file intact\n', 'utf8')
+    await symlink(unrelatedPath, `${path}.tmp`)
+
+    await store.saveActivation('ABCD-EFGH-IJKL-MNOP', {
+      valid: true,
+      status: 'active',
+      productId: 'prod_hronaut',
+      instanceId: 'inst_abcdefgh1234'
+    })
+
+    expect(await readFile(unrelatedPath, 'utf8')).toBe('keep this file intact\n')
+    expect(await readFile(path, 'utf8')).not.toContain('ABCD-EFGH-IJKL-MNOP')
   })
 
   it('keeps a stable anonymous installation name after deactivation', async () => {

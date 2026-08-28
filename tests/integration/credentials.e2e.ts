@@ -1,6 +1,6 @@
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { expect, test } from './fixtures.js'
+import { blockFileDestination, expect, test } from './fixtures.js'
 import type { BrowserState, CredentialStorageStatus, CredentialSummary } from '../../src/shared/types.js'
 
 test('exposes metadata-only password controls and fails closed without secure storage', async ({ appWindow }) => {
@@ -92,9 +92,8 @@ test('imports a confirmed browser CSV without exposing plaintext outside the mai
   })
   await expect(removeImportedCredential).toBeVisible()
 
-  const blockedTemporaryPath = join(profileDirectory, 'credentials.json.tmp')
-  await rm(blockedTemporaryPath, { recursive: true, force: true })
-  await mkdir(blockedTemporaryPath)
+  const credentialPath = join(profileDirectory, 'credentials.json')
+  const restoreCredentialFile = await blockFileDestination(credentialPath)
   try {
     await removeImportedCredential.click()
     await expect(appWindow.getByRole('alert', { name: 'Remove password failed' })).toBeVisible()
@@ -102,7 +101,7 @@ test('imports a confirmed browser CSV without exposing plaintext outside the mai
     await expect(removeImportedCredential).toBeEnabled()
     await expect.poll(() => appWindow.evaluate('window.hronautCredentials.list()')).toEqual(imported)
   } finally {
-    await rm(blockedTemporaryPath, { recursive: true, force: true })
+    await restoreCredentialFile()
   }
 
   await removeImportedCredential.click()

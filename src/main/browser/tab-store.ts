@@ -1,5 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   isBrowserSplitOrientation,
@@ -7,6 +6,7 @@ import {
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
 import { isUuidV7 } from '../uuid-v7.js'
+import { writeTextFileAtomically } from '../atomic-file.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 
 export const TAB_STATE_VERSION = 2 as const
@@ -319,10 +319,7 @@ export class TabStateStore {
   save(state: PersistedBrowserState): Promise<void> {
     const contents = `${JSON.stringify(sanitizePersistedStateUrls(state), null, 2)}\n`
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, contents, 'utf8')
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, contents)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

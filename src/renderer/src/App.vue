@@ -13,16 +13,13 @@ import BrowserNavigationControls from './components/BrowserNavigationControls.vu
 import BrowserPageActions from './components/BrowserPageActions.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
 import AppTopbarActions from './components/AppTopbarActions.vue'
-import BookmarksPanel from './components/BookmarksPanel.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import ConsolePanelContainer from './components/ConsolePanelContainer.vue'
 import CredentialPicker from './components/CredentialPicker.vue'
 import DiagnosticsPanels from './components/DiagnosticsPanels.vue'
-import DownloadsPanel from './components/DownloadsPanel.vue'
 import EnvironmentPanel from './components/EnvironmentPanel.vue'
 import FindInPageBar from './components/FindInPageBar.vue'
 import HelpDialog from './components/HelpDialog.vue'
-import HistoryPanel from './components/HistoryPanel.vue'
 import NetworkPanel from './components/NetworkPanel.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
@@ -35,6 +32,7 @@ import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
+import AppBrowserCollectionsLayer from './components/AppBrowserCollectionsLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
@@ -303,21 +301,16 @@ const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureContr
   syncState
 })
 const {
-  browserCollectionsController,
   downloads,
   bookmarks,
   visitHistory,
   downloadsOpen,
   bookmarksOpen,
-  bookmarksPanel,
   historyOpen,
-  historyPanel,
   toggleDownloads,
   toggleBookmarks,
   toggleCurrentBookmark,
   toggleVisitHistory,
-  openBookmark,
-  openHistoryEntry,
   dispose: disposeAppBrowserCollectionsFeatureController
 } = browserCollectionsFeatureController
 const {
@@ -1232,39 +1225,16 @@ useAppLifecycleController({
     />
     <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
     <ZoomBar ref="zoomBar" v-model:open="zoomOpen" :active-tab="activeTab" :browser="browser" :accept-state="syncState" :format-percent="localPercent" @error="reportShellActionError" />
-    <DownloadsPanel
-      v-model:open="downloadsOpen"
-      v-model:downloads="downloads"
-      :format-bytes="formatBytes"
-      :format-percent="localPercent"
-      :cancel-download="browserCollectionsController.cancelDownload"
-      :clear-finished="browserCollectionsController.clearFinishedDownloads"
-      :show-in-folder="browserCollectionsController.revealDownload"
-    />
-    <BookmarksPanel
-      ref="bookmarksPanel"
-      v-model:open="bookmarksOpen"
-      v-model:bookmarks="bookmarks"
+    <AppBrowserCollectionsLayer
       v-model:dock="panelDock"
+      :controller="browserCollectionsFeatureController"
       :active-url="activeWebUrl"
       :active-title="activeTab?.title ?? ''"
       :current-bookmark="currentBookmark"
-      :list-bookmarks="browserCollectionsController.refreshBookmarks"
-      :add-bookmark="browserCollectionsController.addBookmark"
-      :rename-bookmark="browserCollectionsController.renameBookmark"
-      :remove-bookmark="browserCollectionsController.removeBookmark"
-      :open-bookmark="openBookmark"
-    />
-    <HistoryPanel
-      ref="historyPanel"
-      v-model:open="historyOpen"
-      v-model:entries="visitHistory"
+      :format-bytes="formatBytes"
+      :format-percent="localPercent"
       :format-date-time="localDateTime"
       :format-number="localNumber"
-      :list-history="browserCollectionsController.refreshHistory"
-      :remove-history-entry="browserCollectionsController.removeHistoryEntry"
-      :clear-history="browserCollectionsController.clearHistory"
-      :open-history-entry="openHistoryEntry"
     />
     <SiteStoragePanel
       ref="siteStoragePanel"

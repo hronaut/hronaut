@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { SitePermissionDecision, SitePermissionEntry } from '../shared/types.js'
+import { writeTextFileAtomically } from './atomic-file.js'
 
 interface PersistedSitePermissions {
   version: 1
@@ -138,10 +138,7 @@ export class SitePermissionStore {
   private persist(entries: Iterable<SitePermissionEntry> = this.entries.values()): Promise<void> {
     const value: PersistedSitePermissions = { version: 1, permissions: sortedPermissions(entries) }
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, `${JSON.stringify(value, null, 2)}\n`)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation

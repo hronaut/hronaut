@@ -8601,7 +8601,7 @@ export class BrowserTabsManager {
           id,
           tabId,
           url: item.getURL(),
-          filename: item.getFilename(),
+          filename: basename(suggestedPath),
           savePath: this.options.askWhereToSaveDownloads ? '' : suggestedPath,
           state: 'progressing',
           receivedBytes: item.getReceivedBytes(),
@@ -8635,7 +8635,10 @@ export class BrowserTabsManager {
   }
 
   private reserveAvailableDownloadPath(filename: string): string {
-    const safeFilename = basename(filename) || 'download'
+    const sourceFilename = basename(filename) || 'download'
+    const safeFilename = isWindowsReservedFilename(sourceFilename)
+      ? `download-${sourceFilename}`
+      : sourceFilename
     const direct = join(this.options.downloadDirectory, safeFilename)
     if (!existsSync(direct) && !this.reservedDownloadPaths.has(direct)) {
       this.reservedDownloadPaths.add(direct)

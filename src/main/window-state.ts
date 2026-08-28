@@ -1,6 +1,6 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import type { Rectangle } from 'electron'
+import { writeTextFileAtomically } from './atomic-file.js'
 
 export interface SavedWindowState {
   bounds: Rectangle
@@ -47,10 +47,7 @@ export class WindowStateStore {
   save(state: SavedWindowState): Promise<void> {
     const contents = `${JSON.stringify(state, null, 2)}\n`
     const operation = this.saveQueue.then(async () => {
-      await mkdir(dirname(this.path), { recursive: true })
-      const temporaryPath = `${this.path}.tmp`
-      await writeFile(temporaryPath, contents, 'utf8')
-      await rename(temporaryPath, this.path)
+      await writeTextFileAtomically(this.path, contents)
     })
     this.saveQueue = operation.catch(() => undefined)
     return operation
