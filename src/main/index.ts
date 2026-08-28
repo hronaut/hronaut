@@ -198,6 +198,7 @@ let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
 let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
+let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
@@ -474,6 +475,7 @@ function currentMcpControlState(): McpControlState {
 }
 
 function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
+  homePresentationRevision += 1
   void tabsManager?.reloadHome().catch((error) => {
     console.error(`[${scope}] Could not refresh Hronaut Home after a committed state change:`, error)
   })
@@ -1119,7 +1121,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   refreshHomeAfterCommittedChange('settings')
 }
 
-function homeDashboardState(): McpDashboardState {
+function homeDashboardState(): McpDashboardState & { presentationRevision: number } {
   const serverState = mcpServer?.getDashboardState()
   return {
     ...(serverState ?? {
@@ -1137,6 +1139,7 @@ function homeDashboardState(): McpDashboardState {
       toolMetrics: [],
       tools: BROWSER_TOOL_CATALOG.map((tool) => ({ ...tool }))
     }),
+    presentationRevision: homePresentationRevision,
     status: currentMcpControlState().status,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }

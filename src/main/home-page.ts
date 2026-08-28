@@ -534,6 +534,7 @@ export function renderHomePage(options: HomePageOptions): string {
     const messages = ${serialized(home)};
     const locale = ${serialized(options.locale)};
     let dashboard = ${serialized(options.initialState)};
+    const renderedPresentationRevision = dashboard.presentationRevision;
     let selectedGuide = guides[0].id;
     const copyButtonStates = new WeakMap();
     let vscodeInstallSequence = 0;
@@ -706,6 +707,10 @@ export function renderHomePage(options: HomePageOptions): string {
         const response = await fetch('/api/status', { cache: 'no-store' });
         const nextDashboard = response.ok ? await response.json() : null;
         if (sequence !== dashboardRefreshSequence) return;
+        if (nextDashboard && nextDashboard.presentationRevision !== renderedPresentationRevision) {
+          window.location.reload();
+          return;
+        }
         if (nextDashboard) dashboard = nextDashboard;
         renderDashboard();
       } catch {

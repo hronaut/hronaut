@@ -140,6 +140,88 @@ test('keeps a committed MCP authentication change authoritative when the Home re
   await expect.poll(() => status()).toBe(401)
   await expect.poll(() => status(`Bearer ${mcpToken}`)).toBe(200)
   await expect(appWindow.getByRole('alert', { name: 'Setting not saved' })).toHaveCount(0)
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) return null
+    try {
+      return await home.executeJavaScript(`(() => {
+        document.querySelector('[data-guide="vscode"]')?.click();
+        return {
+          oneClickAvailable: Boolean(document.querySelector('[data-vscode-install]')),
+          guide: document.getElementById('guide-code')?.textContent
+        };
+      })()`)
+    } catch {
+      return null
+    }
+  })).toEqual({
+    oneClickAvailable: false,
+    guide: expect.stringContaining('Authorization')
+  })
+})
+
+test('recovers Home setup after a committed MCP port change when its main-process reload fails', async ({
+  appWindow,
+  electronApp,
+  mcpPort
+}) => {
+  const availablePort = async (): Promise<number> => {
+    const server = createServer()
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => resolve())
+    })
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Could not allocate a test port')
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    return address.port
+  }
+  const healthStatus = async (port: number): Promise<number> => {
+    try {
+      return (await fetch(`http://127.0.0.1:${port}/healthz`)).status
+    } catch {
+      return 0
+    }
+  }
+  const nextPort = await availablePort()
+  const nextEndpoint = `http://127.0.0.1:${nextPort}/mcp`
+
+  await appWindow.evaluate('window.hronaut.openHome()')
+  await electronApp.evaluate(({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    Object.defineProperty(home, 'reload', {
+      configurable: true,
+      value: () => { throw new Error('Home refresh unavailable for port recovery regression test') }
+    })
+  })
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('button', { name: /MCP security/ }).click()
+  const portInput = appWindow.getByRole('spinbutton', { name: 'MCP server port' })
+  await portInput.fill(String(nextPort))
+  await appWindow.getByRole('button', { name: 'Apply port' }).click()
+
+  await expect.poll(() => healthStatus(nextPort)).toBe(200)
+  await expect.poll(() => healthStatus(mcpPort)).toBe(0)
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) return null
+    try {
+      return await home.executeJavaScript(`(() => {
+        document.querySelector('[data-guide="opencode"]')?.click();
+        return {
+          endpoint: document.getElementById('endpoint')?.textContent,
+          guide: document.getElementById('guide-code')?.textContent
+        };
+      })()`)
+    } catch {
+      return null
+    }
+  })).toEqual({
+    endpoint: nextEndpoint,
+    guide: expect.stringContaining(nextEndpoint)
+  })
 })
 
 test('moves the live MCP listener to a validated available port and rolls back on conflicts', async ({

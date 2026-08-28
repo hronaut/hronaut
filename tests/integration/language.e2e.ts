@@ -64,6 +64,15 @@ test('keeps a committed language change authoritative when the Home refresh fail
   await expect
     .poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).languagePreference)
     .toBe('uk-UA')
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) return null
+    try {
+      return await home.executeJavaScript(`document.documentElement.lang`)
+    } catch {
+      return null
+    }
+  })).toBe('uk-UA')
   await expect(appWindow.getByRole('alert')).toHaveCount(0)
 })
 
