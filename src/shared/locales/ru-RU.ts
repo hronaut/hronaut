@@ -2561,6 +2561,11 @@ export const ruRU = {
       "instructions": "Инструкции по настройке",
       "copy": "Копировать",
       "verify": "Проверить подключение",
+      "openVsCode": "Открыть в VS Code",
+      "openingVsCode": "Открываем VS Code…",
+      "vscodeOpened": "VS Code открыт. Подтвердите там сервер MCP Hronaut.",
+      "vscodeFailed": "Не удалось открыть VS Code. Используйте ручную настройку ниже.",
+      "vscodeUnavailable": "Мост настройки VS Code недоступен.",
       "guides": {
         "codex": "Добавляет Hronaut в пользовательскую конфигурацию Codex.",
         "claudeCode": "Использует рекомендуемый потоковый транспорт HTTP для каждого проекта.",

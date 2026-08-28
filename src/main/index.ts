@@ -46,6 +46,7 @@ import { CommercialLicenseOperationCoordinator } from './commercial-license-oper
 import { CommercialLicenseStore } from './commercial-license-store.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { renderHomePage } from './home-page.js'
+import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import {
   BROWSER_TOOL_CATALOG,
   McpHttpServer,
@@ -2022,6 +2023,14 @@ function registerIpc(): void {
       reportClipboardFailure(error)
       throw error
     }
+  })
+  ipcMain.handle('hronaut-home:open-vscode-install', async (event) => {
+    assertHomePageSender(event)
+    await openVsCodeMcpInstall({
+      endpoint: mcpUrl,
+      authenticationEnabled: settings.mcpAuthentication,
+      openExternal: (url) => shell.openExternal(url)
+    })
   })
   ipcMain.handle('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
   ipcMain.handle('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })

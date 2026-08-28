@@ -312,6 +312,11 @@ export const ukUA = {
       instructions: 'Інструкції з налаштування',
       copy: 'Копіювати',
       verify: 'Перевірити з’єднання',
+      openVsCode: 'Відкрити у VS Code',
+      openingVsCode: 'Відкриваємо VS Code…',
+      vscodeOpened: 'VS Code відкрито. Підтвердьте додавання MCP-сервера Hronaut.',
+      vscodeFailed: 'Не вдалося відкрити VS Code. Скористайтеся ручним налаштуванням нижче.',
+      vscodeUnavailable: 'Міст налаштування VS Code недоступний.',
       guides: {
         codex: 'Додає Hronaut до вашої користувацької конфігурації Codex.',
         claudeCode: 'Використовує рекомендований потоковий HTTP-транспорт для кожного проєкту.',

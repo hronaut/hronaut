@@ -2561,6 +2561,11 @@ export const deDE = {
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
       "verify": "Verbindung prüfen",
+      "openVsCode": "In VS Code öffnen",
+      "openingVsCode": "VS Code wird geöffnet…",
+      "vscodeOpened": "VS Code wurde geöffnet. Bestätige dort den Hronaut-MCP-Server.",
+      "vscodeFailed": "VS Code konnte nicht geöffnet werden. Verwende die manuelle Einrichtung unten.",
+      "vscodeUnavailable": "Die VS-Code-Einrichtungsbrücke ist nicht verfügbar.",
       "guides": {
         "codex": "Fügt Hronaut Ihrer Codex-Konfiguration auf Benutzerebene hinzu.",
         "claudeCode": "Verwendet für jedes Projekt den empfohlenen Streamable-HTTP-Transport.",

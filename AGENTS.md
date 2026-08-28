@@ -71,15 +71,25 @@ inside the pinned Docker/Xvfb image. Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
 
-For regression-first feedback on one Playwright file or one named case, use the
-same pinned image without running the entire suite:
+For fast regression-first unit or component feedback, pass the affected Vitest
+files and options through the focused Docker runner:
+
+```bash
+npm run test:unit:docker:focused -- tests/home-page.test.ts
+npm run test:unit:docker:focused -- tests/home-page.test.ts -t "renders the VS Code action"
+```
+
+For one Playwright file or one named integration case, use the same pinned image
+without running the entire suite:
 
 ```bash
 npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
 ```
 
-Arguments after `--` are passed directly to Playwright. A focused Docker pass is
-not a substitute for `npm run test:integration:docker` before delivery.
+Arguments after `--` are passed directly to Vitest or Playwright respectively.
+The Docker dependency layer is cached, so repeat runs normally rebuild only the
+application under test. A focused Docker pass is not a substitute for
+`npm run test:integration:docker` before delivery.
 
 ## Releases and adjacent repositories
 

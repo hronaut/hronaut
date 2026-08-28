@@ -326,6 +326,109 @@ test('copies shell text through the verified native clipboard bridge', async ({ 
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(expected)
 })
 
+test('opens credential-free VS Code MCP setup through the system protocol handler', async ({
+  appWindow,
+  electronApp,
+  mcpPort
+}) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  ))).toBe(true)
+  await electronApp.evaluate(({ shell }) => {
+    shell.openExternal = async (url): Promise<void> => {
+      ;(globalThis as typeof globalThis & { __hronautVsCodeInstallUrl?: string })
+        .__hronautVsCodeInstallUrl = url
+    }
+  })
+  const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
+  const action = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(() => {
+      document.querySelector('[data-guide="vscode"]')?.click();
+      const button = document.querySelector('[data-vscode-install]');
+      const hidden = document.getElementById('guide-primary-action')?.hidden;
+      button?.click();
+      return { label: button?.textContent, hidden };
+    })()`)
+  }) as { label: string; hidden: boolean }
+
+  expect(action).toEqual({ label: 'Open in VS Code', hidden: false })
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautVsCodeInstallUrl?: string }
+  ).__hronautVsCodeInstallUrl)).toMatch(/^vscode:mcp\/install\?/)
+  const uri = await electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautVsCodeInstallUrl?: string }
+  ).__hronautVsCodeInstallUrl)
+  if (!uri) throw new Error('VS Code MCP install URI was not captured')
+  const installConfiguration = JSON.parse(decodeURIComponent(new URL(uri).search.slice(1))) as Record<string, unknown>
+  expect(installConfiguration).toEqual({
+    name: 'hronaut',
+    type: 'http',
+    url: `http://127.0.0.1:${mcpPort}/mcp`
+  })
+  expect(uri).not.toMatch(/authorization|bearer|token|header/i)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
+})
+
+test('clears stale VS Code launch errors after a successful retry', async ({ electronApp }) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  ))).toBe(true)
+  await electronApp.evaluate(({ shell }) => {
+    ;(globalThis as typeof globalThis & { __hronautFailVsCodeInstall?: boolean })
+      .__hronautFailVsCodeInstall = true
+    shell.openExternal = async (): Promise<void> => {
+      if ((globalThis as typeof globalThis & { __hronautFailVsCodeInstall?: boolean })
+        .__hronautFailVsCodeInstall) {
+        throw new Error('VS Code protocol handler is unavailable')
+      }
+    }
+  })
+  const clickInstall = async (): Promise<void> => {
+    await electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+      if (!home) throw new Error('Hronaut Home web contents was not found')
+      await home.executeJavaScript(`(() => {
+        document.querySelector('[data-guide="vscode"]')?.click();
+        document.querySelector('[data-vscode-install]')?.click();
+      })()`)
+    })
+  }
+  const feedback = async (): Promise<{ disabled: boolean; status: string; title: string }> => (
+    electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+      if (!home) throw new Error('Hronaut Home web contents was not found')
+      return home.executeJavaScript(`(() => {
+        const button = document.querySelector('[data-vscode-install]');
+        return {
+          disabled: Boolean(button?.disabled),
+          status: document.getElementById('guide-primary-status')?.textContent || '',
+          title: button?.title || ''
+        };
+      })()`)
+    }) as Promise<{ disabled: boolean; status: string; title: string }>
+  )
+
+  await clickInstall()
+  await expect.poll(feedback).toEqual({
+    disabled: false,
+    status: 'Could not open VS Code. Use the manual setup below.',
+    title: 'Error invoking remote method \'hronaut-home:open-vscode-install\': Error: VS Code protocol handler is unavailable'
+  })
+
+  await electronApp.evaluate(() => {
+    ;(globalThis as typeof globalThis & { __hronautFailVsCodeInstall?: boolean })
+      .__hronautFailVsCodeInstall = false
+  })
+  await clickInstall()
+  await expect.poll(feedback).toEqual({
+    disabled: false,
+    status: 'VS Code opened. Confirm the Hronaut MCP server there.',
+    title: ''
+  })
+})
+
 test('copies Home setup natively, reports failures in shell chrome, and withholds the bridge from websites', async ({
   appWindow,
   electronApp

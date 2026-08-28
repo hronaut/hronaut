@@ -7,6 +7,7 @@ interface RenderedGuide {
   location: string
   code: string
   verifyCommand?: string
+  action?: string
 }
 
 function renderedGuides(html: string): RenderedGuide[] {
@@ -246,6 +247,40 @@ describe('Hronaut Home localization', () => {
     expect(JSON.parse(gemini?.code ?? '{}')).toEqual({
       mcpServers: { hronaut: { httpUrl: dashboard.endpoint } }
     })
+  })
+
+  it('offers one-click VS Code setup only without MCP authentication', () => {
+    const unauthenticatedHtml = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })
+    const authenticatedHtml = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: false
+    })
+
+    expect(renderedGuides(unauthenticatedHtml).find((guide) => guide.id === 'vscode')?.action)
+      .toBe('open-vscode-install')
+    expect(unauthenticatedHtml).toContain('<button type="button" data-vscode-install>')
+    expect(unauthenticatedHtml).toContain('Open in VS Code')
+    expect(renderedGuides(authenticatedHtml).find((guide) => guide.id === 'vscode')?.action).toBeUndefined()
+    expect(authenticatedHtml).not.toContain('<button type="button" data-vscode-install>')
+    expect(authenticatedHtml).not.toContain('vscode:mcp/install')
+  })
+
+  it('localizes the safe VS Code setup action', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'uk-UA',
+      authenticationDisabled: true
+    })
+
+    expect(html).toContain('Відкрити у VS Code')
   })
 
   it('renders JetBrains Junie user setup without an authentication header when local authentication is disabled', () => {

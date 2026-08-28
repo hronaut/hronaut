@@ -2561,6 +2561,11 @@ export const frFR = {
       "instructions": "Instructions de configuration",
       "copy": "Copier",
       "verify": "Vérifier la connexion",
+      "openVsCode": "Ouvrir dans VS Code",
+      "openingVsCode": "Ouverture de VS Code…",
+      "vscodeOpened": "VS Code est ouvert. Confirmez-y le serveur MCP Hronaut.",
+      "vscodeFailed": "Impossible d’ouvrir VS Code. Utilisez la configuration manuelle ci-dessous.",
+      "vscodeUnavailable": "Le pont de configuration VS Code est indisponible.",
       "guides": {
         "codex": "Ajoute Hronaut à votre configuration Codex au niveau utilisateur.",
         "claudeCode": "Utilise le transport HTTP diffusé recommandé pour chaque projet.",

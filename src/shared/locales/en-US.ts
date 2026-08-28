@@ -310,6 +310,11 @@ export const enUS = {
       instructions: 'Setup instructions',
       copy: 'Copy',
       verify: 'Verify connection',
+      openVsCode: 'Open in VS Code',
+      openingVsCode: 'Opening VS Code…',
+      vscodeOpened: 'VS Code opened. Confirm the Hronaut MCP server there.',
+      vscodeFailed: 'Could not open VS Code. Use the manual setup below.',
+      vscodeUnavailable: 'The VS Code setup bridge is unavailable.',
       guides: {
         codex: 'Adds Hronaut to your user-level Codex configuration.',
         claudeCode: 'Uses the recommended Streamable HTTP transport for every project.',

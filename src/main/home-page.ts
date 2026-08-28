@@ -18,6 +18,7 @@ interface AgentGuide {
   location: string
   code: string
   verifyCommand?: string
+  action?: 'open-vscode-install'
 }
 
 function escapeHtml(value: string): string {
@@ -109,7 +110,8 @@ function agentGuides(
       name: 'VS Code / Copilot',
       note: home.connect.guides.vscode,
       location: '.vscode/mcp.json',
-      code: JSON.stringify({ servers: { hronaut: { type: 'http', url: endpoint, ...(headers && { headers }) } } }, null, 2)
+      code: JSON.stringify({ servers: { hronaut: { type: 'http', url: endpoint, ...(headers && { headers }) } } }, null, 2),
+      ...(authenticationDisabled && { action: 'open-vscode-install' as const })
     },
     {
       id: 'opencode',
@@ -342,6 +344,12 @@ export function renderHomePage(options: HomePageOptions): string {
     .verify-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 750; }
     .verify code { min-width: 0; flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--soft); font: 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
     .verify .copy-button { padding: 7px 10px; }
+    .guide-primary-action { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .guide-primary-action[hidden] { display: none; }
+    .guide-primary-action button { flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--accent); border-radius: 9px; color: white; background: var(--accent); cursor: pointer; font-size: 13px; font-weight: 780; }
+    .guide-primary-action button:hover { filter: brightness(1.08); }
+    .guide-primary-action button:disabled { cursor: wait; opacity: .72; }
+    .guide-primary-status { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
     .connections-body { min-height: 360px; padding: 10px 14px 14px; }
     .first-run { display: grid; grid-template-columns: minmax(230px,.62fr) minmax(0,1.38fr); gap: 22px; align-items: center; margin-top: 20px; padding: 22px 24px; }
     .first-run-kicker { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
@@ -455,6 +463,10 @@ export function renderHomePage(options: HomePageOptions): string {
               <code id="guide-verify-command"></code>
               <button class="copy-button" type="button" data-copy-target="guide-verify-command">${escapeHtml(home.connect.copy)}</button>
             </div>
+            ${options.authenticationDisabled ? `<div id="guide-primary-action" class="guide-primary-action" hidden>
+              <button type="button" data-vscode-install>${escapeHtml(home.connect.openVsCode)}</button>
+              <span id="guide-primary-status" class="guide-primary-status" aria-live="polite"></span>
+            </div>` : ''}
             <p class="security">${escapeHtml(securityNote)}</p>
           </div>
         </div>
@@ -524,6 +536,7 @@ export function renderHomePage(options: HomePageOptions): string {
     let dashboard = ${serialized(options.initialState)};
     let selectedGuide = guides[0].id;
     const copyButtonStates = new WeakMap();
+    let vscodeInstallSequence = 0;
 
     function resetCopyButton(button) {
       const state = copyButtonStates.get(button);
@@ -592,7 +605,43 @@ export function renderHomePage(options: HomePageOptions): string {
       const verifyCommand = document.getElementById('guide-verify-command');
       verify.hidden = !guide.verifyCommand;
       verifyCommand.textContent = guide.verifyCommand || '';
+      const primaryAction = document.getElementById('guide-primary-action');
+      if (primaryAction) {
+        const showPrimaryAction = guide.action === 'open-vscode-install';
+        primaryAction.hidden = !showPrimaryAction;
+        if (!showPrimaryAction) {
+          vscodeInstallSequence += 1;
+          const vscodeInstallButton = primaryAction.querySelector('[data-vscode-install]');
+          vscodeInstallButton.disabled = false;
+          vscodeInstallButton.title = '';
+          document.getElementById('guide-primary-status').textContent = '';
+        }
+      }
       document.querySelectorAll('[data-copy-target^="guide-"]').forEach(resetCopyButton);
+    }
+
+    const vscodeInstallButton = document.querySelector('[data-vscode-install]');
+    if (vscodeInstallButton) {
+      vscodeInstallButton.addEventListener('click', async () => {
+        if (vscodeInstallButton.disabled) return;
+        const sequence = ++vscodeInstallSequence;
+        const status = document.getElementById('guide-primary-status');
+        vscodeInstallButton.disabled = true;
+        vscodeInstallButton.title = '';
+        status.textContent = messages.connect.openingVsCode;
+        try {
+          if (!window.hronautHome?.openVsCodeInstall) throw new Error(messages.connect.vscodeUnavailable);
+          await window.hronautHome.openVsCodeInstall();
+          if (sequence !== vscodeInstallSequence || selectedGuide !== 'vscode') return;
+          status.textContent = messages.connect.vscodeOpened;
+        } catch (error) {
+          if (sequence !== vscodeInstallSequence || selectedGuide !== 'vscode') return;
+          status.textContent = messages.connect.vscodeFailed;
+          vscodeInstallButton.title = error instanceof Error ? error.message : messages.connect.vscodeUnavailable;
+        } finally {
+          if (sequence === vscodeInstallSequence) vscodeInstallButton.disabled = false;
+        }
+      });
     }
 
     function renderDashboard() {

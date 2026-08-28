@@ -26,7 +26,8 @@ const pageLocation = (globalThis as unknown as {
 
 if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
   contextBridge.exposeInMainWorld('hronautHome', {
-    copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text)
+    copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
+    openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install')
   })
 }
 
