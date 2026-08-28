@@ -7,12 +7,7 @@ import {
   BrowserState,
   BrowserTabState
 } from '../../shared/types'
-import BrowserTabsBar from './components/BrowserTabsBar.vue'
-import BrowserAddressBar from './components/BrowserAddressBar.vue'
-import BrowserNavigationControls from './components/BrowserNavigationControls.vue'
-import BrowserPageActions from './components/BrowserPageActions.vue'
 import AppToastRegion from './components/AppToastRegion.vue'
-import AppTopbarActions from './components/AppTopbarActions.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import CredentialPicker from './components/CredentialPicker.vue'
 import FindInPageBar from './components/FindInPageBar.vue'
@@ -24,7 +19,7 @@ import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
-import ShellTitleBarSurface from './components/ShellTitleBarSurface.vue'
+import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppBrowserCollectionsLayer from './components/AppBrowserCollectionsLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
 import { useBrowserStore } from './stores/browser'
@@ -103,18 +98,27 @@ const {
   translate: (key) => t(key),
   showToast: showAppToast
 })
+const appTabRuntimeFeatureController = useAppTabRuntimeFeatureController({
+  state,
+  hydrated: browserStateInitialized,
+  browser,
+  syncState: browserStore.syncOperation,
+  onDiagnosticError: handleExtractedSettingError
+})
 const {
   activeTab,
   diagnosticLogPreservationBusy,
   updateDiagnosticLogPreservation,
   mcpActivityByTab,
   dispose: disposeAppTabRuntimeFeatureController
-} = useAppTabRuntimeFeatureController({
-  state,
-  hydrated: browserStateInitialized,
-  browser,
-  syncState: browserStore.syncOperation,
-  onDiagnosticError: handleExtractedSettingError
+} = appTabRuntimeFeatureController
+const appShellPresentationFeatureController = useAppShellPresentationFeatureController({
+  settings,
+  systemTheme,
+  search: window.location.search,
+  translate: (key, params) => params ? t(key, params) : t(key),
+  targetDocument: document,
+  windowChrome: window.hronautShell.windowChrome
 })
 const {
   detachedPanelId,
@@ -127,26 +131,13 @@ const {
   tabOrientation,
   compactVerticalTabRail,
   verticalTabRailCollapsed,
-  verticalTabRailPinned,
-  verticalTabRailRevealed,
   applySettings: applyTheme,
   playAttentionSound: testAttentionSound,
-  toggleVerticalTabRailPinned,
   updateViewportWidth,
-  revealVerticalTabRail,
-  concealVerticalTabRail,
-  handleVerticalTabRailFocusOut,
   panelDock,
   keepsSeparatePanelOpen,
   persistDock: persistPanelDock
-} = useAppShellPresentationFeatureController({
-  settings,
-  systemTheme,
-  search: window.location.search,
-  translate: (key, params) => params ? t(key, params) : t(key),
-  targetDocument: document,
-  windowChrome: window.hronautShell.windowChrome
-})
+} = appShellPresentationFeatureController
 const credentialPickerOpen = ref(false)
 const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
 const shell = ref<HTMLElement | null>(null)
@@ -181,7 +172,6 @@ const {
   environmentController,
   emulationDescription,
   invalidateEmulationMutation,
-  resetActiveTabEmulation,
   environmentState,
   activeEnvironmentOverrideCount,
   loadResponsiveDraft,
@@ -207,7 +197,7 @@ const tabSearchOpen = ref(false)
 const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
 const commandPaletteOpen = ref(false)
 const commandPalette = ref<InstanceType<typeof CommandPalette> | null>(null)
-const browserTabsBar = ref<InstanceType<typeof BrowserTabsBar> | null>(null)
+const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
   translate: (key) => t(key)
@@ -259,15 +249,12 @@ const {
   mcpSettingsController,
   searchSettingsController,
   settingsDialogController,
-  showUpdateStatusPill,
   bootstrapTasks: settingsFeatureBootstrapTasks,
   dispose: disposeAppSettingsFeatureController
 } = appSettingsFeatureController
 const {
   entries: sitePermissions,
-  replace: replaceSitePermissions,
-  setDecision: setSitePermissionDecision,
-  remove: removeSitePermission
+  replace: replaceSitePermissions
 } = sitePermissionsController
 const {
   entries: credentials,
@@ -284,8 +271,7 @@ const {
   open: settingsOpen,
   section: settingsSection,
   openSection: openSettingsSection,
-  close: closeSettings,
-  toggle: toggleSettings
+  close: closeSettings
 } = settingsDialogController
 const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
   browser,
@@ -303,24 +289,11 @@ const {
   downloadsOpen,
   bookmarksOpen,
   historyOpen,
-  toggleDownloads,
-  toggleBookmarks,
   toggleCurrentBookmark,
   toggleVisitHistory,
   dispose: disposeAppBrowserCollectionsFeatureController
 } = browserCollectionsFeatureController
-const {
-  reorderTab,
-  selectBrowserTab,
-  navigateAddress,
-  retryActivePageProblem,
-  showWorkspaceContextMenu,
-  closeTab,
-  toggleTabMuted,
-  toggleTabHumanInteraction,
-  toggleAllHumanInteraction,
-  toggleDeveloperTools
-} = useBrowserTabActionsController({
+const browserTabActionsController = useBrowserTabActionsController({
   state,
   activeTab,
   isHome: () => activeTab.value?.url.startsWith('hronaut://home') ?? true,
@@ -342,6 +315,12 @@ const {
     friendlyUiError(error, t('runtime.navigation.failedDescription'))
   )
 })
+const {
+  selectBrowserTab,
+  navigateAddress,
+  retryActivePageProblem,
+  toggleDeveloperTools
+} = browserTabActionsController
 const addressBarController = useAddressBarController({
   activeTab,
   bookmarks,
@@ -406,9 +385,6 @@ const {
   resetSiteStorageView,
   refreshSiteStorage,
   openPrivacySettings,
-  toggleSiteControls,
-  openSitePrivacySettings,
-  openSitePermissionSettings,
   openUpdateSettings,
   dispose: disposeAppSiteManagementFeatureController
 } = appSiteManagementFeatureController
@@ -431,14 +407,7 @@ const appPageToolsFeatureController = useAppPageToolsFeatureController({
 })
 const {
   diagnosticsController,
-  pageToolsPresentationController,
-  elementPickerState,
-  areaCaptureState,
   toggleElementPicker,
-  toggleAreaCapture,
-  elementPickerLabel,
-  elementPickerTitle,
-  areaCaptureLabel,
   disposeCaptureAndExport: disposeAppPageToolsCaptureAndExport,
   disposeDiagnostics: disposeAppPageToolsDiagnostics
 } = appPageToolsFeatureController
@@ -509,7 +478,6 @@ const {
   closeDockedPanelsExcept,
   resetConsoleView,
   resetNetworkMonitorView,
-  openRequestConditions,
   dispose: disposeAppPanelFeatureController
 } = appPanelFeatureController
 const {
@@ -682,7 +650,7 @@ const {
     addressInput.value?.focus()
     addressInput.value?.select()
   },
-  expandTabGroup: (groupId) => browserTabsBar.value?.expandTabGroup(groupId),
+  expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
   onWorkspaceError: (workspace, error) => showAppToast(
     'error',
     t('runtime.workspace.newTabFailed'),
@@ -867,19 +835,11 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
   }
 })
 const {
-  activeTabPresentationController,
   activeIsHome,
   activeWebUrl,
   activeOrigin,
-  activeDownloads,
   activeTabUsesDefaultProfile,
   currentBookmark,
-  downloadButtonLabel,
-  tabHumanInteractionLocked,
-  effectiveHumanInteractionLocked,
-  tabInteractionLockLabel,
-  allInteractionLockLabel,
-  tabTooltip,
   pageProblemDetails,
   fillSelectedCredential,
   detachedPanelUnavailable,
@@ -887,7 +847,7 @@ const {
   describeTabEmulation
 } = appActiveTabFeatureController
 function expandTabGroupForTab(tab: BrowserTabState): void {
-  browserTabsBar.value?.expandTabGroupForTab(tab)
+  browserChromeLayer.value?.expandTabGroupForTab(tab)
 }
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
@@ -915,6 +875,19 @@ function togglePageTools(): void {
   }
   closeTransientPanels()
   pageToolsOpen.value = true
+}
+
+const browserChromeActions = {
+  openHome: openApplicationHome,
+  newTabInWorkspace,
+  openNewWorkspaceEditor,
+  toggleCommandPalette,
+  toggleTabSearch,
+  openFind,
+  toggleZoom,
+  togglePageTools,
+  prepareSplitViewMenu,
+  handleSplitViewError
 }
 
 useAppLifecycleController({
@@ -977,140 +950,36 @@ useAppLifecycleController({
     @wheel.capture="guardShellInteraction"
     @submit.capture="guardShellInteraction"
   >
-    <ShellTitleBarSurface
-      v-if="customTitleBar && tabOrientation === 'vertical'"
-      kind="rail"
-      :draggable="customTitleBar"
+    <AppBrowserChromeLayer
+      ref="browserChromeLayer"
+      v-model:command-palette-open="commandPaletteOpen"
+      v-model:tab-search-open="tabSearchOpen"
+      v-model:zoom-open="zoomOpen"
+      v-model:site-controls-open="siteControlsOpen"
+      v-model:split-menu-open="splitMenuOpen"
+      v-model:page-tools-open="pageToolsOpen"
+      :state="state"
+      :hydrated="browserStateInitialized"
+      :locale="resolvedLocale"
+      :browser="browser"
+      :shell-controller="appShellPresentationFeatureController"
+      :runtime-controller="appTabRuntimeFeatureController"
+      :active-tab-controller="appActiveTabFeatureController"
+      :settings-controller="appSettingsFeatureController"
+      :collections-controller="browserCollectionsFeatureController"
+      :emulation-controller="appEmulationFeatureController"
+      :page-tools-controller="appPageToolsFeatureController"
+      :panel-controller="appPanelFeatureController"
+      :site-controller="appSiteManagementFeatureController"
+      :tab-actions-controller="browserTabActionsController"
+      :address-controller="addressBarController"
+      :site-data-controller="siteDataController"
+      :format-number="localNumber"
+      :format-percent="localPercent"
+      :run-action="runShellAction"
+      :sync-state="syncState"
+      :actions="browserChromeActions"
     />
-    <ShellTitleBarSurface
-      v-if="customTitleBar && activeIsHome && tabOrientation === 'vertical'"
-      kind="home"
-      :draggable="customTitleBar"
-    />
-    <div
-      class="topbar"
-      :class="{
-        'rail-collapsed': tabOrientation === 'vertical' && verticalTabRailCollapsed,
-        'compact-vertical-tab-rail': compactVerticalTabRail
-      }"
-      :data-titlebar-drag-surface="customTitleBar && tabOrientation === 'horizontal' ? '' : undefined"
-      @mouseenter="revealVerticalTabRail"
-      @mouseleave="concealVerticalTabRail"
-      @focusin="revealVerticalTabRail"
-      @focusout="handleVerticalTabRailFocusOut"
-    >
-      <BrowserTabsBar
-        ref="browserTabsBar"
-        :state="state"
-        :hydrated="browserStateInitialized"
-        :orientation="tabOrientation"
-        :rail-pinned="verticalTabRailPinned"
-        :rail-revealed="verticalTabRailRevealed"
-        :force-rail-collapsed="compactVerticalTabRail && verticalTabRailCollapsed"
-        :mcp-activity-by-tab="mcpActivityByTab"
-        :format-number="localNumber"
-        :tab-tooltip="tabTooltip"
-        :describe-emulation="describeTabEmulation"
-        @open-home="runShellAction(openApplicationHome)"
-        @show-workspace-context-menu="runShellAction(() => showWorkspaceContextMenu($event))"
-        @new-tab="runShellAction(() => newTabInWorkspace($event))"
-        @create-workspace="runShellAction(openNewWorkspaceEditor)"
-        @select-tab="tabSearchOpen = false; runShellAction(() => selectBrowserTab($event))"
-        @show-tab-context-menu="runShellAction(() => browser.showTabContextMenu($event))"
-        @reorder-tab="runShellAction(() => reorderTab($event))"
-        @toggle-tab-muted="runShellAction(() => toggleTabMuted($event))"
-        @close-tab="runShellAction(() => closeTab($event))"
-        @drag-start="tabSearchOpen = false"
-        @toggle-rail-pinned="toggleVerticalTabRailPinned"
-      />
-      <AppTopbarActions
-        :command-palette-open="commandPaletteOpen"
-        :tab-search-open="tabSearchOpen"
-        :downloads-open="downloadsOpen"
-        :history-open="historyOpen"
-        :settings-open="settingsOpen"
-        :downloads="downloads"
-        :active-downloads="activeDownloads"
-        :download-button-label="downloadButtonLabel"
-        :all-interaction-locked="state.allHumanInteractionLocked"
-        :all-interaction-lock-label="allInteractionLockLabel"
-        :show-update-status="showUpdateStatusPill"
-        :update-state="updateState"
-        :mcp-status-controller="mcpStatusController"
-        @toggle-command-palette="runShellAction(toggleCommandPalette)"
-        @toggle-tab-search="runShellAction(toggleTabSearch)"
-        @toggle-downloads="runShellAction(toggleDownloads)"
-        @toggle-history="runShellAction(toggleVisitHistory)"
-        @toggle-all-interaction="runShellAction(toggleAllHumanInteraction)"
-        @open-update-settings="runShellAction(openUpdateSettings)"
-        @toggle-settings="runShellAction(toggleSettings)"
-      />
-    </div>
-    <div
-      v-if="!activeIsHome"
-      class="toolbar"
-      :data-titlebar-drag-surface="customTitleBar && tabOrientation === 'vertical' ? '' : undefined"
-    >
-      <BrowserNavigationControls
-        :active-tab="activeTab"
-        :zoom-open="zoomOpen"
-        :bookmarks-open="bookmarksOpen"
-        :current-bookmark="Boolean(currentBookmark)"
-        :format-percent="localPercent"
-        @back="runShellAction(() => syncState(browser.back()))"
-        @forward="runShellAction(() => syncState(browser.forward()))"
-        @reload="runShellAction(() => syncState(browser.reload()))"
-        @stop="runShellAction(() => syncState(browser.stop()))"
-        @find="runShellAction(openFind)"
-        @toggle-zoom="runShellAction(toggleZoom)"
-        @toggle-bookmarks="runShellAction(toggleBookmarks)"
-      >
-        <BrowserAddressBar
-          v-model:site-controls-open="siteControlsOpen"
-          v-model:panel-dock="panelDock"
-          :address-controller="addressBarController"
-          :active-tab-presentation="activeTabPresentationController"
-          :emulation-controller="emulationController"
-          :page-tools-presentation="pageToolsPresentationController"
-          :site-data-controller="siteDataController"
-          :site-permissions-controller="sitePermissionsController"
-          :locale="resolvedLocale"
-          :format-number="localNumber"
-          :run-action="runShellAction"
-          :actions="{
-            toggleSiteControls,
-            resetActiveTabEmulation,
-            openRequestConditions,
-            setSitePermission: setSitePermissionDecision,
-            resetSitePermission: removeSitePermission,
-            openSitePermissionSettings,
-            openSitePrivacySettings
-          }"
-        />
-      </BrowserNavigationControls>
-      <BrowserPageActions
-        v-model:split-menu-open="splitMenuOpen"
-        :state="state"
-        :active-tab="activeTab"
-        :browser="browser"
-        :accept-state="syncState"
-        :close-other-menus="prepareSplitViewMenu"
-        :effective-human-interaction-locked="effectiveHumanInteractionLocked"
-        :tab-human-interaction-locked="tabHumanInteractionLocked"
-        :tab-interaction-lock-label="tabInteractionLockLabel"
-        :area-capture-state="areaCaptureState"
-        :area-capture-label="areaCaptureLabel"
-        :element-picker-state="elementPickerState"
-        :element-picker-title="elementPickerTitle"
-        :element-picker-label="elementPickerLabel"
-        :page-tools-open="pageToolsOpen"
-        @toggle-tab-interaction="runShellAction(toggleTabHumanInteraction)"
-        @toggle-area-capture="runShellAction(toggleAreaCapture)"
-        @toggle-element-picker="runShellAction(() => toggleElementPicker('context'))"
-        @toggle-page-tools="togglePageTools"
-        @split-error="handleSplitViewError"
-      />
-    </div>
     <AppPageToolsLayer
       v-model:dock="panelDock"
       v-model:page-tools-open="pageToolsOpen"
