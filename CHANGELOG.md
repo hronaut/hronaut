@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve the existing browser session when Hronaut receives a quit request before cold-start tab restoration begins, instead of flushing an uninitialized empty model over `tabs.json`.
+- Keep detached tool-panel switches exclusive, preserve newer user selections and close actions over queued native presentations, and keep automatic refresh bookkeeping from cancelling a newer native request.
+
 ## [1.9.8] - 2026-08-28
 
 ### Fixed

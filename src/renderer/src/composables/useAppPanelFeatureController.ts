@@ -69,6 +69,16 @@ export interface AppPanelFeatureControllerOptions {
 }
 
 export function useAppPanelFeatureController(options: AppPanelFeatureControllerOptions) {
+  let internalPanelMutationDepth = 0
+  let supersedeDetachedPanelPresentation = (): void => undefined
+  function runInternalPanelMutation<T>(callback: () => T): T {
+    internalPanelMutationDepth += 1
+    try {
+      return callback()
+    } finally {
+      internalPanelMutationDepth -= 1
+    }
+  }
   const panelRegistryController = usePanelRegistryController({
     panels: {
       'site-controls': options.registry.siteControlsOpen,
@@ -93,6 +103,9 @@ export function useAppPanelFeatureController(options: AppPanelFeatureControllerO
       'visual-compare': options.detached.diagnostics.visualComparePanelOpen,
       issues: options.detached.diagnostics.inspectorIssuesOpen,
       bookmarks: options.registry.bookmarksOpen
+    },
+    onChange: () => {
+      if (internalPanelMutationDepth === 0) supersedeDetachedPanelPresentation()
     },
     onActivate: options.registry.onActivate
   })
@@ -146,23 +159,44 @@ export function useAppPanelFeatureController(options: AppPanelFeatureControllerO
     detachedWindow: options.detached.detachedWindow,
     activePanelId,
     context: options.detached.context,
-    activate: activatePanel,
-    refresh: refreshDetachedPanel,
+    activate: (panel) => runInternalPanelMutation(() => activatePanel(panel)),
+    // Detached refresh actions synchronously reopen some diagnostic panels
+    // before returning their pending work. Those bookkeeping mutations must
+    // not cancel a newer native panel request waiting for presentation.
+    refresh: (panel) => runInternalPanelMutation(() => refreshDetachedPanel(panel)),
     onError: options.onError,
     waitForPresentationTurn: options.detached.waitForPresentationTurn
   })
-  const panelWindowEventsController = usePanelWindowEventsController({
-    api: options.detached.api,
-    detachedWindow: options.detached.detachedWindow,
-    showDetachedPanel: detachedPanelRefreshController.show,
-    activateMainPanel: activatePanel,
-    redockMainPanel: ({ panel, dock }) => {
-      options.dock.panelDock.value = dock
-      activatePanel(panel)
-    },
-    closeMainPanels: closeDockedPanels,
-    onError: options.onError
-  })
+  supersedeDetachedPanelPresentation = detachedPanelRefreshController.supersedePendingPresentation
+  let panelWindowEventsController: ReturnType<typeof usePanelWindowEventsController>
+  try {
+    panelWindowEventsController = usePanelWindowEventsController({
+      api: options.detached.api,
+      detachedWindow: options.detached.detachedWindow,
+      showDetachedPanel: detachedPanelRefreshController.show,
+      activateMainPanel: activatePanel,
+      redockMainPanel: ({ panel, dock }) => {
+        options.dock.panelDock.value = dock
+        activatePanel(panel)
+      },
+      closeMainPanels: closeDockedPanels,
+      onError: options.onError
+    })
+  } catch (registrationError) {
+    try {
+      disposeAll([
+        detachedPanelRefreshController.dispose,
+        developerPanelsShellController.dispose,
+        panelRegistryController.dispose
+      ])
+    } catch (rollbackError) {
+      throw new AggregateError(
+        [registrationError, rollbackError],
+        'Panel feature construction failed and rollback was incomplete'
+      )
+    }
+    throw registrationError
+  }
   const panelWindowSyncController = usePanelWindowSyncController({
     api: options.detached.api,
     detachedWindow: options.detached.detachedWindow,
@@ -181,7 +215,8 @@ export function useAppPanelFeatureController(options: AppPanelFeatureControllerO
       detachedPanelRefreshController.dispose,
       panelWindowSyncController.dispose,
       panelWindowEventsController.dispose,
-      developerPanelsShellController.dispose
+      developerPanelsShellController.dispose,
+      panelRegistryController.dispose
     ])
   }
 

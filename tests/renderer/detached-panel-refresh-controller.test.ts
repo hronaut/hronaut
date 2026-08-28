@@ -59,6 +59,36 @@ describe('detached panel refresh controller', () => {
     expect(harness.refresh).not.toHaveBeenCalled()
   })
 
+  it('does not let a queued native request overwrite a newer local panel choice', async () => {
+    const presentationTurn = deferred()
+    const harness = createHarness()
+    harness.controller.dispose()
+    const controller = useDetachedPanelRefreshController({
+      detachedWindow: true,
+      activePanelId: harness.activePanelId,
+      context: () => ({
+        tabId: harness.tabId.value,
+        url: harness.url.value,
+        loading: harness.loading.value
+      }),
+      activate: harness.activate,
+      refresh: harness.refresh,
+      onError: harness.onError,
+      waitForPresentationTurn: () => presentationTurn.promise
+    })
+
+    const showing = controller.show('page-tools')
+    harness.activePanelId.value = 'console'
+    controller.supersedePendingPresentation()
+    presentationTurn.resolve()
+    await showing
+
+    expect(harness.activePanelId.value).toBe('console')
+    expect(harness.activate).not.toHaveBeenCalled()
+    expect(harness.refresh).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
   it('does not let a tab context change cancel a newer panel presentation', async () => {
     const presentationTurn = deferred()
     const harness = createHarness()

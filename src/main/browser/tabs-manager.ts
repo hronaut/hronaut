@@ -848,6 +848,7 @@ export class BrowserTabsManager {
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
   private memorySaverTimer: NodeJS.Timeout | null = null
+  private initialized = false
   private readonly memorySaverSweeps = new MemorySaverSweepQueue()
   private memorySaverEnabled: boolean
   private memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
@@ -958,6 +959,7 @@ export class BrowserTabsManager {
     }
     this.layout()
     this.restoringLayout = false
+    this.initialized = true
     if (this.activeTabId) this.tabs.get(this.activeTabId)?.webContents.focus()
     this.memorySaverTimer = setInterval(() => {
       void this.sweepMemorySaver(false).catch((error) => console.error('[browser] Memory Saver sweep failed:', error))
@@ -5664,6 +5666,10 @@ export class BrowserTabsManager {
       clearTimeout(this.downloadNotifyTimer)
       this.downloadNotifyTimer = null
     }
+    // The manager exists before the shell finishes loading so IPC can be
+    // registered early. A quit request during that window must not replace a
+    // valid on-disk session with this still-empty in-memory model.
+    if (!this.initialized) return
     await this.store.save(this.persistedState())
   }
 

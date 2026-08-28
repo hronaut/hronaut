@@ -56,6 +56,11 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
     }
   }
 
+  function supersedePendingPresentation(): void {
+    presentationSequence += 1
+    refreshSequence += 1
+  }
+
   const stopContextWatch = watch(
     () => {
       const context = options.context()
@@ -89,7 +94,7 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
     stopContextWatch()
   }
 
-  return { show, dispose }
+  return { show, supersedePendingPresentation, dispose }
 }
 
 export type DetachedPanelRefreshController = ReturnType<typeof useDetachedPanelRefreshController>

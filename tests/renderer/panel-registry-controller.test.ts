@@ -6,9 +6,9 @@ import {
 } from '../../src/renderer/src/composables/usePanelRegistryController.js'
 import { DETACHABLE_PANEL_IDS, type DetachablePanelId } from '../../src/shared/types.js'
 
-function create() {
+function create(initiallyOpen: readonly DetachablePanelId[] = []) {
   const panels = Object.fromEntries(
-    DETACHABLE_PANEL_IDS.map((panel) => [panel, ref(false)])
+    DETACHABLE_PANEL_IDS.map((panel) => [panel, ref(initiallyOpen.includes(panel))])
   ) as DetachablePanelRegistry
   const onActivate = vi.fn<(panel: DetachablePanelId) => void>()
   const controller = usePanelRegistryController({ panels, onActivate })
@@ -17,20 +17,13 @@ function create() {
 
 describe('panel registry controller', () => {
   it('reports the first active panel in shared contract order', () => {
-    const { controller, panels } = create()
-    expect(controller.activePanelId.value).toBeNull()
-    expect(controller.dockedPanelOpen.value).toBe(false)
-
-    panels.network.value = true
-    panels.environment.value = true
+    const { controller } = create(['network', 'environment'])
     expect(controller.activePanelId.value).toBe('environment')
     expect(controller.dockedPanelOpen.value).toBe(true)
   })
 
   it('activates one panel exclusively and announces it', () => {
-    const { controller, panels, onActivate } = create()
-    panels.console.value = true
-    panels.bookmarks.value = true
+    const { controller, panels, onActivate } = create(['console', 'bookmarks'])
 
     controller.activate('network')
 
@@ -40,9 +33,20 @@ describe('panel registry controller', () => {
     expect(onActivate).toHaveBeenCalledWith('network')
   })
 
-  it('closes every registered panel without an activation callback', () => {
+  it('makes the most recently opened direct panel exclusive', () => {
     const { controller, panels, onActivate } = create()
-    for (const panel of DETACHABLE_PANEL_IDS) panels[panel].value = true
+
+    panels.console.value = true
+    panels.network.value = true
+
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => panels[panel].value)).toEqual(['network'])
+    expect(controller.activePanelId.value).toBe('network')
+    expect(onActivate.mock.calls.map(([panel]) => panel)).toEqual(['console', 'network'])
+    controller.dispose()
+  })
+
+  it('closes every registered panel without an activation callback', () => {
+    const { controller, panels, onActivate } = create(DETACHABLE_PANEL_IDS)
 
     controller.closeAll()
 
@@ -53,14 +57,26 @@ describe('panel registry controller', () => {
   })
 
   it('closes competing panels while preserving the overlay being opened', () => {
-    const { controller, panels, onActivate } = create()
-    panels['site-controls'].value = true
-    panels['responsive-preview'].value = true
-    panels['debug-report'].value = true
+    const { controller, panels, onActivate } = create([
+      'site-controls',
+      'responsive-preview',
+      'debug-report'
+    ])
 
     controller.closeAllExcept('site-controls')
 
     expect(DETACHABLE_PANEL_IDS.filter((panel) => panels[panel].value)).toEqual(['site-controls'])
+    expect(onActivate).not.toHaveBeenCalled()
+  })
+
+  it('stops enforcing or announcing direct panel changes after disposal', () => {
+    const { controller, panels, onActivate } = create()
+
+    controller.dispose()
+    panels.console.value = true
+    panels.network.value = true
+
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => panels[panel].value)).toEqual(['console', 'network'])
     expect(onActivate).not.toHaveBeenCalled()
   })
 })

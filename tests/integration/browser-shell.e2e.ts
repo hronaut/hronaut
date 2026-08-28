@@ -881,6 +881,36 @@ test('recovers a docked panel when opening its detached window fails', async ({ 
   })).toBeNull()
 })
 
+test('switches detached panels exclusively without resurrecting the previous surface', async ({
+  appWindow,
+  electronApp
+}) => {
+  await appWindow.getByRole('button', { name: 'New tab' }).click()
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  const detachedPagePromise = electronApp.waitForEvent('window')
+  await appWindow.getByRole('dialog', { name: 'Page tools' })
+    .getByRole('combobox', { name: 'Dock page tools' })
+    .selectOption('window')
+  const detachedPage = await detachedPagePromise
+  await detachedPage.waitForLoadState('domcontentloaded')
+  await expect(detachedPage.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
+
+  await detachedPage.getByRole('button', { name: 'Open Console' }).click()
+
+  await expect(detachedPage).toHaveTitle('Console — Hronaut')
+  await expect(detachedPage.getByRole('dialog', { name: 'Console' })).toBeVisible()
+  await expect(detachedPage.getByRole('dialog', { name: 'Page tools' })).toBeHidden()
+
+  const detachedClosed = detachedPage.waitForEvent('close')
+  await detachedPage.evaluate(`setTimeout(() => {
+    const close = document.querySelector('button[aria-label="Close Console"]')
+    if (!(close instanceof HTMLButtonElement)) throw new Error('Missing detached Console close button')
+    close.click()
+  }, 0)`)
+  await detachedClosed
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+})
+
 test('detaches tool panels into a hardened window and redocks them', async ({ appWindow, electronApp }) => {
   const browserViewBounds = (): Promise<{ x: number; y: number; width: number; height: number } | undefined> => electronApp.evaluate(({ BrowserWindow }) => {
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')

@@ -26,7 +26,14 @@ type PanelListeners = {
   closed?: () => void
 }
 
-function createHarness(detachedWindow = false, waitForPresentationTurn?: () => Promise<void>) {
+function createHarness(
+  detachedWindow = false,
+  waitForPresentationTurn?: () => Promise<void>,
+  beforeCreate?: (
+    api: HronautPanelWindowApi,
+    panels: Record<DetachablePanelId, Ref<boolean>>
+  ) => void
+) {
   const panels = Object.fromEntries(DETACHABLE_PANEL_IDS.map((panel) => [panel, ref(false)])) as Record<DetachablePanelId, Ref<boolean>>
   const panelDock = ref<PanelDock>('right')
   const listeners: PanelListeners = {}
@@ -166,8 +173,10 @@ function createHarness(detachedWindow = false, waitForPresentationTurn?: () => P
     },
     onError: vi.fn()
   }
+  beforeCreate?.(panelWindowApi, panels)
   const controller = useAppPanelFeatureController(options)
   return {
+    activeTab,
     consoleHandle,
     controller,
     listeners,
@@ -183,6 +192,97 @@ function createHarness(detachedWindow = false, waitForPresentationTurn?: () => P
 }
 
 describe('app panel feature controller', () => {
+  it('keeps window-docked panel switches exclusive and does not resurrect the previous panel', async () => {
+    const harness = createHarness()
+    harness.options.dock.panelDock.value = 'window'
+
+    harness.controller.toggleConsole()
+    expect(harness.controller.activePanelId.value).toBe('console')
+    expect(harness.panels.console.value).toBe(true)
+
+    await harness.controller.toggleNetworkMonitor()
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => harness.panels[panel].value)).toEqual(['network'])
+    expect(harness.controller.activePanelId.value).toBe('network')
+
+    harness.controller.toggleConsole()
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => harness.panels[panel].value)).toEqual(['console'])
+    expect(harness.controller.activePanelId.value).toBe('console')
+
+    harness.controller.toggleConsole()
+    expect(DETACHABLE_PANEL_IDS.some((panel) => harness.panels[panel].value)).toBe(false)
+    expect(harness.controller.activePanelId.value).toBeNull()
+    harness.controller.dispose()
+  })
+
+  it('keeps a local panel choice newer than a queued detached presentation request', async () => {
+    const presentationTurn = deferred()
+    const harness = createHarness(true, () => presentationTurn.promise)
+
+    harness.listeners.requested?.('page-tools')
+    harness.controller.toggleConsole()
+    presentationTurn.resolve()
+    await nextTick()
+
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => harness.panels[panel].value)).toEqual(['console'])
+    expect(harness.controller.activePanelId.value).toBe('console')
+    expect(harness.consoleHandle.refresh).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('keeps a local panel close newer than a queued detached presentation request', async () => {
+    const presentationTurn = deferred()
+    const harness = createHarness(true, () => presentationTurn.promise)
+    harness.controller.activatePanel('console')
+
+    harness.listeners.requested?.('page-tools')
+    harness.controller.toggleConsole()
+    presentationTurn.resolve()
+    await nextTick()
+
+    expect(DETACHABLE_PANEL_IDS.some((panel) => harness.panels[panel].value)).toBe(false)
+    expect(harness.controller.activePanelId.value).toBeNull()
+    expect(harness.consoleHandle.refresh).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
+  it('does not let an automatic panel refresh cancel a newer native presentation', async () => {
+    const presentationTurn = deferred()
+    const harness = createHarness(true, () => presentationTurn.promise)
+    harness.controller.activatePanel('performance')
+    vi.mocked(harness.options.detached.diagnostics.runPerformanceReport).mockImplementation(async () => {
+      harness.panels.performance.value = false
+      harness.panels.performance.value = true
+    })
+
+    harness.listeners.requested?.('network')
+    harness.activeTab.value = { ...harness.activeTab.value!, url: 'https://example.test/next' }
+    await nextTick()
+    presentationTurn.resolve()
+    await vi.waitFor(() => expect(harness.controller.activePanelId.value).toBe('network'))
+
+    expect(harness.networkHandle.refresh).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
+  it('rolls back panel watchers when event registration fails during construction', () => {
+    let panels!: Record<DetachablePanelId, Ref<boolean>>
+    let requestedUnsubscribe!: () => void
+
+    expect(() => createHarness(false, undefined, (api, createdPanels) => {
+      panels = createdPanels
+      requestedUnsubscribe = vi.fn<() => void>()
+      api.onPanelRequested = vi.fn(() => requestedUnsubscribe)
+      api.onActivePanelChanged = vi.fn(() => {
+        throw new Error('subscription failed')
+      })
+    })).toThrow('subscription failed')
+
+    panels.console.value = true
+    panels.network.value = true
+    expect(DETACHABLE_PANEL_IDS.filter((panel) => panels[panel].value)).toEqual(['console', 'network'])
+    expect(vi.mocked(requestedUnsubscribe)).toHaveBeenCalledOnce()
+  })
+
   it('keeps controller identities stable and wires the newest detached request atomically', async () => {
     const firstTurn = deferred()
     const secondTurn = deferred()

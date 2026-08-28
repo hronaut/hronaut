@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
@@ -58,6 +59,104 @@ test('exits when --quit is invoked without an existing instance', async ({
       child.kill('SIGTERM')
       if (!await waitForChildExit(child, 2_000)) child.kill('SIGKILL')
     }
+  }
+})
+
+test('preserves persisted tabs when --quit arrives before browser restoration starts', async ({
+  profileDirectory,
+  mcpPort
+}) => {
+  const defaultWorkspaceId = '01912345-6789-7abc-8def-0123456789ab'
+  const homeTabId = '01912345-678c-7abc-8def-0123456789ab'
+  const websiteTabId = '01912345-678d-7abc-8def-0123456789ab'
+  const persistedState = {
+    version: 2,
+    activeTabId: websiteTabId,
+    allHumanInteractionLocked: true,
+    defaultHumanGroupId: defaultWorkspaceId,
+    mcpTabGroups: [{
+      id: defaultWorkspaceId,
+      name: 'Default',
+      color: 'gray',
+      createdAt: '2026-08-20T09:00:00.000Z',
+      lastUsedAt: '2026-08-20T09:01:00.000Z',
+      activeTabId: websiteTabId,
+      origins: []
+    }],
+    savedTabGroups: [],
+    tabs: [
+      { id: homeTabId, title: 'Hronaut Home', url: 'hronaut://home/' },
+      {
+        id: websiteTabId,
+        title: 'Preserved session',
+        url: 'https://example.com/preserved-session',
+        pinned: true,
+        humanInteractionLocked: true,
+        mcpGroupId: defaultWorkspaceId
+      }
+    ]
+  }
+  const tabsPath = join(profileDirectory, 'tabs.json')
+  await writeFile(tabsPath, `${JSON.stringify(persistedState, null, 2)}\n`, 'utf8')
+
+  let resolveShellRequest!: () => void
+  const shellRequested = new Promise<void>((resolve) => { resolveShellRequest = resolve })
+  const shellServer = createServer(() => resolveShellRequest())
+  await new Promise<void>((resolve, reject) => {
+    shellServer.once('error', reject)
+    shellServer.listen(0, '127.0.0.1', () => {
+      shellServer.off('error', reject)
+      resolve()
+    })
+  })
+  const address = shellServer.address()
+  if (!address || typeof address === 'string') throw new Error('Shell stall server did not expose a TCP port')
+  const environment = {
+    ...process.env,
+    ELECTRON_RENDERER_URL: `http://127.0.0.1:${address.port}`,
+    HRONAUT_DISABLE_MCP_AUTH: '1',
+    HRONAUT_MCP_HOST: '127.0.0.1',
+    HRONAUT_MCP_PORT: String(mcpPort),
+    HRONAUT_USER_DATA_DIR: profileDirectory
+  }
+  const primary = spawn(electronPath, ['.', '--no-sandbox'], {
+    cwd: repositoryRoot,
+    env: environment,
+    stdio: ['ignore', 'pipe', 'pipe']
+  })
+  let primaryOutput = ''
+  primary.stdout?.on('data', (chunk) => { primaryOutput += String(chunk) })
+  primary.stderr?.on('data', (chunk) => { primaryOutput += String(chunk) })
+  let quitRequest: ChildProcess | undefined
+
+  try {
+    await Promise.race([
+      shellRequested,
+      new Promise<never>((_resolve, reject) => setTimeout(
+        () => reject(new Error(`Hronaut did not request the stalled shell:\n${primaryOutput}`)),
+        5_000
+      ))
+    ])
+    quitRequest = spawn(electronPath, ['.', '--no-sandbox', '--quit'], {
+      cwd: repositoryRoot,
+      env: environment,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+
+    expect(await waitForChildExit(quitRequest, 5_000)).toBe(true)
+    expect(quitRequest.exitCode).toBe(0)
+    expect(await waitForChildExit(primary, 5_000), primaryOutput).toBe(true)
+    expect(primary.exitCode).toBe(0)
+    expect(JSON.parse(await readFile(tabsPath, 'utf8'))).toEqual(persistedState)
+  } finally {
+    for (const child of [quitRequest, primary]) {
+      if (child?.exitCode === null) {
+        child.kill('SIGTERM')
+        if (!await waitForChildExit(child, 2_000)) child.kill('SIGKILL')
+      }
+    }
+    shellServer.closeAllConnections()
+    await new Promise<void>((resolve) => shellServer.close(() => resolve()))
   }
 })
 
