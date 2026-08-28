@@ -226,7 +226,7 @@
   border: 2px solid var(--toolbar);
   border-radius: 999px;
 }
-.browser-tabs-bar.vertical.rail-collapsed .app-home-button > span,
+.browser-tabs-bar.vertical.rail-collapsed .app-home-button > .app-home-label,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label > span,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-default-badge,
 .browser-tabs-bar.vertical.rail-collapsed .tab-title,

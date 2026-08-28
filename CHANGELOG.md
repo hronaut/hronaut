@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove horizontal crowded-tab scroll controls as soon as the tabs fit the full strip again, and keep the Home loading indicator visible in compact and collapsed layouts.
+- Stop native tray attention when its requested tab or workspace closes instead of leaving a stale pulsing request behind.
 - Let agents show Hronaut or request human attention before their workspace contains a browser tab, while keeping pending tabless requests visible only to their originating workspace.
 - Authenticate and validate request origins before parsing MCP JSON bodies, so unauthorized malformed or oversized payloads cannot consume the parser first.
 

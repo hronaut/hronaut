@@ -99,12 +99,13 @@ function updateTabOverflow(): void {
   if (!strip) return
   const contentExtent = vertical.value ? strip.scrollHeight : strip.scrollWidth
   const viewportExtent = vertical.value ? strip.clientHeight : strip.clientWidth
-  // Vertical controls reserve space outside the scrolling viewport. Compare
+  // Scroll controls reserve space outside the scrolling viewport. Compare
   // content against the full shell so those controls cannot keep themselves
   // alive after tabs shrink enough to fit without them.
-  const overflowCapacity = vertical.value
-    ? strip.parentElement?.clientHeight ?? viewportExtent
-    : viewportExtent
+  const shellExtent = vertical.value
+    ? strip.parentElement?.clientHeight
+    : strip.parentElement?.clientWidth
+  const overflowCapacity = shellExtent && shellExtent > 0 ? shellExtent : viewportExtent
   const overflowing = contentExtent - overflowCapacity > 1
   const maximumScroll = Math.max(0, contentExtent - viewportExtent)
   hasTabOverflow.value = overflowing
@@ -485,7 +486,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   >
     <span v-if="homeTab?.loading" class="spinner" :aria-label="t('shell.loading')" />
     <IconDashboard v-else aria-hidden="true" />
-    <span>{{ t('shell.home.label') }}</span>
+    <span class="app-home-label">{{ t('shell.home.label') }}</span>
   </button>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">

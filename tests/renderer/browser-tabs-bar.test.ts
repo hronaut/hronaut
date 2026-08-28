@@ -243,6 +243,51 @@ describe('BrowserTabsBar', () => {
     expect(shell).not.toHaveClass('has-tab-overflow')
   })
 
+  it('removes horizontal overflow controls when content fits the full tab shell again', async () => {
+    renderTabs()
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    const shell = strip.closest<HTMLElement>('.tabs-strip-shell')
+    if (!shell) throw new Error('Tab strip shell was not found')
+    let contentWidth = 600
+    Object.defineProperties(shell, {
+      clientWidth: { configurable: true, value: 500 }
+    })
+    Object.defineProperties(strip, {
+      clientWidth: {
+        configurable: true,
+        get: () => shell.classList.contains('has-tab-overflow') ? 438 : 500
+      },
+      scrollWidth: { configurable: true, get: () => contentWidth },
+      scrollLeft: { configurable: true, value: 0, writable: true }
+    })
+
+    await fireEvent.scroll(strip)
+    expect(screen.getByRole('button', { name: 'Show more tabs' })).toBeEnabled()
+
+    contentWidth = 470
+    await fireEvent.scroll(strip)
+
+    expect(screen.queryByRole('button', { name: 'Show more tabs' })).not.toBeInTheDocument()
+    expect(shell).not.toHaveClass('has-tab-overflow')
+  })
+
+  it('keeps the Home loading indicator separate from labels hidden by compact layouts', () => {
+    const loadingHome = tab('home', {
+      title: 'Hronaut Home',
+      url: 'hronaut://home',
+      active: true,
+      loading: true,
+      mcpGroupId: undefined,
+      mcpGroupName: undefined
+    })
+    renderTabs(browserState({ tabs: [loadingHome, tab('first')], activeTabId: loadingHome.id }), true, 'vertical', false)
+
+    const home = screen.getByRole('button', { name: 'Open Hronaut Home' })
+    expect(home.querySelector('.spinner')).toBeInTheDocument()
+    expect(home.querySelector('.spinner')).not.toHaveClass('app-home-label')
+    expect(home.querySelector('.app-home-label')).toHaveTextContent('Home')
+  })
+
   it.each([
     { label: 'empty', tabs: [] as BrowserTabState[], activeTabId: null },
     { label: 'populated', tabs: [tab('first')], activeTabId: 'first' }

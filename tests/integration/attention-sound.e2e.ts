@@ -62,7 +62,8 @@ test('previews and plays the selected Foley cue for user attention', async ({
   }
 })
 
-test('clears tab-scoped user attention when the requested tab closes', async ({
+test('clears native user attention when its tab or workspace closes', async ({
+  electronApp,
   mcpPort,
   mcpToken
 }) => {
@@ -83,7 +84,23 @@ test('clears tab-scoped user attention when the requested tab closes', async ({
   })
   try {
     await client.connect(transport)
-    await useMcpWorkspace(client, 'Attention lifecycle tests')
+    const workspaceId = await useMcpWorkspace(client, 'Attention lifecycle tests')
+    await electronApp.evaluate(({ Menu }) => {
+      const scope = globalThis as typeof globalThis & {
+        __hronautAttentionLifecycleMenu?: { original: typeof Menu.buildFromTemplate; labels: string[] }
+      }
+      const original = Menu.buildFromTemplate
+      scope.__hronautAttentionLifecycleMenu = { original, labels: [] }
+      Object.defineProperty(Menu, 'buildFromTemplate', {
+        configurable: true,
+        value: (template: Electron.MenuItemConstructorOptions[]) => {
+          scope.__hronautAttentionLifecycleMenu!.labels = template
+            .map((item) => item.label)
+            .filter((label): label is string => typeof label === 'string')
+          return original.call(Menu, template)
+        }
+      })
+    })
     const initialStatus = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
     const requestedTabId = JSON.parse(text(initialStatus)).activeTabId as string
 
@@ -93,13 +110,43 @@ test('clears tab-scoped user attention when the requested tab closes', async ({
     })
     const requestedStatus = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
     expect(JSON.parse(text(requestedStatus)).userAttention).toMatchObject({ tabId: requestedTabId })
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionLifecycleMenu?: { labels: string[] } }
+    ).__hronautAttentionLifecycleMenu?.labels ?? [])).toContain('Show requested browser tab')
 
     await client.callTool({ name: 'browser_close_tab', arguments: { tabId: requestedTabId } })
     await expect.poll(async () => {
       const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
       return JSON.parse(text(status)).userAttention
     }).toBeNull()
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionLifecycleMenu?: { labels: string[] } }
+    ).__hronautAttentionLifecycleMenu?.labels ?? [])).not.toContain('Show requested browser tab')
+
+    await client.callTool({
+      name: 'browser_request_user_attention',
+      arguments: { reason: 'Please review this expiring workspace.' }
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionLifecycleMenu?: { labels: string[] } }
+    ).__hronautAttentionLifecycleMenu?.labels ?? [])).toContain('Show requested browser tab')
+
+    await client.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'close', workspaceId }
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionLifecycleMenu?: { labels: string[] } }
+    ).__hronautAttentionLifecycleMenu?.labels ?? [])).not.toContain('Show requested browser tab')
   } finally {
+    await electronApp.evaluate(({ Menu }) => {
+      const scope = globalThis as typeof globalThis & {
+        __hronautAttentionLifecycleMenu?: { original: typeof Menu.buildFromTemplate }
+      }
+      const control = scope.__hronautAttentionLifecycleMenu
+      if (control) Object.defineProperty(Menu, 'buildFromTemplate', { configurable: true, value: control.original })
+      delete scope.__hronautAttentionLifecycleMenu
+    }).catch(() => undefined)
     await client.close()
   }
 })

@@ -87,6 +87,7 @@ import {
   isAttentionSoundCue,
   type AppSettings,
   type AppUpdateState,
+  type BrowserState,
   type BrowserActionFailure,
   type BrowserAccessibilityAuditOptions,
   type BrowserElementInspectionOptions,
@@ -1325,6 +1326,19 @@ function clearUserAttention(): void {
     tray.setToolTip('Hronaut')
     setTrayContextMenu()
   }
+}
+
+function reconcileUserAttention(state: BrowserState): void {
+  const request = userAttention
+  if (!request) return
+  const workspaceExists = !request.workspaceId
+    || state.mcpTabGroups.some((workspace) => workspace.id === request.workspaceId)
+  const requestedTab = request.tabId
+    ? state.tabs.find((tab) => tab.id === request.tabId)
+    : undefined
+  const tabExistsInTargetWorkspace = !request.tabId
+    || Boolean(requestedTab && (!request.workspaceId || requestedTab.mcpGroupId === request.workspaceId))
+  if (!workspaceExists || !tabExistsInTargetWorkspace) clearUserAttention()
 }
 
 function acknowledgeUserAttention(): void {
@@ -3216,7 +3230,10 @@ async function createWindow(): Promise<void> {
     copyImageAt: copyPageImageToClipboard,
     onClipboardCopyFailed: reportClipboardFailure,
     onActionFailed: reportBrowserActionFailure,
-    onStateChanged: (state) => sendToPanelWindow('browser:state-changed', state),
+    onStateChanged: (state) => {
+      reconcileUserAttention(state)
+      sendToPanelWindow('browser:state-changed', state)
+    },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     onPageVisited: ({ url, title }) => {
       void historyStore?.record({ url, title })

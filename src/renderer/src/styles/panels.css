@@ -225,7 +225,7 @@
 
 @media (max-width: 720px) {
   .app-home-button { padding-inline: 9px; }
-  .app-home-button span { display: none; }
+  .app-home-button .app-home-label { display: none; }
   .settings-overlay { padding: 14px; }
   .command-palette-overlay { padding-top: 28px; }
   .command-palette { width: calc(100vw - 28px); max-height: calc(100vh - 56px); }
