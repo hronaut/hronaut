@@ -34,3 +34,13 @@ The isolated Docker/Xvfb integration suite is available for browser, Electron li
 ```bash
 npm run test:integration:docker
 ```
+
+During regression-first development, run a single Electron Playwright file or
+named case in the same pinned Docker/Xvfb environment:
+
+```bash
+npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
+```
+
+Arguments after `--` are passed directly to Playwright. Always run the complete
+`test:integration:docker` gate before submitting or delivering the change.

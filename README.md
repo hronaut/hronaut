@@ -72,6 +72,16 @@ The public [setup guide](https://hronaut.dev/setup) provides tested commands for
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
+### Install the Hronaut Agent Skill
+
+Skill-aware coding agents can install Hronaut's portable workflow guidance directly from this repository:
+
+```bash
+npx skills add hronaut/hronaut --skill hronaut
+```
+
+The skill teaches the agent to create its own isolated workspace, prefer semantic page interactions, preserve the user's Default workspace, and request a safe human handoff for CAPTCHA, 2FA, or credential entry. It does not configure the MCP connection or contain an authentication token; start Hronaut and copy the current client setup from Hronaut Home first.
+
 After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
 
 ### First successful run

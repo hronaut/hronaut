@@ -71,6 +71,16 @@ inside the pinned Docker/Xvfb image. Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
 
+For regression-first feedback on one Playwright file or one named case, use the
+same pinned image without running the entire suite:
+
+```bash
+npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
+```
+
+Arguments after `--` are passed directly to Playwright. A focused Docker pass is
+not a substitute for `npm run test:integration:docker` before delivery.
+
 ## Releases and adjacent repositories
 
 Document user-visible changes under `CHANGELOG.md`'s Unreleased section. The

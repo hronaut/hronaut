@@ -3422,6 +3422,15 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   })
   await expect(editor).toBeVisible()
   await expect(appWindow.getByRole('dialog', { name: 'Keyboard shortcuts' })).toHaveCount(0)
+  await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+    const item = Menu.getApplicationMenu()?.items
+      .find((candidate) => candidate.label === 'View')?.submenu?.items
+      .find((candidate) => candidate.label === 'Command Palette…')
+    if (!item?.click) throw new Error('Command Palette menu item was not found')
+    item.click(item, BrowserWindow.getAllWindows()[0], {} as Electron.KeyboardEvent)
+  })
+  await expect(editor).toBeVisible()
+  await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toHaveCount(0)
   await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)
   await expect(editor).toBeVisible()
   await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toHaveCount(0)

@@ -11,6 +11,7 @@ export type CommandPaletteActions = Record<CommandPaletteCommandId, () => unknow
 export interface CommandPaletteShellControllerOptions<TPanel extends CommandPalettePanel> {
   open: Ref<boolean>
   panel: Readonly<Ref<TPanel | null>>
+  canOpen: () => boolean
   beforeOpen: () => void
   actions: CommandPaletteActions
 }
@@ -24,6 +25,7 @@ export function useCommandPaletteShellController<TPanel extends CommandPalettePa
       options.open.value = false
       return
     }
+    if (!options.canOpen()) return
     options.beforeOpen()
     await options.panel.value?.openPanel()
   }

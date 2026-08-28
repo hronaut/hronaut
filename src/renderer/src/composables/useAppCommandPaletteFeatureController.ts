@@ -73,6 +73,7 @@ export interface AppCommandPaletteFeatureControllerOptions<
 > {
   open: Ref<boolean>
   panel: Readonly<Ref<TPanel | null>>
+  canOpen: () => boolean
   beforeOpen: () => void
   browser: AppCommandPaletteBrowserCommands
   collections: BrowserCollectionCommands
@@ -89,6 +90,7 @@ export function useAppCommandPaletteFeatureController<
   return useCommandPaletteShellController({
     open: options.open,
     panel: options.panel,
+    canOpen: options.canOpen,
     beforeOpen: options.beforeOpen,
     actions: {
       home: options.browser.openHome,

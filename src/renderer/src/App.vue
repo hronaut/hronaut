@@ -633,6 +633,7 @@ const {
 const commandPaletteShellController = useAppCommandPaletteFeatureController({
   open: commandPaletteOpen,
   panel: commandPalette,
+  canOpen: () => !workspaceEditorOpen.value && !credentialPickerOpen.value,
   beforeOpen: () => {
     closeSettings()
     closeHelpDialog()

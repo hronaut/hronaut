@@ -14,11 +14,30 @@ function actions(overrides: Partial<CommandPaletteActions> = {}): CommandPalette
 }
 
 describe('useCommandPaletteShellController', () => {
+  it('does not open or clean up competing UI when modal presentation blocks the palette', async () => {
+    const open = ref(false)
+    const beforeOpen = vi.fn()
+    const panel = ref({ openPanel: vi.fn(async () => { open.value = true }), close: vi.fn() })
+    const controller = useCommandPaletteShellController({
+      open,
+      panel,
+      canOpen: () => false,
+      beforeOpen,
+      actions: actions()
+    })
+
+    await controller.toggle()
+
+    expect(beforeOpen).not.toHaveBeenCalled()
+    expect(panel.value.openPanel).not.toHaveBeenCalled()
+    expect(open.value).toBe(false)
+  })
+
   it('closes competing shell UI before opening the panel', async () => {
     const open = ref(false)
     const beforeOpen = vi.fn()
     const panel = ref({ openPanel: vi.fn(async () => { open.value = true }), close: vi.fn() })
-    const controller = useCommandPaletteShellController({ open, panel, beforeOpen, actions: actions() })
+    const controller = useCommandPaletteShellController({ open, panel, canOpen: () => true, beforeOpen, actions: actions() })
 
     await controller.toggle()
 
@@ -31,7 +50,7 @@ describe('useCommandPaletteShellController', () => {
     const open = ref(true)
     const beforeOpen = vi.fn()
     const panel = ref({ openPanel: vi.fn(), close: vi.fn() })
-    const controller = useCommandPaletteShellController({ open, panel, beforeOpen, actions: actions() })
+    const controller = useCommandPaletteShellController({ open, panel, canOpen: () => false, beforeOpen, actions: actions() })
 
     await controller.toggle()
 
@@ -46,6 +65,7 @@ describe('useCommandPaletteShellController', () => {
     const controller = useCommandPaletteShellController({
       open,
       panel: ref(null),
+      canOpen: () => true,
       beforeOpen: vi.fn(),
       actions: actions({ history: runHistory })
     })
@@ -61,6 +81,7 @@ describe('useCommandPaletteShellController', () => {
     const controller = useCommandPaletteShellController({
       open: ref(true),
       panel: ref(null),
+      canOpen: () => true,
       beforeOpen: vi.fn(),
       actions: actions({ reload: vi.fn().mockRejectedValue(failure) })
     })

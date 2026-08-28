@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { COMMAND_PALETTE_COMMANDS } from '../../src/shared/command-palette.js'
 import { useAppCommandPaletteFeatureController } from '../../src/renderer/src/composables/useAppCommandPaletteFeatureController.js'
 
-function createHarness() {
+function createHarness(canOpen = () => true) {
   const methods = {
     openHome: vi.fn(),
     runShortcut: vi.fn(),
@@ -53,6 +53,7 @@ function createHarness() {
   const controller = useAppCommandPaletteFeatureController({
     open,
     panel,
+    canOpen,
     beforeOpen,
     browser: {
       openHome: methods.openHome,
@@ -112,6 +113,16 @@ function createHarness() {
 }
 
 describe('useAppCommandPaletteFeatureController', () => {
+  it('keeps modal presentation authoritative over command-palette opening', async () => {
+    const harness = createHarness(() => false)
+
+    await harness.controller.toggle()
+
+    expect(harness.beforeOpen).not.toHaveBeenCalled()
+    expect(harness.panel.value.openPanel).not.toHaveBeenCalled()
+    expect(harness.open.value).toBe(false)
+  })
+
   it('owns command-palette opening and closing without changing shell cleanup order', async () => {
     const harness = createHarness()
 

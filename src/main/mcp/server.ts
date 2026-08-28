@@ -366,28 +366,35 @@ function createBrowserMcpServer(
       return errorResult(error)
     }
   }
+  type WorkspaceToolHandler<T> = ((input: T) => Promise<CallToolResult>) & {
+    handlesResolvedTabWake?: boolean
+  }
   const tabTool = <T>(
     toolName: string,
     handler: (input: T) => Promise<CallToolResult> | CallToolResult
-  ) => tool(async (input: T) => {
-    const suppliedTabId = typeof input === 'object' && input !== null && 'tabId' in input
-      ? (input as { tabId?: unknown }).tabId
-      : undefined
-    const tabId = typeof suppliedTabId === 'string' ? suppliedTabId : manager.getState().activeTabId
-    const activityId = randomUUID()
-    if (tabId) onTabActivity?.({ activityId, tabId, toolName, phase: 'started', occurredAt: Date.now() })
-    let phase: McpTabActivity['phase'] = 'finished'
-    try {
-      const result = await handler(input)
-      if (result.isError) phase = 'failed'
-      return result
-    } catch (error) {
-      phase = 'failed'
-      throw error
-    } finally {
-      if (tabId) onTabActivity?.({ activityId, tabId, toolName, phase, occurredAt: Date.now() })
-    }
-  })
+  ): WorkspaceToolHandler<T> => Object.assign(
+    tool(async (input: T) => {
+      const suppliedTabId = typeof input === 'object' && input !== null && 'tabId' in input
+        ? (input as { tabId?: unknown }).tabId
+        : undefined
+      const tabId = typeof suppliedTabId === 'string' ? suppliedTabId : manager.getState().activeTabId
+      const activityId = randomUUID()
+      if (tabId) onTabActivity?.({ activityId, tabId, toolName, phase: 'started', occurredAt: Date.now() })
+      let phase: McpTabActivity['phase'] = 'finished'
+      try {
+        if (tabId) await manager.wakeTab(tabId)
+        const result = await handler(input)
+        if (result.isError) phase = 'failed'
+        return result
+      } catch (error) {
+        phase = 'failed'
+        throw error
+      } finally {
+        if (tabId) onTabActivity?.({ activityId, tabId, toolName, phase, occurredAt: Date.now() })
+      }
+    }),
+    { handlesResolvedTabWake: true }
+  )
 
   const baseRegisterTool = server.registerTool.bind(server)
   const registeredToolNames: string[] = []
@@ -492,7 +499,7 @@ function createBrowserMcpServer(
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
-  }, handler: (input: T) => Promise<CallToolResult>): void => {
+  }, handler: WorkspaceToolHandler<T>): void => {
     baseRegisterTool(
       recordToolRegistration(name),
       {
@@ -509,7 +516,7 @@ function createBrowserMcpServer(
         const resolvedTabId = toolsWithoutWorkspaceTabTarget.has(name)
           ? undefined
           : manager.requireTabInMcpGroup(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined)
-        if (resolvedTabId) await manager.wakeTab(resolvedTabId)
+        if (resolvedTabId && !handler.handlesResolvedTabWake) await manager.wakeTab(resolvedTabId)
         const result = toolsWithoutWorkspaceTabTarget.has(name)
           ? await handler(input as unknown as T)
           : await handler({
