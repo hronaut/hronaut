@@ -4,26 +4,20 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-### Changed
-
-- Speed up focused Docker/Xvfb regression runs by reusing a dependency-only image layer and bind-mounting the live checkout, while keeping the full immutable-image Docker suite as the delivery gate.
-
-### Fixed
-
-- Let the release workflow advance the last verified Scoop manifest only after new artifacts and checksums exist, instead of blocking artifact creation on a future manifest.
-- Retry transient Chromium profile-directory cleanup races in Electron integration fixtures.
-
 ## [1.9.10] - 2026-08-28
 
 ### Changed
 
 - Move the browser tabs, title-bar surfaces, navigation controls, and page actions into a focused presentation layer while keeping application orchestration in `App.vue`.
+- Speed up focused Docker/Xvfb regression runs by reusing a dependency-only image layer and bind-mounting the live checkout, while keeping the full immutable-image Docker suite as the delivery gate.
 
 ### Fixed
 
 - Serialize native website permission prompts and revalidate queued requests before showing them.
 - Preserve MCP download ownership when an archived workspace is reopened with a new workspace ID.
 - Wait for in-flight workspace storage changes to finish before flushing browser profiles during shutdown.
+- Let the release workflow advance the last verified Scoop manifest only after new artifacts and checksums exist, instead of blocking artifact creation on a future manifest.
+- Retry transient Chromium profile-directory cleanup races in Electron integration fixtures.
 
 ## [1.9.9] - 2026-08-28
 
