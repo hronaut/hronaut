@@ -19,6 +19,7 @@ const props = defineProps<{
   state: BrowserState
   syncState: (next: Promise<BrowserState> | BrowserState) => Promise<void>
   formatNumber: (value: number) => string
+  canPresent: boolean
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -53,7 +54,8 @@ const {
   syncState: props.syncState,
   translate: (message, parameters) => t(message, parameters ?? {}),
   formatNumber: props.formatNumber,
-  confirm: (message) => window.confirm(message)
+  confirm: (message) => window.confirm(message),
+  canPresent: () => props.canPresent
 })
 
 useModalDialogFocus({ open, panel, focusOnOpen: false })

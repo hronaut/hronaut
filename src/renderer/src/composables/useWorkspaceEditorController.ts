@@ -26,6 +26,7 @@ export interface WorkspaceEditorControllerOptions {
   translate: Translate
   formatNumber: (value: number) => string
   confirm: (message: string) => boolean
+  canPresent: () => boolean
 }
 
 export function useWorkspaceEditorController(options: WorkspaceEditorControllerOptions) {
@@ -116,7 +117,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     await options.syncState(next)
     if (!isPresentationCurrent(presentation)) return
     const group = next.mcpTabGroups.find((candidate) => candidate.id === id)
-    if (!group) return
+    if (!group || !options.canPresent()) return
     mode.value = 'edit'
     options.open.value = true
     workspaceId.value = id
@@ -131,6 +132,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   }
 
   async function openNew(): Promise<void> {
+    if (!options.canPresent()) return
     beginPresentation()
     mode.value = 'create'
     options.open.value = true

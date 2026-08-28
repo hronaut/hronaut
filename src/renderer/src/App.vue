@@ -1046,6 +1046,7 @@ useAppLifecycleController({
       :state="state"
       :sync-state="syncState"
       :format-number="localNumber"
+      :can-present="!commandPaletteOpen && !credentialPickerOpen && !helpDialogOpen && !settingsOpen"
     />
     <CredentialPicker
       ref="credentialPicker"

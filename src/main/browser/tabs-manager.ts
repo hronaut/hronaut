@@ -449,7 +449,12 @@ function rendererFailureProblem(locale: SupportedLocale, url: string, reason: st
 }
 
 function isAbortedLoad(error: unknown): boolean {
-  return error instanceof Error && /\bERR_ABORTED\b/.test(error.message)
+  if (!(error instanceof Error)) return false
+  const details = error as Error & { code?: unknown; errno?: unknown }
+  return details.code === ABORTED_LOAD_ERROR
+    || details.errno === ABORTED_LOAD_ERROR
+    || details.code === 'ERR_ABORTED'
+    || /\bERR_ABORTED\b|\(-3\)\s+loading\b/.test(error.message)
 }
 
 function isHronautHomeUrl(url: string): boolean {
@@ -2880,7 +2885,11 @@ export class BrowserTabsManager {
       throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
     }
     this.prepareDiagnosticNavigation(tab)
-    await tab.webContents.loadURL(normalized)
+    try {
+      await tab.webContents.loadURL(normalized)
+    } catch (error) {
+      if (!isAbortedLoad(error)) throw error
+    }
     return this.getState()
   }
 

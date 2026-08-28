@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Treat Electron's aborted page loads as normal navigation supersession and keep stale address submissions from showing a false failure over the newer page.
+- Keep delayed native workspace-editor requests from opening over a newer Settings, Help, Command Palette, or credential dialog.
+
 ## [1.9.10] - 2026-08-28
 
 ### Changed

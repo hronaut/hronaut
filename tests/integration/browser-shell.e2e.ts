@@ -1524,6 +1524,51 @@ test('shows a recoverable site error and retries the failed address', async ({ a
   }
 })
 
+test('does not report a superseded address navigation as failed', async ({ appWindow }) => {
+  let markSlowRequested: (() => void) | undefined
+  let markSlowAborted: (() => void) | undefined
+  const slowRequested = new Promise<void>((resolve) => {
+    markSlowRequested = resolve
+  })
+  const slowAborted = new Promise<void>((resolve) => {
+    markSlowAborted = resolve
+  })
+  const server = createServer((request, response) => {
+    if (request.url === '/slow') {
+      request.once('close', () => markSlowAborted?.())
+      response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+      response.write('<!doctype html><title>Slow destination</title><main>Still loading')
+      markSlowRequested?.()
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end('<!doctype html><title>Fast destination</title><main>Latest address won</main>')
+  })
+  const address = await new Promise<{ port: number }>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve(server.address() as { port: number }))
+  })
+
+  try {
+    await appWindow.evaluate('window.hronaut.newTab({ active: true })')
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await addressInput.fill(`http://127.0.0.1:${address.port}/slow`)
+    await addressInput.press('Enter')
+    await slowRequested
+
+    await addressInput.fill(`http://127.0.0.1:${address.port}/fast`)
+    await addressInput.press('Enter')
+    await slowAborted
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
+    )).toBe('Fast destination')
+    await expect(appWindow.getByRole('alert', { name: 'Navigation failed' })).toHaveCount(0)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('recovers a crashed website renderer in a fresh process', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
@@ -3561,6 +3606,48 @@ test('keeps the latest workspace editor request when native events resolve out o
   ))).toBe(true)
   await expect(editor.getByLabel('Workspace name')).toHaveValue('Newer editor request')
   await editor.getByRole('button', { name: 'Cancel' }).click()
+})
+
+test('does not open a delayed native workspace editor over newer Settings', async ({ appWindow, electronApp }) => {
+  const state = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Delayed editor request', storage: 'scratch' })`) as BrowserState
+  const workspaceId = state.mcpTabGroups.find((workspace) => workspace.name === 'Delayed editor request')?.id
+  if (!workspaceId) throw new Error('Delayed workspace editor fixture was not created')
+
+  try {
+    await electronApp.evaluate(({ BrowserWindow, ipcMain }, input) => {
+      const scope = globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }
+      ipcMain.removeHandler('browser:get-state')
+      ipcMain.handle('browser:get-state', () => new Promise<BrowserState>((resolve) => {
+        scope.__resolveDelayedWorkspaceEditor = () => {
+          delete scope.__resolveDelayedWorkspaceEditor
+          resolve(input.state)
+        }
+      }))
+      const shellWindow = BrowserWindow.getAllWindows()[0]
+      if (!shellWindow) throw new Error('Shell window was not found')
+      shellWindow.webContents.send('browser:edit-tab-group', input.workspaceId)
+    }, { state, workspaceId })
+    await expect.poll(() => electronApp.evaluate(() => Boolean(
+      (globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }).__resolveDelayedWorkspaceEditor
+    ))).toBe(true)
+
+    await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+    await expect(settings).toBeVisible()
+    await electronApp.evaluate(() => {
+      (globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }).__resolveDelayedWorkspaceEditor?.()
+    })
+
+    await expect(settings).toBeVisible()
+    await expect(appWindow.getByRole('dialog', { name: 'Edit workspace' })).toHaveCount(0)
+    await expect(appWindow.getByRole('dialog')).toHaveCount(1)
+  } finally {
+    await electronApp.evaluate(() => {
+      const scope = globalThis as typeof globalThis & { __resolveDelayedWorkspaceEditor?: () => void }
+      scope.__resolveDelayedWorkspaceEditor?.()
+      delete scope.__resolveDelayedWorkspaceEditor
+    }).catch(() => undefined)
+  }
 })
 
 test('archives a workspace from its context menu and restores it with a fresh workspace id', async ({ appWindow, electronApp }) => {

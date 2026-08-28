@@ -98,6 +98,36 @@ describe('browser tab actions controller', () => {
     expect(harness.onNavigateError).toHaveBeenCalledWith(navigationFailure)
   })
 
+  it('ignores a superseded navigation failure while preserving the newest failure', async () => {
+    const harness = createHarness()
+    let rejectFirstNavigation: ((error: Error) => void) | undefined
+    let resolveSecondNavigation: ((state: BrowserState) => void) | undefined
+    const firstNavigation = new Promise<BrowserState>((_resolve, reject) => {
+      rejectFirstNavigation = reject
+    })
+    const secondNavigation = new Promise<BrowserState>((resolve) => {
+      resolveSecondNavigation = resolve
+    })
+    harness.browser.navigate
+      .mockReturnValueOnce(firstNavigation)
+      .mockReturnValueOnce(secondNavigation)
+
+    const superseded = harness.controller.navigateAddress('https://slow.test/')
+    const newest = harness.controller.navigateAddress('https://fast.test/')
+    resolveSecondNavigation?.(harness.state.value)
+    await newest
+    rejectFirstNavigation?.(new Error('ERR_ABORTED'))
+    await superseded
+
+    expect(harness.onNavigateError).not.toHaveBeenCalled()
+
+    const newestFailure = new Error('ERR_CONNECTION_REFUSED')
+    harness.browser.navigate.mockRejectedValueOnce(newestFailure)
+    await harness.controller.navigateAddress('https://failed.test/')
+    expect(harness.onNavigateError).toHaveBeenCalledOnce()
+    expect(harness.onNavigateError).toHaveBeenCalledWith(newestFailure)
+  })
+
   it('targets the current tab for navigation and page-problem retry', async () => {
     const harness = createHarness()
     await harness.controller.navigateAddress('https://next.test/')

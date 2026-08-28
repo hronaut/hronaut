@@ -50,6 +50,7 @@ function browserState(locked = false): BrowserState {
 function createController(initialState = browserState()) {
   const state: Ref<BrowserState> = ref(initialState)
   const open = ref(false)
+  const canPresent = ref(true)
   const confirm = vi.fn(() => true)
   const browser = {
     getState: vi.fn(async () => state.value),
@@ -78,9 +79,10 @@ function createController(initialState = browserState()) {
     syncState,
     translate: (key, parameters) => parameters ? `${key}:${JSON.stringify(parameters)}` : key,
     formatNumber: (value) => String(value),
-    confirm
+    confirm,
+    canPresent: () => canPresent.value
   })
-  return { state, open, confirm, browser, syncState, controller }
+  return { state, open, canPresent, confirm, browser, syncState, controller }
 }
 
 describe('workspace editor controller', () => {
@@ -113,6 +115,21 @@ describe('workspace editor controller', () => {
 
     const opening = controller.openExisting('agent')
     controller.close()
+    pending.resolve(state.value)
+    await opening
+
+    expect(open.value).toBe(false)
+    expect(controller.workspaceId.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('does not open over a newer competing modal while its state request is pending', async () => {
+    const { state, open, canPresent, browser, controller } = createController()
+    const pending = deferred<BrowserState>()
+    browser.getState.mockReturnValueOnce(pending.promise)
+
+    const opening = controller.openExisting('agent')
+    canPresent.value = false
     pending.resolve(state.value)
     await opening
 

@@ -32,6 +32,7 @@ export interface BrowserTabActionsControllerOptions {
 
 export function useBrowserTabActionsController(options: BrowserTabActionsControllerOptions) {
   const toggleOperations = new Map<string, Promise<void>>()
+  const navigationGenerations = new Map<string, number>()
 
   function enqueueToggle(key: string, action: () => Promise<void>): Promise<void> {
     const previous = toggleOperations.get(key) ?? Promise.resolve()
@@ -61,13 +62,19 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   }
 
   async function navigateAddress(address: string): Promise<void> {
+    const tabId = options.state.value.activeTabId ?? undefined
+    const navigationKey = tabId ?? 'active-tab'
+    const generation = (navigationGenerations.get(navigationKey) ?? 0) + 1
+    navigationGenerations.set(navigationKey, generation)
     try {
       await options.syncState(options.browser.navigate({
         url: address,
-        tabId: options.state.value.activeTabId ?? undefined
+        tabId
       }))
     } catch (error) {
-      options.onNavigateError(error)
+      if (navigationGenerations.get(navigationKey) === generation) options.onNavigateError(error)
+    } finally {
+      if (navigationGenerations.get(navigationKey) === generation) navigationGenerations.delete(navigationKey)
     }
   }
 
