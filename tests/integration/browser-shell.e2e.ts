@@ -55,6 +55,39 @@ test('launches a visible browser shell with a loopback MCP endpoint', async ({
     .toBe(true)
 })
 
+test('traps keyboard focus inside Settings at minimum scaled window', async ({
+  appWindow,
+  electronApp
+}) => {
+  const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
+  await settingsButton.click()
+  const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
+  await settings.getByRole('button', { name: 'Close', exact: true }).click()
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))
+
+  await settingsButton.click()
+  await expect(settings).toBeVisible()
+  await expect.poll(() => appWindow.evaluate(() => (
+    document.querySelector('[role="dialog"][aria-label="Settings"], [role="dialog"][aria-labelledby="settings-title"]')
+      ?.contains(document.activeElement) ?? false
+  ))).toBe(true)
+
+  await appWindow.keyboard.press('Shift+Tab')
+  await expect.poll(() => appWindow.evaluate(() => (
+    document.querySelector('[role="dialog"][aria-label="Settings"], [role="dialog"][aria-labelledby="settings-title"]')
+      ?.contains(document.activeElement) ?? false
+  ))).toBe(true)
+  for (let index = 0; index < 24; index += 1) {
+    await appWindow.keyboard.press('Tab')
+    expect(await settings.evaluate((dialog) => dialog.contains(document.activeElement))).toBe(true)
+  }
+
+  await appWindow.keyboard.press('Escape')
+  await expect(settings).toBeHidden()
+  await expect(settingsButton).toBeFocused()
+})
+
 test('opens a scheme-less loopback address over HTTP from the address bar', async ({ appWindow }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })

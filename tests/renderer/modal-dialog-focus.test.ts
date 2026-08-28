@@ -39,7 +39,44 @@ const ModalHandoffHarness = defineComponent({
   `
 })
 
+const ModalTrapHarness = defineComponent({
+  setup() {
+    const open = ref(false)
+    const panel = ref<HTMLElement | null>(null)
+    useModalDialogFocus({ open, panel })
+    return { open, panel }
+  },
+  template: `
+    <button type="button" @click="open = true">Open dialog</button>
+    <button type="button">Background action</button>
+    <section v-if="open" ref="panel" role="dialog" aria-modal="true" aria-label="Focus trap" tabindex="-1">
+      <button type="button">First action</button>
+      <button type="button" disabled>Disabled action</button>
+      <button type="button">Last action</button>
+    </section>
+  `
+})
+
 describe('modal dialog focus lifecycle', () => {
+  it('wraps keyboard focus inside the active modal and redirects escaped focus', async () => {
+    const user = userEvent.setup()
+    render(ModalTrapHarness)
+    await user.click(screen.getByRole('button', { name: 'Open dialog' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Focus trap' })
+    const first = screen.getByRole('button', { name: 'First action' })
+    const last = screen.getByRole('button', { name: 'Last action' })
+    const background = screen.getByRole('button', { name: 'Background action' })
+
+    await nextTick()
+    expect(dialog).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(last).toHaveFocus()
+    await user.tab()
+    expect(first).toHaveFocus()
+    background.focus()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+  })
+
   it('preserves the original focus target across a modal handoff', async () => {
     const user = userEvent.setup()
     render(ModalHandoffHarness)

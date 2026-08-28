@@ -7,24 +7,115 @@ export interface ModalDialogFocusOptions {
   focusOnOpen?: boolean
 }
 
-let activeDialogCount = 0
+interface ActiveDialog {
+  panel: Readonly<Ref<HTMLElement | null>>
+}
+
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'area[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  'iframe',
+  'object',
+  'embed',
+  '[contenteditable]:not([contenteditable="false"])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',')
+
+const activeDialogs: ActiveDialog[] = []
+let listeningDocument: Document | null = null
 let returnFocus: HTMLElement | null = null
 let restoreGeneration = 0
+
+function topDialogPanel(): HTMLElement | null {
+  return activeDialogs.at(-1)?.panel.value ?? null
+}
+
+function isFocusable(element: HTMLElement): boolean {
+  if (element.tabIndex < 0 || element.closest('[hidden], [inert], [aria-hidden="true"]')) return false
+  for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
+    const style = getComputedStyle(candidate)
+    if (style.display === 'none' || style.visibility === 'hidden') return false
+  }
+  return true
+}
+
+function focusableElements(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusable)
+}
+
+function focusInside(panel: HTMLElement, backwards = false): void {
+  const focusable = focusableElements(panel)
+  const target = backwards ? focusable.at(-1) : focusable[0]
+  ;(target ?? panel).focus({ preventScroll: true })
+}
+
+function handleModalKeydown(event: KeyboardEvent): void {
+  if (
+    event.defaultPrevented
+    || event.key !== 'Tab'
+    || event.altKey
+    || event.ctrlKey
+    || event.metaKey
+  ) return
+  const panel = topDialogPanel()
+  if (!panel) return
+  const focusable = focusableElements(panel)
+  const activeElement = panel.ownerDocument.activeElement
+  const first = focusable[0]
+  const last = focusable.at(-1)
+  const escaped = !(activeElement instanceof Node) || !panel.contains(activeElement)
+  const wrapsBackwards = event.shiftKey && (activeElement === panel || activeElement === first)
+  const wrapsForwards = !event.shiftKey && (activeElement === panel || activeElement === last)
+  if (!escaped && !wrapsBackwards && !wrapsForwards && focusable.length > 0) return
+  event.preventDefault()
+  focusInside(panel, event.shiftKey)
+}
+
+function handleModalFocusIn(event: FocusEvent): void {
+  const panel = topDialogPanel()
+  if (!panel || (event.target instanceof Node && panel.contains(event.target))) return
+  focusInside(panel)
+}
+
+function syncDocumentListeners(): void {
+  if (activeDialogs.length > 0) {
+    if (listeningDocument) return
+    listeningDocument = document
+    listeningDocument.addEventListener('keydown', handleModalKeydown, true)
+    listeningDocument.addEventListener('focusin', handleModalFocusIn, true)
+    return
+  }
+  listeningDocument?.removeEventListener('keydown', handleModalKeydown, true)
+  listeningDocument?.removeEventListener('focusin', handleModalFocusIn, true)
+  listeningDocument = null
+}
+
+function removeActiveDialog(dialog: ActiveDialog): void {
+  const index = activeDialogs.lastIndexOf(dialog)
+  if (index >= 0) activeDialogs.splice(index, 1)
+  syncDocumentListeners()
+}
 
 export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
   let registered = false
   let focusGeneration = 0
+  const activeDialog: ActiveDialog = { panel: options.panel }
 
   const stop = watch(options.open, async (open) => {
     if (open) {
       if (!registered) {
-        if (activeDialogCount === 0 && returnFocus === null) {
+        if (activeDialogs.length === 0 && returnFocus === null) {
           const activeElement = document.activeElement
           returnFocus = activeElement instanceof HTMLElement && activeElement !== document.body
             ? activeElement
             : null
         }
-        activeDialogCount += 1
+        activeDialogs.push(activeDialog)
+        syncDocumentListeners()
         registered = true
       }
       const operationGeneration = ++focusGeneration
@@ -37,11 +128,16 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
 
     if (!registered) return
     registered = false
-    activeDialogCount = Math.max(0, activeDialogCount - 1)
+    removeActiveDialog(activeDialog)
     focusGeneration += 1
     const operationGeneration = ++restoreGeneration
     await nextTick()
-    if (operationGeneration !== restoreGeneration || activeDialogCount > 0) return
+    if (operationGeneration !== restoreGeneration) return
+    const remainingPanel = topDialogPanel()
+    if (remainingPanel) {
+      if (!remainingPanel.contains(document.activeElement)) focusInside(remainingPanel)
+      return
+    }
     options.afterLayout?.()
     const target = returnFocus
     returnFocus = null
@@ -54,9 +150,9 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
     restoreGeneration += 1
     if (registered) {
       registered = false
-      activeDialogCount = Math.max(0, activeDialogCount - 1)
+      removeActiveDialog(activeDialog)
     }
-    if (activeDialogCount === 0) returnFocus = null
+    if (activeDialogs.length === 0) returnFocus = null
     stop()
   })
 }

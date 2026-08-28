@@ -42,6 +42,14 @@ named case in the same pinned Docker/Xvfb environment:
 npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --grep "test title"
 ```
 
+For a fast unit/component feedback loop in that same Docker dependency image,
+target one Vitest file or case without building or launching Electron:
+
+```bash
+npm run test:unit:docker:focused -- tests/renderer/modal-dialog-focus.test.ts
+npm run test:unit:docker:focused -- tests/renderer/modal-dialog-focus.test.ts -t "wraps keyboard focus"
+```
+
 You can also target a source line, list matching tests without launching
 Electron, or stop after the first failure:
 
@@ -51,9 +59,9 @@ npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.t
 npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.ts --max-failures=1
 ```
 
-Arguments after `--` are passed directly to Playwright. The focused runner
-reuses a dependency-only Docker layer keyed by `package-lock.json`, bind-mounts
-the current checkout, and gives the container its own `node_modules` volume.
+Arguments after `--` are passed directly to Vitest or Playwright. Both focused
+runners reuse a dependency-only Docker layer keyed by the package manifests,
+bind-mount the current checkout, and give the container its own `node_modules` volume.
 Source and test edits therefore take effect immediately without rebuilding the
 full source image, while dependency changes still trigger `npm ci` in Docker.
 

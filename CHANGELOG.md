@@ -4,10 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Add a focused Docker/Vitest command for fast file- or case-level unit and component feedback without building or launching Electron.
+
 ### Fixed
 
 - Treat Electron's aborted page loads as normal navigation supersession and keep stale address submissions from showing a false failure over the newer page.
 - Keep delayed native workspace-editor requests from opening over a newer Settings, Help, Command Palette, or credential dialog.
+- Keep keyboard and programmatic focus inside the active Hronaut modal, including reverse tabbing at the minimum window size and 125% interface scale.
 
 ## [1.9.10] - 2026-08-28
 

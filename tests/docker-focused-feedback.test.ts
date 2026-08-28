@@ -24,6 +24,16 @@ describe('focused Docker integration feedback', () => {
     expect(focusedScript).toContain('scripts/run-focused-integration-docker.sh')
   })
 
+  it('runs a selected unit test in the same live-checkout Docker environment', async () => {
+    const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as {
+      scripts: Record<string, string>
+    }
+
+    expect(packageJson.scripts['test:unit:docker:focused']).toBe(
+      'docker compose --file compose.test.ci.yaml --file compose.test.focused.yaml run --build --rm integration npm test --'
+    )
+  })
+
   it('keeps the full Docker gate on the immutable source image', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as {
       scripts: Record<string, string>
