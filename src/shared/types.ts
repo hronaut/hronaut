@@ -5,6 +5,17 @@ import type { InterfaceScale } from './interface-scale.js'
 import type { LanguagePreference, SupportedLocale } from './locale.js'
 import type { TabPosition } from './tab-position.js'
 import type { DesktopWindowPlatform, WindowChromeMode } from './title-bar.js'
+import type {
+  WalletCreateInput,
+  WalletDescriptor,
+  WalletImportDetails,
+  WalletPolicy,
+  WalletRequestSummary,
+  WalletSecretFormat,
+  WalletServiceStatus,
+  WalletUpdateInput,
+  WalletWatchOnlyInput
+} from './wallet.js'
 
 export type { SearchEngineName } from './search-engine.js'
 export type { BrowserTabGroupColor } from './tab-groups.js'
@@ -2360,6 +2371,63 @@ export interface HronautMcpApi {
   getState(): Promise<McpControlState>
   setPaused(paused: boolean): Promise<McpControlState>
   onChanged(listener: (state: McpControlState) => void): () => void
+}
+
+export interface WalletPreparedImport {
+  token: string
+  chainFamily: WalletDescriptor['chainFamily']
+  publicAddress: string
+  expiresAt: string
+}
+
+export interface WalletPermissionSummary {
+  id: string
+  walletId: string
+  workspaceId: string
+  origin: string
+  account: string
+  chainFamily: WalletDescriptor['chainFamily']
+  networkId: string
+  capabilities: WalletDescriptor['capabilities']
+  requester?: import('./wallet.js').WalletRequester
+  createdAt: string
+  expiresAt: string
+}
+
+export interface WalletAuditSummary {
+  sequence: number
+  timestamp: string
+  type: string
+  payload: Record<string, unknown>
+  previousHash: string
+  hash: string
+}
+
+export interface HronautWalletsApi {
+  status(): Promise<WalletServiceStatus>
+  list(): Promise<WalletDescriptor[]>
+  setupPassphrase(passphrase: string): Promise<WalletServiceStatus>
+  unlock(passphrase: string): Promise<WalletServiceStatus>
+  lock(): Promise<WalletServiceStatus>
+  generate(input: WalletCreateInput): Promise<WalletDescriptor>
+  prepareImport(chainFamily: WalletDescriptor['chainFamily'], format: WalletSecretFormat, recoveryMaterial: string): Promise<WalletPreparedImport>
+  confirmImport(token: string, details: WalletImportDetails): Promise<WalletDescriptor>
+  cancelImport(token: string): Promise<boolean>
+  addWatchOnly(input: WalletWatchOnlyInput): Promise<WalletDescriptor>
+  update(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor>
+  remove(walletId: string): Promise<boolean>
+  listPolicies(walletId?: string): Promise<WalletPolicy[]>
+  setPolicy(policy: WalletPolicy): Promise<WalletPolicy>
+  removePolicy(policyId: string): Promise<boolean>
+  listPermissions(): Promise<WalletPermissionSummary[]>
+  revokePermission(permissionId: string): Promise<boolean>
+  listRequests(): Promise<WalletRequestSummary[]>
+  approveRequest(requestId: string): Promise<WalletRequestSummary>
+  rejectRequest(requestId: string): Promise<WalletRequestSummary>
+  auditHistory(): Promise<WalletAuditSummary[]>
+  onChanged(listener: (wallets: WalletDescriptor[]) => void): () => void
+  onStatusChanged(listener: (status: WalletServiceStatus) => void): () => void
+  onRequestsChanged(listener: (requests: WalletRequestSummary[]) => void): () => void
 }
 
 export interface HronautPermissionsApi {

@@ -1,4 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
+import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
 
 const MAX_EXCEPTION_INPUT_CHARS = 64_000
 
@@ -29,6 +31,17 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
     openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install')
   })
+} else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
+  const walletListeners = new Set<(event: WalletProviderEvent) => void>()
+  ipcRenderer.on('wallet-provider:event', (_event, message: WalletProviderEvent) => {
+    for (const listener of walletListeners) listener(message)
+  })
+  contextBridge.exposeInMainWorld('__hronautWalletBridge', {
+    request: (input: WalletProviderRequest) => ipcRenderer.invoke('wallet-provider:request', input),
+    subscribe: (listener: (event: WalletProviderEvent) => void) => { walletListeners.add(listener) },
+    unsubscribe: (listener: (event: WalletProviderEvent) => void) => { walletListeners.delete(listener) }
+  })
+  contextBridge.executeInMainWorld({ func: installHronautWalletProviders })
 }
 
 function bounded(value: unknown): string | undefined {

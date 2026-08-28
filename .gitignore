@@ -228,7 +228,8 @@ dist
 
 ### Misc
 dist/
-docs/
+docs/*
+!docs/WALLETS.md
 playwright-report/
 test-results/
 ci-artifacts/

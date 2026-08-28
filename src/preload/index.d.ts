@@ -1,4 +1,4 @@
-import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautUpdatesApi } from '../shared/types'
+import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautUpdatesApi, HronautWalletsApi } from '../shared/types'
 import type { AddressSuggestionOverlayRequest } from '../shared/address-suggestions'
 
 declare global {
@@ -9,6 +9,7 @@ declare global {
     hronautBrowsingData: HronautBrowsingDataApi
     hronautDownloads: HronautDownloadsApi
     hronautMcp: HronautMcpApi
+    hronautWallets: HronautWalletsApi
     hronautCredentials: HronautCredentialsApi
     hronautPermissions: HronautPermissionsApi
     hronautSettings: HronautSettingsApi

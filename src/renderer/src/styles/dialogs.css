@@ -11,6 +11,26 @@
   user-select: none;
 }
 
+.wallet-approval-overlay { position: fixed; z-index: 130; inset: 0; display: grid; padding: 24px; place-items: center; background: rgba(4, 5, 10, .76); backdrop-filter: blur(8px); -webkit-app-region: no-drag; }
+.wallet-approval-dialog { display: grid; width: min(760px, 100%); max-height: calc(100vh - 48px); gap: 16px; padding: 22px; overflow-y: auto; border: 1px solid var(--border); border-radius: 14px; color: var(--text); background: var(--surface-raised); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); }
+.wallet-approval-dialog header h2 { margin: 5px 0 0; text-transform: capitalize; }
+.wallet-approval-dialog header p { margin: 7px 0 0; color: var(--muted); line-height: 1.5; }
+.wallet-approval-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; margin: 0; }
+.wallet-approval-grid > div { min-width: 0; padding: 10px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-muted); }
+.wallet-approval-grid dt { color: var(--muted); font-size: 11px; font-weight: 750; text-transform: uppercase; }
+.wallet-approval-grid dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.wallet-approval-warning { padding: 11px 13px; border: 1px solid #d97706; border-radius: 8px; background: rgba(217, 119, 6, .12); }
+.wallet-approval-raw { border: 1px solid var(--border-soft); border-radius: 8px; }
+.wallet-approval-raw summary { padding: 10px 12px; cursor: pointer; }
+.wallet-approval-raw pre { max-height: 240px; margin: 0; padding: 12px; overflow: auto; border-top: 1px solid var(--border-soft); background: var(--surface-muted); font-size: 11px; white-space: pre-wrap; }
+.wallet-approval-hash { margin: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.wallet-approval-dialog footer { display: flex; justify-content: flex-end; gap: 10px; }
+
+@media (max-width: 700px) {
+  .wallet-approval-overlay { padding: 10px; }
+  .wallet-approval-grid { grid-template-columns: 1fr; }
+}
+
 .command-palette-overlay { align-items: flex-start; padding-top: max(56px, 8vh); }
 .command-palette {
   display: flex;

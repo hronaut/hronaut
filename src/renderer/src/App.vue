@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { bind as bindFoley } from '@foleyjs/core'
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import {
@@ -15,6 +15,7 @@ import HelpDialog from './components/HelpDialog.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
 import SettingsDialog from './components/SettingsDialog.vue'
+import WalletApprovalDialog from './components/WalletApprovalDialog.vue'
 import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
@@ -221,7 +222,8 @@ const appSettingsFeatureController = useAppSettingsFeatureController({
     permissions: window.hronautPermissions,
     credentials: window.hronautCredentials,
     updates: window.hronautUpdates,
-    license: window.hronautLicense
+    license: window.hronautLicense,
+    wallets: window.hronautWallets
   },
   commandPaletteOpen,
   closeHelpDialog,
@@ -249,6 +251,7 @@ const {
   mcpSettingsController,
   searchSettingsController,
   settingsDialogController,
+  walletsController,
   bootstrapTasks: settingsFeatureBootstrapTasks,
   dispose: disposeAppSettingsFeatureController
 } = appSettingsFeatureController
@@ -273,6 +276,8 @@ const {
   openSection: openSettingsSection,
   close: closeSettings
 } = settingsDialogController
+const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
+const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
 const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
   browser,
   downloadsApi: window.hronautDownloads,
@@ -775,7 +780,8 @@ const {
     commandPalette: commandPaletteOpen,
     helpDialog: helpDialogOpen,
     workspaceEditor: workspaceEditorOpen,
-    credentialPicker: credentialPickerOpen
+    credentialPicker: credentialPickerOpen,
+    walletApproval: walletApprovalOpen
   },
   overlays: {
     updateNotice: updateNoticeOpen,
@@ -1074,6 +1080,8 @@ useAppLifecycleController({
       :credentials-controller="credentialsController"
       :update-controller="updateSettingsController"
       :support-controller="commercialLicenseController"
+      :wallets-controller="walletsController"
+      :workspaces="walletWorkspaces"
       :format-bytes="formatBytes"
       :format-number="localNumber"
       :format-date-time="localDateTime"
@@ -1082,6 +1090,7 @@ useAppLifecycleController({
       :open-url="openSupport"
       :purchase-commercial-license="purchaseCommercialLicense"
     />
+    <WalletApprovalDialog :controller="walletsController" />
     <HelpDialog
       :controller="helpDialogController"
       :current-version="updateState.currentVersion"

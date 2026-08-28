@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -30,6 +30,7 @@ import { filterNetworkRequests, normalizeNetworkHarOptions } from '../../shared/
 import { formatReproAsPlaywright } from '../../shared/repro-export.js'
 import { isUuidV7 } from '../uuid-v7.js'
 import { type McpToolSet } from '../../shared/mcp-tool-sets.js'
+import { WalletPublicRequestPayloadSchema } from '../../shared/wallet.js'
 
 const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
 const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
@@ -58,6 +59,80 @@ export interface SiteDataOperations {
   }>
 }
 
+export interface WalletAgentToolTarget {
+  workspaceId: string
+  tabId: string
+  client: Pick<McpClientActivity, 'id' | 'name' | 'version'>
+}
+
+export interface WalletAgentOperations {
+  list: (target: WalletAgentToolTarget) => Promise<unknown>
+  balance: (target: WalletAgentToolTarget, walletId: string) => Promise<unknown>
+  prepareTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown) => Promise<unknown>
+  requestTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown, broadcast: boolean) => Promise<unknown>
+  requestMessage: (target: WalletAgentToolTarget, walletId: string, message: Uint8Array) => Promise<unknown>
+  requestStatus: (target: WalletAgentToolTarget, requestId: string) => Promise<unknown>
+  cancelRequest: (target: WalletAgentToolTarget, requestId: string) => Promise<unknown>
+  cancelRequester?: (requesterId: string) => Promise<void>
+}
+
+interface WalletAgentSession {
+  token: string
+  target: WalletAgentToolTarget
+  expiresAt: number
+}
+
+class WalletAgentSessionRegistry {
+  private static readonly LIFETIME_MS = 30 * 60_000
+  private readonly sessions = new Map<string, WalletAgentSession>()
+
+  constructor(private readonly onExpired?: (requesterId: string) => void) {}
+
+  open(workspaceId: string, tabId: string, client: McpClientActivity, agentName?: string): WalletAgentSession {
+    this.expire()
+    const token = randomUUID()
+    const session: WalletAgentSession = {
+      token,
+      target: {
+        workspaceId,
+        tabId,
+        client: {
+          id: `wallet-session:${token}`,
+          name: agentName?.trim().slice(0, 128) || client.name,
+          ...(client.version ? { version: client.version } : {})
+        }
+      },
+      expiresAt: Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
+    }
+    this.sessions.set(token, session)
+    return structuredClone(session)
+  }
+
+  resolve(token: string, workspaceId: string, tabId: string): WalletAgentToolTarget {
+    this.expire()
+    const session = this.sessions.get(token)
+    if (!session || session.target.workspaceId !== workspaceId || session.target.tabId !== tabId) {
+      throw new Error('Wallet agent session is invalid or expired for this workspace and tab')
+    }
+    session.expiresAt = Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
+    return structuredClone(session.target)
+  }
+
+  clear(): void {
+    for (const session of this.sessions.values()) this.onExpired?.(session.target.client.id)
+    this.sessions.clear()
+  }
+
+  private expire(): void {
+    const now = Date.now()
+    for (const [token, session] of this.sessions) {
+      if (session.expiresAt > now) continue
+      this.sessions.delete(token)
+      this.onExpired?.(session.target.client.id)
+    }
+  }
+}
+
 export interface McpHttpServerOptions {
   host: string
   port: number
@@ -70,6 +145,7 @@ export interface McpHttpServerOptions {
   bookmarks: BookmarkOperations
   history: HistoryOperations
   siteData: SiteDataOperations
+  wallets?: WalletAgentOperations
   onTabActivity?: (activity: McpTabActivity) => void
 }
 
@@ -86,7 +162,7 @@ export interface UserAttentionRequest extends UserAttentionInput {
 
 export interface BrowserToolDefinition {
   name: string
-  category: 'Session' | 'Navigation' | 'Interaction' | 'Inspection'
+  category: 'Session' | 'Navigation' | 'Interaction' | 'Inspection' | 'Wallet'
   description: string
 }
 
@@ -278,7 +354,13 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_network_har', category: 'Inspection', description: 'Return or save a property-filtered, bounded, sanitized HAR 1.2 network log with bodies omitted by default; saved files use collision-safe names in Downloads.' },
   { name: 'browser_network_routes', category: 'Inspection', description: 'List, add, prioritize, remove, or clear temporary per-tab request mocks, failures, and individual network throttles.' },
   { name: 'browser_downloads', category: 'Inspection', description: 'List, cancel, or clear downloads created by the selected agent workspace.' },
-  { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result.' }
+  { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result.' },
+  { name: 'wallet_list', category: 'Wallet', description: 'Required first wallet step: open a short-lived wallet agent session and list non-secret wallet descriptors attached to this workspace. Addresses remain hidden until this session is granted account access. Pass the returned walletSessionId to every other wallet tool.' },
+  { name: 'wallet_balance', category: 'Wallet', description: 'Read the balance of one attached wallet using the walletSessionId from wallet_list, requesting human account-disclosure permission when needed.' },
+  { name: 'wallet_prepare_transaction', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, normalize, decode, estimate fees, and simulate a chain-specific unsigned transaction without signing or broadcasting it.' },
+  { name: 'wallet_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, request transaction signing, sign-and-send, or message signing through Hronaut policy and trusted human approval. This tool cannot approve its own request.' },
+  { name: 'wallet_request_status', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, read the sanitized status of a request created by this exact wallet session, workspace, and tab.' },
+  { name: 'wallet_cancel_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, cancel a pending request created by this exact wallet session, workspace, and tab.' }
 ]
 
 const ESSENTIALS_TOOL_NAMES = new Set([
@@ -307,7 +389,13 @@ const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_file_upload',
   'browser_wait',
   'browser_screenshot',
-  'browser_downloads'
+  'browser_downloads',
+  'wallet_list',
+  'wallet_balance',
+  'wallet_prepare_transaction',
+  'wallet_request',
+  'wallet_request_status',
+  'wallet_cancel_request'
 ])
 
 const QA_TOOL_NAMES = new Set([
@@ -417,6 +505,9 @@ function createBrowserMcpServer(
   siteData: SiteDataOperations,
   version: string,
   toolSet: McpToolSet,
+  client: McpClientActivity,
+  wallets?: WalletAgentOperations,
+  walletSessions?: WalletAgentSessionRegistry,
   onTabActivity?: (activity: McpTabActivity) => void
 ): McpServer {
   const server = new McpServer(
@@ -1966,6 +2057,130 @@ function createBrowserMcpServer(
     )
   )
 
+  const walletIdSchema = z.string().trim().min(1).max(128)
+  const walletRequestIdSchema = z.string().trim().min(1).max(128)
+  const walletSessionIdSchema = z.uuid()
+  const requireWallets = (): WalletAgentOperations => {
+    if (!wallets) throw new Error('Wallet operations are unavailable')
+    return wallets
+  }
+  const requireWalletSessions = (): WalletAgentSessionRegistry => {
+    if (!walletSessions) throw new Error('Wallet agent sessions are unavailable')
+    return walletSessions
+  }
+  const walletTarget = (walletSessionId: string, workspaceId: string, tabId: string): WalletAgentToolTarget => (
+    requireWalletSessions().resolve(walletSessionId, workspaceId, tabId)
+  )
+  registerWorkspaceTool(
+    'wallet_list',
+    {
+      description: toolDescription('wallet_list'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        agentName: z.string().trim().min(1).max(128).optional().describe('Optional human-readable requesting agent name shown in trusted approvals.')
+      }
+    },
+    tabTool('wallet_list', async ({ workspaceId, tabId, agentName }: {
+      workspaceId: string; tabId: string; agentName?: string
+    }) => {
+      const session = requireWalletSessions().open(workspaceId, tabId, client, agentName)
+      return textResult({
+        walletSessionId: session.token,
+        expiresAt: new Date(session.expiresAt).toISOString(),
+        wallets: await requireWallets().list(session.target)
+      })
+    })
+  )
+  registerWorkspaceTool(
+    'wallet_balance',
+    {
+      description: toolDescription('wallet_balance'),
+      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, walletId: walletIdSchema }
+    },
+    tabTool('wallet_balance', async ({ workspaceId, tabId, walletSessionId, walletId }: {
+      workspaceId: string; tabId: string; walletSessionId: string; walletId: string
+    }) => textResult(await requireWallets().balance(walletTarget(walletSessionId, workspaceId, tabId), walletId)))
+  )
+  registerWorkspaceTool(
+    'wallet_prepare_transaction',
+    {
+      description: toolDescription('wallet_prepare_transaction'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        walletSessionId: walletSessionIdSchema,
+        walletId: walletIdSchema,
+        transaction: WalletPublicRequestPayloadSchema.describe('Chain-specific unsigned transaction. Secret-bearing fields are rejected.')
+      }
+    },
+    tabTool('wallet_prepare_transaction', async ({ workspaceId, tabId, walletSessionId, walletId, transaction }: {
+      workspaceId: string; tabId: string; walletSessionId: string; walletId: string; transaction: unknown
+    }) => textResult(await requireWallets().prepareTransaction(
+      walletTarget(walletSessionId, workspaceId, tabId), walletId, transaction
+    )))
+  )
+  registerWorkspaceTool(
+    'wallet_request',
+    {
+      description: toolDescription('wallet_request'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        walletSessionId: walletSessionIdSchema,
+        walletId: walletIdSchema,
+        action: z.enum(['sign-transaction', 'sign-and-send', 'sign-message']),
+        transaction: WalletPublicRequestPayloadSchema.optional().describe('Required for transaction actions. Secret-bearing fields are rejected.'),
+        message: z.string().min(1).max(1_398_104).optional().describe('Required for sign-message. UTF-8 text by default, or canonical base64 when messageEncoding=base64.'),
+        messageEncoding: z.enum(['utf8', 'base64']).default('utf8')
+      }
+    },
+    tabTool('wallet_request', async ({ workspaceId, tabId, walletSessionId, walletId, action, transaction, message, messageEncoding }: {
+      workspaceId: string
+      tabId: string
+      walletSessionId: string
+      walletId: string
+      action: 'sign-transaction' | 'sign-and-send' | 'sign-message'
+      transaction?: unknown
+      message?: string
+      messageEncoding: 'utf8' | 'base64'
+    }) => {
+      const target = walletTarget(walletSessionId, workspaceId, tabId)
+      if (action === 'sign-message') {
+        if (!message) throw new TypeError('message is required for sign-message')
+        const bytes = messageEncoding === 'base64' ? Buffer.from(message, 'base64') : Buffer.from(message, 'utf8')
+        if (!bytes.length || bytes.length > 1_048_576 || (messageEncoding === 'base64' && bytes.toString('base64') !== message)) {
+          bytes.fill(0)
+          throw new TypeError('Wallet message is invalid')
+        }
+        try {
+          return textResult(await requireWallets().requestMessage(target, walletId, Uint8Array.from(bytes)))
+        } finally {
+          bytes.fill(0)
+        }
+      }
+      if (transaction === undefined) throw new TypeError('transaction is required for transaction requests')
+      return textResult(await requireWallets().requestTransaction(target, walletId, transaction, action === 'sign-and-send'))
+    })
+  )
+  registerWorkspaceTool(
+    'wallet_request_status',
+    {
+      description: toolDescription('wallet_request_status'),
+      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, requestId: walletRequestIdSchema }
+    },
+    tabTool('wallet_request_status', async ({ workspaceId, tabId, walletSessionId, requestId }: {
+      workspaceId: string; tabId: string; walletSessionId: string; requestId: string
+    }) => textResult(await requireWallets().requestStatus(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
+  )
+  registerWorkspaceTool(
+    'wallet_cancel_request',
+    {
+      description: toolDescription('wallet_cancel_request'),
+      inputSchema: { tabId: tabIdSchema.optional(), walletSessionId: walletSessionIdSchema, requestId: walletRequestIdSchema }
+    },
+    tabTool('wallet_cancel_request', async ({ workspaceId, tabId, walletSessionId, requestId }: {
+      workspaceId: string; tabId: string; walletSessionId: string; requestId: string
+    }) => textResult(await requireWallets().cancelRequest(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
+  )
+
   assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
   assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
   return server
@@ -1986,6 +2201,7 @@ export class McpHttpServer {
   private readonly activityStarts = new Map<string, McpTabActivity>()
   private readonly recentActivity: McpToolActivity[] = []
   private readonly toolMetrics = new Map<string, McpToolMetric>()
+  private readonly walletSessions: WalletAgentSessionRegistry
 
   constructor(
     private readonly manager: BrowserTabsManager,
@@ -1993,6 +2209,9 @@ export class McpHttpServer {
   ) {
     this.token = options.token
     this.toolSet = options.toolSet ?? 'complete'
+    this.walletSessions = new WalletAgentSessionRegistry((requesterId) => {
+      void this.options.wallets?.cancelRequester?.(requesterId)
+    })
   }
 
   setAuthenticationToken(token: string | undefined): void {
@@ -2097,6 +2316,9 @@ export class McpHttpServer {
         this.options.siteData,
         this.options.version,
         this.toolSet,
+        client,
+        this.options.wallets,
+        this.walletSessions,
         (activity) => this.trackTabActivity(activity)
       )
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
@@ -2135,6 +2357,7 @@ export class McpHttpServer {
       server.closeAllConnections()
     })
     this.startedAt = null
+    this.walletSessions.clear()
   }
 
   private beginRequest(request: Request): McpClientActivity {
@@ -2143,13 +2366,19 @@ export class McpHttpServer {
       params?: { clientInfo?: { name?: unknown; version?: unknown } }
     }
     const suppliedInfo = body.method === 'initialize' ? body.params?.clientInfo : undefined
+    const userAgent = (request.get('user-agent') || 'Unknown MCP client').slice(0, 256)
+    // Stateless MCP does not provide a protocol-level client identifier. Bind
+    // wallet authority to the authenticated local transport connection as well
+    // as its user agent. Reconnects intentionally get a fresh identity and must
+    // request wallet access again; this fails closed instead of merging clients.
+    const stableIdentity = `${userAgent}\u0000${request.socket.remoteAddress ?? 'local'}\u0000${request.socket.remotePort ?? 'unknown'}`
+    const id = createHash('sha256').update(stableIdentity, 'utf8').digest('hex')
+    const existing = this.clients.get(id)
     const name = (typeof suppliedInfo?.name === 'string'
       ? suppliedInfo.name
-      : request.get('user-agent') || 'Unknown MCP client').slice(0, 128)
+      : existing?.name ?? userAgent).slice(0, 128)
     const version = typeof suppliedInfo?.version === 'string' ? suppliedInfo.version.slice(0, 64) : undefined
-    const id = `${name}\u0000${version ?? ''}`
     const now = new Date().toISOString()
-    const existing = this.clients.get(id)
     if (!existing && this.clients.size >= McpHttpServer.MAX_CLIENTS) {
       const oldestId = this.clients.keys().next().value as string | undefined
       if (oldestId) this.clients.delete(oldestId)
@@ -2162,6 +2391,8 @@ export class McpHttpServer {
       requestCount: 0,
       activeRequests: 0
     }
+    client.name = name
+    client.version = version ?? client.version
     client.lastSeenAt = now
     client.requestCount += 1
     client.activeRequests += 1

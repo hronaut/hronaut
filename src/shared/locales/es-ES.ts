@@ -1,4 +1,4 @@
-import type { MessageSchema } from './en-US.js'
+import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
   "common": {
@@ -125,6 +125,8 @@ export const esES = {
       "performanceDescription": "Pestañas suspendidas",
       "mcp": "Seguridad MCP",
       "mcpDescription": "Autenticación local",
+      "wallets": "Carteras",
+      "walletsDescription": "Cuentas y políticas Web3",
       "privacy": "Privacidad y datos",
       "privacyDescription": "Historial, cookies, caché",
       "permissions": "Permisos de sitios",
@@ -278,6 +280,7 @@ export const esES = {
       "issue": "Informar de un problema ↗"
     }
   },
+  "wallets": enUS.wallets,
   "workspaceEditor": {
     "kicker": "Espacio de trabajo del navegador",
     "create": "Crear espacio de trabajo",

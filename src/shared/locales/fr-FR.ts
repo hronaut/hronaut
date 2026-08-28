@@ -1,4 +1,4 @@
-import type { MessageSchema } from './en-US.js'
+import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
   "common": {
@@ -125,6 +125,8 @@ export const frFR = {
       "performanceDescription": "Onglets en veille",
       "mcp": "Sécurité MCP",
       "mcpDescription": "Authentification locale",
+      "wallets": "Portefeuilles",
+      "walletsDescription": "Comptes et règles Web3",
       "privacy": "Confidentialité et données",
       "privacyDescription": "Historique, cookies, cache",
       "permissions": "Autorisations des sites",
@@ -278,6 +280,7 @@ export const frFR = {
       "issue": "Signaler un problème ↗"
     }
   },
+  "wallets": enUS.wallets,
   "workspaceEditor": {
     "kicker": "Espace de travail du navigateur",
     "create": "Créer un espace de travail",

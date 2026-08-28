@@ -31,6 +31,20 @@ import trayIconPath from '../../build/icons/24x24.png?asset'
 import trayAttentionIconPath from '../../build/icons/tray-attention.png?asset'
 import { BrowserTabsManager } from './browser/tabs-manager.js'
 import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
+import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
+import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
+import type { WalletSafeStorage } from './wallet/key-provider.js'
+import { WalletService } from './wallet/service.js'
+import {
+  WalletChainFamilySchema,
+  WalletPolicySchema,
+  WalletSecretFormatSchema,
+  type WalletCreateInput,
+  type WalletImportDetails,
+  type WalletProviderRequest,
+  type WalletUpdateInput,
+  type WalletWatchOnlyInput
+} from '../shared/wallet.js'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
 import { BookmarkStore } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
@@ -52,6 +66,7 @@ import {
   mcpToolCatalogForSet,
   type McpDashboardState,
   type SiteDataType,
+  type WalletAgentToolTarget,
   type UserAttentionInput,
   type UserAttentionRequest
 } from './mcp/server.js'
@@ -198,6 +213,8 @@ let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
+let walletService: WalletService | null = null
+let walletBroker: WalletBroker | null = null
 let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
 let homePresentationRevision = 0
@@ -431,6 +448,12 @@ function sendToShellWindows(channel: string, ...args: unknown[]): void {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send(channel, ...args)
     }
+  }
+}
+
+function sendToMainWindow(channel: string, ...args: unknown[]): void {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.send(channel, ...args)
   }
 }
 
@@ -1775,6 +1798,44 @@ function assertHomePageSender(event: Electron.IpcMainInvokeEvent): void {
   throw new Error('Rejected IPC from a non-Home page')
 }
 
+function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
+  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
+  return walletBrokerContextFromIpc(event, tabsManager)
+}
+
+function walletIdentifier(value: unknown, label: string): string {
+  if (typeof value !== 'string' || value.trim() !== value || value.length < 1 || value.length > 128) {
+    throw new TypeError(`Invalid ${label}`)
+  }
+  return value
+}
+
+function requireWalletService(): WalletService {
+  if (!walletService) throw new Error('Wallet service is unavailable')
+  return walletService
+}
+
+function requireWalletBroker(): WalletBroker {
+  if (!walletBroker) throw new Error('Wallet broker is unavailable')
+  return walletBroker
+}
+
+function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext {
+  if (!tabsManager) throw new Error('Wallet requests are unavailable before browser initialization')
+  const page = tabsManager.walletPageContextForMcpTab(target.workspaceId, target.tabId)
+  return {
+    workspaceId: page.workspaceId,
+    tabId: page.tabId,
+    navigationGeneration: page.navigationGeneration,
+    topLevelOrigin: page.topLevelOrigin,
+    requester: {
+      type: 'agent',
+      id: target.client.id,
+      name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
+    }
+  }
+}
+
 function sendPanelWindowSnapshot(target: BrowserWindow): void {
   if (target.isDestroyed() || target.webContents.isDestroyed()) return
   target.webContents.send('browser:state-changed', tabsManager?.getState())
@@ -2024,6 +2085,116 @@ function registerIpc(): void {
     const state = setMcpPaused(paused)
     console.info(paused ? '[mcp] Paused by the user.' : '[mcp] Resumed by the user.')
     return state
+  })
+  ipcMain.handle('wallet-provider:request', (event, input: WalletProviderRequest) => (
+    requireWalletBroker().providerRequest(assertWalletPageSender(event), input)
+  ))
+  ipcMain.handle('wallets:status', (event) => {
+    assertMainShellSender(event)
+    return requireWalletService().status()
+  })
+  ipcMain.handle('wallets:list', (event) => {
+    assertMainShellSender(event)
+    return requireWalletService().list()
+  })
+  ipcMain.handle('wallets:setup-passphrase', async (event, passphrase: unknown) => {
+    assertMainShellSender(event)
+    if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
+    return requireWalletService().setupPassphrase(passphrase)
+  })
+  ipcMain.handle('wallets:unlock', async (event, passphrase: unknown) => {
+    assertMainShellSender(event)
+    if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
+    return requireWalletService().unlock(passphrase)
+  })
+  ipcMain.handle('wallets:lock', (event) => {
+    assertMainShellSender(event)
+    const service = requireWalletService()
+    service.lock()
+    return service.status()
+  })
+  ipcMain.handle('wallets:generate', async (event, input: WalletCreateInput) => {
+    assertMainShellSender(event)
+    const service = requireWalletService()
+    const generated = await service.generate(input)
+    const owner = mainWindow
+    if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
+    const { response } = await dialog.showMessageBox(owner, {
+      type: 'warning',
+      title: 'Save wallet recovery material',
+      message: 'Write down this recovery phrase and store it offline.',
+      detail: `${generated.recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
+      buttons: ['I saved it', 'Not yet'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true
+    })
+    return response === 0 ? service.confirmRecovery(generated.wallet.id) : generated.wallet
+  })
+  ipcMain.handle('wallets:prepare-import', (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
+    assertMainShellSender(event)
+    if (typeof recoveryMaterial !== 'string') throw new TypeError('Wallet recovery material must be a string')
+    return requireWalletService().prepareImport(
+      WalletChainFamilySchema.parse(chainFamily),
+      WalletSecretFormatSchema.parse(format),
+      recoveryMaterial
+    )
+  })
+  ipcMain.handle('wallets:confirm-import', (event, token: unknown, details: WalletImportDetails) => {
+    assertMainShellSender(event)
+    return requireWalletService().confirmImport(walletIdentifier(token, 'wallet import token'), details)
+  })
+  ipcMain.handle('wallets:cancel-import', (event, token: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletService().cancelImport(walletIdentifier(token, 'wallet import token'))
+  })
+  ipcMain.handle('wallets:add-watch-only', (event, input: WalletWatchOnlyInput) => {
+    assertMainShellSender(event)
+    return requireWalletService().addWatchOnly(input)
+  })
+  ipcMain.handle('wallets:update', (event, walletId: unknown, changes: WalletUpdateInput) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().updateWallet(walletIdentifier(walletId, 'wallet identifier'), changes)
+  })
+  ipcMain.handle('wallets:remove', (event, walletId: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().removeWallet(walletIdentifier(walletId, 'wallet identifier'))
+  })
+  ipcMain.handle('wallets:list-policies', (event, walletId?: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletService().policies.list(walletId === undefined ? undefined : walletIdentifier(walletId, 'wallet identifier'))
+  })
+  ipcMain.handle('wallets:set-policy', (event, input: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletService().setPolicy(WalletPolicySchema.parse(input))
+  })
+  ipcMain.handle('wallets:remove-policy', (event, policyId: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletService().removePolicy(walletIdentifier(policyId, 'wallet policy identifier'))
+  })
+  ipcMain.handle('wallets:list-permissions', (event) => {
+    assertMainShellSender(event)
+    return requireWalletService().permissions.list()
+  })
+  ipcMain.handle('wallets:revoke-permission', (event, permissionId: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().revokePermission(walletIdentifier(permissionId, 'wallet permission identifier'))
+  })
+  ipcMain.handle('wallets:list-requests', (event) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().listPending()
+  })
+  ipcMain.handle('wallets:approve-request', (event, requestId: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().approve(walletIdentifier(requestId, 'wallet request identifier'))
+  })
+  ipcMain.handle('wallets:reject-request', (event, requestId: unknown) => {
+    assertMainShellSender(event)
+    return requireWalletBroker().reject(walletIdentifier(requestId, 'wallet request identifier'))
+  })
+  ipcMain.handle('wallets:audit-history', (event) => {
+    assertMainShellSender(event)
+    return requireWalletService().auditHistory()
   })
   ipcMain.handle('browser:get-state', async (event) => {
     assertTrustedShellSender(event)
@@ -3172,6 +3343,19 @@ async function createWindow(): Promise<void> {
   persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
+  walletService = new WalletService({
+    directory: join(app.getPath('userData'), 'wallet'),
+    platform: process.platform,
+    safeStorage: safeStorage as unknown as WalletSafeStorage,
+    onChanged: (wallets) => sendToMainWindow('wallets:changed', wallets),
+    onStatusChanged: (status) => sendToMainWindow('wallets:status-changed', status),
+    warn: (message) => console.warn(`[wallet] ${message}`)
+  })
+  await walletService.initialize()
+  walletBroker = new WalletBroker(walletService, {
+    onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
+    onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
+  })
   applyTheme(settings.theme)
   windowStateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowStateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))
@@ -3235,6 +3419,9 @@ async function createWindow(): Promise<void> {
       sendToPanelWindow('browser:state-changed', state)
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
+    onWalletNavigation: (tabId, generation) => void walletBroker?.cancelForNavigation(tabId, generation),
+    onWalletTabClosed: (tabId) => void walletBroker?.cancelForTab(tabId),
+    onWalletWorkspaceClosed: (workspaceId) => void walletBroker?.cancelForWorkspace(workspaceId),
     onPageVisited: ({ url, title }) => {
       void historyStore?.record({ url, title })
         .then(() => publishVisitHistory())
@@ -3469,8 +3656,11 @@ async function releaseRuntimeResources(): Promise<void> {
   if (runtimeShutdown) return runtimeShutdown
   const manager = tabsManager
   const server = mcpServer
+  const wallets = walletService
   tabsManager = null
   mcpServer = null
+  walletService = null
+  walletBroker = null
   runtimeShutdown = (async () => {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
@@ -3488,6 +3678,7 @@ async function releaseRuntimeResources(): Promise<void> {
       if (result.status === 'rejected') console.error('[shutdown] Runtime cleanup failed:', result.reason)
     }
     manager?.destroy()
+    wallets?.dispose()
   })()
   return runtimeShutdown
 }
@@ -3585,6 +3776,26 @@ function createRuntimeMcpServer(
     siteData: {
       inspect: (workspaceId, origin) => currentBrowsingDataSiteSummary(origin, tabsManager?.workspaceSession(workspaceId)),
       clear: (workspaceId, origin, dataTypes: SiteDataType[]) => clearWorkspaceSiteData(workspaceId, origin, dataTypes)
+    },
+    wallets: {
+      list: async (target) => requireWalletBroker().listAgentWallets(walletAgentContext(target)),
+      balance: async (target, walletId) => requireWalletBroker().agentBalance(walletAgentContext(target), walletId),
+      prepareTransaction: async (target, walletId, transaction) => (
+        requireWalletBroker().prepareAgentTransaction(walletAgentContext(target), walletId, transaction)
+      ),
+      requestTransaction: async (target, walletId, transaction, broadcast) => (
+        requireWalletBroker().requestAgentTransaction(walletAgentContext(target), walletId, transaction, broadcast)
+      ),
+      requestMessage: async (target, walletId, message) => (
+        requireWalletBroker().requestAgentMessage(walletAgentContext(target), walletId, message)
+      ),
+      requestStatus: async (target, requestId) => (
+        requireWalletBroker().agentRequestStatus(walletAgentContext(target), requestId)
+      ),
+      cancelRequest: async (target, requestId) => (
+        requireWalletBroker().cancelAgentRequest(walletAgentContext(target), requestId)
+      ),
+      cancelRequester: async (requesterId) => requireWalletBroker().cancelForRequester(requesterId)
     },
     onTabActivity: (activity) => {
       if (activity.phase === 'started') activeMcpActivities.add(activity.activityId)

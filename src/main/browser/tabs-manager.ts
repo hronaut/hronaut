@@ -808,6 +808,14 @@ export interface BrowserCredentialCandidate {
   password: string
 }
 
+export interface BrowserWalletPageContext {
+  tabId: string
+  workspaceId: string
+  navigationGeneration: number
+  topLevelOrigin: string
+  url: string
+}
+
 export interface TabsManagerOptions {
   partition: string
   storePath: string
@@ -831,6 +839,9 @@ export interface TabsManagerOptions {
   onPageVisited?: (visit: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
+  onWalletNavigation?: (tabId: string, navigationGeneration: number) => void
+  onWalletTabClosed?: (tabId: string) => void
+  onWalletWorkspaceClosed?: (workspaceId: string) => void
   configureSession?: (browserSession: Session) => void
 }
 
@@ -1232,6 +1243,45 @@ export class BrowserTabsManager {
     }
   }
 
+  walletPageContext(webContentsId: number): BrowserWalletPageContext {
+    const tabId = this.webContentsToTab.get(webContentsId)
+    const tab = tabId ? this.tabs.get(tabId) : undefined
+    if (!tab || tab.webContents.isDestroyed() || tab.webContents.id !== webContentsId) {
+      throw new Error('Wallet request did not originate from an active browser tab')
+    }
+    if (!tab.mcpGroupId) throw new Error('Wallets are unavailable on Hronaut application pages')
+    const url = tab.webContents.getURL() || tab.url
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+    } catch {
+      throw new Error('Wallets require an HTTP or HTTPS top-level page')
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error('Wallets require an HTTP or HTTPS top-level page')
+    }
+    return {
+      tabId: tab.id,
+      workspaceId: tab.mcpGroupId,
+      navigationGeneration: tab.navigationGeneration,
+      topLevelOrigin: parsed.origin,
+      url: parsed.href
+    }
+  }
+
+  walletPageContextForMcpTab(workspaceId: string, tabId: string): BrowserWalletPageContext {
+    const resolvedTabId = this.requireTabInMcpGroup(workspaceId, tabId)
+    const tab = this.tabs.get(resolvedTabId)
+    if (!tab || tab.webContents.isDestroyed()) throw new Error('Wallet request target tab is unavailable')
+    return this.walletPageContext(tab.webContents.id)
+  }
+
+  sendWalletProviderEvent(tabId: string, event: import('../../shared/wallet.js').WalletProviderEvent): void {
+    const tab = this.tabs.get(tabId)
+    if (!tab || tab.webContents.isDestroyed() || tab.sleeping) return
+    tab.webContents.send('wallet-provider:event', structuredClone(event))
+  }
+
   async closeMcpTabGroup(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
     return this.withWorkspaceOperation(groupId, preserveStorage ? 'archiving the workspace' : 'closing the workspace', () => (
       this.closeMcpTabGroupInternal(groupId, preserveStorage)
@@ -1300,6 +1350,7 @@ export class BrowserTabsManager {
     }
     removeClosedWorkspaceTabs()
     this.mcpTabGroups.delete(groupId)
+    this.options.onWalletWorkspaceClosed?.(groupId)
     if (!this.tabs.size) {
       await this.createTab({ url: 'about:blank', active: true, mcpGroupId: this.ensureDefaultHumanGroup() })
     }
@@ -2908,6 +2959,7 @@ export class BrowserTabsManager {
   }
 
   private removeTabRecord(tab: BrowserTab): void {
+    this.options.onWalletTabClosed?.(tab.id)
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
     this.webContentsToTab.delete(tab.webContents.id)
@@ -6052,6 +6104,7 @@ export class BrowserTabsManager {
     webContents.once('destroyed', () => {
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
+      this.options.onWalletTabClosed?.(tab.id)
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
       tab.loading = false
       tab.pageProblem = {
@@ -6377,6 +6430,7 @@ export class BrowserTabsManager {
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
+      this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
       if (isSameDocument) return
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []

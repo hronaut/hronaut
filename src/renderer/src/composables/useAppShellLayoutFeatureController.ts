@@ -25,6 +25,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     helpDialog: BooleanState
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
+    walletApproval: BooleanState
   }
   overlays: {
     updateNotice: BooleanState
@@ -69,7 +70,8 @@ export function useAppShellLayoutFeatureController(
     || modals.commandPalette.value
     || modals.helpDialog.value
     || modals.workspaceEditor.value
-    || modals.credentialPicker.value)
+    || modals.credentialPicker.value
+    || modals.walletApproval.value)
   const panelDockLayout = usePanelDockLayout({
     ...layout,
     fullModalOpen

@@ -9,6 +9,7 @@ export const SETTINGS_SECTIONS = [
   'privacy',
   'permissions',
   'credentials',
+  'wallets',
   'updates',
   'support'
 ] as const
@@ -27,7 +28,7 @@ export function useSettingsDialogController(options: SettingsDialogControllerOpt
   const section = ref<SettingsSection>('appearance')
   const resetBusy = ref(false)
 
-  const resetVisible = computed(() => section.value !== 'support' && section.value !== 'credentials')
+  const resetVisible = computed(() => !['support', 'credentials', 'wallets'].includes(section.value))
   const resetDisabled = computed(() => resetBusy.value || options.isResetDisabled(section.value))
 
   function openSection(next: SettingsSection): void {

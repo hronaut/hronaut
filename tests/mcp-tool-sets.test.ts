@@ -26,7 +26,7 @@ describe('MCP tool sets', () => {
     const qa = mcpToolCatalogForSet('qa').map(({ name }) => name)
     const all = mcpToolCatalogForSet('complete').map(({ name }) => name)
 
-    expect(browse).toHaveLength(26)
+    expect(browse).toHaveLength(32)
     expect(browse).toEqual([
       'browser_workspaces',
       'browser_saved_workspaces',
@@ -53,7 +53,13 @@ describe('MCP tool sets', () => {
       'browser_file_upload',
       'browser_wait',
       'browser_screenshot',
-      'browser_downloads'
+      'browser_downloads',
+      'wallet_list',
+      'wallet_balance',
+      'wallet_prepare_transaction',
+      'wallet_request',
+      'wallet_request_status',
+      'wallet_cancel_request'
     ])
     expect(qa).toEqual(expect.arrayContaining(browse))
     expect(qa).toContain('browser_accessibility_audit')
@@ -61,6 +67,7 @@ describe('MCP tool sets', () => {
     expect(qa).not.toContain('browser_evaluate')
     expect(all).toEqual(BROWSER_TOOL_CATALOG.map(({ name }) => name))
     expect(new Set(all).size).toBe(all.length)
+    expect(all.some((name) => /approve|decrypt|export|private|seed|mnemonic/i.test(name))).toBe(false)
   })
 
   it('uses Browser Essentials for new profiles and accepts only named tool sets', () => {

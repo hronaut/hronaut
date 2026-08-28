@@ -1,4 +1,4 @@
-import type { MessageSchema } from './en-US.js'
+import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
   "common": {
@@ -125,6 +125,8 @@ export const deDE = {
       "performanceDescription": "Schlafende Tabs",
       "mcp": "MCP-Sicherheit",
       "mcpDescription": "Lokale Authentifizierung",
+      "wallets": "Wallets",
+      "walletsDescription": "Web3-Konten und Richtlinien",
       "privacy": "Datenschutz & Daten",
       "privacyDescription": "Verlauf, Cookies, Cache",
       "permissions": "Website-Berechtigungen",
@@ -278,6 +280,7 @@ export const deDE = {
       "issue": "Problem melden ↗"
     }
   },
+  "wallets": enUS.wallets,
   "workspaceEditor": {
     "kicker": "Browser-Arbeitsbereich",
     "create": "Arbeitsbereich erstellen",

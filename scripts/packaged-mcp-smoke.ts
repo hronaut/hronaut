@@ -4,10 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { seedPackagedMcpSmokeProfile } from './packaged-mcp-smoke-profile.js'
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const executable = join(repositoryRoot, 'dist', 'linux-unpacked', 'hronaut')
 const profileDirectory = await mkdtemp(join(tmpdir(), 'hronaut-packaged-smoke-'))
+await seedPackagedMcpSmokeProfile(profileDirectory)
 
 async function availableLoopbackPort(): Promise<number> {
   const probe = createServer()

@@ -1,4 +1,4 @@
-import type { MessageSchema } from './en-US.js'
+import { enUS, type MessageSchema } from './en-US.js'
 
 export const ruRU = {
   "common": {
@@ -125,6 +125,8 @@ export const ruRU = {
       "performanceDescription": "Спящие вкладки",
       "mcp": "Безопасность MCP",
       "mcpDescription": "Локальная аутентификация",
+      "wallets": "Кошельки",
+      "walletsDescription": "Учётные записи и политики Web3",
       "privacy": "Конфиденциальность и данные",
       "privacyDescription": "История, cookie, кеш",
       "permissions": "Разрешения сайтов",
@@ -278,6 +280,7 @@ export const ruRU = {
       "issue": "Сообщить о проблеме ↗"
     }
   },
+  "wallets": enUS.wallets,
   "workspaceEditor": {
     "kicker": "Рабочая область браузера",
     "create": "Создать рабочую область",

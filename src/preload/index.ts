@@ -50,6 +50,7 @@ import type {
   PanelDock,
   PanelRedockRequest,
   HronautMcpApi,
+  HronautWalletsApi,
   HronautCredentialsApi,
   HronautDownloadsApi,
   BrowsingDataClearOptions,
@@ -66,6 +67,17 @@ import type {
   ThemeName,
   MemorySaverTimeoutMinutes
 } from '../shared/types.js'
+import type {
+  WalletCreateInput,
+  WalletDescriptor,
+  WalletImportDetails,
+  WalletPolicy,
+  WalletRequestSummary,
+  WalletSecretFormat,
+  WalletServiceStatus,
+  WalletUpdateInput,
+  WalletWatchOnlyInput
+} from '../shared/wallet.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
 import type { AddressSuggestionOverlayRequest } from '../shared/address-suggestions.js'
 
@@ -262,6 +274,46 @@ const mcpApi: HronautMcpApi = {
 }
 
 contextBridge.exposeInMainWorld('hronautMcp', mcpApi)
+const walletsApi: HronautWalletsApi = {
+  status: () => ipcRenderer.invoke('wallets:status'),
+  list: () => ipcRenderer.invoke('wallets:list'),
+  setupPassphrase: (passphrase: string) => ipcRenderer.invoke('wallets:setup-passphrase', passphrase),
+  unlock: (passphrase: string) => ipcRenderer.invoke('wallets:unlock', passphrase),
+  lock: () => ipcRenderer.invoke('wallets:lock'),
+  generate: (input: WalletCreateInput) => ipcRenderer.invoke('wallets:generate', input),
+  prepareImport: (chainFamily: WalletDescriptor['chainFamily'], format: WalletSecretFormat, recoveryMaterial: string) =>
+    ipcRenderer.invoke('wallets:prepare-import', chainFamily, format, recoveryMaterial),
+  confirmImport: (token: string, details: WalletImportDetails) => ipcRenderer.invoke('wallets:confirm-import', token, details),
+  cancelImport: (token: string) => ipcRenderer.invoke('wallets:cancel-import', token),
+  addWatchOnly: (input: WalletWatchOnlyInput) => ipcRenderer.invoke('wallets:add-watch-only', input),
+  update: (walletId: string, changes: WalletUpdateInput) => ipcRenderer.invoke('wallets:update', walletId, changes),
+  remove: (walletId: string) => ipcRenderer.invoke('wallets:remove', walletId),
+  listPolicies: (walletId?: string) => ipcRenderer.invoke('wallets:list-policies', walletId),
+  setPolicy: (policy: WalletPolicy) => ipcRenderer.invoke('wallets:set-policy', policy),
+  removePolicy: (policyId: string) => ipcRenderer.invoke('wallets:remove-policy', policyId),
+  listPermissions: () => ipcRenderer.invoke('wallets:list-permissions'),
+  revokePermission: (permissionId: string) => ipcRenderer.invoke('wallets:revoke-permission', permissionId),
+  listRequests: () => ipcRenderer.invoke('wallets:list-requests'),
+  approveRequest: (requestId: string) => ipcRenderer.invoke('wallets:approve-request', requestId),
+  rejectRequest: (requestId: string) => ipcRenderer.invoke('wallets:reject-request', requestId),
+  auditHistory: () => ipcRenderer.invoke('wallets:audit-history'),
+  onChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, wallets: WalletDescriptor[]): void => listener(wallets)
+    ipcRenderer.on('wallets:changed', handler)
+    return () => ipcRenderer.removeListener('wallets:changed', handler)
+  },
+  onStatusChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: WalletServiceStatus): void => listener(status)
+    ipcRenderer.on('wallets:status-changed', handler)
+    return () => ipcRenderer.removeListener('wallets:status-changed', handler)
+  },
+  onRequestsChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, requests: WalletRequestSummary[]): void => listener(requests)
+    ipcRenderer.on('wallets:requests-changed', handler)
+    return () => ipcRenderer.removeListener('wallets:requests-changed', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautWallets', walletsApi)
 const settingsApi: HronautSettingsApi = {
   get: () => ipcRenderer.invoke('settings:get'),
   getRendererState: () => ipcRenderer.invoke('settings:get-renderer-state'),

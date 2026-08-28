@@ -7,17 +7,27 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add profile-wide Browser Essentials, Web QA, and Complete MCP tool sets, with localized Settings controls and deterministic catalogs for every connected client.
+- Add local, encrypted EVM, Solana, and Tron wallets with generated, imported, watch-only, and dedicated-agent records; workspace/origin permissions; trusted approval; simulation; bounded local/testnet policy automation; and hash-chained non-secret audit history.
+- Add standards-oriented EIP-1193/EIP-6963, Solana Wallet Standard, and TIP-6963 website providers, plus narrowly scoped MCP wallet list, balance, prepare, request, status, and cancellation tools that never expose or approve secrets.
 
 ### Changed
 
 - Start new profiles with the smaller Browser Essentials catalog while preserving the Complete catalog for existing profiles.
+- Keep wallet keys and pending signable message bodies in trusted main-process memory only, encrypt managed records with XChaCha20-Poly1305, wrap the vault key with secure operating-system storage, and require Argon2id passphrase protection when Linux reports `basic_text` or no secure secret backend.
+- Use the MIT-licensed RustCrypto Argon2id Node-API binding for the Linux passphrase fallback so the vault works in Electron runtimes that do not compile Node's optional Argon2 API.
 
 ### Fixed
 
+- Bind EVM approvals to a fully prepared transaction, including nonce, gas, fee fields, and normalized transaction type, before signing.
+- Keep mislabeled mainnets and unknown networks out of bounded automation even when their saved environment claims to be a testnet or local chain.
+- Show trusted approval UI the exact canonical message or typed data while keeping message bodies out of durable records and agent responses.
+- Reject forged wallet JSON type tags and prototype-like keys, return standards-shaped EIP-1193 errors, and present wallet-vault security states without leaking internal enum values.
 - Remove horizontal crowded-tab scroll controls as soon as the tabs fit the full strip again, and keep the Home loading indicator visible in compact and collapsed layouts.
 - Stop native tray attention when its requested tab or workspace closes instead of leaving a stale pulsing request behind.
 - Let agents show Hronaut or request human attention before their workspace contains a browser tab, while keeping pending tabless requests visible only to their originating workspace.
 - Authenticate and validate request origins before parsing MCP JSON bodies, so unauthorized malformed or oversized payloads cannot consume the parser first.
+- Cancel and reject live wallet requests when a wallet is detached or removed, its account permission is revoked, or its website renderer is destroyed; clear retained message bytes and revalidate attachment and permission immediately before signing.
+- Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 
 ## [1.9.11] - 2026-08-28
 

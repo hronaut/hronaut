@@ -10,6 +10,7 @@ import type {
   HronautPermissionsApi,
   HronautSettingsApi,
   HronautUpdatesApi,
+  HronautWalletsApi,
   MemorySaverTimeoutMinutes,
   RendererSettingsState,
   SearchEngineName
@@ -30,6 +31,7 @@ import { useSettingsSectionResetController } from './useSettingsSectionResetCont
 import { useSitePermissionsController } from './useSitePermissionsController.js'
 import { useUpdateNoticePresentationController } from './useUpdateNoticePresentationController.js'
 import { useUpdateSettingsController } from './useUpdateSettingsController.js'
+import { useWalletsController } from './useWalletsController.js'
 import { disposeAll } from './dispose-all.js'
 
 interface AppSettingsFeatureStore {
@@ -61,6 +63,7 @@ export interface AppSettingsFeatureApis {
   credentials: Pick<HronautCredentialsApi, 'status' | 'list' | 'importFromCsv' | 'remove'>
   updates: HronautUpdatesApi
   license: HronautLicenseApi
+  wallets: HronautWalletsApi
 }
 
 type Translate = (
@@ -221,6 +224,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     setSearchEngine: (searchEngine) => options.settingsStore.setSearchEngine(searchEngine),
     onError: options.onSettingError
   })
+  const walletsController = useWalletsController({
+    api: options.apis.wallets,
+    formatError: (error) => friendlyUiError(error, 'The wallet operation could not be completed safely.')
+  })
   const { reset: resetSettingsSection } = useSettingsSectionResetController({
     resetAppearance: async () => {
       await options.settingsStore.resetAppearance()
@@ -269,6 +276,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     { id: 'license', run: commercialLicenseController.initialize },
     { id: 'mcp', run: mcpStatusController.initialize },
     { id: 'download-directory', run: loadDefaultDownloadDirectory },
+    { id: 'wallets', run: walletsController.initialize },
     {
       id: 'permissions',
       run: () => sitePermissionsController.initialize(options.apis.permissions.list())
@@ -298,7 +306,8 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
       mcpStatusController.dispose,
       privacySettingsController.dispose,
       sitePermissionsController.dispose,
-      credentialsController.dispose
+      credentialsController.dispose,
+      walletsController.dispose
     ])
   }
 
@@ -316,6 +325,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     mcpSettingsController,
     searchSettingsController,
     settingsDialogController,
+    walletsController,
     showUpdateStatusPill: updateNoticePresentationController.showStatusPill,
     bootstrapTasks,
     dispose

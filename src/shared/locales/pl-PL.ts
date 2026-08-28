@@ -1,4 +1,4 @@
-import type { MessageSchema } from './en-US.js'
+import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
   "common": {
@@ -125,6 +125,8 @@ export const plPL = {
       "performanceDescription": "Uśpione karty",
       "mcp": "Bezpieczeństwo MCP",
       "mcpDescription": "Lokalne uwierzytelnianie",
+      "wallets": "Portfele",
+      "walletsDescription": "Konta i zasady Web3",
       "privacy": "Prywatność i dane",
       "privacyDescription": "Historia, pliki cookie, pamięć podręczna",
       "permissions": "Uprawnienia witryn",
@@ -278,6 +280,7 @@ export const plPL = {
       "issue": "Zgłoś problem ↗"
     }
   },
+  "wallets": enUS.wallets,
   "workspaceEditor": {
     "kicker": "Obszar roboczy przeglądarki",
     "create": "Utwórz obszar roboczy",

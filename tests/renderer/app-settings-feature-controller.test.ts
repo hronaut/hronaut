@@ -125,6 +125,17 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
         deactivate: vi.fn(),
         openPurchase: vi.fn(),
         onChanged: vi.fn(() => licenseUnsubscribe)
+      },
+      wallets: {
+        status: vi.fn(async () => ({ managedWallets: 'ready' as const, backend: 'test', watchOnlyAvailable: true as const })),
+        list: vi.fn(async () => []),
+        setupPassphrase: vi.fn(), unlock: vi.fn(), lock: vi.fn(), generate: vi.fn(), prepareImport: vi.fn(),
+        confirmImport: vi.fn(), cancelImport: vi.fn(), addWatchOnly: vi.fn(), update: vi.fn(), remove: vi.fn(),
+        listPolicies: vi.fn(async () => []), setPolicy: vi.fn(), removePolicy: vi.fn(),
+        listPermissions: vi.fn(async () => []), revokePermission: vi.fn(),
+        listRequests: vi.fn(async () => []), approveRequest: vi.fn(), rejectRequest: vi.fn(),
+        auditHistory: vi.fn(async () => []),
+        onChanged: vi.fn(() => vi.fn()), onStatusChanged: vi.fn(() => vi.fn()), onRequestsChanged: vi.fn(() => vi.fn())
       }
     },
     commandPaletteOpen: ref(false),
@@ -166,6 +177,7 @@ describe('app settings feature controller', () => {
       'license',
       'mcp',
       'download-directory',
+      'wallets',
       'permissions',
       'credentials'
     ])

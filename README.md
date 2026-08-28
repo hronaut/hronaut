@@ -165,3 +165,9 @@ For billing and licensing support, contact [support@hronaut.dev](mailto:support@
 ## Documentation
 
 The [detailed reference](REFERENCE.md) covers browser behavior, privacy and security boundaries, every MCP tool group, testing, packaging, and release operations.
+
+## Local Web3 wallets
+
+Hronaut can hold separate local EVM, Solana, and Tron accounts, attach them to selected workspaces, and mediate website or coding-agent requests through simulation, policy checks, and trusted Hronaut approval. Private keys and recovery phrases never enter website pages or MCP responses. Mainnet signing always requires explicit human approval; bounded automation is limited to configured local networks and testnets.
+
+See [docs/WALLETS.md](docs/WALLETS.md) for the threat model, supported methods, Linux vault behavior, recovery, RPC configuration, revocation, and the exact security boundary. Hronaut does not use WalletConnect, Reown, hosted custody, or proprietary wallet SDKs.

@@ -8,6 +8,7 @@ import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconFavorite from '~icons/material-symbols/favorite-rounded'
 import IconKey from '~icons/material-symbols/key-rounded'
+import IconWallet from '~icons/material-symbols/account-balance-wallet-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
@@ -23,6 +24,7 @@ import type { SearchSettingsController } from '../composables/useSearchSettingsC
 import type { SettingsDialogController, SettingsSection } from '../composables/useSettingsDialogController.js'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'
 import type { UpdateSettingsController } from '../composables/useUpdateSettingsController.js'
+import type { WalletsController } from '../composables/useWalletsController.js'
 import AppearanceSettings from './AppearanceSettings.vue'
 import CredentialsSettingsPanel from './CredentialsSettingsPanel.vue'
 import DownloadSettingsPanel from './DownloadSettingsPanel.vue'
@@ -33,6 +35,7 @@ import SearchSettingsPanel from './SearchSettingsPanel.vue'
 import SitePermissionsSettingsPanel from './SitePermissionsSettingsPanel.vue'
 import SupportSettingsPanel from './SupportSettingsPanel.vue'
 import UpdateSettingsPanel from './UpdateSettingsPanel.vue'
+import WalletsSettingsPanel from './WalletsSettingsPanel.vue'
 
 const props = defineProps<{
   controller: SettingsDialogController
@@ -45,6 +48,8 @@ const props = defineProps<{
   credentialsController: CredentialsController
   updateController: UpdateSettingsController
   supportController: CommercialLicenseController
+  walletsController: WalletsController
+  workspaces: Array<{ id: string; name: string }>
   formatBytes: (bytes: number) => string
   formatNumber: (value: number) => string
   formatDateTime: (value: Date | number | string) => string
@@ -80,6 +85,7 @@ const navigation = computed<Array<{
   { section: 'privacy', label: t('settings.nav.privacy'), description: t('settings.nav.privacyDescription'), icon: IconDelete },
   { section: 'permissions', label: t('settings.nav.permissions'), description: t('settings.nav.permissionsDescription'), icon: IconPrivacy },
   { section: 'credentials', label: t('settings.nav.passwords'), description: t('settings.nav.passwordsDescription'), icon: IconKey },
+  { section: 'wallets', label: t('settings.nav.wallets'), description: t('settings.nav.walletsDescription'), icon: IconWallet },
   { section: 'updates', label: t('settings.nav.updates'), description: t('settings.nav.updatesDescription'), icon: IconSystemUpdate },
   { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
 ])
@@ -163,6 +169,11 @@ useModalDialogFocus({ open, panel })
         <CredentialsSettingsPanel
           v-else-if="section === 'credentials'"
           :controller="credentialsController"
+        />
+        <WalletsSettingsPanel
+          v-else-if="section === 'wallets'"
+          :controller="walletsController"
+          :workspaces="workspaces"
         />
         <UpdateSettingsPanel
           v-else-if="section === 'updates'"

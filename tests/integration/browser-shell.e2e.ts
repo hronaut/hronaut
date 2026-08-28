@@ -1761,6 +1761,103 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
   }
 })
 
+test('cancels a pending wallet approval as soon as its website renderer is destroyed', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Wallet teardown fixture</title><main>Wallet teardown fixture</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Wallet teardown fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/wallet-teardown`
+    const created = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+    const tab = created.tabs.find((entry) => entry.url === url)
+    if (!tab?.mcpGroupId) throw new Error('Wallet teardown tab did not expose a workspace')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((entry) => entry.active)?.title)'))
+      .toBe('Wallet teardown fixture')
+
+    const vaultStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
+    if (vaultStatus.managedWallets === 'passphrase-setup-required') {
+      await appWindow.evaluate(`window.hronautWallets.setupPassphrase('wallet teardown integration passphrase')`)
+    }
+    const prepared = await appWindow.evaluate(`window.hronautWallets.prepareImport(
+      'evm',
+      'private-key',
+      '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+    )`) as { token: string; publicAddress: string }
+    await appWindow.evaluate(`window.hronautWallets.confirmImport(${JSON.stringify(prepared.token)}, {
+      name: 'Renderer teardown wallet',
+      network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+      workspaceIds: [${JSON.stringify(tab.mcpGroupId)}],
+      dedicatedAgent: false
+    })`)
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Wallet teardown WebContents was not found')
+      await page.executeJavaScript(`
+        window.__walletConnectState = 'pending';
+        void window.ethereum.request({ method: 'eth_requestAccounts' }).then(
+          () => { window.__walletConnectState = 'resolved' },
+          (error) => { window.__walletConnectState = 'rejected:' + error.message }
+        );
+        'started';
+      `)
+    }, url)
+    await expect.poll(async () => {
+      const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ id: string; operation: string; status: string }>
+      return requests.find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')
+    }).not.toBeUndefined()
+    const connectRequests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ id: string; operation: string; status: string }>
+    const connectId = connectRequests.find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')!.id
+    await appWindow.evaluate(`window.hronautWallets.approveRequest(${JSON.stringify(connectId)})`)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('window.__walletConnectState')
+    }, url)).toBe('resolved')
+
+    await electronApp.evaluate(async ({ webContents }, input) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
+      if (!page) throw new Error('Wallet teardown WebContents was not found')
+      await page.executeJavaScript(`
+        window.__walletSignState = 'pending';
+        void window.ethereum.request({
+          method: 'personal_sign',
+          params: ['renderer-destroyed', ${JSON.stringify(input.publicAddress)}]
+        }).then(
+          () => { window.__walletSignState = 'resolved' },
+          (error) => { window.__walletSignState = 'rejected:' + error.message }
+        );
+        'started';
+      `)
+    }, { url, publicAddress: prepared.publicAddress })
+    await expect.poll(async () => {
+      const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ operation: string; status: string }>
+      return requests.some((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')
+    }).toBe(true)
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Wallet teardown WebContents was not found')
+      page.close()
+    }, url)
+
+    await expect.poll(async () => {
+      const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ operation: string; status: string }>
+      return requests.find((request) => request.operation === 'sign-message')?.status
+    }).toBe('cancelled')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('keeps shell state usable when Electron destroys a tab WebContents independently', async ({
   appWindow,
   electronApp

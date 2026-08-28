@@ -48,6 +48,8 @@ describe('SettingsDialog', () => {
         credentialsController: inactiveController,
         updateController: inactiveController,
         supportController: inactiveController,
+        walletsController: inactiveController,
+        workspaces: [],
         formatBytes: String,
         formatNumber: String,
         formatDateTime: String,

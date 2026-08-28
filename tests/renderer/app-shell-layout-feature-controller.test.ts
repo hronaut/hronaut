@@ -57,7 +57,8 @@ function createHarness(): Harness {
     commandPalette: ref(false),
     helpDialog: ref(false),
     workspaceEditor: ref(false),
-    credentialPicker: ref(false)
+    credentialPicker: ref(false),
+    walletApproval: ref(false)
   }
   const overlays = {
     updateNotice: ref(false),

@@ -1,0 +1,51 @@
+// @vitest-environment jsdom
+import { ref } from 'vue'
+import { render, screen } from '@testing-library/vue'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import WalletApprovalDialog from '../../src/renderer/src/components/WalletApprovalDialog.vue'
+import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
+import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { WalletRequestSummary } from '../../src/shared/wallet.js'
+
+function request(): WalletRequestSummary {
+  return {
+    id: 'request-1', walletId: 'wallet-1', workspaceId: 'workspace-1', status: 'awaiting-human',
+    approvalHash: 'a'.repeat(64), operation: 'sign-message',
+    requester: { type: 'website', id: 'tab-1', name: 'Dapp' }, origin: 'https://dapp.example',
+    networkId: '1', createdAt: '2026-08-28T12:00:00.000Z', expiresAt: '2026-08-28T12:05:00.000Z',
+    details: {
+      walletName: 'Main wallet', publicAddress: '0x0000000000000000000000000000000000000001',
+      chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true,
+      simulationAttempted: false, simulationSuccess: false, method: 'personal_sign',
+      raw: { messageCanonicalBase64: 'c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=', messageUtf8Preview: 'sign this exact message' }
+    }
+  }
+}
+
+function controller(): WalletsController {
+  const pending = request()
+  return {
+    awaitingApproval: ref([pending]), busy: ref(false), errorMessage: ref(''),
+    approve: vi.fn(async () => undefined), reject: vi.fn(async () => undefined)
+  } as unknown as WalletsController
+}
+
+describe('WalletApprovalDialog', () => {
+  it('shows exact trusted message content and only acts from explicit chrome buttons', async () => {
+    const wallets = controller()
+    const view = render(WalletApprovalDialog, {
+      props: { controller: wallets }, global: { plugins: [createHronautI18n('en-US')] }
+    })
+    const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
+
+    expect(dialog).toHaveTextContent('sign this exact message')
+    expect(dialog).toHaveTextContent('c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=')
+    await userEvent.setup().click(view.container.querySelector('.wallet-approval-overlay')!)
+    expect(wallets.approve).not.toHaveBeenCalled()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Approve exact request' }))
+    expect(wallets.approve).toHaveBeenCalledOnce()
+    expect(wallets.approve).toHaveBeenCalledWith('request-1')
+  })
+})
