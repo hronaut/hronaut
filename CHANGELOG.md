@@ -13,6 +13,8 @@ All notable changes to Hronaut are documented in this file.
 - Treat Electron's aborted page loads as normal navigation supersession and keep stale address submissions from showing a false failure over the newer page.
 - Keep delayed native workspace-editor requests from opening over a newer Settings, Help, Command Palette, or credential dialog.
 - Keep keyboard and programmatic focus inside the active Hronaut modal, including reverse tabbing at the minimum window size and 125% interface scale.
+- Keep the current page visible when closing it would require a sleeping replacement that cannot wake, and preserve newer tab selections while replacement restoration is pending.
+- Keep the active split-view pane attached and visible when its inactive partner closes.
 
 ## [1.9.10] - 2026-08-28
 

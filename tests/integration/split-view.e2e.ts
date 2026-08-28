@@ -102,6 +102,36 @@ test('shows two live tabs, changes their layout, and exits split view', async ({
   await expect.poll(async () => (await visibleViews()).map((view) => view.title)).toEqual(['Split Alpha'])
 })
 
+test('keeps the active pane attached when the inactive split pane closes', async ({
+  appWindow,
+  electronApp
+}) => {
+  const activeUrl = 'data:text/html,<title>Split active survivor</title><main>Active pane remains visible</main>'
+  const inactiveUrl = 'data:text/html,<title>Split inactive close</title><main>Close this inactive pane</main>'
+  const activeState = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(activeUrl)}, active: true })`) as BrowserState
+  const activeTabId = activeState.activeTabId!
+  const inactiveState = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(inactiveUrl)}, active: false })`) as BrowserState
+  const inactiveTabId = inactiveState.tabs.find((tab) => tab.url === inactiveUrl)!.id
+  await appWindow.evaluate(`window.hronaut.openSplitView(${JSON.stringify(inactiveTabId)})`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.splitView)')).toBeDefined()
+
+  await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(inactiveTabId)})`)
+
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => ({ activeTabId: state.activeTabId, splitView: state.splitView }))')).toEqual({
+    activeTabId,
+    splitView: undefined
+  })
+  await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }) => (
+    (BrowserWindow.getAllWindows()[0]?.contentView.children ?? [])
+      .filter((view) => view instanceof WebContentsView)
+      .map((view) => view.webContents.getTitle())
+  ))).toEqual(['Split active survivor'])
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    return page?.executeJavaScript('document.body.innerText')
+  }, activeUrl)).toContain('Active pane remains visible')
+})
+
 test('keeps the current pane when a sleeping split target cannot wake and permits a retry', async ({
   appWindow,
   electronApp

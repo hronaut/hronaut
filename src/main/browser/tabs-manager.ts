@@ -2764,10 +2764,60 @@ export class BrowserTabsManager {
     return this.closeTabInternal(tabId, true)
   }
 
+  private closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
+    const splitPartnerId = this.splitViewContains(tab.id)
+      ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
+      : null
+    const ids = this.orderedTabs().map((candidate) => candidate.id)
+    const index = ids.indexOf(tab.id)
+    const orderedCandidates = splitPartnerId
+      ? [splitPartnerId, ...ids]
+      : [...ids.slice(index + 1), ...ids.slice(0, index).reverse()]
+    const nextId = tab.id === this.activeTabId
+      ? orderedCandidates.find((candidateId) => {
+        const candidate = this.tabs.get(candidateId)
+        return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
+      })
+      : undefined
+    return { splitPartnerId, nextId }
+  }
+
+  private async prepareActiveCloseReplacement(tab: BrowserTab): Promise<boolean> {
+    if (tab.id !== this.activeTabId) return true
+    const selectionGeneration = this.tabSelectionGeneration
+    while (true) {
+      if (
+        this.tabs.get(tab.id) !== tab
+        || this.activeTabId !== tab.id
+        || this.tabSelectionGeneration !== selectionGeneration
+      ) return false
+      const transition = this.closeTabTransition(tab)
+      if (!transition.nextId) return true
+      const replacement = this.tabs.get(transition.nextId)
+      if (!replacement || (!replacement.sleeping && !replacement.wakePromise)) return true
+      try {
+        await this.wakeTab(replacement.id)
+      } catch (error) {
+        if (
+          this.tabs.get(tab.id) !== tab
+          || this.activeTabId !== tab.id
+          || this.tabSelectionGeneration !== selectionGeneration
+        ) return false
+        const currentReplacementId = this.closeTabTransition(tab).nextId
+        if (this.tabs.get(replacement.id) !== replacement || currentReplacementId !== replacement.id) {
+          continue
+        }
+        throw error
+      }
+      // Tab ordering and split membership can change while a sleeping page is
+      // restoring without changing the active selection. Recompute until the
+      // actual close successor is awake before committing irreversible state.
+    }
+  }
+
   private async closeTabInternal(tabId: string, ensureReplacement: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
-    const wasActive = tab.id === this.activeTabId
     // A WebContentsView may be destroyed independently (renderer failure,
     // devtools teardown, or an Electron close race). Purge those stale siblings
     // before any child-view transition so they cannot poison selection/layout.
@@ -2778,28 +2828,18 @@ export class BrowserTabsManager {
       this.rememberClosedTab(candidate)
       this.removeTabRecord(candidate)
     }
+    if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
+    if (this.tabs.get(tab.id) !== tab) return this.getState()
+    const wasActive = tab.id === this.activeTabId
     this.rejectNetworkWaiters(tab.id, 'The tab closed while waiting for network activity.')
     this.clearReproRecording(tab)
     this.cancelNativeSelectionSessions(tab)
-    const splitPartnerId = this.splitViewContains(tab.id)
-      ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
-      : null
+    const { splitPartnerId, nextId } = this.closeTabTransition(tab)
     this.rememberClosedTab(tab)
-    const ids = this.orderedTabs().map((candidate) => candidate.id)
-    const index = ids.indexOf(tab.id)
-    const orderedCandidates = splitPartnerId
-      ? [splitPartnerId, ...ids]
-      : [...ids.slice(index + 1), ...ids.slice(0, index).reverse()]
-    const nextId = wasActive
-      ? orderedCandidates.find((candidateId) => {
-        const candidate = this.tabs.get(candidateId)
-        return candidate !== undefined && candidate.id !== tab.id && !candidate.webContents.isDestroyed()
-      })
-      : undefined
 
     if (splitPartnerId) {
       const splitPartner = this.tabs.get(splitPartnerId)
-      if (splitPartner && splitPartner.id !== nextId && !splitPartner.webContents.isDestroyed()) {
+      if (wasActive && splitPartner && splitPartner.id !== nextId && !splitPartner.webContents.isDestroyed()) {
         this.window.contentView.removeChildView(splitPartner.view)
       }
       this.splitView = null
