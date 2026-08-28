@@ -15,7 +15,14 @@ test('uses the selected search engine for address-bar and MCP searches', async (
   mcpToken,
   profileDirectory
 }) => {
-  const server = createServer((_request, response) => {
+  let releaseFirstFixtureResponse = (): void => undefined
+  const firstFixtureResponseGate = new Promise<void>((resolve) => {
+    releaseFirstFixtureResponse = resolve
+  })
+  let fixtureRequestCount = 0
+  const server = createServer(async (_request, response) => {
+    fixtureRequestCount += 1
+    if (fixtureRequestCount === 1) await firstFixtureResponseGate
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Search redirect fixture</title><main>Search redirected locally</main>')
   })
@@ -74,7 +81,11 @@ test('uses the selected search engine for address-bar and MCP searches', async (
       (globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }).__hronautCapturedSearchUrls
     ))).toEqual(['https://duckduckgo.com/?q=human%20search%20phrase'])
 
-    await addressBar.fill('person@example.com')
+    await addressBar.click()
+    await addressBar.press(`${primaryModifier}+A`)
+    releaseFirstFixtureResponse()
+    await expect(appWindow.getByRole('tab', { name: /Search redirect fixture/ })).toBeVisible()
+    await addressBar.pressSequentially('person@example.com')
     await addressBar.press('Enter')
     await expect.poll(() => electronApp.evaluate(() => (
       (globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }).__hronautCapturedSearchUrls
@@ -107,6 +118,7 @@ test('uses the selected search engine for address-bar and MCP searches', async (
       'https://duckduckgo.com/?q=agent%20search%20phrase'
     ])
   } finally {
+    releaseFirstFixtureResponse()
     await client.close().catch(() => undefined)
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

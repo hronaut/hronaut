@@ -38,6 +38,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const open = ref(false)
   const selection = ref(-1)
   const focused = ref(false)
+  const editing = ref(false)
   const dirty = ref(false)
   const suggestions = computed(() => buildLocalAddressSuggestions({
     query: address.value,
@@ -88,12 +89,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   function handleFocus(): void {
     focused.value = true
+    editing.value = true
     dirty.value = false
     openSuggestions()
   }
 
   function handleInput(): void {
     focused.value = true
+    editing.value = true
     dirty.value = true
     openSuggestions()
   }
@@ -101,7 +104,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   function finishBlur(): void {
     blurTimer = undefined
     focused.value = false
-    if (dirty.value) restoreActiveAddress()
+    editing.value = false
+    restoreActiveAddress()
   }
 
   function handleFocusOut(event: FocusEvent): void {
@@ -121,18 +125,23 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   async function submit(): Promise<void> {
     if (disposed || !address.value.trim()) return
+    const target = address.value
     cancelBlur()
+    editing.value = false
     dirty.value = false
     close()
-    await options.onNavigate(address.value)
+    input.value?.blur()
+    await options.onNavigate(target)
   }
 
   async function chooseSuggestion(suggestion: AddressSuggestion): Promise<void> {
     if (disposed) return
     cancelBlur()
     address.value = suggestion.url
+    editing.value = false
     dirty.value = false
     close()
+    input.value?.blur()
     await options.onNavigate(suggestion.url)
   }
 
@@ -222,9 +231,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       ([tabId, url], [previousTabId]) => {
         if (disposed) return
         const tabChanged = previousTabId !== undefined && tabId !== previousTabId
-        if (tabChanged || !dirty.value) {
+        if (tabChanged || !editing.value) {
           cancelBlur()
           close()
+          if (tabChanged) editing.value = false
           address.value = displayedAddress(url)
           dirty.value = false
         }

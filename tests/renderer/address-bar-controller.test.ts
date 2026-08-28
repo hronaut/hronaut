@@ -104,6 +104,26 @@ function createHarness(options: {
 afterEach(() => vi.useRealTimers())
 
 describe('address bar controller', () => {
+  it('preserves an address selection when the current page commits before typing starts', async () => {
+    const rendered = createHarness()
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await nextTick()
+
+    await fireEvent.focus(input)
+    input.select()
+    rendered.activeTab.value = tab('first', 'https://redirected.example/final')
+    await nextTick()
+
+    expect(input).toHaveValue('https://example.test/first')
+    expect(input.selectionStart).toBe(0)
+    expect(input.selectionEnd).toBe('https://example.test/first'.length)
+
+    await fireEvent.update(input, 'person@example.com')
+    await fireEvent.submit(input.closest('form')!)
+
+    expect(rendered.onNavigate).toHaveBeenCalledWith('person@example.com')
+  })
+
   it('preserves a dirty edit through redirects and restores the committed URL on blur', async () => {
     vi.useFakeTimers()
     const rendered = createHarness()
@@ -138,6 +158,21 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://example.test/second')
     expect(rendered.controller.open.value).toBe(false)
     expect(rendered.overlay.hide).toHaveBeenCalled()
+  })
+
+  it('resumes committed URL updates after a tab change discards an edit', async () => {
+    const rendered = createHarness()
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'unfinished search')
+
+    rendered.activeTab.value = tab('second', 'https://second.example/start')
+    await nextTick()
+    expect(input).toHaveValue('https://second.example/start')
+
+    rendered.activeTab.value = tab('second', 'https://second.example/redirected')
+    await nextTick()
+    expect(input).toHaveValue('https://second.example/redirected')
   })
 
   it('uses Escape to restore the active URL instead of leaving an uncommitted query', async () => {

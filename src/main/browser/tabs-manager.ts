@@ -7121,7 +7121,10 @@ export class BrowserTabsManager {
   }
 
   private isHumanInteractionLocked(tab: BrowserTab): boolean {
-    return this.allHumanInteractionLocked || tab.humanInteractionLocked
+    // Hronaut Home is application chrome, not a website tab. The global lock
+    // protects page input while leaving Home controls usable for the human.
+    return !isHronautHomeUrl(tab.url)
+      && (this.allHumanInteractionLocked || tab.humanInteractionLocked)
   }
 
   private shouldBlockHumanKeyboardInput(tab: BrowserTab): boolean {

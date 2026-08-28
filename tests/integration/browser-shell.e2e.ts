@@ -1833,6 +1833,11 @@ test('reports a failed native repository tab without leaving the menu action sil
   appWindow,
   electronApp
 }) => {
+  // Wait until startup has created its initial native page view so the
+  // one-shot prototype failure below can only target the menu-created tab.
+  await expect.poll(() => appWindow.evaluate(
+    'window.hronaut.getState().then((state) => state.tabs.length)'
+  )).toBeGreaterThan(0)
   await electronApp.evaluate(({ WebContentsView }) => {
     const prototype = WebContentsView.prototype
     const originalSetBackgroundColor = prototype.setBackgroundColor
@@ -4469,6 +4474,26 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       { id: 'close-tabs-to-right', enabled: false },
       { id: 'close-duplicate-tabs', enabled: false }
     ])
+
+    await electronApp.evaluate(({ clipboard }) => clipboard.clear())
+    await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)'))
+      .toBe('hronaut://home/')
+    await electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+      if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
+      const point = await home.executeJavaScript(`(() => {
+        const bounds = document.querySelector('[data-copy-target="guide-code"]').getBoundingClientRect()
+        return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      })()`)
+      home.focus()
+      home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
+      home.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+    })
+    await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
+      .toContain('codex mcp add hronaut')
+    await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
+    await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
 
     await clickFixture(secondPath)
     await expect.poll(() => fixtureClicks(secondPath)).toBe(0)

@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep a focused address-bar selection authoritative while an earlier navigation commits, so rapid consecutive searches cannot append the new query to a redirected page URL.
+- Keep Hronaut Home controls interactive while the global website-tab interaction lock is enabled.
+
 ## [1.9.7] - 2026-08-28
 
 ### Changed
