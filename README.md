@@ -2,6 +2,8 @@
 
 Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
 
+[![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
+
 [Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Zed guide](https://hronaut.dev/zed-browser-mcp) · [Devin Local guide](https://hronaut.dev/devin-local-browser-mcp) · [JetBrains Junie guide](https://hronaut.dev/jetbrains-junie-browser-mcp) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
