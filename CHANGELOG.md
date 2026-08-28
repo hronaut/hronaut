@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.11] - 2026-08-28
+
 ### Changed
 
 - Add a focused Docker/Vitest command for fast file- or case-level unit and component feedback without building or launching Electron.
