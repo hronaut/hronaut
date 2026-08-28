@@ -3400,6 +3400,41 @@ test('does not override a newer tab selection while a context-menu sleep check i
   }
 })
 
+test('keeps native element picking behind modal priority', async ({ appWindow, electronApp }) => {
+  await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Modal picker fixture</title><main>Fixture</main>', active: true })`)
+  await appWindow.getByRole('button', { name: 'Create workspace' }).click()
+  const editor = appWindow.getByRole('dialog', { name: 'Create workspace' })
+  await expect(editor).toBeVisible()
+  await appWindow.evaluate(`(() => {
+    globalThis.__disposeNativePickShortcutObservation?.()
+    globalThis.__nativePickShortcutObserved = false
+    globalThis.__disposeNativePickShortcutObservation = window.hronaut.onShortcutRequested((action) => {
+      if (action === 'pick-element') globalThis.__nativePickShortcutObserved = true
+    })
+  })()`)
+
+  await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+    const item = Menu.getApplicationMenu()?.items
+      .find((candidate) => candidate.label === 'View')?.submenu?.items
+      .find((candidate) => candidate.label === 'Pick Element for Agent')
+    if (!item?.click) throw new Error('Pick Element for Agent menu item was not found')
+    item.click(item, BrowserWindow.getAllWindows()[0], {} as Electron.KeyboardEvent)
+  })
+  await expect.poll(() => appWindow.evaluate('globalThis.__nativePickShortcutObserved')).toBe(true)
+  await expect(editor).toBeVisible()
+
+  await appWindow.keyboard.press('Escape')
+
+  await expect(editor).toBeHidden()
+  await expect(appWindow.getByRole('button', { name: 'Select an element to copy for agent' })).toBeVisible()
+  await expect(appWindow.getByRole('button', { name: 'Cancel element selection' })).toHaveCount(0)
+  await appWindow.evaluate(`(() => {
+    globalThis.__disposeNativePickShortcutObservation?.()
+    delete globalThis.__disposeNativePickShortcutObservation
+    delete globalThis.__nativePickShortcutObserved
+  })()`)
+})
+
 test('creates, renames, and permanently closes an isolated human workspace', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Human default tab</title><main>Default</main>', active: true })`)
   await electronApp.evaluate(({ Menu }) => {

@@ -46,7 +46,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(canRunAction = (_action: string) => true) {
   const state = ref(browserState())
   const activeTab = ref<BrowserTabState | undefined>(state.value.tabs[1])
   const browser = {
@@ -78,12 +78,28 @@ function createController() {
     browser,
     syncState,
     settingsOpen,
+    canRunAction,
     ...callbacks
   })
   return { state, activeTab, browser, syncState, settingsOpen, callbacks, controller }
 }
 
 describe('browser shortcut controller', () => {
+  it('keeps a denied native page action from running behind modal presentation', async () => {
+    const canRunAction = vi.fn((action: string) => action !== 'pick-element')
+    const harness = createController(canRunAction)
+
+    await expect(harness.controller.run('pick-element')).resolves.toBe(false)
+    await expect(harness.controller.run('new-tab')).resolves.toBe(true)
+
+    expect(canRunAction).toHaveBeenNthCalledWith(1, 'pick-element')
+    expect(canRunAction).toHaveBeenNthCalledWith(2, 'new-tab')
+    expect(harness.callbacks.toggleElementPicker).not.toHaveBeenCalled()
+    expect(harness.callbacks.openNewTab).toHaveBeenCalledOnce()
+    expect(harness.callbacks.onError).not.toHaveBeenCalled()
+    harness.controller.dispose()
+  })
+
   it('reports rejected browser operations instead of leaking an unhandled shortcut failure', async () => {
     const harness = createController()
     const failure = new Error('reload channel unavailable')

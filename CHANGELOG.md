@@ -15,6 +15,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep the native Pick Element action from starting a hidden website picker behind command-palette, workspace, credential, Help, and Settings modals.
+- Preserve newer human tab selections while MCP wakes a sleeping selection target, and close sleeping MCP tabs without reloading them first.
 - Attribute MCP activity to the validated tab in the requested workspace, including while an omitted-target command wakes a sleeping tab.
 - Keep the native Command Palette action from opening behind workspace and credential modals, so the visible dialog remains authoritative for Escape and focus handling.
 - Preserve the existing browser session when Hronaut receives a quit request before cold-start tab restoration begins, instead of flushing an uninitialized empty model over `tabs.json`.

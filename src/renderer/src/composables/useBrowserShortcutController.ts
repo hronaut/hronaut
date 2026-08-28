@@ -19,6 +19,7 @@ export interface BrowserShortcutControllerOptions {
   browser: ShortcutBrowserApi
   syncState: (operation: Promise<BrowserState> | BrowserState) => Promise<void>
   settingsOpen: Ref<boolean>
+  canRunAction: (action: BrowserShortcutAction) => boolean
   openNewTab: ShortcutCallback
   focusAddress: ShortcutCallback
   openFind: ShortcutCallback
@@ -147,7 +148,11 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
   }
 
   async function run(action: BrowserShortcutAction): Promise<boolean> {
-    if (disposed || (options.state.value.allHumanInteractionLocked && action === 'close-tab')) return false
+    if (
+      disposed
+      || !options.canRunAction(action)
+      || (options.state.value.allHumanInteractionLocked && action === 'close-tab')
+    ) return false
     const operationGeneration = generation
     try {
       await execute(action)

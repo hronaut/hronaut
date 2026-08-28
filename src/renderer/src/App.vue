@@ -695,6 +695,13 @@ const browserShortcutController = useBrowserShortcutController({
   browser,
   syncState,
   settingsOpen,
+  canRunAction: (action) => action !== 'pick-element' || !(
+    commandPaletteOpen.value
+    || workspaceEditorOpen.value
+    || credentialPickerOpen.value
+    || helpDialogOpen.value
+    || settingsOpen.value
+  ),
   openNewTab: async () => { await openNewTab() },
   focusAddress: async () => { await focusAddress() },
   openFind,
