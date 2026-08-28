@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.9.10] - 2026-08-28
+
+### Changed
+
+- Move the browser tabs, title-bar surfaces, navigation controls, and page actions into a focused presentation layer while keeping application orchestration in `App.vue`.
+
 ### Fixed
 
 - Serialize native website permission prompts and revalidate queued requests before showing them.
