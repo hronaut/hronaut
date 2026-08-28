@@ -2,10 +2,15 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { McpHttpServer } from '../src/main/mcp/server.js'
+import {
+  McpHttpServer,
+  type UserAttentionInput,
+  type UserAttentionRequest
+} from '../src/main/mcp/server.js'
 
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-678a-7abc-8def-0123456789ab'
+const otherWorkspaceId = '01912345-678b-7abc-8def-0123456789ab'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -36,7 +41,7 @@ describe('MCP user-attention presentation failures', () => {
         throw new Error('simulated async show rejection')
       }),
       getState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] })),
-      getMcpGroupState: vi.fn(() => ({}))
+      getMcpGroupState: vi.fn(() => ({ activeTabId: tabId, tabs: [{ id: tabId }] }))
     }
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1',
@@ -59,7 +64,7 @@ describe('MCP user-attention presentation failures', () => {
     }) as CallToolResult
     expect(attention.isError).toBe(true)
     expect(text(attention)).toContain('simulated async attention rejection')
-    expect(requestUserAttention).toHaveBeenCalledWith({ reason: 'Review this page.', tabId })
+    expect(requestUserAttention).toHaveBeenCalledWith({ reason: 'Review this page.', tabId, workspaceId })
 
     const show = await client.callTool({
       name: 'browser_show',
@@ -69,5 +74,85 @@ describe('MCP user-attention presentation failures', () => {
     expect(text(show)).toContain('simulated async show rejection')
     expect(manager.selectTabAndWait).toHaveBeenCalledWith(tabId)
     expect(showWindow).not.toHaveBeenCalled()
+  })
+
+  it('can show the app and request attention before a workspace has any tabs', async () => {
+    const showWindow = vi.fn()
+    let userAttention: UserAttentionRequest | null = null
+    const requestUserAttention = vi.fn(async (request: UserAttentionInput): Promise<UserAttentionRequest> => {
+      const nextAttention = {
+        ...request,
+        id: 'attention-request',
+        requestedAt: new Date().toISOString()
+      }
+      userAttention = nextAttention
+      return nextAttention
+    })
+    const manager = {
+      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+      requireTabInMcpGroup: vi.fn(() => {
+        throw new Error('No tab exists in this workspace')
+      }),
+      wakeTab: vi.fn(async () => undefined),
+      selectTabAndWait: vi.fn(async () => undefined),
+      getState: vi.fn(() => ({ activeTabId: null, tabs: [] })),
+      getMcpGroupState: vi.fn(() => ({
+        activeTabId: null,
+        tabs: [],
+        closedTabs: [],
+        mcpTabGroups: [],
+        savedTabGroups: []
+      })),
+      tabBelongsToMcpGroup: vi.fn(() => false)
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1',
+      port: 0,
+      version: 'test',
+      showWindow,
+      getUserAttention: () => userAttention,
+      requestUserAttention,
+      bookmarks: {} as never,
+      history: {} as never,
+      siteData: {} as never
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'hronaut-empty-workspace-attention-test', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+
+    const show = await client.callTool({
+      name: 'browser_show',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(show.isError).not.toBe(true)
+    expect(showWindow).toHaveBeenCalledOnce()
+
+    const attention = await client.callTool({
+      name: 'browser_request_user_attention',
+      arguments: { workspaceId, reason: 'Create the first tab.' }
+    }) as CallToolResult
+    expect(attention.isError).not.toBe(true)
+    expect(requestUserAttention).toHaveBeenCalledWith({
+      reason: 'Create the first tab.',
+      tabId: undefined,
+      workspaceId
+    })
+    expect(manager.requireTabInMcpGroup).not.toHaveBeenCalled()
+
+    const ownerStatus = await client.callTool({
+      name: 'browser_status',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(JSON.parse(text(ownerStatus)).userAttention).toMatchObject({
+      id: 'attention-request',
+      reason: 'Create the first tab.',
+      workspaceId
+    })
+
+    const otherStatus = await client.callTool({
+      name: 'browser_status',
+      arguments: { workspaceId: otherWorkspaceId }
+    }) as CallToolResult
+    expect(JSON.parse(text(otherStatus)).userAttention).toBeNull()
   })
 })

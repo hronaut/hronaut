@@ -4,6 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add profile-wide Browser Essentials, Web QA, and Complete MCP tool sets, with localized Settings controls and deterministic catalogs for every connected client.
+
+### Changed
+
+- Start new profiles with the smaller Browser Essentials catalog while preserving the Complete catalog for existing profiles.
+
+### Fixed
+
+- Let agents show Hronaut or request human attention before their workspace contains a browser tab, while keeping pending tabless requests visible only to their originating workspace.
+- Authenticate and validate request origins before parsing MCP JSON bodies, so unauthorized malformed or oversized payloads cannot consume the parser first.
+
 ## [1.9.11] - 2026-08-28
 
 ### Changed

@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
+import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
 import {
   DEFAULT_MCP_PORT,
   MAX_MCP_PORT,
@@ -8,13 +9,14 @@ import {
 } from '../../../shared/mcp-port.js'
 
 type McpPortState = 'idle' | 'saving' | 'saved' | 'error'
-type McpOperation = 'idle' | 'authentication' | 'port' | 'reset'
+type McpOperation = 'idle' | 'authentication' | 'tool-set' | 'port' | 'reset'
 
 export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
   endpoint: Readonly<Ref<string>>
   listenerFailed: Readonly<Ref<boolean>>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
+  setToolSet: (toolSet: McpToolSet) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
   confirmDisableAuthentication: () => boolean
@@ -109,6 +111,21 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     }
   }
 
+  async function setToolSet(toolSet: McpToolSet): Promise<boolean> {
+    if (busy.value || toolSet === options.settings.value.mcpToolSet) return false
+    const operationGeneration = generation
+    operation.value = 'tool-set'
+    try {
+      await options.setToolSet(toolSet)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onAuthenticationError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) operation.value = 'idle'
+    }
+  }
+
   async function applyPort(): Promise<boolean> {
     if (busy.value) return false
     if (!portValid.value) return invalidPort()
@@ -175,6 +192,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     canApplyPort,
     editPort,
     setAuthentication,
+    setToolSet,
     applyPort,
     reset,
     dispose

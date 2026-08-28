@@ -25,11 +25,16 @@ function renderPanel() {
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
   })
+  const setToolSet = vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => {
+    settings.value = { ...settings.value, mcpToolSet }
+    return settings.value
+  })
   const resetSettings = vi.fn(async () => {
     settings.value = {
       ...settings.value,
       mcpAuthentication: false,
-      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort
+      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort,
+      mcpToolSet: DEFAULT_RENDERER_SETTINGS.mcpToolSet
     }
     return settings.value
   })
@@ -39,6 +44,7 @@ function renderPanel() {
     endpoint,
     listenerFailed: ref(false),
     setAuthentication,
+    setToolSet,
     setPort,
     resetSettings,
     confirmDisableAuthentication,
@@ -50,7 +56,7 @@ function renderPanel() {
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
   })
-  return { controller, confirmDisableAuthentication, setAuthentication, setPort, settings }
+  return { controller, confirmDisableAuthentication, setAuthentication, setPort, setToolSet, settings }
 }
 
 describe('McpSettingsPanel', () => {
@@ -58,9 +64,22 @@ describe('McpSettingsPanel', () => {
     const { controller } = renderPanel()
 
     expect(screen.getByRole('heading', { name: 'MCP security' })).toBeVisible()
+    expect(screen.getByRole('combobox', { name: 'MCP tool set' })).toHaveValue('essentials')
     expect(screen.getByRole('spinbutton', { name: 'MCP server port' })).toHaveValue(47812)
     expect(screen.getByText('Active endpoint: http://127.0.0.1:47812/mcp')).toBeVisible()
     expect(screen.getByText(/^Authentication is off\./)).toBeVisible()
+    controller.dispose()
+  })
+
+  it('changes the server-wide tool set and explains client reconnection', async () => {
+    const { controller, setToolSet } = renderPanel()
+    const user = userEvent.setup()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'MCP tool set' }), 'qa')
+
+    expect(setToolSet).toHaveBeenCalledWith('qa')
+    expect(screen.getByRole('combobox', { name: 'MCP tool set' })).toHaveValue('qa')
+    expect(screen.getByText(/Reconnect MCP clients that cache the tool catalog/i)).toBeVisible()
     controller.dispose()
   })
 

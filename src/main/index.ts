@@ -48,8 +48,8 @@ import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './br
 import { renderHomePage } from './home-page.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import {
-  BROWSER_TOOL_CATALOG,
   McpHttpServer,
+  mcpToolCatalogForSet,
   type McpDashboardState,
   type SiteDataType,
   type UserAttentionInput,
@@ -68,6 +68,7 @@ import {
 } from '../shared/memory-saver.js'
 import { isInterfaceScale, scaleShellMetric } from '../shared/interface-scale.js'
 import { isTabPosition } from '../shared/tab-position.js'
+import { DEFAULT_MCP_TOOL_SET, isMcpToolSet } from '../shared/mcp-tool-sets.js'
 import {
   isSitePermissionDecision,
   normalizeSitePermissionOrigin,
@@ -1137,8 +1138,10 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
       clients: [],
       recentActivity: [],
       toolMetrics: [],
-      tools: BROWSER_TOOL_CATALOG.map((tool) => ({ ...tool }))
+      tools: mcpToolCatalogForSet(settings.mcpToolSet)
     }),
+    endpoint: mcpUrl,
+    tools: mcpToolCatalogForSet(settings.mcpToolSet),
     presentationRevision: homePresentationRevision,
     status: currentMcpControlState().status,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
@@ -1334,6 +1337,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
     id: randomUUID(),
     reason: input.reason.replace(/\s+/g, ' ').trim(),
     requestedAt: new Date().toISOString(),
+    ...(input.workspaceId && { workspaceId: input.workspaceId }),
     ...(input.tabId && { tabId: input.tabId })
   }
   if (input.tabId) await tabsManager?.selectTabAndWait(input.tabId)
@@ -2989,6 +2993,15 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return setMcpPort(port as number)
   })
+  ipcMain.handle('settings:set-mcp-tool-set', async (event, toolSet: unknown) => {
+    assertTrustedShellSender(event)
+    if (!isMcpToolSet(toolSet)) throw new TypeError('Unsupported MCP tool set')
+    await updateSettings({ mcpToolSet: toolSet })
+    mcpServer?.setToolSet(toolSet)
+    publishSettings()
+    refreshHomeAfterCommittedChange('mcp')
+    return { ...settings }
+  })
   ipcMain.handle('settings:reset-mcp', async (event) => {
     assertTrustedShellSender(event)
     return resetMcpSettings()
@@ -3517,6 +3530,7 @@ function createRuntimeMcpServer(
     port,
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
     version: app.getVersion(),
+    toolSet: settings.mcpToolSet,
     showWindow,
     getUserAttention: () => (userAttention ? { ...userAttention } : null),
     requestUserAttention,
@@ -3611,9 +3625,11 @@ async function resetMcpSettings(): Promise<AppSettings> {
   if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
     await updateSettings({
       mcpAuthentication: false,
-      mcpPort: DEFAULT_MCP_PORT
+      mcpPort: DEFAULT_MCP_PORT,
+      mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
     mcpServer?.setAuthenticationToken(undefined)
+    mcpServer?.setToolSet(DEFAULT_MCP_TOOL_SET)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
     console.warn('[mcp] Authentication disabled in Settings. Any local process can control this profile.')
@@ -3637,7 +3653,8 @@ async function resetMcpSettings(): Promise<AppSettings> {
   try {
     await updateSettings({
       mcpAuthentication: false,
-      mcpPort: DEFAULT_MCP_PORT
+      mcpPort: DEFAULT_MCP_PORT,
+      mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
   } catch (error) {
     await candidate.stop().catch(() => undefined)
@@ -3649,6 +3666,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
     authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
   }))
   const previous = mcpServer
+  candidate.setToolSet(DEFAULT_MCP_TOOL_SET)
   mcpServer = candidate
   mcpPort = DEFAULT_MCP_PORT
   mcpUrl = `http://${MCP_HOST}:${DEFAULT_MCP_PORT}/mcp`

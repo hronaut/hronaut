@@ -22,6 +22,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       attentionSoundCue: 'warning',
       mcpAuthentication: false,
       mcpPort: 47_812,
+      mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,

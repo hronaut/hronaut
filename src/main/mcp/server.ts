@@ -29,6 +29,7 @@ import { sortNetworkRequests } from '../../shared/network-request-sort.js'
 import { filterNetworkRequests, normalizeNetworkHarOptions } from '../../shared/network-har.js'
 import { formatReproAsPlaywright } from '../../shared/repro-export.js'
 import { isUuidV7 } from '../uuid-v7.js'
+import { type McpToolSet } from '../../shared/mcp-tool-sets.js'
 
 const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
 const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
@@ -62,6 +63,7 @@ export interface McpHttpServerOptions {
   port: number
   token?: string
   version: string
+  toolSet?: McpToolSet
   showWindow: () => void
   getUserAttention: () => UserAttentionRequest | null
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
@@ -73,6 +75,7 @@ export interface McpHttpServerOptions {
 
 export interface UserAttentionInput {
   reason: string
+  workspaceId?: string
   tabId?: string
 }
 
@@ -237,8 +240,8 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
-  { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
+  { name: 'browser_fill_form', category: 'Interaction', description: 'Fill several form fields in one tool call.' },
   { name: 'browser_hover', category: 'Interaction', description: 'Hover an element or viewport coordinates to reveal menus, tooltips, canvas details, or hover states.' },
   { name: 'browser_drag', category: 'Interaction', description: 'Drag an element onto another element, or drag between viewport coordinates for canvas and other visual-only surfaces.' },
   { name: 'browser_scroll', category: 'Interaction', description: 'Scroll the page or a specific scrollable element.' },
@@ -277,6 +280,66 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'browser_downloads', category: 'Inspection', description: 'List, cancel, or clear downloads created by the selected agent workspace.' },
   { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result.' }
 ]
+
+const ESSENTIALS_TOOL_NAMES = new Set([
+  'browser_workspaces',
+  'browser_saved_workspaces',
+  'browser_status',
+  'browser_show',
+  'browser_request_user_attention',
+  'browser_tabs',
+  'browser_new_tab',
+  'browser_select_tab',
+  'browser_close_tab',
+  'browser_navigate',
+  'browser_history',
+  'browser_snapshot',
+  'browser_find',
+  'browser_click',
+  'browser_dialog',
+  'browser_type',
+  'browser_select',
+  'browser_fill_form',
+  'browser_hover',
+  'browser_drag',
+  'browser_scroll',
+  'browser_press',
+  'browser_file_upload',
+  'browser_wait',
+  'browser_screenshot',
+  'browser_downloads'
+])
+
+const QA_TOOL_NAMES = new Set([
+  ...ESSENTIALS_TOOL_NAMES,
+  'browser_element_inspect',
+  'browser_generate_locator',
+  'browser_emulate',
+  'browser_resize',
+  'browser_zoom',
+  'browser_accessibility_audit',
+  'browser_quality_audit',
+  'browser_performance',
+  'browser_design_overview',
+  'browser_page_metadata',
+  'browser_security',
+  'browser_debug_report',
+  'browser_visual_compare',
+  'browser_issues',
+  'browser_console',
+  'browser_diagnostic_logs',
+  'browser_network',
+  'browser_network_wait',
+  'browser_network_search',
+  'browser_network_request',
+  'browser_network_har'
+])
+
+export function mcpToolCatalogForSet(toolSet: McpToolSet): BrowserToolDefinition[] {
+  if (toolSet === 'complete') return BROWSER_TOOL_CATALOG.map((tool) => ({ ...tool }))
+  const selectedNames = toolSet === 'essentials' ? ESSENTIALS_TOOL_NAMES : QA_TOOL_NAMES
+  return BROWSER_TOOL_CATALOG.filter(({ name }) => selectedNames.has(name)).map((tool) => ({ ...tool }))
+}
 
 function toolDescription(name: string): string {
   const tool = BROWSER_TOOL_CATALOG.find((candidate) => candidate.name === name)
@@ -353,6 +416,7 @@ function createBrowserMcpServer(
   history: HistoryOperations,
   siteData: SiteDataOperations,
   version: string,
+  toolSet: McpToolSet,
   onTabActivity?: (activity: McpTabActivity) => void
 ): McpServer {
   const server = new McpServer(
@@ -385,11 +449,16 @@ function createBrowserMcpServer(
   })
 
   const baseRegisterTool = server.registerTool.bind(server)
+  const toolSetCatalog = mcpToolCatalogForSet(toolSet)
+  const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
+  const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
-  const recordToolRegistration = (name: string): string => {
+  const registerTool = ((name: string, config: unknown, handler: unknown) => {
+    implementedToolNames.push(name)
+    if (!toolSetToolNames.has(name)) return undefined
     registeredToolNames.push(name)
-    return name
-  }
+    return baseRegisterTool(name, config as never, handler as never)
+  }) as typeof baseRegisterTool
   const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
     const workspace = manager.requireMcpTabGroup(workspaceId)
     if (workspace.isDefault) {
@@ -397,8 +466,8 @@ function createBrowserMcpServer(
     }
     return workspace
   }
-  baseRegisterTool(
-    recordToolRegistration('browser_workspaces'),
+  registerTool(
+    'browser_workspaces',
     {
       description: toolDescription('browser_workspaces'),
       inputSchema: {
@@ -448,8 +517,8 @@ function createBrowserMcpServer(
     })
   )
 
-  baseRegisterTool(
-    recordToolRegistration('browser_saved_workspaces'),
+  registerTool(
+    'browser_saved_workspaces',
     {
       description: toolDescription('browser_saved_workspaces'),
       inputSchema: {
@@ -484,12 +553,18 @@ function createBrowserMcpServer(
     'browser_site_data',
     'browser_downloads'
   ])
+  const toolsWithOptionalWorkspaceTabTarget = new Set([
+    'browser_request_user_attention'
+  ])
+  const toolsThatPermitAnEmptyWorkspace = new Set([
+    'browser_show'
+  ])
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
   }, handler: WorkspaceToolHandler<T>): void => {
-    baseRegisterTool(
-      recordToolRegistration(name),
+    registerTool(
+      name,
       {
         ...config,
         inputSchema: {
@@ -501,9 +576,15 @@ function createBrowserMcpServer(
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
-        const resolvedTabId = toolsWithoutWorkspaceTabTarget.has(name)
+        const requestedTabId = typeof input.tabId === 'string' ? input.tabId : undefined
+        const skipsTabTarget = toolsWithoutWorkspaceTabTarget.has(name)
+          || (toolsWithOptionalWorkspaceTabTarget.has(name) && requestedTabId === undefined)
+          || (toolsThatPermitAnEmptyWorkspace.has(name)
+            && requestedTabId === undefined
+            && manager.getMcpGroupState(workspaceId).tabs.length === 0)
+        const resolvedTabId = skipsTabTarget
           ? undefined
-          : manager.requireTabInMcpGroup(workspaceId, typeof input.tabId === 'string' ? input.tabId : undefined)
+          : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         if (activityId && activityToolName && resolvedTabId) {
@@ -551,7 +632,13 @@ function createBrowserMcpServer(
     { description: toolDescription('browser_status'), inputSchema: {} },
     tool(async ({ workspaceId }: { workspaceId?: string }) => {
       const attention = getUserAttention()
-      const visibleAttention = attention?.tabId && manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId) ? attention : null
+      const visibleAttention = attention && (
+        (attention.workspaceId === workspaceId
+          && (attention.tabId === undefined || manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId)))
+        || (attention.workspaceId === undefined
+          && attention.tabId !== undefined
+          && manager.tabBelongsToMcpGroup(workspaceId!, attention.tabId))
+      ) ? attention : null
       return textResult({ ...mcpWorkspaceState(manager.getMcpGroupState(workspaceId!)), userAttention: visibleAttention })
     })
   )
@@ -573,11 +660,11 @@ function createBrowserMcpServer(
         tabId: tabIdSchema.optional().describe('The browser tab that needs the user, when applicable.')
       }
     },
-    tabTool('browser_request_user_attention', async ({ reason, tabId }: UserAttentionInput) => {
+    tabTool('browser_request_user_attention', async ({ reason, workspaceId, tabId }: UserAttentionInput) => {
       if (tabId && !manager.getState().tabs.some((tab) => tab.id === tabId)) {
         throw new Error(`Unknown tab: ${tabId}`)
       }
-      return textResult(await requestUserAttention({ reason, tabId }))
+      return textResult(await requestUserAttention({ reason, workspaceId, tabId }))
     })
   )
   registerWorkspaceTool(
@@ -1879,7 +1966,8 @@ function createBrowserMcpServer(
     )
   )
 
-  assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, registeredToolNames)
+  assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
+  assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
   return server
 }
 
@@ -1893,6 +1981,7 @@ export class McpHttpServer {
   private paused = false
   private completedToolCalls = 0
   private token: string | undefined
+  private toolSet: McpToolSet
   private readonly clients = new Map<string, McpClientActivity>()
   private readonly activityStarts = new Map<string, McpTabActivity>()
   private readonly recentActivity: McpToolActivity[] = []
@@ -1903,10 +1992,15 @@ export class McpHttpServer {
     private readonly options: McpHttpServerOptions
   ) {
     this.token = options.token
+    this.toolSet = options.toolSet ?? 'complete'
   }
 
   setAuthenticationToken(token: string | undefined): void {
     this.token = token
+  }
+
+  setToolSet(toolSet: McpToolSet): void {
+    this.toolSet = toolSet
   }
 
   setPaused(paused: boolean): void {
@@ -1940,14 +2034,13 @@ export class McpHttpServer {
       toolMetrics: [...this.toolMetrics.values()]
         .sort((left, right) => right.count - left.count || right.lastUsedAt.localeCompare(left.lastUsedAt))
         .map((metric) => ({ ...metric })),
-      tools: BROWSER_TOOL_CATALOG.map((tool) => ({ ...tool }))
+      tools: mcpToolCatalogForSet(this.toolSet)
     }
   }
 
   async start(): Promise<string> {
     const app = express()
     app.disable('x-powered-by')
-    app.use(express.json({ limit: '2mb' }))
     app.use((request, response, next) => {
       if (!mcpRequestAuthorized(this.token, request.headers.authorization)) {
         response.status(401).json({ error: 'Unauthorized' })
@@ -1968,6 +2061,7 @@ export class McpHttpServer {
       }
       next()
     })
+    app.use(express.json({ limit: '2mb' }))
     app.get('/healthz', (_request, response) => response.json({ ok: true, name: 'hronaut', paused: this.paused }))
     app.all('/mcp', async (request: Request, response: Response) => {
       if (request.method !== 'POST') {
@@ -2002,6 +2096,7 @@ export class McpHttpServer {
         this.options.history,
         this.options.siteData,
         this.options.version,
+        this.toolSet,
         (activity) => this.trackTabActivity(activity)
       )
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })

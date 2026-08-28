@@ -25,6 +25,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   attentionSoundCue: 'warning',
   mcpAuthentication: false,
   mcpPort: 47_812,
+  mcpToolSet: 'essentials',
   downloadDirectory: null,
   askWhereToSaveDownloads: false,
   memorySaverEnabled: true,
@@ -147,6 +148,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
+  const setMcpToolSet = (toolSet: AppSettings['mcpToolSet']): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpToolSet(toolSet))
   const resetMcp = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetMcp())
   const setAskWhereToSaveDownloads = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAskWhereToSaveDownloads(enabled))
   const resetDownloads = (): Promise<AppSettings> => applySettings(window.hronautSettings.resetDownloads())
@@ -200,6 +202,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setAttentionSoundCue,
     setMcpAuthentication,
     setMcpPort,
+    setMcpToolSet,
     resetMcp,
     setAskWhereToSaveDownloads,
     resetDownloads,

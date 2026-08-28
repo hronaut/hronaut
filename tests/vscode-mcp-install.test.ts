@@ -28,6 +28,8 @@ describe('VS Code MCP installation', () => {
     'http://example.com:47812/mcp',
     'http://127.0.0.1:47812/other',
     'http://user:password@127.0.0.1:47812/mcp',
+    'http://127.0.0.1:47812/mcp?toolset=unknown',
+    'http://127.0.0.1:47812/mcp?toolset=essentials&toolset=qa',
     'http://127.0.0.1:47812/mcp?token=secret',
     'http://127.0.0.1:47812/mcp#secret',
     'not a URL'

@@ -45,6 +45,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('Do not use the Default workspace.')
     const codex = renderedGuides(html).find((guide) => guide.id === 'codex')
     expect(codex?.verifyCommand).toBe('codex mcp list')
+    expect(codex?.code).toContain(dashboard.endpoint)
     const claudeCode = renderedGuides(html).find((guide) => guide.id === 'claude-code')
     expect(claudeCode?.verifyCommand).toBe('claude mcp get hronaut')
     const openCode = renderedGuides(html).find((guide) => guide.id === 'opencode')

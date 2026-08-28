@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import { MAX_MCP_PORT, MIN_MCP_PORT } from '../../../shared/mcp-port'
+import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 
@@ -21,12 +22,20 @@ const {
   canApplyPort,
   editPort,
   setAuthentication,
+  setToolSet,
   applyPort
 } = props.controller
 
 async function changeAuthentication(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   if (!(await setAuthentication(input.checked))) input.checked = settings.value.mcpAuthentication
+}
+
+async function changeToolSet(event: Event): Promise<void> {
+  const select = event.target as HTMLSelectElement
+  if (!isMcpToolSet(select.value) || !(await setToolSet(select.value))) {
+    select.value = settings.value.mcpToolSet
+  }
 }
 
 function changePort(event: Event): void {
@@ -59,6 +68,26 @@ function handlePortKeydown(event: KeyboardEvent): void {
           :disabled="busy"
           @change="changeAuthentication"
         />
+      </label>
+      <label class="settings-row" for="setting-mcp-tool-set">
+        <span>
+          <strong>{{ t('settings.mcp.toolSet') }}</strong>
+          <small>{{ t('settings.mcp.toolSetDescription') }}</small>
+        </span>
+        <span class="setting-select-control">
+          <select
+            id="setting-mcp-tool-set"
+            :value="settings.mcpToolSet"
+            :disabled="busy"
+            :aria-label="t('settings.mcp.toolSet')"
+            @change="changeToolSet"
+          >
+            <option value="essentials">{{ t('settings.mcp.toolSetEssentials') }}</option>
+            <option value="qa">{{ t('settings.mcp.toolSetQa') }}</option>
+            <option value="complete">{{ t('settings.mcp.toolSetComplete') }}</option>
+          </select>
+          <small>{{ t('settings.mcp.toolSetReconnect') }}</small>
+        </span>
       </label>
       <div class="settings-row mcp-port-row">
         <label for="setting-mcp-port">

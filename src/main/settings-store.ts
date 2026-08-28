@@ -11,6 +11,11 @@ import {
 } from '../shared/memory-saver.js'
 import { isLanguagePreference } from '../shared/locale.js'
 import { DEFAULT_TAB_POSITION, isTabPosition } from '../shared/tab-position.js'
+import {
+  DEFAULT_MCP_TOOL_SET,
+  isMcpToolSet,
+  LEGACY_MCP_TOOL_SET
+} from '../shared/mcp-tool-sets.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -24,6 +29,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attentionSoundCue: 'warning',
   mcpAuthentication: false,
   mcpPort: DEFAULT_MCP_PORT,
+  mcpToolSet: DEFAULT_MCP_TOOL_SET,
   downloadDirectory: null,
   askWhereToSaveDownloads: false,
   memorySaverEnabled: true,
@@ -77,6 +83,11 @@ export class SettingsStore {
             ? value.mcpAuthentication
             : DEFAULT_SETTINGS.mcpAuthentication,
         mcpPort: isValidMcpPort(value.mcpPort) ? value.mcpPort : DEFAULT_SETTINGS.mcpPort,
+        mcpToolSet: isMcpToolSet(value.mcpToolSet)
+          ? value.mcpToolSet
+          : value.mcpToolSet === undefined
+            ? LEGACY_MCP_TOOL_SET
+            : DEFAULT_MCP_TOOL_SET,
         downloadDirectory: isDownloadDirectory(value.downloadDirectory) ? value.downloadDirectory : null,
         askWhereToSaveDownloads:
           typeof value.askWhereToSaveDownloads === 'boolean'

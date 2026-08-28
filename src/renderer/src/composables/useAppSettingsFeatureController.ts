@@ -14,6 +14,7 @@ import type {
   RendererSettingsState,
   SearchEngineName
 } from '../../../shared/types.js'
+import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
 import { useCommercialLicenseController } from './useCommercialLicenseController.js'
@@ -36,6 +37,7 @@ interface AppSettingsFeatureStore {
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
+  setMcpToolSet(toolSet: McpToolSet): Promise<AppSettings>
   resetMcp(): Promise<AppSettings>
   setMemorySaverEnabled(enabled: boolean): Promise<AppSettings>
   setMemorySaverTimeoutMinutes(minutes: MemorySaverTimeoutMinutes): Promise<AppSettings>
@@ -200,6 +202,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     endpoint: computed(() => options.browserState.value.mcpUrl),
     listenerFailed: computed(() => mcpStatusController.state.value.status === 'error'),
     setAuthentication: (enabled) => options.settingsStore.setMcpAuthentication(enabled),
+    setToolSet: (toolSet) => options.settingsStore.setMcpToolSet(toolSet),
     setPort: (port) => options.settingsStore.setMcpPort(port),
     resetSettings: () => options.settingsStore.resetMcp(),
     confirmDisableAuthentication: () => options.confirm(

@@ -389,6 +389,7 @@ export interface AppSettings {
   attentionSoundCue: AttentionSoundCue
   mcpAuthentication: boolean
   mcpPort: number
+  mcpToolSet: import('./mcp-tool-sets.js').McpToolSet
   downloadDirectory: string | null
   askWhereToSaveDownloads: boolean
   memorySaverEnabled: boolean
@@ -2323,6 +2324,7 @@ export interface HronautSettingsApi {
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
+  setMcpToolSet(toolSet: import('./mcp-tool-sets.js').McpToolSet): Promise<AppSettings>
   resetMcp(): Promise<AppSettings>
   getDefaultDownloadDirectory(): Promise<string>
   chooseDownloadDirectory(): Promise<DownloadDirectorySelection>

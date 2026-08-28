@@ -26,11 +26,16 @@ function createController() {
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
   })
+  const setToolSet = vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => {
+    settings.value = { ...settings.value, mcpToolSet }
+    return settings.value
+  })
   const resetSettings = vi.fn(async () => {
     settings.value = {
       ...settings.value,
       mcpAuthentication: false,
-      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort
+      mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort,
+      mcpToolSet: DEFAULT_RENDERER_SETTINGS.mcpToolSet
     }
     return settings.value
   })
@@ -42,6 +47,7 @@ function createController() {
     listenerFailed,
     setAuthentication,
     setPort,
+    setToolSet,
     resetSettings,
     confirmDisableAuthentication,
     translate: (key, parameters) => `${key}:${JSON.stringify(parameters ?? {})}`,
@@ -55,6 +61,7 @@ function createController() {
     onAuthenticationError,
     setAuthentication,
     setPort,
+    setToolSet,
     resetSettings,
     settings
   }
@@ -138,6 +145,23 @@ describe('MCP settings controller', () => {
     expect(setAuthentication).not.toHaveBeenCalled()
     saving.resolve({ ...DEFAULT_RENDERER_SETTINGS, mcpPort: 49000 })
     await expect(move).resolves.toBe(true)
+    controller.dispose()
+  })
+
+  it('serializes a server-wide tool-set change with other MCP settings operations', async () => {
+    const saving = deferred<AppSettings>()
+    const { controller, setPort, setToolSet } = createController()
+    setPort.mockImplementationOnce(() => saving.promise)
+    controller.editPort('49000')
+
+    const move = controller.applyPort()
+    await expect(controller.setToolSet('qa')).resolves.toBe(false)
+    expect(setToolSet).not.toHaveBeenCalled()
+
+    saving.resolve({ ...DEFAULT_RENDERER_SETTINGS, mcpPort: 49000 })
+    await expect(move).resolves.toBe(true)
+    await expect(controller.setToolSet('qa')).resolves.toBe(true)
+    expect(setToolSet).toHaveBeenCalledWith('qa')
     controller.dispose()
   })
 

@@ -36,6 +36,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       mcpAuthentication: true,
       mcpPort: 48_123,
+      mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
@@ -54,6 +55,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       mcpAuthentication: true,
       mcpPort: 48_123,
+      mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
@@ -72,6 +74,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'bell',
       mcpAuthentication: true,
       mcpPort: 48_123,
+      mcpToolSet: 'qa',
       downloadDirectory: customDownloadDirectory,
       askWhereToSaveDownloads: true,
       memorySaverEnabled: false,
@@ -101,7 +104,10 @@ describe('SettingsStore', () => {
     await writeFile(path, '{not json', 'utf8')
     expect(await store.load()).toEqual(DEFAULT_SETTINGS)
     await writeFile(path, '{"theme":"neon","searchEngine":"yahoo"}', 'utf8')
-    expect(await store.load()).toEqual(DEFAULT_SETTINGS)
+    expect(await store.load()).toEqual({
+      ...DEFAULT_SETTINGS,
+      mcpToolSet: 'complete'
+    })
   })
 
   it('uses safe defaults when the settings file contains JSON null', async () => {
@@ -127,6 +133,7 @@ describe('SettingsStore', () => {
       attentionSoundCue: 'warning',
       mcpAuthentication: false,
       mcpPort: 47_812,
+      mcpToolSet: 'complete',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,
@@ -134,6 +141,18 @@ describe('SettingsStore', () => {
       checkForUpdatesOnStartup: true,
       languagePreference: 'system'
     })
+  })
+
+  it('preserves the complete catalog for existing profiles and defaults new profiles to essentials', async () => {
+    const { path, store } = await createStore()
+    expect((await store.load()).mcpToolSet).toBe('essentials')
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, '{"theme":"dark"}\n', 'utf8')
+    expect((await store.load()).mcpToolSet).toBe('complete')
+    await writeFile(path, '{"mcpToolSet":"qa"}\n', 'utf8')
+    expect((await store.load()).mcpToolSet).toBe('qa')
+    await writeFile(path, '{"mcpToolSet":"unknown"}\n', 'utf8')
+    expect((await store.load()).mcpToolSet).toBe('essentials')
   })
 
   it.each(['uk', 'en-GB', 'ja-JP', '', 42, null])('migrates an invalid language preference to system: %s', async (languagePreference) => {

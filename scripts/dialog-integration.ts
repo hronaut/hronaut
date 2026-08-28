@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { createServer } from 'node:http'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +12,11 @@ import { useMcpWorkspace } from './mcp-workspace.js'
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url))
 const electronPath = join(repositoryRoot, 'node_modules/electron/dist/electron')
 const profileDirectory = await mkdtemp(join(tmpdir(), 'hronaut-dialog-integration-'))
+await writeFile(
+  join(profileDirectory, 'settings.json'),
+  `${JSON.stringify({ mcpToolSet: 'complete' }, null, 2)}\n`,
+  'utf8'
+)
 
 async function availableLoopbackPort(): Promise<number> {
   const probe = createServer()
