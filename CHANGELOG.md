@@ -15,6 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - Start new profiles with the smaller Browser Essentials catalog while preserving the Complete catalog for existing profiles.
 - Keep wallet keys and pending signable message bodies in trusted main-process memory only, encrypt managed records with XChaCha20-Poly1305, wrap the vault key with secure operating-system storage, and require Argon2id passphrase protection when Linux reports `basic_text` or no secure secret backend.
 - Use the MIT-licensed RustCrypto Argon2id Node-API binding for the Linux passphrase fallback so the vault works in Electron runtimes that do not compile Node's optional Argon2 API.
+- Clarify when Hronaut's persistent local browser model fits better than disposable or hosted automation, and label unreleased Web3 support as a source preview rather than a shipped download feature.
 
 ### Fixed
 

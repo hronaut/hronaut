@@ -14,6 +14,17 @@ Watch the [35-second product overview](https://hronaut.dev/#demo), then download
 
 Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
 
+## When Hronaut is the right browser
+
+Hronaut fits when you already have a coding agent and want the browser to remain local, visible, and reusable after one task or chat ends.
+
+- Keep authenticated sites in named, isolated workspaces instead of rebuilding login state for every agent session.
+- Watch work as it happens, pause agent access, lock website interaction, or take over the same tab for CAPTCHA, 2FA, payment, and other human-only steps.
+- Reuse one deliberately scoped browser workspace from compatible local MCP clients without connecting the agent to your everyday browser profile.
+- Preserve tabs and evidence between coding sessions for debugging, authenticated QA, and multi-agent handoffs.
+
+Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The [decision guide](https://hronaut.dev/browser-mcp-guide) covers the tradeoffs in more detail.
+
 ## Highlights
 
 - Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.
@@ -166,8 +177,8 @@ For billing and licensing support, contact [support@hronaut.dev](mailto:support@
 
 The [detailed reference](REFERENCE.md) covers browser behavior, privacy and security boundaries, every MCP tool group, testing, packaging, and release operations.
 
-## Local Web3 wallets
+## Unreleased source preview: local Web3 wallets
 
-Hronaut can hold separate local EVM, Solana, and Tron accounts, attach them to selected workspaces, and mediate website or coding-agent requests through simulation, policy checks, and trusted Hronaut approval. Private keys and recovery phrases never enter website pages or MCP responses. Mainnet signing always requires explicit human approval; bounded automation is limited to configured local networks and testnets.
+The current `main` branch can hold separate local EVM, Solana, and Tron accounts, attach them to selected workspaces, and mediate website or coding-agent requests through simulation, policy checks, and trusted Hronaut approval. This preview is not included in the latest packaged release linked above. Private keys and recovery phrases are not returned to website pages or MCP clients. Mainnet signing always requires explicit human approval; bounded automation is limited to configured local networks and testnets.
 
 See [docs/WALLETS.md](docs/WALLETS.md) for the threat model, supported methods, Linux vault behavior, recovery, RPC configuration, revocation, and the exact security boundary. Hronaut does not use WalletConnect, Reown, hosted custody, or proprietary wallet SDKs.
