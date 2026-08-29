@@ -543,7 +543,12 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
       ><IconAdd aria-hidden="true" /></button>
-      <div class="workspace-tab-list" role="tablist" :aria-label="workspace.name">
+      <div
+        class="workspace-tab-list"
+        role="tablist"
+        :aria-label="workspace.name"
+        :aria-orientation="orientation"
+      >
         <button
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
           :key="tab.id"

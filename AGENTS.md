@@ -75,9 +75,10 @@ npm run test:integration:docker
 ```
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
-inside the pinned Docker/Xvfb image. The Playwright files run in two isolated
-Xvfb shards after one application build; set `HRONAUT_INTEGRATION_SHARDS=1`
-when diagnosing order or resource-sensitive behavior. Run it for changes to the main/preload
+inside the pinned Docker/Xvfb image. Local runs use four isolated Xvfb shards
+after one application build; hosted CI uses two to avoid CPU contention. Set
+`HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
+Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
 

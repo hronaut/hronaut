@@ -4169,6 +4169,110 @@ test('does not override a newer tab selection when a sleeping tab finishes wakin
   }
 })
 
+test('treats tab closure as cancellation while a sleeping selection is waking', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Closing sleeping selection</title><main>This page should close during wake</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Closing sleeping-selection fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/closing-sleeping-selection`
+    const created = await appWindow.evaluate(`(async () => {
+      const target = await window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true });
+      const tabId = target.tabs.find((tab) => tab.url === ${JSON.stringify(url)})?.id;
+      const fallback = await window.hronaut.newTab({ url: 'about:blank', active: true });
+      return { tabId, fallbackTabId: fallback.activeTabId };
+    })()`) as { tabId?: string; fallbackTabId: string | null }
+    expect(created.tabId).toBeTruthy()
+    expect(created.fallbackTabId).toBeTruthy()
+    const tabId = created.tabId!
+    const fallbackTabId = created.fallbackTabId!
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((candidate) => candidate.id === ${JSON.stringify(tabId)})?.loading
+    ))`)).toBe(false)
+    await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))?.id ?? null
+    ))).toBeTruthy()
+
+    await electronApp.evaluate(({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
+      if (!page) throw new Error('Closing sleeping selection WebContents was not found')
+      const control = { started: false, release: undefined as (() => void) | undefined }
+      ;(globalThis as typeof globalThis & { __hronautClosingSelectionWake?: typeof control }).__hronautClosingSelectionWake = control
+      Object.defineProperty(page.navigationHistory, 'restore', {
+        configurable: true,
+        value: async () => {
+          control.started = true
+          await new Promise<void>((resolve) => { control.release = resolve })
+          throw new TypeError('Object has been destroyed')
+        }
+      })
+      Object.defineProperty(page, 'loadURL', {
+        configurable: true,
+        value: async () => { throw new TypeError('Object has been destroyed') }
+      })
+    })
+
+    await appWindow.evaluate((requestedTabId) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      const shellWindow = globalThis as typeof globalThis & {
+        __hronautPendingClosingSelection?: Promise<{ error: string | null; state: BrowserState }>
+      }
+      shellWindow.__hronautPendingClosingSelection = browser.selectTab(requestedTabId).then(
+        (state) => ({ error: null, state }),
+        async (error) => ({
+          error: error instanceof Error ? error.message : String(error),
+          state: await browser.getState()
+        })
+      )
+    }, tabId)
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautClosingSelectionWake?: { started: boolean } })
+        .__hronautClosingSelectionWake?.started ?? false
+    ))).toBe(true)
+
+    const closedState = await appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.closeTab(requestedTabId), tabId)
+    expect(closedState.activeTabId).toBe(fallbackTabId)
+    expect(closedState.tabs.some((tab) => tab.id === tabId)).toBe(false)
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautClosingSelectionWake?: { release?: () => void }
+      }).__hronautClosingSelectionWake
+      if (!control?.release) throw new Error('Closing selection wake was not waiting')
+      control.release()
+      delete (globalThis as typeof globalThis & { __hronautClosingSelectionWake?: unknown }).__hronautClosingSelectionWake
+    })
+
+    const selectionResult = await appWindow.evaluate(async () => {
+      const shellWindow = globalThis as typeof globalThis & {
+        __hronautPendingClosingSelection?: Promise<{ error: string | null; state: BrowserState }>
+      }
+      const pending = shellWindow.__hronautPendingClosingSelection
+      if (!pending) throw new Error('Pending closing selection was not found')
+      const result = await pending
+      delete shellWindow.__hronautPendingClosingSelection
+      return result
+    })
+    expect(selectionResult.error).toBeNull()
+    expect(selectionResult.state.activeTabId).toBe(fallbackTabId)
+    expect(selectionResult.state.tabs.some((tab) => tab.id === tabId)).toBe(false)
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('does not override a newer tab selection while a context-menu sleep check is pending', async ({
   appWindow,
   electronApp

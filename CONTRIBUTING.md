@@ -78,6 +78,9 @@ HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 
 Hosted and release CI use two shards by default to avoid CPU-contention timeouts
 on constrained runners; an explicit `HRONAUT_INTEGRATION_SHARDS` still wins.
+The hosted integration job skips duplicate type analysis because its parallel
+validation job runs the complete TypeScript graph. The standalone Docker command
+still performs the full typecheck before building and testing.
 
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI

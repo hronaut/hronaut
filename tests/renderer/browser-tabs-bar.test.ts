@@ -111,6 +111,15 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('exposes horizontal tablist semantics with the matching arrow-key behavior', () => {
+    renderTabs()
+
+    expect(screen.getByRole('tablist', { name: 'Research' })).toHaveAttribute(
+      'aria-orientation',
+      'horizontal'
+    )
+  })
+
   it('uses vertical navigation and scrolling when tabs are placed on the left', async () => {
     const first = tab('first', { active: true })
     const second = tab('second')
@@ -118,9 +127,11 @@ describe('BrowserTabsBar', () => {
     const user = userEvent.setup()
     const firstControl = screen.getByRole('tab', { name: 'Page first' })
     const secondControl = screen.getByRole('tab', { name: 'Page second' })
+    const tablist = screen.getByRole('tablist', { name: 'Research' })
     const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
 
     expect(strip.closest('.browser-tabs-bar')).toHaveClass('vertical')
+    expect(tablist).toHaveAttribute('aria-orientation', 'vertical')
     firstControl.focus()
     await user.keyboard('{ArrowDown}')
     expect(secondControl).toHaveFocus()

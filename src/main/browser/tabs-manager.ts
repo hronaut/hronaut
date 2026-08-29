@@ -2670,8 +2670,21 @@ export class BrowserTabsManager {
       throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
     }
     const selectionGeneration = ++this.tabSelectionGeneration
-    if (next.sleeping || next.wakePromise) await this.wakeTab(next.id)
-    if (selectionGeneration !== this.tabSelectionGeneration) return this.getState()
+    if (next.sleeping || next.wakePromise) {
+      try {
+        await this.wakeTab(next.id)
+      } catch (error) {
+        if (
+          selectionGeneration !== this.tabSelectionGeneration
+          || this.tabs.get(next.id) !== next
+        ) return this.getState()
+        throw error
+      }
+    }
+    if (
+      selectionGeneration !== this.tabSelectionGeneration
+      || this.tabs.get(next.id) !== next
+    ) return this.getState()
     return this.selectTab(next.id)
   }
 

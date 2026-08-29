@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Link every focused coding-agent setup guide from the GitHub README so visitors can move directly from their client to the local Hronaut connection flow.
+- Avoid repeating the full TypeScript analysis inside hosted Docker integration after the parallel validation job has already run it, while retaining typechecking in standalone Docker runs.
 - Keep Docker's dependency layer keyed to the lockfile instead of unrelated package-script metadata, build the application once, and run the authoritative Electron suite across isolated Xvfb and MCP-port shards; focused Electron feedback also skips duplicate type analysis, targeted TypeScript and lint commands avoid unrelated work, and full lint uses a content-addressed cache.
 - Reuse lock-keyed focused Docker dependency volumes, cap CI Vitest projects at two isolated fork workers, and provide an incremental full-project typecheck for faster repeated feedback without weakening the clean full gates.
 - Start new profiles with the smaller Browser Essentials catalog while preserving the Complete catalog for existing profiles.
@@ -21,6 +23,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Treat a sleeping tab closed during restoration as a cancelled selection instead of surfacing a false destroyed-renderer error after the healthy fallback tab is already active.
+- Expose each workspace tablist's actual horizontal or vertical orientation to assistive technology so screen-reader guidance matches its arrow-key behavior.
 - Speed up repeat validation with cached incremental typechecking, concurrent static gates, tunable Vitest workers, balanced four-way local Docker Electron sharding, and a resource-safe two-shard hosted CI profile.
 - Trap keyboard focus inside trusted wallet approvals so a newly presented request cannot leave typing or tab navigation in the underlying website.
 - Preserve Page Tools and other shell panels when the global interaction lock blocks a Developer Tools shortcut.

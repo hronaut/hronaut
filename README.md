@@ -4,7 +4,7 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
 
-[Website](https://hronaut.dev) · [Setup guide](https://hronaut.dev/setup) · [Zed guide](https://hronaut.dev/zed-browser-mcp) · [Devin Local guide](https://hronaut.dev/devin-local-browser-mcp) · [JetBrains Junie guide](https://hronaut.dev/jetbrains-junie-browser-mcp) · [Kilo Code guide](https://hronaut.dev/kilo-code-browser-mcp) · [OpenCode guide](https://hronaut.dev/opencode-browser-mcp) · [Browser MCP guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
+[Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
 ## See Hronaut in action
 
@@ -13,6 +13,14 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
 
 Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+
+### Works with your coding agent
+
+Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
+
+- **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
+- **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp), [Cline](https://hronaut.dev/cline-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), and [Zed](https://hronaut.dev/zed-browser-mcp).
+- **Other clients:** use the [generic Streamable HTTP setup](https://hronaut.dev/setup).
 
 ## When Hronaut is the right browser
 

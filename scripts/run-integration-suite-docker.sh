@@ -12,7 +12,14 @@ case "$shard_count" in
 esac
 
 node scripts/verify-dependency-manifest.ts
-npm run build
+case "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}" in
+  true) npm run build:app ;;
+  false) npm run build ;;
+  *)
+    echo "HRONAUT_INTEGRATION_SKIP_TYPECHECK must be true or false." >&2
+    exit 2
+    ;;
+esac
 
 declare -a shard_pids=()
 for ((shard = 1; shard <= shard_count; shard += 1)); do

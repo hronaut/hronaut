@@ -9,6 +9,9 @@ artifact_directory="ci-artifacts"
 # workstations. Keep their Electron processes at the proven two-shard profile;
 # callers can still opt into another value explicitly.
 export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
+# The parallel validate job already performs the full TypeScript build graph.
+# Keep the standalone Docker command authoritative by changing this only in CI.
+export HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"
 
 cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
