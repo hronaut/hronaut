@@ -137,8 +137,32 @@ describe('WalletService', () => {
       id: 'policy-unsafe', name: 'Unsafe automation', mode: 'bounded-auto', walletId: generated.wallet.id,
       workspaceId: 'workspace-1', networkIds: ['1'], origins: ['https://dapp.example'],
       destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
-      expiresAt: '2026-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })).rejects.toThrow('not eligible for automatic approval')
+  })
+
+  it('rejects policy URLs that are not origins and policies that have already expired', async () => {
+    const path = await directory()
+    const now = new Date('2026-08-29T12:00:00.000Z')
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage(), now: () => now })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Local wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    const policy = {
+      id: 'policy-invalid', name: 'Invalid automation', mode: 'bounded-auto' as const,
+      walletId: generated.wallet.id, workspaceId: 'workspace-1', networkIds: ['31337'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maximumOperationCount: 1, requireSuccessfulSimulation: true as const, allowMessageSigning: false
+    }
+
+    await expect(service.setPolicy({
+      ...policy, origins: ['https://dapp.example/swap'], expiresAt: '2026-08-29T13:00:00.000Z'
+    })).rejects.toThrow('Wallet policy origin must be a normalized HTTP or HTTPS origin')
+    await expect(service.setPolicy({
+      ...policy, origins: ['https://dapp.example'], expiresAt: '2026-08-29T11:59:59.999Z'
+    })).rejects.toThrow('Wallet policy expiry must be in the future')
+    expect(service.policies.list()).toEqual([])
   })
 })

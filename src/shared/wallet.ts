@@ -24,6 +24,11 @@ const WalletIdSchema = z.string().trim().min(1).max(128)
 const WorkspaceIdSchema = z.string().trim().min(1).max(128)
 const IsoDateSchema = z.iso.datetime({ offset: true })
 
+function isNormalizedHttpOrigin(value: string): boolean {
+  const url = new URL(value)
+  return (url.protocol === 'http:' || url.protocol === 'https:') && value === url.origin
+}
+
 export const WalletDescriptorSchema = z.object({
   id: WalletIdSchema,
   name: z.string().trim().min(1).max(128),
@@ -103,10 +108,7 @@ export const WalletOperationRequestSchema = z.object({
   workspaceId: WorkspaceIdSchema,
   tabId: z.string().trim().min(1).max(128),
   navigationGeneration: z.number().int().nonnegative(),
-  topLevelOrigin: z.url().refine((value) => {
-    const url = new URL(value)
-    return (url.protocol === 'http:' || url.protocol === 'https:') && value === url.origin
-  }, 'Wallet request origin must be a normalized HTTP or HTTPS origin'),
+  topLevelOrigin: z.url().refine(isNormalizedHttpOrigin, 'Wallet request origin must be a normalized HTTP or HTTPS origin'),
   requester: WalletRequesterSchema,
   capability: WalletCapabilitySchema,
   chainFamily: WalletChainFamilySchema,
@@ -135,7 +137,10 @@ export const WalletPolicySchema = z.object({
   walletId: WalletIdSchema,
   workspaceId: WorkspaceIdSchema,
   networkIds: z.array(z.string().trim().min(1).max(128)).max(64),
-  origins: z.array(z.url()).max(256),
+  origins: z.array(z.url().refine(
+    isNormalizedHttpOrigin,
+    'Wallet policy origin must be a normalized HTTP or HTTPS origin'
+  )).max(256),
   destinations: z.array(z.string().trim().min(1).max(256)).max(256),
   methods: z.array(z.string().trim().min(1).max(256)).max(256),
   maxNativeAmount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),

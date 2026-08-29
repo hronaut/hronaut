@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import {
   WalletCreateInputSchema,
   WalletImportDetailsSchema,
+  WalletPolicySchema,
   WalletUpdateInputSchema,
   WalletWatchOnlyInputSchema,
   type WalletCreateInput,
@@ -324,13 +325,17 @@ export class WalletService {
   }
 
   async setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
-    const wallet = this.requireWallet(input.walletId)
-    if (!wallet.workspaceIds.includes(input.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
-    if (!input.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
-    if (input.mode === 'bounded-auto' && !isWalletNetworkEligibleForAutomation(wallet)) {
+    const candidate = WalletPolicySchema.parse(input)
+    if (Date.parse(candidate.expiresAt) <= this.now().getTime()) {
+      throw new Error('Wallet policy expiry must be in the future')
+    }
+    const wallet = this.requireWallet(candidate.walletId)
+    if (!wallet.workspaceIds.includes(candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
+    if (!candidate.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
+    if (candidate.mode === 'bounded-auto' && !isWalletNetworkEligibleForAutomation(wallet)) {
       throw new Error('Wallet network is not eligible for automatic approval')
     }
-    const policy = await this.policies.set(input)
+    const policy = await this.policies.set(candidate)
     if (!wallet.policyIds.includes(policy.id)) {
       const current = this.requireWallet(wallet.id)
       const now = this.now().toISOString()
