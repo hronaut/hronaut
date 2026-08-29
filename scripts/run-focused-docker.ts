@@ -44,12 +44,18 @@ const dependencyCacheKey = createHash('sha256')
   .update(JSON.stringify(installManifest))
   .digest('hex')
   .slice(0, 20)
+const volumeName = `${cachePrefix}${dependencyCacheKey}`
+const volumeCreate = spawnSync('docker', ['volume', 'create', volumeName], {
+  stdio: ['ignore', 'ignore', 'inherit']
+})
+if (volumeCreate.status !== 0) process.exit(volumeCreate.status ?? 1)
 
 const testCommand = mode === 'unit'
   ? ['npm', 'test', '--', ...forwardedArguments]
   : ['bash', 'scripts/run-focused-integration-docker.sh', ...forwardedArguments]
 const composeArguments = [
   'compose',
+  '--project-name', `hronaut-focused-${dependencyCacheKey}`,
   '--file', 'compose.test.ci.yaml',
   '--file', 'compose.test.focused.yaml',
   'run', '--build', '--rm', 'integration',

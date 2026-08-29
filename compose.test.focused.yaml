@@ -12,4 +12,5 @@ services:
 
 volumes:
   focused-node-modules:
+    external: true
     name: hronaut-focused-node-modules-${HRONAUT_DEPENDENCY_CACHE_KEY:?Set HRONAUT_DEPENDENCY_CACHE_KEY through the focused Docker launcher}
