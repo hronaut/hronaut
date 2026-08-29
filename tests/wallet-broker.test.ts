@@ -45,6 +45,15 @@ function context(overrides: Partial<WalletBrokerContext> = {}): WalletBrokerCont
   }
 }
 
+function settle<T>(promise: Promise<T>): Promise<
+  { status: 'fulfilled'; value: T } | { status: 'rejected'; reason: unknown }
+> {
+  return promise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason: unknown) => ({ status: 'rejected' as const, reason })
+  )
+}
+
 function adapter(): WalletChainAdapter & { sign: ReturnType<typeof vi.fn>; broadcast: ReturnType<typeof vi.fn> } {
   const sign = vi.fn(async (_wallet: WalletDescriptor, secret: { material: Buffer }) => {
     expect(secret.material.length).toBeGreaterThan(0)
@@ -181,6 +190,64 @@ describe('WalletBroker', () => {
     expect(events).toHaveBeenCalledWith('tab-1', expect.objectContaining({ family: 'evm', event: 'accountsChanged' }))
   })
 
+  it('marks address-permission preparation failed instead of leaving it actionable', async () => {
+    const { service } = await setup()
+    vi.spyOn(service.approvals, 'recordSimulation').mockRejectedValueOnce(new Error('permission preparation failed'))
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_requestAccounts'
+    })).rejects.toThrow()
+
+    expect(broker.listPending().find((request) => request.operation === 'connect-account')).toMatchObject({ status: 'failed' })
+    expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'request-failed',
+      payload: expect.objectContaining({ requestId: expect.any(String) })
+    }))
+  })
+
+  it('marks transaction preparation failed when simulation throws', async () => {
+    const { service } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    vi.spyOn(chain, 'simulate').mockRejectedValueOnce(new Error('transaction simulation failed'))
+
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_signTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    })).rejects.toThrow()
+
+    expect(broker.listPending().find((request) => request.operation === 'sign-transaction')).toMatchObject({ status: 'failed' })
+    expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'request-failed',
+      payload: expect.objectContaining({ requestId: expect.any(String) })
+    }))
+  })
+
+  it('marks message preparation failed and clears retained bytes when audit fails', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-simulated') throw new Error('message audit failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['preparation-secret', wallet.publicAddress]
+    })).rejects.toThrow()
+
+    const request = broker.listPending().find((entry) => entry.operation === 'sign-message')
+    expect(request).toMatchObject({ status: 'failed' })
+    expect(request?.details?.raw).not.toHaveProperty('message')
+    expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'request-failed',
+      payload: expect.objectContaining({ requestId: request?.id })
+    }))
+  })
+
   it('requires human approval for mainnet even when a bounded automatic policy exists', async () => {
     const { service, wallet } = await setup('mainnet')
     const chain = adapter()
@@ -247,11 +314,11 @@ describe('WalletBroker', () => {
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })
 
-    const requests = [0, 1].map(() => broker.providerRequest(context(), {
+    const requests = [0, 1].map(() => settle(broker.providerRequest(context(), {
       family: 'evm' as const,
       method: 'eth_sendTransaction' as const,
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
-    }))
+    })))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))).toHaveLength(1))
@@ -262,7 +329,7 @@ describe('WalletBroker', () => {
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))!
     await broker.reject(awaiting.id)
-    const settled = await Promise.allSettled(requests)
+    const settled = await Promise.all(requests)
     expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(settled.filter((result) => result.status === 'rejected')).toHaveLength(1)
   })
@@ -271,12 +338,14 @@ describe('WalletBroker', () => {
     const { service } = await setup()
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
-    const result = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
     await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
 
     await broker.cancelForNavigation('tab-1', 2)
 
-    await expect(result).rejects.toThrow('cancelled')
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
     expect(chain.sign).not.toHaveBeenCalled()
   })
 
@@ -301,10 +370,10 @@ describe('WalletBroker', () => {
     await broker.approve(connectionRequest.id)
     await expect(solanaConnection).resolves.toMatchObject({ accounts: [{ address: solanaWallet.publicAddress }] })
 
-    const signing = broker.providerRequest(context(), {
+    const signing = settle(broker.providerRequest(context(), {
       family: 'solana', method: 'signMessage',
       params: [{ account: { address: solanaWallet.publicAddress }, message: Uint8Array.from([1, 2, 3]) }]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.walletId === solanaWallet.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))).toHaveLength(1))
@@ -313,8 +382,10 @@ describe('WalletBroker', () => {
 
     await expect(Promise.race([
       signing,
-      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 25))
-    ])).rejects.toThrow('cancelled')
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
     await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
       .resolves.toEqual([evmWallet.publicAddress])
     expect(service.permissions.list()).toEqual([
@@ -346,16 +417,18 @@ describe('WalletBroker', () => {
       maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })
-    const result = broker.providerRequest(context(), {
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'eth_signTransaction',
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-transaction').at(-1)?.status)
       .toBe('awaiting-human'))
 
     await broker.updateWallet(wallet.id, { workspaceIds: ['workspace-2'] })
 
-    await expect(result).rejects.toThrow('cancelled')
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
     expect(service.list()[0]?.workspaceIds).toEqual(['workspace-2'])
     expect(service.list()[0]?.policyIds).toEqual(['policy-retained-workspace'])
     expect(service.policies.list(wallet.id)).toEqual([
@@ -371,15 +444,17 @@ describe('WalletBroker', () => {
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
     await connect(broker)
     const permission = service.permissions.list()[0]!
-    const result = broker.providerRequest(context(), {
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['permission-revoked', wallet.publicAddress]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)?.status)
       .toBe('awaiting-human'))
 
     await expect(broker.revokePermission(permission.id)).resolves.toBe(true)
 
-    await expect(result).rejects.toThrow('cancelled')
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
     expect(service.permissions.list()).toHaveLength(0)
     expect(chain.sign).not.toHaveBeenCalled()
   })
@@ -388,15 +463,17 @@ describe('WalletBroker', () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
     await connect(broker)
-    const result = broker.providerRequest(context(), {
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['remove-pending-wallet', wallet.publicAddress]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)?.details?.raw)
       .toHaveProperty('message'))
 
     await expect(broker.removeWallet(wallet.id)).resolves.toBe(true)
 
-    await expect(result).rejects.toThrow('cancelled')
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
     expect(service.list()).toHaveLength(0)
     expect(broker.listPending().filter((request) => request.walletId === wallet.id).at(-1)).toMatchObject({
       status: 'cancelled'
@@ -408,7 +485,7 @@ describe('WalletBroker', () => {
     const { service } = await setup()
     let now = new Date('2026-08-28T12:00:00.000Z')
     const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => now })
-    const result = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
     await vi.waitFor(() => expect(broker.listPending().find((request) => request.status === 'awaiting-human')).toBeDefined())
     const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
     now = new Date('2026-08-28T12:06:00.000Z')
@@ -416,8 +493,10 @@ describe('WalletBroker', () => {
     await expect(broker.approve(pending.id)).rejects.toThrow('expired')
     await expect(Promise.race([
       result,
-      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 20))
-    ])).rejects.toThrow('expired')
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 20))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('expired') })
+    })
     expect(broker.listPending().find((request) => request.id === pending.id)?.status).toBe('expired')
   })
 
@@ -439,9 +518,9 @@ describe('WalletBroker', () => {
       adapters: { evm: adapter() },
       requestTtlMs: 100
     })
-    const result = broker.providerRequest(context(), {
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['untouched-expiring-message', wallet.publicAddress]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))).toHaveLength(1))
@@ -451,8 +530,10 @@ describe('WalletBroker', () => {
 
     await expect(Promise.race([
       result,
-      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 2_000))
-    ])).rejects.toThrow('expired')
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 2_000))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('expired') })
+    })
     expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
     expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
     expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
@@ -485,9 +566,9 @@ describe('WalletBroker', () => {
       adapters: { evm: adapter() },
       requestTtlMs: 100
     })
-    const result = broker.providerRequest(context(), {
+    const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['uncertain-expiry-message', wallet.publicAddress]
-    })
+    }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))).toHaveLength(1))
@@ -497,8 +578,10 @@ describe('WalletBroker', () => {
 
     await expect(Promise.race([
       result,
-      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 2_000))
-    ])).rejects.toThrow('expired')
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 2_000))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('expired') })
+    })
     expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
     expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
   })

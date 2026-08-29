@@ -47,6 +47,9 @@ const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
 ])
+const TERMINAL_REQUEST_STATUSES = new Set([
+  'confirmed', 'rejected', 'expired', 'cancelled', 'failed'
+])
 
 function sanitizedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : 'Wallet request failed'
@@ -571,70 +574,75 @@ export class WalletBroker {
     const record = await this.createRequest(context, currentWallet, operation, broadcast ? 'send' : 'sign', {
       normalized: walletJsonSafe(normalized)
     })
-    await this.service.approvals.transition(record.id, 'validated', this.now())
-    const simulation = await adapter.simulate(wallet, normalized)
-    await this.service.approvals.recordSimulation(record.id, simulation, this.now())
-    await this.service.approvals.transition(record.id, 'simulated', this.now())
-    await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-    const policyUsage = new Map(this.service.policies.list(wallet.id).map((policy) => [
-      policy.id,
-      this.service.policyUsage.snapshot(policy.id, this.now())
-    ]))
-    const policies = this.service.policies.list(wallet.id)
-    const usageByPolicy = Object.fromEntries([...policyUsage].map(([policyId, usage]) => [policyId, {
-      sessionSpend: usage.sessionSpend,
-      dailySpend: usage.dailySpend,
-      operationCount: usage.operationCount
-    }]))
-    const decision = this.policy.evaluate({
-      request: this.service.approvals.get(record.id)!.request,
-      wallet,
-      policies,
-      decoded: normalized.decoded,
-      simulation,
-      now: this.now(),
-      sessionSpend: '0', dailySpend: '0', operationCount: 0, usageByPolicy
-    })
-    await this.service.audit.append('request-simulated', {
-      requestId: record.id, walletId: wallet.id, success: simulation.success, attempted: simulation.attempted,
-      policyDecision: decision.outcome, reason: decision.reason
-    }, this.now().toISOString())
-    if (decision.outcome === 'rejected') {
-      await this.service.approvals.transition(record.id, 'rejected', this.now())
-      this.clearRequestExpiry(record.id)
-      throw new Error(`Wallet policy rejected the request: ${decision.reason}`)
-    }
-    if (decision.outcome === 'approved') {
-      const policy = policies.find((entry) => entry.id === decision.policyId)
-      if (!policy) throw new Error('Wallet automatic policy is unavailable')
-      const reservation = await this.service.policyUsage.reserve(policy, normalized.decoded.nativeAmount, this.now())
-      if (!reservation.reserved) {
-        await this.service.audit.append('policy-reservation-denied', {
-          requestId: record.id, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
-        }, this.now().toISOString())
-        await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-        return returnSummary
-          ? agentSummary(this.service.approvals.get(record.id)!, wallet)
-          : this.wait(record.id)
-      }
-      await this.service.audit.append('policy-reservation-created', {
-        requestId: record.id, walletId: wallet.id, policyId: policy.id,
-        operationCount: reservation.snapshot.operationCount,
-        sessionSpend: reservation.snapshot.sessionSpend,
-        dailySpend: reservation.snapshot.dailySpend
-      }, this.now().toISOString())
-      const result = await this.queueLifecycle(async () => {
-        const current = this.service.approvals.get(record.id)!
-        await this.service.approvals.approve(record.id, current.request, this.now())
-        return this.execute(this.service.approvals.get(record.id)!)
+    try {
+      await this.service.approvals.transition(record.id, 'validated', this.now())
+      const simulation = await adapter.simulate(wallet, normalized)
+      await this.service.approvals.recordSimulation(record.id, simulation, this.now())
+      await this.service.approvals.transition(record.id, 'simulated', this.now())
+      await this.service.approvals.transition(record.id, 'policy-decision', this.now())
+      const policyUsage = new Map(this.service.policies.list(wallet.id).map((policy) => [
+        policy.id,
+        this.service.policyUsage.snapshot(policy.id, this.now())
+      ]))
+      const policies = this.service.policies.list(wallet.id)
+      const usageByPolicy = Object.fromEntries([...policyUsage].map(([policyId, usage]) => [policyId, {
+        sessionSpend: usage.sessionSpend,
+        dailySpend: usage.dailySpend,
+        operationCount: usage.operationCount
+      }]))
+      const decision = this.policy.evaluate({
+        request: this.service.approvals.get(record.id)!.request,
+        wallet,
+        policies,
+        decoded: normalized.decoded,
+        simulation,
+        now: this.now(),
+        sessionSpend: '0', dailySpend: '0', operationCount: 0, usageByPolicy
       })
-      this.clearRequestExpiry(record.id)
-      return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
+      await this.service.audit.append('request-simulated', {
+        requestId: record.id, walletId: wallet.id, success: simulation.success, attempted: simulation.attempted,
+        policyDecision: decision.outcome, reason: decision.reason
+      }, this.now().toISOString())
+      if (decision.outcome === 'rejected') {
+        await this.service.approvals.transition(record.id, 'rejected', this.now())
+        this.clearRequestExpiry(record.id)
+        throw new Error(`Wallet policy rejected the request: ${decision.reason}`)
+      }
+      if (decision.outcome === 'approved') {
+        const policy = policies.find((entry) => entry.id === decision.policyId)
+        if (!policy) throw new Error('Wallet automatic policy is unavailable')
+        const reservation = await this.service.policyUsage.reserve(policy, normalized.decoded.nativeAmount, this.now())
+        if (!reservation.reserved) {
+          await this.service.audit.append('policy-reservation-denied', {
+            requestId: record.id, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
+          }, this.now().toISOString())
+          await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+          return returnSummary
+            ? agentSummary(this.service.approvals.get(record.id)!, wallet)
+            : this.wait(record.id)
+        }
+        await this.service.audit.append('policy-reservation-created', {
+          requestId: record.id, walletId: wallet.id, policyId: policy.id,
+          operationCount: reservation.snapshot.operationCount,
+          sessionSpend: reservation.snapshot.sessionSpend,
+          dailySpend: reservation.snapshot.dailySpend
+        }, this.now().toISOString())
+        const result = await this.queueLifecycle(async () => {
+          const current = this.service.approvals.get(record.id)!
+          await this.service.approvals.approve(record.id, current.request, this.now())
+          return this.execute(this.service.approvals.get(record.id)!)
+        })
+        this.clearRequestExpiry(record.id)
+        return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
+      }
+      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+      return returnSummary
+        ? agentSummary(this.service.approvals.get(record.id)!, wallet)
+        : this.wait(record.id)
+    } catch (error) {
+      await this.fail(record.id, error)
+      throw error
     }
-    await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-    return returnSummary
-      ? agentSummary(this.service.approvals.get(record.id)!, wallet)
-      : this.wait(record.id)
   }
 
   private async messageRequest(
@@ -675,8 +683,7 @@ export class WalletBroker {
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)
     } catch (error) {
-      this.clearPendingMessage(record.id)
-      this.clearRequestExpiry(record.id)
+      await this.fail(record.id, error)
       throw error
     }
   }
@@ -770,13 +777,18 @@ export class WalletBroker {
       expiresAt: new Date(now.getTime() + this.requestTtlMs()).toISOString()
     }
     const record = await this.service.approvals.create(request, `${context.requester.type}:${context.requester.id}:${request.requestId}`, now)
-    await this.service.audit.append('request-created', {
-      requestId: record.id, walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
-      requester: context.requester, operation
-    }, now.toISOString())
-    this.scheduleRequestExpiry(record)
-    this.publish()
-    return record
+    try {
+      await this.service.audit.append('request-created', {
+        requestId: record.id, walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
+        requester: context.requester, operation
+      }, now.toISOString())
+      this.scheduleRequestExpiry(record)
+      this.publish()
+      return record
+    } catch (error) {
+      await this.fail(record.id, error)
+      throw error
+    }
   }
 
   private wait(requestId: string): Promise<unknown> {
@@ -850,13 +862,18 @@ export class WalletBroker {
   ): Promise<WalletApprovalRecord> {
     const currentWallet = this.requireAccessibleWallet(context, wallet.id)
     const record = await this.createRequest(context, currentWallet, 'connect-account', 'read', { account: currentWallet.publicAddress })
-    await this.service.approvals.transition(record.id, 'validated', this.now())
-    await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
-    await this.service.approvals.transition(record.id, 'simulated', this.now())
-    await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-    await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
-    this.publish()
-    return this.service.approvals.get(record.id)!
+    try {
+      await this.service.approvals.transition(record.id, 'validated', this.now())
+      await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
+      await this.service.approvals.transition(record.id, 'simulated', this.now())
+      await this.service.approvals.transition(record.id, 'policy-decision', this.now())
+      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+      this.publish()
+      return this.service.approvals.get(record.id)!
+    } catch (error) {
+      await this.fail(record.id, error)
+      throw error
+    }
   }
 
   private async ensureAgentAddressPermission(
@@ -950,16 +967,19 @@ export class WalletBroker {
 
   private async fail(requestId: string, error: unknown): Promise<void> {
     const record = this.service.approvals.get(requestId)
-    if (record && !['confirmed', 'rejected', 'expired', 'cancelled', 'failed'].includes(record.status)) {
-      await this.service.approvals.transition(requestId, 'failed', this.now())
-    }
     const failure = sanitizedError(error)
-    await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
-    this.pending.get(requestId)?.reject(failure)
-    this.pending.delete(requestId)
-    this.clearPendingMessage(requestId)
-    this.clearRequestExpiry(requestId)
-    this.publish()
+    try {
+      if (record && !TERMINAL_REQUEST_STATUSES.has(record.status)) {
+        await this.service.approvals.transition(requestId, 'failed', this.now())
+        await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
+      }
+    } finally {
+      this.pending.get(requestId)?.reject(failure)
+      this.pending.delete(requestId)
+      this.clearPendingMessage(requestId)
+      this.clearRequestExpiry(requestId)
+      this.publish()
+    }
   }
 
   private rejectCancelled(): void {
