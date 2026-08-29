@@ -76,6 +76,9 @@ a memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
+Hosted and release CI use two shards by default to avoid CPU-contention timeouts
+on constrained runners; an explicit `HRONAUT_INTEGRATION_SHARDS` still wins.
+
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI
 runner needs a different unit-test concurrency limit.

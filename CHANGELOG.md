@@ -21,7 +21,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Speed up repeat validation with cached incremental typechecking, concurrent static gates, tunable Vitest workers, and balanced four-way Docker Electron sharding.
+- Speed up repeat validation with cached incremental typechecking, concurrent static gates, tunable Vitest workers, balanced four-way local Docker Electron sharding, and a resource-safe two-shard hosted CI profile.
 - Trap keyboard focus inside trusted wallet approvals so a newly presented request cannot leave typing or tab navigation in the underlying website.
 - Preserve Page Tools and other shell panels when the global interaction lock blocks a Developer Tools shortcut.
 - Invalidate wallet request contexts synchronously on page navigation or tab closure and roll back overtaken account grants, preventing delayed preparation or permission persistence from authorizing a page that is no longer active.

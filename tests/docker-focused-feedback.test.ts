@@ -50,11 +50,12 @@ describe('focused Docker integration feedback', () => {
   })
 
   it('keeps the full Docker gate on the immutable source image', async () => {
-    const [packageSource, dockerfile, compose, runner, playwright] = await Promise.all([
+    const [packageSource, dockerfile, compose, runner, ciRunner, playwright] = await Promise.all([
       readFile('package.json', 'utf8'),
       readFile('Dockerfile.test', 'utf8'),
       readFile('compose.test.ci.yaml', 'utf8'),
       readFile('scripts/run-integration-suite-docker.sh', 'utf8'),
+      readFile('scripts/run-integration-ci.sh', 'utf8'),
       readFile('playwright.config.ts', 'utf8')
     ])
     const packageJson = JSON.parse(packageSource) as {
@@ -66,6 +67,7 @@ describe('focused Docker integration feedback', () => {
     )
     expect(dockerfile).toContain('CMD ["bash", "scripts/run-integration-suite-docker.sh"]')
     expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"')
+    expect(ciRunner).toContain('HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"')
     expect(runner).toContain('node scripts/verify-dependency-manifest.ts')
     expect(runner).toContain('npm run build')
     expect(runner).not.toContain('npm run build:app')

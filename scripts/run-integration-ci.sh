@@ -5,6 +5,11 @@ set -u -o pipefail
 container_name="hronaut-integration-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 artifact_directory="ci-artifacts"
 
+# Hosted runners have fewer sustained CPU resources than typical developer
+# workstations. Keep their Electron processes at the proven two-shard profile;
+# callers can still opt into another value explicitly.
+export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
+
 cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
 }
