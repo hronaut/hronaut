@@ -459,8 +459,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     if (!request) return
     reproState.value = 'loading'
     reproError.value = ''
-    reproCopied.value = false
-    reproPlaywrightCopied.value = false
+    if (action !== 'get') {
+      reproCopied.value = false
+      reproPlaywrightCopied.value = false
+    }
     try {
       const recording = await options.browser.manageRepro(action, request.tab.id)
       if (!current('repro', request)) return

@@ -5,6 +5,7 @@ import type {
   BrowserDebugReport,
   BrowserDomChangesReport,
   BrowserPerformanceReport,
+  BrowserReproRecording,
   BrowserTabState
 } from '../../src/shared/types.js'
 
@@ -84,6 +85,27 @@ function domReport(active = true): BrowserDomChangesReport {
     truncated: false,
     droppedChanges: 0,
     summary: { childList: 0, attributes: 0, text: 0, addedNodes: 0, removedNodes: 0 },
+    caveats: []
+  }
+}
+
+function reproRecording(): BrowserReproRecording {
+  return {
+    tabId: 'tab-1',
+    title: 'Example',
+    startedAt: '2026-08-21T12:00:00.000Z',
+    stoppedAt: '2026-08-21T12:00:01.000Z',
+    active: false,
+    stepCount: 1,
+    steps: [{
+      index: 1,
+      kind: 'navigate',
+      occurredAt: '2026-08-21T12:00:00.000Z',
+      elapsedMs: 0,
+      description: 'Open Example',
+      url: 'https://example.test/app'
+    }],
+    truncated: false,
     caveats: []
   }
 }
@@ -224,6 +246,21 @@ describe('diagnostics controller', () => {
     expect(controller.debugReportCopied.value).toBe(true)
     await vi.advanceTimersByTimeAsync(900)
     expect(controller.debugReportCopied.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('keeps repro copy feedback during a read-only recording refresh', async () => {
+    vi.useFakeTimers()
+    const { browser, controller } = createController()
+    const recording = reproRecording()
+    controller.reproRecording.value = recording
+    browser.manageRepro.mockResolvedValueOnce(recording)
+
+    await controller.copyReproRecording()
+    expect(controller.reproCopied.value).toBe(true)
+    await controller.manageRepro('get')
+
+    expect(controller.reproCopied.value).toBe(true)
     controller.dispose()
   })
 
