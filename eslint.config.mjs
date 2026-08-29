@@ -31,7 +31,7 @@ export default defineConfig(
     extends: [js.configs.recommended, ...tseslint.configs.recommended, promise.configs['flat/recommended']],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname }
+      parserOptions: { tsconfigRootDir: import.meta.dirname }
     },
     rules: {
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
@@ -62,10 +62,7 @@ export default defineConfig(
     plugins: { '@intlify/vue-i18n': vueI18n },
     languageOptions: {
       parserOptions: {
-        parser: tseslint.parser,
-        projectService: true,
-        tsconfigRootDir: import.meta.dirname,
-        extraFileExtensions: ['.vue']
+        parser: tseslint.parser
       },
       globals: globals.browser
     },

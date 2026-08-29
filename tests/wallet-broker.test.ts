@@ -168,6 +168,116 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
+  it('does not create or sign an agent transaction after its requester session is cancelled', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const controller = new AbortController()
+    const agent = context({
+      requester: { type: 'agent', id: 'wallet-session:closing', name: 'Closing agent' },
+      signal: controller.signal
+    })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const normalized = await chain.normalizeTransaction(wallet, {})
+    let releaseNormalization!: () => void
+    const normalizeTransaction = vi.spyOn(chain, 'normalizeTransaction').mockImplementationOnce(() => new Promise((resolve) => {
+      releaseNormalization = () => resolve(normalized)
+    }))
+
+    const request = broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    await vi.waitFor(() => expect(chain.normalizeTransaction).toHaveBeenCalled())
+    controller.abort()
+    const cancellation = broker.cancelForRequester(agent.requester.id)
+    releaseNormalization()
+
+    await cancellation
+    await expect(request).rejects.toThrow(/session is no longer active|cancelled/i)
+    expect(broker.listPending().filter((entry) => entry.operation.includes('transaction'))).toHaveLength(0)
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+    const normalizationCallsAfterCancellation = normalizeTransaction.mock.calls.length
+    await expect(broker.requestAgentTransaction(agent, wallet.id, {}, true))
+      .rejects.toThrow(/session is no longer active/i)
+    expect(normalizeTransaction).toHaveBeenCalledTimes(normalizationCallsAfterCancellation)
+  })
+
+  it('handles requester cancellation that overtakes approval creation without double-cancelling', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const agent = context({ requester: { type: 'agent', id: 'wallet-session:create-race', name: 'Closing agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const create = service.approvals.create.bind(service.approvals)
+    let approvalCreated!: () => void
+    const created = new Promise<void>((resolve) => { approvalCreated = resolve })
+    let releaseCreate!: () => void
+    const createRelease = new Promise<void>((resolve) => { releaseCreate = resolve })
+    vi.spyOn(service.approvals, 'create').mockImplementationOnce(async (...args) => {
+      const record = await create(...args)
+      approvalCreated()
+      await createRelease
+      return record
+    })
+
+    const request = broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    await created
+    const cancellation = broker.cancelForRequester(agent.requester.id)
+    await vi.waitFor(() => expect(broker.listPending().some((entry) => (
+      entry.operation.includes('transaction') && entry.status === 'cancelled'
+    ))).toBe(true))
+    releaseCreate()
+
+    await cancellation
+    await expect(request).rejects.toThrow(/session is no longer active/i)
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('stops bounded automatic execution when its agent session closes during signing preparation', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const agent = context({ requester: { type: 'agent', id: 'wallet-session:auto-closing', name: 'Closing agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    await service.policies.set({
+      id: 'agent-auto-close', name: 'Agent close race', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: agent.workspaceId, networkIds: [wallet.network.id], origins: [agent.topLevelOrigin],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    const markSigning = service.approvals.markSigning.bind(service.approvals)
+    let enteredSigning!: () => void
+    const signingEntered = new Promise<void>((resolve) => { enteredSigning = resolve })
+    let releaseSigning!: () => void
+    const signingRelease = new Promise<void>((resolve) => { releaseSigning = resolve })
+    vi.spyOn(service.approvals, 'markSigning').mockImplementationOnce(async (...args) => {
+      const record = await markSigning(...args)
+      enteredSigning()
+      await signingRelease
+      return record
+    })
+
+    const request = broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    await signingEntered
+    const cancellation = broker.cancelForRequester(agent.requester.id)
+    releaseSigning()
+
+    await cancellation
+    await expect(request).rejects.toThrow(/session is no longer active|cancelled/i)
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
   it('keeps pending message contents out of the durable approval store', async () => {
     const { directory, service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

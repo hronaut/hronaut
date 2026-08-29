@@ -51,8 +51,16 @@ Run focused tests while iterating, then run the relevant gates:
 ```bash
 npm run lint
 npm test
-npm run typecheck
 npm run build
+```
+
+For fast static feedback on a focused change, pass its files to `lint:focused`
+and run only the owning TypeScript project before the full gates:
+
+```bash
+npm run lint:focused -- src/main/wallet/broker.ts tests/wallet-broker.test.ts
+npm run typecheck:node
+npm run typecheck:incremental
 ```
 
 Every bug fix needs a regression test that fails for the original behavior.
@@ -67,7 +75,9 @@ npm run test:integration:docker
 ```
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
-inside the pinned Docker/Xvfb image. Run it for changes to the main/preload
+inside the pinned Docker/Xvfb image. The Playwright files run in two isolated
+Xvfb shards after one application build; set `HRONAUT_INTEGRATION_SHARDS=1`
+when diagnosing order or resource-sensitive behavior. Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
 
@@ -87,8 +97,11 @@ npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.t
 ```
 
 Arguments after `--` are passed directly to Vitest or Playwright respectively.
-The Docker dependency layer is cached, so repeat runs normally rebuild only the
-application under test. A focused Docker pass is not a substitute for
+The Docker dependency layer and focused `node_modules` volume are keyed to the
+lockfile and dependency-image definition, so repeat runs reuse them safely. Use
+`npm run test:docker:cache:prune` to remove old focused dependency volumes.
+Focused Electron runs compile the application without repeating the separate
+type-analysis gate. A focused Docker pass is not a substitute for
 `npm run test:integration:docker` before delivery.
 
 ## Releases and adjacent repositories

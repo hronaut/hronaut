@@ -7,4 +7,9 @@ services:
         source: .
         target: /workspace
       - type: volume
+        source: focused-node-modules
         target: /workspace/node_modules
+
+volumes:
+  focused-node-modules:
+    name: hronaut-focused-node-modules-${HRONAUT_DEPENDENCY_CACHE_KEY:?Set HRONAUT_DEPENDENCY_CACHE_KEY through the focused Docker launcher}

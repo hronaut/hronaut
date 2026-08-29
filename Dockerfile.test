@@ -3,11 +3,14 @@ FROM mcr.microsoft.com/playwright:v1.62.1-noble AS dependencies
 ENV CI=true
 WORKDIR /workspace
 
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY package-lock.json ./
+RUN node -e "const fs=require('node:fs');const root=JSON.parse(fs.readFileSync('package-lock.json','utf8')).packages[''];const fields=['dependencies','devDependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','engines','os','cpu','workspaces'];const manifest={name:root.name,version:root.version,private:true};for(const field of fields)if(root[field]!==undefined)manifest[field]=root[field];fs.writeFileSync('package.json',JSON.stringify(manifest))"
+RUN npm ci \
+    && ./node_modules/.bin/electron-builder install-app-deps \
+    && sha256sum package-lock.json | cut -d ' ' -f 1 > node_modules/.hronaut-package-lock.sha256
 
 FROM dependencies AS integration
 
 COPY . .
 
-CMD ["bash", "-lc", "npm run test:integration:headless && npm run test:integration:dialogs:headless"]
+CMD ["bash", "scripts/run-integration-suite-docker.sh"]

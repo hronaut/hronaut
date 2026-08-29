@@ -10,6 +10,7 @@ import {
   type Page
 } from '@playwright/test'
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
+import { integrationMcpPort } from './port-allocation.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -128,7 +129,7 @@ export const test = base.extend<HronautFixtures>({
   },
 
   mcpPort: async ({}, use, testInfo) => {
-    await use(48_700 + testInfo.workerIndex)
+    await use(integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex))
   },
 
   electronApp: async ({ profileDirectory, mcpPort }, use) => {

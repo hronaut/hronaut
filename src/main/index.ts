@@ -1833,7 +1833,8 @@ function walletAgentContext(target: WalletAgentToolTarget): WalletBrokerContext 
       type: 'agent',
       id: target.client.id,
       name: target.client.version ? `${target.client.name} ${target.client.version}` : target.client.name
-    }
+    },
+    ...(target.signal ? { signal: target.signal } : {})
   }
 }
 
@@ -3660,10 +3661,8 @@ async function releaseRuntimeResources(): Promise<void> {
   const manager = tabsManager
   const server = mcpServer
   const wallets = walletService
-  tabsManager = null
+  const broker = walletBroker
   mcpServer = null
-  walletService = null
-  walletBroker = null
   runtimeShutdown = (async () => {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
@@ -3682,6 +3681,9 @@ async function releaseRuntimeResources(): Promise<void> {
     }
     manager?.destroy()
     wallets?.dispose()
+    if (tabsManager === manager) tabsManager = null
+    if (walletService === wallets) walletService = null
+    if (walletBroker === broker) walletBroker = null
   })()
   return runtimeShutdown
 }

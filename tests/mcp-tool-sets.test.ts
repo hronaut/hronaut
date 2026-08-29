@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BROWSER_TOOL_CATALOG,
   McpHttpServer,
@@ -108,7 +108,7 @@ describe('MCP tool sets', () => {
     await expect(firstClient.callTool({ name: 'browser_accessibility_audit', arguments: {} }))
       .resolves.toMatchObject({
         isError: true,
-        content: [{ type: 'text', text: expect.stringMatching(/not found/i) }]
+        content: [{ type: 'text', text: expect.stringMatching(/not found|disabled/i) }]
       })
 
     server.setToolSet('qa')
@@ -124,5 +124,33 @@ describe('MCP tool sets', () => {
       new Set(BROWSER_TOOL_CATALOG.map(({ name }) => name))
     )
     expect(JSON.stringify(firstEssentials.tools).length).toBeLessThan(JSON.stringify(complete.tools).length / 2)
+  })
+
+  it('keeps the transport-session cap under concurrent initialization', async () => {
+    server = new McpHttpServer({} as never, {
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      showWindow: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never
+    })
+    const endpoint = await server.start()
+    const sessions = (server as unknown as { transportSessions: Map<string, unknown> }).transportSessions
+    for (let index = 0; index < 100; index += 1) {
+      sessions.set(`fixture-${index}`, {
+        server: { close: vi.fn(async () => undefined) },
+        transport: { close: vi.fn(async () => undefined) },
+        client: { id: `fixture-${index}`, name: 'fixture', lastSeenAt: '', requestCount: 0, activeRequests: 0 },
+        setToolSet: vi.fn()
+      })
+    }
+    const newcomers = [0, 1].map((index) => {
+      const client = new Client({ name: `concurrent-${index}`, version: '1.0.0' })
+      clients.push(client)
+      return client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    })
+
+    await Promise.all(newcomers)
+    expect(sessions.size).toBe(100)
   })
 })

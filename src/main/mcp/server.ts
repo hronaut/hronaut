@@ -2,7 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { createHash, randomUUID } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -63,6 +63,7 @@ export interface WalletAgentToolTarget {
   workspaceId: string
   tabId: string
   client: Pick<McpClientActivity, 'id' | 'name' | 'version'>
+  signal?: AbortSignal
 }
 
 export interface WalletAgentOperations {
@@ -78,8 +79,10 @@ export interface WalletAgentOperations {
 
 interface WalletAgentSession {
   token: string
+  ownerClientId: string
   target: WalletAgentToolTarget
   expiresAt: number
+  controller: AbortController
 }
 
 class WalletAgentSessionRegistry {
@@ -94,6 +97,8 @@ class WalletAgentSessionRegistry {
     const token = randomUUID()
     const session: WalletAgentSession = {
       token,
+      ownerClientId: client.id,
+      controller: new AbortController(),
       target: {
         workspaceId,
         tabId,
@@ -105,23 +110,46 @@ class WalletAgentSessionRegistry {
       },
       expiresAt: Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
     }
+    session.target.signal = session.controller.signal
     this.sessions.set(token, session)
-    return structuredClone(session)
+    return session
   }
 
-  resolve(token: string, workspaceId: string, tabId: string): WalletAgentToolTarget {
+  resolve(token: string, workspaceId: string, tabId: string, clientId: string): WalletAgentToolTarget {
     this.expire()
     const session = this.sessions.get(token)
-    if (!session || session.target.workspaceId !== workspaceId || session.target.tabId !== tabId) {
+    if (
+      !session
+      || session.ownerClientId !== clientId
+      || session.target.workspaceId !== workspaceId
+      || session.target.tabId !== tabId
+    ) {
       throw new Error('Wallet agent session is invalid or expired for this workspace and tab')
     }
     session.expiresAt = Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
-    return structuredClone(session.target)
+    return {
+      ...session.target,
+      client: { ...session.target.client },
+      signal: session.controller.signal
+    }
   }
 
   async clear(): Promise<void> {
-    for (const session of this.sessions.values()) this.scheduleCancellation(session.target.client.id)
+    for (const session of this.sessions.values()) {
+      session.controller.abort()
+      this.scheduleCancellation(session.target.client.id)
+    }
     this.sessions.clear()
+    await this.cancellationQueue
+  }
+
+  async clearOwner(ownerClientId: string): Promise<void> {
+    for (const [token, session] of this.sessions) {
+      if (session.ownerClientId !== ownerClientId) continue
+      this.sessions.delete(token)
+      session.controller.abort()
+      this.scheduleCancellation(session.target.client.id)
+    }
     await this.cancellationQueue
   }
 
@@ -130,6 +158,7 @@ class WalletAgentSessionRegistry {
     for (const [token, session] of this.sessions) {
       if (session.expiresAt > now) continue
       this.sessions.delete(token)
+      session.controller.abort()
       this.scheduleCancellation(session.target.client.id)
     }
   }
@@ -219,6 +248,13 @@ export interface McpDashboardState {
   recentActivity: McpToolActivity[]
   toolMetrics: McpToolMetric[]
   tools: BrowserToolDefinition[]
+}
+
+interface McpTransportSession {
+  server: McpServer
+  transport: StreamableHTTPServerTransport
+  client: McpClientActivity
+  setToolSet(toolSet: McpToolSet): void
 }
 
 export function mcpRequestAuthorized(configuredToken: string | undefined, authorization: string | undefined): boolean {
@@ -520,7 +556,7 @@ function createBrowserMcpServer(
   wallets?: WalletAgentOperations,
   walletSessions?: WalletAgentSessionRegistry,
   onTabActivity?: (activity: McpTabActivity) => void
-): McpServer {
+): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
     { instructions: BROWSER_SERVER_INSTRUCTIONS }
@@ -555,11 +591,14 @@ function createBrowserMcpServer(
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
   const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
+  const registeredTools = new Map<string, RegisteredTool>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
-    if (!toolSetToolNames.has(name)) return undefined
-    registeredToolNames.push(name)
-    return baseRegisterTool(name, config as never, handler as never)
+    const registered = baseRegisterTool(name, config as never, handler as never)
+    registeredTools.set(name, registered)
+    if (toolSetToolNames.has(name)) registeredToolNames.push(name)
+    else registered.disable()
+    return registered
   }) as typeof baseRegisterTool
   const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
     const workspace = manager.requireMcpTabGroup(workspaceId)
@@ -2080,7 +2119,7 @@ function createBrowserMcpServer(
     return walletSessions
   }
   const walletTarget = (walletSessionId: string, workspaceId: string, tabId: string): WalletAgentToolTarget => (
-    requireWalletSessions().resolve(walletSessionId, workspaceId, tabId)
+    requireWalletSessions().resolve(walletSessionId, workspaceId, tabId, client.id)
   )
   registerWorkspaceTool(
     'wallet_list',
@@ -2194,7 +2233,16 @@ function createBrowserMcpServer(
 
   assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
   assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
-  return server
+  return {
+    server,
+    setToolSet(nextToolSet) {
+      const enabledNames = new Set(mcpToolCatalogForSet(nextToolSet).map(({ name }) => name))
+      for (const [name, registered] of registeredTools) {
+        const enabled = enabledNames.has(name)
+        if (registered.enabled !== enabled) registered.update({ enabled })
+      }
+    }
+  }
 }
 
 export class McpHttpServer {
@@ -2209,6 +2257,7 @@ export class McpHttpServer {
   private token: string | undefined
   private toolSet: McpToolSet
   private readonly clients = new Map<string, McpClientActivity>()
+  private readonly transportSessions = new Map<string, McpTransportSession>()
   private readonly activityStarts = new Map<string, McpTabActivity>()
   private readonly recentActivity: McpToolActivity[] = []
   private readonly toolMetrics = new Map<string, McpToolMetric>()
@@ -2231,6 +2280,7 @@ export class McpHttpServer {
 
   setToolSet(toolSet: McpToolSet): void {
     this.toolSet = toolSet
+    for (const session of this.transportSessions.values()) session.setToolSet(toolSet)
   }
 
   setPaused(paused: boolean): void {
@@ -2294,19 +2344,38 @@ export class McpHttpServer {
     app.use(express.json({ limit: '2mb' }))
     app.get('/healthz', (_request, response) => response.json({ ok: true, name: 'hronaut', paused: this.paused }))
     app.all('/mcp', async (request: Request, response: Response) => {
-      if (request.method !== 'POST') {
-        response.status(405).set('Allow', 'POST').json({ error: 'Stateless MCP endpoint accepts POST requests' })
+      if (request.method !== 'POST' && request.method !== 'GET' && request.method !== 'DELETE') {
+        response.status(405).set('Allow', 'POST, GET, DELETE').json({ error: 'Unsupported MCP transport method' })
         return
       }
-      if (this.paused) {
+      if (this.paused && request.method !== 'DELETE') {
         response.status(503).json({ error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.' })
         return
       }
-      if (this.activeRequests >= McpHttpServer.MAX_ACTIVE_REQUESTS) {
+      if (request.method !== 'DELETE' && this.activeRequests >= McpHttpServer.MAX_ACTIVE_REQUESTS) {
         response.status(429).json({ error: 'Too many active MCP requests' })
         return
       }
-      const client = this.beginRequest(request)
+      const requestedSessionId = request.get('mcp-session-id')
+      let transportSession = requestedSessionId
+        ? this.transportSessions.get(requestedSessionId)
+        : undefined
+      if (requestedSessionId && !transportSession) {
+        response.status(404).json({ error: 'MCP session not found' })
+        return
+      }
+      const isInitialization = request.method === 'POST'
+        && typeof request.body === 'object'
+        && request.body !== null
+        && !Array.isArray(request.body)
+        && (request.body as { method?: unknown }).method === 'initialize'
+      if (!transportSession && !isInitialization) {
+        response.status(400).json({ error: 'Mcp-Session-Id header is required' })
+        return
+      }
+
+      const client = this.beginRequest(request, transportSession?.client)
+      const createdTransportSession = !transportSession
       let completed = false
       const completeRequest = (): void => {
         if (completed) return
@@ -2317,30 +2386,65 @@ export class McpHttpServer {
       response.once('finish', completeRequest)
       response.once('close', completeRequest)
 
-      const server = createBrowserMcpServer(
-        this.manager,
-        this.options.showWindow,
-        this.options.getUserAttention,
-        this.options.requestUserAttention,
-        this.options.bookmarks,
-        this.options.history,
-        this.options.siteData,
-        this.options.version,
-        this.toolSet,
-        client,
-        this.options.wallets,
-        this.walletSessions,
-        (activity) => this.trackTabActivity(activity)
-      )
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true })
-      response.on('close', () => {
-        void transport.close()
-        void server.close()
-      })
       try {
-        await server.connect(transport)
-        await transport.handleRequest(request, response, request.body)
+        if (!transportSession) {
+          const session: Partial<McpTransportSession> = { client }
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: randomUUID,
+            enableJsonResponse: true,
+            onsessioninitialized: async (sessionId) => {
+              const previousClientId = client.id
+              if (this.clients.get(previousClientId) === client) this.clients.delete(previousClientId)
+              client.id = sessionId
+              this.clients.set(sessionId, client)
+              session.setToolSet?.(this.toolSet)
+              this.transportSessions.set(sessionId, session as McpTransportSession)
+              while (this.transportSessions.size > McpHttpServer.MAX_CLIENTS) {
+                const oldestSessionId = this.transportSessions.keys().next().value as string | undefined
+                if (oldestSessionId) await this.closeTransportSession(oldestSessionId)
+                else break
+              }
+            },
+            onsessionclosed: async (sessionId) => {
+              const closedSession = this.transportSessions.get(sessionId)
+              this.transportSessions.delete(sessionId)
+              if (closedSession && this.clients.get(sessionId) === closedSession.client) {
+                this.clients.delete(sessionId)
+              }
+              await this.walletSessions.clearOwner(sessionId)
+            }
+          })
+          const mcp = createBrowserMcpServer(
+            this.manager,
+            this.options.showWindow,
+            this.options.getUserAttention,
+            this.options.requestUserAttention,
+            this.options.bookmarks,
+            this.options.history,
+            this.options.siteData,
+            this.options.version,
+            this.toolSet,
+            client,
+            this.options.wallets,
+            this.walletSessions,
+            (activity) => this.trackTabActivity(activity)
+          )
+          session.server = mcp.server
+          session.transport = transport
+          session.setToolSet = mcp.setToolSet
+          transportSession = session as McpTransportSession
+          await mcp.server.connect(transport)
+        }
+        await transportSession.transport.handleRequest(request, response, request.body)
+        if (createdTransportSession && !transportSession.transport.sessionId) {
+          if (this.clients.get(client.id) === client) this.clients.delete(client.id)
+          await Promise.allSettled([transportSession.transport.close(), transportSession.server.close()])
+        }
       } catch (error) {
+        if (createdTransportSession && transportSession && !transportSession.transport.sessionId) {
+          if (this.clients.get(client.id) === client) this.clients.delete(client.id)
+          await Promise.allSettled([transportSession.transport.close(), transportSession.server.close()])
+        }
         console.error('[mcp] Request failed:', error)
         if (!response.headersSent) response.status(500).json({ error: 'Internal MCP error' })
       }
@@ -2368,23 +2472,24 @@ export class McpHttpServer {
       server.closeAllConnections()
     })
     this.startedAt = null
+    await Promise.allSettled([...this.transportSessions.keys()].map((sessionId) => this.closeTransportSession(sessionId)))
     await this.walletSessions.clear()
+    this.clients.clear()
   }
 
-  private beginRequest(request: Request): McpClientActivity {
-    const body = request.body as {
+  private beginRequest(request: Request, sessionClient?: McpClientActivity): McpClientActivity {
+    const body = (request.body ?? {}) as {
       method?: unknown
       params?: { clientInfo?: { name?: unknown; version?: unknown } }
     }
     const suppliedInfo = body.method === 'initialize' ? body.params?.clientInfo : undefined
     const userAgent = (request.get('user-agent') || 'Unknown MCP client').slice(0, 256)
-    // Stateless MCP does not provide a protocol-level client identifier. Bind
-    // wallet authority to the authenticated local transport connection as well
-    // as its user agent. Reconnects intentionally get a fresh identity and must
-    // request wallet access again; this fails closed instead of merging clients.
+    // Initialization gets a temporary connection identity until the transport
+    // assigns its server-issued session ID. Reconnects intentionally receive a
+    // fresh identity and must request wallet access again.
     const stableIdentity = `${userAgent}\u0000${request.socket.remoteAddress ?? 'local'}\u0000${request.socket.remotePort ?? 'unknown'}`
-    const id = createHash('sha256').update(stableIdentity, 'utf8').digest('hex')
-    const existing = this.clients.get(id)
+    const id = sessionClient?.id ?? createHash('sha256').update(stableIdentity, 'utf8').digest('hex')
+    const existing = sessionClient ?? this.clients.get(id)
     const name = (typeof suppliedInfo?.name === 'string'
       ? suppliedInfo.name
       : existing?.name ?? userAgent).slice(0, 128)
@@ -2412,6 +2517,15 @@ export class McpHttpServer {
     this.activeRequests += 1
     this.totalRequests += 1
     return client
+  }
+
+  private async closeTransportSession(sessionId: string): Promise<void> {
+    const session = this.transportSessions.get(sessionId)
+    if (!session) return
+    this.transportSessions.delete(sessionId)
+    if (this.clients.get(sessionId) === session.client) this.clients.delete(sessionId)
+    await this.walletSessions.clearOwner(sessionId)
+    await Promise.allSettled([session.transport.close(), session.server.close()])
   }
 
   private trackTabActivity(activity: McpTabActivity): void {

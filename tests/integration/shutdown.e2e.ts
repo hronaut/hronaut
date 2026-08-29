@@ -3,6 +3,9 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
@@ -27,6 +30,11 @@ async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise
     child.once('exit', onExit)
     if (child.exitCode !== null || child.signalCode !== null) finish(true)
   })
+}
+
+function toolText(result: CallToolResult): string {
+  const content = result.content.find((entry) => entry.type === 'text')
+  return content?.type === 'text' ? content.text : ''
 }
 
 test('exits when --quit is invoked without an existing instance', async ({
@@ -367,5 +375,111 @@ test('waits for an in-flight workspace storage transfer before exiting', async (
       }).catch(() => undefined)
     }
     await closeHronaut(instance.app)
+  }
+})
+
+test('cancels durable agent wallet approvals before application shutdown completes', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken,
+  profileDirectory
+}) => {
+  const website = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end('<!doctype html><title>Wallet shutdown fixture</title><main>Wallet shutdown fixture</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    website.once('error', reject)
+    website.listen(0, '127.0.0.1', () => {
+      website.off('error', reject)
+      resolve()
+    })
+  })
+  const address = website.address()
+  if (!address || typeof address === 'string') throw new Error('Wallet shutdown fixture did not expose a TCP port')
+  const url = `http://127.0.0.1:${address.port}/wallet-shutdown`
+  const client = new Client({ name: 'wallet-shutdown-test', version: '1.0.0' })
+  const child = electronApp.process()
+
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, {
+          headers: { authorization: `Bearer ${mcpToken}` }
+        })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+    }))
+    const createdWorkspace = await client.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'create', name: 'Wallet shutdown', color: 'purple' }
+    }) as CallToolResult
+    expect(createdWorkspace.isError, toolText(createdWorkspace)).not.toBe(true)
+    const workspaceId = (JSON.parse(toolText(createdWorkspace)) as { id: string }).id
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url }
+    }) as CallToolResult
+    expect(opened.isError, toolText(opened)).not.toBe(true)
+    const tabId = (JSON.parse(toolText(opened)) as { activeTabId: string }).activeTabId
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((value) => value.tabs.find((entry) => entry.active)?.title)'
+    )).toBe('Wallet shutdown fixture')
+
+    const wallet = await appWindow.evaluate(`window.hronautWallets.addWatchOnly({
+      name: 'Shutdown watch wallet',
+      chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000001',
+      network: {
+        id: '31337',
+        name: 'Local shutdown network',
+        environment: 'local',
+        rpcUrl: 'http://127.0.0.1:8545'
+      },
+      workspaceIds: [${JSON.stringify(workspaceId)}]
+    })`) as { id: string }
+    const listed = await client.callTool({
+      name: 'wallet_list',
+      arguments: { workspaceId, tabId }
+    }) as CallToolResult
+    expect(listed.isError, toolText(listed)).not.toBe(true)
+    const { walletSessionId } = JSON.parse(toolText(listed)) as { walletSessionId: string }
+    await client.callTool({
+      name: 'wallet_request',
+      arguments: {
+        workspaceId,
+        tabId,
+        walletSessionId,
+        walletId: wallet.id,
+        action: 'sign-message',
+        message: 'shutdown cancellation probe'
+      }
+    })
+    const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{
+      id: string
+      operation: string
+      status: string
+    }>
+    const request = requests.find((entry) => entry.operation === 'connect-account' && entry.status === 'awaiting-human')
+    if (!request) throw new Error('Agent address-permission request was not persisted before shutdown')
+    await client.close()
+
+    await electronApp.evaluate(({ app }) => { setImmediate(() => app.quit()) })
+    expect(await waitForChildExit(child, 5_000)).toBe(true)
+    expect(child.exitCode).toBe(0)
+
+    const persisted = JSON.parse(await readFile(join(profileDirectory, 'wallet', 'requests.json'), 'utf8')) as {
+      requests: Array<{ id: string; status: string }>
+    }
+    expect(persisted.requests.find((entry) => entry.id === request.id)?.status).toBe('cancelled')
+  } finally {
+    await client.close().catch(() => undefined)
+    website.closeAllConnections()
+    await new Promise<void>((resolve) => website.close(() => resolve()))
   }
 })

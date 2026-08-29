@@ -417,7 +417,6 @@ npm run test:integration
 npm run test:integration:headless
 npm run test:integration:docker
 npm run test:integration:dialogs
-npm run typecheck
 npm run build
 npm run build:website
 npm run build:unpack

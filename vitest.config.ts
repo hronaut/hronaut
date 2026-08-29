@@ -10,7 +10,8 @@ export default defineConfig({
           name: 'node',
           environment: 'node',
           include: ['tests/**/*.test.ts'],
-          exclude: ['tests/renderer/**']
+          exclude: ['tests/renderer/**'],
+          maxWorkers: process.env.CI ? 2 : undefined
         }
       },
       {
@@ -19,7 +20,8 @@ export default defineConfig({
           name: 'renderer',
           environment: 'jsdom',
           include: ['tests/renderer/**/*.test.ts'],
-          setupFiles: ['./tests/renderer/setup.ts']
+          setupFiles: ['./tests/renderer/setup.ts'],
+          maxWorkers: process.env.CI ? 2 : undefined
         }
       }
     ]

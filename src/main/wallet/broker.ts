@@ -28,11 +28,18 @@ export interface WalletBrokerContext {
   navigationGeneration: number
   topLevelOrigin: string
   requester: WalletRequester
+  signal?: AbortSignal
 }
 
 interface PendingResult {
   resolve(value: unknown): void
   reject(error: Error): void
+}
+
+interface AgentOperationLifecycle {
+  activeOperations: number
+  cancelled: boolean
+  drainWaiters: Array<() => void>
 }
 
 export interface WalletBrokerOptions {
@@ -149,6 +156,7 @@ export class WalletBroker {
   private readonly requestExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
+  private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private lifecycleQueue: Promise<void> = Promise.resolve()
 
   constructor(private readonly service: WalletService, private readonly options: WalletBrokerOptions = {}) {
@@ -192,17 +200,21 @@ export class WalletBroker {
   }
 
   async agentBalance(context: WalletBrokerContext, walletId: string): Promise<Record<string, unknown>> {
-    const wallet = this.requireAccessibleWallet(context, walletId)
-    const permission = await this.ensureAgentAddressPermission(context, wallet)
-    if (permission) return { status: 'permission-required', request: permission }
-    return {
-      status: 'ready',
-      walletId: wallet.id,
-      chainFamily: wallet.chainFamily,
-      networkId: wallet.network.id,
-      publicAddress: wallet.publicAddress,
-      balance: await this.adapters[wallet.chainFamily].balance(wallet)
-    }
+    return this.withAgentOperation(context, async () => {
+      const wallet = this.requireAccessibleWallet(context, walletId)
+      const permission = await this.ensureAgentAddressPermission(context, wallet)
+      if (permission) return { status: 'permission-required', request: permission }
+      const balance = await this.adapters[wallet.chainFamily].balance(wallet)
+      this.assertAgentOperationActive(context)
+      return {
+        status: 'ready',
+        walletId: wallet.id,
+        chainFamily: wallet.chainFamily,
+        networkId: wallet.network.id,
+        publicAddress: wallet.publicAddress,
+        balance
+      }
+    })
   }
 
   async prepareAgentTransaction(
@@ -210,34 +222,39 @@ export class WalletBroker {
     walletId: string,
     payload: unknown
   ): Promise<Record<string, unknown>> {
-    const wallet = this.requireAccessibleWallet(context, walletId)
-    const permission = await this.ensureAgentAddressPermission(context, wallet)
-    if (permission) return { status: 'permission-required', request: permission }
-    const adapter = this.adapters[wallet.chainFamily]
-    const normalized = await adapter.normalizeTransaction(wallet, payload)
-    const simulation = await adapter.simulate(wallet, normalized)
-    await this.service.audit.append('transaction-prepared', {
-      walletId: wallet.id,
-      workspaceId: context.workspaceId,
-      origin: context.topLevelOrigin,
-      requester: context.requester,
-      networkId: wallet.network.id,
-      understood: normalized.decoded.understood,
-      method: normalized.decoded.method,
-      destination: normalized.decoded.destination,
-      simulationAttempted: simulation.attempted,
-      simulationSuccess: simulation.success,
-      estimatedFee: simulation.estimatedFee
-    }, this.now().toISOString())
-    return {
-      status: 'prepared',
-      walletId: wallet.id,
-      chainFamily: wallet.chainFamily,
-      networkId: wallet.network.id,
-      publicAddress: wallet.publicAddress,
-      decoded: structuredClone(normalized.decoded),
-      simulation: structuredClone(simulation)
-    }
+    return this.withAgentOperation(context, async () => {
+      const wallet = this.requireAccessibleWallet(context, walletId)
+      const permission = await this.ensureAgentAddressPermission(context, wallet)
+      if (permission) return { status: 'permission-required', request: permission }
+      const adapter = this.adapters[wallet.chainFamily]
+      const normalized = await adapter.normalizeTransaction(wallet, payload)
+      this.assertAgentOperationActive(context)
+      const simulation = await adapter.simulate(wallet, normalized)
+      this.assertAgentOperationActive(context)
+      await this.service.audit.append('transaction-prepared', {
+        walletId: wallet.id,
+        workspaceId: context.workspaceId,
+        origin: context.topLevelOrigin,
+        requester: context.requester,
+        networkId: wallet.network.id,
+        understood: normalized.decoded.understood,
+        method: normalized.decoded.method,
+        destination: normalized.decoded.destination,
+        simulationAttempted: simulation.attempted,
+        simulationSuccess: simulation.success,
+        estimatedFee: simulation.estimatedFee
+      }, this.now().toISOString())
+      this.assertAgentOperationActive(context)
+      return {
+        status: 'prepared',
+        walletId: wallet.id,
+        chainFamily: wallet.chainFamily,
+        networkId: wallet.network.id,
+        publicAddress: wallet.publicAddress,
+        decoded: structuredClone(normalized.decoded),
+        simulation: structuredClone(simulation)
+      }
+    })
   }
 
   async requestAgentTransaction(
@@ -246,11 +263,14 @@ export class WalletBroker {
     payload: unknown,
     broadcast: boolean
   ): Promise<Record<string, unknown>> {
-    const wallet = this.requireAccessibleWallet(context, walletId)
-    const permission = await this.ensureAgentAddressPermission(context, wallet)
-    if (permission) return { status: 'permission-required', request: permission }
-    const request = await this.transactionRequest(context, wallet, payload, broadcast, true)
-    return { status: 'requested', request }
+    return this.withAgentOperation(context, async () => {
+      const wallet = this.requireAccessibleWallet(context, walletId)
+      const permission = await this.ensureAgentAddressPermission(context, wallet)
+      if (permission) return { status: 'permission-required', request: permission }
+      const request = await this.transactionRequest(context, wallet, payload, broadcast, true)
+      this.assertAgentOperationActive(context)
+      return { status: 'requested', request }
+    })
   }
 
   async requestAgentMessage(
@@ -258,11 +278,14 @@ export class WalletBroker {
     walletId: string,
     message: Uint8Array
   ): Promise<Record<string, unknown>> {
-    const wallet = this.requireAccessibleWallet(context, walletId)
-    const permission = await this.ensureAgentAddressPermission(context, wallet)
-    if (permission) return { status: 'permission-required', request: permission }
-    const request = await this.messageRequest(context, wallet, { kind: 'message', message }, false, true)
-    return { status: 'requested', request }
+    return this.withAgentOperation(context, async () => {
+      const wallet = this.requireAccessibleWallet(context, walletId)
+      const permission = await this.ensureAgentAddressPermission(context, wallet)
+      if (permission) return { status: 'permission-required', request: permission }
+      const request = await this.messageRequest(context, wallet, { kind: 'message', message }, false, true)
+      this.assertAgentOperationActive(context)
+      return { status: 'requested', request }
+    })
   }
 
   agentRequestStatus(context: WalletBrokerContext, requestId: string): Record<string, unknown> {
@@ -457,13 +480,36 @@ export class WalletBroker {
   }
 
   async cancelForRequester(requesterId: string): Promise<void> {
-    await this.queueLifecycle(async () => {
+    const lifecycle = this.agentOperations.get(requesterId) ?? {
+      activeOperations: 0,
+      cancelled: false,
+      drainWaiters: []
+    }
+    this.agentOperations.set(requesterId, lifecycle)
+    lifecycle.cancelled = true
+    const cancel = () => this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForRequester(requesterId)
       } finally {
         this.rejectCancelled()
       }
     })
+    let cancellationError: unknown
+    try {
+      await cancel()
+    } catch (error) {
+      cancellationError = error
+    }
+    if (lifecycle.activeOperations > 0) {
+      await new Promise<void>((resolve) => lifecycle.drainWaiters.push(resolve))
+    }
+    try {
+      await cancel()
+    } catch (error) {
+      cancellationError ??= error
+    }
+    if (this.agentOperations.get(requesterId) === lifecycle) this.agentOperations.delete(requesterId)
+    if (cancellationError) throw cancellationError
   }
 
   private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
@@ -599,6 +645,7 @@ export class WalletBroker {
   ): Promise<unknown> {
     const adapter = this.adapters[wallet.chainFamily]
     const normalized = await adapter.normalizeTransaction(wallet, payload)
+    this.assertAgentOperationActive(context)
     const operation: WalletOperation = broadcast ? 'sign-and-send-transaction' : 'sign-transaction'
     const currentWallet = this.requireAccessibleWallet(context, wallet.id)
     this.assertAddressPermission(context, currentWallet, broadcast ? 'send' : 'sign')
@@ -608,6 +655,7 @@ export class WalletBroker {
     try {
       await this.service.approvals.transition(record.id, 'validated', this.now())
       const simulation = await adapter.simulate(wallet, normalized)
+      this.assertAgentOperationActive(context)
       await this.service.approvals.recordSimulation(record.id, simulation, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
@@ -640,6 +688,7 @@ export class WalletBroker {
         throw new Error(`Wallet policy rejected the request: ${decision.reason}`)
       }
       if (decision.outcome === 'approved') {
+        this.assertAgentOperationActive(context)
         const policy = policies.find((entry) => entry.id === decision.policyId)
         if (!policy) throw new Error('Wallet automatic policy is unavailable')
         const reservation = await this.service.policyUsage.reserve(policy, normalized.decoded.nativeAmount, this.now())
@@ -659,9 +708,11 @@ export class WalletBroker {
           dailySpend: reservation.snapshot.dailySpend
         }, this.now().toISOString())
         const result = await this.queueLifecycle(async () => {
+          this.assertAgentOperationActive(context)
           const current = this.service.approvals.get(record.id)!
           await this.service.approvals.approve(record.id, current.request, this.now())
-          return this.execute(this.service.approvals.get(record.id)!)
+          this.assertAgentOperationActive(context)
+          return this.execute(this.service.approvals.get(record.id)!, context)
         })
         this.clearRequestExpiry(record.id)
         return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
@@ -719,12 +770,14 @@ export class WalletBroker {
     }
   }
 
-  private async execute(record: WalletApprovalRecord): Promise<unknown> {
+  private async execute(record: WalletApprovalRecord, activeAgentContext?: WalletBrokerContext): Promise<unknown> {
+    if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
     if (record.request.operation === 'connect-account') {
       const wallet = this.requireWallet(record.request.walletId)
       if (!wallet.workspaceIds.includes(record.request.workspaceId)) {
         throw new Error('Wallet is no longer attached to the requesting workspace')
       }
+      if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
       await this.service.permissions.grant({
         walletId: wallet.id, workspaceId: record.request.workspaceId, origin: record.request.topLevelOrigin,
         account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
@@ -764,10 +817,12 @@ export class WalletBroker {
         .digest('hex')
       if (messageHash !== record.request.payload.messageHash) throw new Error('Approved wallet message has changed')
       await this.service.approvals.markSigning(record.id, record.request, this.now())
+      if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
       try {
         const signature = await this.service.withSecret(wallet.id, (_descriptor, secret) => (
           signWalletPayload(wallet.chainFamily, secret, input, wallet.publicAddress)
         ))
+        if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
         await this.service.approvals.transition(record.id, 'confirmed', this.now())
         return signature
       } finally {
@@ -777,7 +832,9 @@ export class WalletBroker {
     const restored = restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     const adapter = this.adapters[wallet.chainFamily]
     await this.service.approvals.markSigning(record.id, record.request, this.now())
+    if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
     const signed = await this.service.withSecret(wallet.id, (descriptor, secret) => adapter.sign(descriptor, secret, restored))
+    if (activeAgentContext) this.assertAgentOperationActive(activeAgentContext)
     if (record.request.operation === 'sign-transaction') {
       await this.service.approvals.transition(record.id, 'confirmed', this.now())
       return signed
@@ -796,6 +853,7 @@ export class WalletBroker {
     capability: 'read' | 'sign' | 'send',
     payload: Record<string, unknown>
   ): Promise<WalletApprovalRecord> {
+    this.assertAgentOperationActive(context)
     const now = this.now()
     const request: WalletOperationRequest = {
       requestId: randomUUID(), walletId: wallet.id, workspaceId: context.workspaceId, tabId: context.tabId,
@@ -805,6 +863,9 @@ export class WalletBroker {
       expiresAt: new Date(now.getTime() + this.requestTtlMs()).toISOString()
     }
     const record = await this.service.approvals.create(request, `${context.requester.type}:${context.requester.id}:${request.requestId}`, now)
+    if (!this.isAgentOperationActive(context)) {
+      throw new Error('Wallet requester session is no longer active')
+    }
     try {
       await this.service.audit.append('request-created', {
         requestId: record.id, walletId: wallet.id, workspaceId: context.workspaceId, origin: context.topLevelOrigin,
@@ -829,6 +890,45 @@ export class WalletBroker {
       this.pending.set(requestId, { resolve, reject })
       this.publish()
     })
+  }
+
+  private async withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
+    if (context.requester.type !== 'agent') return operation()
+    const requesterId = context.requester.id
+    const lifecycle = this.agentOperations.get(requesterId) ?? {
+      activeOperations: 0,
+      cancelled: false,
+      drainWaiters: []
+    }
+    this.agentOperations.set(requesterId, lifecycle)
+    if (lifecycle.cancelled || context.signal?.aborted) {
+      if (lifecycle.activeOperations === 0 && this.agentOperations.get(requesterId) === lifecycle) {
+        this.agentOperations.delete(requesterId)
+      }
+      throw new Error('Wallet requester session is no longer active')
+    }
+    lifecycle.activeOperations += 1
+    try {
+      return await operation()
+    } finally {
+      lifecycle.activeOperations = Math.max(0, lifecycle.activeOperations - 1)
+      if (lifecycle.activeOperations === 0) {
+        for (const resolve of lifecycle.drainWaiters.splice(0)) resolve()
+        if (!lifecycle.cancelled && this.agentOperations.get(requesterId) === lifecycle) {
+          this.agentOperations.delete(requesterId)
+        }
+      }
+    }
+  }
+
+  private isAgentOperationActive(context: WalletBrokerContext): boolean {
+    if (context.requester.type !== 'agent') return true
+    return context.signal?.aborted !== true
+      && this.agentOperations.get(context.requester.id)?.cancelled !== true
+  }
+
+  private assertAgentOperationActive(context: WalletBrokerContext): void {
+    if (!this.isAgentOperationActive(context)) throw new Error('Wallet requester session is no longer active')
   }
 
   private accessibleWallets(context: WalletBrokerContext, family: WalletChainFamily): WalletDescriptor[] {

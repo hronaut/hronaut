@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Keep Docker's dependency layer keyed to the lockfile instead of unrelated package-script metadata, build the application once, and run the authoritative Electron suite across isolated Xvfb and MCP-port shards; focused Electron feedback also skips duplicate type analysis, targeted TypeScript and lint commands avoid unrelated work, and full lint uses a content-addressed cache.
+- Reuse lock-keyed focused Docker dependency volumes, cap CI Vitest projects at two isolated fork workers, and provide an incremental full-project typecheck for faster repeated feedback without weakening the clean full gates.
 - Start new profiles with the smaller Browser Essentials catalog while preserving the Complete catalog for existing profiles.
 - Keep wallet keys and pending signable message bodies in trusted main-process memory only, encrypt managed records with XChaCha20-Poly1305, wrap the vault key with secure operating-system storage, and require Argon2id passphrase protection when Linux reports `basic_text` or no secure secret backend.
 - Use the MIT-licensed RustCrypto Argon2id Node-API binding for the Linux passphrase fallback so the vault works in Electron runtimes that do not compile Node's optional Argon2 API.
@@ -19,6 +21,9 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bind wallet authorization sessions to server-issued MCP transport sessions, preventing another client from reusing a disclosed wallet session token even when both clients present the same User-Agent, removing terminated clients from live dashboard state, and keeping live MCP tool-set changes effective for connected clients.
+- Drain and revoke in-flight agent wallet operations before MCP session termination or application shutdown completes, preventing late approval creation or bounded testnet signing after the requester has gone away.
+- Keep wallet and tab lifecycle authorities available until MCP shutdown has durably cancelled agent approvals, so a clean application exit cannot leave them awaiting human action.
 - Wait for MCP wallet-session request cancellation during listener shutdown, and contain cancellation failures instead of leaving cleanup in flight or producing an unhandled rejection.
 - Bind EVM approvals to a fully prepared transaction, including nonce, gas, fee fields, and normalized transaction type, before signing.
 - Keep mislabeled mainnets and unknown networks out of bounded automation even when their saved environment claims to be a testnet or local chain.

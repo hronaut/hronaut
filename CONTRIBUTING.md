@@ -24,7 +24,6 @@ Hronaut requires Node.js 22 or newer.
 npm ci
 npm run lint
 npm test
-npm run typecheck
 npm run build
 npm run build:website
 ```
@@ -60,10 +59,13 @@ npm run test:integration:docker:focused -- tests/integration/browser-shell.e2e.t
 ```
 
 Arguments after `--` are passed directly to Vitest or Playwright. Both focused
-runners reuse a dependency-only Docker layer keyed by the package manifests,
-bind-mount the current checkout, and give the container its own `node_modules` volume.
+runners reuse a dependency-only Docker layer and a persistent `node_modules`
+volume keyed by the lockfile and dependency-image definition, then bind-mount
+the current checkout.
 Source and test edits therefore take effect immediately without rebuilding the
 full source image, while dependency changes still trigger `npm ci` in Docker.
+Old focused dependency volumes can be removed explicitly with
+`npm run test:docker:cache:prune`.
 
 Always run the complete `test:integration:docker` gate before submitting or
 delivering the change.

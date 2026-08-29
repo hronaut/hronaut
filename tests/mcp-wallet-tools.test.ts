@@ -14,10 +14,12 @@ function text(result: CallToolResult): string {
 
 describe('MCP wallet tools', () => {
   let client: Client | undefined
+  let otherClient: Client | undefined
   let server: McpHttpServer | undefined
 
   afterEach(async () => {
     await client?.close()
+    await otherClient?.close()
     await server?.stop()
     vi.restoreAllMocks()
   })
@@ -129,6 +131,74 @@ describe('MCP wallet tools', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).toMatch(/secret material/i)
     expect(prepareTransaction).not.toHaveBeenCalled()
+  })
+
+  it('isolates wallet sessions by transport and lets their owner terminate at request capacity', async () => {
+    const balance = vi.fn<WalletAgentOperations['balance']>(async () => ({ status: 'ready' }))
+    const list = vi.fn<WalletAgentOperations['list']>(async () => [])
+    const cancelRequester = vi.fn<NonNullable<WalletAgentOperations['cancelRequester']>>(async () => undefined)
+    const manager = {
+      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+      requireTabInMcpGroup: vi.fn(() => tabId),
+      wakeTab: vi.fn(async () => undefined),
+      getMcpGroupState: vi.fn(() => ({
+        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
+        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
+      }))
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      showWindow: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      wallets: {
+        list, balance, prepareTransaction: vi.fn(async () => ({})),
+        requestTransaction: vi.fn(async () => ({})), requestMessage: vi.fn(async () => ({})),
+        requestStatus: vi.fn(async () => ({})), cancelRequest: vi.fn(async () => ({})), cancelRequester
+      }
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'wallet-owner', version: '1.0.0' })
+    otherClient = new Client({ name: 'wallet-token-reuser', version: '1.0.0' })
+    const ownerTransport = new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: { headers: { 'user-agent': 'shared-wallet-client-agent' } }
+    })
+    await client.connect(ownerTransport)
+    await otherClient.connect(new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: { headers: { 'user-agent': 'shared-wallet-client-agent' } }
+    }))
+    const listed = await client.callTool({
+      name: 'wallet_list', arguments: { workspaceId, tabId }
+    }) as CallToolResult
+    const { walletSessionId } = JSON.parse(text(listed)) as { walletSessionId: string }
+
+    const ownerResult = await client.callTool({
+      name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1' }
+    }) as CallToolResult
+    expect(ownerResult.isError).not.toBe(true)
+    expect(balance).toHaveBeenCalledTimes(1)
+
+    const reused = await otherClient.callTool({
+      name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1' }
+    }) as CallToolResult
+    expect(reused.isError).toBe(true)
+    expect(text(reused)).toMatch(/wallet agent session is invalid or expired/i)
+    expect(balance).toHaveBeenCalledTimes(1)
+
+    const requesterId = list.mock.calls[0]![0].client.id
+    const ownerTransportSessionId = ownerTransport.sessionId
+    expect(ownerTransportSessionId).toBeTruthy()
+    const serverInternals = server as unknown as { activeRequests: number }
+    serverInternals.activeRequests = 32
+    try {
+      await ownerTransport.terminateSession()
+    } finally {
+      serverInternals.activeRequests = 0
+    }
+    expect(cancelRequester).toHaveBeenCalledWith(requesterId)
+    expect(list.mock.calls[0]![0].signal?.aborted).toBe(true)
+    expect(server.getDashboardState().clients.map((entry) => entry.id)).not.toContain(ownerTransportSessionId)
   })
 
   it('waits for wallet-session request cancellation before server shutdown completes', async () => {

@@ -9,3 +9,4 @@ services:
     ipc: host
     environment:
       CI: "true"
+      HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-2}"

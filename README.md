@@ -158,7 +158,6 @@ The server listens only on loopback. Authentication is optional for a new profil
 ```bash
 npm run lint
 npm test
-npm run typecheck
 npm run build
 npm run test:integration:headless
 ```
