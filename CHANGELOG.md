@@ -35,6 +35,7 @@ All notable changes to Hronaut are documented in this file.
 - Scope Solana disconnect to the selected wallet and requesting site, cancel its pending signatures, and preserve unrelated same-origin chain permissions.
 - Expire untouched wallet approval requests at their deadline, reject the waiting website caller, and clear retained message bytes without requiring a click or restart.
 - Fail wallet request preparation closed so connection, transaction, and message setup errors cannot leave stale requests available for approval.
+- Always settle wallet callers and clear retained message bytes after approval, rejection, cancellation, revocation, or expiry, even when audit persistence fails after the terminal state change.
 - Keep Repro recorder copy confirmation visible when a background recording refresh arrives immediately after the clipboard write.
 - Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 

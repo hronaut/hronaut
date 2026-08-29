@@ -267,17 +267,19 @@ export class WalletBroker {
 
   async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
     const record = this.requireAgentRequest(context, requestId)
-    const cancelled = await this.service.approvals.cancel(record.id, this.now())
-    await this.service.audit.append('request-cancelled', {
-      requestId, walletId: record.request.walletId, workspaceId: context.workspaceId,
-      requester: context.requester, origin: context.topLevelOrigin
-    }, this.now().toISOString())
-    this.pending.get(requestId)?.reject(new Error('Wallet request was cancelled'))
-    this.pending.delete(requestId)
-    this.clearPendingMessage(requestId)
-    this.clearRequestExpiry(requestId)
-    this.publish()
-    return agentSummary(cancelled, this.requireWallet(record.request.walletId))
+    try {
+      const cancelled = await this.service.approvals.cancel(record.id, this.now())
+      await this.service.audit.append('request-cancelled', {
+        requestId, walletId: record.request.walletId, workspaceId: context.workspaceId,
+        requester: context.requester, origin: context.topLevelOrigin
+      }, this.now().toISOString())
+      return agentSummary(cancelled, this.requireWallet(record.request.walletId))
+    } finally {
+      if (this.service.approvals.get(requestId)?.status === 'cancelled') {
+        this.rejectPending(requestId, new Error('Wallet request was cancelled'))
+        this.publish()
+      }
+    }
   }
 
   updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
@@ -292,23 +294,27 @@ export class WalletBroker {
         && (record.status === 'signing' || record.status === 'submitted')
       ))
       if (active) throw new Error('Wallet has a signing or submitted request in a detached workspace')
-      for (const workspaceId of removedWorkspaceIds) {
-        await Promise.all([
-          this.service.approvals.cancelForWalletWorkspace(walletId, workspaceId),
-          this.service.permissions.revokeForWalletWorkspace(walletId, workspaceId)
-        ])
+      try {
+        for (const workspaceId of removedWorkspaceIds) {
+          await Promise.all([
+            this.service.approvals.cancelForWalletWorkspace(walletId, workspaceId),
+            this.service.permissions.revokeForWalletWorkspace(walletId, workspaceId)
+          ])
+        }
+        return await this.service.update(walletId, validated)
+      } finally {
+        this.rejectCancelled()
       }
-      const updated = await this.service.update(walletId, validated)
-      this.rejectCancelled()
-      return updated
     })
   }
 
   removeWallet(walletId: string): Promise<boolean> {
     return this.queueLifecycle(async () => {
-      const removed = await this.service.remove(walletId)
-      this.rejectCancelled()
-      return removed
+      try {
+        return await this.service.remove(walletId)
+      } finally {
+        this.rejectCancelled()
+      }
     })
   }
 
@@ -316,19 +322,22 @@ export class WalletBroker {
     return this.queueLifecycle(async () => {
       const permission = this.service.permissions.get(permissionId)
       if (!permission) return false
-      await this.service.approvals.cancelForPermission(permission)
-      const revoked = await this.service.permissions.revoke(permissionId)
-      if (revoked) {
-        await this.service.audit.append('permission-revoked', {
-          permissionId,
-          walletId: permission.walletId,
-          workspaceId: permission.workspaceId,
-          origin: permission.origin,
-          requester: permission.requester
-        }, this.now().toISOString())
+      try {
+        await this.service.approvals.cancelForPermission(permission)
+        const revoked = await this.service.permissions.revoke(permissionId)
+        if (revoked) {
+          await this.service.audit.append('permission-revoked', {
+            permissionId,
+            walletId: permission.walletId,
+            workspaceId: permission.workspaceId,
+            origin: permission.origin,
+            requester: permission.requester
+          }, this.now().toISOString())
+        }
+        return revoked
+      } finally {
+        this.rejectCancelled()
       }
-      this.rejectCancelled()
-      return revoked
     })
   }
 
@@ -357,28 +366,29 @@ export class WalletBroker {
       const current = this.service.approvals.get(record.id)
       if (current?.status === 'expired') {
         const expired = new Error('Wallet request expired before approval')
-        if (record.status !== 'expired') {
-          await this.service.audit.append('request-expired', {
-            requestId: record.id,
-            walletId: record.request.walletId,
-            requester: record.request.requester,
-            origin: record.request.topLevelOrigin
-          }, this.now().toISOString())
+        try {
+          if (record.status !== 'expired') {
+            await this.service.audit.append('request-expired', {
+              requestId: record.id,
+              walletId: record.request.walletId,
+              requester: record.request.requester,
+              origin: record.request.topLevelOrigin
+            }, this.now().toISOString())
+          }
+        } finally {
+          this.rejectPending(record.id, expired)
+          this.publish()
         }
-        this.pending.get(record.id)?.reject(expired)
-        this.pending.delete(record.id)
-        this.clearPendingMessage(record.id)
-        this.clearRequestExpiry(record.id)
-        this.publish()
         throw expired
       }
+      if (current?.status === 'approved') await this.fail(record.id, error)
       throw sanitizedError(error)
     }
-    await this.service.audit.append('request-approved', {
-      requestId: record.id, walletId: record.request.walletId, approvalHash: record.requestHash,
-      requester: record.request.requester, origin: record.request.topLevelOrigin
-    }, this.now().toISOString())
     try {
+      await this.service.audit.append('request-approved', {
+        requestId: record.id, walletId: record.request.walletId, approvalHash: record.requestHash,
+        requester: record.request.requester, origin: record.request.topLevelOrigin
+      }, this.now().toISOString())
       const result = await this.execute(this.service.approvals.get(record.id)!)
       this.pending.get(record.id)?.resolve(result)
       this.pending.delete(record.id)
@@ -392,46 +402,60 @@ export class WalletBroker {
   }
 
   async reject(requestId: string): Promise<WalletRequestSummary> {
-    const record = await this.service.approvals.transition(requestId, 'rejected', this.now())
-    await this.service.audit.append('request-rejected', {
-      requestId, walletId: record.request.walletId, requester: record.request.requester, origin: record.request.topLevelOrigin
-    }, this.now().toISOString())
-    this.pending.get(requestId)?.reject(new Error('Wallet request was rejected by the user'))
-    this.pending.delete(requestId)
-    this.clearPendingMessage(requestId)
-    this.clearRequestExpiry(requestId)
-    this.publish()
-    return summary(record, this.service.list().find((wallet) => wallet.id === record.request.walletId))
+    try {
+      const record = await this.service.approvals.transition(requestId, 'rejected', this.now())
+      await this.service.audit.append('request-rejected', {
+        requestId, walletId: record.request.walletId, requester: record.request.requester, origin: record.request.topLevelOrigin
+      }, this.now().toISOString())
+      return summary(record, this.service.list().find((wallet) => wallet.id === record.request.walletId))
+    } finally {
+      if (this.service.approvals.get(requestId)?.status === 'rejected') {
+        this.rejectPending(requestId, new Error('Wallet request was rejected by the user'))
+        this.publish()
+      }
+    }
   }
 
   async cancelForNavigation(tabId: string, generation: number): Promise<void> {
     await this.queueLifecycle(async () => {
-      await this.service.approvals.cancelForNavigation(tabId, generation)
-      this.rejectCancelled()
+      try {
+        await this.service.approvals.cancelForNavigation(tabId, generation)
+      } finally {
+        this.rejectCancelled()
+      }
     })
   }
 
   async cancelForTab(tabId: string): Promise<void> {
     await this.queueLifecycle(async () => {
-      await this.service.approvals.cancelForTab(tabId)
-      this.rejectCancelled()
+      try {
+        await this.service.approvals.cancelForTab(tabId)
+      } finally {
+        this.rejectCancelled()
+      }
     })
   }
 
   async cancelForWorkspace(workspaceId: string): Promise<void> {
     await this.queueLifecycle(async () => {
-      await Promise.all([
-        this.service.approvals.cancelForWorkspace(workspaceId),
-        this.service.permissions.revokeForWorkspace(workspaceId)
-      ])
-      this.rejectCancelled()
+      try {
+        await Promise.all([
+          this.service.approvals.cancelForWorkspace(workspaceId),
+          this.service.permissions.revokeForWorkspace(workspaceId)
+        ])
+      } finally {
+        this.rejectCancelled()
+      }
     })
   }
 
   async cancelForRequester(requesterId: string): Promise<void> {
     await this.queueLifecycle(async () => {
-      await this.service.approvals.cancelForRequester(requesterId)
-      this.rejectCancelled()
+      try {
+        await this.service.approvals.cancelForRequester(requesterId)
+      } finally {
+        this.rejectCancelled()
+      }
     })
   }
 
@@ -835,24 +859,27 @@ export class WalletBroker {
         && (entry.requester?.type ?? 'website') === context.requester.type
         && (entry.requester?.id ?? entry.origin) === context.requester.id
       ))
-      await this.service.approvals.cancelForPermission({
-        walletId: wallet.id,
-        workspaceId: context.workspaceId,
-        origin: context.topLevelOrigin,
-        networkId: wallet.network.id,
-        requester: context.requester
-      })
-      if (permission && await this.service.permissions.revoke(permission.id)) {
-        await this.service.audit.append('permission-revoked', {
-          permissionId: permission.id,
-          walletId: permission.walletId,
-          workspaceId: permission.workspaceId,
-          origin: permission.origin,
-          requester: permission.requester
-        }, this.now().toISOString())
+      try {
+        await this.service.approvals.cancelForPermission({
+          walletId: wallet.id,
+          workspaceId: context.workspaceId,
+          origin: context.topLevelOrigin,
+          networkId: wallet.network.id,
+          requester: context.requester
+        })
+        if (permission && await this.service.permissions.revoke(permission.id)) {
+          await this.service.audit.append('permission-revoked', {
+            permissionId: permission.id,
+            walletId: permission.walletId,
+            workspaceId: permission.workspaceId,
+            origin: permission.origin,
+            requester: permission.requester
+          }, this.now().toISOString())
+        }
+        this.options.onProviderEvent?.(context.tabId, { family: wallet.chainFamily, event: 'disconnect' })
+      } finally {
+        this.rejectCancelled()
       }
-      this.rejectCancelled()
-      this.options.onProviderEvent?.(context.tabId, { family: wallet.chainFamily, event: 'disconnect' })
     })
   }
 
@@ -974,10 +1001,7 @@ export class WalletBroker {
         await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
       }
     } finally {
-      this.pending.get(requestId)?.reject(failure)
-      this.pending.delete(requestId)
-      this.clearPendingMessage(requestId)
-      this.clearRequestExpiry(requestId)
+      this.rejectPending(requestId, failure)
       this.publish()
     }
   }
@@ -985,12 +1009,16 @@ export class WalletBroker {
   private rejectCancelled(): void {
     for (const record of this.service.approvals.list()) {
       if (record.status !== 'cancelled' && record.status !== 'expired') continue
-      this.pending.get(record.id)?.reject(new Error(`Wallet request was ${record.status}`))
-      this.pending.delete(record.id)
-      this.clearPendingMessage(record.id)
-      this.clearRequestExpiry(record.id)
+      this.rejectPending(record.id, new Error(`Wallet request was ${record.status}`))
     }
     this.publish()
+  }
+
+  private rejectPending(requestId: string, error: Error): void {
+    this.pending.get(requestId)?.reject(error)
+    this.pending.delete(requestId)
+    this.clearPendingMessage(requestId)
+    this.clearRequestExpiry(requestId)
   }
 
   private publish(): void {
@@ -1031,10 +1059,7 @@ export class WalletBroker {
         origin: record.request.topLevelOrigin
       }, now.toISOString())
     } finally {
-      this.pending.get(requestId)?.reject(new Error('Wallet request expired'))
-      this.pending.delete(requestId)
-      this.clearPendingMessage(requestId)
-      this.clearRequestExpiry(requestId)
+      this.rejectPending(requestId, new Error('Wallet request expired'))
       this.publish()
     }
   }

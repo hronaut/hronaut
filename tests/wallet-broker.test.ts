@@ -248,6 +248,166 @@ describe('WalletBroker', () => {
     }))
   })
 
+  it('cleans up a rejected website request when rejection audit persistence fails', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['rejection-audit-secret', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-rejected') throw new Error('rejection audit persistence failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.reject(requestId)).rejects.toThrow('rejection audit persistence failed')
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('rejected') })
+    })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'rejected' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
+  it('cleans up and fails an approved website request when approval audit persistence fails', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['approval-audit-secret', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-approved') throw new Error('approval audit persistence failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.approve(requestId)).rejects.toThrow()
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('failed') })
+    })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'failed' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
+  it('cleans up an agent cancellation when cancellation audit persistence fails', async () => {
+    const { service, wallet } = await setup()
+    const agent = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: agent.workspaceId,
+      origin: agent.topLevelOrigin,
+      frameOrigin: agent.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: agent.requester,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const requested = await broker.requestAgentMessage(agent, wallet.id, Buffer.from('agent-cancellation-secret'))
+    const requestId = (requested.request as { id: string }).id
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).toHaveProperty('message')
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-cancelled') throw new Error('cancellation audit persistence failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.cancelAgentRequest(agent, requestId)).rejects.toThrow('cancellation audit persistence failed')
+
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'cancelled' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
+  it('cleans up a revoked website request when revocation audit persistence fails', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const permission = service.permissions.list()[0]!
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['revocation-audit-secret', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'permission-revoked') throw new Error('revocation audit persistence failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.revokePermission(permission.id)).rejects.toThrow('revocation audit persistence failed')
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'cancelled' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+    expect(chain.sign).not.toHaveBeenCalled()
+  })
+
+  it('cleans up an expired website request when expiry audit persistence fails during approval', async () => {
+    const { service, wallet } = await setup()
+    let now = new Date('2026-08-28T12:00:00.000Z')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => now })
+    await connect(broker)
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['expiry-audit-secret', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+    now = new Date('2026-08-28T12:06:00.000Z')
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-expired') throw new Error('expiry audit persistence failed')
+      return append(type, payload, timestamp)
+    })
+
+    await expect(broker.approve(requestId)).rejects.toThrow('expiry audit persistence failed')
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('expired') })
+    })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
   it('requires human approval for mainnet even when a bounded automatic policy exists', async () => {
     const { service, wallet } = await setup('mainnet')
     const chain = adapter()
