@@ -34,6 +34,7 @@ import { WalletVault, type WalletSecret } from './vault.js'
 import { WalletWatchOnlyStore } from './watch-only-store.js'
 
 const PASSPHRASE_PARAMETERS = { memoryKiB: 64 * 1024, passes: 3, parallelism: 1 } as const
+const IMPORT_CONFIRMATION_TTL_MS = 5 * 60_000
 
 interface PendingImport {
   token: string
@@ -88,6 +89,7 @@ export class WalletService {
     managedWallets: 'disabled', backend: 'uninitialized', watchOnlyAvailable: true, reason: 'Wallet service is not initialized'
   }
   private readonly imports = new Map<string, PendingImport>()
+  private readonly importExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(private readonly options: WalletServiceOptions) {
     this.vaultPath = join(options.directory, 'vault.json')
@@ -218,8 +220,11 @@ export class WalletService {
       const derived = await deriveWalletAccount(chainFamily, { format, material })
       derived.privateKey.fill(0)
       const token = randomUUID()
-      const expiresAt = this.now().getTime() + 5 * 60_000
+      const expiresAt = this.now().getTime() + IMPORT_CONFIRMATION_TTL_MS
       this.imports.set(token, { token, format, chainFamily, publicAddress: derived.publicAddress, material: Buffer.from(material), expiresAt })
+      const expiryTimer = setTimeout(() => this.removePendingImport(token), IMPORT_CONFIRMATION_TTL_MS)
+      expiryTimer.unref()
+      this.importExpiryTimers.set(token, expiryTimer)
       return { token, chainFamily, publicAddress: derived.publicAddress, expiresAt: new Date(expiresAt).toISOString() }
     } catch {
       throw new Error('Wallet recovery material is invalid for the selected chain and format')
@@ -242,23 +247,22 @@ export class WalletService {
       capabilities: ['read', 'sign', 'send'], workspaceIds: uniqueWorkspaceIds(input.workspaceIds), policyIds: [],
       recoveryConfirmed: true, createdAt: now, updatedAt: now
     }
+    const claimed = this.takePendingImport(token)
+    if (!claimed) throw new Error('Wallet import confirmation expired')
     try {
-      await vault.add(wallet, { format: pending.format, material: pending.material })
+      await vault.add(wallet, { format: claimed.format, material: claimed.material })
       await this.audit.append('wallet-imported', {
         walletId: wallet.id, kind: wallet.kind, chainFamily: wallet.chainFamily, publicAddress: wallet.publicAddress
       }, now)
       this.publish()
       return cloneWallet(wallet)
     } finally {
-      pending.material.fill(0)
-      this.imports.delete(token)
+      claimed.material.fill(0)
     }
   }
 
   cancelImport(token: string): boolean {
-    const pending = this.imports.get(token)
-    pending?.material.fill(0)
-    return this.imports.delete(token)
+    return this.removePendingImport(token)
   }
 
   async addWatchOnly(input: WalletWatchOnlyInput): Promise<WalletDescriptor> {
@@ -414,14 +418,29 @@ export class WalletService {
     const now = this.now().getTime()
     for (const [token, pending] of this.imports) {
       if (pending.expiresAt > now) continue
-      pending.material.fill(0)
-      this.imports.delete(token)
+      this.removePendingImport(token)
     }
   }
 
   private clearPendingImports(): void {
-    for (const pending of this.imports.values()) pending.material.fill(0)
-    this.imports.clear()
+    for (const token of [...this.imports.keys()]) this.removePendingImport(token)
+    for (const timer of this.importExpiryTimers.values()) clearTimeout(timer)
+    this.importExpiryTimers.clear()
+  }
+
+  private removePendingImport(token: string): boolean {
+    const pending = this.takePendingImport(token)
+    pending?.material.fill(0)
+    return Boolean(pending)
+  }
+
+  private takePendingImport(token: string): PendingImport | undefined {
+    const timer = this.importExpiryTimers.get(token)
+    if (timer) clearTimeout(timer)
+    this.importExpiryTimers.delete(token)
+    const pending = this.imports.get(token)
+    this.imports.delete(token)
+    return pending
   }
 
   private now(): Date {

@@ -7,6 +7,7 @@ import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 
 const temporaryDirectories: string[] = []
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -67,6 +68,21 @@ describe('WalletService', () => {
       name: 'Replay', network, workspaceIds: [], dedicatedAgent: false
     })).rejects.toThrow('Wallet import confirmation expired')
     expect(await readFile(join(path, 'vault.json'), 'utf8')).not.toContain(knownMnemonic)
+  })
+
+  it('drops unconfirmed imported secret material when its confirmation expires while idle', async () => {
+    vi.useFakeTimers()
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+
+    const prepared = await service.prepareImport('evm', 'mnemonic', knownMnemonic)
+    await vi.advanceTimersByTimeAsync(5 * 60_000)
+
+    expect(service.cancelImport(prepared.token)).toBe(false)
+    await expect(service.confirmImport(prepared.token, {
+      name: 'Expired', network, workspaceIds: [], dedicatedAgent: false
+    })).rejects.toThrow('Wallet import confirmation expired')
   })
 
   it('keeps watch-only wallets available when Linux safeStorage is basic_text and requires passphrase setup for managed wallets', async () => {

@@ -27,6 +27,7 @@ All notable changes to Hronaut are documented in this file.
 - Let agents show Hronaut or request human attention before their workspace contains a browser tab, while keeping pending tabless requests visible only to their originating workspace.
 - Authenticate and validate request origins before parsing MCP JSON bodies, so unauthorized malformed or oversized payloads cannot consume the parser first.
 - Cancel and reject live wallet requests when a wallet is detached or removed, its account permission is revoked, or its website renderer is destroyed; clear retained message bytes and revalidate attachment and permission immediately before signing.
+- Automatically zero and discard unconfirmed imported wallet secrets when their five-minute confirmation window expires, even while Settings remains idle.
 - Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 
 ## [1.9.11] - 2026-08-28
