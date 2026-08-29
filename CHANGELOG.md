@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 - Remove a wallet's bounded automation policies when it is detached from their workspace, preventing old authorization from silently returning after a later reattachment.
 - Reject expired wallet policies and path-bearing policy URLs before persistence, keeping bounded automation tied to exact HTTP or HTTPS origins that can actually match requests.
 - Roll back newly generated wallets when recovery confirmation is declined or fails, instead of retaining an unusable account whose recovery phrase cannot be shown again.
+- Scope Solana disconnect to the selected wallet and requesting site, cancel its pending signatures, and preserve unrelated same-origin chain permissions.
 - Keep Repro recorder copy confirmation visible when a background recording refresh arrives immediately after the clipboard write.
 - Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 

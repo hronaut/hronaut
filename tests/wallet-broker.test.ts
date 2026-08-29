@@ -280,6 +280,52 @@ describe('WalletBroker', () => {
     expect(chain.sign).not.toHaveBeenCalled()
   })
 
+  it('disconnects only the selected Solana wallet and cancels its pending requests', async () => {
+    const { service, wallet: evmWallet } = await setup()
+    const generated = await service.generate({
+      name: 'Solana wallet', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const solanaWallet = await service.confirmRecovery(generated.wallet.id)
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+
+    const solanaConnection = broker.providerRequest(context(), { family: 'solana', method: 'connect' })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.walletId === solanaWallet.id && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const connectionRequest = broker.listPending().find((request) => (
+      request.walletId === solanaWallet.id && request.status === 'awaiting-human'
+    ))!
+    await broker.approve(connectionRequest.id)
+    await expect(solanaConnection).resolves.toMatchObject({ accounts: [{ address: solanaWallet.publicAddress }] })
+
+    const signing = broker.providerRequest(context(), {
+      family: 'solana', method: 'signMessage',
+      params: [{ account: { address: solanaWallet.publicAddress }, message: Uint8Array.from([1, 2, 3]) }]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.walletId === solanaWallet.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+
+    await expect(broker.providerRequest(context(), { family: 'solana', method: 'disconnect' })).resolves.toBeUndefined()
+
+    await expect(Promise.race([
+      signing,
+      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 25))
+    ])).rejects.toThrow('cancelled')
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([evmWallet.publicAddress])
+    expect(service.permissions.list()).toEqual([
+      expect.objectContaining({ walletId: evmWallet.id, chainFamily: 'evm' })
+    ])
+    expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'permission-revoked',
+      payload: expect.objectContaining({ walletId: solanaWallet.id, origin: 'https://dapp.example' })
+    }))
+  })
+
   it('cancels a pending request when its wallet is detached from the workspace', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()

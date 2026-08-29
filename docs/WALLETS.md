@@ -49,7 +49,7 @@ Hronaut exposes an EIP-1193 provider and announces it with EIP-6963. Supported m
 
 ### Solana
 
-Hronaut registers a Solana Wallet Standard wallet with connect/disconnect, events, sign transaction, sign-and-send transaction, and sign message features. A narrow `window.solana` compatibility surface supports common legacy transaction objects, including legacy and versioned serialized transactions and batch signing. The requested signer account and `solana:<network>` chain are validated.
+Hronaut registers a Solana Wallet Standard wallet with connect/disconnect, events, sign transaction, sign-and-send transaction, and sign message features. Disconnect revokes only that Solana wallet's permission for the requesting website and cancels its matching pending requests; unrelated same-origin chain connections remain available. A narrow `window.solana` compatibility surface supports common legacy transaction objects, including legacy and versioned serialized transactions and batch signing. The requested signer account and `solana:<network>` chain are validated.
 
 ### Tron
 

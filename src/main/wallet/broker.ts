@@ -466,8 +466,7 @@ export class WalletBroker {
       })) }
     }
     if (method === 'disconnect') {
-      await this.service.permissions.revokeForOrigin(context.workspaceId, context.topLevelOrigin)
-      this.options.onProviderEvent?.(context.tabId, { family: 'solana', event: 'disconnect' })
+      await this.disconnectWallet(context, wallet)
       return undefined
     }
     this.assertAddressPermission(context, wallet, method === 'signAndSendTransaction' ? 'send' : 'sign')
@@ -787,6 +786,39 @@ export class WalletBroker {
       account: wallet.publicAddress, chainFamily: wallet.chainFamily, networkId: wallet.network.id,
       requester: context.requester, capability: 'read'
     }, this.now())
+  }
+
+  private disconnectWallet(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<void> {
+    return this.queueLifecycle(async () => {
+      const permission = this.service.permissions.list().find((entry) => (
+        entry.walletId === wallet.id
+        && entry.workspaceId === context.workspaceId
+        && entry.origin === context.topLevelOrigin
+        && entry.account === wallet.publicAddress
+        && entry.chainFamily === wallet.chainFamily
+        && entry.networkId === wallet.network.id
+        && (entry.requester?.type ?? 'website') === context.requester.type
+        && (entry.requester?.id ?? entry.origin) === context.requester.id
+      ))
+      await this.service.approvals.cancelForPermission({
+        walletId: wallet.id,
+        workspaceId: context.workspaceId,
+        origin: context.topLevelOrigin,
+        networkId: wallet.network.id,
+        requester: context.requester
+      })
+      if (permission && await this.service.permissions.revoke(permission.id)) {
+        await this.service.audit.append('permission-revoked', {
+          permissionId: permission.id,
+          walletId: permission.walletId,
+          workspaceId: permission.workspaceId,
+          origin: permission.origin,
+          requester: permission.requester
+        }, this.now().toISOString())
+      }
+      this.rejectCancelled()
+      this.options.onProviderEvent?.(context.tabId, { family: wallet.chainFamily, event: 'disconnect' })
+    })
   }
 
   private async createAddressPermissionRequest(
