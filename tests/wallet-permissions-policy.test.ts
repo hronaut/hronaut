@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WalletPermissionStore } from '../src/main/wallet/permissions.js'
 import { WalletPolicyEngine } from '../src/main/wallet/policy.js'
 import type {
@@ -12,7 +12,13 @@ import type {
 
 const temporaryDirectories: string[] = []
 
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-08-28T12:00:00.000Z'))
+})
+
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
