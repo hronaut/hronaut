@@ -28,6 +28,7 @@ All notable changes to Hronaut are documented in this file.
 - Authenticate and validate request origins before parsing MCP JSON bodies, so unauthorized malformed or oversized payloads cannot consume the parser first.
 - Cancel and reject live wallet requests when a wallet is detached or removed, its account permission is revoked, or its website renderer is destroyed; clear retained message bytes and revalidate attachment and permission immediately before signing.
 - Automatically zero and discard unconfirmed imported wallet secrets when their five-minute confirmation window expires, even while Settings remains idle.
+- Remove a wallet's bounded automation policies when it is detached from their workspace, preventing old authorization from silently returning after a later reattachment.
 - Keep Repro recorder copy confirmation visible when a background recording refresh arrives immediately after the clipboard write.
 - Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 

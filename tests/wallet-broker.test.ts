@@ -284,7 +284,22 @@ describe('WalletBroker', () => {
     const { service, wallet } = await setup()
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await broker.updateWallet(wallet.id, { workspaceIds: ['workspace-1', 'workspace-2'] })
     await connect(broker)
+    await service.setPolicy({
+      id: 'policy-detached-workspace', name: 'Detached workspace automation', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://automation.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    await service.setPolicy({
+      id: 'policy-retained-workspace', name: 'Retained workspace automation', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-2', networkIds: [wallet.network.id], origins: ['https://automation.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
     const result = broker.providerRequest(context(), {
       family: 'evm', method: 'eth_signTransaction',
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
@@ -292,10 +307,14 @@ describe('WalletBroker', () => {
     await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-transaction').at(-1)?.status)
       .toBe('awaiting-human'))
 
-    await broker.updateWallet(wallet.id, { workspaceIds: [] })
+    await broker.updateWallet(wallet.id, { workspaceIds: ['workspace-2'] })
 
     await expect(result).rejects.toThrow('cancelled')
-    expect(service.list()[0]?.workspaceIds).toEqual([])
+    expect(service.list()[0]?.workspaceIds).toEqual(['workspace-2'])
+    expect(service.list()[0]?.policyIds).toEqual(['policy-retained-workspace'])
+    expect(service.policies.list(wallet.id)).toEqual([
+      expect.objectContaining({ id: 'policy-retained-workspace', workspaceId: 'workspace-2' })
+    ])
     expect(service.permissions.list()).toHaveLength(0)
     expect(chain.sign).not.toHaveBeenCalled()
   })

@@ -289,6 +289,11 @@ export class WalletService {
     const workspaceIds = validatedChanges.workspaceIds === undefined
       ? current.workspaceIds
       : uniqueWorkspaceIds(validatedChanges.workspaceIds)
+    const detachedWorkspaceIds = new Set(current.workspaceIds.filter((workspaceId) => !workspaceIds.includes(workspaceId)))
+    const detachedPolicyIds = this.policies.list(walletId)
+      .filter((policy) => detachedWorkspaceIds.has(policy.workspaceId))
+      .map((policy) => policy.id)
+    for (const policyId of detachedPolicyIds) await this.removePolicy(policyId)
     const now = this.now().toISOString()
     const updater = (wallet: WalletDescriptor): WalletDescriptor => ({ ...wallet, name, workspaceIds, updatedAt: now })
     const updated = current.kind === 'watch-only'
