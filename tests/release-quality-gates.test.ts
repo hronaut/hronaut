@@ -11,13 +11,14 @@ function job(source: string, name: string): string {
 }
 
 describe('release quality gates', () => {
-  it('runs lint with tests and the production build in pull-request CI', async () => {
+  it('runs the concurrent static validation gate in pull-request CI', async () => {
     const workflow = await readFile('.github/workflows/ci.yml', 'utf8')
     const validate = job(workflow, 'validate')
 
-    expect(validate).toContain('run: npm run lint')
-    expect(validate).toContain('run: npm test')
-    expect(validate).toContain('run: npm run build')
+    expect(validate).toContain('run: npm run validate')
+    expect(validate).not.toContain('run: npm run lint')
+    expect(validate).not.toContain('run: npm test')
+    expect(validate).not.toContain('run: npm run build\n')
   })
 
   it('validates the immutable tag before any platform release build starts', async () => {
@@ -79,5 +80,18 @@ describe('release quality gates', () => {
     expect(runner).toContain('docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"')
     expect(runner).toContain('docker rm --force "$container_name"')
     expect(runner).not.toContain('run --build --rm integration')
+  })
+
+  it('keeps wallet documentation in the website public source before output cleanup', async () => {
+    const [config, publicWallets, builtWallets] = await Promise.all([
+      readFile('vite.website.config.ts', 'utf8'),
+      readFile('website/public/WALLETS.md', 'utf8'),
+      readFile('docs/WALLETS.md', 'utf8')
+    ])
+
+    expect(config).toContain("root: 'website'")
+    expect(config).toContain("outDir: '../docs'")
+    expect(config).toContain('emptyOutDir: true')
+    expect(publicWallets).toBe(builtWallets)
   })
 })

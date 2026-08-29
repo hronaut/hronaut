@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -47,5 +47,31 @@ describe('WalletApprovalDialog', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Approve exact request' }))
     expect(wallets.approve).toHaveBeenCalledOnce()
     expect(wallets.approve).toHaveBeenCalledWith('request-1')
+  })
+
+  it('takes and traps keyboard focus inside trusted approval chrome', async () => {
+    const background = document.createElement('button')
+    background.textContent = 'Website action'
+    document.body.append(background)
+    background.focus()
+    const wallets = controller()
+    render(WalletApprovalDialog, {
+      props: { controller: wallets }, global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
+    const reject = screen.getByRole('button', { name: 'Reject' })
+    const approve = screen.getByRole('button', { name: 'Approve exact request' })
+    const user = userEvent.setup()
+    await nextTick()
+
+    expect(dialog).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(approve).toHaveFocus()
+    await user.tab()
+    expect(reject).toHaveFocus()
+    background.focus()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    background.remove()
   })
 })

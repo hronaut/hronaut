@@ -5,6 +5,7 @@ import { useAppShellKeyboardFeatureController } from '../../src/renderer/src/com
 function createHarness() {
   const surfaces = {
     commandPalette: ref(false),
+    walletApproval: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     helpDialog: ref(false),
@@ -57,6 +58,7 @@ function createHarness() {
     allInteractionLocked: () => false,
     commandPalette: surfaces.commandPalette,
     modals: {
+      walletApproval: { open: surfaces.walletApproval, close: () => undefined },
       workspaceEditor: { open: surfaces.workspaceEditor, close: actions.closeWorkspaceEditor },
       credentialPicker: surfaces.credentialPicker,
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
@@ -160,5 +162,21 @@ describe('useAppShellKeyboardFeatureController', () => {
     }))
     expect(actions.runShortcut).toHaveBeenCalledOnce()
     expect(actions.runShortcut).toHaveBeenCalledWith('focus-address')
+  })
+
+  it('keeps browser shortcuts and Escape behind trusted wallet approval chrome', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.walletApproval.value = true
+    const shortcut = new KeyboardEvent('keydown', {
+      key: 'l', ctrlKey: true, cancelable: true
+    })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(escape)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(escape.defaultPrevented).toBe(true)
+    expect(surfaces.walletApproval.value).toBe(true)
   })
 })

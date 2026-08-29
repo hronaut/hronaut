@@ -700,6 +700,7 @@ const shellKeyboardController = useAppShellKeyboardFeatureController({
   allInteractionLocked: () => state.value.allHumanInteractionLocked,
   commandPalette: commandPaletteOpen,
   modals: {
+    walletApproval: { open: walletApprovalOpen, close: () => undefined },
     workspaceEditor: { open: workspaceEditorOpen, close: closeWorkspaceEditor },
     credentialPicker: credentialPickerOpen,
     helpDialog: { open: helpDialogOpen, close: closeHelpDialog },

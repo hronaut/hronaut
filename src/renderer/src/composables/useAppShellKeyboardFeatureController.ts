@@ -43,6 +43,7 @@ export interface AppShellKeyboardFeatureControllerOptions {
   allInteractionLocked: () => boolean
   commandPalette: Ref<boolean>
   modals: {
+    walletApproval: AppShellKeyboardSurface
     workspaceEditor: AppShellKeyboardSurface
     credentialPicker: Ref<boolean>
     helpDialog: AppShellKeyboardSurface
@@ -91,6 +92,7 @@ export function useAppShellKeyboardFeatureController(
     allInteractionLocked: options.allInteractionLocked,
     commandPalette: refSurface(options.commandPalette),
     modalSurfaces: [
+      customSurface(modals.walletApproval),
       customSurface(modals.workspaceEditor),
       refSurface(modals.credentialPicker),
       customSurface(modals.helpDialog),

@@ -21,6 +21,11 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Speed up repeat validation with cached incremental typechecking, concurrent static gates, tunable Vitest workers, and balanced four-way Docker Electron sharding.
+- Trap keyboard focus inside trusted wallet approvals so a newly presented request cannot leave typing or tab navigation in the underlying website.
+- Preserve Page Tools and other shell panels when the global interaction lock blocks a Developer Tools shortcut.
+- Invalidate wallet request contexts synchronously on page navigation or tab closure and roll back overtaken account grants, preventing delayed preparation or permission persistence from authorizing a page that is no longer active.
+- Preserve the wallet security guide when rebuilding the generated website output instead of deleting it during output cleanup.
 - Bind wallet authorization sessions to server-issued MCP transport sessions, preventing another client from reusing a disclosed wallet session token even when both clients present the same User-Agent, removing terminated clients from live dashboard state, and keeping live MCP tool-set changes effective for connected clients.
 - Drain and revoke in-flight agent wallet operations before MCP session termination or application shutdown completes, preventing late approval creation or bounded testnet signing after the requester has gone away.
 - Keep wallet and tab lifecycle authorities available until MCP shutdown has durably cancelled agent approvals, so a clean application exit cannot leave them awaiting human action.

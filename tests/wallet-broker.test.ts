@@ -716,6 +716,203 @@ describe('WalletBroker', () => {
     expect(chain.sign).not.toHaveBeenCalled()
   })
 
+  it('revokes an account permission persisted while the requesting page navigates', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const grant = service.permissions.grant.bind(service.permissions)
+    let permissionPersisted!: () => void
+    const persisted = new Promise<void>((resolve) => { permissionPersisted = resolve })
+    let releaseGrant!: () => void
+    const grantRelease = new Promise<void>((resolve) => { releaseGrant = resolve })
+    vi.spyOn(service.permissions, 'grant').mockImplementationOnce(async (...args) => {
+      const permission = await grant(...args)
+      permissionPersisted()
+      await grantRelease
+      return permission
+    })
+
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
+    const approval = settle(broker.approve(pending.id))
+    await persisted
+
+    const cancellation = broker.cancelForNavigation('tab-1', 2)
+    releaseGrant()
+    await cancellation
+
+    await expect(approval).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringMatching(/cancelled|no longer active/i) })
+    })
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+    expect(service.permissions.allows({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      requester: { type: 'website', id: 'https://dapp.example' },
+      capability: 'read'
+    })).toBe(false)
+  })
+
+  it('revokes a new account permission when navigation overtakes the signing transition', async () => {
+    const { service, wallet } = await setup()
+    const providerEvent = vi.fn()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      onProviderEvent: providerEvent
+    })
+    const transition = service.approvals.transition.bind(service.approvals)
+    let signingPersisted!: () => void
+    const persisted = new Promise<void>((resolve) => { signingPersisted = resolve })
+    let releaseTransition!: () => void
+    const transitionRelease = new Promise<void>((resolve) => { releaseTransition = resolve })
+    vi.spyOn(service.approvals, 'transition').mockImplementation(async (...args) => {
+      const record = await transition(...args)
+      if (args[1] === 'signing') {
+        signingPersisted()
+        await transitionRelease
+      }
+      return record
+    })
+
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
+    const approval = settle(broker.approve(pending.id))
+    await persisted
+
+    const cancellation = broker.cancelForNavigation('tab-1', 2)
+    releaseTransition()
+    await cancellation
+
+    await expect(approval).resolves.toMatchObject({ status: 'rejected' })
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+    expect(service.permissions.allows({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      requester: { type: 'website', id: 'https://dapp.example' },
+      capability: 'read'
+    })).toBe(false)
+    expect(providerEvent).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['navigation', (broker: WalletBroker) => broker.cancelForNavigation('tab-1', 2)],
+    ['tab closure', (broker: WalletBroker) => broker.cancelForTab('tab-1')]
+  ])('rejects a website request when %s overtakes durable request creation', async (_event, cancel) => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const normalized = await chain.normalizeTransaction(wallet, {})
+    let normalizationEntered!: () => void
+    const entered = new Promise<void>((resolve) => { normalizationEntered = resolve })
+    let releaseNormalization!: () => void
+    vi.spyOn(chain, 'normalizeTransaction').mockImplementationOnce(() => new Promise((resolve) => {
+      normalizationEntered()
+      releaseNormalization = () => resolve(normalized)
+    }))
+
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_signTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    await entered
+    await cancel(broker)
+    releaseNormalization()
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 100))
+    ])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringMatching(/cancelled|no longer active/i) })
+    })
+    expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-transaction' && !['cancelled', 'failed'].includes(request.status)
+    ))).toHaveLength(0)
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('cancels a website request when navigation lands while durable creation is returning', async () => {
+    const { service } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const create = service.approvals.create.bind(service.approvals)
+    let approvalCreated!: () => void
+    const created = new Promise<void>((resolve) => { approvalCreated = resolve })
+    let releaseCreate!: () => void
+    const createRelease = new Promise<void>((resolve) => { releaseCreate = resolve })
+    vi.spyOn(service.approvals, 'create').mockImplementationOnce(async (...args) => {
+      const record = await create(...args)
+      approvalCreated()
+      await createRelease
+      return record
+    })
+
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_signTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    await created
+    await broker.cancelForNavigation('tab-1', 2)
+    releaseCreate()
+
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringMatching(/no longer active/i) })
+    })
+    expect(service.approvals.list().filter((request) => request.request.operation === 'sign-transaction')).toEqual([
+      expect.objectContaining({
+        status: 'cancelled',
+        request: expect.objectContaining({ navigationGeneration: 1 })
+      })
+    ])
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('does not auto-sign a bounded website request after its page navigates during normalization', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    await service.setPolicy({
+      id: 'website-navigation-auto', name: 'Website navigation race', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    const normalized = await chain.normalizeTransaction(wallet, {})
+    let normalizationEntered!: () => void
+    const entered = new Promise<void>((resolve) => { normalizationEntered = resolve })
+    let releaseNormalization!: () => void
+    vi.spyOn(chain, 'normalizeTransaction').mockImplementationOnce(() => new Promise((resolve) => {
+      normalizationEntered()
+      releaseNormalization = () => resolve(normalized)
+    }))
+
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    })
+    await entered
+    await broker.cancelForNavigation('tab-1', 2)
+    releaseNormalization()
+
+    await expect(result).rejects.toThrow(/no longer active/i)
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
   it('disconnects only the selected Solana wallet and cancels its pending requests', async () => {
     const { service, wallet: evmWallet } = await setup()
     const generated = await service.generate({

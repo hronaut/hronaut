@@ -65,7 +65,7 @@ describe('focused Docker integration feedback', () => {
       'docker compose --file compose.test.ci.yaml run --build --rm integration'
     )
     expect(dockerfile).toContain('CMD ["bash", "scripts/run-integration-suite-docker.sh"]')
-    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-2}"')
+    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"')
     expect(runner).toContain('node scripts/verify-dependency-manifest.ts')
     expect(runner).toContain('npm run build')
     expect(runner).not.toContain('npm run build:app')
@@ -73,6 +73,7 @@ describe('focused Docker integration feedback', () => {
     expect(runner).toContain('--shard=')
     expect(runner).toContain('npm run test:integration:dialogs:headless')
     expect(playwright).toContain('process.env.HRONAUT_TEST_SHARD')
+    expect(playwright).toContain('fullyParallel: true')
     expect(playwright).toContain('playwright-report/${artifactShard}')
     expect(playwright).toContain('test-results/integration/${artifactShard}')
   })
@@ -89,9 +90,7 @@ describe('focused Docker integration feedback', () => {
     expect(packageJson.scripts.lint).toContain('--cache')
     expect(packageJson.scripts.lint).toContain('--cache-strategy content')
     expect(packageJson.scripts['lint:focused']).not.toContain('eslint .')
-    expect(packageJson.scripts.typecheck).toContain('tsconfig.web.json')
-    expect(packageJson.scripts.typecheck).toContain('tsconfig.node.json')
-    expect(packageJson.scripts.typecheck).toContain('tsconfig.website.json')
+    expect(packageJson.scripts.typecheck).toBe('npm run typecheck:incremental')
     expect(packageJson.scripts['typecheck:incremental']).toContain('--build --noEmit')
     expect(packageJson.scripts['typecheck:web']).toContain('tsconfig.web.json')
     expect(packageJson.scripts['typecheck:node']).toContain('tsconfig.node.json')
@@ -99,6 +98,25 @@ describe('focused Docker integration feedback', () => {
     expect(packageJson.scripts['build:app']).toBe('electron-vite build')
     expect(focusedRunner).toContain('npm run build:app')
     expect(focusedRunner).not.toContain('npm run build\n')
+  })
+
+  it('runs independent static gates concurrently and allows CI worker tuning', async () => {
+    const [packageSource, staticRunner, vitest] = await Promise.all([
+      readFile('package.json', 'utf8'),
+      readFile('scripts/run-static-gates.ts', 'utf8'),
+      readFile('vitest.config.ts', 'utf8')
+    ])
+    const packageJson = JSON.parse(packageSource) as {
+      scripts: Record<string, string>
+    }
+
+    expect(packageJson.scripts.validate).toBe('node scripts/run-static-gates.ts')
+    expect(staticRunner).toContain("['run', 'lint']")
+    expect(staticRunner).toContain("['test']")
+    expect(staticRunner).toContain("['run', 'typecheck']")
+    expect(staticRunner).toContain("['run', 'build:app']")
+    expect(vitest).toContain('HRONAUT_VITEST_WORKERS')
+    expect(vitest).toContain("process.env.CI ? ciMaxWorkers : undefined")
   })
 
   it('assigns each Electron shard a distinct MCP port range', async () => {

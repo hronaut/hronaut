@@ -256,4 +256,14 @@ describe('browser tab actions controller', () => {
     expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
   })
+
+  it('preserves shell panels when global interaction lock blocks Developer Tools', async () => {
+    const harness = createHarness()
+    harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
+
+    await harness.controller.toggleDeveloperTools()
+
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+  })
 })

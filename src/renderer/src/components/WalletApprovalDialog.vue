@@ -1,11 +1,16 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
+import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{ controller: WalletsController }>()
 const { t } = useI18n({ useScope: 'global' })
 const request = computed(() => props.controller.awaitingApproval.value[0])
+const open = computed(() => Boolean(request.value))
+const panel = ref<HTMLElement | null>(null)
+
+useModalDialogFocus({ open, panel })
 
 function rawDetails(): string {
   return JSON.stringify(request.value?.details?.raw ?? {}, null, 2)
@@ -14,7 +19,7 @@ function rawDetails(): string {
 
 <template>
   <div v-if="request" class="wallet-approval-overlay">
-    <section class="wallet-approval-dialog" role="alertdialog" aria-modal="true" aria-labelledby="wallet-approval-title">
+    <section ref="panel" class="wallet-approval-dialog" role="alertdialog" aria-modal="true" aria-labelledby="wallet-approval-title" tabindex="-1">
       <header>
         <span class="eyebrow">{{ t('wallets.approval.eyebrow') }}</span>
         <h2 id="wallet-approval-title">{{ t('wallets.approval.operation', { operation: request.operation.replaceAll('-', ' ') }) }}</h2>

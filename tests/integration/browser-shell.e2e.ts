@@ -5424,6 +5424,15 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await browserLock.click()
     await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
 
+    await appWindow.getByRole('button', { name: 'Page tools' }).click()
+    const lockedPageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
+    await expect(lockedPageTools).toBeVisible()
+    await appWindow.keyboard.press('F12')
+    await expect(lockedPageTools).toBeVisible()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.devToolsOpen)'))
+      .toBe(false)
+    await appWindow.getByRole('button', { name: 'Close page tools', exact: true }).click()
+
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
     await appWindow.getByRole('button', { name: 'Close settings' }).click()

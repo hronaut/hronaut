@@ -22,9 +22,7 @@ Hronaut requires Node.js 22 or newer.
 
 ```bash
 npm ci
-npm run lint
-npm test
-npm run build
+npm run validate
 npm run build:website
 ```
 
@@ -69,3 +67,15 @@ Old focused dependency volumes can be removed explicitly with
 
 Always run the complete `test:integration:docker` gate before submitting or
 delivering the change.
+
+The complete Docker gate distributes individual test cases across four isolated
+Electron shards by default, so a large test file cannot dominate one shard. On
+a memory-constrained machine, reduce concurrency without changing the suite:
+
+```bash
+HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
+```
+
+Static validation runs lint, unit/component tests, incremental typechecking,
+and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI
+runner needs a different unit-test concurrency limit.
