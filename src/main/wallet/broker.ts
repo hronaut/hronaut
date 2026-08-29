@@ -267,7 +267,8 @@ export class WalletBroker {
 
   agentRequestStatus(context: WalletBrokerContext, requestId: string): Record<string, unknown> {
     const record = this.requireAgentRequest(context, requestId)
-    return agentSummary(record, this.requireWallet(record.request.walletId))
+    const wallet = this.requireWallet(record.request.walletId)
+    return agentSummary(record, wallet, this.hasAddressPermission(context, wallet))
   }
 
   async cancelAgentRequest(context: WalletBrokerContext, requestId: string): Promise<Record<string, unknown>> {
@@ -278,7 +279,8 @@ export class WalletBroker {
         requestId, walletId: record.request.walletId, workspaceId: context.workspaceId,
         requester: context.requester, origin: context.topLevelOrigin
       }, this.now().toISOString())
-      return agentSummary(cancelled, this.requireWallet(record.request.walletId))
+      const wallet = this.requireWallet(record.request.walletId)
+      return agentSummary(cancelled, wallet, this.hasAddressPermission(context, wallet))
     } finally {
       if (this.service.approvals.get(requestId)?.status === 'cancelled') {
         this.rejectPending(requestId, new Error('Wallet request was cancelled'))
@@ -932,8 +934,10 @@ export class WalletBroker {
       || context.requester.type !== 'agent'
       || record.request.requester.id !== context.requester.id
       || record.request.workspaceId !== context.workspaceId
-      || record.request.tabId !== context.tabId) {
-      throw new Error('Wallet request not found for this agent, workspace, and tab')
+      || record.request.tabId !== context.tabId
+      || record.request.navigationGeneration !== context.navigationGeneration
+      || record.request.topLevelOrigin !== context.topLevelOrigin) {
+      throw new Error('Wallet request not found for this agent, workspace, tab, and navigation')
     }
     return record
   }

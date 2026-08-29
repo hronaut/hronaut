@@ -37,6 +37,7 @@ All notable changes to Hronaut are documented in this file.
 - Fail wallet request preparation closed so connection, transaction, and message setup errors cannot leave stale requests available for approval.
 - Always settle wallet callers and clear retained message bytes after approval, rejection, cancellation, revocation, or expiry, even when audit persistence fails after the terminal state change.
 - Keep polling submitted wallet transactions until confirmation becomes terminal, resume confirmation tracking after restart, and record submission and confirmation in the immutable audit history.
+- Keep MCP wallet addresses hidden from request-status and cancellation responses until account permission is active, and bind those operations to the exact page origin and navigation that created the request.
 - Keep Repro recorder copy confirmation visible when a background recording refresh arrives immediately after the clipboard write.
 - Keep the packaged MCP smoke aligned with the Complete tool catalog it verifies after new profiles began defaulting to Browser Essentials.
 

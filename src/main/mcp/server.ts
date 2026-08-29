@@ -359,8 +359,8 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'wallet_balance', category: 'Wallet', description: 'Read the balance of one attached wallet using the walletSessionId from wallet_list, requesting human account-disclosure permission when needed.' },
   { name: 'wallet_prepare_transaction', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, normalize, decode, estimate fees, and simulate a chain-specific unsigned transaction without signing or broadcasting it.' },
   { name: 'wallet_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, request transaction signing, sign-and-send, or message signing through Hronaut policy and trusted human approval. This tool cannot approve its own request.' },
-  { name: 'wallet_request_status', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, read the sanitized status of a request created by this exact wallet session, workspace, and tab.' },
-  { name: 'wallet_cancel_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, cancel a pending request created by this exact wallet session, workspace, and tab.' }
+  { name: 'wallet_request_status', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, read the sanitized status of a request created by this exact wallet session, workspace, tab, and current top-level page. Wallet addresses stay hidden until account permission is active.' },
+  { name: 'wallet_cancel_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, cancel a pending request created by this exact wallet session, workspace, tab, and current top-level page.' }
 ]
 
 const ESSENTIALS_TOOL_NAMES = new Set([

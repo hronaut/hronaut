@@ -90,7 +90,7 @@ async function connect(broker: WalletBroker): Promise<void> {
 }
 
 describe('WalletBroker', () => {
-  it('isolates agent address permissions and request status by requester, workspace, and tab', async () => {
+  it('isolates agent address permissions and request status by requester, workspace, tab, and navigation', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
     const agentA = context({ requester: { type: 'agent', id: 'agent-a', name: 'Agent A' } })
@@ -103,7 +103,16 @@ describe('WalletBroker', () => {
     expect(balanceRequest).toMatchObject({ status: 'permission-required' })
     expect(JSON.stringify(balanceRequest)).not.toContain(wallet.publicAddress)
     const permissionRequest = (balanceRequest.request as { id: string })
+    expect(JSON.stringify(broker.agentRequestStatus(agentA, permissionRequest.id))).not.toContain(wallet.publicAddress)
+    expect(() => broker.agentRequestStatus(context({
+      navigationGeneration: 2,
+      topLevelOrigin: 'https://other.example',
+      requester: { type: 'agent', id: 'agent-a', name: 'Agent A' }
+    }), permissionRequest.id)).toThrow('not found for this agent')
     await broker.approve(permissionRequest.id)
+    expect(broker.agentRequestStatus(agentA, permissionRequest.id)).toMatchObject({
+      details: { publicAddress: wallet.publicAddress }
+    })
 
     expect(broker.listAgentWallets(agentA)).toEqual([
       expect.objectContaining({ publicAddress: wallet.publicAddress, addressPermission: true })
@@ -111,6 +120,10 @@ describe('WalletBroker', () => {
     expect(broker.listAgentWallets(agentB)).toEqual([
       expect.not.objectContaining({ publicAddress: expect.anything() })
     ])
+    const agentBPermission = await broker.agentBalance(agentB, wallet.id)
+    const agentBPermissionId = (agentBPermission.request as { id: string }).id
+    const cancelledPermission = await broker.cancelAgentRequest(agentB, agentBPermissionId)
+    expect(JSON.stringify(cancelledPermission)).not.toContain(wallet.publicAddress)
     expect(await broker.agentBalance(agentA, wallet.id)).toMatchObject({ status: 'ready', balance: '1' })
 
     const prepared = await broker.prepareAgentTransaction(agentA, wallet.id, {
@@ -127,6 +140,11 @@ describe('WalletBroker', () => {
     expect(JSON.stringify(transaction)).not.toContain('"raw"')
     expect(broker.agentRequestStatus(agentA, requestId)).toMatchObject({ id: requestId, status: 'awaiting-human' })
     expect(() => broker.agentRequestStatus(agentB, requestId)).toThrow('not found for this agent')
+    await expect(broker.cancelAgentRequest(context({
+      navigationGeneration: 2,
+      topLevelOrigin: 'https://other.example',
+      requester: { type: 'agent', id: 'agent-a', name: 'Agent A' }
+    }), requestId)).rejects.toThrow('not found for this agent')
     await expect(broker.cancelAgentRequest(agentB, requestId)).rejects.toThrow('not found for this agent')
     await expect(broker.cancelAgentRequest(context({
       tabId: 'tab-2', requester: { type: 'agent', id: 'agent-a', name: 'Agent A' }
