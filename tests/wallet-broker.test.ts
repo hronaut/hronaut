@@ -421,6 +421,88 @@ describe('WalletBroker', () => {
     expect(broker.listPending().find((request) => request.id === pending.id)?.status).toBe('expired')
   })
 
+  it('actively expires an untouched request and clears its retained message', async () => {
+    const { service, wallet } = await setup()
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      frameOrigin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      requestTtlMs: 100
+    })
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['untouched-expiring-message', wallet.publicAddress]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 2_000))
+    ])).rejects.toThrow('expired')
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+    expect(await service.auditHistory()).toContainEqual(expect.objectContaining({
+      type: 'request-expired',
+      payload: expect.objectContaining({ requestId, walletId: wallet.id })
+    }))
+  })
+
+  it('rejects the waiting caller when expiry persistence has an uncertain failure', async () => {
+    const { service, wallet } = await setup()
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      frameOrigin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const transition = service.approvals.transition.bind(service.approvals)
+    vi.spyOn(service.approvals, 'transition').mockImplementation(async (requestId, status, now) => {
+      const record = await transition(requestId, status, now)
+      if (status === 'expired') throw new Error('expiry persistence result was uncertain')
+      return record
+    })
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      requestTtlMs: 100
+    })
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['uncertain-expiry-message', wallet.publicAddress]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))!.id
+
+    await expect(Promise.race([
+      result,
+      new Promise((resolve) => setTimeout(() => resolve('still-pending'), 2_000))
+    ])).rejects.toThrow('expired')
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
+    expect(broker.listPending().find((request) => request.id === requestId)?.details?.raw).not.toHaveProperty('message')
+  })
+
   it('always routes message signing through trusted human approval and validates the requested account', async () => {
     const { service, wallet } = await setup('testnet')
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
