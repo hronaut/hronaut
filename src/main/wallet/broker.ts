@@ -39,11 +39,13 @@ export interface WalletBrokerOptions {
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
   now?: () => Date
   requestTtlMs?: number
+  confirmationPollIntervalMs?: number
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
   onProviderEvent?: (tabId: string, event: WalletProviderEvent) => void
 }
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
+const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
 ])
@@ -145,6 +147,8 @@ export class WalletBroker {
   private readonly pending = new Map<string, PendingResult>()
   private readonly pendingMessages = new Map<string, WalletMessageSigningInput>()
   private readonly requestExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly confirmationInFlight = new Set<string>()
   private lifecycleQueue: Promise<void> = Promise.resolve()
 
   constructor(private readonly service: WalletService, private readonly options: WalletBrokerOptions = {}) {
@@ -153,6 +157,7 @@ export class WalletBroker {
       solana: options.adapters?.solana ?? new SolanaWalletAdapter(),
       tron: options.adapters?.tron ?? new TronWalletAdapter()
     }
+    this.resumeSubmittedConfirmations()
   }
 
   listPending(): WalletRequestSummary[] {
@@ -777,11 +782,8 @@ export class WalletBroker {
     }
     const transactionHash = await adapter.broadcast(wallet, signed)
     await this.service.approvals.markSubmitted(record.id, transactionHash, this.now())
-    void adapter.confirmation(wallet, transactionHash).then(async (confirmation) => {
-      if (confirmation.confirmed) await this.service.approvals.transition(record.id, 'confirmed', this.now())
-      else if (confirmation.failed) await this.service.approvals.transition(record.id, 'failed', this.now())
-      this.publish()
-    }).catch(() => undefined)
+    await this.appendTransactionAudit('transaction-submitted', record, transactionHash)
+    this.scheduleConfirmation(record.id)
     return transactionHash
   }
 
@@ -1031,6 +1033,87 @@ export class WalletBroker {
     this.pendingMessages.delete(requestId)
   }
 
+  private resumeSubmittedConfirmations(): void {
+    for (const record of this.service.approvals.list()) {
+      if (record.status === 'submitted' && record.transactionHash) this.scheduleConfirmation(record.id)
+    }
+  }
+
+  private scheduleConfirmation(requestId: string, delay = 0): void {
+    if (this.confirmationTimers.has(requestId) || this.confirmationInFlight.has(requestId)) return
+    const timer = setTimeout(() => {
+      this.confirmationTimers.delete(requestId)
+      void this.pollConfirmation(requestId)
+    }, delay)
+    timer.unref()
+    this.confirmationTimers.set(requestId, timer)
+  }
+
+  private async pollConfirmation(requestId: string): Promise<void> {
+    if (this.confirmationInFlight.has(requestId)) return
+    this.confirmationInFlight.add(requestId)
+    let retry = false
+    try {
+      const record = this.service.approvals.get(requestId)
+      if (record?.status !== 'submitted' || !record.transactionHash) return
+      const wallet = this.service.list().find((entry) => entry.id === record.request.walletId)
+      if (!wallet) {
+        retry = true
+        return
+      }
+      const confirmation = await this.adapters[wallet.chainFamily].confirmation(wallet, record.transactionHash)
+      const current = this.service.approvals.get(requestId)
+      if (current?.status !== 'submitted') return
+      if (confirmation.confirmed || confirmation.failed) {
+        const terminalStatus = confirmation.confirmed ? 'confirmed' : 'failed'
+        try {
+          await this.service.approvals.transition(requestId, terminalStatus, this.now())
+        } finally {
+          if (this.service.approvals.get(requestId)?.status === terminalStatus) {
+            await this.appendTransactionAudit(
+              confirmation.confirmed ? 'transaction-confirmed' : 'transaction-failed',
+              record,
+              record.transactionHash,
+              confirmation.blockReference
+            )
+          }
+          this.publish()
+        }
+        return
+      }
+      retry = true
+    } catch {
+      retry = this.service.approvals.get(requestId)?.status === 'submitted'
+    } finally {
+      this.confirmationInFlight.delete(requestId)
+      if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
+        this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
+      }
+    }
+  }
+
+  private async appendTransactionAudit(
+    type: 'transaction-submitted' | 'transaction-confirmed' | 'transaction-failed',
+    record: WalletApprovalRecord,
+    transactionHash: string,
+    blockReference?: string
+  ): Promise<void> {
+    try {
+      await this.service.audit.append(type, {
+        requestId: record.id,
+        walletId: record.request.walletId,
+        workspaceId: record.request.workspaceId,
+        origin: record.request.topLevelOrigin,
+        requester: record.request.requester,
+        networkId: record.request.networkId,
+        transactionHash,
+        ...(blockReference ? { blockReference } : {})
+      }, this.now().toISOString())
+    } catch {
+      console.error('[wallet] Failed to persist transaction lifecycle audit event')
+    }
+  }
+
   private scheduleRequestExpiry(record: WalletApprovalRecord): void {
     this.clearRequestExpiry(record.id)
     const delay = Math.max(0, Date.parse(record.request.expiresAt) - this.now().getTime())
@@ -1076,6 +1159,11 @@ export class WalletBroker {
       throw new Error('Wallet request expiry must be between 1 ms and 5 minutes')
     }
     return value
+  }
+
+  private confirmationPollIntervalMs(): number {
+    const value = this.options.confirmationPollIntervalMs ?? DEFAULT_CONFIRMATION_POLL_INTERVAL_MS
+    return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_CONFIRMATION_POLL_INTERVAL_MS
   }
 
   private queueLifecycle<T>(operation: () => Promise<T>): Promise<T> {

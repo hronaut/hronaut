@@ -439,6 +439,79 @@ describe('WalletBroker', () => {
       .toBe('confirmed'))
   })
 
+  it('retries an unresolved submitted transaction until confirmation reaches a terminal state', async () => {
+    const { service } = await setup('testnet')
+    const chain = adapter()
+    const confirmation = vi.spyOn(chain, 'confirmation')
+      .mockResolvedValueOnce({ confirmed: false, failed: false })
+      .mockResolvedValueOnce({ confirmed: true, failed: false, blockReference: '2' })
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain }, confirmationPollIntervalMs: 5
+    })
+    await connect(broker)
+
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
+    ))!.id
+
+    await broker.approve(requestId)
+    await expect(result).resolves.toBe('0xtransaction')
+
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledTimes(2), { timeout: 500 })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({
+      status: 'confirmed', transactionHash: '0xtransaction'
+    })
+    await vi.waitFor(async () => expect(await service.auditHistory()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'transaction-submitted',
+        payload: expect.objectContaining({ requestId, transactionHash: '0xtransaction' })
+      }),
+      expect.objectContaining({
+        type: 'transaction-confirmed',
+        payload: expect.objectContaining({ requestId, transactionHash: '0xtransaction', blockReference: '2' })
+      })
+    ])))
+  })
+
+  it('resumes confirmation tracking for a durable submitted transaction after restart', async () => {
+    const { service, wallet } = await setup('testnet')
+    const now = new Date()
+    const request = {
+      requestId: 'restart-submitted-request', walletId: wallet.id, workspaceId: 'workspace-1', tabId: 'tab-1',
+      navigationGeneration: 1, topLevelOrigin: 'https://dapp.example',
+      requester: { type: 'website' as const, id: 'https://dapp.example' }, capability: 'send' as const,
+      chainFamily: 'evm' as const, networkId: wallet.network.id, operation: 'sign-and-send-transaction' as const,
+      payload: {}, expiresAt: new Date(now.getTime() + 60_000).toISOString()
+    }
+    const created = await service.approvals.create(request, 'restart-submitted-key', now)
+    await service.approvals.transition(created.id, 'validated', now)
+    await service.approvals.recordSimulation(created.id, { attempted: true, success: true }, now)
+    await service.approvals.transition(created.id, 'simulated', now)
+    await service.approvals.transition(created.id, 'policy-decision', now)
+    await service.approvals.transition(created.id, 'awaiting-human', now)
+    await service.approvals.approve(created.id, request, now)
+    await service.approvals.markSigning(created.id, request, now)
+    await service.approvals.markSubmitted(created.id, '0xsubmitted-before-restart', now)
+    const chain = adapter()
+    const confirmation = vi.spyOn(chain, 'confirmation')
+
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain }, confirmationPollIntervalMs: 5
+    })
+
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledWith(wallet, '0xsubmitted-before-restart'), { timeout: 500 })
+    expect(broker.listPending().find((entry) => entry.id === created.id)).toMatchObject({
+      status: 'confirmed', transactionHash: '0xsubmitted-before-restart'
+    })
+  })
+
   it('allows a matching bounded testnet policy and rejects mutation/replay through durable request hashes', async () => {
     const { service, wallet } = await setup('testnet')
     const chain = adapter()
@@ -458,6 +531,9 @@ describe('WalletBroker', () => {
     })).resolves.toBe('0xtransaction')
     expect(chain.sign).toHaveBeenCalledOnce()
     expect(chain.broadcast).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
+    ))).toHaveLength(1))
   })
 
   it('does not let concurrent automatic requests exceed a durable operation limit', async () => {
@@ -492,6 +568,9 @@ describe('WalletBroker', () => {
     const settled = await Promise.all(requests)
     expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(settled.filter((result) => result.status === 'rejected')).toHaveLength(1)
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
+    ))).toHaveLength(1))
   })
 
   it('cancels a pending website request on navigation and never reaches the signer', async () => {
