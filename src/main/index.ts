@@ -34,6 +34,7 @@ import type { BrowserCredentialCandidate } from './browser/tabs-manager.js'
 import { WalletBroker, type WalletBrokerContext } from './wallet/broker.js'
 import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
 import type { WalletSafeStorage } from './wallet/key-provider.js'
+import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
 import { WalletService } from './wallet/service.js'
 import {
   WalletChainFamilySchema,
@@ -2116,20 +2117,22 @@ function registerIpc(): void {
   ipcMain.handle('wallets:generate', async (event, input: WalletCreateInput) => {
     assertMainShellSender(event)
     const service = requireWalletService()
-    const generated = await service.generate(input)
     const owner = mainWindow
     if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-    const { response } = await dialog.showMessageBox(owner, {
-      type: 'warning',
-      title: 'Save wallet recovery material',
-      message: 'Write down this recovery phrase and store it offline.',
-      detail: `${generated.recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
-      buttons: ['I saved it', 'Not yet'],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true
+    return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
+      if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
+      const { response } = await dialog.showMessageBox(owner, {
+        type: 'warning',
+        title: 'Save wallet recovery material',
+        message: 'Write down this recovery phrase and store it offline.',
+        detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
+        buttons: ['I saved it', 'Not yet'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true
+      })
+      return response === 0
     })
-    return response === 0 ? service.confirmRecovery(generated.wallet.id) : generated.wallet
   })
   ipcMain.handle('wallets:prepare-import', (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
     assertMainShellSender(event)

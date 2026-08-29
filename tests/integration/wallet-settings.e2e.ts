@@ -41,3 +41,23 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   expect(layout.left).toBeGreaterThanOrEqual(0)
   expect(layout.right).toBeLessThanOrEqual(layout.viewport)
 })
+
+test('discards a generated wallet when recovery material is not confirmed', async ({ appWindow, electronApp }) => {
+  await appWindow.evaluate(`(async () => {
+    const status = await window.hronautWallets.status()
+    if (status.managedWallets === 'passphrase-setup-required') {
+      await window.hronautWallets.setupPassphrase('docker-wallet-test-passphrase')
+    }
+  })()`)
+  await electronApp.evaluate(({ dialog }) => {
+    dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false })
+  })
+
+  await expect(appWindow.evaluate(`window.hronautWallets.generate({
+    name: 'Discarded wallet',
+    chainFamily: 'evm',
+    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    workspaceIds: []
+  })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
+  await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
+})

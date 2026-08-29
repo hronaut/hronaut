@@ -27,7 +27,7 @@ Open **Settings → Wallets** to:
 
 Create separate accounts for EVM, Solana, and Tron unless you intentionally accept the larger blast radius of reusing recovery material. Hronaut never silently derives all three families from one seed.
 
-Generated recovery material is displayed only in a native trusted Hronaut dialog. Signing remains disabled until you confirm that it was saved. Imported material is entered only in trusted Settings, validated in the main process, cleared from the UI immediately, and retained in memory only for a five-minute confirmation window. Hronaut automatically zeroes and drops an unconfirmed import when that timer expires, even if the user takes no further action. Validation errors never echo secret fragments.
+Generated recovery material is displayed only in a native trusted Hronaut dialog. The wallet is enabled only after you confirm that the recovery material was saved; choosing **Not yet**, losing the trusted dialog, or failing to persist that confirmation discards the new wallet so an unrecoverable account is never retained. Imported material is entered only in trusted Settings, validated in the main process, cleared from the UI immediately, and retained in memory only for a five-minute confirmation window. Hronaut automatically zeroes and drops an unconfirmed import when that timer expires, even if the user takes no further action. Validation errors never echo secret fragments.
 
 Removing a managed wallet deletes its encrypted local record and revokes its permissions and policies. Removal is not a recovery mechanism: retain your recovery material independently.
 
