@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Keep setup feedback and generated release guidance aligned with all fourteen focused coding-agent guides, so users can identify their actual client instead of falling back to a generic category.
 - Link every focused coding-agent setup guide from the GitHub README so visitors can move directly from their client to the local Hronaut connection flow.
 - Avoid repeating the full TypeScript analysis inside hosted Docker integration after the parallel validation job has already run it, while retaining typechecking in standalone Docker runs.
 - Keep Docker's dependency layer keyed to the lockfile instead of unrelated package-script metadata, build the application once, and run the authoritative Electron suite across isolated Xvfb and MCP-port shards; focused Electron feedback also skips duplicate type analysis, targeted TypeScript and lint commands avoid unrelated work, and full lint uses a content-addressed cache.
@@ -23,6 +24,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject secret-bearing wallet payloads at every supported nesting level, fail closed when public/provider input exceeds the shared serialization depth, and reject oversized or sparse arrays, shared-reference graphs, and over-budget binary views before expansion, preventing deeply nested secrets and payload-amplification denial of service from reaching the trusted wallet broker.
+- Give the theme picker proper radio-group keyboard behavior with one Tab stop plus wrapping Arrow, Home, and End navigation across all regular and expressive themes.
 - Treat a sleeping tab closed during restoration as a cancelled selection instead of surfacing a false destroyed-renderer error after the healthy fallback tab is already active.
 - Expose each workspace tablist's actual horizontal or vertical orientation to assistive technology so screen-reader guidance matches its arrow-key behavior.
 - Speed up repeat validation with cached incremental typechecking, concurrent static gates, tunable Vitest workers, balanced four-way local Docker Electron sharding, and a resource-safe two-shard hosted CI profile.

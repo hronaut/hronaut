@@ -52,6 +52,10 @@ describe('setup feedback issue form', () => {
       'Kiro',
       'Kilo Code',
       'JetBrains Junie',
+      'Devin Local',
+      'Zed',
+      'Mistral Vibe',
+      'Warp',
       'Another MCP client'
     ])
 

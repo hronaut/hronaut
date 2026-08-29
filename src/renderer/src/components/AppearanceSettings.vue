@@ -84,6 +84,26 @@ function selectTheme(theme: ThemeName): void {
   void runSetting(store.setTheme(theme))
 }
 
+function navigateTheme(event: KeyboardEvent): void {
+  const current = event.currentTarget
+  if (!(current instanceof HTMLButtonElement)) return
+  const radios = [...(current.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[data-theme]') ?? [])]
+  const currentIndex = radios.indexOf(current)
+  if (currentIndex < 0 || radios.length === 0) return
+  let targetIndex: number
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') targetIndex = (currentIndex + 1) % radios.length
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') targetIndex = (currentIndex - 1 + radios.length) % radios.length
+  else if (event.key === 'Home') targetIndex = 0
+  else if (event.key === 'End') targetIndex = radios.length - 1
+  else return
+  event.preventDefault()
+  const target = radios[targetIndex]
+  const theme = target?.dataset.theme as ThemeName | undefined
+  if (!target || !theme) return
+  target.focus()
+  selectTheme(theme)
+}
+
 async function selectInterfaceScale(event: Event): Promise<void> {
   const input = event.target as HTMLSelectElement
   const scale = Number(input.value) as InterfaceScale
@@ -154,8 +174,11 @@ async function setLanguagePreference(event: Event): Promise<void> {
             type="button"
             role="radio"
             :aria-checked="settings.theme === theme.name"
+            :tabindex="settings.theme === theme.name ? 0 : -1"
+            :data-theme="theme.name"
             :data-testid="`theme-${theme.name}`"
             @click="selectTheme(theme.name)"
+            @keydown="navigateTheme"
           >
             <span class="theme-preview" aria-hidden="true">
               <span class="preview-tab" />

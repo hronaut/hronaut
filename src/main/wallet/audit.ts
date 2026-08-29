@@ -2,8 +2,7 @@ import { createHash } from 'node:crypto'
 import { mkdir, open, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { z } from 'zod'
-
-const SECRET_FIELD = /^(?:private.?key|mnemonic|seed(?:phrase)?|recovery.?phrase|vault(?:blob)?|wrapping.?key|decrypted(?:vault)?|ciphertext|signed.?message)$/i
+import { scanWalletPayload } from '../../shared/wallet.js'
 
 export interface WalletAuditEntry {
   sequence: number
@@ -33,13 +32,6 @@ function canonicalJson(value: unknown): string {
     .join(',')}}`
 }
 
-function containsSecret(value: unknown, depth = 0): boolean {
-  if (depth > 24 || !value || typeof value !== 'object') return false
-  if (Array.isArray(value)) return value.some((entry) => containsSecret(entry, depth + 1))
-  return Object.entries(value as Record<string, unknown>)
-    .some(([key, entry]) => SECRET_FIELD.test(key) || containsSecret(entry, depth + 1))
-}
-
 function entryHash(entry: Omit<WalletAuditEntry, 'hash'>): string {
   return createHash('sha256').update('hronaut-wallet-audit-v1\u0000').update(canonicalJson(entry)).digest('hex')
 }
@@ -51,7 +43,7 @@ export class WalletAuditStore {
 
   append(type: string, payload: Record<string, unknown>, timestamp = new Date().toISOString()): Promise<WalletAuditEntry> {
     return this.queueMutation(async () => {
-      if (containsSecret(payload)) throw new Error('Wallet audit events must not contain secret material')
+      if (scanWalletPayload(payload) !== 'safe') throw new Error('Wallet audit events must not contain secret material')
       const existing = await this.verify()
       const body = {
         sequence: existing.length + 1,
@@ -89,7 +81,7 @@ export class WalletAuditStore {
       for (const [index, line] of lines.entries()) {
         if (!line) throw new Error('blank audit entry')
         const entry = AuditEntrySchema.parse(JSON.parse(line))
-        if (entry.sequence !== index + 1 || entry.previousHash !== previousHash || containsSecret(entry.payload)) {
+        if (entry.sequence !== index + 1 || entry.previousHash !== previousHash || scanWalletPayload(entry.payload) !== 'safe') {
           throw new Error('invalid audit chain')
         }
         const { hash, ...body } = entry

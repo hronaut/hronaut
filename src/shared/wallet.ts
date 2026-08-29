@@ -94,12 +94,81 @@ export const WalletRequesterSchema = z.discriminatedUnion('type', [
 ])
 export type WalletRequester = z.infer<typeof WalletRequesterSchema>
 
-const SECRET_FIELD = /^(?:private.?key|mnemonic|seed(?:phrase)?|recovery.?phrase|vault(?:blob)?|wrapping.?key|decrypted(?:vault)?|ciphertext)$/i
+const SECRET_FIELD = /^(?:privatekey(?:hex|bytes|material)?|secretkey(?:hex|bytes|material)?|mnemonic(?:phrase|words|entropy|material)?|seed(?:phrase|words|hex|bytes|material)?|recovery(?:phrase|words|material)?|(?:encrypted|decrypted)?vault(?:blob|key|material|contents)?|wrapp(?:ed|ing)key|keymaterial|secretmaterial|walletsecret|(?:vault)?passphrase|ciphertext|signedmessage)$/i
+export const MAX_WALLET_REQUEST_NESTING = 32
+export const MAX_WALLET_REQUEST_ARRAY_ITEMS = 10_000
+export const MAX_WALLET_REQUEST_BINARY_BYTES = 128 * 1024
+export type WalletPayloadScanResult =
+  | 'safe'
+  | 'secret'
+  | 'too-deep'
+  | 'array-too-large'
+  | 'sparse-array'
+  | 'shared-reference'
+  | 'binary-too-large'
 
-function containsSecretField(value: unknown, depth = 0): boolean {
-  if (depth > 24 || !value || typeof value !== 'object') return false
-  if (Array.isArray(value)) return value.some((entry) => containsSecretField(entry, depth + 1))
-  return Object.entries(value).some(([key, entry]) => SECRET_FIELD.test(key) || containsSecretField(entry, depth + 1))
+interface WalletPayloadScanState {
+  seen: WeakSet<object>
+  binaryBytes: number
+}
+
+function isWalletSecretField(key: string): boolean {
+  return SECRET_FIELD.test(key.replace(/[^a-z0-9]/gi, ''))
+}
+
+function scanWalletPayloadGraph(
+  value: unknown,
+  depth: number,
+  state: WalletPayloadScanState
+): WalletPayloadScanResult {
+  if (depth > MAX_WALLET_REQUEST_NESTING) return 'too-deep'
+  if (!value || typeof value !== 'object') return 'safe'
+  if (state.seen.has(value)) return 'shared-reference'
+  state.seen.add(value)
+  const binaryBytes = walletBinaryByteLength(value)
+  if (binaryBytes !== null) {
+    state.binaryBytes += binaryBytes
+    return state.binaryBytes > MAX_WALLET_REQUEST_BINARY_BYTES ? 'binary-too-large' : 'safe'
+  }
+  if (Array.isArray(value)) {
+    if (value.length > MAX_WALLET_REQUEST_ARRAY_ITEMS) return 'array-too-large'
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) return 'sparse-array'
+      const nested = scanWalletPayloadGraph(value[index], depth + 1, state)
+      if (nested !== 'safe') return nested
+    }
+    for (const key of Object.keys(value)) {
+      if (/^(?:0|[1-9]\d*)$/.test(key) && Number(key) < value.length) continue
+      if (isWalletSecretField(key)) return 'secret'
+      const nested = scanWalletPayloadGraph(Reflect.get(value, key), depth + 1, state)
+      if (nested !== 'safe') return nested
+    }
+    return 'safe'
+  }
+  for (const [key, entry] of Object.entries(value)) {
+    if (isWalletSecretField(key)) return 'secret'
+    const nested = scanWalletPayloadGraph(entry, depth + 1, state)
+    if (nested !== 'safe') return nested
+  }
+  return 'safe'
+}
+
+export function scanWalletPayload(value: unknown, depth = 0): WalletPayloadScanResult {
+  return scanWalletPayloadGraph(value, depth, { seen: new WeakSet<object>(), binaryBytes: 0 })
+}
+
+function walletBinaryByteLength(value: unknown): number | null {
+  if (value instanceof ArrayBuffer) return value.byteLength
+  if (ArrayBuffer.isView(value)) return value.byteLength
+  return null
+}
+
+function walletPayloadSerializationReplacer(this: unknown, key: string, entry: unknown): unknown {
+  const owner = this as Record<string, unknown> | undefined
+  const original = key === '' ? entry : owner?.[key]
+  const binaryBytes = walletBinaryByteLength(original)
+  if (binaryBytes === null) return entry
+  return { binary: 'A'.repeat(Math.ceil(binaryBytes / 3) * 4) }
 }
 
 export const WalletOperationRequestSchema = z.object({
@@ -117,11 +186,42 @@ export const WalletOperationRequestSchema = z.object({
   payload: z.record(z.string(), z.unknown()),
   expiresAt: IsoDateSchema
 }).strict().superRefine((request, context) => {
-  if (containsSecretField(request.payload)) {
+  const payloadScan = scanWalletPayload(request.payload)
+  if (payloadScan === 'secret') {
     context.addIssue({
       code: 'custom',
       path: ['payload'],
       message: 'Wallet operation payloads must not contain secret material'
+    })
+  } else if (payloadScan === 'too-deep') {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload'],
+      message: 'Wallet operation payload nesting is too deep'
+    })
+  } else if (payloadScan === 'array-too-large') {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload'],
+      message: 'Wallet operation payload array is too large'
+    })
+  } else if (payloadScan === 'sparse-array') {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload'],
+      message: 'Wallet operation payload array must be dense'
+    })
+  } else if (payloadScan === 'shared-reference') {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload'],
+      message: 'Wallet operation payloads must not contain shared object references'
+    })
+  } else if (payloadScan === 'binary-too-large') {
+    context.addIssue({
+      code: 'custom',
+      path: ['payload'],
+      message: 'Wallet operation payload binary data is too large'
     })
   }
 })
@@ -189,12 +289,33 @@ export const WalletRequestSummarySchema = z.object({
 export type WalletRequestSummary = z.infer<typeof WalletRequestSummarySchema>
 
 export const WalletPublicRequestPayloadSchema = z.unknown().superRefine((value, context) => {
-  if (containsSecretField(value)) {
+  const payloadScan = scanWalletPayload(value)
+  if (payloadScan === 'secret') {
     context.addIssue({ code: 'custom', message: 'Wallet provider requests must not contain secret material' })
     return
   }
+  if (payloadScan === 'too-deep') {
+    context.addIssue({ code: 'custom', message: 'Wallet provider request nesting is too deep' })
+    return
+  }
+  if (payloadScan === 'array-too-large') {
+    context.addIssue({ code: 'custom', message: 'Wallet provider request array is too large' })
+    return
+  }
+  if (payloadScan === 'sparse-array') {
+    context.addIssue({ code: 'custom', message: 'Wallet provider request array must be dense' })
+    return
+  }
+  if (payloadScan === 'shared-reference') {
+    context.addIssue({ code: 'custom', message: 'Wallet provider requests must not contain shared object references' })
+    return
+  }
+  if (payloadScan === 'binary-too-large') {
+    context.addIssue({ code: 'custom', message: 'Wallet provider request binary data is too large' })
+    return
+  }
   try {
-    const serialized = JSON.stringify(value)
+    const serialized = JSON.stringify(value, walletPayloadSerializationReplacer)
     if (serialized !== undefined && new TextEncoder().encode(serialized).byteLength > 1_000_000) {
       context.addIssue({ code: 'custom', message: 'Wallet provider request is too large' })
     }

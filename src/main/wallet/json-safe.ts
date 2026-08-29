@@ -1,3 +1,5 @@
+import { MAX_WALLET_REQUEST_NESTING } from '../../shared/wallet.js'
+
 const TYPE_KEY = '__hronautWalletType'
 const VALUE_KEY = 'value'
 
@@ -18,7 +20,7 @@ function hasExactTagShape(value: Record<string, unknown>, type: string): boolean
 }
 
 export function walletJsonSafe(value: unknown, depth = 0): unknown {
-  if (depth > 32) throw new Error('Wallet request nesting is too deep')
+  if (depth > MAX_WALLET_REQUEST_NESTING) throw new Error('Wallet request nesting is too deep')
   if (typeof value === 'bigint') return tagged('bigint', value.toString())
   if (value instanceof Uint8Array) return tagged('bytes', Buffer.from(value).toString('base64'))
   if (Array.isArray(value)) return value.map((entry) => walletJsonSafe(entry, depth + 1))
@@ -29,7 +31,7 @@ export function walletJsonSafe(value: unknown, depth = 0): unknown {
 }
 
 export function restoreWalletJson(value: unknown, depth = 0): unknown {
-  if (depth > 32) throw new Error('Wallet request nesting is too deep')
+  if (depth > MAX_WALLET_REQUEST_NESTING) throw new Error('Wallet request nesting is too deep')
   if (Array.isArray(value)) return value.map((entry) => restoreWalletJson(entry, depth + 1))
   if (!value || typeof value !== 'object') return value
   const object = value as Record<string, unknown>
@@ -52,7 +54,7 @@ export function restoreWalletJson(value: unknown, depth = 0): unknown {
 }
 
 export function walletJsonInspectable(value: unknown, depth = 0): unknown {
-  if (depth > 32) throw new Error('Wallet request nesting is too deep')
+  if (depth > MAX_WALLET_REQUEST_NESTING) throw new Error('Wallet request nesting is too deep')
   if (typeof value === 'bigint') return value.toString()
   if (value instanceof Uint8Array) {
     return { encoding: 'base64', value: Buffer.from(value).toString('base64') }

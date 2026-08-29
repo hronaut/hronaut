@@ -37,6 +37,46 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
 }
 
 describe('AppearanceSettings', () => {
+  it('uses roving focus and arrow keys across the theme radio group', async () => {
+    const setTheme = vi.fn(async (theme: RendererSettingsState['settings']['theme']) => ({
+      ...snapshot('en-US').settings,
+      theme
+    }))
+    Object.defineProperty(window, 'hronautSettings', {
+      configurable: true,
+      value: { setTheme }
+    })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+
+    const system = screen.getByRole('radio', { name: /System/ })
+    const light = screen.getByRole('radio', { name: /^Light/ })
+    const galactic = screen.getByRole('radio', { name: /^Galactic/ })
+    expect(system).toHaveAttribute('tabindex', '0')
+    for (const radio of screen.getAllByRole('radio').filter((candidate) => candidate !== system)) {
+      expect(radio).toHaveAttribute('tabindex', '-1')
+    }
+
+    system.focus()
+    await userEvent.setup().keyboard('{ArrowRight}')
+
+    expect(setTheme).toHaveBeenCalledWith('light')
+    expect(light).toHaveFocus()
+    expect(light).toHaveAttribute('aria-checked', 'true')
+
+    await userEvent.setup().keyboard('{Home}')
+    expect(system).toHaveFocus()
+    await userEvent.setup().keyboard('{End}')
+    expect(galactic).toHaveFocus()
+    await userEvent.setup().keyboard('{ArrowRight}')
+    expect(system).toHaveFocus()
+    expect(setTheme.mock.calls.map(([theme]) => theme)).toEqual(['light', 'system', 'galactic', 'system'])
+  })
+
   it('renders accessible theme controls and switches locale while preserving selector focus', async () => {
     const setLanguagePreference = vi.fn(async () => snapshot('uk-UA'))
     const setTheme = vi.fn(async () => snapshot('en-US').settings)

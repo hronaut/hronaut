@@ -153,7 +153,10 @@ describe('WalletAuditStore', () => {
     await expect(audit.verify()).resolves.toHaveLength(2)
   })
 
-  it.each(['privateKey', 'mnemonic', 'seedPhrase', 'ciphertext', 'wrappingKey'])(
+  it.each([
+    'privateKey', 'privateKeyHex', 'secretKey', 'mnemonic', 'mnemonicWords', 'seedPhrase',
+    'recoveryMaterial', 'ciphertext', 'wrappingKey'
+  ])(
     'rejects audit payload secret field %s',
     async (field) => {
       const audit = new WalletAuditStore(await temporaryPath('audit.jsonl'))
