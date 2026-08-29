@@ -85,8 +85,9 @@ interface WalletAgentSession {
 class WalletAgentSessionRegistry {
   private static readonly LIFETIME_MS = 30 * 60_000
   private readonly sessions = new Map<string, WalletAgentSession>()
+  private cancellationQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly onExpired?: (requesterId: string) => void) {}
+  constructor(private readonly onExpired?: (requesterId: string) => void | Promise<void>) {}
 
   open(workspaceId: string, tabId: string, client: McpClientActivity, agentName?: string): WalletAgentSession {
     this.expire()
@@ -118,9 +119,10 @@ class WalletAgentSessionRegistry {
     return structuredClone(session.target)
   }
 
-  clear(): void {
-    for (const session of this.sessions.values()) this.onExpired?.(session.target.client.id)
+  async clear(): Promise<void> {
+    for (const session of this.sessions.values()) this.scheduleCancellation(session.target.client.id)
     this.sessions.clear()
+    await this.cancellationQueue
   }
 
   private expire(): void {
@@ -128,8 +130,17 @@ class WalletAgentSessionRegistry {
     for (const [token, session] of this.sessions) {
       if (session.expiresAt > now) continue
       this.sessions.delete(token)
-      this.onExpired?.(session.target.client.id)
+      this.scheduleCancellation(session.target.client.id)
     }
+  }
+
+  private scheduleCancellation(requesterId: string): void {
+    if (!this.onExpired) return
+    this.cancellationQueue = this.cancellationQueue
+      .then(() => this.onExpired?.(requesterId))
+      .catch(() => {
+        console.error('[mcp] Failed to cancel wallet requests for an expired agent session.')
+      })
   }
 }
 
@@ -2209,9 +2220,9 @@ export class McpHttpServer {
   ) {
     this.token = options.token
     this.toolSet = options.toolSet ?? 'complete'
-    this.walletSessions = new WalletAgentSessionRegistry((requesterId) => {
-      void this.options.wallets?.cancelRequester?.(requesterId)
-    })
+    this.walletSessions = new WalletAgentSessionRegistry((requesterId) => (
+      this.options.wallets?.cancelRequester?.(requesterId)
+    ))
   }
 
   setAuthenticationToken(token: string | undefined): void {
@@ -2357,7 +2368,7 @@ export class McpHttpServer {
       server.closeAllConnections()
     })
     this.startedAt = null
-    this.walletSessions.clear()
+    await this.walletSessions.clear()
   }
 
   private beginRequest(request: Request): McpClientActivity {

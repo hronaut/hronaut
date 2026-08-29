@@ -19,6 +19,7 @@ describe('MCP wallet tools', () => {
   afterEach(async () => {
     await client?.close()
     await server?.stop()
+    vi.restoreAllMocks()
   })
 
   it('passes a stable client/workspace/tab target and never exposes an approval tool', async () => {
@@ -128,5 +129,87 @@ describe('MCP wallet tools', () => {
     expect(result.isError).toBe(true)
     expect(text(result)).toMatch(/secret material/i)
     expect(prepareTransaction).not.toHaveBeenCalled()
+  })
+
+  it('waits for wallet-session request cancellation before server shutdown completes', async () => {
+    let finishCancellation!: () => void
+    const cancellation = new Promise<void>((resolve) => { finishCancellation = resolve })
+    const cancelRequester = vi.fn<NonNullable<WalletAgentOperations['cancelRequester']>>(() => cancellation)
+    const list = vi.fn<WalletAgentOperations['list']>(async () => [])
+    const manager = {
+      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+      requireTabInMcpGroup: vi.fn(() => tabId),
+      wakeTab: vi.fn(async () => undefined),
+      getMcpGroupState: vi.fn(() => ({
+        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
+        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
+      }))
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      showWindow: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      wallets: {
+        list, balance: vi.fn(async () => ({})), prepareTransaction: vi.fn(async () => ({})),
+        requestTransaction: vi.fn(async () => ({})), requestMessage: vi.fn(async () => ({})),
+        requestStatus: vi.fn(async () => ({})), cancelRequest: vi.fn(async () => ({})), cancelRequester
+      }
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'wallet-shutdown-test', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await client.callTool({ name: 'wallet_list', arguments: { workspaceId, tabId } })
+    const requesterId = list.mock.calls[0]![0].client.id
+    await client.close()
+    client = undefined
+
+    let stopped = false
+    const stopping = server.stop().then(() => { stopped = true })
+    await vi.waitFor(() => expect(cancelRequester).toHaveBeenCalledWith(requesterId))
+    expect(stopped).toBe(false)
+
+    finishCancellation()
+    await stopping
+    server = undefined
+  })
+
+  it('contains wallet-session cancellation failures during server shutdown', async () => {
+    const cancellationError = new Error('durable cancellation failed')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const manager = {
+      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+      requireTabInMcpGroup: vi.fn(() => tabId),
+      wakeTab: vi.fn(async () => undefined),
+      getMcpGroupState: vi.fn(() => ({
+        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
+        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
+      }))
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      showWindow: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      wallets: {
+        list: vi.fn(async () => []), balance: vi.fn(async () => ({})), prepareTransaction: vi.fn(async () => ({})),
+        requestTransaction: vi.fn(async () => ({})), requestMessage: vi.fn(async () => ({})),
+        requestStatus: vi.fn(async () => ({})), cancelRequest: vi.fn(async () => ({})),
+        cancelRequester: vi.fn(async () => { throw cancellationError })
+      }
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'wallet-cancellation-failure-test', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await client.callTool({ name: 'wallet_list', arguments: { workspaceId, tabId } })
+    await client.close()
+    client = undefined
+
+    await expect(server.stop()).resolves.toBeUndefined()
+    expect(error).toHaveBeenCalledWith('[mcp] Failed to cancel wallet requests for an expired agent session.')
+    expect(error).not.toHaveBeenCalledWith(expect.stringContaining(cancellationError.message))
+    server = undefined
   })
 })

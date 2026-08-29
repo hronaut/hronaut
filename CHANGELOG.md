@@ -19,6 +19,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Wait for MCP wallet-session request cancellation during listener shutdown, and contain cancellation failures instead of leaving cleanup in flight or producing an unhandled rejection.
 - Bind EVM approvals to a fully prepared transaction, including nonce, gas, fee fields, and normalized transaction type, before signing.
 - Keep mislabeled mainnets and unknown networks out of bounded automation even when their saved environment claims to be a testnet or local chain.
 - Show trusted approval UI the exact canonical message or typed data while keeping message bodies out of durable records and agent responses.
