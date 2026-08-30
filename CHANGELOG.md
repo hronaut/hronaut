@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep live wallet-request events authoritative over delayed Settings refreshes, preventing cancelled or expired approvals from reappearing and ensuring overlapping refreshes cannot restore older state.
 - Keep trusted browser shortcuts available when only the focused website tab is interaction-locked, while continuing to block page keyboard input and global-lock tab closure.
 - Replace the obsolete external-wallet proposal and its broken design-document link in the detailed reference with the implemented local EVM, Solana, and Tron wallet trust model and canonical security documentation.
 - Verify Tron transaction JSON against its canonical protobuf bytes and transaction hash at normalization, simulation, signing, and broadcast boundaries, preventing substituted or post-approval-mutated data from being signed.

@@ -35,6 +35,8 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const errorMessage = ref('')
   let disposed = false
   let initialized = false
+  let detailsGeneration = 0
+  let requestsRevision = 0
   const subscriptions: Array<() => void> = []
 
   const awaitingApproval = computed(() => requests.value.filter((request) => request.status === 'awaiting-human'))
@@ -44,13 +46,15 @@ export function useWalletsController(options: WalletsControllerOptions) {
   }
 
   async function refreshDetails(): Promise<void> {
+    const currentGeneration = ++detailsGeneration
+    const startingRequestsRevision = requestsRevision
     const [nextPolicies, nextPermissions, nextRequests, nextAudit] = await Promise.all([
       options.api.listPolicies(), options.api.listPermissions(), options.api.listRequests(), options.api.auditHistory()
     ])
-    if (disposed) return
+    if (disposed || currentGeneration !== detailsGeneration) return
     policies.value = nextPolicies
     permissions.value = nextPermissions
-    requests.value = nextRequests
+    if (startingRequestsRevision === requestsRevision) requests.value = nextRequests
     audit.value = nextAudit
   }
 
@@ -63,9 +67,17 @@ export function useWalletsController(options: WalletsControllerOptions) {
     if (initialized || disposed) return
     initialized = true
     subscriptions.push(
-      options.api.onChanged((next) => { wallets.value = next }),
-      options.api.onStatusChanged((next) => { status.value = next }),
-      options.api.onRequestsChanged((next) => { requests.value = next })
+      options.api.onChanged((next) => {
+        if (!disposed) wallets.value = next
+      }),
+      options.api.onStatusChanged((next) => {
+        if (!disposed) status.value = next
+      }),
+      options.api.onRequestsChanged((next) => {
+        if (disposed) return
+        requestsRevision += 1
+        requests.value = next
+      })
     )
   }
 
@@ -114,6 +126,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
 
   function dispose(): void {
     disposed = true
+    detailsGeneration += 1
     subscriptions.splice(0).forEach((unsubscribe) => unsubscribe())
   }
 
