@@ -3160,17 +3160,34 @@ export class BrowserTabsManager {
 
   async setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
+    const previousLocked = tab.humanInteractionLocked
     tab.humanInteractionLocked = locked
     if (this.isHumanInteractionLocked(tab)) {
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
       this.window.webContents.focus()
     }
-    await this.syncHumanInteractionInputGuard(tab)
+    try {
+      await this.syncHumanInteractionInputGuard(tab)
+    } catch (error) {
+      tab.humanInteractionLocked = previousLocked
+      try {
+        await this.syncHumanInteractionInputGuard(tab)
+      } catch (rollbackError) {
+        this.changed()
+        throw new AggregateError(
+          [error, rollbackError],
+          `Tab ${tab.id} interaction lock could not be updated or restored.`
+        )
+      }
+      this.changed()
+      throw error
+    }
     this.changed()
     return this.getState()
   }
 
   async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+    const previousLocked = this.allHumanInteractionLocked
     this.allHumanInteractionLocked = locked
     if (locked) {
       for (const tab of this.tabs.values()) {
@@ -3178,7 +3195,30 @@ export class BrowserTabsManager {
       }
       this.window.webContents.focus()
     }
-    await Promise.all([...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab)))
+    const results = await Promise.allSettled(
+      [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
+    )
+    const errors = results
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .map((result) => result.reason)
+    if (errors.length) {
+      this.allHumanInteractionLocked = previousLocked
+      const rollbackResults = await Promise.allSettled(
+        [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
+      )
+      const rollbackErrors = rollbackResults
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => result.reason)
+      this.changed()
+      if (rollbackErrors.length) {
+        throw new AggregateError(
+          [...errors, ...rollbackErrors],
+          'Global interaction lock could not be updated or restored for every tab.'
+        )
+      }
+      if (errors.length === 1) throw errors[0]
+      throw new AggregateError(errors, 'Global interaction lock could not be updated for every tab.')
+    }
     this.changed()
     return this.getState()
   }

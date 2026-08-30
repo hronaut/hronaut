@@ -5821,6 +5821,81 @@ test('locks website input and tab closing across Hronaut while keeping browser c
   }
 })
 
+test('rolls back tab and global interaction locks when the native input guard fails', async ({
+  appWindow,
+  electronApp
+}) => {
+  const fixtureUrl = 'data:text/html,<title>Interaction guard failure</title><button id="action" style="width:160px;height:48px">Take action</button><script>window.fixtureClicks=0;document.querySelector("%23action").addEventListener("click",()=>window.fixtureClicks+=1)</script>'
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(fixtureUrl)}, active: true })`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+    .toBe('Interaction guard failure')
+  const fixture = await appWindow.evaluate(`window.hronaut.getState().then((state) => ({
+    tabId: state.activeTabId,
+    url: state.tabs.find((tab) => tab.active)?.url
+  }))`) as { tabId: string; url: string }
+  const { tabId, url: activeUrl } = fixture
+
+  const failNextNativeGuard = async (failureMethod: 'Input.setIgnoreInputEvents' | 'Page.getFrameTree'): Promise<void> => {
+    await electronApp.evaluate(({ webContents }, options) => {
+      const { requestedUrl, failureMethod: requestedFailureMethod } = options
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error(`Interaction guard fixture was not found: ${requestedUrl}`)
+      const debuggerApi = page.debugger
+      const original = debuggerApi.sendCommand.bind(debuggerApi)
+      let shouldFail = true
+      Object.defineProperty(debuggerApi, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
+          if (method === requestedFailureMethod && shouldFail) {
+            shouldFail = false
+            throw new Error('Synthetic native input guard failure')
+          }
+          return original(method, commandParams, sessionId)
+        }
+      })
+    }, { requestedUrl: activeUrl, failureMethod })
+  }
+  const clickFixture = async (): Promise<void> => {
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Interaction guard fixture was not found')
+      const point = await page.executeJavaScript(`(() => {
+        const bounds = document.querySelector('#action').getBoundingClientRect()
+        return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      })()`)
+      page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
+      page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }, activeUrl)
+  }
+  const fixtureClicks = (): Promise<number> => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    return page ? Number(await page.executeJavaScript('window.fixtureClicks')) : -1
+  }, activeUrl)
+
+  // Fail after Chromium has already ignored input so the rollback must actively
+  // remove the native compositor guard, not merely restore the reported flag.
+  await failNextNativeGuard('Page.getFrameTree')
+  const tabError = await appWindow.evaluate(`window.hronaut
+    .setTabHumanInteractionLocked(${JSON.stringify(tabId)}, true)
+    .then(() => null, (error) => String(error))`)
+  expect(tabError).toContain('Synthetic native input guard failure')
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.humanInteractionLocked)`))
+    .toBe(false)
+  await clickFixture()
+  await expect.poll(fixtureClicks).toBe(1)
+
+  await failNextNativeGuard('Input.setIgnoreInputEvents')
+  const globalError = await appWindow.evaluate(`window.hronaut
+    .setAllHumanInteractionLocked(true)
+    .then(() => null, (error) => String(error))`)
+  expect(globalError).toContain('Synthetic native input guard failure')
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.allHumanInteractionLocked)'))
+    .toBe(false)
+  await clickFixture()
+  await expect.poll(fixtureClicks).toBe(2)
+})
+
 test('returns physical keyboard focus to trusted chrome after agent input in a locked tab', async ({
   appWindow,
   mcpPort,
