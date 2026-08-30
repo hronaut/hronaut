@@ -988,8 +988,10 @@ describe('WalletBroker', () => {
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))).toHaveLength(1))
 
-    expect(chain.sign).toHaveBeenCalledOnce()
-    expect(chain.broadcast).toHaveBeenCalledOnce()
+    await vi.waitFor(() => {
+      expect(chain.sign).toHaveBeenCalledOnce()
+      expect(chain.broadcast).toHaveBeenCalledOnce()
+    })
     const awaiting = broker.listPending().find((request) => (
       request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
     ))!
