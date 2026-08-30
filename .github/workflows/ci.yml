@@ -32,11 +32,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Restore TypeScript build state
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            tsconfig.node.tsbuildinfo
+            tsconfig.web.tsbuildinfo
+            tsconfig.website.tsbuildinfo
+          key: typecheck-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
+          restore-keys: |
+            typecheck-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-
+
       - name: Run static validation
         run: npm run validate
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Save TypeScript build state
+        if: success()
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            tsconfig.node.tsbuildinfo
+            tsconfig.web.tsbuildinfo
+            tsconfig.website.tsbuildinfo
+          key: typecheck-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
 
   integration-shard:
     name: Electron integration shard ${{ matrix.shard }}/2

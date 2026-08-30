@@ -34,6 +34,30 @@ describe('release quality gates', () => {
     }
   })
 
+  it('restores complete TypeScript build state only after install and saves it only after validation', async () => {
+    const workflow = await readFile('.github/workflows/ci.yml', 'utf8')
+    const validate = job(workflow, 'validate')
+    const install = validate.indexOf('name: Install dependencies')
+    const restore = validate.indexOf('uses: actions/cache/restore@v6')
+    const staticValidation = validate.indexOf('run: npm run validate')
+    const save = validate.indexOf('uses: actions/cache/save@v6')
+    const configHash = "${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}"
+    const cachePrefix = `typecheck-\${{ runner.os }}-node24-${configHash}`
+
+    expect(install).toBeGreaterThanOrEqual(0)
+    expect(restore).toBeGreaterThan(install)
+    expect(staticValidation).toBeGreaterThan(restore)
+    expect(save).toBeGreaterThan(staticValidation)
+    expect(validate).toContain('if: success()')
+    expect(validate).toContain(`key: ${cachePrefix}-\${{ github.sha }}`)
+    expect(validate).toContain(`restore-keys: |\n            ${cachePrefix}-`)
+    for (const path of [
+      'tsconfig.node.tsbuildinfo',
+      'tsconfig.web.tsbuildinfo',
+      'tsconfig.website.tsbuildinfo'
+    ]) expect(validate).toContain(path)
+  })
+
   it('validates the immutable tag before any platform release build starts', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
     const validate = job(workflow, 'validate')
