@@ -59,7 +59,7 @@ Hronaut registers a Solana Wallet Standard wallet with connect/disconnect, event
 
 ### Tron
 
-Hronaut exposes `window.tron` and TIP-6963 discovery without claiming to be TronLink. It supports `eth_accounts`, `eth_requestAccounts`, configured-network switching, transaction signing, sign-and-send, and message signing. After authorization, `provider.tronWeb` exposes the selected address and narrow `trx.sign`/`trx.signMessageV2` compatibility. Dapps should use their own public TronWeb instance to build unsigned transactions, then ask Hronaut to sign. Address, owner, and network consistency are validated.
+Hronaut exposes `window.tron` and TIP-6963 discovery without claiming to be TronLink. It supports `eth_accounts`, `eth_requestAccounts`, configured-network switching, transaction signing, sign-and-send, and message signing. After authorization, `provider.tronWeb` exposes the selected address and narrow `trx.sign`/`trx.signMessageV2` compatibility. Dapps should use their own public TronWeb instance to build unsigned transactions, then ask Hronaut to sign. Address, owner, and network consistency are validated. Hronaut also recomputes canonical Tron protobuf bytes and the transaction hash at normalization, simulation, signing, and broadcast boundaries; JSON that does not match those signed bytes is rejected.
 
 ## Approval and automation
 

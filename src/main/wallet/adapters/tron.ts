@@ -19,8 +19,8 @@ const TronContractSchema = z.object({
 }).passthrough()
 
 const TronTransactionSchema = z.object({
-  txID: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
-  raw_data_hex: z.string().regex(/^[a-fA-F0-9]+$/).optional(),
+  txID: z.string().regex(/^[a-fA-F0-9]{64}$/),
+  raw_data_hex: z.string().regex(/^[a-fA-F0-9]+$/),
   raw_data: z.object({
     contract: z.array(TronContractSchema).min(1).max(64),
     ref_block_bytes: z.string().max(32).optional(),
@@ -158,6 +158,25 @@ function cloneTransaction(value: unknown): Record<string, unknown> {
   return JSON.parse(serialized) as Record<string, unknown>
 }
 
+function parsedTronTransaction(value: unknown): z.infer<typeof TronTransactionSchema> {
+  return TronTransactionSchema.parse(cloneTransaction(value))
+}
+
+function assertTronTransactionIntegrity(transaction: z.infer<typeof TronTransactionSchema>): void {
+  try {
+    if (utils.transaction.txCheck(transaction)) return
+  } catch {
+    // Report one sanitized integrity error for malformed or substituted representations.
+  }
+  throw new Error('Tron transaction integrity check failed')
+}
+
+function validatedTronTransaction(value: unknown): z.infer<typeof TronTransactionSchema> {
+  const transaction = parsedTronTransaction(value)
+  assertTronTransactionIntegrity(transaction)
+  return transaction
+}
+
 function defaultClient(wallet: WalletDescriptor): TronRpcClient {
   const tron = new TronWeb({ fullHost: wallet.network.rpcUrl })
   return {
@@ -228,10 +247,11 @@ export class TronWalletAdapter implements WalletChainAdapter {
 
   async normalizeTransaction(wallet: WalletDescriptor, payload: unknown): Promise<WalletNormalizedTransaction> {
     if (!this.validateAddress(wallet.publicAddress)) throw new Error('Wallet account is invalid')
-    const transaction = TronTransactionSchema.parse(cloneTransaction(payload))
+    const transaction = parsedTronTransaction(payload)
     if (transaction.raw_data.contract.length !== 1) throw new Error('Multi-contract Tron transactions require manual review and are not supported')
     const operation = contractOperation(transaction.raw_data.contract[0]!)
     if (operation.owner !== wallet.publicAddress) throw new Error('Tron transaction signer does not match the selected wallet')
+    assertTronTransactionIntegrity(transaction)
     return {
       chainFamily: this.family,
       networkId: wallet.network.id,
@@ -246,7 +266,8 @@ export class TronWalletAdapter implements WalletChainAdapter {
 
   async simulate(wallet: WalletDescriptor, transaction: WalletNormalizedTransaction): Promise<WalletTransactionSimulation> {
     try {
-      const result = await this.clientFor(wallet).simulate(transaction.raw)
+      const raw = validatedTronTransaction(transaction.raw)
+      const result = await this.clientFor(wallet).simulate(raw)
       const estimatedFee = result.estimatedFeeSun === undefined ? undefined : formatTrx(result.estimatedFeeSun)
       transaction.decoded.estimatedFee = estimatedFee
       return {
@@ -267,7 +288,8 @@ export class TronWalletAdapter implements WalletChainAdapter {
       if (account.publicAddress !== wallet.publicAddress || transaction.signer !== wallet.publicAddress) {
         throw new Error('Tron transaction signer does not match the selected wallet')
       }
-      const signed = utils.crypto.signTransaction(account.privateKey.toString('hex'), cloneTransaction(transaction.raw))
+      const raw = validatedTronTransaction(transaction.raw)
+      const signed = utils.crypto.signTransaction(account.privateKey.toString('hex'), raw)
       return Buffer.from(JSON.stringify(signed), 'utf8').toString('base64')
     } finally {
       account.privateKey.fill(0)
@@ -281,7 +303,7 @@ export class TronWalletAdapter implements WalletChainAdapter {
       const bytes = Buffer.from(signedTransaction, 'base64')
       if (!bytes.length || bytes.toString('base64') !== signedTransaction) throw new Error('invalid')
       try {
-        transaction = TronTransactionSchema.parse(JSON.parse(bytes.toString('utf8'))) as unknown as Record<string, unknown>
+        transaction = validatedTronTransaction(JSON.parse(bytes.toString('utf8'))) as unknown as Record<string, unknown>
       } finally {
         bytes.fill(0)
       }

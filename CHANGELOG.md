@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Verify Tron transaction JSON against its canonical protobuf bytes and transaction hash at normalization, simulation, signing, and broadcast boundaries, preventing substituted or post-approval-mutated data from being signed.
 - Reject negative or unsafe EVM chain IDs and transaction nonces outside JavaScript's safe integer range instead of accepting invalid networks or silently rounding values before simulation, approval, and signing.
 - Make MCP `browser_press` insert the intended shifted printable character, so combinations such as `Shift+x`, `Shift+1`, and `Shift+/` produce `X`, `!`, and `?` instead of their unshifted text.
 - Store managed wallet descriptors, permissions, policies, and durable automation counters in one encrypted authenticated vault authority state; require a one-shot current-process authorization before key release; reject managed/watch-only identity collisions; migrate legacy plaintext authority by revoking grants and converting bounded automation to Always ask; and prevent an in-flight automatic request from signing after its selected policy is removed or tightened.

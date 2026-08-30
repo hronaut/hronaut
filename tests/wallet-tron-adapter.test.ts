@@ -103,6 +103,35 @@ describe('TronWalletAdapter', () => {
     await expect(adapter.normalizeTransaction(wallet(), multiple)).rejects.toThrow('Multi-contract')
   })
 
+  it('rejects transaction JSON that does not match its signed Tron bytes and hash', async () => {
+    const adapter = new TronWalletAdapter(() => rpc())
+    const substitutedRawData = transfer() as {
+      raw_data: { contract: Array<{ parameter: { value: Record<string, unknown> } }> }
+    }
+    substitutedRawData.raw_data.contract[0]!.parameter.value.amount = 9_000_000
+    await expect(adapter.normalizeTransaction(wallet(), substitutedRawData))
+      .rejects.toThrow('integrity check failed')
+
+    const substitutedHash = transfer() as { txID: string }
+    substitutedHash.txID = `${substitutedHash.txID.slice(0, -1)}${substitutedHash.txID.endsWith('0') ? '1' : '0'}`
+    await expect(adapter.normalizeTransaction(wallet(), substitutedHash))
+      .rejects.toThrow('integrity check failed')
+  })
+
+  it('rejects transaction mutation after normalization and still clears the secret', async () => {
+    const adapter = new TronWalletAdapter(() => rpc())
+    const normalized = await adapter.normalizeTransaction(wallet(), transfer())
+    const raw = normalized.raw as {
+      raw_data: { contract: Array<{ parameter: { value: Record<string, unknown> } }> }
+    }
+    raw.raw_data.contract[0]!.parameter.value.amount = 25_000_000
+    const material = Buffer.from(mnemonic)
+
+    await expect(adapter.sign(wallet(), { format: 'mnemonic', material }, normalized))
+      .rejects.toThrow('integrity check failed')
+    expect(material.every((value) => value === 0)).toBe(true)
+  })
+
   it('simulates, signs, broadcasts, reads balances, and confirms without retaining the secret buffer', async () => {
     const client = rpc()
     const adapter = new TronWalletAdapter(() => client)
