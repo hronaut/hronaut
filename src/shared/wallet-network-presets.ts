@@ -24,8 +24,9 @@ function preset(
   })
 }
 
-// EVM defaults are copied from the viem 2.56 chain catalog. They are intentionally
-// stored as values so an application upgrade never rewrites an existing wallet.
+// EVM defaults begin with the viem 2.56 chain catalog and are reviewed against
+// current network documentation and live chain IDs. They are intentionally stored
+// as values so an application upgrade never rewrites an existing wallet.
 const EVM_PRESETS = [
   preset('evm-11155111', 'evm', '11155111', 'Sepolia', 'testnet', 'https://11155111.rpc.thirdweb.com'),
   preset('evm-1', 'evm', '1', 'Ethereum', 'mainnet', 'https://ethereum.reth.rs/rpc'),
@@ -48,11 +49,11 @@ const EVM_PRESETS = [
   preset('evm-59144', 'evm', '59144', 'Linea Mainnet', 'mainnet', 'https://rpc.linea.build'),
   preset('evm-59141', 'evm', '59141', 'Linea Sepolia', 'testnet', 'https://rpc.sepolia.linea.build'),
   preset('evm-534352', 'evm', '534352', 'Scroll', 'mainnet', 'https://rpc.scroll.io'),
-  preset('evm-534351', 'evm', '534351', 'Scroll Sepolia', 'testnet', 'https://sepolia-rpc.scroll.io'),
+  preset('evm-534351', 'evm', '534351', 'Scroll Sepolia', 'testnet', 'https://scroll-sepolia-rpc.publicnode.com'),
   preset('evm-324', 'evm', '324', 'ZKsync Era', 'mainnet', 'https://mainnet.era.zksync.io'),
   preset('evm-300', 'evm', '300', 'ZKsync Sepolia', 'testnet', 'https://sepolia.era.zksync.dev'),
   preset('evm-42220', 'evm', '42220', 'Celo', 'mainnet', 'https://forno.celo.org'),
-  preset('evm-44787', 'evm', '44787', 'Celo Alfajores', 'testnet', 'https://alfajores-forno.celo-testnet.org'),
+  preset('evm-11142220', 'evm', '11142220', 'Celo Sepolia', 'testnet', 'https://forno.celo-sepolia.celo-testnet.org'),
   preset('evm-81457', 'evm', '81457', 'Blast', 'mainnet', 'https://rpc.blast.io'),
   preset('evm-168587773', 'evm', '168587773', 'Blast Sepolia', 'testnet', 'https://sepolia.blast.io'),
   preset('evm-5000', 'evm', '5000', 'Mantle', 'mainnet', 'https://rpc.mantle.xyz'),
@@ -62,9 +63,8 @@ const EVM_PRESETS = [
   preset('evm-80094', 'evm', '80094', 'Berachain', 'mainnet', 'https://rpc.berachain.com'),
   preset('evm-80069', 'evm', '80069', 'Berachain Bepolia', 'testnet', 'https://bepolia.rpc.berachain.com'),
   preset('evm-146', 'evm', '146', 'Sonic', 'mainnet', 'https://rpc.soniclabs.com'),
-  preset('evm-64165', 'evm', '64165', 'Sonic Testnet', 'testnet', 'https://rpc.testnet.soniclabs.com'),
+  preset('evm-14601', 'evm', '14601', 'Sonic Testnet', 'testnet', 'https://rpc.testnet.soniclabs.com'),
   preset('evm-167000', 'evm', '167000', 'Taiko Mainnet', 'mainnet', 'https://rpc.mainnet.taiko.xyz'),
-  preset('evm-167009', 'evm', '167009', 'Taiko Hekla', 'testnet', 'https://rpc.hekla.taiko.xyz'),
   preset('evm-130', 'evm', '130', 'Unichain', 'mainnet', 'https://mainnet.unichain.org/'),
   preset('evm-1301', 'evm', '1301', 'Unichain Sepolia', 'testnet', 'https://sepolia.unichain.org'),
   preset('evm-31337', 'evm', '31337', 'Anvil', 'local', 'http://127.0.0.1:8545', false)

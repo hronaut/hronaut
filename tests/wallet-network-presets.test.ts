@@ -38,4 +38,14 @@ describe('wallet network presets', () => {
       { id: 'private', name: 'TRON Private Network', environment: 'local', rpcUrl: 'http://127.0.0.1:8090' }
     ]))
   })
+
+  it('uses current reachable EVM testnets and excludes deprecated Hekla', () => {
+    expect(walletNetworkPresetsFor('evm').map((preset) => preset.network)).toEqual(expect.arrayContaining([
+      { id: '534351', name: 'Scroll Sepolia', environment: 'testnet', rpcUrl: 'https://scroll-sepolia-rpc.publicnode.com' },
+      { id: '11142220', name: 'Celo Sepolia', environment: 'testnet', rpcUrl: 'https://forno.celo-sepolia.celo-testnet.org' },
+      { id: '14601', name: 'Sonic Testnet', environment: 'testnet', rpcUrl: 'https://rpc.testnet.soniclabs.com' }
+    ]))
+    expect(walletNetworkPresetsFor('evm').map((preset) => preset.network.name)).not.toContain('Celo Alfajores')
+    expect(walletNetworkPresetsFor('evm').map((preset) => preset.network.name)).not.toContain('Taiko Hekla')
+  })
 })

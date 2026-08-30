@@ -169,3 +169,29 @@ test('keeps English and Ukrainian settings usable across themes and a narrow win
     }
   }
 })
+
+test('keeps late Settings sections reachable by mouse wheel at large interface scale', async ({ appWindow }, testInfo) => {
+  await appWindow.setViewportSize({ width: 760, height: 640 })
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
+
+  const navigation = appWindow.getByRole('navigation', { name: 'Settings sections' })
+  await expect.poll(() => navigation.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+  await navigation.hover()
+  for (let index = 0; index < 4; index += 1) await appWindow.mouse.wheel(0, 700)
+  await expect.poll(() => navigation.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
+
+  const support = appWindow.getByRole('button', { name: /Commercial license/ })
+  await expect.poll(async () => {
+    const [navigationBox, supportBox] = await Promise.all([navigation.boundingBox(), support.boundingBox()])
+    return Boolean(
+      navigationBox
+      && supportBox
+      && supportBox.x >= navigationBox.x - 1
+      && supportBox.x + supportBox.width <= navigationBox.x + navigationBox.width + 1
+    )
+  }).toBe(true)
+  await support.click()
+  await expect(appWindow.getByRole('heading', { name: 'Activate Hronaut for commercial use' })).toBeVisible()
+  await appWindow.screenshot({ path: testInfo.outputPath('settings-large-scale-wheel.png') })
+})

@@ -90,6 +90,18 @@ const navigation = computed<Array<{
   { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
 ])
 
+function scrollNavigationWithWheel(event: WheelEvent): void {
+  if (event.ctrlKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+  const navigation = event.currentTarget
+  if (!(navigation instanceof HTMLElement)) return
+  const maximum = Math.max(0, navigation.scrollWidth - navigation.clientWidth)
+  if (maximum === 0) return
+  const next = Math.min(maximum, Math.max(0, navigation.scrollLeft + event.deltaY))
+  if (next === navigation.scrollLeft) return
+  navigation.scrollLeft = next
+  event.preventDefault()
+}
+
 useModalDialogFocus({ open, panel })
 </script>
 
@@ -116,7 +128,7 @@ useModalDialogFocus({ open, panel })
         :aria-busy="resetBusy"
         :inert="resetBusy ? true : undefined"
       >
-        <nav class="settings-sidebar" :aria-label="t('settings.sections')">
+        <nav class="settings-sidebar" :aria-label="t('settings.sections')" @wheel="scrollNavigationWithWheel">
           <button
             v-for="item in navigation"
             :key="item.section"
