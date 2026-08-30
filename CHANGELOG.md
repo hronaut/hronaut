@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Add a warm full-suite Docker preflight that reuses lock-keyed dependencies, skips duplicate type analysis, and runs the complete Electron and native-dialog suite across six local shards while preserving the immutable authoritative gate and two-shard hosted profile.
+- Add a focused static validation command that runs content-cached ESLint concurrently with only the incremental TypeScript projects affected by the edited files, and include website TypeScript in both focused and full lint coverage.
 - Keep setup feedback and generated release guidance aligned with all fourteen focused coding-agent guides, so users can identify their actual client instead of falling back to a generic category.
 - Link every focused coding-agent setup guide from the GitHub README so visitors can move directly from their client to the local Hronaut connection flow.
 - Avoid repeating the full TypeScript analysis inside hosted Docker integration after the parallel validation job has already run it, while retaining typechecking in standalone Docker runs.
@@ -24,6 +26,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep concurrent static validation from racing ESLint against Electron Vite's short-lived generated config bundle.
 - Reject secret-bearing wallet payloads at every supported nesting level, fail closed when public/provider input exceeds the shared serialization depth, and reject oversized or sparse arrays, shared-reference graphs, and over-budget binary views before expansion, preventing deeply nested secrets and payload-amplification denial of service from reaching the trusted wallet broker.
 - Give the theme picker proper radio-group keyboard behavior with one Tab stop plus wrapping Arrow, Home, and End navigation across all regular and expressive themes.
 - Treat a sleeping tab closed during restoration as a cancelled selection instead of surfacing a false destroyed-renderer error after the healthy fallback tab is already active.

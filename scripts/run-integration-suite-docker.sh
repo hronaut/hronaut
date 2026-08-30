@@ -2,11 +2,11 @@
 
 set -euo pipefail
 
-shard_count="${HRONAUT_INTEGRATION_SHARDS:-2}"
+shard_count="${HRONAUT_INTEGRATION_SHARDS:-6}"
 case "$shard_count" in
-  1|2|3|4) ;;
+  1|2|3|4|5|6|7|8) ;;
   *)
-    echo "HRONAUT_INTEGRATION_SHARDS must be an integer from 1 through 4." >&2
+    echo "HRONAUT_INTEGRATION_SHARDS must be an integer from 1 through 8." >&2
     exit 2
     ;;
 esac

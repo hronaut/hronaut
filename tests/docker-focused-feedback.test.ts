@@ -49,6 +49,23 @@ describe('focused Docker integration feedback', () => {
     )
   })
 
+  it('runs a warm full Electron preflight without repeating type analysis', async () => {
+    const [packageSource, launcher] = await Promise.all([
+      readFile('package.json', 'utf8'),
+      readFile('scripts/run-focused-docker.ts', 'utf8')
+    ])
+    const packageJson = JSON.parse(packageSource) as {
+      scripts: Record<string, string>
+    }
+
+    expect(packageJson.scripts['test:integration:docker:fast']).toBe(
+      'node scripts/run-focused-docker.ts integration-all'
+    )
+    expect(launcher).toContain("mode === 'integration-all'")
+    expect(launcher).toContain("HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true'")
+    expect(launcher).toContain("['bash', 'scripts/run-integration-suite-docker.sh']")
+  })
+
   it('keeps the full Docker gate on the immutable source image', async () => {
     const [packageSource, dockerfile, compose, runner, ciRunner, playwright] = await Promise.all([
       readFile('package.json', 'utf8'),
@@ -66,7 +83,7 @@ describe('focused Docker integration feedback', () => {
       'docker compose --file compose.test.ci.yaml run --build --rm integration'
     )
     expect(dockerfile).toContain('CMD ["bash", "scripts/run-integration-suite-docker.sh"]')
-    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"')
+    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-6}"')
     expect(compose).toContain('HRONAUT_INTEGRATION_SKIP_TYPECHECK: "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}"')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"')
@@ -77,6 +94,7 @@ describe('focused Docker integration feedback', () => {
     expect(runner).toContain('HRONAUT_TEST_SHARD=')
     expect(runner).toContain('--shard=')
     expect(runner).toContain('npm run test:integration:dialogs:headless')
+    expect(runner).toContain('1|2|3|4|5|6|7|8')
     expect(playwright).toContain('process.env.HRONAUT_TEST_SHARD')
     expect(playwright).toContain('fullyParallel: true')
     expect(playwright).toContain('playwright-report/${artifactShard}')
@@ -122,6 +140,23 @@ describe('focused Docker integration feedback', () => {
     expect(staticRunner).toContain("['run', 'build:app']")
     expect(vitest).toContain('HRONAUT_VITEST_WORKERS')
     expect(vitest).toContain("process.env.CI ? ciMaxWorkers : undefined")
+  })
+
+  it('offers concurrent lint and owning-project typechecks for focused edits', async () => {
+    const [packageSource, focusedStaticRunner] = await Promise.all([
+      readFile('package.json', 'utf8'),
+      readFile('scripts/run-focused-static-gates.ts', 'utf8')
+    ])
+    const packageJson = JSON.parse(packageSource) as {
+      scripts: Record<string, string>
+    }
+
+    expect(packageJson.scripts['validate:focused']).toBe(
+      'node scripts/run-focused-static-gates.ts'
+    )
+    expect(focusedStaticRunner).toContain("['run', 'lint:focused', '--', ...files]")
+    expect(focusedStaticRunner).toContain('typecheckScriptsForFiles(files)')
+    expect(focusedStaticRunner).toContain('Promise.all')
   })
 
   it('assigns each Electron shard a distinct MCP port range', async () => {

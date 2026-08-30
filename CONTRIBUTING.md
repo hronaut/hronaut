@@ -65,10 +65,19 @@ full source image, while dependency changes still trigger `npm ci` in Docker.
 Old focused dependency volumes can be removed explicitly with
 `npm run test:docker:cache:prune`.
 
-Always run the complete `test:integration:docker` gate before submitting or
-delivering the change.
+For a wider preflight, run the complete Electron and native-dialog suite against
+the live checkout through that warm dependency volume. This skips type analysis
+that `npm run validate` already performs:
 
-The complete Docker gate distributes individual test cases across four isolated
+```bash
+npm run test:integration:docker:fast
+```
+
+Always run the complete `test:integration:docker` gate before submitting or
+delivering the change; unlike the fast preflight, it proves an immutable source
+image.
+
+The complete Docker gate distributes individual test cases across six isolated
 Electron shards by default, so a large test file cannot dominate one shard. On
 a memory-constrained machine, reduce concurrency without changing the suite:
 
@@ -85,3 +94,10 @@ still performs the full typecheck before building and testing.
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI
 runner needs a different unit-test concurrency limit.
+
+For focused static feedback, run content-cached ESLint and only the TypeScript
+projects that own the edited files:
+
+```bash
+npm run validate:focused -- src/main/home-page.ts tests/home-page.test.ts
+```

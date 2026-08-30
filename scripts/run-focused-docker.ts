@@ -19,8 +19,12 @@ if (mode === 'prune') {
   process.exit(spawnSync('docker', ['volume', 'rm', ...volumes], { stdio: 'inherit' }).status ?? 1)
 }
 
-if (mode !== 'unit' && mode !== 'integration') {
-  console.error('Usage: node scripts/run-focused-docker.ts <unit|integration|prune> [test arguments]')
+if (mode !== 'unit' && mode !== 'integration' && mode !== 'integration-all') {
+  console.error('Usage: node scripts/run-focused-docker.ts <unit|integration|integration-all|prune> [test arguments]')
+  process.exit(2)
+}
+if (mode === 'integration-all' && forwardedArguments.length > 0) {
+  console.error('integration-all runs the complete Electron suite and does not accept test arguments')
   process.exit(2)
 }
 
@@ -52,7 +56,9 @@ if (volumeCreate.status !== 0) process.exit(volumeCreate.status ?? 1)
 
 const testCommand = mode === 'unit'
   ? ['npm', 'test', '--', ...forwardedArguments]
-  : ['bash', 'scripts/run-focused-integration-docker.sh', ...forwardedArguments]
+  : mode === 'integration-all'
+    ? ['bash', 'scripts/run-integration-suite-docker.sh']
+    : ['bash', 'scripts/run-focused-integration-docker.sh', ...forwardedArguments]
 const composeArguments = [
   'compose',
   '--project-name', `hronaut-focused-${dependencyCacheKey}`,
@@ -63,7 +69,11 @@ const composeArguments = [
   ...testCommand
 ]
 const result = spawnSync('docker', composeArguments, {
-  env: { ...process.env, HRONAUT_DEPENDENCY_CACHE_KEY: dependencyCacheKey },
+  env: {
+    ...process.env,
+    HRONAUT_DEPENDENCY_CACHE_KEY: dependencyCacheKey,
+    ...(mode === 'integration-all' ? { HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true' } : {})
+  },
   stdio: 'inherit'
 })
 

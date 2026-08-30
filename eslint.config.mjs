@@ -6,7 +6,9 @@ import vue from 'eslint-plugin-vue'
 import promise from 'eslint-plugin-promise'
 import vueI18n from '@intlify/eslint-plugin-vue-i18n'
 
-const sourceFiles = ['src/**/*.{ts,vue}', 'tests/**/*.ts', 'scripts/**/*.ts', '*.config.ts']
+const sourceFiles = [
+  'src/**/*.{ts,vue}', 'tests/**/*.ts', 'scripts/**/*.ts', 'website/**/*.ts', '*.config.ts'
+]
 const newBoundaryFiles = [
   'src/shared/{locale,i18n}.ts',
   'src/shared/locales/**/*.ts',
@@ -23,7 +25,7 @@ export default defineConfig(
   {
     ignores: [
       'node_modules/**', 'out/**', 'dist/**', 'docs/assets/**', 'release/**', 'coverage/**',
-      'playwright-report/**', 'test-results/**', 'scripts/mcp-workspace.js'
+      'playwright-report/**', 'test-results/**', 'scripts/mcp-workspace.js', '*.config.*.mjs'
     ]
   },
   {
@@ -92,7 +94,7 @@ export default defineConfig(
     }
   },
   {
-    files: ['src/renderer/**/*.{ts,vue}'],
+    files: ['src/renderer/**/*.{ts,vue}', 'website/**/*.ts'],
     languageOptions: { globals: globals.browser }
   },
   {

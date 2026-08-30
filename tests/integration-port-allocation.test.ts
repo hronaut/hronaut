@@ -6,6 +6,7 @@ describe('integration MCP port allocation', () => {
     expect(integrationMcpPort('1', 0)).toBe(48_800)
     expect(integrationMcpPort('2', 0)).toBe(48_900)
     expect(integrationMcpPort('1', 3)).toBe(48_803)
+    expect(integrationMcpPort('8', 0)).toBe(49_500)
   })
 
   it('keeps unsharded and invalid environments on the legacy range', () => {

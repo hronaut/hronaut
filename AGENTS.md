@@ -58,10 +58,13 @@ For fast static feedback on a focused change, pass its files to `lint:focused`
 and run only the owning TypeScript project before the full gates:
 
 ```bash
-npm run lint:focused -- src/main/wallet/broker.ts tests/wallet-broker.test.ts
-npm run typecheck:node
+npm run validate:focused -- src/main/wallet/broker.ts tests/wallet-broker.test.ts
 npm run typecheck:incremental
 ```
+
+`validate:focused` runs content-cached ESLint and only the affected incremental
+TypeScript project or projects concurrently. Use the separate `lint:focused`
+and `typecheck:*` scripts when diagnosing one gate in isolation.
 
 Every bug fix needs a regression test that fails for the original behavior.
 Prefer stable semantic roles, test IDs, and observable UI or process state over
@@ -75,7 +78,7 @@ npm run test:integration:docker
 ```
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
-inside the pinned Docker/Xvfb image. Local runs use four isolated Xvfb shards
+inside the pinned Docker/Xvfb image. Local runs use six isolated Xvfb shards
 after one application build; hosted CI uses two to avoid CPU contention. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
 Run it for changes to the main/preload
@@ -104,6 +107,17 @@ lockfile and dependency-image definition, so repeat runs reuse them safely. Use
 Focused Electron runs compile the application without repeating the separate
 type-analysis gate. A focused Docker pass is not a substitute for
 `npm run test:integration:docker` before delivery.
+
+When a change spans many Electron cases, run the complete live-checkout suite
+through the same warm dependency volume without repeating type analysis:
+
+```bash
+npm run test:integration:docker:fast
+```
+
+This fast full-suite preflight includes native-dialog coverage and supports
+`HRONAUT_INTEGRATION_SHARDS=1` through `8`, but its bind-mounted source is not
+the immutable-image proof supplied by the authoritative Docker gate.
 
 ## Releases and adjacent repositories
 
