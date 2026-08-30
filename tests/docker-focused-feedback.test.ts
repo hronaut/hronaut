@@ -121,20 +121,16 @@ describe('focused Docker integration feedback', () => {
     expect(runner).toContain('run_shard "$single_shard" "$single_shard_index"')
   })
 
-  it('reuses the immutable Docker dependency layers in hosted CI', async () => {
+  it('keeps hosted builds on the faster native Compose path while supporting prebuilt images', async () => {
     const [workflow, ciRunner] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),
       readFile('scripts/run-integration-ci.sh', 'utf8')
     ])
 
-    expect(workflow).toContain('uses: docker/setup-buildx-action@v4')
-    expect(workflow).toContain('uses: docker/build-push-action@v7')
-    expect(workflow).toContain('target: integration')
-    expect(workflow).toContain('load: true')
-    expect(workflow).toContain('tags: hronaut-tests-integration:latest')
-    expect(workflow).toContain('cache-from: type=gha,scope=hronaut-integration')
-    expect(workflow).toContain('cache-to: type=gha,mode=max,scope=hronaut-integration')
-    expect(workflow).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"')
+    expect(workflow).not.toContain('docker/setup-buildx-action')
+    expect(workflow).not.toContain('docker/build-push-action')
+    expect(workflow).not.toContain('type=gha,scope=hronaut-integration')
+    expect(workflow).not.toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
     expect(ciRunner).toContain('compose_build_arguments=()')
     expect(ciRunner).toContain('compose_build_arguments+=(--build)')

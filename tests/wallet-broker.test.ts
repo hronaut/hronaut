@@ -659,9 +659,20 @@ describe('WalletBroker', () => {
     })).resolves.toBe('0xtransaction')
     expect(chain.sign).toHaveBeenCalledOnce()
     expect(chain.broadcast).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
-      request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
-    ))).toHaveLength(1))
+    let confirmedRequestId = ''
+    await vi.waitFor(() => {
+      const confirmed = broker.listPending().find((request) => (
+        request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
+      ))
+      expect(confirmed).toBeDefined()
+      confirmedRequestId = confirmed!.id
+    })
+    await vi.waitFor(async () => expect(await service.auditHistory()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'transaction-confirmed',
+        payload: expect.objectContaining({ requestId: confirmedRequestId })
+      })
+    ])))
   })
 
   it('does not let concurrent automatic requests exceed a durable operation limit', async () => {
@@ -696,9 +707,20 @@ describe('WalletBroker', () => {
     const settled = await Promise.all(requests)
     expect(settled.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
     expect(settled.filter((result) => result.status === 'rejected')).toHaveLength(1)
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
-      request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
-    ))).toHaveLength(1))
+    let confirmedRequestId = ''
+    await vi.waitFor(() => {
+      const confirmed = broker.listPending().find((request) => (
+        request.operation === 'sign-and-send-transaction' && request.status === 'confirmed'
+      ))
+      expect(confirmed).toBeDefined()
+      confirmedRequestId = confirmed!.id
+    })
+    await vi.waitFor(async () => expect(await service.auditHistory()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'transaction-confirmed',
+        payload: expect.objectContaining({ requestId: confirmedRequestId })
+      })
+    ])))
   })
 
   it('cancels a pending website request on navigation and never reaches the signer', async () => {

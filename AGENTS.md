@@ -89,10 +89,6 @@ runner to avoid CPU contention. Set
 Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
-Hosted CI restores the immutable test image's BuildKit layers from GitHub's
-content-addressed cache; local and standalone runs still build the exact image
-and do not depend on hosted cache state.
-
 For fast regression-first unit or component feedback, pass the affected Vitest
 files and options through the focused Docker runner:
 

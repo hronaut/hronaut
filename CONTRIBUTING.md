@@ -90,10 +90,10 @@ on constrained runners; hosted CI assigns those shards to separate runners,
 while an explicit `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
 validation job runs the complete TypeScript graph. The standalone Docker command
-still performs the full typecheck before building and testing. Hosted jobs also
-reuse content-addressed BuildKit dependency layers; source changes still produce
-a new immutable integration image while an unchanged lockfile avoids reinstalling
-Electron and the complete test dependency tree.
+still performs the full typecheck before building and testing. Hosted jobs use
+Docker's native image path because loading the large Playwright image through a
+remote BuildKit cache was slower in measured CI runs than rebuilding its
+lock-keyed dependency layer on the hosted runner.
 
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI

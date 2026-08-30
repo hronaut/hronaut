@@ -102,23 +102,7 @@ jobs:
           ref: ${{ needs.prepare-release.outputs.sha }}
           persist-credentials: false
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build cached Electron test image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile.test
-          target: integration
-          load: true
-          tags: hronaut-tests-integration:latest
-          cache-from: type=gha,scope=hronaut-integration
-          cache-to: type=gha,mode=max,scope=hronaut-integration,ignore-error=true
-
       - name: Run Electron integration tests in Docker
-        env:
-          HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"
         run: bash scripts/run-integration-ci.sh
 
       - name: Upload Electron failure diagnostics

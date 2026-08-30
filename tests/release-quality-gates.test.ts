@@ -87,9 +87,9 @@ describe('release quality gates', () => {
 
     for (const integration of [job(ciWorkflow, 'integration-shard'), job(releaseWorkflow, 'test-integration')]) {
       expect(integration).toContain('run: bash scripts/run-integration-ci.sh')
-      expect(integration).toContain('uses: docker/build-push-action@v7')
-      expect(integration).toContain('cache-from: type=gha,scope=hronaut-integration')
-      expect(integration).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"')
+      expect(integration).not.toContain('docker/build-push-action')
+      expect(integration).not.toContain('type=gha,scope=hronaut-integration')
+      expect(integration).not.toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
       expect(integration).toContain('if: failure()')
       expect(integration).toContain('uses: actions/upload-artifact@v7')
       expect(integration).toContain('path: ci-artifacts/')
