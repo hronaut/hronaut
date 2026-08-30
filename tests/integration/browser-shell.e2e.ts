@@ -5645,6 +5645,28 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     },
     path
   )
+  const scrollFixtureWithNativeWheel = async (path: string): Promise<void> => {
+    const point = await electronApp.evaluate(({ BrowserWindow }, requestedPath) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      const view = window?.contentView.children.find((candidate) => (
+        'webContents' in candidate
+        && (candidate as Electron.WebContentsView).webContents.getURL().includes(requestedPath)
+      ))
+      if (!window || !view) throw new Error(`Fixture view was not found: ${requestedPath}`)
+      const windowBounds = window.getBounds()
+      const viewBounds = view.getBounds()
+      return {
+        x: windowBounds.x + viewBounds.x + Math.round(viewBounds.width / 2),
+        y: windowBounds.y + viewBounds.y + Math.min(320, Math.round(viewBounds.height / 2))
+      }
+    }, path)
+    await execFileAsync('python3', [
+      join(process.cwd(), 'tests/integration/x11-input.py'),
+      String(point.x),
+      String(point.y),
+      '--wheel'
+    ])
+  }
 
   try {
     const address = server.address()
@@ -5663,6 +5685,8 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await clickFixture(firstPath)
     await expect.poll(() => fixtureClicks(firstPath)).toBe(1)
     await scrollFixture(firstPath)
+    await expect.poll(() => fixtureScrollY(firstPath)).toBe(0)
+    await scrollFixtureWithNativeWheel(firstPath)
     await expect.poll(() => fixtureScrollY(firstPath)).toBe(0)
     await expect.poll(() => frameScrollY(firstPath)).toBe(0)
     await scrollFrame(firstPath)
@@ -5750,6 +5774,8 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => fixtureClicks(secondPath)).toBe(0)
     await scrollFixture(secondPath)
     await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
+    await scrollFixtureWithNativeWheel(secondPath)
+    await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(firstPath)})).id)`)
     const secondTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(secondPath)})).id)`)
     await appWindow.getByRole('tab', { name: /Interaction lock first/ }).click()
@@ -5757,16 +5783,9 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await clickFixture(firstPath)
     await expect.poll(() => fixtureClicks(firstPath)).toBe(2)
 
-    await electronApp.evaluate(({ webContents }, requestedPath) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
-      if (!page) throw new Error(`Locked fixture web contents was not found: ${requestedPath}`)
-      page.focus()
-      page.sendInputEvent({ type: 'keyDown', keyCode: 'W', modifiers: ['control'] })
-      page.sendInputEvent({ type: 'keyUp', keyCode: 'W', modifiers: ['control'] })
-      page.sendInputEvent({ type: 'keyDown', keyCode: 'Tab', modifiers: ['control'] })
-      page.sendInputEvent({ type: 'keyUp', keyCode: 'Tab', modifiers: ['control'] })
-    }, firstPath)
+    await appWindow.keyboard.press('Control+W')
     await expect(appWindow.getByRole('tab')).toHaveCount(2)
+    await appWindow.keyboard.press('Control+Tab')
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(secondTabId)
     await appWindow.keyboard.press('Control+Shift+Tab')
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
@@ -5774,7 +5793,11 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.getByRole('button', { name: 'Unlock all tabs' }).click()
     await expect(appWindow.getByRole('button', { name: /Lock all tabs/ })).toHaveAttribute('aria-pressed', 'false')
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
-    await scrollFixture(secondPath)
+    await electronApp.evaluate(async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      await page?.executeJavaScript('window.scrollTo(0, 0)')
+    }, secondPath)
+    await scrollFixtureWithNativeWheel(secondPath)
     await expect.poll(() => fixtureScrollY(secondPath)).toBeGreaterThan(0)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))

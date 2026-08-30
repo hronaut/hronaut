@@ -2977,6 +2977,9 @@ export class BrowserTabsManager {
       elementPickerSession.resolve({ canceled: true })
       this.elementPickerSessions.delete(webContentsId)
     }
+    if ((screenshotSession || elementPickerSession) && this.isHumanInteractionLocked(tab)) {
+      void this.syncHumanInteractionInputGuard(tab).catch(() => undefined)
+    }
   }
 
   private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
@@ -3159,7 +3162,7 @@ export class BrowserTabsManager {
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
       this.window.webContents.focus()
     }
-    await this.syncHumanInteractionWheelGuard(tab)
+    await this.syncHumanInteractionInputGuard(tab)
     this.changed()
     return this.getState()
   }
@@ -3172,7 +3175,7 @@ export class BrowserTabsManager {
       }
       this.window.webContents.focus()
     }
-    await Promise.all([...this.tabs.values()].map((tab) => this.syncHumanInteractionWheelGuard(tab)))
+    await Promise.all([...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab)))
     this.changed()
     return this.getState()
   }
@@ -3889,6 +3892,7 @@ export class BrowserTabsManager {
     }
     this.elementPickerSessions.set(webContents.id, session)
     try {
+      if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
       void webContents.executeJavaScript(elementPickerScript(), true)
         .then((selected: BrowserElementPickerScriptResult) => {
           if (selected?.canceled || selected?.inspection) session.resolve(selected)
@@ -3915,6 +3919,7 @@ export class BrowserTabsManager {
         session.canceled = true
         await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
         this.elementPickerSessions.delete(webContents.id)
+        if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
       }
     }
   }
@@ -3971,6 +3976,7 @@ export class BrowserTabsManager {
     const session = createNativeSelectionSession<BrowserScreenshotAreaResult>() as BrowserScreenshotAreaSession
     this.screenshotAreaSessions.set(webContents.id, session)
     try {
+      if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
       void webContents.executeJavaScript(screenshotAreaScript(), true)
         .then((selection: BrowserScreenshotAreaResult) => {
           if (selection?.canceled || (selection?.clip && selection?.viewport)) session.resolve(selection)
@@ -3996,6 +4002,7 @@ export class BrowserTabsManager {
         session.canceled = true
         await webContents.executeJavaScript(cancelScreenshotAreaScript(), true).catch(() => false)
         this.screenshotAreaSessions.delete(webContents.id)
+        if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)
       }
     }
   }
@@ -6556,13 +6563,13 @@ export class BrowserTabsManager {
       recordPendingHistory()
       this.watchCredentialSubmission(tab)
       this.watchUnsavedFormEdits(tab)
-      void this.syncHumanInteractionWheelGuard(tab).catch((error) => {
+      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
         console.error('[browser] Could not synchronize the page interaction lock:', error)
       })
     })
     webContents.on('did-frame-finish-load', () => {
       if (!this.isHumanInteractionLocked(tab)) return
-      void this.syncHumanInteractionWheelGuard(tab).catch((error) => {
+      void this.syncHumanInteractionInputGuard(tab).catch((error) => {
         console.error('[browser] Could not synchronize a frame interaction lock:', error)
       })
     })
@@ -7343,14 +7350,24 @@ export class BrowserTabsManager {
     return this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)
   }
 
-  private async syncHumanInteractionWheelGuard(tab: BrowserTab): Promise<void> {
+  private async syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
     if (this.destroyed || tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
     try {
       await this.withDebugger(tab.webContents, async () => {
+        const trustedSelectionActive = this.screenshotAreaSessions.has(tab.webContents.id)
+          || this.elementPickerSessions.has(tab.webContents.id)
+        const locked = this.isHumanInteractionLocked(tab)
+          && !this.agentInputWebContents.has(tab.webContents.id)
+          && !trustedSelectionActive
+        // Chromium's compositor can apply physical wheel/trackpad scrolling
+        // before DOM or Electron cancellation runs. This is the authoritative
+        // native-input barrier; the isolated-world wheel listener below remains
+        // a fallback for programmatic paths that bypass compositor input.
+        await tab.webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: locked })
         const result = await tab.webContents.debugger.sendCommand('Page.getFrameTree') as {
           frameTree: CdpFrameTreeNode
         }
-        const expression = humanInteractionWheelGuardScript(this.isHumanInteractionLocked(tab))
+        const expression = humanInteractionWheelGuardScript(locked)
         await Promise.all(cdpFrameIds(result.frameTree).map(async (frameId) => {
           const isolatedWorld = await tab.webContents.debugger.sendCommand('Page.createIsolatedWorld', {
             frameId,
@@ -7694,10 +7711,18 @@ export class BrowserTabsManager {
   ): Promise<T> {
     const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
     this.agentInputWebContents.set(webContents.id, depth)
-    if (depth === 1 && !webContents.isDestroyed()) {
-      await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
-    }
     try {
+      if (depth === 1 && !webContents.isDestroyed()) {
+        const tabId = this.webContentsToTab.get(webContents.id)
+        const tab = tabId ? this.tabs.get(tabId) : undefined
+        if (tab && this.isHumanInteractionLocked(tab)) {
+          await this.withDebugger(webContents, () => webContents.debugger.sendCommand(
+            'Input.setIgnoreInputEvents',
+            { ignore: false }
+          ))
+        }
+        await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
+      }
       return await operation()
     } finally {
       const remaining = Math.max(0, (this.agentInputWebContents.get(webContents.id) ?? 1) - 1)
@@ -7707,6 +7732,14 @@ export class BrowserTabsManager {
         this.agentInputWebContents.delete(webContents.id)
         if (!webContents.isDestroyed()) {
           await webContents.executeJavaScript('delete window.__hronautAgentInputActive', true).catch(() => undefined)
+          const tabId = this.webContentsToTab.get(webContents.id)
+          const tab = tabId ? this.tabs.get(tabId) : undefined
+          if (tab && this.isHumanInteractionLocked(tab)) {
+            await this.withDebugger(webContents, () => webContents.debugger.sendCommand(
+              'Input.setIgnoreInputEvents',
+              { ignore: true }
+            ))
+          }
         }
       }
     }
@@ -8257,6 +8290,9 @@ export class BrowserTabsManager {
           patterns: [...new Set(tab.networkRoutes.map((route) => route.urlPattern))].map((urlPattern) => ({ urlPattern }))
         })
         tab.networkDebuggerEnabled = true
+        await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', {
+          ignore: this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(webContents.id)
+        })
         if (this.hasEmulationOverrides(tab.emulation)) await this.applyEmulationState(tab, tab.emulation)
       } catch (error) {
         tab.networkDebuggerEnabled = false

@@ -10,7 +10,7 @@ def main() -> None:
 
     x = int(sys.argv[1])
     y = int(sys.argv[2])
-    key = sys.argv[3]
+    action = sys.argv[3]
     x11 = ctypes.cdll.LoadLibrary("libX11.so.6")
     xtst = ctypes.cdll.LoadLibrary("libXtst.so.6")
     x11.XOpenDisplay.restype = ctypes.c_void_p
@@ -28,21 +28,23 @@ def main() -> None:
         xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
-        keysym = x11.XStringToKeysym(key.encode("ascii"))
-        keycode = x11.XKeysymToKeycode(display, keysym)
-        if not keycode:
-            raise SystemExit(f"could not resolve X11 key: {key}")
+        if action != "--wheel":
+            keysym = x11.XStringToKeysym(action.encode("ascii"))
+            keycode = x11.XKeysymToKeycode(display, keysym)
+            if not keycode:
+                raise SystemExit(f"could not resolve X11 key: {action}")
 
-        xtst.XTestFakeKeyEvent(display, keycode, True, 0)
-        xtst.XTestFakeKeyEvent(display, keycode, False, 0)
-        x11.XFlush(display)
-        time.sleep(0.05)
+            xtst.XTestFakeKeyEvent(display, keycode, True, 0)
+            xtst.XTestFakeKeyEvent(display, keycode, False, 0)
+            x11.XFlush(display)
+            time.sleep(0.05)
 
         xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
-        xtst.XTestFakeButtonEvent(display, 1, True, 0)
-        xtst.XTestFakeButtonEvent(display, 1, False, 0)
-        x11.XFlush(display)
-        time.sleep(0.05)
+        if action != "--wheel":
+            xtst.XTestFakeButtonEvent(display, 1, True, 0)
+            xtst.XTestFakeButtonEvent(display, 1, False, 0)
+            x11.XFlush(display)
+            time.sleep(0.05)
 
         for _ in range(3):
             xtst.XTestFakeButtonEvent(display, 5, True, 0)

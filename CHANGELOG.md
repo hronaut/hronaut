@@ -30,7 +30,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep Home, normal browsing, tray, and non-wallet MCP tools available when wallet metadata is malformed or encrypted vault records fail authentication; disable wallet operations with a sanitized failure state, preserve damaged files for recovery, authenticate every encrypted record before reporting the vault ready, and survive Linux keyring availability changes without misclassifying valid passphrase vaults.
-- Prevent mouse-wheel scrolling from bypassing website interaction locks while keeping Hronaut Home and trusted agent scrolling available.
+- Prevent physical mouse-wheel and compositor scrolling from bypassing per-tab or global website interaction locks, while keeping keyboard shortcuts, Hronaut Home, and trusted agent scrolling available.
 - Give hidden tray screenshots enough bounded time to acquire a Chromium compositor frame under concurrent renderer load, while letting PDF export use Electron's independent print pipeline instead of waiting on a frame it does not consume.
 - Drain in-flight wallet confirmation and audit work within a bounded shutdown window before locking the vault, preserve unresolved submitted transactions for restart recovery, and stop confirmation or expiry timers from racing disposed wallet state.
 - Treat a tab closed during address navigation as a cancelled request instead of showing a false navigation failure after its replacement tab is active.
