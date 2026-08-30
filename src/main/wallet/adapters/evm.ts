@@ -172,16 +172,23 @@ export class EvmWalletAdapter implements WalletChainAdapter {
     if (input.from && (!isAddress(input.from) || !sameAddress(input.from, wallet.publicAddress))) {
       throw new Error('EVM transaction signer does not match the selected wallet')
     }
+    const requestedNonce = quantity(input.nonce)
+    if (requestedNonce !== undefined && requestedNonce > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error('EVM transaction nonce must be a safe integer')
+    }
+    const configuredChainId = BigInt(wallet.network.id)
+    if (configuredChainId < 0n) throw new Error('EVM chain ID must be non-negative')
+    if (configuredChainId > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error('EVM chain ID must be a safe integer')
+    }
     const client = this.clientFor(wallet)
     const clientChainId = await client.getChainId()
-    const configuredChainId = BigInt(wallet.network.id)
     if (BigInt(clientChainId) !== configuredChainId) throw new Error('EVM RPC chain does not match the wallet network')
     const requestedChainId = quantity(input.chainId)
     if (requestedChainId !== undefined && requestedChainId !== configuredChainId) throw new Error('EVM transaction chain does not match the wallet network')
     const to = input.to == null ? undefined : getAddress(input.to)
     const data = (input.data ?? input.input ?? '0x') as Hex
     const value = quantity(input.value) ?? 0n
-    const requestedNonce = quantity(input.nonce)
     const requestedType = transactionType(input.type)
     const raw = await client.prepareTransactionRequest({
       account: getAddress(wallet.publicAddress),

@@ -135,6 +135,43 @@ describe('EvmWalletAdapter', () => {
     })
   })
 
+  it('rejects a nonce that cannot be represented exactly by the signer', async () => {
+    const client = rpc()
+    const adapter = new EvmWalletAdapter(() => client as never)
+
+    await expect(adapter.normalizeTransaction(wallet(), {
+      to: '0x0000000000000000000000000000000000000002',
+      nonce: '0x20000000000001'
+    })).rejects.toThrow('safe integer')
+    expect(client.prepareTransactionRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a configured chain ID that cannot be represented exactly by the signer', async () => {
+    const client = rpc()
+    client.getChainId.mockResolvedValueOnce(Number.MAX_SAFE_INTEGER + 1)
+    const adapter = new EvmWalletAdapter(() => client as never)
+
+    await expect(adapter.normalizeTransaction(wallet({
+      network: { ...wallet().network, id: String(Number.MAX_SAFE_INTEGER + 1) }
+    }), {
+      to: '0x0000000000000000000000000000000000000002'
+    })).rejects.toThrow('safe integer')
+    expect(client.prepareTransactionRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a negative configured chain ID', async () => {
+    const client = rpc()
+    client.getChainId.mockResolvedValueOnce(-1)
+    const adapter = new EvmWalletAdapter(() => client as never)
+
+    await expect(adapter.normalizeTransaction(wallet({
+      network: { ...wallet().network, id: '-1' }
+    }), {
+      to: '0x0000000000000000000000000000000000000002'
+    })).rejects.toThrow('non-negative')
+    expect(client.prepareTransactionRequest).not.toHaveBeenCalled()
+  })
+
   it('normalizes JSON-RPC transaction type quantities to viem transaction types', async () => {
     const client = rpc()
     const adapter = new EvmWalletAdapter(() => client as never)
