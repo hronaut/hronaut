@@ -48,10 +48,14 @@ const backendTranslationKeys: Record<string, string> = {
   kwallet: 'kwallet',
   kwallet5: 'kwallet',
   kwallet6: 'kwallet',
+  passphrase: 'passphrase',
   basic_text: 'passphrase',
   unknown: 'passphrase',
   unavailable: 'unavailable',
   error: 'unavailable',
+  'integrity-failure': 'unavailable',
+  'secure-storage-failure': 'unavailable',
+  'initialization-failure': 'unavailable',
   initializing: 'initializing',
   uninitialized: 'initializing'
 }
@@ -195,7 +199,7 @@ async function addPolicy(): Promise<void> {
         <label v-if="mode !== 'watch'" class="wallet-wide wallet-agent-option"><input v-model="dedicatedAgent" type="checkbox"> {{ t('wallets.dedicatedAgent') }}</label>
         <p v-if="mode !== 'watch' && dedicatedAgent" class="wallet-wide wallet-form-note">{{ t('wallets.dedicatedAgentDescription') }}</p>
         <fieldset class="wallet-wide"><legend>{{ t('wallets.attachedWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="selectedWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
-        <button class="primary-button" type="submit" :disabled="controller.busy.value || (mode !== 'watch' && controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
+        <button class="primary-button" type="submit" :disabled="controller.busy.value || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
       </form>
       <div v-if="preparedImport" class="wallet-import-confirm">
         <strong>{{ t('wallets.confirmDerivedAddress') }}</strong><code>{{ preparedImport.publicAddress }}</code>

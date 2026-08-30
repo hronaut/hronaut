@@ -31,7 +31,7 @@ import { WalletPermissionStore } from './permissions.js'
 import { isWalletNetworkEligibleForAutomation } from './policy.js'
 import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
-import { WalletVault, type WalletSecret } from './vault.js'
+import { readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
 import { WalletWatchOnlyStore } from './watch-only-store.js'
 
 const PASSPHRASE_PARAMETERS = { memoryKiB: 64 * 1024, passes: 3, parallelism: 1 } as const
@@ -104,31 +104,45 @@ export class WalletService {
 
   async initialize(): Promise<void> {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 })
-    await Promise.all([
+    const storeResults = await Promise.allSettled([
       this.watchOnly.load(), this.permissions.load(), this.policies.load(), this.policyUsage.load(),
       this.approvals.load(this.now()), this.audit.verify()
     ])
-    this.protection = await resolveWalletVaultProtection(
+    const failedStore = storeResults.find((result) => result.status === 'rejected')
+    if (failedStore?.status === 'rejected') throw failedStore.reason
+
+    const vaultExists = existsSync(this.vaultPath)
+    const persistedProtection = vaultExists ? await readWalletVaultProtectionMode(this.vaultPath) : undefined
+    const detectedProtection = await resolveWalletVaultProtection(
       this.options.platform,
       this.options.safeStorage,
       this.options.warn
     )
-    if (this.protection.mode === 'safe-storage') {
-      this.vault = new WalletVault(this.vaultPath, new SafeStorageWalletKeyWrapper(this.options.safeStorage))
-      if (existsSync(this.vaultPath)) await this.vault.load()
-      else await this.vault.initialize()
-      this.statusValue = { managedWallets: 'ready', backend: this.protection.backend, watchOnlyAvailable: true }
-    } else if (this.protection.mode === 'passphrase-required') {
+    if (persistedProtection === 'passphrase') {
+      this.protection = { mode: 'passphrase-required', backend: 'unknown' }
       this.vault = new WalletVault(this.vaultPath, new PassphraseWalletKeyWrapper(PASSPHRASE_PARAMETERS))
-      if (existsSync(this.vaultPath)) {
-        await this.vault.load()
-        this.statusValue = { managedWallets: 'locked', backend: this.protection.backend, watchOnlyAvailable: true }
-      } else {
-        this.statusValue = { managedWallets: 'passphrase-setup-required', backend: this.protection.backend, watchOnlyAvailable: true }
-      }
-    } else {
+      await this.vault.load()
+      this.statusValue = { managedWallets: 'locked', backend: 'passphrase', watchOnlyAvailable: true }
+    } else if (persistedProtection === 'safe-storage' && detectedProtection.mode !== 'safe-storage') {
+      this.protection = detectedProtection
       this.statusValue = {
-        managedWallets: 'disabled', backend: this.protection.backend, watchOnlyAvailable: true,
+        managedWallets: 'disabled', backend: detectedProtection.backend, watchOnlyAvailable: true,
+        reason: 'The operating-system secure storage required by this wallet vault is unavailable'
+      }
+    } else if (detectedProtection.mode === 'safe-storage') {
+      this.protection = detectedProtection
+      this.vault = new WalletVault(this.vaultPath, new SafeStorageWalletKeyWrapper(this.options.safeStorage))
+      if (vaultExists) await this.vault.load()
+      else await this.vault.initialize()
+      this.statusValue = { managedWallets: 'ready', backend: detectedProtection.backend, watchOnlyAvailable: true }
+    } else if (detectedProtection.mode === 'passphrase-required') {
+      this.protection = detectedProtection
+      this.vault = new WalletVault(this.vaultPath, new PassphraseWalletKeyWrapper(PASSPHRASE_PARAMETERS))
+      this.statusValue = { managedWallets: 'passphrase-setup-required', backend: detectedProtection.backend, watchOnlyAvailable: true }
+    } else {
+      this.protection = detectedProtection
+      this.statusValue = {
+        managedWallets: 'disabled', backend: detectedProtection.backend, watchOnlyAvailable: true,
         reason: 'No secure wallet key-storage backend is available'
       }
     }
@@ -174,7 +188,7 @@ export class WalletService {
 
   lock(): void {
     this.vault?.lock()
-    if (this.protection?.mode === 'passphrase-required' && existsSync(this.vaultPath)) {
+    if (this.vault && this.protection?.mode === 'passphrase-required' && existsSync(this.vaultPath)) {
       this.statusValue = { managedWallets: 'locked', backend: this.statusValue.backend, watchOnlyAvailable: true }
     }
     this.clearPendingImports()

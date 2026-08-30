@@ -36,6 +36,7 @@ import { walletBrokerContextFromIpc } from './wallet/ipc-context.js'
 import type { WalletSafeStorage } from './wallet/key-provider.js'
 import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
 import { WalletService } from './wallet/service.js'
+import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import {
   WalletChainFamilySchema,
   WalletPolicySchema,
@@ -216,6 +217,7 @@ let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
 let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
+let walletUnavailableStatus = walletStartupFailureStatus(undefined)
 let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
 let homePresentationRevision = 0
@@ -1816,6 +1818,10 @@ function requireWalletService(): WalletService {
   return walletService
 }
 
+function currentWalletServiceStatus() {
+  return walletService?.status() ?? structuredClone(walletUnavailableStatus)
+}
+
 function requireWalletBroker(): WalletBroker {
   if (!walletBroker) throw new Error('Wallet broker is unavailable')
   return walletBroker
@@ -2093,11 +2099,11 @@ function registerIpc(): void {
   ))
   ipcMain.handle('wallets:status', (event) => {
     assertMainShellSender(event)
-    return requireWalletService().status()
+    return currentWalletServiceStatus()
   })
   ipcMain.handle('wallets:list', (event) => {
     assertMainShellSender(event)
-    return requireWalletService().list()
+    return walletService?.list() ?? []
   })
   ipcMain.handle('wallets:setup-passphrase', async (event, passphrase: unknown) => {
     assertMainShellSender(event)
@@ -2166,7 +2172,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('wallets:list-policies', (event, walletId?: unknown) => {
     assertMainShellSender(event)
-    return requireWalletService().policies.list(walletId === undefined ? undefined : walletIdentifier(walletId, 'wallet identifier'))
+    return walletService?.policies.list(walletId === undefined ? undefined : walletIdentifier(walletId, 'wallet identifier')) ?? []
   })
   ipcMain.handle('wallets:set-policy', (event, input: unknown) => {
     assertMainShellSender(event)
@@ -2178,7 +2184,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('wallets:list-permissions', (event) => {
     assertMainShellSender(event)
-    return requireWalletService().permissions.list()
+    return walletService?.permissions.list() ?? []
   })
   ipcMain.handle('wallets:revoke-permission', (event, permissionId: unknown) => {
     assertMainShellSender(event)
@@ -2186,7 +2192,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('wallets:list-requests', (event) => {
     assertMainShellSender(event)
-    return requireWalletBroker().listPending()
+    return walletBroker?.listPending() ?? []
   })
   ipcMain.handle('wallets:approve-request', (event, requestId: unknown) => {
     assertMainShellSender(event)
@@ -2198,7 +2204,7 @@ function registerIpc(): void {
   })
   ipcMain.handle('wallets:audit-history', (event) => {
     assertMainShellSender(event)
-    return requireWalletService().auditHistory()
+    return walletService?.auditHistory() ?? []
   })
   ipcMain.handle('browser:get-state', async (event) => {
     assertTrustedShellSender(event)
@@ -3347,7 +3353,7 @@ async function createWindow(): Promise<void> {
   persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
   await configureCommercialLicenseStore()
-  walletService = new WalletService({
+  const candidateWalletService = new WalletService({
     directory: join(app.getPath('userData'), 'wallet'),
     platform: process.platform,
     safeStorage: safeStorage as unknown as WalletSafeStorage,
@@ -3355,11 +3361,20 @@ async function createWindow(): Promise<void> {
     onStatusChanged: (status) => sendToMainWindow('wallets:status-changed', status),
     warn: (message) => console.warn(`[wallet] ${message}`)
   })
-  await walletService.initialize()
-  walletBroker = new WalletBroker(walletService, {
-    onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
-    onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
-  })
+  try {
+    await candidateWalletService.initialize()
+    walletService = candidateWalletService
+    walletBroker = new WalletBroker(candidateWalletService, {
+      onPendingChanged: (requests) => sendToMainWindow('wallets:requests-changed', requests),
+      onProviderEvent: (tabId, event) => tabsManager?.sendWalletProviderEvent(tabId, event)
+    })
+  } catch (error) {
+    candidateWalletService.dispose()
+    walletService = null
+    walletBroker = null
+    walletUnavailableStatus = walletStartupFailureStatus(error)
+    console.error(`[wallet] Wallet startup disabled (${walletUnavailableStatus.backend}).`)
+  }
   applyTheme(settings.theme)
   windowStateStore = new WindowStateStore(join(app.getPath('userData'), 'window-state.json'))
   panelWindowStateStore = new WindowStateStore(join(app.getPath('userData'), 'panel-window-state.json'))

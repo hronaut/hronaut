@@ -373,7 +373,7 @@ export type WalletProviderEvent = z.infer<typeof WalletProviderEventSchema>
 export const WalletServiceStatusSchema = z.object({
   managedWallets: z.enum(['ready', 'locked', 'passphrase-setup-required', 'disabled']),
   backend: z.string().trim().min(1).max(128),
-  watchOnlyAvailable: z.literal(true),
+  watchOnlyAvailable: z.boolean(),
   reason: z.string().trim().min(1).max(512).optional()
 }).strict()
 export type WalletServiceStatus = z.infer<typeof WalletServiceStatusSchema>

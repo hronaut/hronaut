@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -31,6 +31,26 @@ const network = { id: '31337', name: 'Anvil', environment: 'local' as const, rpc
 const knownMnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 
 describe('WalletService', () => {
+  it('waits for every wallet store load to settle before reporting an integrity failure', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    let resolveApprovalLoad!: (value: Awaited<ReturnType<typeof service.approvals.load>>) => void
+    const delayedApprovalLoad = new Promise<Awaited<ReturnType<typeof service.approvals.load>>>((resolve) => {
+      resolveApprovalLoad = resolve
+    })
+    vi.spyOn(service.approvals, 'load').mockReturnValue(delayedApprovalLoad)
+    vi.spyOn(service.audit, 'verify').mockRejectedValue(new Error('Wallet audit history verification failed'))
+
+    const initialization = service.initialize()
+    let settled = false
+    void initialization.then(() => { settled = true }, () => { settled = true })
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+
+    resolveApprovalLoad([])
+    await expect(initialization).rejects.toThrow('Wallet audit history verification failed')
+  })
+
   it('generates separate managed and agent wallets, gates recovery, and never persists plaintext recovery material', async () => {
     const path = await directory()
     const changed = vi.fn()
@@ -106,6 +126,72 @@ describe('WalletService', () => {
     expect(service.status().managedWallets).toBe('locked')
     expect(service.list()).toContainEqual(watch)
     await expect(service.unlock('correct horse battery staple')).resolves.toMatchObject({ managedWallets: 'ready' })
+  })
+
+  it('keeps a passphrase vault locked when an encrypted record fails authentication', async () => {
+    const path = await directory()
+    const passphrase = 'correct horse battery staple'
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('basic_text') })
+    await created.initialize()
+    await created.setupPassphrase(passphrase)
+    await created.generate({ name: 'Managed', chainFamily: 'evm', network, workspaceIds: [] })
+    created.dispose()
+
+    const vaultPath = join(path, 'vault.json')
+    const persisted = JSON.parse(await readFile(vaultPath, 'utf8')) as {
+      records: Array<{ encrypted: { ciphertext: string } }>
+    }
+    persisted.records[0]!.encrypted.ciphertext = 'AAAA'
+    await writeFile(vaultPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('basic_text') })
+    await restored.initialize()
+    expect(restored.status().managedWallets).toBe('locked')
+    await expect(restored.unlock(passphrase)).rejects.toThrow('Wallet vault authentication failed')
+    expect(restored.status().managedWallets).toBe('locked')
+  })
+
+  it('keeps an existing passphrase vault usable after Linux gains a secure keyring', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('basic_text') })
+    await created.initialize()
+    await created.setupPassphrase('correct horse battery staple')
+    await created.generate({ name: 'Passphrase wallet', chainFamily: 'evm', network, workspaceIds: [] })
+    created.dispose()
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('gnome_libsecret') })
+    await expect(restored.initialize()).resolves.toBeUndefined()
+    expect(restored.status()).toMatchObject({
+      managedWallets: 'locked',
+      backend: 'passphrase',
+      watchOnlyAvailable: true
+    })
+    await expect(restored.unlock('correct horse battery staple')).resolves.toMatchObject({ managedWallets: 'ready' })
+  })
+
+  it('keeps watch-only support available when an existing secure-storage vault backend disappears', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('gnome_libsecret') })
+    await created.initialize()
+    await created.generate({ name: 'Keyring wallet', chainFamily: 'evm', network, workspaceIds: [] })
+    created.dispose()
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('basic_text') })
+    await expect(restored.initialize()).resolves.toBeUndefined()
+    expect(restored.status()).toMatchObject({
+      managedWallets: 'disabled',
+      backend: 'basic_text',
+      watchOnlyAvailable: true
+    })
+    await expect(restored.addWatchOnly({
+      name: 'Still readable',
+      chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000001',
+      network,
+      workspaceIds: []
+    })).resolves.toMatchObject({ kind: 'watch-only' })
+    restored.lock()
+    expect(restored.status().managedWallets).toBe('disabled')
   })
 
   it('supports public descriptor updates/removal and records only non-secret audit fields', async () => {

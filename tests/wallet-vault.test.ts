@@ -152,8 +152,30 @@ describe('WalletVault', () => {
     await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
 
     const restored = new WalletVault(path, wrapper)
+    await expect(restored.load()).rejects.toThrow('Wallet vault authentication failed')
+    expect(restored.isLocked()).toBe(true)
+  })
+
+  it('does not unlock a passphrase vault until every encrypted record authenticates', async () => {
+    const path = await vaultPath()
+    const wrapper = new PassphraseWalletKeyWrapper({ memoryKiB: 8 * 1024, passes: 2, parallelism: 1 })
+    const passphrase = Buffer.from('vault test passphrase')
+    const created = new WalletVault(path, wrapper)
+    await created.initialize(passphrase)
+    await created.add(descriptor(), { format: 'private-key', material: Buffer.from('secret') })
+    created.lock()
+
+    const persisted = JSON.parse(await readFile(path, 'utf8')) as {
+      records: Array<{ encrypted: { ciphertext: string } }>
+    }
+    persisted.records[0]!.encrypted.ciphertext = 'AAAA'
+    await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletVault(path, wrapper)
     await restored.load()
-    await expect(restored.secret('wallet-1')).rejects.toThrow('Wallet vault authentication failed')
+    await expect(restored.unlock(passphrase)).rejects.toThrow('Wallet vault authentication failed')
+    expect(restored.isLocked()).toBe(true)
+    passphrase.fill(0)
   })
 
   it('rotates the data-encryption key without changing descriptors or plaintext', async () => {

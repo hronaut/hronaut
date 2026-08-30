@@ -58,6 +58,22 @@ describe('WalletsSettingsPanel', () => {
     expect(status).not.toHaveTextContent(/passphrase-setup-required|basic_text/i)
   })
 
+  it('disables watch-only onboarding when wallet persistence fails integrity checks', async () => {
+    const wallets = controller({
+      status: ref({
+        managedWallets: 'disabled',
+        backend: 'integrity-failure',
+        watchOnlyAvailable: false,
+        reason: 'Wallet data failed integrity checks. Wallet operations are disabled.'
+      })
+    })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Watch only' }))
+
+    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+  })
+
   it('clears imported secret material from the uncontrolled trusted input immediately', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })

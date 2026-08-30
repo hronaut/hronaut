@@ -24,7 +24,7 @@ export interface WalletsControllerOptions {
 
 export function useWalletsController(options: WalletsControllerOptions) {
   const status = ref<WalletServiceStatus>({
-    managedWallets: 'disabled', backend: 'initializing', watchOnlyAvailable: true, reason: 'Wallet service is initializing.'
+    managedWallets: 'disabled', backend: 'initializing', watchOnlyAvailable: false, reason: 'Wallet service is initializing.'
   })
   const wallets = ref<WalletDescriptor[]>([])
   const policies = ref<WalletPolicy[]>([])

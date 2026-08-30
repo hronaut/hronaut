@@ -84,6 +84,14 @@ function migratePersistedVault(value: unknown): { document: PersistedWalletVault
   throw new Error('Unsupported wallet vault schema version')
 }
 
+export async function readWalletVaultProtectionMode(path: string): Promise<PersistedWalletKeyProtection['mode']> {
+  try {
+    return migratePersistedVault(JSON.parse(await readFile(path, 'utf8'))).document.keyProtection.mode
+  } catch {
+    throw new Error('Wallet vault file is invalid')
+  }
+}
+
 function cloneDescriptor(descriptor: WalletDescriptor): WalletDescriptor {
   return structuredClone(descriptor)
 }
@@ -184,6 +192,7 @@ export class WalletVault {
     if (!this.keyProtection) throw new Error('Wallet vault is not initialized')
     const { key, replacement } = await this.keyWrapper.unwrap(this.keyProtection, passphrase)
     try {
+      this.authenticateRecords(key)
       if (replacement) {
         const document = this.document(replacement)
         await this.persist(document)
@@ -313,6 +322,24 @@ export class WalletVault {
   private requireDataEncryptionKey(): Buffer {
     if (!this.dataEncryptionKey) throw new Error('Wallet vault is locked')
     return this.dataEncryptionKey
+  }
+
+  private authenticateRecords(key: Uint8Array): void {
+    for (const [walletId, record] of this.records) {
+      const descriptor = this.wallets.get(walletId)
+      if (!descriptor) throw new Error('Wallet vault file is invalid')
+      const plaintext = decryptWalletSecret(key, {
+        schemaVersion: 1,
+        walletId,
+        chainFamily: descriptor.chainFamily
+      }, record.encrypted)
+      try {
+        const secret = decodeSecret(plaintext)
+        secret.material.fill(0)
+      } finally {
+        plaintext.fill(0)
+      }
+    }
   }
 
   private replaceDataEncryptionKey(key: Uint8Array): void {
