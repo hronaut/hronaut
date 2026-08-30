@@ -12,13 +12,26 @@ function job(source: string, name: string): string {
 
 describe('release quality gates', () => {
   it('runs the concurrent static validation gate in pull-request CI', async () => {
-    const workflow = await readFile('.github/workflows/ci.yml', 'utf8')
+    const [workflow, packageSource] = await Promise.all([
+      readFile('.github/workflows/ci.yml', 'utf8'),
+      readFile('package.json', 'utf8')
+    ])
     const validate = job(workflow, 'validate')
+    const releaseCandidate = job(workflow, 'package-release-candidate')
+    const packageJson = JSON.parse(packageSource) as { scripts: Record<string, string> }
 
     expect(validate).toContain('run: npm run validate')
+    expect(validate).toContain('HRONAUT_TYPECHECK_JOBS: "1"')
     expect(validate).not.toContain('run: npm run lint')
     expect(validate).not.toContain('run: npm test')
     expect(validate).not.toContain('run: npm run build\n')
+    expect(releaseCandidate).toContain('command: package:linux')
+    expect(releaseCandidate).toContain('command: package:mac')
+    expect(releaseCandidate).toContain('command: package:win')
+    for (const platform of ['linux', 'mac', 'win']) {
+      expect(packageJson.scripts[`package:${platform}`]).toContain('npm run build:app')
+      expect(packageJson.scripts[`package:${platform}`]).not.toContain('npm run build &&')
+    }
   })
 
   it('validates the immutable tag before any platform release build starts', async () => {
@@ -27,13 +40,17 @@ describe('release quality gates', () => {
 
     expect(validate).toContain('needs: prepare-release')
     expect(validate).toContain('ref: ${{ needs.prepare-release.outputs.sha }}')
-    expect(validate).toContain('run: npm run lint')
-    expect(validate).toContain('run: npm test')
-    expect(validate).toContain('run: npm run build')
+    expect(validate).toContain('run: npm run validate')
+    expect(validate).not.toContain('run: npm run lint')
+    expect(validate).not.toContain('run: npm test')
+    expect(validate).not.toContain('run: npm run build\n')
     expect(validate).toContain('run: npm audit --omit=dev --audit-level=high')
 
     for (const build of ['build-linux', 'build-macos', 'build-windows']) {
-      expect(job(workflow, build)).toMatch(/needs:\n(?: {6}- .+\n)* {6}- validate\n/)
+      const buildJob = job(workflow, build)
+      expect(buildJob).toMatch(/needs:\n(?: {6}- .+\n)* {6}- validate\n/)
+      expect(buildJob).toContain('npm run build:app')
+      expect(buildJob).not.toContain('npm run build\n')
     }
   })
 
@@ -68,15 +85,22 @@ describe('release quality gates', () => {
       readFile('playwright.config.ts', 'utf8')
     ])
 
-    for (const integration of [job(ciWorkflow, 'integration'), job(releaseWorkflow, 'test-integration')]) {
+    for (const integration of [job(ciWorkflow, 'integration-shard'), job(releaseWorkflow, 'test-integration')]) {
       expect(integration).toContain('run: bash scripts/run-integration-ci.sh')
+      expect(integration).toContain('uses: docker/build-push-action@v7')
+      expect(integration).toContain('cache-from: type=gha,scope=hronaut-integration')
+      expect(integration).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"')
       expect(integration).toContain('if: failure()')
       expect(integration).toContain('uses: actions/upload-artifact@v7')
       expect(integration).toContain('path: ci-artifacts/')
       expect(integration).toContain('retention-days: 7')
     }
-    expect(playwright).toContain("trace: process.env.CI ? 'retain-on-first-failure' : 'off'")
-    expect(runner).toContain('docker compose --file compose.test.ci.yaml run --build --name "$container_name" integration')
+    expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
+    expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
+    expect(playwright).toContain("trace: process.env.CI ? 'on-first-retry' : 'off'")
+    expect(runner).toContain("compose_build_argument='--build'")
+    expect(runner).toContain("compose_build_argument='--no-build'")
+    expect(runner).toContain('docker compose --file compose.test.ci.yaml run "$compose_build_argument" --name "$container_name" integration')
     expect(runner).toContain('docker cp "$container_name:/workspace/$source_directory" - | tar -xf - -C "$artifact_directory"')
     expect(runner).toContain('docker rm --force "$container_name"')
     expect(runner).not.toContain('run --build --rm integration')

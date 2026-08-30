@@ -6,6 +6,7 @@ interface RenderedGuide {
   id: string
   location: string
   code: string
+  setupCommand?: string
   verifyCommand?: string
   action?: string
 }
@@ -38,7 +39,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('12 clients')
+    expect(html).toContain('15 clients')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -53,6 +54,7 @@ describe('Hronaut Home localization', () => {
     expect(openCode?.location).toBe('~/.config/opencode/opencode.json')
     expect(openCode?.verifyCommand).toBe('opencode mcp list')
     expect(html).toContain('Verify connection')
+    expect(html).toContain('Before launching client')
     expect(JSON.parse(openCode?.code ?? '{}')).toEqual({
       $schema: 'https://opencode.ai/config.json',
       mcp: {
@@ -125,6 +127,40 @@ describe('Hronaut Home localization', () => {
           headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' },
           disabled: false,
           autoApprove: []
+        }
+      }
+    })
+    const kiro = renderedGuides(html).find((guide) => guide.id === 'kiro')
+    expect(kiro?.location).toBe('~/.kiro/settings/mcp.json')
+    expect(kiro?.verifyCommand).toBe('Kiro MCP panel: hronaut is connected')
+    expect(JSON.parse(kiro?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer ${HRONAUT_MCP_TOKEN}' },
+          disabled: false,
+          autoApprove: []
+        }
+      }
+    })
+    const mistralVibe = renderedGuides(html).find((guide) => guide.id === 'mistral-vibe')
+    expect(mistralVibe?.location).toBe('~/.vibe/config.toml')
+    expect(mistralVibe?.verifyCommand).toBe('/mcp hronaut')
+    expect(mistralVibe?.code).toBe(`[[mcp_servers]]
+name = "hronaut"
+transport = "streamable-http"
+url = "${dashboard.endpoint}"
+api_key_env = "HRONAUT_MCP_TOKEN"
+api_key_header = "Authorization"
+api_key_format = "Bearer {token}"`)
+    const warp = renderedGuides(html).find((guide) => guide.id === 'warp')
+    expect(warp?.location).toBe('~/.warp/.mcp.json')
+    expect(warp?.verifyCommand).toBe('Settings → Agents → MCP servers: hronaut is running')
+    expect(JSON.parse(warp?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer <HRONAUT_MCP_TOKEN>' }
         }
       }
     })
@@ -226,6 +262,8 @@ describe('Hronaut Home localization', () => {
     const guides = renderedGuides(renderHomePage(options))
     const codex = guides.find((guide) => guide.id === 'codex')
     const claudeCode = guides.find((guide) => guide.id === 'claude-code')
+    const kiro = guides.find((guide) => guide.id === 'kiro')
+    const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
 
     expect(codex?.code).toContain(
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
@@ -234,6 +272,10 @@ describe('Hronaut Home localization', () => {
     expect(codex?.code).not.toContain('$(cat ')
     expect(claudeCode?.code).toContain('Authorization: Bearer $env:HRONAUT_MCP_TOKEN')
     expect(claudeCode?.code).not.toContain('Authorization: Bearer $HRONAUT_MCP_TOKEN')
+    expect(kiro?.setupCommand).toBe(
+      "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
+    )
+    expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
   })
 
   it('renders Gemini CLI without an authentication header when local authentication is disabled', () => {
@@ -377,6 +419,57 @@ describe('Hronaut Home localization', () => {
         }
       }
     })
+  })
+
+  it('renders Kiro, Mistral Vibe, and Warp without authentication material when local authentication is disabled', () => {
+    const guides = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    }))
+    const kiro = guides.find((guide) => guide.id === 'kiro')
+    const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
+    const warp = guides.find((guide) => guide.id === 'warp')
+
+    expect(JSON.parse(kiro?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          url: dashboard.endpoint,
+          disabled: false,
+          autoApprove: []
+        }
+      }
+    })
+    expect(mistralVibe?.code).toBe(`[[mcp_servers]]
+name = "hronaut"
+transport = "streamable-http"
+url = "${dashboard.endpoint}"`)
+    expect(JSON.parse(warp?.code ?? '{}')).toEqual({
+      mcpServers: { hronaut: { url: dashboard.endpoint } }
+    })
+    expect(kiro?.code).not.toContain('HRONAUT_MCP_TOKEN')
+    expect(mistralVibe?.code).not.toContain('HRONAUT_MCP_TOKEN')
+    expect(warp?.code).not.toContain('HRONAUT_MCP_TOKEN')
+  })
+
+  it('keeps owner token paths out of environment-backed Kiro and Mistral Vibe configuration', () => {
+    const tokenPath = '/tmp/private Hronaut token'
+    const guides = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      tokenPath
+    }))
+    const kiro = guides.find((guide) => guide.id === 'kiro')
+    const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
+
+    expect(kiro?.code).toContain('Bearer ${HRONAUT_MCP_TOKEN}')
+    expect(mistralVibe?.code).toContain('api_key_env = "HRONAUT_MCP_TOKEN"')
+    expect(kiro?.code).not.toContain(tokenPath)
+    expect(mistralVibe?.code).not.toContain(tokenPath)
+    expect(kiro?.setupCommand).toBe(`export HRONAUT_MCP_TOKEN="$(cat '${tokenPath}')"`)
+    expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
   })
 
   it('keeps Windows token paths literal inside Kilo trusted file references', () => {

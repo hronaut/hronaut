@@ -425,10 +425,11 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '12 clients',
+      clients: '15 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
+      beforeLaunch: 'Before launching client',
       verify: 'Verify connection',
       openVsCode: 'Open in VS Code',
       openingVsCode: 'Opening VS Code…',
@@ -443,10 +444,13 @@ export const enUS = {
         opencode: 'Adds Hronaut as a remote Streamable HTTP server in OpenCode.',
         geminiCli: 'Adds Hronaut as a user-scoped Streamable HTTP server in Gemini CLI.',
         cline: 'Adds Hronaut to Cline with its recommended Streamable HTTP transport.',
+        kiro: 'Adds Hronaut to Kiro at user scope with tool auto-approval kept disabled.',
         kilo: 'Adds Hronaut as a remote Streamable HTTP server shared by Kilo Code surfaces.',
         jetbrainsJunie: 'Adds Hronaut to the user-level MCP configuration shared by Junie CLI and JetBrains IDEs.',
         devinLocal: 'Adds Hronaut to the user-level configuration used by Devin Local and new Devin Desktop tabs.',
         zed: 'Adds Hronaut as a custom remote server for Zed Agent and ACP-forwarded external agents.',
+        mistralVibe: 'Adds Hronaut to the configuration shared by local Vibe CLI and VS Code sessions.',
+        warp: 'Adds Hronaut as a user-level URL server for Warp\'s local Agent.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

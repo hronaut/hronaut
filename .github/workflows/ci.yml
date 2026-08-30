@@ -17,6 +17,8 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      HRONAUT_TYPECHECK_JOBS: "1"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -36,23 +38,61 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
-  integration:
+  integration-shard:
+    name: Electron integration shard ${{ matrix.shard }}/2
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build cached Electron test image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.test
+          target: integration
+          load: true
+          tags: hronaut-tests-integration:latest
+          cache-from: type=gha,scope=hronaut-integration
+          cache-to: type=gha,mode=max,scope=hronaut-integration,ignore-error=true
+
       - name: Run Electron integration tests in Docker
+        env:
+          HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/2"
+          HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 
       - name: Upload Electron failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}
+          name: playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: ci-artifacts/
           if-no-files-found: ignore
           retention-days: 7
+
+  integration:
+    name: integration
+    if: always()
+    needs: integration-shard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every Electron shard passed
+        env:
+          SHARD_RESULT: ${{ needs.integration-shard.result }}
+        run: |
+          if [[ "$SHARD_RESULT" != 'success' ]]; then
+            echo "Electron integration shards finished with $SHARD_RESULT." >&2
+            exit 1
+          fi
 
   package-release-candidate:
     if: github.event_name == 'pull_request' && contains(github.head_ref, 'release-')
@@ -64,11 +104,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            command: build:linux
+            command: package:linux
           - os: macos-latest
-            command: build:mac
+            command: package:mac
           - os: windows-latest
-            command: build:win
+            command: package:win
     runs-on: ${{ matrix.os }}
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'

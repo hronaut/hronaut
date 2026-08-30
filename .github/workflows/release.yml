@@ -102,7 +102,23 @@ jobs:
           ref: ${{ needs.prepare-release.outputs.sha }}
           persist-credentials: false
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build cached Electron test image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.test
+          target: integration
+          load: true
+          tags: hronaut-tests-integration:latest
+          cache-from: type=gha,scope=hronaut-integration
+          cache-to: type=gha,mode=max,scope=hronaut-integration,ignore-error=true
+
       - name: Run Electron integration tests in Docker
+        env:
+          HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"
         run: bash scripts/run-integration-ci.sh
 
       - name: Upload Electron failure diagnostics
@@ -117,6 +133,8 @@ jobs:
   validate:
     needs: prepare-release
     runs-on: ubuntu-latest
+    env:
+      HRONAUT_TYPECHECK_JOBS: "1"
     steps:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
@@ -133,14 +151,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run lint
-        run: npm run lint
-
-      - name: Run tests
-        run: npm test
-
-      - name: Type-check and build
-        run: npm run build
+      - name: Run static validation
+        run: npm run validate
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
@@ -187,7 +199,7 @@ jobs:
           PACKAGE_TARGET: ${{ matrix.target }}
         run: |
           npm ci
-          npm run build
+          npm run build:app
           npx electron-builder --linux "$PACKAGE_TARGET" --x64 --arm64 --publish never
       - name: Upload Linux ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7
@@ -234,7 +246,7 @@ jobs:
         run: |
           set -euo pipefail
           npm ci
-          npm run build
+          npm run build:app
           npx electron-builder --mac "$PACKAGE_TARGET" --x64 --arm64 --publish never
       - name: Upload macOS ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7
@@ -279,7 +291,7 @@ jobs:
         shell: pwsh
         run: |
           npm ci
-          npm run build
+          npm run build:app
           npx electron-builder --win $env:PACKAGE_TARGET --x64 --publish never
       - name: Upload Windows ${{ matrix.target }} release assets
         uses: actions/upload-artifact@v7

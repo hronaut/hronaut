@@ -2565,10 +2565,11 @@ export const deDE = {
     "connect": {
       "heading": "Coding-Agenten verbinden",
       "description": "Wählen Sie einen Client, kopieren Sie die Einrichtung und erstellen Sie vor dem Surfen einen benannten Arbeitsbereich.",
-      "clients": "12 Clients",
+      "clients": "15 Clients",
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
+      "beforeLaunch": "Vor dem Start des Clients",
       "verify": "Verbindung prüfen",
       "openVsCode": "In VS Code öffnen",
       "openingVsCode": "VS Code wird geöffnet…",
@@ -2583,10 +2584,13 @@ export const deDE = {
         "opencode": "Fügt Hronaut in OpenCode als Remote-Streamable-HTTP-Server hinzu.",
         "geminiCli": "Fügt Hronaut als benutzerweiten Streamable-HTTP-Server in Gemini CLI hinzu.",
         "cline": "Fügt Hronaut mit dem empfohlenen Streamable-HTTP-Transport zu Cline hinzu.",
+        "kiro": "Fügt Hronaut auf Benutzerebene zu Kiro hinzu, ohne Tools automatisch zu genehmigen.",
         "kilo": "Fügt Hronaut als gemeinsam genutzten entfernten Streamable-HTTP-Server zu Kilo Code hinzu.",
         "jetbrainsJunie": "Fügt Hronaut zur benutzerweiten MCP-Konfiguration hinzu, die Junie CLI und JetBrains-IDEs gemeinsam verwenden.",
         "devinLocal": "Fügt Hronaut zur benutzerweiten Konfiguration für Devin Local und neue Devin-Desktop-Tabs hinzu.",
         "zed": "Fügt Hronaut als benutzerdefinierten Remote-Server für Zed Agent und über ACP weitergeleitete externe Agenten hinzu.",
+        "mistralVibe": "Fügt Hronaut zur gemeinsamen Konfiguration lokaler Vibe-CLI- und VS-Code-Sitzungen hinzu.",
+        "warp": "Fügt Hronaut als benutzerweiten URL-Server für den lokalen Warp Agent hinzu.",
         "generic": "Streamable HTTP verwenden und den Client direkt auf Hronaut verweisen.",
         "genericLocation": "MCP-Einstellungen des Clients"
       }

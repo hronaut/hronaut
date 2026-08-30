@@ -17,6 +17,7 @@ interface AgentGuide {
   note: string
   location: string
   code: string
+  setupCommand?: string
   verifyCommand?: string
   action?: 'open-vscode-install'
 }
@@ -56,6 +57,7 @@ function agentGuides(
       ? `$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw ${powershellQuote(tokenPath)}).Trim()\n`
       : `export HRONAUT_MCP_TOKEN="$(cat ${shellQuote(tokenPath)})"\n`
     : ''
+  const tokenEnvironmentSetup = tokenSetup.trimEnd()
   const tokenEnvironmentReference = windows ? '$env:HRONAUT_MCP_TOKEN' : '$HRONAUT_MCP_TOKEN'
   const tokenPlaceholder = tokenPath ? `<paste token from ${tokenPath}>` : '<HRONAUT_MCP_TOKEN>'
   const headers = authenticationDisabled ? undefined : { Authorization: `Bearer ${tokenPlaceholder}` }
@@ -166,6 +168,26 @@ function agentGuides(
       verifyCommand: 'cline config mcp --json'
     },
     {
+      id: 'kiro',
+      name: 'Kiro',
+      note: home.connect.guides.kiro,
+      location: '~/.kiro/settings/mcp.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            url: endpoint,
+            ...(!authenticationDisabled && {
+              headers: { Authorization: 'Bearer ${HRONAUT_MCP_TOKEN}' }
+            }),
+            disabled: false,
+            autoApprove: []
+          }
+        }
+      }, null, 2),
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: 'Kiro MCP panel: hronaut is connected'
+    },
+    {
       id: 'kilo',
       name: 'Kilo Code',
       note: home.connect.guides.kilo,
@@ -229,6 +251,42 @@ function agentGuides(
         }
       }, null, 2),
       verifyCommand: 'Settings → AI → MCP Servers: Server is active'
+    },
+    {
+      id: 'mistral-vibe',
+      name: 'Mistral Vibe',
+      note: home.connect.guides.mistralVibe,
+      location: '~/.vibe/config.toml',
+      code: [
+        '[[mcp_servers]]',
+        'name = "hronaut"',
+        'transport = "streamable-http"',
+        `url = ${JSON.stringify(endpoint)}`,
+        ...(!authenticationDisabled
+          ? [
+              'api_key_env = "HRONAUT_MCP_TOKEN"',
+              'api_key_header = "Authorization"',
+              'api_key_format = "Bearer {token}"'
+            ]
+          : [])
+      ].join('\n'),
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: '/mcp hronaut'
+    },
+    {
+      id: 'warp',
+      name: 'Warp',
+      note: home.connect.guides.warp,
+      location: '~/.warp/.mcp.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            url: endpoint,
+            ...(headers && { headers })
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'Settings → Agents → MCP servers: hronaut is running'
     },
     {
       id: 'generic',
@@ -458,6 +516,11 @@ export function renderHomePage(options: HomePageOptions): string {
               <pre><code id="guide-code"></code></pre>
               <button class="copy-button code-copy" type="button" data-copy-target="guide-code">${escapeHtml(home.connect.copy)}</button>
             </div>
+            <div id="guide-setup" class="verify" hidden>
+              <span class="verify-label">${escapeHtml(home.connect.beforeLaunch)}</span>
+              <code id="guide-setup-command"></code>
+              <button class="copy-button" type="button" data-copy-target="guide-setup-command">${escapeHtml(home.connect.copy)}</button>
+            </div>
             <div id="guide-verify" class="verify" hidden>
               <span class="verify-label">${escapeHtml(home.connect.verify)}</span>
               <code id="guide-verify-command"></code>
@@ -602,6 +665,10 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('guide-note').textContent = guide.note;
       document.getElementById('guide-location').textContent = guide.location;
       document.getElementById('guide-code').textContent = guide.code;
+      const setup = document.getElementById('guide-setup');
+      const setupCommand = document.getElementById('guide-setup-command');
+      setup.hidden = !guide.setupCommand;
+      setupCommand.textContent = guide.setupCommand || '';
       const verify = document.getElementById('guide-verify');
       const verifyCommand = document.getElementById('guide-verify-command');
       verify.hidden = !guide.verifyCommand;

@@ -101,10 +101,50 @@ describe('focused Docker integration feedback', () => {
     expect(playwright).toContain('test-results/integration/${artifactShard}')
   })
 
+  it('distributes hosted Electron shards across isolated runners', async () => {
+    const [workflow, compose, runner] = await Promise.all([
+      readFile('.github/workflows/ci.yml', 'utf8'),
+      readFile('compose.test.ci.yaml', 'utf8'),
+      readFile('scripts/run-integration-suite-docker.sh', 'utf8')
+    ])
+
+    expect(workflow).toContain('integration-shard:')
+    expect(workflow).toContain('shard: [1, 2]')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/2"')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
+    expect(workflow).toContain('needs: integration-shard')
+    expect(compose).toContain('HRONAUT_INTEGRATION_SHARD: "${HRONAUT_INTEGRATION_SHARD:-}"')
+    expect(compose).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${HRONAUT_INTEGRATION_RUN_DIALOGS:-true}"')
+    expect(runner).toContain('HRONAUT_INTEGRATION_SHARD')
+    expect(runner).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS')
+    expect(runner).toContain('"--shard=${shard_spec}"')
+    expect(runner).toContain('run_shard "$single_shard" "$single_shard_index"')
+  })
+
+  it('reuses the immutable Docker dependency layers in hosted CI', async () => {
+    const [workflow, ciRunner] = await Promise.all([
+      readFile('.github/workflows/ci.yml', 'utf8'),
+      readFile('scripts/run-integration-ci.sh', 'utf8')
+    ])
+
+    expect(workflow).toContain('uses: docker/setup-buildx-action@v4')
+    expect(workflow).toContain('uses: docker/build-push-action@v7')
+    expect(workflow).toContain('target: integration')
+    expect(workflow).toContain('load: true')
+    expect(workflow).toContain('tags: hronaut-tests-integration:latest')
+    expect(workflow).toContain('cache-from: type=gha,scope=hronaut-integration')
+    expect(workflow).toContain('cache-to: type=gha,mode=max,scope=hronaut-integration')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"')
+    expect(ciRunner).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
+    expect(ciRunner).toContain("compose_build_argument='--no-build'")
+    expect(ciRunner).toContain("compose_build_argument='--build'")
+  })
+
   it('avoids repeated type analysis in fast build feedback and caches lint results', async () => {
-    const [packageSource, focusedRunner] = await Promise.all([
+    const [packageSource, focusedRunner, typecheckRunner] = await Promise.all([
       readFile('package.json', 'utf8'),
-      readFile('scripts/run-focused-integration-docker.sh', 'utf8')
+      readFile('scripts/run-focused-integration-docker.sh', 'utf8'),
+      readFile('scripts/run-typecheck-projects.ts', 'utf8')
     ])
     const packageJson = JSON.parse(packageSource) as {
       scripts: Record<string, string>
@@ -114,10 +154,16 @@ describe('focused Docker integration feedback', () => {
     expect(packageJson.scripts.lint).toContain('--cache-strategy content')
     expect(packageJson.scripts['lint:focused']).not.toContain('eslint .')
     expect(packageJson.scripts.typecheck).toBe('npm run typecheck:incremental')
-    expect(packageJson.scripts['typecheck:incremental']).toContain('--build --noEmit')
+    expect(packageJson.scripts['typecheck:incremental']).toBe(
+      'node scripts/run-typecheck-projects.ts'
+    )
     expect(packageJson.scripts['typecheck:web']).toContain('tsconfig.web.json')
     expect(packageJson.scripts['typecheck:node']).toContain('tsconfig.node.json')
     expect(packageJson.scripts['typecheck:website']).toContain('tsconfig.website.json')
+    expect(typecheckRunner).toContain('HRONAUT_TYPECHECK_JOBS')
+    expect(typecheckRunner).toContain("'tsconfig.node.json'")
+    expect(typecheckRunner).toContain("'tsconfig.web.json'")
+    expect(typecheckRunner).toContain("'tsconfig.website.json'")
     expect(packageJson.scripts['build:app']).toBe('electron-vite build')
     expect(focusedRunner).toContain('npm run build:app')
     expect(focusedRunner).not.toContain('npm run build\n')

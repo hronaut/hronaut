@@ -65,6 +65,10 @@ npm run typecheck:incremental
 `validate:focused` runs content-cached ESLint and only the affected incremental
 TypeScript project or projects concurrently. Use the separate `lint:focused`
 and `typecheck:*` scripts when diagnosing one gate in isolation.
+The full incremental typecheck runs two independent project graphs concurrently
+by default; set `HRONAUT_TYPECHECK_JOBS=1` on a constrained machine or up to `3`
+when measuring a dedicated typecheck run. Hosted CI deliberately uses one job
+because Vitest, lint, and the application build already share that runner.
 
 Every bug fix needs a regression test that fails for the original behavior.
 Prefer stable semantic roles, test IDs, and observable UI or process state over
@@ -79,11 +83,15 @@ npm run test:integration:docker
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
 inside the pinned Docker/Xvfb image. Local runs use six isolated Xvfb shards
-after one application build; hosted CI uses two to avoid CPU contention. Set
+after one application build; hosted CI gives each of two shards an isolated
+runner to avoid CPU contention. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
 Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a
 release. Do not replace this gate with a mocked renderer-only check.
+Hosted CI restores the immutable test image's BuildKit layers from GitHub's
+content-addressed cache; local and standalone runs still build the exact image
+and do not depend on hosted cache state.
 
 For fast regression-first unit or component feedback, pass the affected Vitest
 files and options through the focused Docker runner:

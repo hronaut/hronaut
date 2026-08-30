@@ -86,14 +86,22 @@ HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
 Hosted and release CI use two shards by default to avoid CPU-contention timeouts
-on constrained runners; an explicit `HRONAUT_INTEGRATION_SHARDS` still wins.
+on constrained runners; hosted CI assigns those shards to separate runners,
+while an explicit `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
 validation job runs the complete TypeScript graph. The standalone Docker command
-still performs the full typecheck before building and testing.
+still performs the full typecheck before building and testing. Hosted jobs also
+reuse content-addressed BuildKit dependency layers; source changes still produce
+a new immutable integration image while an unchanged lockfile avoids reinstalling
+Electron and the complete test dependency tree.
 
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI
-runner needs a different unit-test concurrency limit.
+runner needs a different unit-test concurrency limit. A dedicated incremental
+typecheck runs two project graphs concurrently by default; use
+`HRONAUT_TYPECHECK_JOBS=1` on constrained runners or up to `3` when benchmarking
+typecheck in isolation. Hosted validation keeps it at one because the other
+static gates already consume the runner's available CPU.
 
 For focused static feedback, run content-cached ESLint and only the TypeScript
 projects that own the edited files:

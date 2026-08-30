@@ -2565,10 +2565,11 @@ export const frFR = {
     "connect": {
       "heading": "Connectez votre agent de programmation",
       "description": "Choisissez un client, copiez la configuration, puis créez un espace de travail nommé avant de naviguer.",
-      "clients": "12 clients",
+      "clients": "15 clients",
       "agentsLabel": "Agents de programmation",
       "instructions": "Instructions de configuration",
       "copy": "Copier",
+      "beforeLaunch": "Avant de lancer le client",
       "verify": "Vérifier la connexion",
       "openVsCode": "Ouvrir dans VS Code",
       "openingVsCode": "Ouverture de VS Code…",
@@ -2583,10 +2584,13 @@ export const frFR = {
         "opencode": "Ajoute Hronaut à OpenCode comme serveur HTTP diffusé distant.",
         "geminiCli": "Ajoute Hronaut à Gemini CLI en tant que serveur HTTP Streamable de portée utilisateur.",
         "cline": "Ajoute Hronaut à Cline avec le transport HTTP Streamable recommandé.",
+        "kiro": "Ajoute Hronaut à Kiro au niveau utilisateur sans approbation automatique des outils.",
         "kilo": "Ajoute Hronaut comme serveur HTTP Streamable distant partagé par Kilo Code.",
         "jetbrainsJunie": "Ajoute Hronaut à la configuration MCP utilisateur partagée par Junie CLI et les IDE JetBrains.",
         "devinLocal": "Ajoute Hronaut à la configuration utilisateur employée par Devin Local et les nouveaux onglets Devin Desktop.",
         "zed": "Ajoute Hronaut comme serveur distant personnalisé pour Zed Agent et les agents externes relayés via ACP.",
+        "mistralVibe": "Ajoute Hronaut à la configuration partagée par les sessions locales de Vibe CLI et VS Code.",
+        "warp": "Ajoute Hronaut comme serveur URL utilisateur pour l’agent local de Warp.",
         "generic": "Utilisez HTTP diffusé et dirigez le client directement vers Hronaut.",
         "genericLocation": "Paramètres MCP du client"
       }

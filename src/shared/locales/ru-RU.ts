@@ -2565,10 +2565,11 @@ export const ruRU = {
     "connect": {
       "heading": "Подключите агента программирования",
       "description": "Выберите клиент, скопируйте настройку, затем создайте именованную рабочую область перед просмотром.",
-      "clients": "12 клиентов",
+      "clients": "15 клиентов",
       "agentsLabel": "Агенты программирования",
       "instructions": "Инструкции по настройке",
       "copy": "Копировать",
+      "beforeLaunch": "Перед запуском клиента",
       "verify": "Проверить подключение",
       "openVsCode": "Открыть в VS Code",
       "openingVsCode": "Открываем VS Code…",
@@ -2583,10 +2584,13 @@ export const ruRU = {
         "opencode": "Добавляет Hronaut в OpenCode как удалённый сервер потокового HTTP.",
         "geminiCli": "Добавляет Hronaut в Gemini CLI как пользовательский сервер Streamable HTTP.",
         "cline": "Добавляет Hronaut в Cline через рекомендуемый транспорт Streamable HTTP.",
+        "kiro": "Добавляет Hronaut в пользовательскую конфигурацию Kiro без автоматического одобрения инструментов.",
         "kilo": "Добавляет Hronaut как удалённый сервер Streamable HTTP для клиентов Kilo Code.",
         "jetbrainsJunie": "Добавляет Hronaut в пользовательскую конфигурацию MCP, общую для Junie CLI и IDE JetBrains.",
         "devinLocal": "Добавляет Hronaut в пользовательскую конфигурацию Devin Local и новых вкладок Devin Desktop.",
         "zed": "Добавляет Hronaut как пользовательский удалённый сервер для Zed Agent и внешних агентов, передаваемых через ACP.",
+        "mistralVibe": "Добавляет Hronaut в конфигурацию, общую для локальных сеансов Vibe CLI и VS Code.",
+        "warp": "Добавляет Hronaut как пользовательский URL-сервер для локального агента Warp.",
         "generic": "Используйте потоковый HTTP и направьте клиент прямо на Hronaut.",
         "genericLocation": "Настройки MCP клиента"
       }

@@ -2565,10 +2565,11 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "12 klientów",
+      "clients": "15 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
+      "beforeLaunch": "Przed uruchomieniem klienta",
       "verify": "Sprawdź połączenie",
       "openVsCode": "Otwórz w VS Code",
       "openingVsCode": "Otwieranie VS Code…",
@@ -2583,10 +2584,13 @@ export const plPL = {
         "opencode": "Dodaje Hronaut do OpenCode jako zdalny serwer strumieniowego HTTP.",
         "geminiCli": "Dodaje Hronaut jako serwer Streamable HTTP na poziomie użytkownika w Gemini CLI.",
         "cline": "Dodaje Hronaut do Cline przez zalecany transport Streamable HTTP.",
+        "kiro": "Dodaje Hronaut do Kiro na poziomie użytkownika bez automatycznego zatwierdzania narzędzi.",
         "kilo": "Dodaje Hronaut jako zdalny serwer Streamable HTTP współdzielony przez Kilo Code.",
         "jetbrainsJunie": "Dodaje Hronaut do konfiguracji MCP użytkownika współdzielonej przez Junie CLI i środowiska JetBrains IDE.",
         "devinLocal": "Dodaje Hronaut do konfiguracji użytkownika używanej przez Devin Local i nowe karty Devin Desktop.",
         "zed": "Dodaje Hronaut jako niestandardowy serwer zdalny dla Zed Agent i agentów zewnętrznych przekazywanych przez ACP.",
+        "mistralVibe": "Dodaje Hronaut do konfiguracji współdzielonej przez lokalne sesje Vibe CLI i VS Code.",
+        "warp": "Dodaje Hronaut jako serwer URL użytkownika dla lokalnego agenta Warp.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }
