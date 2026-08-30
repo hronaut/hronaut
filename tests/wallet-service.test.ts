@@ -90,6 +90,29 @@ describe('WalletService', () => {
     expect(await readFile(join(path, 'vault.json'), 'utf8')).not.toContain(knownMnemonic)
   })
 
+  it('rejects malformed EVM chain IDs on every wallet creation path before persisting a descriptor', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+
+    await expect(service.generate({
+      name: 'Invalid generated wallet', chainFamily: 'evm',
+      network: { ...network, id: 'devnet' }, workspaceIds: []
+    })).rejects.toThrow('positive safe integer')
+    await expect(service.addWatchOnly({
+      name: 'Invalid watch wallet', chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000001',
+      network: { ...network, id: '-1' }, workspaceIds: []
+    })).rejects.toThrow('positive safe integer')
+
+    const prepared = await service.prepareImport('evm', 'mnemonic', knownMnemonic)
+    await expect(service.confirmImport(prepared.token, {
+      name: 'Invalid imported wallet', network: { ...network, id: '9007199254740992' },
+      workspaceIds: [], dedicatedAgent: false
+    })).rejects.toThrow('positive safe integer')
+    expect(service.list()).toEqual([])
+  })
+
   it('drops unconfirmed imported secret material when its confirmation expires while idle', async () => {
     vi.useFakeTimers()
     const path = await directory()
@@ -223,6 +246,28 @@ describe('WalletService', () => {
       id: 'policy-unsafe', name: 'Unsafe automation', mode: 'bounded-auto', walletId: generated.wallet.id,
       workspaceId: 'workspace-1', networkIds: ['1'], origins: ['https://dapp.example'],
       destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })).rejects.toThrow('not eligible for automatic approval')
+  })
+
+  it.each([
+    ['solana', 'devnet', 'https://api.mainnet-beta.solana.com'],
+    ['tron', 'shasta', 'https://api.trongrid.io']
+  ] as const)('rejects %s public-testnet automation until the selected RPC network is independently attested', async (chainFamily, networkId, rpcUrl) => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const generated = await service.generate({
+      name: `${chainFamily} test wallet`, chainFamily,
+      network: { id: networkId, name: networkId, environment: 'testnet', rpcUrl },
+      workspaceIds: ['workspace-1']
+    })
+
+    await expect(service.setPolicy({
+      id: `policy-${chainFamily}`, name: 'Unsafe public testnet automation', mode: 'bounded-auto',
+      walletId: generated.wallet.id, workspaceId: 'workspace-1', networkIds: [networkId],
+      origins: ['https://dapp.example'], destinations: ['destination'], methods: ['transfer'],
       expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })).rejects.toThrow('not eligible for automatic approval')

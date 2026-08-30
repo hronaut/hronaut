@@ -183,6 +183,23 @@ describe('WalletPolicyEngine', () => {
   })
 
   it.each([
+    ['solana', 'devnet'],
+    ['tron', 'shasta']
+  ] as const)('requires human approval for %s testnets until the RPC network is independently attested', (chainFamily, networkId) => {
+    const decision = new WalletPolicyEngine().evaluate({
+      request: request({ chainFamily, networkId }),
+      wallet: {
+        ...wallet,
+        chainFamily,
+        network: { ...wallet.network, id: networkId, name: networkId, environment: 'testnet' }
+      },
+      policies: [{ ...policy, networkIds: [networkId] }], decoded, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })
+    expect(decision).toEqual({ outcome: 'awaiting-human', reason: 'network-not-eligible-for-automation' })
+  })
+
+  it.each([
     ['failed simulation', { simulation: { attempted: true, success: false } }, 'simulation-required'],
     ['unknown transaction', { decoded: { ...decoded, understood: false } }, 'unknown-transaction'],
     ['unlimited allowance', { decoded: { ...decoded, unlimitedAllowance: true } }, 'unlimited-allowance'],

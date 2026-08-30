@@ -81,6 +81,22 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByLabelText('Network preset')).toHaveValue('custom')
   })
 
+  it('explains malformed custom EVM chain IDs and blocks wallet creation', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Name'), 'Invalid EVM wallet')
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
+    await user.clear(screen.getByLabelText('EVM chain ID'))
+    await user.type(screen.getByLabelText('EVM chain ID'), 'devnet')
+
+    expect(screen.getByLabelText('EVM chain ID')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText(/positive whole number within the safe integer range/i)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+    expect(wallets.generate).not.toHaveBeenCalled()
+  })
+
   it('adapts network fields and presets to Solana and Tron', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })

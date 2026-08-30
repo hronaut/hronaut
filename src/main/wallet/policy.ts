@@ -45,21 +45,17 @@ interface DecimalValue {
   scale: number
 }
 
-const AUTOMATION_TESTNET_IDS: Readonly<Record<WalletDescriptor['chainFamily'], ReadonlySet<string>>> = {
-  evm: new Set([
-    '97', // BNB Smart Chain testnet
-    '17000', // Holesky
-    '43113', // Avalanche Fuji
-    '80002', // Polygon Amoy
-    '84532', // Base Sepolia
-    '421614', // Arbitrum Sepolia
-    '11155111', // Ethereum Sepolia
-    '11155420', // Optimism Sepolia
-    '560048' // Hoodi
-  ]),
-  solana: new Set(['devnet', 'testnet']),
-  tron: new Set(['nile', 'shasta'])
-}
+const AUTOMATION_ATTESTED_EVM_TESTNET_IDS: ReadonlySet<string> = new Set([
+  '97', // BNB Smart Chain testnet
+  '17000', // Holesky
+  '43113', // Avalanche Fuji
+  '80002', // Polygon Amoy
+  '84532', // Base Sepolia
+  '421614', // Arbitrum Sepolia
+  '11155111', // Ethereum Sepolia
+  '11155420', // Optimism Sepolia
+  '560048' // Hoodi
+])
 
 const AUTOMATION_LOCAL_IDS: Readonly<Record<WalletDescriptor['chainFamily'], ReadonlySet<string>>> = {
   evm: new Set(['1337', '31337']),
@@ -78,7 +74,10 @@ function isLoopbackRpc(rpcUrl: string): boolean {
 export function isWalletNetworkEligibleForAutomation(wallet: WalletDescriptor): boolean {
   const networkId = wallet.network.id.toLowerCase()
   if (wallet.network.environment === 'testnet') {
-    return AUTOMATION_TESTNET_IDS[wallet.chainFamily].has(networkId)
+    // The EVM adapter attests eth_chainId against this ID before policy evaluation.
+    // Solana and TRON must remain human-approved until their adapters bind a
+    // trusted genesis/network fingerprint into the normalized request.
+    return wallet.chainFamily === 'evm' && AUTOMATION_ATTESTED_EVM_TESTNET_IDS.has(networkId)
   }
   if (wallet.network.environment === 'local') {
     return AUTOMATION_LOCAL_IDS[wallet.chainFamily].has(networkId) && isLoopbackRpc(wallet.network.rpcUrl)

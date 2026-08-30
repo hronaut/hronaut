@@ -94,9 +94,10 @@
 .wallet-network-grid { display: grid; grid-template-columns: minmax(120px, .72fr) minmax(160px, 1fr) minmax(120px, .72fr); gap: 10px; }
 .wallet-network-grid label, .wallet-network-fields > label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .wallet-network-rpc { grid-column: 1 / -1; }
-.wallet-network-notice, .wallet-network-warning { padding: 9px 10px; border-radius: 7px; font-size: 11px !important; line-height: 1.45 !important; }
+.wallet-network-notice, .wallet-network-warning, .wallet-network-error { padding: 9px 10px; border-radius: 7px; font-size: 11px !important; line-height: 1.45 !important; }
 .wallet-network-notice { border: 1px solid var(--border-soft); background: var(--surface); }
 .wallet-network-warning { border: 1px solid rgba(217, 119, 6, .45); color: var(--text) !important; background: rgba(217, 119, 6, .1); }
+.wallet-network-error { border: 1px solid color-mix(in srgb, #dc2626 55%, var(--border-soft)); color: var(--text) !important; background: color-mix(in srgb, #dc2626 12%, var(--surface)); }
 .wallet-form fieldset, .wallet-card fieldset { display: flex; flex-wrap: wrap; gap: 9px 16px; margin: 0; padding: 10px; border: 1px solid var(--border-soft); border-radius: 8px; }
 .wallet-form fieldset label, .wallet-card fieldset label { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 12px; }
 .wallet-import-confirm { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }

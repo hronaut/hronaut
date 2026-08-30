@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Require human approval for Solana and TRON public-testnet signing until their RPC endpoints can be independently attested, preventing a retained testnet label paired with a mainnet RPC from authorizing automatic transactions.
+- Validate custom EVM chain IDs inline and in every trusted wallet-creation path, preventing malformed or unsafe IDs from being persisted and failing later during RPC operations.
 - Keep configured wallet RPC endpoints, embedded transport credentials, raw adapter failures, and simulation logs out of MCP responses and durable approval state.
 - Keep EVM, Solana, and TRON network identity fields synchronized when switching chains instead of retaining incompatible IDs and endpoints from the previous family.
 - Freeze validated import details until confirmation or cancellation so a prepared secret cannot be saved with another chain family's network metadata.

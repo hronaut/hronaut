@@ -3,7 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
-import type { WalletChainFamily, WalletNetwork, WalletPolicy, WalletSecretFormat } from '../../../shared/wallet.js'
+import {
+  walletNetworkValidationIssue,
+  type WalletChainFamily,
+  type WalletNetwork,
+  type WalletPolicy,
+  type WalletSecretFormat
+} from '../../../shared/wallet.js'
 import {
   DEFAULT_WALLET_NETWORK_PRESET,
   walletNetworkPreset
@@ -53,6 +59,7 @@ const dedicatedAgent = ref(false)
 const selectedWallet = computed(() => props.controller.wallets.value.find((wallet) => wallet.id === selectedWalletId.value))
 const selectedPolicies = computed(() => props.controller.policies.value.filter((policy) => policy.walletId === selectedWalletId.value))
 const selectedPermissions = computed(() => props.controller.permissions.value.filter((permission) => permission.walletId === selectedWalletId.value))
+const onboardingNetworkValid = computed(() => walletNetworkValidationIssue(chainFamily.value, networkDraft.value) === null)
 const backendTranslationKeys: Record<string, string> = {
   'safe-storage': 'safeStorage',
   keychain: 'keychain',
@@ -229,7 +236,7 @@ async function addPolicy(): Promise<void> {
         <label v-if="mode !== 'watch'" class="wallet-wide wallet-agent-option"><input v-model="dedicatedAgent" type="checkbox" :disabled="preparedImport !== null"> {{ t('wallets.dedicatedAgent') }}</label>
         <p v-if="mode !== 'watch' && dedicatedAgent" class="wallet-wide wallet-form-note">{{ t('wallets.dedicatedAgentDescription') }}</p>
         <fieldset class="wallet-wide" :disabled="preparedImport !== null"><legend>{{ t('wallets.attachedWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
-        <button class="primary-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
+        <button class="primary-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
       </form>
       <div v-if="preparedImport" class="wallet-import-confirm">
         <strong>{{ t('wallets.confirmDerivedAddress') }}</strong><code>{{ preparedImport.publicAddress }}</code>

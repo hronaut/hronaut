@@ -125,6 +125,7 @@ export const enUS = {
     networkName: 'Network name',
     rpcUrl: 'RPC URL',
     evmChainId: 'EVM chain ID',
+    evmChainIdInvalid: 'Enter a positive whole number within the safe integer range.',
     evmRpcUrl: 'JSON-RPC URL',
     solanaCluster: 'Solana cluster',
     solanaRpcUrl: 'Solana RPC endpoint',

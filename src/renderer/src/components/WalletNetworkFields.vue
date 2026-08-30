@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { WalletChainFamily, WalletNetwork } from '../../../shared/wallet.js'
+import {
+  walletNetworkValidationIssue,
+  type WalletChainFamily,
+  type WalletNetwork
+} from '../../../shared/wallet.js'
 import {
   walletNetworkPreset,
   walletNetworkPresetsFor
@@ -20,6 +24,7 @@ const selectedPreset = computed(() => walletNetworkPreset(presetId.value))
 const custom = computed(() => presetId.value === 'custom')
 const mainnet = computed(() => network.value.environment === 'mainnet')
 const tronMainnet = computed(() => props.chainFamily === 'tron' && mainnet.value)
+const validationIssue = computed(() => walletNetworkValidationIssue(props.chainFamily, network.value))
 const idLabel = computed(() => props.chainFamily === 'evm'
   ? t('wallets.evmChainId')
   : props.chainFamily === 'solana'
@@ -76,6 +81,8 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
         <input
           :value="network.id"
           :inputmode="chainFamily === 'evm' ? 'numeric' : 'text'"
+          :aria-invalid="validationIssue ? 'true' : undefined"
+          :aria-describedby="validationIssue ? 'wallet-network-id-error' : undefined"
           maxlength="128"
           required
           :disabled="disabled || !custom"
@@ -115,6 +122,8 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
         >
       </label>
     </div>
+
+    <p v-if="validationIssue === 'evm-chain-id-invalid'" id="wallet-network-id-error" class="wallet-network-error" role="alert">{{ t('wallets.evmChainIdInvalid') }}</p>
 
     <p class="wallet-network-notice">{{ t('wallets.publicRpcNotice') }}</p>
     <p v-if="mainnet" class="wallet-network-warning" role="alert">{{ t('wallets.mainnetWarning') }}</p>

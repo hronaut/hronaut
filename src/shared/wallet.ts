@@ -20,6 +20,26 @@ export const WalletNetworkSchema = z.object({
 }).strict()
 export type WalletNetwork = z.infer<typeof WalletNetworkSchema>
 
+export type WalletNetworkValidationIssue = 'evm-chain-id-invalid'
+
+export function walletNetworkValidationIssue(
+  chainFamily: WalletChainFamily,
+  network: Pick<WalletNetwork, 'id'>
+): WalletNetworkValidationIssue | null {
+  if (chainFamily !== 'evm') return null
+  if (!/^[1-9]\d*$/.test(network.id)) return 'evm-chain-id-invalid'
+  return BigInt(network.id) <= BigInt(Number.MAX_SAFE_INTEGER) ? null : 'evm-chain-id-invalid'
+}
+
+export function assertWalletNetworkForChainFamily(
+  chainFamily: WalletChainFamily,
+  network: Pick<WalletNetwork, 'id'>
+): void {
+  if (walletNetworkValidationIssue(chainFamily, network) === 'evm-chain-id-invalid') {
+    throw new Error('EVM chain ID must be a positive safe integer')
+  }
+}
+
 const WalletIdSchema = z.string().trim().min(1).max(128)
 const WorkspaceIdSchema = z.string().trim().min(1).max(128)
 const IsoDateSchema = z.iso.datetime({ offset: true })

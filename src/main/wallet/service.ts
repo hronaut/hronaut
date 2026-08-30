@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  assertWalletNetworkForChainFamily,
   WalletCreateInputSchema,
   WalletImportDetailsSchema,
   WalletPolicySchema,
@@ -224,6 +225,7 @@ export class WalletService {
 
   async generate(input: WalletCreateInput): Promise<WalletGeneratedResult> {
     const validated = WalletCreateInputSchema.parse(input)
+    assertWalletNetworkForChainFamily(validated.chainFamily, validated.network)
     const vault = this.readyVault()
     const generated = await generateWalletRecovery(validated.chainFamily)
     const now = this.now().toISOString()
@@ -282,6 +284,7 @@ export class WalletService {
     const pending = this.imports.get(token)
     if (!pending) throw new Error('Wallet import confirmation expired')
     const input = WalletImportDetailsSchema.parse(details)
+    assertWalletNetworkForChainFamily(pending.chainFamily, input.network)
     const now = this.now().toISOString()
     const wallet: WalletDescriptor = {
       id: randomUUID(), name: input.name, kind: input.dedicatedAgent ? 'agent' : 'imported',
@@ -309,6 +312,7 @@ export class WalletService {
 
   async addWatchOnly(input: WalletWatchOnlyInput): Promise<WalletDescriptor> {
     const validated = WalletWatchOnlyInputSchema.parse(input)
+    assertWalletNetworkForChainFamily(validated.chainFamily, validated.network)
     if (!validateWatchOnlyWalletAddress(validated.chainFamily, validated.publicAddress)) throw new Error('Invalid watch-only wallet address')
     const now = this.now().toISOString()
     const wallet = await this.watchOnly.add({
