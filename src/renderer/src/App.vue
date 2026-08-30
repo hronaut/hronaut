@@ -8,19 +8,13 @@ import {
   BrowserTabState
 } from '../../shared/types'
 import AppToastRegion from './components/AppToastRegion.vue'
-import CommandPalette from './components/CommandPalette.vue'
-import CredentialPicker from './components/CredentialPicker.vue'
-import FindInPageBar from './components/FindInPageBar.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
-import TabSearchPanel from './components/TabSearchPanel.vue'
-import WorkspaceEditor from './components/WorkspaceEditor.vue'
-import ZoomBar from './components/ZoomBar.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
-import AppBrowserCollectionsLayer from './components/AppBrowserCollectionsLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
 import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
+import AppTransientShellLayer from './components/AppTransientShellLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
@@ -61,10 +55,10 @@ import { friendlyUiError, useAppToastController } from './composables/useAppToas
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
 import { useHomeNavigationController } from './composables/useHomeNavigationController'
-import { useWorkspaceEditorShellController } from './composables/useWorkspaceEditorShellController'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
+import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -137,13 +131,27 @@ const {
   keepsSeparatePanelOpen,
   persistDock: persistPanelDock
 } = appShellPresentationFeatureController
-const credentialPickerOpen = ref(false)
-const credentialPicker = ref<InstanceType<typeof CredentialPicker> | null>(null)
 const shell = ref<HTMLElement | null>(null)
-const findOpen = ref(false)
-const zoomOpen = ref(false)
-const zoomBar = ref<InstanceType<typeof ZoomBar> | null>(null)
-const findBar = ref<InstanceType<typeof FindInPageBar> | null>(null)
+const appTransientShellLayerController = useAppTransientShellLayerController()
+const {
+  layer: transientShellLayer,
+  credentialPickerOpen,
+  findOpen,
+  zoomOpen,
+  tabSearchOpen,
+  commandPaletteOpen,
+  tabSearchPanel,
+  zoomBar,
+  commandPalettePanel,
+  workspaceEditorOpen,
+  openWorkspace: openTabGroupEditor,
+  openNewWorkspace: openNewWorkspaceEditor,
+  closeWorkspace: closeWorkspaceEditor,
+  openFindForTab,
+  closeFind: closeTransientFind,
+  openCredentialPicker,
+  setZoom: setTransientZoom
+} = appTransientShellLayerController
 const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
 const siteStorageOpen = ref(false)
 const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
@@ -178,13 +186,6 @@ const {
   loadEnvironmentDraft,
   dispose: disposeAppEmulationFeatureController
 } = appEmulationFeatureController
-const {
-  open: workspaceEditorOpen,
-  panel: workspaceEditor,
-  openExisting: openTabGroupEditor,
-  openNew: openNewWorkspaceEditor,
-  close: closeWorkspaceEditor
-} = useWorkspaceEditorShellController()
 const siteControlsOpen = ref(false)
 const siteDataController = useSiteDataSummaryController({
   current: () => activeTab.value && activeWebUrl.value
@@ -192,10 +193,6 @@ const siteDataController = useSiteDataSummaryController({
     : null,
   load: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId)
 })
-const tabSearchOpen = ref(false)
-const tabSearchPanel = ref<InstanceType<typeof TabSearchPanel> | null>(null)
-const commandPaletteOpen = ref(false)
-const commandPalette = ref<InstanceType<typeof CommandPalette> | null>(null)
 const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
@@ -495,7 +492,7 @@ const { open: openFind } = useFindShellController({
   settingsOpen,
   splitMenuOpen,
   closeTransientPanels: transientPanelsController.close,
-  openForTab: async (tab) => findBar.value?.openForTab(tab)
+  openForTab: openFindForTab
 })
 const { toggle: toggleTabSearch } = useTabSearchShellController({
   open: tabSearchOpen,
@@ -596,7 +593,7 @@ const {
 })
 const commandPaletteShellController = useAppCommandPaletteFeatureController({
   open: commandPaletteOpen,
-  panel: commandPalette,
+  panel: commandPalettePanel,
   canOpen: () => !workspaceEditorOpen.value && !credentialPickerOpen.value,
   beforeOpen: () => {
     closeSettings()
@@ -669,7 +666,7 @@ const browserShortcutController = useBrowserShortcutController({
   openNewTab: async () => { await openNewTab() },
   focusAddress: async () => { await focusAddress() },
   openFind,
-  setZoom: (action) => zoomBar.value?.setZoom(action),
+  setZoom: setTransientZoom,
   toggleCurrentBookmark,
   toggleVisitHistory,
   toggleTabSearch,
@@ -809,7 +806,7 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
   },
   credentialFill: {
     pickerOpen: credentialPickerOpen,
-    openPicker: () => credentialPicker.value?.openPanel(),
+    openPicker: openCredentialPicker,
     fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
     missingCredentialMessage: t('runtimeActions.credential.noLongerMatches'),
     onFilled: (credential) => showAppToast(
@@ -859,7 +856,7 @@ function handleWindowResize(): void {
 }
 
 async function closeFind(): Promise<void> {
-  await findBar.value?.close()
+  await closeTransientFind()
 }
 
 function closeTransientPanels(): void {
@@ -1010,56 +1007,44 @@ useAppLifecycleController({
       :details="pageProblemDetails"
       @retry="runShellAction(retryActivePageProblem)"
     />
-    <TabSearchPanel
-      ref="tabSearchPanel"
-      v-model:open="tabSearchOpen"
+    <AppTransientShellLayer
+      ref="transientShellLayer"
+      v-model:dock="panelDock"
+      v-model:tab-search-open="tabSearchOpen"
+      v-model:find-open="findOpen"
+      v-model:zoom-open="zoomOpen"
+      v-model:workspace-editor-open="workspaceEditorOpen"
+      v-model:credential-picker-open="credentialPickerOpen"
+      v-model:command-palette-open="commandPaletteOpen"
       :state="state"
+      :active-tab="activeTab"
       :mcp-activity-by-tab="mcpActivityByTab"
+      :credentials="credentials"
+      :collections-controller="browserCollectionsFeatureController"
+      :active-url="activeWebUrl"
+      :active-title="activeTab?.title ?? ''"
+      :current-bookmark="currentBookmark"
+      :active-origin="activeOrigin"
+      :help-dialog-open="helpDialogOpen"
+      :settings-open="settingsOpen"
+      :website-available="Boolean(activeTab && !activeIsHome)"
+      :browser="browser"
       :sync-state="syncState"
       :select-tab="selectBrowserTab"
       :expand-tab-group="expandTabGroupForTab"
       :describe-emulation="describeTabEmulation"
+      :format-bytes="formatBytes"
       :format-number="localNumber"
       :format-time="localTime"
-      :format-error="friendlyUiError"
-      :show-error="showTabSearchError"
-      @new-tab="runBrowserShortcut('new-tab')"
-    />
-    <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
-    <ZoomBar ref="zoomBar" v-model:open="zoomOpen" :active-tab="activeTab" :browser="browser" :accept-state="syncState" :format-percent="localPercent" @error="reportShellActionError" />
-    <AppBrowserCollectionsLayer
-      v-model:dock="panelDock"
-      :controller="browserCollectionsFeatureController"
-      :active-url="activeWebUrl"
-      :active-title="activeTab?.title ?? ''"
-      :current-bookmark="currentBookmark"
-      :format-bytes="formatBytes"
       :format-percent="localPercent"
       :format-date-time="localDateTime"
-      :format-number="localNumber"
-    />
-    <WorkspaceEditor
-      ref="workspaceEditor"
-      v-model:open="workspaceEditorOpen"
-      :state="state"
-      :sync-state="syncState"
-      :format-number="localNumber"
-      :can-present="!commandPaletteOpen && !credentialPickerOpen && !helpDialogOpen && !settingsOpen"
-    />
-    <CredentialPicker
-      ref="credentialPicker"
-      v-model:open="credentialPickerOpen"
-      :credentials="credentials"
-      :origin="activeOrigin"
+      :format-error="friendlyUiError"
+      :show-error="showTabSearchError"
       :fill-credential="fillSelectedCredential"
-    />
-    <CommandPalette
-      ref="commandPalette"
-      v-model:open="commandPaletteOpen"
-      :website-available="Boolean(activeTab && !activeIsHome)"
-      :format-number="localNumber"
       :run-command="runCommandPaletteCommand"
       :report-command-error="reportShellActionError"
+      :report-zoom-error="reportShellActionError"
+      @new-tab="runBrowserShortcut('new-tab')"
     />
     <AppTrustedDialogsLayer
       :settings-controller="appSettingsFeatureController"

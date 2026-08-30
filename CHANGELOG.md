@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Keep `App.vue` composition-focused by moving tab search, find, zoom, browser collections, workspace editing, credential selection, and the command palette into one focused transient shell layer with a narrow imperative surface.
 - Keep `App.vue` composition-focused by moving Settings, trusted wallet approval, and Help mounting into a dedicated dialog layer with explicit controller contracts.
 - Keep Hronaut Home aligned with the public client matrix by adding profile-aware Kiro, Mistral Vibe, and Warp setup guides, including environment-backed credentials where those clients support them.
 - Parallelize standalone incremental typechecks with a constrained-runner override, run release validation concurrently, and stop repeating successful type analysis in dependent platform packaging jobs.
