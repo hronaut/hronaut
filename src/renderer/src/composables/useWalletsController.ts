@@ -36,6 +36,8 @@ export function useWalletsController(options: WalletsControllerOptions) {
   let disposed = false
   let initialized = false
   let detailsGeneration = 0
+  let statusRevision = 0
+  let walletsRevision = 0
   let requestsRevision = 0
   const subscriptions: Array<() => void> = []
 
@@ -43,6 +45,16 @@ export function useWalletsController(options: WalletsControllerOptions) {
 
   function setError(error: unknown): void {
     errorMessage.value = options.formatError(error)
+  }
+
+  function acceptStatus(next: WalletServiceStatus): void {
+    statusRevision += 1
+    status.value = next
+  }
+
+  function acceptWallets(next: WalletDescriptor[]): void {
+    walletsRevision += 1
+    wallets.value = next
   }
 
   async function refreshDetails(): Promise<void> {
@@ -61,17 +73,17 @@ export function useWalletsController(options: WalletsControllerOptions) {
   async function initialize(): Promise<void> {
     const [nextStatus, nextWallets] = await Promise.all([options.api.status(), options.api.list()])
     if (disposed) return
-    status.value = nextStatus
-    wallets.value = nextWallets
+    acceptStatus(nextStatus)
+    acceptWallets(nextWallets)
     await refreshDetails()
     if (initialized || disposed) return
     initialized = true
     subscriptions.push(
       options.api.onChanged((next) => {
-        if (!disposed) wallets.value = next
+        if (!disposed) acceptWallets(next)
       }),
       options.api.onStatusChanged((next) => {
-        if (!disposed) status.value = next
+        if (!disposed) acceptStatus(next)
       }),
       options.api.onRequestsChanged((next) => {
         if (disposed) return
@@ -88,8 +100,14 @@ export function useWalletsController(options: WalletsControllerOptions) {
     try {
       const result = await operation()
       if (refresh && !disposed) {
-        status.value = await options.api.status()
-        wallets.value = await options.api.list()
+        const startingStatusRevision = statusRevision
+        const nextStatus = await options.api.status()
+        if (disposed) return result
+        if (startingStatusRevision === statusRevision) acceptStatus(nextStatus)
+        const startingWalletsRevision = walletsRevision
+        const nextWallets = await options.api.list()
+        if (disposed) return result
+        if (startingWalletsRevision === walletsRevision) acceptWallets(nextWallets)
         await refreshDetails()
       }
       return result

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { useWalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import type { HronautWalletsApi, WalletAuditSummary } from '../../src/shared/types.js'
-import type { WalletRequestSummary } from '../../src/shared/wallet.js'
+import type {
+  WalletDescriptor,
+  WalletRequestSummary,
+  WalletServiceStatus
+} from '../../src/shared/wallet.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -40,21 +44,55 @@ function auditEntry(sequence: number): WalletAuditSummary {
   }
 }
 
+function wallet(id: string): WalletDescriptor {
+  return {
+    id,
+    name: id,
+    kind: 'watch-only',
+    chainFamily: 'evm',
+    publicAddress: '0x0000000000000000000000000000000000000001',
+    network: {
+      id: '1', name: 'Ethereum', environment: 'mainnet', rpcUrl: 'https://rpc.example'
+    },
+    capabilities: ['read'],
+    workspaceIds: ['workspace-1'],
+    policyIds: [],
+    recoveryConfirmed: true,
+    createdAt: '2026-08-30T12:00:00.000Z',
+    updatedAt: '2026-08-30T12:00:00.000Z'
+  }
+}
+
+const readyStatus: WalletServiceStatus = {
+  managedWallets: 'ready', backend: 'safe-storage', watchOnlyAvailable: true
+}
+
 function createController() {
+  let statusListener: ((status: WalletServiceStatus) => void) | undefined
+  let walletListener: ((wallets: WalletDescriptor[]) => void) | undefined
   let requestListener: ((requests: WalletRequestSummary[]) => void) | undefined
+  const status = vi.fn(async (): Promise<WalletServiceStatus> => readyStatus)
+  const list = vi.fn(async (): Promise<WalletDescriptor[]> => [])
   const listRequests = vi.fn(async (): Promise<WalletRequestSummary[]> => [])
   const auditHistory = vi.fn(async (): Promise<WalletAuditSummary[]> => [])
   const api = {
-    status: vi.fn(async () => ({
-      managedWallets: 'ready', backend: 'safe-storage', watchOnlyAvailable: true
+    status,
+    list,
+    lock: vi.fn(async (): Promise<WalletServiceStatus> => ({
+      managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true
     })),
-    list: vi.fn(async () => []),
     listPolicies: vi.fn(async () => []),
     listPermissions: vi.fn(async () => []),
     listRequests,
     auditHistory,
-    onChanged: vi.fn(() => () => undefined),
-    onStatusChanged: vi.fn(() => () => undefined),
+    onChanged: vi.fn((listener: (wallets: WalletDescriptor[]) => void) => {
+      walletListener = listener
+      return () => { walletListener = undefined }
+    }),
+    onStatusChanged: vi.fn((listener: (status: WalletServiceStatus) => void) => {
+      statusListener = listener
+      return () => { statusListener = undefined }
+    }),
     onRequestsChanged: vi.fn((listener: (requests: WalletRequestSummary[]) => void) => {
       requestListener = listener
       return () => { requestListener = undefined }
@@ -66,7 +104,11 @@ function createController() {
     auditHistory,
     controller,
     emitRequests: (requests: WalletRequestSummary[]) => requestListener?.(requests),
-    listRequests
+    emitStatus: (next: WalletServiceStatus) => statusListener?.(next),
+    emitWallets: (next: WalletDescriptor[]) => walletListener?.(next),
+    list,
+    listRequests,
+    status
   }
 }
 
@@ -107,5 +149,56 @@ describe('wallets controller', () => {
 
     expect(controller.audit.value).toEqual([auditEntry(2)])
     controller.dispose()
+  })
+
+  it('does not overwrite a live status event with an older post-operation snapshot', async () => {
+    const delayedStatus = deferred<WalletServiceStatus>()
+    const { controller, emitStatus, status } = createController()
+    await controller.initialize()
+    status.mockReturnValueOnce(delayedStatus.promise)
+
+    const locking = controller.lock()
+    await vi.waitFor(() => expect(status).toHaveBeenCalledTimes(2))
+    emitStatus({ managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true })
+    delayedStatus.resolve(readyStatus)
+    await locking
+
+    expect(controller.status.value.managedWallets).toBe('locked')
+    controller.dispose()
+  })
+
+  it('does not overwrite a live wallet event with an older post-operation snapshot', async () => {
+    const delayedWallets = deferred<WalletDescriptor[]>()
+    const newestWallet = wallet('newest-wallet')
+    const { controller, emitWallets, list } = createController()
+    await controller.initialize()
+    list.mockReturnValueOnce(delayedWallets.promise)
+
+    const locking = controller.lock()
+    await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(2))
+    emitWallets([newestWallet])
+    delayedWallets.resolve([wallet('stale-wallet')])
+    await locking
+
+    expect(controller.wallets.value).toEqual([newestWallet])
+    controller.dispose()
+  })
+
+  it('stops a post-operation refresh when the controller is disposed', async () => {
+    const delayedStatus = deferred<WalletServiceStatus>()
+    const { controller, list, status } = createController()
+    await controller.initialize()
+    status.mockReturnValueOnce(delayedStatus.promise)
+
+    const locking = controller.lock()
+    await vi.waitFor(() => expect(status).toHaveBeenCalledTimes(2))
+    controller.dispose()
+    delayedStatus.resolve({
+      managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true
+    })
+    await locking
+
+    expect(controller.status.value).toEqual(readyStatus)
+    expect(list).toHaveBeenCalledOnce()
   })
 })
