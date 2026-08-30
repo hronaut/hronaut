@@ -82,7 +82,11 @@ The MCP catalog exposes only:
 
 ## RPC configuration and testing
 
-Set an HTTP(S) RPC URL for each wallet network in **Settings → Wallets**. Hronaut does not ship third-party API keys. Treat RPC operators as part of the transaction-information trust boundary and prefer your own or explicitly trusted endpoints.
+Choose a curated network in **Settings → Wallets** to start with its public RPC, or choose **Custom network** to enter every identity field yourself. EVM presets cover common mainnets and testnets plus local Anvil. Solana includes Mainnet, Devnet, Testnet, and a local validator. TRON includes Mainnet, Shasta, Nile, and a local/private FullNode. The form uses chain-specific identity and endpoint labels so an EVM chain ID is not confused with a Solana cluster or TRON network key.
+
+Preset identity fields remain fixed, while the RPC endpoint stays editable. Selecting another preset restores that preset's published default. Existing wallets retain the exact network and endpoint copied at creation; later application upgrades do not silently rewrite them.
+
+Hronaut does not ship third-party API keys. Built-in public endpoints are convenience defaults, may be rate-limited, and are not a production-availability promise. TronGrid production traffic may require a `TRON-PRO-API-KEY`; Hronaut deliberately does not put that secret in a wallet URL, so use a dedicated or self-hosted custom endpoint instead. Treat every RPC operator as part of the transaction-information trust boundary and prefer your own or explicitly trusted endpoints.
 
 Use local/test networks and valueless accounts for development. Hronaut's fast and authoritative suites run inside Docker with deterministic RPC fixtures for EVM, Solana, and Tron adapter behavior; they never submit mainnet transactions or use real funds. The fixtures cover normalized transaction preparation, simulation, fee estimation, signing, broadcasting, confirmation, malformed responses, chain/account mismatches, replay, and concurrent request isolation without depending on a mutable public testnet. Real-node smoke testing should use a disposable Anvil, `solana-test-validator`, or private Tron node outside the default suite when those large runtimes are available locally.
 

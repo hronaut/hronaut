@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add chain-aware wallet onboarding with curated EVM, Solana, and TRON network presets, editable RPC endpoints, a full custom-network path, and explicit public-RPC/mainnet safety guidance.
+
+### Fixed
+
+- Keep EVM, Solana, and TRON network identity fields synchronized when switching chains instead of retaining incompatible IDs and endpoints from the previous family.
+- Freeze validated import details until confirmation or cancellation so a prepared secret cannot be saved with another chain family's network metadata.
+- Keep new-wallet workspace choices independent from the configured-wallet access editor.
+- Keep the selected settings section visible at narrow window sizes by using a compact horizontally scrollable navigation strip.
+
 ## [1.10.1] - 2026-08-31
 
 ### Fixed

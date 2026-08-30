@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { WalletDescriptor } from '../../src/shared/wallet.js'
 
 const global = { plugins: [createHronautI18n('en-US')] }
 
@@ -42,7 +43,131 @@ function controller(overrides: Partial<WalletsController> = {}): WalletsControll
   } as WalletsController
 }
 
+function wallet(id: string, name: string, workspaceIds: string[]): WalletDescriptor {
+  return {
+    id,
+    name,
+    kind: 'watch-only',
+    chainFamily: 'evm',
+    publicAddress: `0x${id.padEnd(40, '0').slice(0, 40)}`,
+    network: { id: '11155111', name: 'Sepolia', environment: 'testnet', rpcUrl: 'https://11155111.rpc.thirdweb.com' },
+    capabilities: ['read'],
+    workspaceIds,
+    policyIds: [],
+    recoveryConfirmed: true,
+    createdAt: '2026-08-31T00:00:00.000Z',
+    updatedAt: '2026-08-31T00:00:00.000Z'
+  }
+}
+
 describe('WalletsSettingsPanel', () => {
+  it('starts with a coherent EVM preset and keeps custom RPC editing available', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    expect(screen.getByLabelText('Network preset')).toHaveValue('evm-11155111')
+    expect(screen.getByLabelText('EVM chain ID')).toHaveValue('11155111')
+    expect(screen.getByLabelText('JSON-RPC URL')).not.toHaveValue('http://127.0.0.1:8545')
+
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
+    await user.clear(screen.getByLabelText('Network name'))
+    await user.type(screen.getByLabelText('Network name'), 'My private chain')
+    await user.clear(screen.getByLabelText('EVM chain ID'))
+    await user.type(screen.getByLabelText('EVM chain ID'), '31337')
+    await user.clear(screen.getByLabelText('JSON-RPC URL'))
+    await user.type(screen.getByLabelText('JSON-RPC URL'), 'http://127.0.0.1:8545')
+
+    expect(screen.getByLabelText('Network preset')).toHaveValue('custom')
+  })
+
+  it('adapts network fields and presets to Solana and Tron', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.selectOptions(screen.getByLabelText('Chain'), 'solana')
+    expect(screen.getByLabelText('Network preset')).toHaveValue('solana-devnet')
+    expect(screen.getByLabelText('Solana cluster')).toHaveValue('devnet')
+    expect(screen.getByLabelText('Solana RPC endpoint')).toHaveValue('https://api.devnet.solana.com')
+    expect(screen.queryByLabelText('EVM chain ID')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Chain'), 'tron')
+    expect(screen.getByLabelText('Network preset')).toHaveValue('tron-shasta')
+    expect(screen.getByLabelText('TRON network')).toHaveValue('shasta')
+    expect(screen.getByLabelText('Full node HTTP URL')).toHaveValue('https://api.shasta.trongrid.io')
+    expect(screen.queryByLabelText('Solana cluster')).not.toBeInTheDocument()
+  })
+
+  it('submits the exact selected preset network', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Name'), 'Base wallet')
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'evm-8453')
+    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+
+    expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
+      chainFamily: 'evm',
+      network: {
+        id: '8453',
+        name: 'Base',
+        environment: 'mainnet',
+        rpcUrl: 'https://mainnet.base.org'
+      }
+    }))
+    expect(screen.getByRole('alert')).toHaveTextContent(/real funds/i)
+  })
+
+  it('freezes the validated chain and network until an import is confirmed or cancelled', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Prepared EVM wallet')
+    await user.type(screen.getByLabelText('Recovery material'), 'test secret phrase never retained in Vue state')
+    await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
+
+    expect(screen.getByLabelText('Chain')).toBeDisabled()
+    expect(screen.getByLabelText('Network preset')).toBeDisabled()
+    expect(screen.getByLabelText('EVM chain ID')).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Confirm and encrypt' }))
+    expect(wallets.confirmImport).toHaveBeenCalledOnce()
+    const [token, details] = vi.mocked(wallets.confirmImport).mock.calls[0]
+    expect(token).toBe('import-token')
+    expect(details.network.id).toBe('11155111')
+  })
+
+  it('keeps new-wallet workspace choices independent from configured-wallet editing', async () => {
+    const wallets = controller({
+      wallets: ref([
+        wallet('a', 'Wallet A', ['workspace-a']),
+        wallet('b', 'Wallet B', ['workspace-b'])
+      ])
+    })
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [
+          { id: 'workspace-a', name: 'Workspace A' },
+          { id: 'workspace-b', name: 'Workspace B' },
+          { id: 'workspace-new', name: 'New wallet workspace' }
+        ]
+      },
+      global
+    })
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Name'), 'Independent wallet')
+    await user.click(screen.getAllByLabelText('New wallet workspace')[0])
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Configured wallets' }), 'b')
+    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+
+    expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
+      workspaceIds: ['workspace-new']
+    }))
+  })
+
   it('presents secure-storage state in human language instead of internal enum values', () => {
     const wallets = controller({
       status: ref({

@@ -156,10 +156,15 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     '--shortcut=Return'
   ])
   await expect(chain).toHaveValue('solana')
+  await expect(panel.getByRole('combobox', { name: 'Network preset' })).toHaveValue('solana-devnet')
+  await expect(panel.getByRole('textbox', { name: 'Solana cluster' })).toHaveValue('devnet')
+  await expect(panel.getByRole('textbox', { name: 'Solana RPC endpoint' })).toHaveValue('https://api.devnet.solana.com')
 
-  const environment = panel.getByRole('combobox', { name: 'Environment' })
-  await environment.click()
-  await expect(environment).toBeFocused()
+  await chain.selectOption('tron')
+  await expect(panel.getByRole('textbox', { name: 'TRON network' })).toHaveValue('shasta')
+  const preset = panel.getByRole('combobox', { name: 'Network preset' })
+  await preset.click()
+  await expect(preset).toBeFocused()
   await execFileAsync('python3', [
     join(process.cwd(), 'tests/integration/x11-input.py'),
     '0',
@@ -172,7 +177,16 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     '0',
     '--shortcut=Return'
   ])
-  await expect(environment).toHaveValue('mainnet')
+  await expect(preset).toHaveValue('tron-nile')
+  await expect(panel.getByRole('textbox', { name: 'Full node HTTP URL' })).toHaveValue('https://nile.trongrid.io')
+
+  await preset.selectOption('custom')
+  const tronNetwork = panel.getByRole('textbox', { name: 'TRON network' })
+  await expect(tronNetwork).toBeEnabled()
+  await tronNetwork.fill('qa-private')
+  await panel.getByRole('textbox', { name: 'Network name' }).fill('QA private TRON')
+  await panel.getByRole('textbox', { name: 'Full node HTTP URL' }).fill('http://127.0.0.1:8090')
+  await panel.getByRole('combobox', { name: 'Environment' }).selectOption('local')
 
   await panel.getByRole('button', { name: 'Watch only' }).click()
   const publicAddress = panel.getByRole('textbox', { name: 'Public address' })
@@ -188,6 +202,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     pageOverflow: number
     dialogOverflow: number
     panelOverflow: number
+    visiblePanelHeight: number
     left: number
     right: number
     viewport: number
@@ -195,10 +210,14 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     const dialog = document.querySelector('.settings-dialog')
     const panel = document.querySelector('.wallet-settings')
     const rect = dialog?.getBoundingClientRect()
+    const panelRect = panel?.getBoundingClientRect()
     return {
       pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       dialogOverflow: dialog ? dialog.scrollWidth - dialog.clientWidth : 1,
       panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : 1,
+      visiblePanelHeight: rect && panelRect
+        ? Math.max(0, Math.min(rect.bottom, panelRect.bottom) - Math.max(rect.top, panelRect.top))
+        : 0,
       left: rect?.left ?? -1,
       right: rect?.right ?? Number.POSITIVE_INFINITY,
       viewport: window.innerWidth
@@ -209,6 +228,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   expect(layout.pageOverflow).toBeLessThanOrEqual(1)
   expect(layout.dialogOverflow).toBeLessThanOrEqual(1)
   expect(layout.panelOverflow).toBeLessThanOrEqual(1)
+  expect(layout.visiblePanelHeight).toBeGreaterThan(120)
   expect(layout.left).toBeGreaterThanOrEqual(0)
   expect(layout.right).toBeLessThanOrEqual(layout.viewport)
 })

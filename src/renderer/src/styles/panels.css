@@ -235,9 +235,13 @@
   .credential-picker > footer { align-items: flex-start; flex-direction: column; }
   .settings-dialog { width: calc(100vw - 28px); max-height: calc(100vh - 28px); }
   .help-dialog { width: calc(100vw - 28px); max-height: calc(100vh - 28px); }
-  .settings-layout { display: block; overflow-y: auto; }
-  .settings-sidebar { border-right: 0; border-bottom: 1px solid var(--border); }
-  .settings-content { padding: 20px; }
+  .settings-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+  .settings-sidebar { display: flex; gap: 6px; padding: 8px; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+  .settings-nav-item { width: auto; min-width: max-content; flex: 0 0 auto; padding: 8px 10px; }
+  .settings-nav-item + .settings-nav-item { margin-top: 0; }
+  .settings-nav-item.active::before { inset: auto 9px -1px; width: auto; height: 3px; }
+  .settings-nav-item small { display: none; }
+  .settings-content { min-height: 0; padding: 20px; }
   .theme-options { grid-template-columns: 1fr; }
   .theme-option { display: grid; grid-template-columns: 90px 1fr; column-gap: 10px; }
   .theme-preview { grid-row: 1 / span 2; height: 48px; }

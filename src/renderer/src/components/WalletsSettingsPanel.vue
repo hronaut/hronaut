@@ -2,7 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
-import type { WalletChainFamily, WalletPolicy, WalletSecretFormat } from '../../../shared/wallet.js'
+import WalletNetworkFields from './WalletNetworkFields.vue'
+import type { WalletChainFamily, WalletNetwork, WalletPolicy, WalletSecretFormat } from '../../../shared/wallet.js'
+import {
+  DEFAULT_WALLET_NETWORK_PRESET,
+  walletNetworkPreset
+} from '../../../shared/wallet-network-presets.js'
 
 const props = defineProps<{
   controller: WalletsController
@@ -15,16 +20,24 @@ const walletModes = ['generate', 'import', 'watch'] as const
 const selectedWalletId = ref('')
 const name = ref('')
 const chainFamily = ref<WalletChainFamily>('evm')
-const networkId = ref('11155111')
-const networkName = ref('Sepolia')
-const networkEnvironment = ref<'local' | 'testnet' | 'mainnet'>('testnet')
-const rpcUrl = ref('http://127.0.0.1:8545')
-const selectedWorkspaceIds = ref<string[]>([])
+const networkPresetId = ref(DEFAULT_WALLET_NETWORK_PRESET.evm)
+const networkDraft = ref<WalletNetwork>({ ...walletNetworkPreset(networkPresetId.value)!.network })
+const onboardingWorkspaceIds = ref<string[]>([])
+const configuredWorkspaceIds = ref<string[]>([])
 const watchAddress = ref('')
 const secretFormat = ref<WalletSecretFormat>('mnemonic')
 const recoveryInput = ref<HTMLTextAreaElement | null>(null)
 const passphraseInput = ref<HTMLInputElement | null>(null)
-const preparedImport = ref<{ token: string; publicAddress: string } | null>(null)
+const preparedImport = ref<{
+  token: string
+  publicAddress: string
+  details: {
+    name: string
+    network: WalletNetwork
+    workspaceIds: string[]
+    dedicatedAgent: boolean
+  }
+} | null>(null)
 const policyOrigin = ref('')
 const policyDestination = ref('')
 const policyMethod = ref('')
@@ -73,18 +86,29 @@ watch(() => props.controller.wallets.value, (wallets) => {
 }, { immediate: true })
 
 watch(selectedWallet, (wallet) => {
-  selectedWorkspaceIds.value = wallet ? [...wallet.workspaceIds] : props.workspaces[0] ? [props.workspaces[0].id] : []
+  configuredWorkspaceIds.value = wallet ? [...wallet.workspaceIds] : []
 })
 
-function network() {
+watch(chainFamily, (family) => {
+  const nextPresetId = DEFAULT_WALLET_NETWORK_PRESET[family]
+  const nextPreset = walletNetworkPreset(nextPresetId)
+  if (!nextPreset) return
+  networkPresetId.value = nextPresetId
+  networkDraft.value = { ...nextPreset.network }
+})
+
+function network(): WalletNetwork {
   return {
-    id: networkId.value.trim(), name: networkName.value.trim(), environment: networkEnvironment.value, rpcUrl: rpcUrl.value.trim()
+    id: networkDraft.value.id.trim(),
+    name: networkDraft.value.name.trim(),
+    environment: networkDraft.value.environment,
+    rpcUrl: networkDraft.value.rpcUrl.trim()
   }
 }
 
 async function submitOnboarding(): Promise<void> {
   const input = {
-    name: name.value.trim(), chainFamily: chainFamily.value, network: network(), workspaceIds: [...selectedWorkspaceIds.value]
+    name: name.value.trim(), chainFamily: chainFamily.value, network: network(), workspaceIds: [...onboardingWorkspaceIds.value]
   }
   if (mode.value === 'generate') {
     await props.controller.generate({ ...input, dedicatedAgent: dedicatedAgent.value })
@@ -94,15 +118,24 @@ async function submitOnboarding(): Promise<void> {
     const secret = recoveryInput.value?.value ?? ''
     if (recoveryInput.value) recoveryInput.value.value = ''
     const prepared = await props.controller.prepareImport(chainFamily.value, secretFormat.value, secret)
-    if (prepared) preparedImport.value = { token: prepared.token, publicAddress: prepared.publicAddress }
+    if (prepared) {
+      preparedImport.value = {
+        token: prepared.token,
+        publicAddress: prepared.publicAddress,
+        details: {
+          name: input.name,
+          network: { ...input.network },
+          workspaceIds: [...input.workspaceIds],
+          dedicatedAgent: dedicatedAgent.value
+        }
+      }
+    }
   }
 }
 
 async function confirmPreparedImport(): Promise<void> {
   if (!preparedImport.value) return
-  const confirmed = await props.controller.confirmImport(preparedImport.value.token, {
-    name: name.value.trim(), network: network(), workspaceIds: [...selectedWorkspaceIds.value], dedicatedAgent: dedicatedAgent.value
-  })
+  const confirmed = await props.controller.confirmImport(preparedImport.value.token, preparedImport.value.details)
   if (confirmed) preparedImport.value = null
 }
 
@@ -120,7 +153,7 @@ async function submitPassphrase(action: 'setup' | 'unlock'): Promise<void> {
 }
 
 async function attachWorkspaces(): Promise<void> {
-  if (selectedWallet.value) await props.controller.update(selectedWallet.value.id, { workspaceIds: [...selectedWorkspaceIds.value] })
+  if (selectedWallet.value) await props.controller.update(selectedWallet.value.id, { workspaceIds: [...configuredWorkspaceIds.value] })
 }
 
 async function renameWallet(): Promise<void> {
@@ -141,7 +174,7 @@ async function addPolicy(): Promise<void> {
   const expiry = policyExpiry.value ? new Date(policyExpiry.value).toISOString() : new Date(Date.now() + 60 * 60_000).toISOString()
   const policy: WalletPolicy = {
     id: crypto.randomUUID(), name: t('wallets.policyName', { network: wallet.network.name }), mode: 'bounded-auto', walletId: wallet.id,
-    workspaceId: selectedWorkspaceIds.value[0] ?? wallet.workspaceIds[0] ?? '', networkIds: [wallet.network.id],
+    workspaceId: configuredWorkspaceIds.value[0] ?? wallet.workspaceIds[0] ?? '', networkIds: [wallet.network.id],
     origins: [policyOrigin.value.trim()], destinations: [policyDestination.value.trim()], methods: [policyMethod.value.trim()],
     ...(policyMaxAmount.value ? { maxNativeAmount: policyMaxAmount.value } : {}),
     ...(policyMaxTokenAmount.value ? { maxTokenAmount: policyMaxTokenAmount.value } : {}),
@@ -181,25 +214,22 @@ async function addPolicy(): Promise<void> {
 
     <section class="wallet-card">
       <div class="wallet-card-heading"><h4>{{ t('wallets.addWallet') }}</h4><span>{{ t('wallets.secretsNotCopied') }}</span></div>
-      <div class="wallet-mode-tabs">
-        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" @click="mode = entry">{{ t(`wallets.modes.${entry}`) }}</button>
+      <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
+        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-pressed="mode === entry" :disabled="preparedImport !== null" @click="mode = entry">{{ t(`wallets.modes.${entry}`) }}</button>
       </div>
       <form class="wallet-form" @submit.prevent="submitOnboarding">
-        <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required></label>
-        <label>{{ t('wallets.chain') }} <select v-model="chainFamily"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
-        <label>{{ t('wallets.environment') }} <select v-model="networkEnvironment"><option value="local">{{ t('wallets.environments.local') }}</option><option value="testnet">{{ t('wallets.environments.testnet') }}</option><option value="mainnet">{{ t('wallets.environments.mainnet') }}</option></select></label>
-        <label>{{ t('wallets.networkId') }} <input v-model="networkId" maxlength="128" required></label>
-        <label>{{ t('wallets.networkName') }} <input v-model="networkName" maxlength="128" required></label>
-        <label class="wallet-wide">{{ t('wallets.rpcUrl') }} <input v-model="rpcUrl" type="url" required></label>
-        <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required></label>
+        <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="preparedImport !== null"></label>
+        <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="preparedImport !== null"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
+        <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="preparedImport !== null" />
+        <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required :disabled="preparedImport !== null"></label>
         <template v-if="mode === 'import'">
-          <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
-          <label class="wallet-wide">{{ t('wallets.recoveryMaterial') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" spellcheck="false"></textarea></label>
+          <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat" :disabled="preparedImport !== null"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
+          <label class="wallet-wide">{{ t('wallets.recoveryMaterial') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" spellcheck="false" :disabled="preparedImport !== null"></textarea></label>
         </template>
-        <label v-if="mode !== 'watch'" class="wallet-wide wallet-agent-option"><input v-model="dedicatedAgent" type="checkbox"> {{ t('wallets.dedicatedAgent') }}</label>
+        <label v-if="mode !== 'watch'" class="wallet-wide wallet-agent-option"><input v-model="dedicatedAgent" type="checkbox" :disabled="preparedImport !== null"> {{ t('wallets.dedicatedAgent') }}</label>
         <p v-if="mode !== 'watch' && dedicatedAgent" class="wallet-wide wallet-form-note">{{ t('wallets.dedicatedAgentDescription') }}</p>
-        <fieldset class="wallet-wide"><legend>{{ t('wallets.attachedWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="selectedWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
-        <button class="primary-button" type="submit" :disabled="controller.busy.value || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
+        <fieldset class="wallet-wide" :disabled="preparedImport !== null"><legend>{{ t('wallets.attachedWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
+        <button class="primary-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
       </form>
       <div v-if="preparedImport" class="wallet-import-confirm">
         <strong>{{ t('wallets.confirmDerivedAddress') }}</strong><code>{{ preparedImport.publicAddress }}</code>
@@ -210,10 +240,10 @@ async function addPolicy(): Promise<void> {
 
     <section class="wallet-card">
       <div class="wallet-card-heading"><h4>{{ t('wallets.configured') }}</h4><button v-if="controller.status.value.managedWallets === 'ready'" class="secondary-button" type="button" @click="controller.lock">{{ t('wallets.lockVault') }}</button></div>
-      <select v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select>
+      <label class="wallet-selector-label">{{ t('wallets.configured') }}<select v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
       <template v-if="selectedWallet">
         <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
-        <fieldset><legend>{{ t('wallets.workspaceAccess') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="selectedWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
+        <fieldset><legend>{{ t('wallets.workspaceAccess') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
         <div class="wallet-actions"><button class="secondary-button" type="button" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</button><button class="secondary-button" type="button" @click="renameWallet">{{ t('wallets.rename') }}</button><button class="danger-button" type="button" @click="removeWallet">{{ t('wallets.remove') }}</button></div>
 
         <div class="wallet-subsection"><h5>{{ t('wallets.boundedHeading') }}</h5><p>{{ t('wallets.boundedDescription') }}</p>
