@@ -1,10 +1,14 @@
 import { createServer } from 'node:http'
+import { execFile } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+const execFileAsync = promisify(execFile)
 
 function toolText(result: CallToolResult): string {
   const item = result.content.find((entry) => entry.type === 'text')
@@ -98,15 +102,84 @@ test('keeps the browser available and wallet operations fail closed when wallet 
   }
 })
 
-test('keeps trusted Wallets settings usable at desktop and minimum window sizes', async ({ appWindow }, testInfo) => {
+test('keeps trusted Wallets settings usable at desktop and minimum window sizes', async ({ appWindow, electronApp }, testInfo) => {
+  await appWindow.evaluate(`window.hronaut.newTab({
+    url: 'data:text/html,<title>Wallet settings hit testing</title><main>Website fixture</main>',
+    active: true
+  })`)
+  await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+  await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  await dialog.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
+  await dialog.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   const panel = dialog.locator('.wallet-settings')
 
+  await expect.poll(() => appWindow.locator('.settings-overlay').evaluate((element) => (
+    getComputedStyle(element).getPropertyValue('-webkit-app-region')
+  ))).toBe('no-drag')
   await expect(panel.getByRole('heading', { name: 'Wallets', exact: true })).toBeVisible()
   await expect(panel.getByText(/trusted main process/i)).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Generate' })).toBeVisible()
+
+  const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
+  await walletName.scrollIntoViewIfNeeded()
+  const walletNameBounds = await walletName.boundingBox()
+  const browserWindow = await electronApp.browserWindow(appWindow)
+  const contentBounds = await browserWindow.evaluate((window) => window.getContentBounds())
+  const shellZoom = await appWindow.evaluate(() => window.devicePixelRatio)
+  if (!walletNameBounds || !contentBounds) throw new Error('Wallet name input did not expose native screen coordinates')
+  await execFileAsync('python3', [
+    join(process.cwd(), 'tests/integration/x11-input.py'),
+    String(contentBounds.x + Math.round((walletNameBounds.x + walletNameBounds.width / 2) * shellZoom)),
+    String(contentBounds.y + Math.round((walletNameBounds.y + walletNameBounds.height / 2) * shellZoom)),
+    '--click'
+  ])
+  await expect(walletName).toBeFocused()
+  await appWindow.keyboard.type('QA wallet')
+  await expect(walletName).toHaveValue('QA wallet')
+
+  const chain = panel.getByRole('combobox', { name: 'Chain' })
+  await chain.click()
+  await expect(chain).toBeFocused()
+  await execFileAsync('python3', [
+    join(process.cwd(), 'tests/integration/x11-input.py'),
+    '0',
+    '0',
+    '--shortcut=Down'
+  ])
+  await execFileAsync('python3', [
+    join(process.cwd(), 'tests/integration/x11-input.py'),
+    '0',
+    '0',
+    '--shortcut=Return'
+  ])
+  await expect(chain).toHaveValue('solana')
+
+  const environment = panel.getByRole('combobox', { name: 'Environment' })
+  await environment.click()
+  await expect(environment).toBeFocused()
+  await execFileAsync('python3', [
+    join(process.cwd(), 'tests/integration/x11-input.py'),
+    '0',
+    '0',
+    '--shortcut=Down'
+  ])
+  await execFileAsync('python3', [
+    join(process.cwd(), 'tests/integration/x11-input.py'),
+    '0',
+    '0',
+    '--shortcut=Return'
+  ])
+  await expect(environment).toHaveValue('mainnet')
+
+  await panel.getByRole('button', { name: 'Watch only' }).click()
+  const publicAddress = panel.getByRole('textbox', { name: 'Public address' })
+  await publicAddress.click()
+  await expect(publicAddress).toBeFocused()
+  await appWindow.keyboard.type('TQAInteractiveWalletAddress')
+  await expect(publicAddress).toHaveValue('TQAInteractiveWalletAddress')
   await appWindow.screenshot({ path: testInfo.outputPath('wallets-desktop.png') })
 
   await appWindow.setViewportSize({ width: 760, height: 520 })

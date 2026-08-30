@@ -177,7 +177,7 @@ try {
   $env:HRONAUT_MCP_URL = "http://127.0.0.1:$mcpPort/mcp"
   $env:HRONAUT_PROFILE_SMOKE_URL = "http://127.0.0.1:$fixturePort/"
   Remove-Item Env:HRONAUT_MCP_TOKEN -ErrorAction SilentlyContinue
-  Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "write")
+  Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "prepare")
   Stop-Hronaut -Executable $installedExecutable -Port $mcpPort
 
   $profileMarker = Get-ChildItem -Path $originalAppData -Filter "tabs.json" -File -Recurse | Where-Object {
@@ -196,6 +196,19 @@ try {
     throw "Hronaut profile was stored inside Scoop's versioned application directory"
   }
   Write-Host "Hronaut profile root: $profileDirectory"
+
+  $settingsPath = Join-Path $profileDirectory "settings.json"
+  $profileSettings = if (Test-Path $settingsPath) {
+    Get-Content -Raw $settingsPath | ConvertFrom-Json
+  } else {
+    [PSCustomObject]@{}
+  }
+  $profileSettings | Add-Member -NotePropertyName "mcpToolSet" -NotePropertyValue "complete" -Force
+  $profileSettings | ConvertTo-Json -Depth 20 | Set-Content -Path $settingsPath -Encoding UTF8
+
+  Start-Hronaut -Executable $installedExecutable -Port $mcpPort
+  Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "write")
+  Stop-Hronaut -Executable $installedExecutable -Port $mcpPort
 
   Invoke-CheckedCommand -Command $scoopCommand -Arguments @("uninstall", "hronaut")
   $installed = $false

@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the trusted Settings surface outside Electron title-bar drag regions so wallet names, native selectors, and other controls remain interactive across tab layouts, locked pages, and scaled interfaces.
+- Prepare the packaged Windows profile with the Complete MCP tool set before exercising persistence, so the Scoop install smoke verifies its intended `browser_evaluate` workflow instead of failing against the new Browser Essentials default.
+
 ## [1.10.0] - 2026-08-30
 
 ### Added

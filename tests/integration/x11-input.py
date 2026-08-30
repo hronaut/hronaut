@@ -29,6 +29,15 @@ def main() -> None:
         xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        if action == "--click":
+            xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            xtst.XTestFakeButtonEvent(display, 1, True, 0)
+            xtst.XTestFakeButtonEvent(display, 1, False, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            return
         if action.startswith("--shortcut="):
             key_names = action.removeprefix("--shortcut=").split("+")
             keycodes = []

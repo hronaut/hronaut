@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from './mcp-workspace.js'
 
-type ProfilePhase = 'write' | 'read' | 'cleanup'
+type ProfilePhase = 'prepare' | 'write' | 'read' | 'cleanup'
 
 interface ProfileResult {
   storage: string | null
@@ -11,8 +11,8 @@ interface ProfileResult {
 }
 
 const phase = process.argv[2]
-if (phase !== 'write' && phase !== 'read' && phase !== 'cleanup') {
-  throw new Error('Use phase "write", "read", or "cleanup".')
+if (phase !== 'prepare' && phase !== 'write' && phase !== 'read' && phase !== 'cleanup') {
+  throw new Error('Use phase "prepare", "write", "read", or "cleanup".')
 }
 const typedPhase: ProfilePhase = phase
 
@@ -23,7 +23,7 @@ const client = new Client({ name: 'hronaut-profile-smoke', version: '1.0.0' })
 await client.connect(new StreamableHTTPClientTransport(endpoint, {
   ...(token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : {})
 }))
-const workspaceId = await useMcpWorkspace(client, 'Profile smoke', true, typedPhase !== 'write')
+const workspaceId = await useMcpWorkspace(client, 'Profile smoke', true, typedPhase !== 'prepare')
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -31,41 +31,45 @@ function text(result: CallToolResult): string {
 }
 
 try {
-  const navigation = await client.callTool({ name: 'browser_navigate', arguments: { url: pageUrl } }) as CallToolResult
-  if (navigation.isError) throw new Error(text(navigation))
+  if (typedPhase === 'prepare') {
+    console.log('Persistent profile location is prepared for capability setup.')
+  } else {
+    const navigation = await client.callTool({ name: 'browser_navigate', arguments: { url: pageUrl } }) as CallToolResult
+    if (navigation.isError) throw new Error(text(navigation))
 
-  const script =
-    typedPhase === 'write'
-      ? `(() => {
-          localStorage.setItem('hronaut.profile-smoke', 'persisted');
-          document.cookie = 'hronaut_profile_smoke=persisted; Path=/; Max-Age=3600; SameSite=Lax';
-          return { storage: localStorage.getItem('hronaut.profile-smoke'), cookie: document.cookie };
-        })()`
-      : typedPhase === 'read'
-        ? `(() => ({
-          storage: localStorage.getItem('hronaut.profile-smoke'),
-          cookie: document.cookie
-        }))()`
-        : `(() => {
-            localStorage.removeItem('hronaut.profile-smoke');
-            document.cookie = 'hronaut_profile_smoke=; Path=/; Max-Age=0; SameSite=Lax';
+    const script =
+      typedPhase === 'write'
+        ? `(() => {
+            localStorage.setItem('hronaut.profile-smoke', 'persisted');
+            document.cookie = 'hronaut_profile_smoke=persisted; Path=/; Max-Age=3600; SameSite=Lax';
             return { storage: localStorage.getItem('hronaut.profile-smoke'), cookie: document.cookie };
           })()`
-  const evaluated = await client.callTool({ name: 'browser_evaluate', arguments: { script } }) as CallToolResult
-  if (evaluated.isError) throw new Error(text(evaluated))
-  const result = JSON.parse(text(evaluated)) as ProfileResult
-  if (typedPhase !== 'cleanup' && (result.storage !== 'persisted' || !result.cookie.includes('hronaut_profile_smoke=persisted'))) {
-    throw new Error(`Persistent profile check failed: ${JSON.stringify(result)}`)
-  }
-  if (typedPhase === 'cleanup') {
-    const closed = await client.callTool({
-      name: 'browser_workspaces',
-      arguments: { action: 'close', workspaceId }
-    }) as CallToolResult
-    if (closed.isError) throw new Error(text(closed))
-    console.log('Persistent profile smoke data and its workspace were removed.')
-  } else {
-    console.log(`Persistent profile ${typedPhase} phase passed: localStorage and cookie are present.`)
+        : typedPhase === 'read'
+          ? `(() => ({
+            storage: localStorage.getItem('hronaut.profile-smoke'),
+            cookie: document.cookie
+          }))()`
+          : `(() => {
+              localStorage.removeItem('hronaut.profile-smoke');
+              document.cookie = 'hronaut_profile_smoke=; Path=/; Max-Age=0; SameSite=Lax';
+              return { storage: localStorage.getItem('hronaut.profile-smoke'), cookie: document.cookie };
+            })()`
+    const evaluated = await client.callTool({ name: 'browser_evaluate', arguments: { script } }) as CallToolResult
+    if (evaluated.isError) throw new Error(text(evaluated))
+    const result = JSON.parse(text(evaluated)) as ProfileResult
+    if (typedPhase !== 'cleanup' && (result.storage !== 'persisted' || !result.cookie.includes('hronaut_profile_smoke=persisted'))) {
+      throw new Error(`Persistent profile check failed: ${JSON.stringify(result)}`)
+    }
+    if (typedPhase === 'cleanup') {
+      const closed = await client.callTool({
+        name: 'browser_workspaces',
+        arguments: { action: 'close', workspaceId }
+      }) as CallToolResult
+      if (closed.isError) throw new Error(text(closed))
+      console.log('Persistent profile smoke data and its workspace were removed.')
+    } else {
+      console.log(`Persistent profile ${typedPhase} phase passed: localStorage and cookie are present.`)
+    }
   }
 } finally {
   await client.close()
