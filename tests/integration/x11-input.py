@@ -6,7 +6,7 @@ import time
 
 def main() -> None:
     if len(sys.argv) != 4:
-        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key|--wheel>")
+        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key|--wheel|--shortcut=key+key>")
 
     x = int(sys.argv[1])
     y = int(sys.argv[2])
@@ -29,6 +29,23 @@ def main() -> None:
         xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        if action.startswith("--shortcut="):
+            key_names = action.removeprefix("--shortcut=").split("+")
+            keycodes = []
+            for key_name in key_names:
+                keysym = x11.XStringToKeysym(key_name.encode("ascii"))
+                keycode = x11.XKeysymToKeycode(display, keysym)
+                if not keycode:
+                    raise SystemExit(f"could not resolve X11 key: {key_name}")
+                keycodes.append(keycode)
+            for keycode in keycodes:
+                xtst.XTestFakeKeyEvent(display, keycode, True, 0)
+            for keycode in reversed(keycodes):
+                xtst.XTestFakeKeyEvent(display, keycode, False, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            return
+
         if action != "--wheel":
             keysym = x11.XStringToKeysym(action.encode("ascii"))
             keycode = x11.XKeysymToKeycode(display, keysym)

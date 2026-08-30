@@ -1006,7 +1006,10 @@ export class BrowserTabsManager {
     this.layout()
     this.restoringLayout = false
     this.initialized = true
-    if (this.activeTabId) this.tabs.get(this.activeTabId)?.webContents.focus()
+    if (this.activeTabId) {
+      const activeTab = this.tabs.get(this.activeTabId)
+      if (activeTab) this.focusTabOrTrustedChrome(activeTab)
+    }
     this.memorySaverTimer = setInterval(() => {
       void this.sweepMemorySaver(false).catch((error) => console.error('[browser] Memory Saver sweep failed:', error))
     }, MEMORY_SAVER_SWEEP_MS)
@@ -2728,7 +2731,7 @@ export class BrowserTabsManager {
       this.activeTabId = next.id
       this.markTabActiveInGroup(next)
       this.layout()
-      next.webContents.focus()
+      this.focusTabOrTrustedChrome(next)
       this.changed()
       return this.getState()
     }
@@ -2812,7 +2815,7 @@ export class BrowserTabsManager {
     }
     this.window.contentView.addChildView(target.view)
     this.layout()
-    current.webContents.focus()
+    this.focusTabOrTrustedChrome(current)
     this.changed()
     return this.getState()
   }
@@ -2847,7 +2850,7 @@ export class BrowserTabsManager {
     if (otherTab) this.window.contentView.removeChildView(otherTab.view)
     this.splitView = null
     this.layout()
-    activeTab.webContents.focus()
+    this.focusTabOrTrustedChrome(activeTab)
     this.changed()
     return this.getState()
   }
@@ -6182,7 +6185,7 @@ export class BrowserTabsManager {
             this.markTabActiveInGroup(partner)
           }
           this.layout()
-          if (this.activeTabId === partner.id) partner.webContents.focus()
+          if (this.activeTabId === partner.id) this.focusTabOrTrustedChrome(partner)
           this.changed()
           return
         }
@@ -6277,7 +6280,7 @@ export class BrowserTabsManager {
       }) : null
       if (this.shouldBlockHumanKeyboardInput(tab)) {
         event.preventDefault()
-        if (this.allHumanInteractionLocked && shortcut && shortcut !== 'close-tab') {
+        if (shortcut && (!this.allHumanInteractionLocked || shortcut !== 'close-tab')) {
           this.options.onUserInteraction?.()
           this.options.onShortcutRequested?.(shortcut)
         }
@@ -7342,6 +7345,14 @@ export class BrowserTabsManager {
       && (this.allHumanInteractionLocked || tab.humanInteractionLocked)
   }
 
+  private focusTabOrTrustedChrome(tab: BrowserTab): void {
+    if (this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)) {
+      this.window.webContents.focus()
+      return
+    }
+    tab.webContents.focus()
+  }
+
   private shouldBlockHumanKeyboardInput(tab: BrowserTab): boolean {
     return this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)
   }
@@ -7740,6 +7751,7 @@ export class BrowserTabsManager {
               'Input.setIgnoreInputEvents',
               { ignore: true }
             ))
+            if (this.activeTabId === tab.id) this.focusTabOrTrustedChrome(tab)
           }
         }
       }

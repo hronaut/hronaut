@@ -32,6 +32,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep trusted browser shortcuts available when only the focused website tab is interaction-locked, while continuing to block page keyboard input and global-lock tab closure.
+- Replace the obsolete external-wallet proposal and its broken design-document link in the detailed reference with the implemented local EVM, Solana, and Tron wallet trust model and canonical security documentation.
 - Verify Tron transaction JSON against its canonical protobuf bytes and transaction hash at normalization, simulation, signing, and broadcast boundaries, preventing substituted or post-approval-mutated data from being signed.
 - Reject negative or unsafe EVM chain IDs and transaction nonces outside JavaScript's safe integer range instead of accepting invalid networks or silently rounding values before simulation, approval, and signing.
 - Make MCP `browser_press` insert the intended shifted printable character, so combinations such as `Shift+x`, `Shift+1`, and `Shift+/` produce `X`, `!`, and `?` instead of their unshifted text.

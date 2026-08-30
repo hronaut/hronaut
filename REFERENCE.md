@@ -402,9 +402,11 @@ Bug reports, documentation suggestions, and private security reports are welcome
 - Browser Issues expose normalized Chromium reason codes and bounded affected URLs, never raw issue payloads or cookie values. Review copied diagnostics before sharing them outside a trusted agent session.
 - `browser_file_upload` can attach any absolute local file path supplied by a connected client. Only connect clients you trust with local file access.
 
-## Web3 wallet design
+## Local Web3 wallets
 
-Wallet support is intentionally being designed as a separate security-sensitive project rather than being folded into ordinary browser tooling. The current proposal starts with a standards-compatible provider and external-wallet signing, preserves human approval for every signature or transaction, and gives agents inspection and simulation capabilities without signing authority. See [the Web3 wallet architecture](design/web3-wallet-architecture.md).
+The current `main` branch contains an unreleased local-wallet preview for EVM, Solana, and Tron. Hronaut can generate or import managed wallets, add watch-only addresses, and create dedicated agent wallets. Managed signing material stays in the trusted Electron main process inside an authenticated encrypted vault; websites and MCP clients refer to public wallet IDs and can request scoped access, simulation, signing, submission, status, or cancellation without receiving private keys or recovery phrases.
+
+Wallet access is scoped to the wallet, workspace, top-level origin, account, network, requester, and capability. Mainnet signing always requires explicit human approval in trusted Hronaut chrome. Bounded automatic approval is limited to explicitly configured local networks and testnets, and fails closed for undecodable requests, unsuccessful simulation, policy-limit violations, or changed approval data. Hronaut does not integrate WalletConnect, Reown, or external-wallet SDKs in this iteration. See the [wallet security and usage reference](docs/WALLETS.md) for supported provider methods, onboarding and recovery, Linux secret-store behavior, policy limits, RPC configuration, revocation, testing, and the exact threat boundary.
 
 ## Testing
 

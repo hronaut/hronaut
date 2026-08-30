@@ -5821,6 +5821,66 @@ test('locks website input and tab closing across Hronaut while keeping browser c
   }
 })
 
+test('returns physical keyboard focus to trusted chrome after agent input in a locked tab', async ({
+  appWindow,
+  mcpPort,
+  mcpToken
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Locked agent focus</title><input autofocus>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const client = new Client({ name: 'hronaut-locked-agent-focus-test', version: '1.0.0' })
+  const authorization = `Bearer ${mcpToken}`
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Test server did not expose a TCP port')
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Locked agent focus tests', false)
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/locked-agent-focus`, active: true }
+    }) as CallToolResult
+    expect(opened.isError, mcpResultText(opened)).not.toBe(true)
+    const tabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
+    const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
+    expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+
+    await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
+    const pressed = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'Escape' }
+    }) as CallToolResult
+    expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
+    await execFileAsync('python3', [
+      join(process.cwd(), 'tests/integration/x11-input.py'),
+      '0',
+      '0',
+      '--shortcut=Control_L+l'
+    ])
+
+    await expect(appWindow.getByRole('combobox', { name: 'Address' })).toBeFocused()
+  } finally {
+    await client.close().catch(() => undefined)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('picks a page element and copies safe agent-ready DOM context from an MCP-created tab', async ({
   appWindow,
   electronApp,
