@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { walletStartupFailureStatus } from '../src/main/wallet/startup-status.js'
 
 describe('walletStartupFailureStatus', () => {
-  it('classifies validated persistence failures without exposing their input', () => {
-    expect(walletStartupFailureStatus(new Error('Wallet audit history verification failed'))).toMatchObject({
+  it.each([
+    'Wallet audit history verification failed',
+    'Wallet authority authentication failed',
+    'Wallet identity authentication failed',
+    'Wallet legacy policy store is invalid'
+  ])('classifies validated persistence failure %s without exposing its input', (message) => {
+    expect(walletStartupFailureStatus(new Error(message))).toMatchObject({
       managedWallets: 'disabled',
       backend: 'integrity-failure',
       watchOnlyAvailable: false

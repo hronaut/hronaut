@@ -9,7 +9,10 @@ const INTEGRITY_FAILURES = new Set([
   'Wallet audit history verification failed',
   'Wallet vault file is invalid',
   'Wallet vault protection mode mismatch',
-  'Wallet vault authentication failed'
+  'Wallet vault authentication failed',
+  'Wallet authority authentication failed',
+  'Wallet identity authentication failed',
+  'Wallet legacy policy store is invalid'
 ])
 
 export function walletStartupFailureStatus(error: unknown): WalletServiceStatus {

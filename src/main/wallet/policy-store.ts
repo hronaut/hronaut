@@ -1,26 +1,17 @@
-import { readFile } from 'node:fs/promises'
-import { z } from 'zod'
 import { WalletPolicySchema, type WalletPolicy } from '../../shared/wallet.js'
-import { writeTextFileAtomically } from '../atomic-file.js'
-
-const PolicyDocumentSchema = z.object({ version: z.literal(1), policies: z.array(WalletPolicySchema).max(10_000) }).strict()
+import type { WalletAuthorityPersistence } from './authority-state.js'
 
 export class WalletPolicyStore {
   private readonly policies = new Map<string, WalletPolicy>()
   private mutationQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly authority: WalletAuthorityPersistence) {}
 
   async load(): Promise<WalletPolicy[]> {
     this.policies.clear()
-    try {
-      const document = PolicyDocumentSchema.parse(JSON.parse(await readFile(this.path, 'utf8')))
-      for (const policy of document.policies) {
-        if (this.policies.has(policy.id)) throw new Error('duplicate')
-        this.policies.set(policy.id, structuredClone(policy))
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Wallet policy store is invalid')
+    for (const policy of this.authority.snapshot().policies) {
+      if (this.policies.has(policy.id)) throw new Error('Wallet policy store is invalid')
+      this.policies.set(policy.id, structuredClone(policy))
     }
     return this.list()
   }
@@ -30,6 +21,10 @@ export class WalletPolicyStore {
       .filter((policy) => !walletId || policy.walletId === walletId)
       .map((policy) => structuredClone(policy))
       .sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  clear(): void {
+    this.policies.clear()
   }
 
   set(input: WalletPolicy): Promise<WalletPolicy> {
@@ -81,7 +76,8 @@ export class WalletPolicyStore {
   }
 
   private persist(next: ReadonlyMap<string, WalletPolicy>): Promise<void> {
-    return writeTextFileAtomically(this.path, `${JSON.stringify({ version: 1, policies: [...next.values()].sort((a, b) => a.id.localeCompare(b.id)) }, null, 2)}\n`)
+    const policies = [...next.values()].map((policy) => structuredClone(policy)).sort((a, b) => a.id.localeCompare(b.id))
+    return this.authority.mutate((state) => { state.policies = policies })
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {

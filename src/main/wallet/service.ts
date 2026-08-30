@@ -20,6 +20,7 @@ import {
 import { generateWalletRecovery, deriveWalletAccount, validateWatchOnlyWalletAddress } from './accounts.js'
 import { WalletApprovalStore } from './approvals.js'
 import { WalletAuditStore, type WalletAuditEntry } from './audit.js'
+import { emptyWalletAuthorityState, encodeWalletAuthorityState, WalletAuthorityPersistence } from './authority-state.js'
 import {
   PassphraseWalletKeyWrapper,
   SafeStorageWalletKeyWrapper,
@@ -58,6 +59,16 @@ export interface WalletGeneratedResult {
   recoveryMaterial: string
 }
 
+declare const signingAuthorizationBrand: unique symbol
+export type WalletSigningAuthorization = object & { readonly [signingAuthorizationBrand]: true }
+
+interface SigningAuthorizationRecord {
+  walletId: string
+  requestId: string
+  approvalHash: string
+  expiresAt: number
+}
+
 export interface WalletServiceOptions {
   directory: string
   platform: NodeJS.Platform
@@ -79,6 +90,7 @@ function uniqueWorkspaceIds(values: readonly string[]): string[] {
 export class WalletService {
   readonly approvals: WalletApprovalStore
   readonly audit: WalletAuditStore
+  readonly authority: WalletAuthorityPersistence
   readonly permissions: WalletPermissionStore
   readonly policies: WalletPolicyStore
   readonly policyUsage: WalletPolicyUsageStore
@@ -91,22 +103,26 @@ export class WalletService {
   }
   private readonly imports = new Map<string, PendingImport>()
   private readonly importExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private signingAuthorizations = new WeakMap<object, SigningAuthorizationRecord>()
 
   constructor(private readonly options: WalletServiceOptions) {
     this.vaultPath = join(options.directory, 'vault.json')
     this.approvals = new WalletApprovalStore(join(options.directory, 'requests.json'))
     this.audit = new WalletAuditStore(join(options.directory, 'audit.jsonl'))
-    this.permissions = new WalletPermissionStore(join(options.directory, 'permissions.json'))
-    this.policies = new WalletPolicyStore(join(options.directory, 'policies.json'))
-    this.policyUsage = new WalletPolicyUsageStore(join(options.directory, 'policy-usage.json'))
+    this.authority = new WalletAuthorityPersistence(() => {
+      if (!this.vault) throw new Error('Wallet vault is unavailable')
+      return this.vault
+    }, options.directory)
+    this.permissions = new WalletPermissionStore(this.authority)
+    this.policies = new WalletPolicyStore(this.authority)
+    this.policyUsage = new WalletPolicyUsageStore(this.authority)
     this.watchOnly = new WalletWatchOnlyStore(join(options.directory, 'watch-only.json'))
   }
 
   async initialize(): Promise<void> {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 })
     const storeResults = await Promise.allSettled([
-      this.watchOnly.load(), this.permissions.load(), this.policies.load(), this.policyUsage.load(),
-      this.approvals.load(this.now()), this.audit.verify()
+      this.watchOnly.load(), this.approvals.load(this.now()), this.audit.verify()
     ])
     const failedStore = storeResults.find((result) => result.status === 'rejected')
     if (failedStore?.status === 'rejected') throw failedStore.reason
@@ -133,7 +149,8 @@ export class WalletService {
       this.protection = detectedProtection
       this.vault = new WalletVault(this.vaultPath, new SafeStorageWalletKeyWrapper(this.options.safeStorage))
       if (vaultExists) await this.vault.load()
-      else await this.vault.initialize()
+      else await this.vault.initialize(undefined, encodeWalletAuthorityState(emptyWalletAuthorityState()))
+      await this.loadAuthorityStores()
       this.statusValue = { managedWallets: 'ready', backend: detectedProtection.backend, watchOnlyAvailable: true }
     } else if (detectedProtection.mode === 'passphrase-required') {
       this.protection = detectedProtection
@@ -163,7 +180,8 @@ export class WalletService {
     if (this.statusValue.managedWallets !== 'passphrase-setup-required' || !this.vault) throw new Error('Wallet passphrase setup is unavailable')
     const bytes = this.passphraseBytes(passphrase)
     try {
-      await this.vault.initialize(bytes)
+      await this.vault.initialize(bytes, encodeWalletAuthorityState(emptyWalletAuthorityState()))
+      await this.loadAuthorityStores()
       this.statusValue = { managedWallets: 'ready', backend: this.statusValue.backend, watchOnlyAvailable: true }
       await this.audit.append('vault-configured', { protection: 'argon2id-passphrase' }, this.now().toISOString())
       this.publish()
@@ -178,6 +196,13 @@ export class WalletService {
     const bytes = this.passphraseBytes(passphrase)
     try {
       await this.vault.unlock(bytes)
+      try {
+        await this.loadAuthorityStores()
+      } catch (error) {
+        this.clearAuthorityStores()
+        this.vault.lock()
+        throw error
+      }
       this.statusValue = { managedWallets: 'ready', backend: this.statusValue.backend, watchOnlyAvailable: true }
       this.publish()
       return this.status()
@@ -188,6 +213,8 @@ export class WalletService {
 
   lock(): void {
     this.vault?.lock()
+    this.signingAuthorizations = new WeakMap()
+    this.clearAuthorityStores()
     if (this.vault && this.protection?.mode === 'passphrase-required' && existsSync(this.vaultPath)) {
       this.statusValue = { managedWallets: 'locked', backend: this.statusValue.backend, watchOnlyAvailable: true }
     }
@@ -393,7 +420,55 @@ export class WalletService {
     return this.audit.verify()
   }
 
-  async withSecret<T>(walletId: string, operation: (wallet: WalletDescriptor, secret: WalletSecret) => Promise<T>): Promise<T> {
+  authorizeSigning(requestId: string): WalletSigningAuthorization {
+    const record = this.approvals.get(requestId)
+    if (!record) throw new Error('Wallet request not found')
+    this.approvals.assertApprovedRequest(record.id, record.request)
+    const wallet = this.requireWallet(record.request.walletId)
+    if (
+      wallet.kind === 'watch-only'
+      || wallet.chainFamily !== record.request.chainFamily
+      || wallet.network.id !== record.request.networkId
+      || !wallet.workspaceIds.includes(record.request.workspaceId)
+    ) throw new Error('Wallet signing authority no longer matches the wallet')
+    if (!record.approvalHash) throw new Error('Wallet request is not approved')
+    if (!this.permissions.allows({
+      walletId: wallet.id,
+      workspaceId: record.request.workspaceId,
+      origin: record.request.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      requester: record.request.requester,
+      capability: 'read'
+    }, this.now())) throw new Error('Wallet account access was revoked before signing')
+    const token = Object.freeze({}) as WalletSigningAuthorization
+    this.signingAuthorizations.set(token, {
+      walletId: wallet.id,
+      requestId: record.id,
+      approvalHash: record.approvalHash,
+      expiresAt: Date.parse(record.request.expiresAt)
+    })
+    return token
+  }
+
+  async withSecret<T>(
+    walletId: string,
+    authorization: WalletSigningAuthorization,
+    operation: (wallet: WalletDescriptor, secret: WalletSecret) => Promise<T>
+  ): Promise<T> {
+    const authority = this.signingAuthorizations.get(authorization)
+    if (authority) this.signingAuthorizations.delete(authorization)
+    if (!authority || authority.walletId !== walletId || authority.expiresAt <= this.now().getTime()) {
+      throw new Error('Wallet signing authorization is invalid or expired')
+    }
+    const approval = this.approvals.get(authority.requestId)
+    if (
+      !approval
+      || (approval.status !== 'approved' && approval.status !== 'signing')
+      || approval.approvalHash !== authority.approvalHash
+      || approval.request.walletId !== walletId
+    ) throw new Error('Wallet signing authorization is no longer valid')
     const wallet = this.requireWallet(walletId)
     if (wallet.kind === 'watch-only') throw new Error('Watch-only wallets cannot sign')
     if (!wallet.recoveryConfirmed) throw new Error('Wallet recovery material must be confirmed before signing')
@@ -420,6 +495,24 @@ export class WalletService {
   dispose(): void {
     this.lock()
     this.clearPendingImports()
+  }
+
+  private async loadAuthorityStores(): Promise<void> {
+    const vault = this.vault
+    if (!vault || vault.isLocked()) throw new Error('Wallet vault is unavailable or locked')
+    const managedIds = new Set(vault.list().map((wallet) => wallet.id))
+    if (this.watchOnly.list().some((wallet) => managedIds.has(wallet.id))) {
+      throw new Error('Wallet identity authentication failed')
+    }
+    await this.authority.load(vault.list())
+    await Promise.all([this.permissions.load(), this.policies.load(), this.policyUsage.load()])
+  }
+
+  private clearAuthorityStores(): void {
+    this.permissions.clear()
+    this.policies.clear()
+    this.policyUsage.clear()
+    this.authority.clear()
   }
 
   private readyVault(): WalletVault {

@@ -2176,11 +2176,11 @@ function registerIpc(): void {
   })
   ipcMain.handle('wallets:set-policy', (event, input: unknown) => {
     assertMainShellSender(event)
-    return requireWalletService().setPolicy(WalletPolicySchema.parse(input))
+    return requireWalletBroker().setPolicy(WalletPolicySchema.parse(input))
   })
   ipcMain.handle('wallets:remove-policy', (event, policyId: unknown) => {
     assertMainShellSender(event)
-    return requireWalletService().removePolicy(walletIdentifier(policyId, 'wallet policy identifier'))
+    return requireWalletBroker().removePolicy(walletIdentifier(policyId, 'wallet policy identifier'))
   })
   ipcMain.handle('wallets:list-permissions', (event) => {
     assertMainShellSender(event)

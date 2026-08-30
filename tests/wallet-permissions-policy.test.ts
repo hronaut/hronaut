@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WalletPermissionStore } from '../src/main/wallet/permissions.js'
 import { WalletPolicyEngine } from '../src/main/wallet/policy.js'
+import { createTestWalletAuthority } from './helpers/wallet-authority.js'
 import type {
   WalletDescriptor,
   WalletOperationRequest,
@@ -25,7 +26,7 @@ afterEach(async () => {
 async function permissionStore(): Promise<WalletPermissionStore> {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-wallet-permissions-test-'))
   temporaryDirectories.push(directory)
-  const store = new WalletPermissionStore(join(directory, 'permissions.json'))
+  const store = new WalletPermissionStore(await createTestWalletAuthority(directory))
   await store.load()
   return store
 }

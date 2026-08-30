@@ -228,6 +228,191 @@ describe('WalletService', () => {
     })).rejects.toThrow('not eligible for automatic approval')
   })
 
+  it('rejects tampering with encrypted automatic-signing policy authority', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const generated = await created.generate({
+      name: 'Authenticated policy wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    await created.setPolicy({
+      id: 'policy-authenticated', name: 'Local allowance', mode: 'bounded-auto', walletId: generated.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', dailySpendLimit: '1', expiresAt: '2099-08-29T12:00:00.000Z',
+      maximumOperationCount: 1, requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    created.dispose()
+
+    const vaultPath = join(path, 'vault.json')
+    const persisted = JSON.parse(await readFile(vaultPath, 'utf8')) as {
+      authority: { ciphertext: string }
+    }
+    persisted.authority.ciphertext = `${persisted.authority.ciphertext.slice(0, -4)}AAAA`
+    await writeFile(vaultPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await expect(restored.initialize()).rejects.toThrow('Wallet vault authentication failed')
+  })
+
+  it('rejects tampering with encrypted automatic-signing usage authority', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const generated = await created.generate({
+      name: 'Authenticated usage wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    const policy = await created.setPolicy({
+      id: 'policy-usage-authenticated', name: 'One operation', mode: 'bounded-auto', walletId: generated.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      dailySpendLimit: '1', expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    await expect(created.policyUsage.reserve(policy, '1', new Date('2026-08-30T12:00:00.000Z')))
+      .resolves.toMatchObject({ reserved: true })
+    created.dispose()
+
+    const vaultPath = join(path, 'vault.json')
+    const persisted = JSON.parse(await readFile(vaultPath, 'utf8')) as {
+      authority: { ciphertext: string }
+    }
+    persisted.authority.ciphertext = `${persisted.authority.ciphertext.slice(0, -4)}AAAA`
+    await writeFile(vaultPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await expect(restored.initialize()).rejects.toThrow('Wallet vault authentication failed')
+  })
+
+  it('authenticates the complete managed descriptor before trusting workspace and network authority', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    await created.generate({
+      name: 'Descriptor authority wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    created.dispose()
+
+    const vaultPath = join(path, 'vault.json')
+    const persisted = JSON.parse(await readFile(vaultPath, 'utf8')) as {
+      wallets: Array<{ workspaceIds: string[]; network: { environment: string } }>
+    }
+    persisted.wallets[0]!.workspaceIds.push('attacker-workspace')
+    persisted.wallets[0]!.network.environment = 'testnet'
+    await writeFile(vaultPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await expect(restored.initialize()).rejects.toThrow('Wallet vault authentication failed')
+  })
+
+  it('revokes unauthenticated legacy grants and makes legacy automatic policies ask before use', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const generated = await created.generate({
+      name: 'Legacy authority wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    const policy = await created.setPolicy({
+      id: 'legacy-policy', name: 'Legacy allowance', mode: 'bounded-auto', walletId: generated.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      dailySpendLimit: '1', expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    await created.policyUsage.reserve(policy, '1', new Date('2026-08-30T12:00:00.000Z'))
+    created.dispose()
+
+    const vaultPath = join(path, 'vault.json')
+    const legacyVault = JSON.parse(await readFile(vaultPath, 'utf8')) as { version: number; authority?: unknown }
+    legacyVault.version = 1
+    delete legacyVault.authority
+    await writeFile(vaultPath, `${JSON.stringify(legacyVault, null, 2)}\n`, 'utf8')
+    await writeFile(join(path, 'policies.json'), `${JSON.stringify({ version: 1, policies: [
+      { ...policy, maxNativeAmount: '1000', maximumOperationCount: 10_000 }
+    ] }, null, 2)}\n`, 'utf8')
+    await writeFile(join(path, 'permissions.json'), `${JSON.stringify({
+      version: 1,
+      permissions: [{
+        id: 'forged-grant', walletId: generated.wallet.id, workspaceId: 'workspace-1',
+        origin: 'https://dapp.example', account: generated.wallet.publicAddress, chainFamily: 'evm',
+        networkId: '31337', capabilities: ['read', 'sign', 'send'],
+        createdAt: '2026-08-30T12:00:00.000Z', expiresAt: '2099-08-30T12:00:00.000Z'
+      }]
+    }, null, 2)}\n`, 'utf8')
+    await writeFile(join(path, 'policy-usage.json'), `${JSON.stringify({
+      version: 1,
+      entries: [{ policyId: policy.id, operationCount: 0, dailyDate: '2026-08-30', dailySpend: '0' }]
+    }, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await restored.initialize()
+
+    expect(restored.policies.list()).toEqual([{ ...policy, maxNativeAmount: '1000', maximumOperationCount: 10_000, mode: 'always-ask' }])
+    expect(restored.permissions.list()).toEqual([])
+    expect(restored.policyUsage.snapshot(policy.id, new Date('2026-08-30T12:30:00.000Z'))).toMatchObject({
+      operationCount: 0,
+      dailySpend: '0'
+    })
+    expect(JSON.parse(await readFile(vaultPath, 'utf8'))).toMatchObject({ version: 2, authority: { algorithm: 'xchacha20-poly1305' } })
+  })
+
+  it('rejects a watch-only record that spoofs a managed wallet id', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const generated = await created.generate({
+      name: 'Managed identity', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    await created.addWatchOnly({
+      name: 'Watch identity', chainFamily: 'evm', network,
+      publicAddress: '0x0000000000000000000000000000000000000002', workspaceIds: ['workspace-1']
+    })
+    created.dispose()
+
+    const watchPath = join(path, 'watch-only.json')
+    const persisted = JSON.parse(await readFile(watchPath, 'utf8')) as { wallets: Array<{ id: string }> }
+    persisted.wallets[0]!.id = generated.wallet.id
+    await writeFile(watchPath, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await expect(restored.initialize()).rejects.toThrow('Wallet identity authentication failed')
+  })
+
+  it('releases signing material only through a one-shot current-process authorization', async () => {
+    const path = await directory()
+    const now = new Date('2026-08-30T12:00:00.000Z')
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage(), now: () => now })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Authorized signer', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: generated.wallet.id, workspaceId: 'workspace-1', origin: 'https://dapp.example',
+      account: generated.wallet.publicAddress, chainFamily: 'evm', networkId: '31337', capabilities: ['read'],
+      requester: { type: 'website', id: 'tab-1' }, expiresAt: '2099-08-30T12:00:00.000Z'
+    })
+    const request = await service.approvals.create({
+      requestId: 'request-authorized-signing', walletId: generated.wallet.id, workspaceId: 'workspace-1',
+      tabId: 'tab-1', navigationGeneration: 1, topLevelOrigin: 'https://dapp.example',
+      requester: { type: 'website', id: 'tab-1' }, capability: 'sign', chainFamily: 'evm', networkId: '31337',
+      operation: 'sign-transaction', payload: { normalized: {} }, expiresAt: '2099-08-30T12:00:00.000Z'
+    }, 'authorized-signing', now)
+    await service.approvals.transition(request.id, 'validated', now)
+    await service.approvals.recordSimulation(request.id, { attempted: true, success: true }, now)
+    await service.approvals.transition(request.id, 'simulated', now)
+    await service.approvals.transition(request.id, 'policy-decision', now)
+    await service.approvals.approve(request.id, request.request, now)
+
+    await expect(service.withSecret(generated.wallet.id, {} as never, async () => true))
+      .rejects.toThrow('Wallet signing authorization is invalid or expired')
+    const authorization = service.authorizeSigning(request.id)
+    await expect(service.withSecret(generated.wallet.id, authorization, async (_wallet, secret) => secret.material.length > 0))
+      .resolves.toBe(true)
+    await expect(service.withSecret(generated.wallet.id, authorization, async () => true))
+      .rejects.toThrow('Wallet signing authorization is invalid or expired')
+  })
+
   it('rejects policy URLs that are not origins and policies that have already expired', async () => {
     const path = await directory()
     const now = new Date('2026-08-29T12:00:00.000Z')

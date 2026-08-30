@@ -9,6 +9,7 @@ const TAG_BYTES = 16
 const PASSPHRASE_SALT_BYTES = 16
 const PASSPHRASE_DOMAIN = Buffer.from('hronaut-wallet-vault-wrap-v1', 'utf8')
 const VAULT_KEY_AAD = Buffer.from('{"schemaVersion":1,"purpose":"hronaut-wallet-data-encryption-key"}', 'utf8')
+const VAULT_AUTHORITY_AAD = Buffer.from('{"schemaVersion":1,"purpose":"hronaut-wallet-authority-state"}', 'utf8')
 
 export interface WalletSecretMetadata {
   schemaVersion: number
@@ -143,6 +144,35 @@ export function decryptWalletDataKey(wrappingKey: Uint8Array, encrypted: Encrypt
     throw new Error('Wallet vault authentication failed')
   }
   return dataEncryptionKey
+}
+
+export function encryptWalletAuthorityState(
+  dataEncryptionKey: Uint8Array,
+  plaintext: Uint8Array,
+  metadata: Uint8Array
+): EncryptedWalletSecret {
+  assertDataKey(dataEncryptionKey)
+  if (!plaintext.length) throw new TypeError('Wallet authority state must not be empty')
+  const aad = Buffer.concat([VAULT_AUTHORITY_AAD, Buffer.from([0]), metadata])
+  try {
+    return encryptAuthenticated(dataEncryptionKey, aad, plaintext)
+  } finally {
+    aad.fill(0)
+  }
+}
+
+export function decryptWalletAuthorityState(
+  dataEncryptionKey: Uint8Array,
+  encrypted: EncryptedWalletSecret,
+  metadata: Uint8Array
+): Buffer {
+  assertDataKey(dataEncryptionKey)
+  const aad = Buffer.concat([VAULT_AUTHORITY_AAD, Buffer.from([0]), metadata])
+  try {
+    return decryptAuthenticated(dataEncryptionKey, aad, encrypted)
+  } finally {
+    aad.fill(0)
+  }
 }
 
 export function rotateWalletSecret(

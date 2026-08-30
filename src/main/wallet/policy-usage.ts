@@ -1,27 +1,6 @@
-import { readFile } from 'node:fs/promises'
-import { z } from 'zod'
 import type { WalletPolicy } from '../../shared/wallet.js'
-import { writeTextFileAtomically } from '../atomic-file.js'
+import type { WalletAuthorityPersistence, WalletPolicyUsageEntry } from './authority-state.js'
 import { walletDecimalAdd, walletDecimalCompare } from './policy.js'
-
-const UsageEntrySchema = z.object({
-  policyId: z.string().trim().min(1).max(128),
-  operationCount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  dailyDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dailySpend: z.string().regex(/^\d+(?:\.\d+)?$/)
-}).strict()
-
-const UsageDocumentSchema = z.object({
-  version: z.literal(1),
-  entries: z.array(UsageEntrySchema).max(10_000)
-}).strict()
-
-interface PersistedUsageEntry {
-  policyId: string
-  operationCount: number
-  dailyDate: string
-  dailySpend: string
-}
 
 interface SessionUsageEntry {
   operationCount: number
@@ -43,29 +22,29 @@ function utcDate(now: Date): string {
   return now.toISOString().slice(0, 10)
 }
 
-function freshPersisted(policyId: string, now: Date): PersistedUsageEntry {
+function freshPersisted(policyId: string, now: Date): WalletPolicyUsageEntry {
   return { policyId, operationCount: 0, dailyDate: utcDate(now), dailySpend: '0' }
 }
 
 export class WalletPolicyUsageStore {
-  private readonly persisted = new Map<string, PersistedUsageEntry>()
+  private readonly persisted = new Map<string, WalletPolicyUsageEntry>()
   private readonly session = new Map<string, SessionUsageEntry>()
   private mutationQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly authority: WalletAuthorityPersistence) {}
 
   async load(): Promise<void> {
     this.persisted.clear()
     this.session.clear()
-    try {
-      const document = UsageDocumentSchema.parse(JSON.parse(await readFile(this.path, 'utf8')))
-      for (const entry of document.entries) {
-        if (this.persisted.has(entry.policyId)) throw new Error('duplicate')
-        this.persisted.set(entry.policyId, structuredClone(entry))
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Wallet policy usage store is invalid')
+    for (const entry of this.authority.snapshot().policyUsage) {
+      if (this.persisted.has(entry.policyId)) throw new Error('Wallet policy usage store is invalid')
+      this.persisted.set(entry.policyId, structuredClone(entry))
     }
+  }
+
+  clear(): void {
+    this.persisted.clear()
+    this.session.clear()
   }
 
   snapshot(policyId: string, now: Date): WalletPolicyUsageSnapshot {
@@ -96,7 +75,7 @@ export class WalletPolicyUsageStore {
         return { reserved: false, reason: 'daily-spend-limit' }
       }
 
-      const nextPersisted: PersistedUsageEntry = {
+      const nextPersisted: WalletPolicyUsageEntry = {
         ...persisted,
         operationCount: persisted.operationCount + 1,
         dailySpend: nextDailySpend
@@ -122,23 +101,22 @@ export class WalletPolicyUsageStore {
     })
   }
 
-  private currentPersisted(policyId: string, now: Date): PersistedUsageEntry {
+  private currentPersisted(policyId: string, now: Date): WalletPolicyUsageEntry {
     const current = this.persisted.get(policyId) ?? freshPersisted(policyId, now)
     return current.dailyDate === utcDate(now)
       ? structuredClone(current)
       : { ...current, dailyDate: utcDate(now), dailySpend: '0' }
   }
 
-  private replace(next: ReadonlyMap<string, PersistedUsageEntry>): void {
+  private replace(next: ReadonlyMap<string, WalletPolicyUsageEntry>): void {
     this.persisted.clear()
     for (const [id, entry] of next) this.persisted.set(id, structuredClone(entry))
   }
 
-  private persist(next: ReadonlyMap<string, PersistedUsageEntry>): Promise<void> {
-    return writeTextFileAtomically(this.path, `${JSON.stringify({
-      version: 1,
-      entries: [...next.values()].sort((left, right) => left.policyId.localeCompare(right.policyId))
-    }, null, 2)}\n`)
+  private persist(next: ReadonlyMap<string, WalletPolicyUsageEntry>): Promise<void> {
+    const entries = [...next.values()].map((entry) => structuredClone(entry))
+      .sort((left, right) => left.policyId.localeCompare(right.policyId))
+    return this.authority.mutate((state) => { state.policyUsage = entries })
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {

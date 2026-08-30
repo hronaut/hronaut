@@ -1,51 +1,13 @@
 import { randomUUID } from 'node:crypto'
-import { readFile } from 'node:fs/promises'
-import { z } from 'zod'
-import { WalletCapabilitySchema, WalletChainFamilySchema, WalletRequesterSchema, type WalletCapability, type WalletRequester } from '../../shared/wallet.js'
-import { writeTextFileAtomically } from '../atomic-file.js'
+import {
+  WalletPermissionSchema,
+  type WalletAuthorityPersistence,
+  type WalletPermission,
+  type WalletPermissionCheck,
+  type WalletPermissionGrant
+} from './authority-state.js'
 
-const NormalizedOriginSchema = z.url().refine((value) => {
-  const url = new URL(value)
-  return (url.protocol === 'http:' || url.protocol === 'https:') && value === url.origin
-}, 'Wallet permission origin must be HTTP or HTTPS')
-
-const WalletPermissionSchema = z.object({
-  id: z.string().min(1).max(128),
-  walletId: z.string().min(1).max(128),
-  workspaceId: z.string().min(1).max(128),
-  origin: NormalizedOriginSchema,
-  account: z.string().min(1).max(256),
-  chainFamily: WalletChainFamilySchema,
-  networkId: z.string().min(1).max(128),
-  capabilities: z.array(WalletCapabilitySchema).min(1).max(3),
-  requester: WalletRequesterSchema.optional(),
-  createdAt: z.iso.datetime({ offset: true }),
-  expiresAt: z.iso.datetime({ offset: true })
-}).strict()
-
-export type WalletPermission = z.infer<typeof WalletPermissionSchema>
-
-export interface WalletPermissionGrant {
-  walletId: string
-  workspaceId: string
-  origin: string
-  frameOrigin?: string
-  account: string
-  chainFamily: WalletPermission['chainFamily']
-  networkId: string
-  capabilities: readonly WalletCapability[]
-  requester?: WalletRequester
-  expiresAt: string
-}
-
-export interface WalletPermissionCheck extends Omit<WalletPermissionGrant, 'capabilities' | 'expiresAt' | 'frameOrigin'> {
-  capability: WalletCapability
-}
-
-interface PersistedPermissions {
-  version: 1
-  permissions: WalletPermission[]
-}
+export type { WalletPermission, WalletPermissionCheck, WalletPermissionGrant } from './authority-state.js'
 
 function normalizeOrigin(value: string): string | null {
   try {
@@ -66,16 +28,14 @@ export class WalletPermissionStore {
   private readonly permissions = new Map<string, WalletPermission>()
   private mutationQueue: Promise<void> = Promise.resolve()
 
-  constructor(private readonly path: string) {}
+  constructor(private readonly authority: WalletAuthorityPersistence) {}
 
   async load(): Promise<WalletPermission[]> {
     this.permissions.clear()
-    try {
-      const value = JSON.parse(await readFile(this.path, 'utf8')) as unknown
-      const parsed = z.object({ version: z.literal(1), permissions: z.array(WalletPermissionSchema) }).strict().parse(value)
-      for (const permission of parsed.permissions) this.permissions.set(keyFor(permission), structuredClone(permission))
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Wallet permission store is invalid')
+    for (const permission of this.authority.snapshot().permissions) {
+      const key = keyFor(permission)
+      if (this.permissions.has(key)) throw new Error('Wallet permission store is invalid')
+      this.permissions.set(key, structuredClone(permission))
     }
     return this.list()
   }
@@ -84,6 +44,10 @@ export class WalletPermissionStore {
     return [...this.permissions.values()]
       .map((permission) => structuredClone(permission))
       .sort((left, right) => left.id.localeCompare(right.id))
+  }
+
+  clear(): void {
+    this.permissions.clear()
   }
 
   get(permissionId: string): WalletPermission | undefined {
@@ -190,11 +154,8 @@ export class WalletPermissionStore {
   }
 
   private persist(permissions: Iterable<WalletPermission>): Promise<void> {
-    const document: PersistedPermissions = {
-      version: 1,
-      permissions: [...permissions].map((permission) => structuredClone(permission)).sort((left, right) => left.id.localeCompare(right.id))
-    }
-    return writeTextFileAtomically(this.path, `${JSON.stringify(document, null, 2)}\n`)
+    const next = [...permissions].map((permission) => structuredClone(permission)).sort((left, right) => left.id.localeCompare(right.id))
+    return this.authority.mutate((state) => { state.permissions = next })
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {

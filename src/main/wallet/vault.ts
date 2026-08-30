@@ -3,7 +3,9 @@ import { z } from 'zod'
 import { WalletDescriptorSchema, type WalletDescriptor, type WalletSecretFormat } from '../../shared/wallet.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import {
+  decryptWalletAuthorityState,
   decryptWalletSecret,
+  encryptWalletAuthorityState,
   encryptWalletSecret,
   generateWalletDataEncryptionKey,
   rotateWalletSecret,
@@ -24,10 +26,19 @@ interface PersistedWalletRecord {
 }
 
 interface PersistedWalletVault {
-  version: 1
+  version: 2
   keyProtection: PersistedWalletKeyProtection
   wallets: WalletDescriptor[]
   records: PersistedWalletRecord[]
+  authority: EncryptedWalletSecret
+}
+
+interface LoadedWalletVault {
+  version: 0 | 1 | 2
+  keyProtection: PersistedWalletKeyProtection
+  wallets: WalletDescriptor[]
+  records: PersistedWalletRecord[]
+  authority?: EncryptedWalletSecret
 }
 
 const EncryptedSecretSchema = z.object({
@@ -61,32 +72,32 @@ const PersistedVaultBodySchema = z.object({
   }).strict()).max(10_000)
 }).strict()
 
-const PersistedVaultSchema = PersistedVaultBodySchema.extend({ version: z.literal(1) }).strict()
+const PersistedVaultSchema = PersistedVaultBodySchema.extend({
+  version: z.literal(2),
+  authority: EncryptedSecretSchema
+}).strict()
+const LegacyV1PersistedVaultSchema = PersistedVaultBodySchema.extend({ version: z.literal(1) }).strict()
 const LegacyPersistedVaultSchema = PersistedVaultBodySchema.extend({ version: z.literal(0) }).strict()
+const LEGACY_AUTHORITY_MARKER = Buffer.from('{"legacyMigrationRequired":true}', 'utf8')
 
-function migratePersistedVault(value: unknown): { document: PersistedWalletVault; migrated: boolean } {
+function migratePersistedVault(value: unknown): LoadedWalletVault {
   const envelope = z.object({ version: z.number().int() }).passthrough().parse(value)
+  if (envelope.version === 2) {
+    return PersistedVaultSchema.parse(value) as PersistedWalletVault
+  }
   if (envelope.version === 1) {
-    return { document: PersistedVaultSchema.parse(value) as PersistedWalletVault, migrated: false }
+    return LegacyV1PersistedVaultSchema.parse(value) as LoadedWalletVault
   }
   if (envelope.version === 0) {
     const legacy = LegacyPersistedVaultSchema.parse(value)
-    return {
-      document: {
-        version: 1,
-        keyProtection: legacy.keyProtection,
-        wallets: legacy.wallets,
-        records: legacy.records
-      } as PersistedWalletVault,
-      migrated: true
-    }
+    return { ...legacy, version: 0 }
   }
   throw new Error('Unsupported wallet vault schema version')
 }
 
 export async function readWalletVaultProtectionMode(path: string): Promise<PersistedWalletKeyProtection['mode']> {
   try {
-    return migratePersistedVault(JSON.parse(await readFile(path, 'utf8'))).document.keyProtection.mode
+    return migratePersistedVault(JSON.parse(await readFile(path, 'utf8'))).keyProtection.mode
   } catch {
     throw new Error('Wallet vault file is invalid')
   }
@@ -116,6 +127,9 @@ export class WalletVault {
   private readonly records = new Map<string, PersistedWalletRecord>()
   private keyProtection: PersistedWalletKeyProtection | undefined
   private dataEncryptionKey: Buffer | undefined
+  private authorityState: Buffer | undefined
+  private encryptedAuthority: EncryptedWalletSecret | undefined
+  private legacyAuthorityMigration = false
   private mutationQueue: Promise<void> = Promise.resolve()
 
   constructor(
@@ -123,15 +137,21 @@ export class WalletVault {
     private readonly keyWrapper: WalletKeyWrapper
   ) {}
 
-  async initialize(passphrase?: Uint8Array): Promise<void> {
+  async initialize(passphrase?: Uint8Array, initialAuthorityState: Uint8Array = Buffer.from('{}', 'utf8')): Promise<void> {
     await this.queueMutation(async () => {
       if (this.keyProtection || this.wallets.size || this.records.size) throw new Error('Wallet vault is already initialized')
       const key = generateWalletDataEncryptionKey()
       try {
         const protection = await this.keyWrapper.wrap(key, passphrase)
-        await this.persist({ version: 1, keyProtection: protection, wallets: [], records: [] })
+        const authority = this.encryptAuthorityStateWithKey(
+          key, initialAuthorityState, protection, new Map(), new Map()
+        )
+        await this.persist({ version: 2, keyProtection: protection, wallets: [], records: [], authority })
         this.keyProtection = protection
+        this.encryptedAuthority = authority
         this.replaceDataEncryptionKey(key)
+        this.replaceAuthorityState(initialAuthorityState)
+        this.legacyAuthorityMigration = false
       } finally {
         key.fill(0)
       }
@@ -143,12 +163,11 @@ export class WalletVault {
     this.wallets.clear()
     this.records.clear()
     this.keyProtection = undefined
-    let document: PersistedWalletVault
-    let migrated: boolean
+    this.encryptedAuthority = undefined
+    this.legacyAuthorityMigration = false
+    let document: LoadedWalletVault
     try {
-      const parsed = migratePersistedVault(JSON.parse(await readFile(this.path, 'utf8')))
-      document = parsed.document
-      migrated = parsed.migrated
+      document = migratePersistedVault(JSON.parse(await readFile(this.path, 'utf8')))
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
       throw new Error('Wallet vault file is invalid')
@@ -173,8 +192,9 @@ export class WalletVault {
       throw new Error('Wallet vault file is invalid')
     }
     this.keyProtection = structuredClone(document.keyProtection)
+    this.encryptedAuthority = document.authority ? structuredClone(document.authority) : undefined
+    this.legacyAuthorityMigration = document.version !== 2
     if (this.keyWrapper.mode === 'safe-storage') await this.unlock()
-    if (migrated) await this.persist(this.document(this.keyProtection))
     return this.list()
   }
 
@@ -193,12 +213,27 @@ export class WalletVault {
     const { key, replacement } = await this.keyWrapper.unwrap(this.keyProtection, passphrase)
     try {
       this.authenticateRecords(key)
-      if (replacement) {
-        const document = this.document(replacement)
+      const authorityState = this.encryptedAuthority
+        ? this.decryptAuthorityStateWithKey(
+            key, this.encryptedAuthority, this.keyProtection, this.wallets, this.records
+          )
+        : Buffer.from(LEGACY_AUTHORITY_MARKER)
+      const nextProtection = replacement ?? this.keyProtection
+      const authority = replacement || !this.encryptedAuthority
+        ? this.encryptAuthorityStateWithKey(
+            key, authorityState, nextProtection, this.wallets, this.records
+          )
+        : this.encryptedAuthority
+      if (replacement || this.legacyAuthorityMigration) {
+        const document = this.document(nextProtection, this.wallets, this.records, authority)
         await this.persist(document)
-        this.keyProtection = replacement
+        this.keyProtection = nextProtection
       }
+      this.encryptedAuthority = authority
       this.replaceDataEncryptionKey(key)
+      this.replaceAuthorityState(authorityState)
+      this.legacyAuthorityMigration = authorityState.equals(LEGACY_AUTHORITY_MARKER)
+      authorityState.fill(0)
     } finally {
       key.fill(0)
     }
@@ -207,6 +242,8 @@ export class WalletVault {
   lock(): void {
     this.dataEncryptionKey?.fill(0)
     this.dataEncryptionKey = undefined
+    this.authorityState?.fill(0)
+    this.authorityState = undefined
   }
 
   async add(descriptor: WalletDescriptor, secret?: WalletSecret): Promise<WalletDescriptor> {
@@ -235,7 +272,9 @@ export class WalletVault {
           encoded.fill(0)
         }
       }
-      await this.persist(this.document(this.keyProtection, nextWallets, nextRecords))
+      const document = this.documentWithCurrentAuthority(this.keyProtection, nextWallets, nextRecords)
+      await this.persist(document)
+      this.encryptedAuthority = document.authority
       this.replaceMaps(nextWallets, nextRecords)
       return cloneDescriptor(validated)
     })
@@ -254,7 +293,9 @@ export class WalletVault {
       const nextWallets = new Map(this.wallets)
       const nextRecords = new Map(this.records)
       nextWallets.set(walletId, cloneDescriptor(validated))
-      await this.persist(this.document(this.keyProtection, nextWallets, nextRecords))
+      const document = this.documentWithCurrentAuthority(this.keyProtection, nextWallets, nextRecords)
+      await this.persist(document)
+      this.encryptedAuthority = document.authority
       this.replaceMaps(nextWallets, nextRecords)
       return cloneDescriptor(validated)
     })
@@ -268,7 +309,9 @@ export class WalletVault {
       const nextRecords = new Map(this.records)
       nextWallets.delete(walletId)
       nextRecords.delete(walletId)
-      await this.persist(this.document(this.keyProtection, nextWallets, nextRecords))
+      const document = this.documentWithCurrentAuthority(this.keyProtection, nextWallets, nextRecords)
+      await this.persist(document)
+      this.encryptedAuthority = document.authority
       this.replaceMaps(nextWallets, nextRecords)
       return true
     })
@@ -296,6 +339,7 @@ export class WalletVault {
     await this.queueMutation(async () => {
       if (!this.keyProtection) throw new Error('Wallet vault is not initialized')
       const currentKey = this.requireDataEncryptionKey()
+      const currentAuthority = this.requireAuthorityState()
       const nextKey = generateWalletDataEncryptionKey()
       try {
         const nextRecords = new Map<string, PersistedWalletRecord>()
@@ -308,8 +352,12 @@ export class WalletVault {
           })
         }
         const protection = await this.keyWrapper.wrap(nextKey, passphrase)
-        await this.persist(this.document(protection, this.wallets, nextRecords))
+        const authority = this.encryptAuthorityStateWithKey(
+          nextKey, currentAuthority, protection, this.wallets, nextRecords
+        )
+        await this.persist(this.document(protection, this.wallets, nextRecords, authority))
         this.keyProtection = protection
+        this.encryptedAuthority = authority
         this.records.clear()
         for (const [id, record] of nextRecords) this.records.set(id, record)
         this.replaceDataEncryptionKey(nextKey)
@@ -319,9 +367,36 @@ export class WalletVault {
     })
   }
 
+  authorityNeedsLegacyMigration(): boolean {
+    return this.legacyAuthorityMigration
+  }
+
+  readAuthorityState(): Buffer {
+    return Buffer.from(this.requireAuthorityState())
+  }
+
+  replaceEncryptedAuthorityState(next: Uint8Array): Promise<void> {
+    return this.queueMutation(async () => {
+      const key = this.requireDataEncryptionKey()
+      if (!next.length || next.length > 16 * 1024 * 1024) throw new TypeError('Wallet authority state is invalid')
+      const authority = this.encryptAuthorityStateWithKey(
+        key, next, this.keyProtection!, this.wallets, this.records
+      )
+      await this.persist(this.document(this.keyProtection!, this.wallets, this.records, authority))
+      this.encryptedAuthority = authority
+      this.replaceAuthorityState(next)
+      this.legacyAuthorityMigration = false
+    })
+  }
+
   private requireDataEncryptionKey(): Buffer {
     if (!this.dataEncryptionKey) throw new Error('Wallet vault is locked')
     return this.dataEncryptionKey
+  }
+
+  private requireAuthorityState(): Buffer {
+    if (!this.authorityState) throw new Error('Wallet vault is locked')
+    return this.authorityState
   }
 
   private authenticateRecords(key: Uint8Array): void {
@@ -347,6 +422,72 @@ export class WalletVault {
     this.dataEncryptionKey = Buffer.from(key)
   }
 
+  private replaceAuthorityState(state: Uint8Array): void {
+    this.authorityState?.fill(0)
+    this.authorityState = Buffer.from(state)
+  }
+
+  private authorityMetadata(
+    keyProtection: PersistedWalletKeyProtection,
+    wallets: ReadonlyMap<string, WalletDescriptor>,
+    records: ReadonlyMap<string, PersistedWalletRecord>
+  ): Buffer {
+    return Buffer.from(JSON.stringify({
+      schemaVersion: 2,
+      keyProtection,
+      wallets: [...wallets.values()].map(cloneDescriptor).sort((left, right) => left.id.localeCompare(right.id)),
+      records: [...records.values()].map((record) => structuredClone(record)).sort((left, right) => left.walletId.localeCompare(right.walletId))
+    }), 'utf8')
+  }
+
+  private encryptCurrentAuthority(
+    keyProtection: PersistedWalletKeyProtection,
+    wallets: ReadonlyMap<string, WalletDescriptor>,
+    records: ReadonlyMap<string, PersistedWalletRecord>
+  ): EncryptedWalletSecret {
+    return this.encryptAuthorityStateWithKey(
+      this.requireDataEncryptionKey(), this.requireAuthorityState(), keyProtection, wallets, records
+    )
+  }
+
+  private encryptAuthorityStateWithKey(
+    key: Uint8Array,
+    state: Uint8Array,
+    keyProtection: PersistedWalletKeyProtection,
+    wallets: ReadonlyMap<string, WalletDescriptor>,
+    records: ReadonlyMap<string, PersistedWalletRecord>
+  ): EncryptedWalletSecret {
+    const metadata = this.authorityMetadata(keyProtection, wallets, records)
+    try {
+      return encryptWalletAuthorityState(key, state, metadata)
+    } finally {
+      metadata.fill(0)
+    }
+  }
+
+  private decryptAuthorityStateWithKey(
+    key: Uint8Array,
+    encrypted: EncryptedWalletSecret,
+    keyProtection: PersistedWalletKeyProtection,
+    wallets: ReadonlyMap<string, WalletDescriptor>,
+    records: ReadonlyMap<string, PersistedWalletRecord>
+  ): Buffer {
+    const metadata = this.authorityMetadata(keyProtection, wallets, records)
+    try {
+      return decryptWalletAuthorityState(key, encrypted, metadata)
+    } finally {
+      metadata.fill(0)
+    }
+  }
+
+  private documentWithCurrentAuthority(
+    keyProtection: PersistedWalletKeyProtection,
+    wallets: ReadonlyMap<string, WalletDescriptor>,
+    records: ReadonlyMap<string, PersistedWalletRecord>
+  ): PersistedWalletVault {
+    return this.document(keyProtection, wallets, records, this.encryptCurrentAuthority(keyProtection, wallets, records))
+  }
+
   private replaceMaps(
     wallets: ReadonlyMap<string, WalletDescriptor>,
     records: ReadonlyMap<string, PersistedWalletRecord>
@@ -360,13 +501,16 @@ export class WalletVault {
   private document(
     keyProtection: PersistedWalletKeyProtection,
     wallets: ReadonlyMap<string, WalletDescriptor> = this.wallets,
-    records: ReadonlyMap<string, PersistedWalletRecord> = this.records
+    records: ReadonlyMap<string, PersistedWalletRecord> = this.records,
+    authority: EncryptedWalletSecret = this.encryptedAuthority!
   ): PersistedWalletVault {
+    if (!authority) throw new Error('Wallet authority state is unavailable')
     return {
-      version: 1,
+      version: 2,
       keyProtection: structuredClone(keyProtection),
       wallets: [...wallets.values()].map(cloneDescriptor).sort((left, right) => left.id.localeCompare(right.id)),
-      records: [...records.values()].map((record) => structuredClone(record)).sort((left, right) => left.walletId.localeCompare(right.walletId))
+      records: [...records.values()].map((record) => structuredClone(record)).sort((left, right) => left.walletId.localeCompare(right.walletId)),
+      authority: structuredClone(authority)
     }
   }
 

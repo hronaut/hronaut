@@ -246,7 +246,7 @@ describe('WalletBroker', () => {
     const agent = context({ requester: { type: 'agent', id: 'wallet-session:auto-closing', name: 'Closing agent' } })
     const permission = await broker.agentBalance(agent, wallet.id)
     await broker.approve((permission.request as { id: string }).id)
-    await service.policies.set({
+    await service.setPolicy({
       id: 'agent-auto-close', name: 'Agent close race', mode: 'bounded-auto', walletId: wallet.id,
       workspaceId: agent.workspaceId, networkIds: [wallet.network.id], origins: [agent.topLevelOrigin],
       destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
@@ -733,7 +733,7 @@ describe('WalletBroker', () => {
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
     await connect(broker)
-    await service.policies.set({
+    await service.setPolicy({
       id: 'policy-1', name: 'Testnet transfer', mode: 'bounded-auto', walletId: wallet.id,
       workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
       destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
@@ -763,12 +763,84 @@ describe('WalletBroker', () => {
     ])))
   })
 
-  it('does not let concurrent automatic requests exceed a durable operation limit', async () => {
+  it('does not auto-sign after the selected policy is removed before approval', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    await broker.setPolicy({
+      id: 'policy-revoked-in-flight', name: 'Revoked in flight', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+
+    let reservationReached!: () => void
+    let releaseAudit!: () => void
+    const reached = new Promise<void>((resolve) => { reservationReached = resolve })
+    const release = new Promise<void>((resolve) => { releaseAudit = resolve })
+    const append = service.audit.append.bind(service.audit)
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, createdAt) => {
+      if (type === 'policy-reservation-created') {
+        reservationReached()
+        await release
+      }
+      return append(type, payload, createdAt)
+    })
+
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    await reached
+    const removal = broker.removePolicy('policy-revoked-in-flight')
+    releaseAudit()
+    await removal
+
+    await vi.waitFor(() => expect(broker.listPending().find((request) => (
+      request.operation === 'sign-and-send-transaction'
+    ))?.status).toBe('awaiting-human'))
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+    const requestId = broker.listPending().find((request) => (
+      request.operation === 'sign-and-send-transaction'
+    ))!.id
+    await broker.reject(requestId)
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+  })
+
+  it('never executes an authority policy that is not linked by the authenticated wallet descriptor', async () => {
     const { service, wallet } = await setup('testnet')
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
     await connect(broker)
     await service.policies.set({
+      id: 'unlinked-policy', name: 'Unlinked allowance', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction', params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction'
+    )).at(-1)?.status).toBe('awaiting-human'))
+    expect(chain.sign).not.toHaveBeenCalled()
+    const pending = broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)!
+    await broker.reject(pending.id)
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+  })
+
+  it('does not let concurrent automatic requests exceed a durable operation limit', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    await service.setPolicy({
       id: 'policy-one-operation', name: 'One operation only', mode: 'bounded-auto', walletId: wallet.id,
       workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
       destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],

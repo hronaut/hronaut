@@ -1,10 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { isDeepStrictEqual } from 'node:util'
 import { address, getAddressEncoder, getBase58Encoder } from '@solana/kit'
 import type {
   WalletChainFamily,
   WalletDescriptor,
   WalletOperation,
   WalletOperationRequest,
+  WalletPolicy,
   WalletProviderEvent,
   WalletProviderRequest,
   WalletRequester,
@@ -370,6 +372,14 @@ export class WalletBroker {
     })
   }
 
+  setPolicy(input: WalletPolicy): Promise<WalletPolicy> {
+    return this.queueLifecycle(() => this.service.setPolicy(input))
+  }
+
+  removePolicy(policyId: string): Promise<boolean> {
+    return this.queueLifecycle(() => this.service.removePolicy(policyId))
+  }
+
   removeWallet(walletId: string): Promise<boolean> {
     return this.queueLifecycle(async () => {
       try {
@@ -696,11 +706,12 @@ export class WalletBroker {
       await this.service.approvals.recordSimulation(record.id, simulation, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-      const policyUsage = new Map(this.service.policies.list(wallet.id).map((policy) => [
+      const policies = this.service.policies.list(wallet.id)
+        .filter((policy) => wallet.policyIds.includes(policy.id))
+      const policyUsage = new Map(policies.map((policy) => [
         policy.id,
         this.service.policyUsage.snapshot(policy.id, this.now())
       ]))
-      const policies = this.service.policies.list(wallet.id)
       const usageByPolicy = Object.fromEntries([...policyUsage].map(([policyId, usage]) => [policyId, {
         sessionSpend: usage.sessionSpend,
         dailySpend: usage.dailySpend,
@@ -744,13 +755,33 @@ export class WalletBroker {
           sessionSpend: reservation.snapshot.sessionSpend,
           dailySpend: reservation.snapshot.dailySpend
         }, this.now().toISOString())
+        let policyInvalidated = false
         const result = await this.queueLifecycle(async () => {
           this.assertRequestContextActive(context)
+          const currentWallet = this.requireAccessibleWallet(context, wallet.id)
+          const currentPolicy = this.service.policies.list(wallet.id)
+            .find((entry) => entry.id === policy.id)
+          if (
+            !currentPolicy
+            || !currentWallet.policyIds.includes(policy.id)
+            || !isDeepStrictEqual(currentPolicy, policy)
+          ) {
+            policyInvalidated = true
+            await this.service.audit.append('policy-authorization-invalidated', {
+              requestId: record.id, walletId: wallet.id, policyId: policy.id
+            }, this.now().toISOString())
+            await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+            return undefined
+          }
           const current = this.service.approvals.get(record.id)!
           await this.service.approvals.approve(record.id, current.request, this.now())
           this.assertRequestContextActive(context)
           return this.execute(this.service.approvals.get(record.id)!, context)
         })
+        if (policyInvalidated) {
+          const current = this.service.approvals.get(record.id)!
+          return returnSummary ? agentSummary(current, this.requireWallet(wallet.id)) : this.wait(record.id)
+        }
         this.clearRequestExpiry(record.id)
         return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
       }
@@ -875,11 +906,12 @@ export class WalletBroker {
         .update(serialized)
         .digest('hex')
       if (messageHash !== record.request.payload.messageHash) throw new Error('Approved wallet message has changed')
+      const authorization = this.service.authorizeSigning(record.id)
       await this.service.approvals.markSigning(record.id, record.request, this.now())
       this.assertRecordPageActive(record)
       if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
       try {
-        const signature = await this.service.withSecret(wallet.id, (_descriptor, secret) => (
+        const signature = await this.service.withSecret(wallet.id, authorization, (_descriptor, secret) => (
           signWalletPayload(wallet.chainFamily, secret, input, wallet.publicAddress)
         ))
         this.assertRecordPageActive(record)
@@ -892,10 +924,11 @@ export class WalletBroker {
     }
     const restored = restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
     const adapter = this.adapters[wallet.chainFamily]
+    const authorization = this.service.authorizeSigning(record.id)
     await this.service.approvals.markSigning(record.id, record.request, this.now())
     this.assertRecordPageActive(record)
     if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
-    const signed = await this.service.withSecret(wallet.id, (descriptor, secret) => adapter.sign(descriptor, secret, restored))
+    const signed = await this.service.withSecret(wallet.id, authorization, (descriptor, secret) => adapter.sign(descriptor, secret, restored))
     this.assertRecordPageActive(record)
     if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
     if (record.request.operation === 'sign-transaction') {

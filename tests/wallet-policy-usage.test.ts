@@ -4,19 +4,19 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WalletPolicyUsageStore } from '../src/main/wallet/policy-usage.js'
 import type { WalletPolicy } from '../src/shared/wallet.js'
+import { createTestWalletAuthority, loadTestWalletAuthority } from './helpers/wallet-authority.js'
 
 const directories: string[] = []
 afterEach(async () => {
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-async function store(): Promise<{ path: string; value: WalletPolicyUsageStore }> {
+async function store(): Promise<{ directory: string; value: WalletPolicyUsageStore }> {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-wallet-policy-usage-'))
   directories.push(directory)
-  const path = join(directory, 'usage.json')
-  const value = new WalletPolicyUsageStore(path)
+  const value = new WalletPolicyUsageStore(await createTestWalletAuthority(directory))
   await value.load()
-  return { path, value }
+  return { directory, value }
 }
 
 function policy(overrides: Partial<WalletPolicy> = {}): WalletPolicy {
@@ -48,12 +48,12 @@ describe('WalletPolicyUsageStore', () => {
   })
 
   it('persists lifetime operation and daily spend while resetting session usage after restart', async () => {
-    const { path, value } = await store()
+    const { directory, value } = await store()
     const now = new Date('2026-08-28T12:00:00.000Z')
     await expect(value.reserve(policy({ maximumOperationCount: 5, sessionSpendLimit: '2', dailySpendLimit: '2' }), '0.5', now))
       .resolves.toMatchObject({ reserved: true })
 
-    const restarted = new WalletPolicyUsageStore(path)
+    const restarted = new WalletPolicyUsageStore(await loadTestWalletAuthority(directory))
     await restarted.load()
     expect(restarted.snapshot('policy-1', now)).toEqual({
       operationCount: 1,
