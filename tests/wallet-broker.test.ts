@@ -640,6 +640,94 @@ describe('WalletBroker', () => {
     })
   })
 
+  it('drains an in-flight confirmation and its audit before wallet shutdown completes', async () => {
+    const { service, wallet } = await setup('testnet')
+    const now = new Date()
+    const request = {
+      requestId: 'shutdown-submitted-request', walletId: wallet.id, workspaceId: 'workspace-1', tabId: 'tab-1',
+      navigationGeneration: 1, topLevelOrigin: 'https://dapp.example',
+      requester: { type: 'website' as const, id: 'https://dapp.example' }, capability: 'send' as const,
+      chainFamily: 'evm' as const, networkId: wallet.network.id, operation: 'sign-and-send-transaction' as const,
+      payload: {}, expiresAt: new Date(now.getTime() + 60_000).toISOString()
+    }
+    const created = await service.approvals.create(request, 'shutdown-submitted-key', now)
+    await service.approvals.transition(created.id, 'validated', now)
+    await service.approvals.recordSimulation(created.id, { attempted: true, success: true }, now)
+    await service.approvals.transition(created.id, 'simulated', now)
+    await service.approvals.transition(created.id, 'policy-decision', now)
+    await service.approvals.transition(created.id, 'awaiting-human', now)
+    await service.approvals.approve(created.id, request, now)
+    await service.approvals.markSigning(created.id, request, now)
+    await service.approvals.markSubmitted(created.id, '0xsubmitted-before-shutdown', now)
+
+    let finishConfirmation!: (value: { confirmed: boolean; failed: boolean; blockReference: string }) => void
+    const confirmationResult = new Promise<{ confirmed: boolean; failed: boolean; blockReference: string }>((resolve) => {
+      finishConfirmation = resolve
+    })
+    const chain = adapter()
+    const confirmation = vi.spyOn(chain, 'confirmation').mockReturnValue(confirmationResult)
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, confirmationPollIntervalMs: 5 })
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledOnce(), { timeout: 500 })
+
+    let shutdownSettled = false
+    const shutdown = broker.shutdown().then(() => { shutdownSettled = true })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(shutdownSettled).toBe(false)
+
+    finishConfirmation({ confirmed: true, failed: false, blockReference: 'shutdown-block' })
+    await shutdown
+
+    expect(broker.listPending().find((entry) => entry.id === created.id)).toMatchObject({
+      status: 'confirmed', transactionHash: '0xsubmitted-before-shutdown'
+    })
+    expect(await service.auditHistory()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'transaction-confirmed',
+        payload: expect.objectContaining({
+          requestId: created.id,
+          transactionHash: '0xsubmitted-before-shutdown',
+          blockReference: 'shutdown-block'
+        })
+      })
+    ]))
+  })
+
+  it('bounds shutdown when a confirmation adapter never settles', async () => {
+    const { service, wallet } = await setup('testnet')
+    const now = new Date()
+    const request = {
+      requestId: 'stalled-shutdown-request', walletId: wallet.id, workspaceId: 'workspace-1', tabId: 'tab-1',
+      navigationGeneration: 1, topLevelOrigin: 'https://dapp.example',
+      requester: { type: 'website' as const, id: 'https://dapp.example' }, capability: 'send' as const,
+      chainFamily: 'evm' as const, networkId: wallet.network.id, operation: 'sign-and-send-transaction' as const,
+      payload: {}, expiresAt: new Date(now.getTime() + 60_000).toISOString()
+    }
+    const created = await service.approvals.create(request, 'stalled-shutdown-key', now)
+    await service.approvals.transition(created.id, 'validated', now)
+    await service.approvals.recordSimulation(created.id, { attempted: true, success: true }, now)
+    await service.approvals.transition(created.id, 'simulated', now)
+    await service.approvals.transition(created.id, 'policy-decision', now)
+    await service.approvals.transition(created.id, 'awaiting-human', now)
+    await service.approvals.approve(created.id, request, now)
+    await service.approvals.markSigning(created.id, request, now)
+    await service.approvals.markSubmitted(created.id, '0xstalled-before-shutdown', now)
+
+    const chain = adapter()
+    const confirmation = vi.spyOn(chain, 'confirmation').mockReturnValue(new Promise(() => undefined))
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain }, confirmationPollIntervalMs: 5, shutdownDrainTimeoutMs: 20
+    })
+    await vi.waitFor(() => expect(confirmation).toHaveBeenCalledOnce(), { timeout: 500 })
+
+    await expect(Promise.race([
+      broker.shutdown().then(() => 'shutdown'),
+      new Promise<string>((resolve) => setTimeout(() => resolve('timed-out'), 250))
+    ])).resolves.toBe('shutdown')
+    expect(service.approvals.get(created.id)).toMatchObject({
+      status: 'submitted', transactionHash: '0xstalled-before-shutdown'
+    })
+  })
+
   it('allows a matching bounded testnet policy and rejects mutation/replay through durable request hashes', async () => {
     const { service, wallet } = await setup('testnet')
     const chain = adapter()

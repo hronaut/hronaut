@@ -29,6 +29,9 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent mouse-wheel scrolling from bypassing website interaction locks while keeping Hronaut Home and trusted agent scrolling available.
+- Give hidden tray screenshots enough bounded time to acquire a Chromium compositor frame under concurrent renderer load, while letting PDF export use Electron's independent print pipeline instead of waiting on a frame it does not consume.
+- Drain in-flight wallet confirmation and audit work within a bounded shutdown window before locking the vault, preserve unresolved submitted transactions for restart recovery, and stop confirmation or expiry timers from racing disposed wallet state.
 - Treat a tab closed during address navigation as a cancelled request instead of showing a false navigation failure after its replacement tab is active.
 - Keep concurrent static validation from racing ESLint against Electron Vite's short-lived generated config bundle.
 - Reject secret-bearing wallet payloads at every supported nesting level, fail closed when public/provider input exceeds the shared serialization depth, and reject oversized or sparse arrays, shared-reference graphs, and over-budget binary views before expansion, preventing deeply nested secrets and payload-amplification denial of service from reaching the trusted wallet broker.

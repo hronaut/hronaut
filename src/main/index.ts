@@ -3667,6 +3667,7 @@ async function releaseRuntimeResources(): Promise<void> {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
+      ...await Promise.allSettled([broker?.shutdown()]),
       ...await Promise.allSettled([
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),

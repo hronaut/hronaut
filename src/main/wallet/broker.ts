@@ -47,12 +47,14 @@ export interface WalletBrokerOptions {
   now?: () => Date
   requestTtlMs?: number
   confirmationPollIntervalMs?: number
+  shutdownDrainTimeoutMs?: number
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
   onProviderEvent?: (tabId: string, event: WalletProviderEvent) => void
 }
 
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
+const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
 ])
@@ -156,10 +158,14 @@ export class WalletBroker {
   private readonly requestExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
+  private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
+  private readonly confirmationShutdown = new AbortController()
   private lifecycleQueue: Promise<void> = Promise.resolve()
+  private shutdownPromise: Promise<void> | null = null
+  private shuttingDown = false
 
   constructor(private readonly service: WalletService, private readonly options: WalletBrokerOptions = {}) {
     this.adapters = {
@@ -168,6 +174,30 @@ export class WalletBroker {
       tron: options.adapters?.tron ?? new TronWalletAdapter()
     }
     this.resumeSubmittedConfirmations()
+  }
+
+  shutdown(): Promise<void> {
+    if (this.shutdownPromise) return this.shutdownPromise
+    this.shuttingDown = true
+    for (const timer of this.confirmationTimers.values()) clearTimeout(timer)
+    this.confirmationTimers.clear()
+    for (const timer of this.requestExpiryTimers.values()) clearTimeout(timer)
+    this.requestExpiryTimers.clear()
+
+    this.shutdownPromise = (async () => {
+      await this.lifecycleQueue
+      const drained = await this.drainConfirmationTasks()
+      if (!drained) {
+        this.confirmationShutdown.abort()
+        while (this.confirmationTasks.size > 0) {
+          await Promise.allSettled([...this.confirmationTasks])
+        }
+      }
+      for (const timer of this.requestExpiryTimers.values()) clearTimeout(timer)
+      this.requestExpiryTimers.clear()
+      for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
+    })()
+    return this.shutdownPromise
   }
 
   listPending(): WalletRequestSummary[] {
@@ -1210,10 +1240,14 @@ export class WalletBroker {
   }
 
   private scheduleConfirmation(requestId: string, delay = 0): void {
+    if (this.shuttingDown) return
     if (this.confirmationTimers.has(requestId) || this.confirmationInFlight.has(requestId)) return
     const timer = setTimeout(() => {
       this.confirmationTimers.delete(requestId)
-      void this.pollConfirmation(requestId)
+      if (this.shuttingDown) return
+      const task = this.pollConfirmation(requestId)
+      this.confirmationTasks.add(task)
+      void task.finally(() => this.confirmationTasks.delete(task)).catch(() => undefined)
     }, delay)
     timer.unref()
     this.confirmationTimers.set(requestId, timer)
@@ -1231,7 +1265,9 @@ export class WalletBroker {
         retry = true
         return
       }
-      const confirmation = await this.adapters[wallet.chainFamily].confirmation(wallet, record.transactionHash)
+      const confirmation = await this.withConfirmationShutdown(
+        this.adapters[wallet.chainFamily].confirmation(wallet, record.transactionHash)
+      )
       const current = this.service.approvals.get(requestId)
       if (current?.status !== 'submitted') return
       if (confirmation.confirmed || confirmation.failed) {
@@ -1253,13 +1289,56 @@ export class WalletBroker {
       }
       retry = true
     } catch {
-      retry = this.service.approvals.get(requestId)?.status === 'submitted'
+      retry = !this.shuttingDown && this.service.approvals.get(requestId)?.status === 'submitted'
     } finally {
       this.confirmationInFlight.delete(requestId)
       if (retry && this.service.approvals.get(requestId)?.status === 'submitted') {
         this.scheduleConfirmation(requestId, this.confirmationPollIntervalMs())
       }
     }
+  }
+
+  private drainConfirmationTasks(): Promise<boolean> {
+    if (this.confirmationTasks.size === 0) return Promise.resolve(true)
+    return new Promise((resolve) => {
+      let settled = false
+      const finish = (drained: boolean): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve(drained)
+      }
+      const timer = setTimeout(() => finish(false), this.shutdownDrainTimeoutMs())
+      timer.unref()
+      void Promise.allSettled([...this.confirmationTasks]).then(() => finish(true))
+    })
+  }
+
+  private withConfirmationShutdown<T>(operation: Promise<T>): Promise<T> {
+    const signal = this.confirmationShutdown.signal
+    if (signal.aborted) return Promise.reject(new Error('Wallet broker is shutting down'))
+    return new Promise<T>((resolve, reject) => {
+      let settled = false
+      const finish = (callback: (value: never) => void, value: unknown): void => {
+        if (settled) return
+        settled = true
+        signal.removeEventListener('abort', onAbort)
+        callback(value as never)
+      }
+      const onAbort = (): void => finish(reject, new Error('Wallet broker is shutting down'))
+      signal.addEventListener('abort', onAbort, { once: true })
+      void operation.then(
+        (value) => finish(resolve, value),
+        (error: unknown) => finish(reject, error)
+      )
+    })
+  }
+
+  private shutdownDrainTimeoutMs(): number {
+    const configured = this.options.shutdownDrainTimeoutMs
+    return Number.isFinite(configured) && configured !== undefined && configured >= 0
+      ? configured
+      : DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS
   }
 
   private async appendTransactionAudit(
@@ -1337,6 +1416,7 @@ export class WalletBroker {
   }
 
   private queueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.shuttingDown) return Promise.reject(new Error('Wallet broker is shutting down'))
     const result = this.lifecycleQueue.then(operation)
     this.lifecycleQueue = result.then(() => undefined, () => undefined)
     return result

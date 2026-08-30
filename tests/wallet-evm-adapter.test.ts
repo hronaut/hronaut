@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { encodeFunctionData, maxUint256, parseAbi, parseTransaction, type Hex } from 'viem'
+import {
+  encodeFunctionData,
+  maxUint256,
+  parseAbi,
+  parseTransaction,
+  TransactionReceiptNotFoundError,
+  type Hex
+} from 'viem'
 import { EvmWalletAdapter } from '../src/main/wallet/adapters/evm.js'
 import type { WalletDescriptor } from '../src/shared/wallet.js'
 
@@ -34,6 +41,7 @@ function rpc() {
     getGasPrice: vi.fn(async () => 1_000_000_000n),
     getBalance: vi.fn(async () => 2_000_000_000_000_000_000n),
     sendRawTransaction: vi.fn(async () => `0x${'a'.repeat(64)}`),
+    getTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 123n })),
     waitForTransactionReceipt: vi.fn(async () => ({ status: 'success', blockNumber: 123n }))
   }
 }
@@ -99,6 +107,18 @@ describe('EvmWalletAdapter', () => {
     await expect(adapter.confirmation(wallet(), `0x${'a'.repeat(64)}`)).resolves.toEqual({
       confirmed: true, failed: false, blockReference: '123'
     })
+    expect(client.getTransactionReceipt).toHaveBeenCalledOnce()
+    expect(client.waitForTransactionReceipt).not.toHaveBeenCalled()
+  })
+
+  it('reports a missing receipt as pending without opening a long-lived waiter', async () => {
+    const client = rpc()
+    const hash = `0x${'a'.repeat(64)}` as Hex
+    client.getTransactionReceipt.mockRejectedValueOnce(new TransactionReceiptNotFoundError({ hash }))
+    const adapter = new EvmWalletAdapter(() => client as never)
+
+    await expect(adapter.confirmation(wallet(), hash)).resolves.toEqual({ confirmed: false, failed: false })
+    expect(client.waitForTransactionReceipt).not.toHaveBeenCalled()
   })
 
   it('prepares omitted nonce, gas, and fee fields before approval and signing', async () => {

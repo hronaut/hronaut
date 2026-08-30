@@ -5559,14 +5559,24 @@ test('locks website input and tab closing across Hronaut while keeping browser c
   electronApp
 }) => {
   const server = createServer((request, response) => {
+    if (request.url?.includes('interaction-lock-frame')) {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end('<!doctype html><style>body { min-height: 4000px; margin: 0; }</style><p>Cross-origin frame</p>')
+      return
+    }
     const fixtureTitle = request.url?.includes('second') ? 'Interaction lock second' : 'Interaction lock first'
+    const port = request.headers.host?.split(':').at(-1)
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html>
       <title>${fixtureTitle}</title>
+      <style>body { min-height: 4000px; }</style>
       <button id="action" style="position:fixed;left:20px;top:20px;width:160px;height:48px">Take action</button>
+      <iframe title="Cross-origin scroll fixture" src="http://localhost:${port}/interaction-lock-frame" style="position:fixed;left:220px;top:20px;width:360px;height:260px"></iframe>
       <output id="count">0</output>
       <script>
         window.fixtureClicks = 0
+        window.__hronautHumanInteractionWheelGuard = () => { throw new Error('page-owned guard collision') }
+        window.addEventListener('wheel', (event) => event.stopImmediatePropagation(), { capture: true, passive: true })
         document.querySelector('#action').addEventListener('click', () => {
           window.fixtureClicks += 1
           document.querySelector('#count').textContent = String(window.fixtureClicks)
@@ -5599,6 +5609,42 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     },
     path
   )
+  const scrollFixture = async (path: string): Promise<void> => {
+    await electronApp.evaluate(async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error(`Fixture web contents was not found: ${requestedPath}`)
+      page.sendInputEvent({ type: 'mouseWheel', x: 260, y: 220, deltaY: -600, canScroll: true })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }, path)
+  }
+  const fixtureScrollY = (path: string): Promise<number> => electronApp.evaluate(
+    async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) return -1
+      return page.executeJavaScript('window.scrollY')
+    },
+    path
+  )
+  const scrollFrame = async (path: string): Promise<void> => {
+    await electronApp.evaluate(async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error(`Fixture web contents was not found: ${requestedPath}`)
+      const point = await page.executeJavaScript(`(() => {
+        const bounds = document.querySelector('iframe').getBoundingClientRect()
+        return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+      })()`)
+      page.sendInputEvent({ type: 'mouseWheel', ...point, deltaY: -600, canScroll: true })
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }, path)
+  }
+  const frameScrollY = (path: string): Promise<number> => electronApp.evaluate(
+    async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      const frame = page?.mainFrame.framesInSubtree.find((candidate) => candidate.url.includes('/interaction-lock-frame'))
+      return frame ? Number(await frame.executeJavaScript('window.scrollY')) : -1
+    },
+    path
+  )
 
   try {
     const address = server.address()
@@ -5616,6 +5662,11 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect(appWindow.getByRole('button', { name: 'Unlock page input in this tab' })).toHaveAttribute('aria-pressed', 'true')
     await clickFixture(firstPath)
     await expect.poll(() => fixtureClicks(firstPath)).toBe(1)
+    await scrollFixture(firstPath)
+    await expect.poll(() => fixtureScrollY(firstPath)).toBe(0)
+    await expect.poll(() => frameScrollY(firstPath)).toBe(0)
+    await scrollFrame(firstPath)
+    await expect.poll(() => frameScrollY(firstPath)).toBe(0)
 
     await electronApp.evaluate(async ({ webContents }, requestedPath) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
@@ -5697,6 +5748,8 @@ test('locks website input and tab closing across Hronaut while keeping browser c
 
     await clickFixture(secondPath)
     await expect.poll(() => fixtureClicks(secondPath)).toBe(0)
+    await scrollFixture(secondPath)
+    await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(firstPath)})).id)`)
     const secondTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(secondPath)})).id)`)
     await appWindow.getByRole('tab', { name: /Interaction lock first/ }).click()
@@ -5720,6 +5773,9 @@ test('locks website input and tab closing across Hronaut while keeping browser c
 
     await appWindow.getByRole('button', { name: 'Unlock all tabs' }).click()
     await expect(appWindow.getByRole('button', { name: /Lock all tabs/ })).toHaveAttribute('aria-pressed', 'false')
+    await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
+    await scrollFixture(secondPath)
+    await expect.poll(() => fixtureScrollY(secondPath)).toBeGreaterThan(0)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
@@ -5735,6 +5791,7 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html>
       <title>Picker fixture</title>
+      <style>body { min-height: 4000px; }</style>
       <main><button id="save-profile" class="primary action" value="internal-secret" style="box-sizing:border-box;width:140px;height:44px;color:rgb(255,255,255);background:rgb(60,40,180)">Save profile</button><input id="password" type="password" value="snapshot-password-secret"></main>
       <script>window.fixtureClicks = 0; document.querySelector('button').addEventListener('click', () => window.fixtureClicks += 1)</script>`)
   })
@@ -5911,6 +5968,25 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
     await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(activeTabId)}, true)`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(activeTabId)})?.humanInteractionLocked)`)).toBe(true)
     await electronApp.evaluate(({ clipboard }) => clipboard.clear())
+
+    const agentScroll = await client.callTool({
+      name: 'browser_scroll',
+      arguments: { tabId: mcpTabId, deltaY: 600 }
+    }) as CallToolResult
+    expect(agentScroll.isError, mcpResultText(agentScroll)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
+      return page?.executeJavaScript('window.scrollY')
+    })).toBeGreaterThan(0)
+    await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
+      await page?.executeJavaScript('scrollTo(0, 0)')
+      page?.sendInputEvent({ type: 'mouseWheel', x: 260, y: 220, deltaY: -600, canScroll: true })
+    })
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
+      return page?.executeJavaScript('window.scrollY')
+    })).toBe(0)
 
     const lockedPicker = appWindow.getByRole('button', { name: 'Select an element to copy for agent' })
     await lockedPicker.click()

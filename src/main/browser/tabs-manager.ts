@@ -301,6 +301,7 @@ const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
+const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
 function normalizedWorkspaceName(name: string): string {
   const normalized = name.trim().normalize('NFC')
@@ -767,6 +768,33 @@ function createNativeSelectionSession<Result>(): BrowserNativeSelectionSession<R
 
 function nativeSelectionContextUnavailable(error: unknown): boolean {
   return /context.*destroyed|frame.*removed|navigat/i.test(String(error))
+}
+
+function humanInteractionWheelGuardScript(locked: boolean): string {
+  return `(() => {
+    const key = '__hronautHumanInteractionWheelGuard';
+    const current = globalThis[key];
+    if (typeof current === 'function') {
+      globalThis.removeEventListener('wheel', current, true);
+      delete globalThis[key];
+    }
+    if (!${JSON.stringify(locked)}) return;
+    const guard = (event) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    globalThis.addEventListener('wheel', guard, { capture: true, passive: false });
+    globalThis[key] = guard;
+  })()`
+}
+
+interface CdpFrameTreeNode {
+  frame: { id: string }
+  childFrames?: CdpFrameTreeNode[]
+}
+
+function cdpFrameIds(node: CdpFrameTreeNode): string[] {
+  return [node.frame.id, ...(node.childFrames ?? []).flatMap(cdpFrameIds)]
 }
 
 interface BrowserReproRecordingInternal {
@@ -3124,18 +3152,19 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  setTabHumanInteractionLocked(tabId: string, locked: boolean): BrowserState {
+  async setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     tab.humanInteractionLocked = locked
     if (this.isHumanInteractionLocked(tab)) {
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
       this.window.webContents.focus()
     }
+    await this.syncHumanInteractionWheelGuard(tab)
     this.changed()
     return this.getState()
   }
 
-  setAllHumanInteractionLocked(locked: boolean): BrowserState {
+  async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
     this.allHumanInteractionLocked = locked
     if (locked) {
       for (const tab of this.tabs.values()) {
@@ -3143,6 +3172,7 @@ export class BrowserTabsManager {
       }
       this.window.webContents.focus()
     }
+    await Promise.all([...this.tabs.values()].map((tab) => this.syncHumanInteractionWheelGuard(tab)))
     this.changed()
     return this.getState()
   }
@@ -5521,7 +5551,7 @@ export class BrowserTabsManager {
       pageSize: options.pageSize ?? 'Letter',
       printBackground: true,
       preferCSSPageSize: false
-    }))
+    }), false)
     const path = await this.writeUniqueDownload(filename, data)
     return { filename: basename(path), path, bytes: data.length }
   }
@@ -6526,6 +6556,15 @@ export class BrowserTabsManager {
       recordPendingHistory()
       this.watchCredentialSubmission(tab)
       this.watchUnsavedFormEdits(tab)
+      void this.syncHumanInteractionWheelGuard(tab).catch((error) => {
+        console.error('[browser] Could not synchronize the page interaction lock:', error)
+      })
+    })
+    webContents.on('did-frame-finish-load', () => {
+      if (!this.isHumanInteractionLocked(tab)) return
+      void this.syncHumanInteractionWheelGuard(tab).catch((error) => {
+        console.error('[browser] Could not synchronize a frame interaction lock:', error)
+      })
     })
     webContents.on('console-message', (details) => {
       const { message, runtimeMatched } = this.withPendingRuntimeConsoleMessage(tab, {
@@ -7304,6 +7343,38 @@ export class BrowserTabsManager {
     return this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)
   }
 
+  private async syncHumanInteractionWheelGuard(tab: BrowserTab): Promise<void> {
+    if (this.destroyed || tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
+    try {
+      await this.withDebugger(tab.webContents, async () => {
+        const result = await tab.webContents.debugger.sendCommand('Page.getFrameTree') as {
+          frameTree: CdpFrameTreeNode
+        }
+        const expression = humanInteractionWheelGuardScript(this.isHumanInteractionLocked(tab))
+        await Promise.all(cdpFrameIds(result.frameTree).map(async (frameId) => {
+          const isolatedWorld = await tab.webContents.debugger.sendCommand('Page.createIsolatedWorld', {
+            frameId,
+            worldName: 'hronaut-human-interaction-guard',
+            grantUniveralAccess: false
+          }) as { executionContextId: number }
+          await tab.webContents.debugger.sendCommand('Runtime.evaluate', {
+            expression,
+            contextId: isolatedWorld.executionContextId,
+            returnByValue: true
+          })
+        }))
+      })
+    } catch (error) {
+      if (
+        this.destroyed
+        || tab.webContents.isDestroyed()
+        || this.tabs.get(tab.id) !== tab
+        || nativeSelectionContextUnavailable(error)
+      ) return
+      throw error
+    }
+  }
+
   private queueScreenshotAreaMouseInput(
     tab: BrowserTab,
     session: BrowserScreenshotAreaSession,
@@ -7641,7 +7712,11 @@ export class BrowserTabsManager {
     }
   }
 
-  private async withRenderableTab<T>(tab: BrowserTab, operation: () => Promise<T>): Promise<T> {
+  private async withRenderableTab<T>(
+    tab: BrowserTab,
+    operation: () => Promise<T>,
+    requiresPresentedFrame = true
+  ): Promise<T> {
     const webContents = tab.webContents
     const webContentsId = webContents.id
     const tabIsLive = (): boolean => (
@@ -7682,7 +7757,10 @@ export class BrowserTabsManager {
 
         try {
           captureWindow.showInactive()
-          await this.waitForPresentation(webContents)
+          // Electron's print pipeline does not consume a compositor screenshot.
+          // Waiting for a subscribed frame before printToPDF can stall forever
+          // under renderer pressure even though PDF generation is ready.
+          if (requiresPresentedFrame) await this.waitForPresentation(webContents)
           return await operation()
         } finally {
           let cleanupError: unknown
@@ -7743,9 +7821,12 @@ export class BrowserTabsManager {
       }
       // A hidden Chromium compositor can take longer to produce its first frame
       // when several renderer processes have recently been active. Keep this
-      // bounded, but allow enough time for tray captures and PDF exports on
+      // bounded, but allow enough time for tray captures and visual comparisons on
       // slower or heavily loaded machines.
-      const timer = setTimeout(() => finish(new Error('Timed out waiting for the tab to become renderable')), 5_000)
+      const timer = setTimeout(
+        () => finish(new Error('Timed out waiting for the tab to become renderable')),
+        OFFSCREEN_PRESENTATION_TIMEOUT_MS
+      )
       try {
         webContents.beginFrameSubscription(false, () => finish())
         const invalidate = (): void => {

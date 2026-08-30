@@ -9,6 +9,7 @@ import {
   isAddress,
   maxUint256,
   parseAbi,
+  TransactionReceiptNotFoundError,
   toHex,
   type Address,
   type Hash,
@@ -151,7 +152,7 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint) {
 }
 
 type EvmClient = Pick<PublicClient,
-  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'waitForTransactionReceipt'
+  'getChainId' | 'prepareTransactionRequest' | 'call' | 'estimateGas' | 'getGasPrice' | 'getBalance' | 'sendRawTransaction' | 'getTransactionReceipt'
 >
 
 export class EvmWalletAdapter implements WalletChainAdapter {
@@ -243,7 +244,13 @@ export class EvmWalletAdapter implements WalletChainAdapter {
   }
 
   async confirmation(wallet: WalletDescriptor, transactionHash: string): Promise<WalletConfirmation> {
-    const receipt = await this.clientFor(wallet).waitForTransactionReceipt({ hash: transactionHash as Hash, confirmations: 1 })
+    let receipt
+    try {
+      receipt = await this.clientFor(wallet).getTransactionReceipt({ hash: transactionHash as Hash })
+    } catch (error) {
+      if (error instanceof TransactionReceiptNotFoundError) return { confirmed: false, failed: false }
+      throw error
+    }
     return {
       confirmed: receipt.status === 'success',
       failed: receipt.status === 'reverted',
