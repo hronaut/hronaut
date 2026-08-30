@@ -26,7 +26,7 @@ const projects: TypecheckProject[] = [
   }
 ]
 
-export function typecheckJobCount(value = process.env.HRONAUT_TYPECHECK_JOBS): number {
+export function typecheckJobCount(value: string | undefined): number {
   if (value === undefined || value === '') return 2
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > projects.length) {
@@ -38,7 +38,7 @@ export function typecheckJobCount(value = process.env.HRONAUT_TYPECHECK_JOBS): n
 async function main(): Promise<void> {
   let concurrency: number
   try {
-    concurrency = typecheckJobCount()
+    concurrency = typecheckJobCount(process.env.HRONAUT_TYPECHECK_JOBS)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exitCode = 2

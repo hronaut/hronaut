@@ -13,9 +13,10 @@ export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
 # Keep the standalone Docker command authoritative by changing this only in CI.
 export HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"
 
+compose_build_arguments=()
 case "${HRONAUT_INTEGRATION_IMAGE_PREBUILT:-false}" in
-  true) compose_build_argument='--no-build' ;;
-  false) compose_build_argument='--build' ;;
+  true) ;;
+  false) compose_build_arguments+=(--build) ;;
   *)
     echo "HRONAUT_INTEGRATION_IMAGE_PREBUILT must be true or false." >&2
     exit 2
@@ -36,7 +37,7 @@ extract_directory() {
 trap cleanup EXIT INT TERM
 
 status=0
-docker compose --file compose.test.ci.yaml run "$compose_build_argument" --name "$container_name" integration || status=$?
+docker compose --file compose.test.ci.yaml run "${compose_build_arguments[@]}" --name "$container_name" integration || status=$?
 
 if (( status != 0 )) && docker inspect "$container_name" >/dev/null 2>&1; then
   mkdir -p "$artifact_directory"

@@ -136,8 +136,9 @@ describe('focused Docker integration feedback', () => {
     expect(workflow).toContain('cache-to: type=gha,mode=max,scope=hronaut-integration')
     expect(workflow).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT: "true"')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_IMAGE_PREBUILT')
-    expect(ciRunner).toContain("compose_build_argument='--no-build'")
-    expect(ciRunner).toContain("compose_build_argument='--build'")
+    expect(ciRunner).toContain('compose_build_arguments=()')
+    expect(ciRunner).toContain('compose_build_arguments+=(--build)')
+    expect(ciRunner).not.toContain('--no-build')
   })
 
   it('avoids repeated type analysis in fast build feedback and caches lint results', async () => {
