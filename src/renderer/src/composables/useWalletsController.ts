@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { disposeAll, registerDisposers } from './dispose-all.js'
 import type {
   HronautWalletsApi,
   WalletAuditSummary,
@@ -59,28 +60,25 @@ export function useWalletsController(options: WalletsControllerOptions) {
   }
 
   function detachSubscriptions(): void {
-    subscriptions.splice(0).forEach((unsubscribe) => unsubscribe())
+    disposeAll(subscriptions.splice(0))
   }
 
   function attachSubscriptions(): void {
     if (initialized || disposed) return
-    try {
-      subscriptions.push(options.api.onChanged((next) => {
+    subscriptions.push(...registerDisposers([
+      () => options.api.onChanged((next) => {
         if (!disposed) acceptWallets(next)
-      }))
-      subscriptions.push(options.api.onStatusChanged((next) => {
+      }),
+      () => options.api.onStatusChanged((next) => {
         if (!disposed) acceptStatus(next)
-      }))
-      subscriptions.push(options.api.onRequestsChanged((next) => {
+      }),
+      () => options.api.onRequestsChanged((next) => {
         if (disposed) return
         requestsRevision += 1
         requests.value = next
-      }))
-      initialized = true
-    } catch (error) {
-      detachSubscriptions()
-      throw error
-    }
+      })
+    ]))
+    initialized = true
   }
 
   async function loadDetails(startingRequestsRevision: number): Promise<void> {
@@ -118,11 +116,21 @@ export function useWalletsController(options: WalletsControllerOptions) {
         if (startingWalletsRevision === walletsRevision) acceptWallets(nextWallets)
         await loadDetails(startingRequestsRevision)
       } catch (error) {
+        const failures = [error]
         if (!disposed) {
           initialized = false
-          detachSubscriptions()
+          try {
+            detachSubscriptions()
+          } catch (cleanupError) {
+            if (cleanupError instanceof AggregateError) {
+              failures.push(...(cleanupError.errors as unknown[]))
+            } else {
+              failures.push(cleanupError)
+            }
+          }
         }
-        throw error
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'Wallet initialization failed and listener cleanup was incomplete')
       }
     })()
     const trackedOperation = operation.finally(() => {

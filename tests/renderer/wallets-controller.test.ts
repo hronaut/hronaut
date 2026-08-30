@@ -79,32 +79,36 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
   let requestListener: ((requests: WalletRequestSummary[]) => void) | undefined
   const status = vi.fn(async (): Promise<WalletServiceStatus> => readyStatus)
   const list = vi.fn(async (): Promise<WalletDescriptor[]> => [])
+  const listPolicies = vi.fn(async () => [])
   const listRequests = vi.fn(async (): Promise<WalletRequestSummary[]> => [])
   const auditHistory = vi.fn(async (): Promise<WalletAuditSummary[]> => [])
+  const walletUnsubscribe = vi.fn(() => { walletListener = undefined })
+  const statusUnsubscribe = vi.fn(() => { statusListener = undefined })
+  const requestUnsubscribe = vi.fn(() => { requestListener = undefined })
   const api = {
     status,
     list,
     lock: vi.fn(async (): Promise<WalletServiceStatus> => ({
       managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true
     })),
-    listPolicies: vi.fn(async () => []),
+    listPolicies,
     listPermissions: vi.fn(async () => []),
     listRequests,
     auditHistory,
     onChanged: vi.fn((listener: (wallets: WalletDescriptor[]) => void) => {
       walletListener = listener
       onSubscribe.wallets?.(listener)
-      return () => { walletListener = undefined }
+      return walletUnsubscribe
     }),
     onStatusChanged: vi.fn((listener: (status: WalletServiceStatus) => void) => {
       statusListener = listener
       onSubscribe.status?.(listener)
-      return () => { statusListener = undefined }
+      return statusUnsubscribe
     }),
     onRequestsChanged: vi.fn((listener: (requests: WalletRequestSummary[]) => void) => {
       requestListener = listener
       onSubscribe.requests?.(listener)
-      return () => { requestListener = undefined }
+      return requestUnsubscribe
     })
   } as unknown as HronautWalletsApi
   const controller = useWalletsController({ api, formatError: String })
@@ -116,12 +120,40 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
     emitStatus: (next: WalletServiceStatus) => statusListener?.(next),
     emitWallets: (next: WalletDescriptor[]) => walletListener?.(next),
     list,
+    listPolicies,
     listRequests,
+    requestUnsubscribe,
+    statusUnsubscribe,
+    walletUnsubscribe,
     status
   }
 }
 
 describe('wallets controller', () => {
+  it('cleans every listener and preserves startup errors when initialization fails', async () => {
+    const sourceError = new Error('wallet policy snapshot unavailable')
+    const cleanupError = new Error('wallet listener already closed')
+    const {
+      controller,
+      listPolicies,
+      requestUnsubscribe,
+      statusUnsubscribe,
+      walletUnsubscribe
+    } = createController()
+    listPolicies.mockRejectedValueOnce(sourceError)
+    walletUnsubscribe.mockImplementationOnce(() => { throw cleanupError })
+
+    const failure = await controller.initialize().catch((error: unknown) => error)
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toEqual([sourceError, cleanupError])
+    expect(walletUnsubscribe).toHaveBeenCalledOnce()
+    expect(statusUnsubscribe).toHaveBeenCalledOnce()
+    expect(requestUnsubscribe).toHaveBeenCalledOnce()
+    await expect(controller.initialize()).resolves.toBeUndefined()
+    controller.dispose()
+  })
+
   it('preserves authoritative events delivered while startup listeners are attached', async () => {
     const newestWallet = wallet('synchronous-startup-wallet')
     const lockedStatus: WalletServiceStatus = {

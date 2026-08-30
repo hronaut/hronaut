@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clean every wallet startup listener when initialization fails, preserving the source failure alongside any cleanup errors instead of leaking later listeners or masking the cause.
 - Subscribe to wallet-service events before reading startup snapshots, preventing status, account, and approval changes during Settings bootstrap from being lost.
 - Keep live wallet status and descriptor events authoritative over delayed post-operation snapshots, and stop refresh work cleanly when Settings disposes its wallet controller.
 - Keep live wallet-request events authoritative over delayed Settings refreshes, preventing cancelled or expired approvals from reappearing and ensuring overlapping refreshes cannot restore older state.
