@@ -5575,8 +5575,12 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       <output id="count">0</output>
       <script>
         window.fixtureClicks = 0
+        window.fixtureWheelEvents = 0
         window.__hronautHumanInteractionWheelGuard = () => { throw new Error('page-owned guard collision') }
-        window.addEventListener('wheel', (event) => event.stopImmediatePropagation(), { capture: true, passive: true })
+        window.addEventListener('wheel', (event) => {
+          window.fixtureWheelEvents += 1
+          event.stopImmediatePropagation()
+        }, { capture: true, passive: true })
         document.querySelector('#action').addEventListener('click', () => {
           window.fixtureClicks += 1
           document.querySelector('#count').textContent = String(window.fixtureClicks)
@@ -5622,6 +5626,14 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
       if (!page) return -1
       return page.executeJavaScript('window.scrollY')
+    },
+    path
+  )
+  const fixtureWheelEvents = (path: string): Promise<number> => electronApp.evaluate(
+    async ({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) return -1
+      return page.executeJavaScript('window.fixtureWheelEvents')
     },
     path
   )
@@ -5686,8 +5698,10 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => fixtureClicks(firstPath)).toBe(1)
     await scrollFixture(firstPath)
     await expect.poll(() => fixtureScrollY(firstPath)).toBe(0)
+    await expect.poll(() => fixtureWheelEvents(firstPath)).toBe(0)
     await scrollFixtureWithNativeWheel(firstPath)
     await expect.poll(() => fixtureScrollY(firstPath)).toBe(0)
+    await expect.poll(() => fixtureWheelEvents(firstPath)).toBe(0)
     await expect.poll(() => frameScrollY(firstPath)).toBe(0)
     await scrollFrame(firstPath)
     await expect.poll(() => frameScrollY(firstPath)).toBe(0)
@@ -5774,8 +5788,10 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => fixtureClicks(secondPath)).toBe(0)
     await scrollFixture(secondPath)
     await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
+    await expect.poll(() => fixtureWheelEvents(secondPath)).toBe(0)
     await scrollFixtureWithNativeWheel(secondPath)
     await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
+    await expect.poll(() => fixtureWheelEvents(secondPath)).toBe(0)
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(firstPath)})).id)`)
     const secondTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(secondPath)})).id)`)
     await appWindow.getByRole('tab', { name: /Interaction lock first/ }).click()
@@ -5799,6 +5815,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     }, secondPath)
     await scrollFixtureWithNativeWheel(secondPath)
     await expect.poll(() => fixtureScrollY(secondPath)).toBeGreaterThan(0)
+    await expect.poll(() => fixtureWheelEvents(secondPath)).toBeGreaterThan(0)
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
