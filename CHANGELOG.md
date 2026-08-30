@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-08-31
+
 ### Fixed
 
 - Keep the trusted Settings surface outside Electron title-bar drag regions so wallet names, native selectors, and other controls remain interactive across tab layouts, locked pages, and scaled interfaces.
