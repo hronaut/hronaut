@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  WalletAgentDescriptorSchema,
   WalletDescriptorSchema,
   WalletOperationRequestSchema,
   WalletPublicRequestPayloadSchema,
@@ -13,6 +14,28 @@ function nestedPayload(value: unknown, depth: number): unknown {
 }
 
 describe('wallet public contracts', () => {
+  it('keeps agent wallet descriptors limited to public network identity', () => {
+    const descriptor = {
+      id: 'wallet-agent-1',
+      name: 'Agent wallet',
+      kind: 'agent',
+      chainFamily: 'evm',
+      network: { id: '8453', name: 'Base', environment: 'mainnet' },
+      capabilities: ['read', 'sign', 'send'],
+      addressPermission: false
+    }
+
+    expect(WalletAgentDescriptorSchema.parse(descriptor)).toEqual(descriptor)
+    expect(() => WalletAgentDescriptorSchema.parse({
+      ...descriptor,
+      network: { ...descriptor.network, rpcUrl: 'https://rpc-user:rpc-password@rpc.example.invalid' }
+    })).toThrow()
+    expect(() => WalletAgentDescriptorSchema.parse({
+      ...descriptor,
+      publicAddress: '0x0000000000000000000000000000000000000001'
+    })).toThrow(/permission/i)
+  })
+
   it('accepts public wallet descriptors without secret fields', () => {
     const descriptor = WalletDescriptorSchema.parse({
       id: 'wallet-018f',

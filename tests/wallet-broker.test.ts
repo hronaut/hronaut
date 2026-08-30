@@ -90,6 +90,100 @@ async function connect(broker: WalletBroker): Promise<void> {
 }
 
 describe('WalletBroker', () => {
+  it('keeps wallet RPC endpoints and embedded credentials out of agent descriptors', async () => {
+    const { service } = await setup()
+    await service.addWatchOnly({
+      name: 'Credentialed endpoint',
+      chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000002',
+      network: {
+        id: '8453',
+        name: 'Base',
+        environment: 'mainnet',
+        rpcUrl: 'https://rpc-user:rpc-password@rpc.example.invalid/v1?apiKey=rpc-query-secret'
+      },
+      workspaceIds: ['workspace-1']
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    const listed = broker.listAgentWallets(context({
+      requester: { type: 'agent', id: 'agent-rpc-redaction', name: 'RPC redaction agent' }
+    }))
+    expect(listed).toContainEqual(expect.objectContaining({
+      name: 'Credentialed endpoint',
+      network: { id: '8453', name: 'Base', environment: 'mainnet' }
+    }))
+    expect(JSON.stringify(listed)).not.toMatch(/rpcUrl|rpc-user|rpc-password|rpc-query-secret/)
+  })
+
+  it('keeps RPC failure details out of agent balance errors', async () => {
+    const { service, wallet } = await setup()
+    const agent = context({ requester: { type: 'agent', id: 'agent-rpc-error', name: 'RPC error agent' } })
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: agent.workspaceId,
+      origin: agent.topLevelOrigin,
+      frameOrigin: agent.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: agent.requester,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter()
+    chain.balance = vi.fn(async () => {
+      throw new Error('RPC https://rpc-user:rpc-password@rpc.example.invalid/v1?apiKey=rpc-query-secret failed')
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+
+    const result = await settle(broker.agentBalance(agent, wallet.id))
+    expect(result).toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: 'EVM balance lookup failed' })
+    })
+    expect(JSON.stringify(result)).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret/)
+  })
+
+  it('keeps RPC simulation details out of agent responses and durable approval state', async () => {
+    const { directory, service, wallet } = await setup()
+    const agent = context({ requester: { type: 'agent', id: 'agent-simulation-error', name: 'Simulation error agent' } })
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: agent.workspaceId,
+      origin: agent.topLevelOrigin,
+      frameOrigin: agent.topLevelOrigin,
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: agent.requester,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter()
+    chain.simulate = vi.fn(async () => ({
+      attempted: true,
+      success: false,
+      error: 'RPC https://rpc-user:rpc-password@rpc.example.invalid/v1?apiKey=rpc-query-secret failed',
+      logs: ['request to rpc.example.invalid used rpc-log-secret']
+    }))
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+
+    const prepared = await broker.prepareAgentTransaction(agent, wallet.id, { to: wallet.publicAddress })
+    expect(prepared).toMatchObject({
+      status: 'prepared',
+      simulation: { attempted: true, success: false, error: 'Wallet transaction simulation failed' }
+    })
+    expect(JSON.stringify(prepared)).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret|rpc-log-secret/)
+
+    const requested = await broker.requestAgentTransaction(agent, wallet.id, { to: wallet.publicAddress }, false)
+    const requestId = (requested.request as { id: string }).id
+    const pending = broker.listPending().find((request) => request.id === requestId)
+    expect(JSON.stringify(pending)).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret|rpc-log-secret/)
+    const persisted = await readFile(join(directory, 'requests.json'), 'utf8')
+    expect(persisted).not.toMatch(/rpc\.example|rpc-user|rpc-password|rpc-query-secret|rpc-log-secret/)
+  })
+
   it('isolates agent address permissions and request status by requester, workspace, tab, and navigation', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

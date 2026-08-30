@@ -30,7 +30,11 @@ import { filterNetworkRequests, normalizeNetworkHarOptions } from '../../shared/
 import { formatReproAsPlaywright } from '../../shared/repro-export.js'
 import { isUuidV7 } from '../uuid-v7.js'
 import { type McpToolSet } from '../../shared/mcp-tool-sets.js'
-import { WalletPublicRequestPayloadSchema } from '../../shared/wallet.js'
+import {
+  WalletAgentDescriptorSchema,
+  WalletPublicRequestPayloadSchema,
+  type WalletAgentDescriptor
+} from '../../shared/wallet.js'
 
 const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
 const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
@@ -67,7 +71,7 @@ export interface WalletAgentToolTarget {
 }
 
 export interface WalletAgentOperations {
-  list: (target: WalletAgentToolTarget) => Promise<unknown>
+  list: (target: WalletAgentToolTarget) => Promise<WalletAgentDescriptor[]>
   balance: (target: WalletAgentToolTarget, walletId: string) => Promise<unknown>
   prepareTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown) => Promise<unknown>
   requestTransaction: (target: WalletAgentToolTarget, walletId: string, transaction: unknown, broadcast: boolean) => Promise<unknown>
@@ -2137,7 +2141,7 @@ function createBrowserMcpServer(
       return textResult({
         walletSessionId: session.token,
         expiresAt: new Date(session.expiresAt).toISOString(),
-        wallets: await requireWallets().list(session.target)
+        wallets: WalletAgentDescriptorSchema.array().parse(await requireWallets().list(session.target))
       })
     })
   )

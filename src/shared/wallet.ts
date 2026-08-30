@@ -53,6 +53,26 @@ export const WalletDescriptorSchema = z.object({
 })
 export type WalletDescriptor = z.infer<typeof WalletDescriptorSchema>
 
+export const WalletAgentDescriptorSchema = z.object({
+  id: WalletIdSchema,
+  name: z.string().trim().min(1).max(128),
+  kind: WalletKindSchema,
+  chainFamily: WalletChainFamilySchema,
+  network: WalletNetworkSchema.omit({ rpcUrl: true }),
+  capabilities: z.array(WalletCapabilitySchema).max(3),
+  addressPermission: z.boolean(),
+  publicAddress: z.string().trim().min(1).max(256).optional()
+}).strict().superRefine((descriptor, context) => {
+  if (!descriptor.addressPermission && descriptor.publicAddress !== undefined) {
+    context.addIssue({
+      code: 'custom',
+      path: ['publicAddress'],
+      message: 'Agent wallet descriptors may reveal an address only after permission is granted'
+    })
+  }
+})
+export type WalletAgentDescriptor = z.infer<typeof WalletAgentDescriptorSchema>
+
 export const WalletRequestStatusSchema = z.enum([
   'draft',
   'validated',

@@ -37,7 +37,7 @@ describe('MCP wallet tools', () => {
         savedTabGroups: []
       }))
     }
-    const list = vi.fn<WalletAgentOperations['list']>(async (target) => [{ target, addressPermission: false }])
+    const list = vi.fn<WalletAgentOperations['list']>(async () => [])
     const requestStatus = vi.fn<WalletAgentOperations['requestStatus']>(async (target, requestId) => ({ target, requestId }))
     const wallets: WalletAgentOperations = {
       list,

@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { isDeepStrictEqual } from 'node:util'
 import { address, getAddressEncoder, getBase58Encoder } from '@solana/kit'
 import type {
+  WalletAgentDescriptor,
   WalletChainFamily,
   WalletDescriptor,
   WalletOperation,
@@ -19,7 +20,11 @@ import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
 import { SolanaWalletAdapter } from './adapters/solana.js'
 import { TronWalletAdapter } from './adapters/tron.js'
-import type { WalletChainAdapter, WalletNormalizedTransaction } from './adapters/types.js'
+import type {
+  WalletChainAdapter,
+  WalletNormalizedTransaction,
+  WalletTransactionSimulation
+} from './adapters/types.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
 import { WalletPolicyEngine } from './policy.js'
 import type { WalletService } from './service.js'
@@ -66,10 +71,28 @@ const TERMINAL_REQUEST_STATUSES = new Set([
 
 function sanitizedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : 'Wallet request failed'
-  const safe = /^(?:Wallet|EVM|Solana|Tron|Requested|Unsupported|No wallet|Managed wallet|Watch-only|Invalid wallet|Cross-origin|Mainnet|Automatic wallet|Signed (?:EVM|Solana|Tron)|Transaction|RPC|Insufficient)[A-Za-z0-9 .,:'"()/-]{0,480}$/.test(message)
+  const containsEndpoint = /(?:https?|wss?):\/\//i.test(message)
+  const safe = !containsEndpoint
+    && /^(?:Wallet|EVM|Solana|Tron|Requested|Unsupported|No wallet|Managed wallet|Watch-only|Invalid wallet|Cross-origin|Mainnet|Automatic wallet|Signed (?:EVM|Solana|Tron)|Transaction|Insufficient)[A-Za-z0-9 .,:'"()/-]{0,480}$/.test(message)
     ? message
     : 'Wallet request failed validation or processing'
   return new Error(safe.slice(0, 512))
+}
+
+function walletChainName(family: WalletChainFamily): string {
+  if (family === 'evm') return 'EVM'
+  return family === 'solana' ? 'Solana' : 'Tron'
+}
+
+function sanitizedSimulation(simulation: WalletTransactionSimulation): WalletTransactionSimulation {
+  return {
+    attempted: simulation.attempted,
+    success: simulation.success,
+    ...(simulation.estimatedFee && /^\d+(?:\.\d+)?$/.test(simulation.estimatedFee)
+      ? { estimatedFee: simulation.estimatedFee }
+      : {}),
+    ...(simulation.error ? { error: 'Wallet transaction simulation failed' } : {})
+  }
 }
 
 function paramsArray(value: unknown): unknown[] {
@@ -215,7 +238,7 @@ export class WalletBroker {
     })
   }
 
-  listAgentWallets(context: WalletBrokerContext): Array<Record<string, unknown>> {
+  listAgentWallets(context: WalletBrokerContext): WalletAgentDescriptor[] {
     return this.service.list()
       .filter((wallet) => wallet.workspaceIds.includes(context.workspaceId))
       .map((wallet) => {
@@ -225,7 +248,11 @@ export class WalletBroker {
           name: wallet.name,
           kind: wallet.kind,
           chainFamily: wallet.chainFamily,
-          network: structuredClone(wallet.network),
+          network: {
+            id: wallet.network.id,
+            name: wallet.network.name,
+            environment: wallet.network.environment
+          },
           capabilities: [...wallet.capabilities],
           addressPermission: addressAllowed,
           ...(addressAllowed ? { publicAddress: wallet.publicAddress } : {})
@@ -238,7 +265,12 @@ export class WalletBroker {
       const wallet = this.requireAccessibleWallet(context, walletId)
       const permission = await this.ensureAgentAddressPermission(context, wallet)
       if (permission) return { status: 'permission-required', request: permission }
-      const balance = await this.adapters[wallet.chainFamily].balance(wallet)
+      let balance: string
+      try {
+        balance = await this.adapters[wallet.chainFamily].balance(wallet)
+      } catch {
+        throw new Error(`${walletChainName(wallet.chainFamily)} balance lookup failed`)
+      }
       this.assertRequestContextActive(context)
       return {
         status: 'ready',
@@ -263,7 +295,7 @@ export class WalletBroker {
       const adapter = this.adapters[wallet.chainFamily]
       const normalized = await adapter.normalizeTransaction(wallet, payload)
       this.assertRequestContextActive(context)
-      const simulation = await adapter.simulate(wallet, normalized)
+      const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
       this.assertRequestContextActive(context)
       await this.service.audit.append('transaction-prepared', {
         walletId: wallet.id,
@@ -701,7 +733,7 @@ export class WalletBroker {
     })
     try {
       await this.service.approvals.transition(record.id, 'validated', this.now())
-      const simulation = await adapter.simulate(wallet, normalized)
+      const simulation = sanitizedSimulation(await adapter.simulate(wallet, normalized))
       this.assertRequestContextActive(context)
       await this.service.approvals.recordSimulation(record.id, simulation, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
@@ -1014,7 +1046,11 @@ export class WalletBroker {
     }
     lifecycle.activeOperations += 1
     try {
-      return await operation()
+      try {
+        return await operation()
+      } catch (error) {
+        throw sanitizedError(error)
+      }
     } finally {
       lifecycle.activeOperations = Math.max(0, lifecycle.activeOperations - 1)
       if (lifecycle.activeOperations === 0) {
