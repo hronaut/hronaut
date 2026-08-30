@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_BROWSER_KEY_PRESS_LENGTH, parseBrowserKeyPress } from '../src/shared/keyboard-input.js'
+import {
+  browserKeyCharacter,
+  MAX_BROWSER_KEY_PRESS_LENGTH,
+  parseBrowserKeyPress
+} from '../src/shared/keyboard-input.js'
 
 describe('parseBrowserKeyPress', () => {
   it('normalizes modifier chords for Electron input events', () => {
@@ -30,6 +34,14 @@ describe('parseBrowserKeyPress', () => {
     expect(parseBrowserKeyPress('Shift+x')).toEqual({ keyCode: 'x', modifiers: ['shift'], emitsCharacter: true })
     expect(parseBrowserKeyPress('Enter')).toEqual({ keyCode: 'Enter', modifiers: [], emitsCharacter: false })
     expect(parseBrowserKeyPress('Alt+x')).toEqual({ keyCode: 'x', modifiers: ['alt'], emitsCharacter: false })
+  })
+
+  it('translates shifted printable keys into the character Electron must insert', () => {
+    expect(browserKeyCharacter(parseBrowserKeyPress('Shift+x'))).toBe('X')
+    expect(browserKeyCharacter(parseBrowserKeyPress('Shift+1'))).toBe('!')
+    expect(browserKeyCharacter(parseBrowserKeyPress('Shift+/'))).toBe('?')
+    expect(browserKeyCharacter(parseBrowserKeyPress('x'))).toBe('x')
+    expect(browserKeyCharacter(parseBrowserKeyPress('Control+x'))).toBeNull()
   })
 
   it('rejects empty, ambiguous, duplicate, and oversized combinations', () => {

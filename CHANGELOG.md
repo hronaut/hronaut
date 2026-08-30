@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Make MCP `browser_press` insert the intended shifted printable character, so combinations such as `Shift+x`, `Shift+1`, and `Shift+/` produce `X`, `!`, and `?` instead of their unshifted text.
 - Store managed wallet descriptors, permissions, policies, and durable automation counters in one encrypted authenticated vault authority state; require a one-shot current-process authorization before key release; reject managed/watch-only identity collisions; migrate legacy plaintext authority by revoking grants and converting bounded automation to Always ask; and prevent an in-flight automatic request from signing after its selected policy is removed or tightened.
 - Keep Home, normal browsing, tray, and non-wallet MCP tools available when wallet metadata is malformed or encrypted vault records fail authentication; disable wallet operations with a sanitized failure state, preserve damaged files for recovery, authenticate every encrypted record before reporting the vault ready, and survive Linux keyring availability changes without misclassifying valid passphrase vaults.
 - Prevent physical mouse-wheel and compositor scrolling from bypassing per-tab or global website interaction locks, while keeping keyboard shortcuts, Hronaut Home, and trusted agent scrolling available.

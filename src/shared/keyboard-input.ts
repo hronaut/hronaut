@@ -18,6 +18,30 @@ const modifierAliases = new Map<string, BrowserKeyModifier>([
   ['shift', 'shift']
 ])
 
+const shiftedAsciiCharacters: Readonly<Record<string, string>> = {
+  '`': '~',
+  '1': '!',
+  '2': '@',
+  '3': '#',
+  '4': '$',
+  '5': '%',
+  '6': '^',
+  '7': '&',
+  '8': '*',
+  '9': '(',
+  '0': ')',
+  '-': '_',
+  '=': '+',
+  '[': '{',
+  ']': '}',
+  '\\': '|',
+  ';': ':',
+  "'": '"',
+  ',': '<',
+  '.': '>',
+  '/': '?'
+}
+
 function keyboardModifier(value: string): BrowserKeyModifier | undefined {
   return modifierAliases.get(value.trim().toLowerCase())
 }
@@ -57,4 +81,11 @@ export function parseBrowserKeyPress(value: string): BrowserKeyPress {
       modifier === 'control' || modifier === 'alt' || modifier === 'meta'
     )
   }
+}
+
+export function browserKeyCharacter(input: BrowserKeyPress): string | null {
+  if (!input.emitsCharacter) return null
+  if (!input.modifiers.includes('shift')) return input.keyCode
+  if (/^[a-z]$/i.test(input.keyCode)) return input.keyCode.toUpperCase()
+  return shiftedAsciiCharacters[input.keyCode] ?? input.keyCode
 }

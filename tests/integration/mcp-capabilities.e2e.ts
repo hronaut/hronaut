@@ -1446,6 +1446,33 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     }) as CallToolResult
     expect(text(pressedCharacter)).toBe('x')
 
+    await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "document.querySelector('#name').value = ''; window.hronautKeyboardEvents = []; true"
+      }
+    })
+    const shiftedCharacter = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'Shift+x' }
+    }) as CallToolResult
+    expect(shiftedCharacter.isError, text(shiftedCharacter)).not.toBe(true)
+    const shiftedCharacterState = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "({ value: document.querySelector('#name').value, events: window.hronautKeyboardEvents })"
+      }
+    }) as CallToolResult
+    expect(JSON.parse(text(shiftedCharacterState))).toEqual({
+      value: 'X',
+      events: [
+        { type: 'keydown', key: 'X', control: false, shift: true, alt: false, meta: false },
+        { type: 'keyup', key: 'X', control: false, shift: true, alt: false, meta: false }
+      ]
+    })
+
     const invalidKeyCombination = await client.callTool({
       name: 'browser_press',
       arguments: { tabId, key: 'Control+A+B' }
