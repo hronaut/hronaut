@@ -1705,6 +1705,111 @@ test('does not report a superseded address navigation as failed', async ({ appWi
   }
 })
 
+test('treats tab closure as cancellation during address navigation', async ({
+  appWindow,
+  electronApp
+}) => {
+  const targetUrl = 'data:text/html,<title>Closing address navigation</title><main>Close this tab while navigating</main>'
+  const created = await appWindow.evaluate(`(async () => {
+    const target = await window.hronaut.newTab({ url: ${JSON.stringify(targetUrl)}, active: true });
+    const targetTabId = target.activeTabId;
+    const fallback = await window.hronaut.newTab({ url: 'about:blank', active: false });
+    const fallbackTabId = fallback.tabs.find((tab) => tab.id !== targetTabId && tab.url === 'about:blank')?.id;
+    return { targetTabId, fallbackTabId };
+  })()`) as { targetTabId: string | null; fallbackTabId?: string }
+  expect(created.targetTabId).toBeTruthy()
+  expect(created.fallbackTabId).toBeTruthy()
+  const targetTabId = created.targetTabId!
+  const fallbackTabId = created.fallbackTabId!
+
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+    state.tabs.find((tab) => tab.id === ${JSON.stringify(targetTabId)})?.loading
+  ))`)).toBe(false)
+  await electronApp.evaluate(({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error('Closing address-navigation WebContents was not found')
+    const control = {
+      started: false,
+      finished: false,
+      release: undefined as (() => void) | undefined
+    }
+    ;(globalThis as typeof globalThis & { __hronautClosingAddressNavigation?: typeof control })
+      .__hronautClosingAddressNavigation = control
+    Object.defineProperty(page, 'loadURL', {
+      configurable: true,
+      value: async () => {
+        control.started = true
+        await new Promise<void>((resolve) => { control.release = resolve })
+        control.finished = true
+        throw new TypeError('Object has been destroyed')
+      }
+    })
+  }, targetUrl)
+
+  try {
+    await appWindow.evaluate(({ address, tabId }) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      const pending = browser.navigate({ url: address, tabId }).then(
+        (state) => ({ error: null, state }),
+        async (error) => ({
+          error: error instanceof Error ? error.message : String(error),
+          state: await browser.getState()
+        })
+      )
+      ;(globalThis as typeof globalThis & {
+        __hronautPendingClosingAddressNavigation?: typeof pending
+      }).__hronautPendingClosingAddressNavigation = pending
+    }, {
+      address: 'https://example.invalid/closed-during-navigation',
+      tabId: targetTabId
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautClosingAddressNavigation?: { started: boolean } })
+        .__hronautClosingAddressNavigation?.started ?? false
+    ))).toBe(true)
+
+    const closedState = await appWindow.evaluate((tabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.closeTab(tabId), targetTabId)
+    expect(closedState.activeTabId).toBe(fallbackTabId)
+    expect(closedState.tabs.some((tab) => tab.id === targetTabId)).toBe(false)
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautClosingAddressNavigation?: { release?: () => void }
+      }).__hronautClosingAddressNavigation
+      if (!control?.release) throw new Error('Closing address navigation was not waiting')
+      control.release()
+    })
+
+    const navigationResult = await appWindow.evaluate(async () => {
+      const pending = (globalThis as typeof globalThis & {
+        __hronautPendingClosingAddressNavigation?: Promise<{
+          error: string | null
+          state: BrowserState
+        }>
+      }).__hronautPendingClosingAddressNavigation
+      if (!pending) throw new Error('Pending closing address navigation was not found')
+      return pending
+    })
+    expect(navigationResult.error).toBeNull()
+    expect(navigationResult.state.activeTabId).toBe(fallbackTabId)
+    expect(navigationResult.state.tabs.some((tab) => tab.id === targetTabId)).toBe(false)
+  } finally {
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautClosingAddressNavigation?: { release?: () => void }
+      }).__hronautClosingAddressNavigation
+      control?.release?.()
+      delete (globalThis as typeof globalThis & { __hronautClosingAddressNavigation?: unknown })
+        .__hronautClosingAddressNavigation
+    })
+    await appWindow.evaluate(() => {
+      delete (globalThis as typeof globalThis & { __hronautPendingClosingAddressNavigation?: unknown })
+        .__hronautPendingClosingAddressNavigation
+    })
+  }
+})
+
 test('recovers a crashed website renderer in a fresh process', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })

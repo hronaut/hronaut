@@ -2993,7 +2993,7 @@ export class BrowserTabsManager {
     try {
       await tab.webContents.loadURL(normalized)
     } catch (error) {
-      if (!isAbortedLoad(error)) throw error
+      if (this.tabs.get(tab.id) === tab && !isAbortedLoad(error)) throw error
     }
     return this.getState()
   }

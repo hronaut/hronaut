@@ -26,6 +26,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Treat a tab closed during address navigation as a cancelled request instead of showing a false navigation failure after its replacement tab is active.
 - Keep concurrent static validation from racing ESLint against Electron Vite's short-lived generated config bundle.
 - Reject secret-bearing wallet payloads at every supported nesting level, fail closed when public/provider input exceeds the shared serialization depth, and reject oversized or sparse arrays, shared-reference graphs, and over-budget binary views before expansion, preventing deeply nested secrets and payload-amplification denial of service from reaching the trusted wallet broker.
 - Give the theme picker proper radio-group keyboard behavior with one Tab stop plus wrapping Arrow, Home, and End navigation across all regular and expressive themes.
