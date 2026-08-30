@@ -35,6 +35,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
   const errorMessage = ref('')
   let disposed = false
   let initialized = false
+  let initializePromise: Promise<void> | null = null
   let detailsGeneration = 0
   let statusRevision = 0
   let walletsRevision = 0
@@ -57,9 +58,33 @@ export function useWalletsController(options: WalletsControllerOptions) {
     wallets.value = next
   }
 
-  async function refreshDetails(): Promise<void> {
+  function detachSubscriptions(): void {
+    subscriptions.splice(0).forEach((unsubscribe) => unsubscribe())
+  }
+
+  function attachSubscriptions(): void {
+    if (initialized || disposed) return
+    try {
+      subscriptions.push(options.api.onChanged((next) => {
+        if (!disposed) acceptWallets(next)
+      }))
+      subscriptions.push(options.api.onStatusChanged((next) => {
+        if (!disposed) acceptStatus(next)
+      }))
+      subscriptions.push(options.api.onRequestsChanged((next) => {
+        if (disposed) return
+        requestsRevision += 1
+        requests.value = next
+      }))
+      initialized = true
+    } catch (error) {
+      detachSubscriptions()
+      throw error
+    }
+  }
+
+  async function loadDetails(startingRequestsRevision: number): Promise<void> {
     const currentGeneration = ++detailsGeneration
-    const startingRequestsRevision = requestsRevision
     const [nextPolicies, nextPermissions, nextRequests, nextAudit] = await Promise.all([
       options.api.listPolicies(), options.api.listPermissions(), options.api.listRequests(), options.api.auditHistory()
     ])
@@ -70,27 +95,41 @@ export function useWalletsController(options: WalletsControllerOptions) {
     audit.value = nextAudit
   }
 
-  async function initialize(): Promise<void> {
-    const [nextStatus, nextWallets] = await Promise.all([options.api.status(), options.api.list()])
-    if (disposed) return
-    acceptStatus(nextStatus)
-    acceptWallets(nextWallets)
-    await refreshDetails()
-    if (initialized || disposed) return
-    initialized = true
-    subscriptions.push(
-      options.api.onChanged((next) => {
-        if (!disposed) acceptWallets(next)
-      }),
-      options.api.onStatusChanged((next) => {
-        if (!disposed) acceptStatus(next)
-      }),
-      options.api.onRequestsChanged((next) => {
+  function refreshDetails(): Promise<void> {
+    return loadDetails(requestsRevision)
+  }
+
+  function initialize(): Promise<void> {
+    if (initializePromise) return initializePromise
+    if (disposed) return Promise.resolve()
+    const startingStatusRevision = statusRevision
+    const startingWalletsRevision = walletsRevision
+    const startingRequestsRevision = requestsRevision
+    try {
+      attachSubscriptions()
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)))
+    }
+    const operation = (async () => {
+      try {
+        const [nextStatus, nextWallets] = await Promise.all([options.api.status(), options.api.list()])
         if (disposed) return
-        requestsRevision += 1
-        requests.value = next
-      })
-    )
+        if (startingStatusRevision === statusRevision) acceptStatus(nextStatus)
+        if (startingWalletsRevision === walletsRevision) acceptWallets(nextWallets)
+        await loadDetails(startingRequestsRevision)
+      } catch (error) {
+        if (!disposed) {
+          initialized = false
+          detachSubscriptions()
+        }
+        throw error
+      }
+    })()
+    const trackedOperation = operation.finally(() => {
+      if (initializePromise === trackedOperation) initializePromise = null
+    })
+    initializePromise = trackedOperation
+    return trackedOperation
   }
 
   async function run<T>(operation: () => Promise<T>, refresh = true): Promise<T | undefined> {
@@ -145,7 +184,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
   function dispose(): void {
     disposed = true
     detailsGeneration += 1
-    subscriptions.splice(0).forEach((unsubscribe) => unsubscribe())
+    detachSubscriptions()
   }
 
   return {

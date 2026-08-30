@@ -67,7 +67,13 @@ const readyStatus: WalletServiceStatus = {
   managedWallets: 'ready', backend: 'safe-storage', watchOnlyAvailable: true
 }
 
-function createController() {
+interface SubscriptionHooks {
+  requests?: (listener: (requests: WalletRequestSummary[]) => void) => void
+  status?: (listener: (status: WalletServiceStatus) => void) => void
+  wallets?: (listener: (wallets: WalletDescriptor[]) => void) => void
+}
+
+function createController(onSubscribe: SubscriptionHooks = {}) {
   let statusListener: ((status: WalletServiceStatus) => void) | undefined
   let walletListener: ((wallets: WalletDescriptor[]) => void) | undefined
   let requestListener: ((requests: WalletRequestSummary[]) => void) | undefined
@@ -87,14 +93,17 @@ function createController() {
     auditHistory,
     onChanged: vi.fn((listener: (wallets: WalletDescriptor[]) => void) => {
       walletListener = listener
+      onSubscribe.wallets?.(listener)
       return () => { walletListener = undefined }
     }),
     onStatusChanged: vi.fn((listener: (status: WalletServiceStatus) => void) => {
       statusListener = listener
+      onSubscribe.status?.(listener)
       return () => { statusListener = undefined }
     }),
     onRequestsChanged: vi.fn((listener: (requests: WalletRequestSummary[]) => void) => {
       requestListener = listener
+      onSubscribe.requests?.(listener)
       return () => { requestListener = undefined }
     })
   } as unknown as HronautWalletsApi
@@ -113,6 +122,69 @@ function createController() {
 }
 
 describe('wallets controller', () => {
+  it('preserves authoritative events delivered while startup listeners are attached', async () => {
+    const newestWallet = wallet('synchronous-startup-wallet')
+    const lockedStatus: WalletServiceStatus = {
+      managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true
+    }
+    const { controller, list, listRequests, status } = createController({
+      requests: (listener) => listener([]),
+      status: (listener) => listener(lockedStatus),
+      wallets: (listener) => listener([newestWallet])
+    })
+    status.mockResolvedValueOnce(readyStatus)
+    list.mockResolvedValueOnce([wallet('stale-synchronous-wallet')])
+    listRequests.mockResolvedValueOnce([pendingRequest()])
+
+    await controller.initialize()
+
+    expect(controller.status.value).toEqual(lockedStatus)
+    expect(controller.wallets.value).toEqual([newestWallet])
+    expect(controller.requests.value).toEqual([])
+    controller.dispose()
+  })
+
+  it('preserves live status and wallet events delivered during initialization', async () => {
+    const delayedStatus = deferred<WalletServiceStatus>()
+    const delayedWallets = deferred<WalletDescriptor[]>()
+    const newestWallet = wallet('startup-event-wallet')
+    const { controller, emitStatus, emitWallets, list, status } = createController()
+    status.mockReturnValueOnce(delayedStatus.promise)
+    list.mockReturnValueOnce(delayedWallets.promise)
+
+    const initializing = controller.initialize()
+    await vi.waitFor(() => {
+      expect(status).toHaveBeenCalledOnce()
+      expect(list).toHaveBeenCalledOnce()
+    })
+    emitStatus({ managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true })
+    emitWallets([newestWallet])
+    delayedStatus.resolve(readyStatus)
+    delayedWallets.resolve([wallet('stale-startup-wallet')])
+    await initializing
+
+    expect(controller.status.value.managedWallets).toBe('locked')
+    expect(controller.wallets.value).toEqual([newestWallet])
+    controller.dispose()
+  })
+
+  it('preserves a live request event delivered during initialization', async () => {
+    const delayedAudit = deferred<WalletAuditSummary[]>()
+    const { auditHistory, controller, emitRequests, listRequests } = createController()
+    listRequests.mockResolvedValueOnce([pendingRequest()])
+    auditHistory.mockReturnValueOnce(delayedAudit.promise)
+
+    const initializing = controller.initialize()
+    await vi.waitFor(() => expect(auditHistory).toHaveBeenCalledOnce())
+    emitRequests([])
+    delayedAudit.resolve([])
+    await initializing
+
+    expect(controller.requests.value).toEqual([])
+    expect(controller.awaitingApproval.value).toEqual([])
+    controller.dispose()
+  })
+
   it('does not resurrect a request cancelled while a detail refresh is in flight', async () => {
     const delayedAudit = deferred<WalletAuditSummary[]>()
     const request = pendingRequest()
