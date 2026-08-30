@@ -32,6 +32,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- End a missed hidden-page frame subscription before probing readiness with Electron's independent page capture, preventing tray screenshots from timing out under concurrent renderer load.
 - Roll back per-tab and global interaction-lock state when Chromium rejects a native input-guard update, including actively removing a partially applied compositor lock so websites cannot remain frozen behind an unlocked UI.
 - Clean every wallet startup listener when initialization fails, preserving the source failure alongside any cleanup errors instead of leaking later listeners or masking the cause.
 - Subscribe to wallet-service events before reading startup snapshots, preventing status, account, and approval changes during Settings bootstrap from being lost.

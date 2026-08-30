@@ -301,6 +301,7 @@ const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
+const OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS = 1_000
 const OFFSCREEN_PRESENTATION_TIMEOUT_MS = 15_000
 
 function normalizedWorkspaceName(name: string): string {
@@ -7891,17 +7892,23 @@ export class BrowserTabsManager {
       let invalidateTimer: NodeJS.Timeout | undefined
       let captureProbeTimer: NodeJS.Timeout | undefined
       let captureProbeInFlight = false
+      let frameSubscriptionActive = false
+      const endFrameSubscription = (): void => {
+        if (!frameSubscriptionActive) return
+        frameSubscriptionActive = false
+        try {
+          webContents.endFrameSubscription()
+        } catch {
+          // The tab may have been destroyed while waiting for its compositor frame.
+        }
+      }
       const finish = (error?: Error): void => {
         if (finished) return
         finished = true
         clearTimeout(timer)
         if (invalidateTimer) clearInterval(invalidateTimer)
         if (captureProbeTimer) clearTimeout(captureProbeTimer)
-        try {
-          webContents.endFrameSubscription()
-        } catch {
-          // The tab may have been destroyed while waiting for its compositor frame.
-        }
+        endFrameSubscription()
         if (error) reject(error)
         else resolve()
       }
@@ -7914,6 +7921,7 @@ export class BrowserTabsManager {
         OFFSCREEN_PRESENTATION_TIMEOUT_MS
       )
       try {
+        frameSubscriptionActive = true
         webContents.beginFrameSubscription(false, () => finish())
         const invalidate = (): void => {
           if (webContents.isDestroyed()) {
@@ -7941,8 +7949,9 @@ export class BrowserTabsManager {
           }
           captureProbeInFlight = true
           try {
-            // A successful direct capture proves the attached offscreen surface
-            // is ready even if Chromium omitted the subscribed presentation event.
+            // capturePage manages its own capturer count. Probe only after ending
+            // the missed frame subscription: overlapping both capture mechanisms
+            // can leave the direct capture pending under renderer pressure.
             const image = await webContents.capturePage()
             if (!image.isEmpty()) finish()
           } catch {
@@ -7956,7 +7965,10 @@ export class BrowserTabsManager {
             }
           }
         }
-        captureProbeTimer = setTimeout(() => { void probeCapture() }, 250)
+        captureProbeTimer = setTimeout(() => {
+          endFrameSubscription()
+          void probeCapture()
+        }, OFFSCREEN_FRAME_SUBSCRIPTION_FALLBACK_MS)
         captureProbeTimer.unref()
       } catch (error) {
         finish(error instanceof Error ? error : new Error(String(error)))

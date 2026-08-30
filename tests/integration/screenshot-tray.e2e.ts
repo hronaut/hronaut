@@ -105,17 +105,31 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
       if (!contents) throw new Error('Hidden screenshot tab was not found')
       const originalBeginFrameSubscription = contents.beginFrameSubscription.bind(contents)
+      const originalEndFrameSubscription = contents.endFrameSubscription.bind(contents)
+      const originalCapturePage = contents.capturePage.bind(contents)
+      let subscriptionActive = false
       contents.beginFrameSubscription = ((
         ...args: [boolean, (image: Electron.NativeImage, dirtyRect: Electron.Rectangle) => void]
           | [(image: Electron.NativeImage, dirtyRect: Electron.Rectangle) => void]
       ) => {
         contents.beginFrameSubscription = originalBeginFrameSubscription
+        subscriptionActive = true
         // Chromium can present a valid offscreen surface without delivering the
         // first subscribed callback under renderer pressure. Keep the real
         // subscription active while deliberately dropping its notification.
         if (typeof args[0] === 'boolean') originalBeginFrameSubscription(args[0], () => undefined)
         else originalBeginFrameSubscription(() => undefined)
       }) as Electron.WebContents['beginFrameSubscription']
+      contents.endFrameSubscription = (() => {
+        contents.endFrameSubscription = originalEndFrameSubscription
+        subscriptionActive = false
+        originalEndFrameSubscription()
+      }) as Electron.WebContents['endFrameSubscription']
+      contents.capturePage = (async (...args: Parameters<Electron.WebContents['capturePage']>) => {
+        if (subscriptionActive) return new Promise<Electron.NativeImage>(() => undefined)
+        contents.capturePage = originalCapturePage
+        return originalCapturePage(...args)
+      }) as Electron.WebContents['capturePage']
     })
 
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close())
