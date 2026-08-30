@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - Freeze validated import details until confirmation or cancellation so a prepared secret cannot be saved with another chain family's network metadata.
 - Keep new-wallet workspace choices independent from the configured-wallet access editor.
 - Keep the selected settings section visible at narrow window sizes by using a compact horizontally scrollable navigation strip.
+- Publish message-signing approvals only after their simulation audit is durable, closing a permission-revocation race exposed by hosted CI.
 
 ## [1.10.1] - 2026-08-31
 

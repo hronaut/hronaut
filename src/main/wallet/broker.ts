@@ -824,11 +824,11 @@ export class WalletBroker {
       await this.service.approvals.recordSimulation(record.id, { attempted: false, success: false }, this.now())
       await this.service.approvals.transition(record.id, 'simulated', this.now())
       await this.service.approvals.transition(record.id, 'policy-decision', this.now())
-      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
       await this.service.audit.append('request-simulated', {
         requestId: record.id, walletId: wallet.id, success: false, attempted: false,
         policyDecision: 'awaiting-human', reason: rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human'
       }, this.now().toISOString())
+      await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
       return returnSummary
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)

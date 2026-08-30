@@ -503,6 +503,42 @@ describe('WalletBroker', () => {
     expect(chain.sign).not.toHaveBeenCalled()
   })
 
+  it('does not expose message approval until its simulation audit is durable', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await connect(broker)
+    const permission = service.permissions.list()[0]!
+    const append = service.audit.append.bind(service.audit)
+    let auditEntered!: () => void
+    const entered = new Promise<void>((resolve) => { auditEntered = resolve })
+    let releaseAudit!: () => void
+    const auditRelease = new Promise<void>((resolve) => { releaseAudit = resolve })
+    vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
+      if (type === 'request-simulated') {
+        auditEntered()
+        await auditRelease
+      }
+      return append(type, payload, timestamp)
+    })
+
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['durable-audit-message', wallet.publicAddress]
+    }))
+    await entered
+    expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(0)
+
+    releaseAudit()
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    await broker.revokePermission(permission.id)
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+  })
+
   it('cleans up an expired website request when expiry audit persistence fails during approval', async () => {
     const { service, wallet } = await setup()
     let now = new Date('2026-08-28T12:00:00.000Z')
