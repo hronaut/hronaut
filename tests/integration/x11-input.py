@@ -6,7 +6,7 @@ import time
 
 def main() -> None:
     if len(sys.argv) != 4:
-        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key>")
+        raise SystemExit("usage: x11-input.py <screen-x> <screen-y> <key|--wheel>")
 
     x = int(sys.argv[1])
     y = int(sys.argv[2])
@@ -20,6 +20,7 @@ def main() -> None:
 
     try:
         x11.XFlush.argtypes = [ctypes.c_void_p]
+        x11.XSync.argtypes = [ctypes.c_void_p, ctypes.c_int]
         x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
         x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
         x11.XStringToKeysym.restype = ctypes.c_ulong
@@ -40,16 +41,25 @@ def main() -> None:
             time.sleep(0.05)
 
         xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+        # XTest queues motion and button events asynchronously. In the
+        # wheel-only path there is no preceding key/click delay, so a busy Xvfb
+        # can otherwise deliver the wheel at the pointer's previous target.
+        x11.XSync(display, False)
+        time.sleep(0.05)
         if action != "--wheel":
             xtst.XTestFakeButtonEvent(display, 1, True, 0)
             xtst.XTestFakeButtonEvent(display, 1, False, 0)
-            x11.XFlush(display)
+            x11.XSync(display, False)
             time.sleep(0.05)
 
         for _ in range(3):
             xtst.XTestFakeButtonEvent(display, 5, True, 0)
             xtst.XTestFakeButtonEvent(display, 5, False, 0)
-        x11.XFlush(display)
+        # Do not close the X11 connection until the server has processed every
+        # synthetic wheel event. This keeps physical-input assertions reliable
+        # while the authoritative Docker suite runs six Electron shards.
+        x11.XSync(display, False)
+        time.sleep(0.05)
     finally:
         x11.XCloseDisplay(display)
 

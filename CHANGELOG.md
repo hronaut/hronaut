@@ -12,11 +12,13 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Keep `App.vue` composition-focused by moving Settings, trusted wallet approval, and Help mounting into a dedicated dialog layer with explicit controller contracts.
 - Keep Hronaut Home aligned with the public client matrix by adding profile-aware Kiro, Mistral Vibe, and Warp setup guides, including environment-backed credentials where those clients support them.
 - Parallelize standalone incremental typechecks with a constrained-runner override, run release validation concurrently, and stop repeating successful type analysis in dependent platform packaging jobs.
 - Run the two hosted Electron shards on isolated runners and record Playwright traces only on a strict first retry, shortening successful Docker gates without accepting flaky tests.
 - Add a warm full-suite Docker preflight that reuses lock-keyed dependencies, skips duplicate type analysis, and runs the complete Electron and native-dialog suite across six local shards while preserving the immutable authoritative gate and two-shard hosted profile.
 - Add a focused static validation command that runs content-cached ESLint concurrently with only the incremental TypeScript projects affected by the edited files, and include website TypeScript in both focused and full lint coverage.
+- Synchronize physical X11 pointer and wheel delivery in Docker interaction-lock QA so concurrent Electron shards cannot mistake an undelivered probe for a still-locked page.
 - Keep setup feedback and generated release guidance aligned with all fourteen focused coding-agent guides, so users can identify their actual client instead of falling back to a generic category.
 - Link every focused coding-agent setup guide from the GitHub README so visitors can move directly from their client to the local Hronaut connection flow.
 - Avoid repeating the full TypeScript analysis inside hosted Docker integration after the parallel validation job has already run it, while retaining typechecking in standalone Docker runs.

@@ -11,11 +11,8 @@ import AppToastRegion from './components/AppToastRegion.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import CredentialPicker from './components/CredentialPicker.vue'
 import FindInPageBar from './components/FindInPageBar.vue'
-import HelpDialog from './components/HelpDialog.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
-import SettingsDialog from './components/SettingsDialog.vue'
-import WalletApprovalDialog from './components/WalletApprovalDialog.vue'
 import TabSearchPanel from './components/TabSearchPanel.vue'
 import WorkspaceEditor from './components/WorkspaceEditor.vue'
 import ZoomBar from './components/ZoomBar.vue'
@@ -23,6 +20,7 @@ import DetachedPanelUnavailableState from './components/DetachedPanelUnavailable
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppBrowserCollectionsLayer from './components/AppBrowserCollectionsLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
+import AppTrustedDialogsLayer from './components/AppTrustedDialogsLayer.vue'
 import { useBrowserStore } from './stores/browser'
 import { useSettingsStore } from './stores/settings'
 import { useAppLifecycleController } from './composables/useAppLifecycleController'
@@ -243,13 +241,7 @@ const {
   sitePermissionsController,
   credentialsController,
   privacySettingsController,
-  updateSettingsController,
-  commercialLicenseController,
   mcpStatusController,
-  downloadSettingsController,
-  performanceSettingsController,
-  mcpSettingsController,
-  searchSettingsController,
   settingsDialogController,
   walletsController,
   bootstrapTasks: settingsFeatureBootstrapTasks,
@@ -268,7 +260,6 @@ const {
   search: janitorSearch,
   refresh: refreshPrivacySettings
 } = privacySettingsController
-const { state: updateState } = updateSettingsController
 const { togglePaused: toggleMcpPaused } = mcpStatusController
 const {
   open: settingsOpen,
@@ -1070,18 +1061,9 @@ useAppLifecycleController({
       :run-command="runCommandPaletteCommand"
       :report-command-error="reportShellActionError"
     />
-    <SettingsDialog
-      :controller="settingsDialogController"
-      :search-controller="searchSettingsController"
-      :download-controller="downloadSettingsController"
-      :performance-controller="performanceSettingsController"
-      :mcp-controller="mcpSettingsController"
-      :privacy-controller="privacySettingsController"
-      :permissions-controller="sitePermissionsController"
-      :credentials-controller="credentialsController"
-      :update-controller="updateSettingsController"
-      :support-controller="commercialLicenseController"
-      :wallets-controller="walletsController"
+    <AppTrustedDialogsLayer
+      :settings-controller="appSettingsFeatureController"
+      :help-controller="helpDialogController"
       :workspaces="walletWorkspaces"
       :format-bytes="formatBytes"
       :format-number="localNumber"
@@ -1090,12 +1072,6 @@ useAppLifecycleController({
       :report-setting-error="handleExtractedSettingError"
       :open-url="openSupport"
       :purchase-commercial-license="purchaseCommercialLicense"
-    />
-    <WalletApprovalDialog :controller="walletsController" />
-    <HelpDialog
-      :controller="helpDialogController"
-      :current-version="updateState.currentVersion"
-      :open-url="openSupport"
       :open-support-settings="openSupportSettings"
       :report-layout="reportShellHeight"
     />
