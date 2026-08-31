@@ -116,6 +116,16 @@ export const enUS = {
     addWallet: 'Add wallet',
     secretsNotCopied: 'Secrets are never copied automatically.',
     modes: { generate: 'Generate', import: 'Import', watch: 'Watch only' },
+    modeDescriptions: {
+      generate: 'Create a new signing account and recovery phrase.',
+      import: 'Bring an existing recovery phrase or private key into encrypted local storage.',
+      watch: 'Track an address without storing a signing key.'
+    },
+    onboardingActions: {
+      generate: 'Generate wallet',
+      import: 'Validate and review',
+      watch: 'Add watch-only wallet'
+    },
     walletType: 'Wallet type',
     name: 'Name',
     chain: 'Chain',
@@ -162,6 +172,11 @@ export const enUS = {
     noWorkspaceAccess: 'No workspace access',
     cancel: 'Cancel',
     configured: 'Configured wallets',
+    yourWallets: 'Your wallets',
+    configuredCount: '{count} configured',
+    walletToManage: 'Wallet to manage',
+    noWalletsConfigured: 'No wallets configured yet',
+    noWalletsConfiguredDescription: 'Choose Generate, Import, or Watch only above. Hronaut will show the wallet here after you finish adding it.',
     signingVault: 'Signing-key protection',
     lockVaultDescription: 'Locking removes decrypted signing keys and wallet authority data from memory and pauses managed signing. It does not close tabs, interrupt ordinary browsing, or disable watch-only wallets.',
     lockSigningKeys: 'Lock signing keys',

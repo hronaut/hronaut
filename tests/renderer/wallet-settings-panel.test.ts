@@ -61,6 +61,25 @@ function wallet(id: string, name: string, workspaceIds: string[]): WalletDescrip
 }
 
 describe('WalletsSettingsPanel', () => {
+  it('makes wallet onboarding choices and the empty managed-wallet state explicit', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    expect(screen.getByText('Create a new signing account and recovery phrase.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Generate wallet' })).toBeVisible()
+    expect(screen.getByText('No wallets configured yet')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Lock signing keys' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    expect(screen.getByText('Bring an existing recovery phrase or private key into encrypted local storage.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Validate and review' })).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Watch only' }))
+    expect(screen.getByText('Track an address without storing a signing key.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add watch-only wallet' })).toBeVisible()
+  })
+
   it('starts with a coherent EVM preset and keeps custom RPC editing available', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
@@ -103,7 +122,7 @@ describe('WalletsSettingsPanel', () => {
 
     expect(screen.getByLabelText('EVM chain ID')).toHaveAttribute('aria-invalid', 'true')
     expect(screen.getByText(/positive whole number within the safe integer range/i)).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Generate wallet' })).toBeDisabled()
     expect(wallets.generate).not.toHaveBeenCalled()
   })
 
@@ -120,7 +139,7 @@ describe('WalletsSettingsPanel', () => {
     await user.clear(screen.getByLabelText('Network name'))
     await user.type(screen.getByLabelText('Network name'), '   ')
 
-    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Generate wallet' })).toBeDisabled()
   })
 
   it('normalizes surrounding whitespace before validating an EVM chain ID', async () => {
@@ -134,7 +153,7 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('EVM chain ID'), ' 31337 ')
 
     expect(screen.getByLabelText('EVM chain ID')).not.toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Generate wallet' })).toBeEnabled()
   })
 
   it('adapts network fields and presets to Solana and Tron', async () => {
@@ -161,7 +180,7 @@ describe('WalletsSettingsPanel', () => {
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Name'), 'Base wallet')
     await user.selectOptions(screen.getByLabelText('Network preset'), 'evm-8453')
-    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
       chainFamily: 'evm',
@@ -182,7 +201,7 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Prepared EVM wallet')
     await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret phrase never retained in Vue state')
-    await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
 
     expect(screen.queryByLabelText('Chain')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Network preset')).not.toBeInTheDocument()
@@ -198,6 +217,23 @@ describe('WalletsSettingsPanel', () => {
     expect(token).toBe('import-token')
     expect(details.network.id).toBe('11155111')
     expect(() => structuredClone(details)).not.toThrow()
+  })
+
+  it('cancels a validated import when the trusted Wallets panel unmounts', async () => {
+    const wallets = controller()
+    const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Abandoned import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret phrase cleared when leaving settings')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    expect(screen.getByText('Wallet validated')).toBeInTheDocument()
+
+    view.unmount()
+
+    expect(wallets.cancelImport).toHaveBeenCalledOnce()
+    expect(wallets.cancelImport).toHaveBeenCalledWith('import-token')
   })
 
   it('keeps new-wallet workspace choices independent from configured-wallet editing', async () => {
@@ -221,8 +257,8 @@ describe('WalletsSettingsPanel', () => {
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Name'), 'Independent wallet')
     await user.click(screen.getAllByLabelText('New wallet workspace')[0])
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Configured wallets' }), 'b')
-    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'b')
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
       workspaceIds: ['workspace-new']
@@ -334,7 +370,7 @@ describe('WalletsSettingsPanel', () => {
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Watch only' }))
 
-    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Add watch-only wallet' })).toBeDisabled()
   })
 
   it('clears imported secret material from the uncontrolled trusted input immediately', async () => {
@@ -345,7 +381,7 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('Name'), 'Imported wallet')
     const recovery = screen.getByLabelText<HTMLTextAreaElement>('Mnemonic / recovery phrase')
     await user.type(recovery, 'test secret phrase never retained in Vue state')
-    await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
 
     expect(recovery.value).toBe('')
     expect(wallets.prepareImport).toHaveBeenCalledWith('evm', 'mnemonic', 'test secret phrase never retained in Vue state')
@@ -380,7 +416,7 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('Name'), 'QA agent wallet')
     await user.click(screen.getByLabelText('Dedicated agent wallet'))
     await user.click(screen.getByLabelText('Agent workspace'))
-    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
       name: 'QA agent wallet',
@@ -409,7 +445,7 @@ describe('WalletsSettingsPanel', () => {
 
     expect(screen.getByLabelText('Existing workspace')).toBeDisabled()
     expect(screen.getByText(/includes workspaces created later/i)).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Everywhere wallet',
       availableInAllWorkspaces: true,
@@ -523,7 +559,10 @@ describe('WalletsSettingsPanel', () => {
   })
 
   it('explains locking and unlocks an OS-protected vault without asking for a fake passphrase', async () => {
-    const wallets = controller()
+    const signingWallet = wallet('signing', 'Signing wallet', [])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const wallets = controller({ wallets: ref([signingWallet]) })
     const rendered = render(WalletsSettingsPanel, {
       props: { controller: wallets, workspaces: [] },
       global

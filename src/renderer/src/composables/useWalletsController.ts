@@ -179,7 +179,14 @@ export function useWalletsController(options: WalletsControllerOptions) {
     false
   )
   const confirmImport = (token: string, details: WalletImportDetails) => run(() => options.api.confirmImport(token, details))
-  const cancelImport = (token: string) => run(() => options.api.cancelImport(token), false)
+  const cancelImport = async (token: string): Promise<boolean | undefined> => {
+    try {
+      return await options.api.cancelImport(token)
+    } catch (error) {
+      if (!disposed) setError(error)
+      return undefined
+    }
+  }
   const addWatchOnly = (input: WalletWatchOnlyInput) => run(() => options.api.addWatchOnly(input))
   const update = (walletId: string, changes: WalletUpdateInput) => run(() => options.api.update(walletId, changes))
   const remove = (walletId: string) => run(() => options.api.remove(walletId))

@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Clarify Wallets onboarding with descriptive Generate, Import, and Watch-only choices, outcome-specific actions, a distinct wallet-management state, and signing-key controls only when a signing wallet exists.
+
+### Fixed
+
+- Cancel validated wallet imports when the trusted Wallets panel closes or changes sections so abandoned recovery material is removed from signer memory immediately instead of waiting for expiry.
+- Let hidden full-page screenshots use Chromium's own capture presentation path instead of waiting on an unrelated compositor subscription that can be missed under load.
+
 ## [1.11.10] - 2026-09-01
 
 ### Fixed

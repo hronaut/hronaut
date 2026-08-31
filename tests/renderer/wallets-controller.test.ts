@@ -82,6 +82,7 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
   const listPolicies = vi.fn(async () => [])
   const listRequests = vi.fn(async (): Promise<WalletRequestSummary[]> => [])
   const auditHistory = vi.fn(async (): Promise<WalletAuditSummary[]> => [])
+  const cancelImport = vi.fn(async () => true)
   const walletUnsubscribe = vi.fn(() => { walletListener = undefined })
   const statusUnsubscribe = vi.fn(() => { statusListener = undefined })
   const requestUnsubscribe = vi.fn(() => { requestListener = undefined })
@@ -95,6 +96,7 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
     listPermissions: vi.fn(async () => []),
     listRequests,
     auditHistory,
+    cancelImport,
     onChanged: vi.fn((listener: (wallets: WalletDescriptor[]) => void) => {
       walletListener = listener
       onSubscribe.wallets?.(listener)
@@ -115,6 +117,7 @@ function createController(onSubscribe: SubscriptionHooks = {}) {
   return {
     api,
     auditHistory,
+    cancelImport,
     controller,
     emitRequests: (requests: WalletRequestSummary[]) => requestListener?.(requests),
     emitStatus: (next: WalletServiceStatus) => statusListener?.(next),
@@ -304,5 +307,23 @@ describe('wallets controller', () => {
 
     expect(controller.status.value).toEqual(readyStatus)
     expect(list).toHaveBeenCalledOnce()
+  })
+
+  it('cancels pending imports while another wallet operation is refreshing', async () => {
+    const delayedStatus = deferred<WalletServiceStatus>()
+    const { cancelImport, controller, status } = createController()
+    await controller.initialize()
+    status.mockReturnValueOnce(delayedStatus.promise)
+
+    const locking = controller.lock()
+    await vi.waitFor(() => expect(status).toHaveBeenCalledTimes(2))
+
+    await expect(controller.cancelImport('pending-import-token')).resolves.toBe(true)
+    expect(cancelImport).toHaveBeenCalledOnce()
+    expect(cancelImport).toHaveBeenCalledWith('pending-import-token')
+
+    delayedStatus.resolve(readyStatus)
+    await locking
+    controller.dispose()
   })
 })

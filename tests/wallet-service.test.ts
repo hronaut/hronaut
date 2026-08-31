@@ -128,6 +128,20 @@ describe('WalletService', () => {
     })).rejects.toThrow('Wallet import confirmation expired')
   })
 
+  it('invalidates a pending import immediately when trusted UI cancels it', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+
+    const prepared = await service.prepareImport('evm', 'mnemonic', knownMnemonic)
+
+    expect(service.cancelImport(prepared.token)).toBe(true)
+    await expect(service.confirmImport(prepared.token, {
+      name: 'Cancelled', network, workspaceIds: [], dedicatedAgent: false
+    })).rejects.toThrow('Wallet import confirmation expired')
+    expect(service.list()).toEqual([])
+  })
+
   it('keeps watch-only wallets available when Linux safeStorage is basic_text and requires passphrase setup for managed wallets', async () => {
     const path = await directory()
     const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage('basic_text') })

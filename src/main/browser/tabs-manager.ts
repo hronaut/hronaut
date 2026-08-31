@@ -5611,7 +5611,10 @@ export class BrowserTabsManager {
         data: format === 'jpeg' ? image.toJPEG(quality) : image.toPNG(),
         mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png'
       }
-    })
+    // Full-page capture uses the DevTools protocol, which presents and captures
+    // the page itself. Waiting for a separate compositor subscription first can
+    // strand an otherwise healthy capture when Chromium omits that notification.
+    }, !options.fullPage)
   }
 
   async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {

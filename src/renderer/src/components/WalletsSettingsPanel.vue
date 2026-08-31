@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import type { WalletsController } from '../composables/useWalletsController.js'
@@ -73,6 +73,8 @@ const vaultUsesPassphrase = computed(() => ['passphrase', 'basic_text', 'unknown
 ))
 
 const selectedWallet = computed(() => props.controller.wallets.value.find((wallet) => wallet.id === selectedWalletId.value))
+const hasSigningWallet = computed(() => props.controller.wallets.value.some((wallet) => wallet.capabilities.includes('sign')))
+const onboardingSubmitLabel = computed(() => t(`wallets.onboardingActions.${mode.value}`))
 const selectedPolicies = computed(() => props.controller.policies.value.filter((policy) => policy.walletId === selectedWalletId.value))
 const selectedPermissions = computed(() => props.controller.permissions.value.filter((permission) => permission.walletId === selectedWalletId.value))
 const preparedImportWorkspaceLabel = computed(() => {
@@ -269,9 +271,18 @@ async function confirmPreparedImport(): Promise<void> {
 
 async function cancelPreparedImport(): Promise<void> {
   if (!preparedImport.value) return
-  await props.controller.cancelImport(preparedImport.value.token)
+  const pending = preparedImport.value
   preparedImport.value = null
+  const cancelled = await props.controller.cancelImport(pending.token)
+  if (cancelled === undefined) preparedImport.value = pending
 }
+
+onBeforeUnmount(() => {
+  const pending = preparedImport.value
+  if (!pending) return
+  preparedImport.value = null
+  void props.controller.cancelImport(pending.token)
+})
 
 async function submitPassphrase(action: 'setup' | 'unlock'): Promise<void> {
   const passphrase = passphraseInput.value?.value ?? ''
@@ -370,6 +381,7 @@ async function addPolicy(): Promise<void> {
       <span class="info-dot" aria-hidden="true">{{ t('common.hronaut').slice(0, 1) }}</span>
       <p>{{ statusCopy }}</p>
     </div>
+    <output v-if="controller.errorMessage.value" class="site-controls-error wallet-error" role="alert">{{ controller.errorMessage.value }}</output>
 
     <form v-if="controller.status.value.managedWallets === 'passphrase-setup-required'" class="wallet-card" @submit.prevent="submitPassphrase('setup')">
       <h4>{{ t('wallets.createPassphrase') }}</h4>
@@ -390,7 +402,7 @@ async function addPolicy(): Promise<void> {
     <section class="wallet-card">
       <div class="wallet-card-heading"><h4>{{ t('wallets.addWallet') }}</h4><span>{{ t('wallets.secretsNotCopied') }}</span></div>
       <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
-        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-pressed="mode === entry" :disabled="preparedImport !== null" @click="mode = entry">{{ t(`wallets.modes.${entry}`) }}</button>
+        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-label="t(`wallets.modes.${entry}`)" :aria-pressed="mode === entry" :disabled="preparedImport !== null" @click="mode = entry"><strong>{{ t(`wallets.modes.${entry}`) }}</strong><small>{{ t(`wallets.modeDescriptions.${entry}`) }}</small></button>
       </div>
       <form v-if="!preparedImport" class="wallet-form" @submit.prevent="submitOnboarding">
         <p v-if="mode === 'import'" class="wallet-wide wallet-import-step">{{ t('wallets.importValidateStep') }}</p>
@@ -412,7 +424,7 @@ async function addPolicy(): Promise<void> {
           </div>
           <fieldset :disabled="preparedImport !== null || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
         </section>
-        <button class="primary-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
+        <button class="primary-button wallet-submit-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</button>
       </form>
       <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status">
         <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>
@@ -431,12 +443,16 @@ async function addPolicy(): Promise<void> {
     </section>
 
     <section class="wallet-card">
-      <div class="wallet-card-heading"><h4>{{ t('wallets.configured') }}</h4></div>
-      <div v-if="controller.status.value.managedWallets === 'ready'" class="wallet-vault-control">
+      <div class="wallet-card-heading"><h4>{{ t('wallets.yourWallets') }}</h4><span class="wallet-count">{{ t('wallets.configuredCount', { count: controller.wallets.value.length }) }}</span></div>
+      <div v-if="controller.wallets.value.length === 0" class="wallet-empty-state">
+        <strong>{{ t('wallets.noWalletsConfigured') }}</strong>
+        <p>{{ t('wallets.noWalletsConfiguredDescription') }}</p>
+      </div>
+      <div v-if="controller.status.value.managedWallets === 'ready' && hasSigningWallet" class="wallet-vault-control">
         <div><strong>{{ t('wallets.signingVault') }}</strong><small>{{ t('wallets.lockVaultDescription') }}</small></div>
         <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.lock">{{ t('wallets.lockSigningKeys') }}</button>
       </div>
-      <label class="wallet-selector-label">{{ t('wallets.configured') }}<select v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
+      <label v-if="controller.wallets.value.length > 0" class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
       <template v-if="selectedWallet">
         <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
         <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">
@@ -464,6 +480,5 @@ async function addPolicy(): Promise<void> {
     </section>
 
     <section class="wallet-card"><h4>{{ t('wallets.requestsAudit') }}</h4><p>{{ t('wallets.requestsAuditCount', { requests: controller.requests.value.length, events: controller.audit.value.length }) }}</p><button class="secondary-button" type="button" @click="controller.refreshDetails">{{ t('wallets.refresh') }}</button><details><summary>{{ t('wallets.recentAudit') }}</summary><ul class="wallet-list"><li v-for="entry in controller.audit.value.slice(-20).reverse()" :key="entry.sequence"><span><strong>{{ entry.type }}</strong><small>{{ t('wallets.auditValue', { time: new Date(entry.timestamp).toLocaleString(), sequence: entry.sequence }) }}</small></span></li></ul></details></section>
-    <output v-if="controller.errorMessage.value" class="site-controls-error" role="alert">{{ controller.errorMessage.value }}</output>
   </div>
 </template>

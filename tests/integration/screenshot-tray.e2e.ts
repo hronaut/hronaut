@@ -136,10 +136,43 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isVisible())).toBe(false)
 
     for (const fullPage of [false, true]) {
+      if (fullPage) {
+        await electronApp.evaluate(({ webContents }) => {
+          const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
+          if (!contents) throw new Error('Hidden screenshot tab was not found')
+          const globals = globalThis as typeof globalThis & {
+            __fullPageBeganFrameSubscription?: boolean
+            __restoreFullPageBeginFrameSubscription?: () => void
+          }
+          const originalBeginFrameSubscription = contents.beginFrameSubscription.bind(contents)
+          globals.__fullPageBeganFrameSubscription = false
+          globals.__restoreFullPageBeginFrameSubscription = () => {
+            contents.beginFrameSubscription = originalBeginFrameSubscription
+          }
+          contents.beginFrameSubscription = ((...args: Parameters<Electron.WebContents['beginFrameSubscription']>) => {
+            globals.__fullPageBeganFrameSubscription = true
+            return originalBeginFrameSubscription(...args)
+          }) as Electron.WebContents['beginFrameSubscription']
+        })
+      }
       const screenshot = await client.callTool({
         name: 'browser_screenshot',
         arguments: { tabId, fullPage }
       }) as CallToolResult
+      if (fullPage) {
+        const beganFrameSubscription = await electronApp.evaluate(() => {
+          const globals = globalThis as typeof globalThis & {
+            __fullPageBeganFrameSubscription?: boolean
+            __restoreFullPageBeginFrameSubscription?: () => void
+          }
+          const began = globals.__fullPageBeganFrameSubscription === true
+          globals.__restoreFullPageBeginFrameSubscription?.()
+          delete globals.__fullPageBeganFrameSubscription
+          delete globals.__restoreFullPageBeginFrameSubscription
+          return began
+        })
+        expect(beganFrameSubscription).toBe(false)
+      }
       expect(screenshot.isError, `${fullPage ? 'full page' : 'viewport'}: ${text(screenshot)}`).not.toBe(true)
       const image = screenshot.content.find((item) => item.type === 'image')
       expect(image?.type).toBe('image')
