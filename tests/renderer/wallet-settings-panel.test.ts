@@ -194,6 +194,35 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/real funds/i)
   })
 
+  it('clears successful onboarding and selects the wallet that was just added', async () => {
+    const existing = wallet('existing', 'Existing wallet', [])
+    const created = wallet('created', 'New wallet', ['workspace-1'])
+    created.kind = 'managed'
+    created.capabilities = ['read', 'sign', 'send']
+    const walletState = ref([existing])
+    const generate = vi.fn(async () => {
+      walletState.value = [existing, created]
+      return created
+    })
+    const wallets = controller({ wallets: walletState, generate })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-1', name: 'Agent workspace' }] },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Name'), 'New wallet')
+    await user.click(screen.getByLabelText('Dedicated agent wallet'))
+    await user.click(screen.getAllByLabelText('Agent workspace')[0])
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
+
+    expect(generate).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('Name')).toHaveValue('')
+    expect(screen.getByLabelText('Dedicated agent wallet')).not.toBeChecked()
+    expect(screen.getAllByLabelText('Agent workspace')[0]).not.toBeChecked()
+    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toHaveValue('created')
+  })
+
   it('freezes the validated chain and network until an import is confirmed or cancelled', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })

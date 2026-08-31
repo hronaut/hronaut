@@ -55,6 +55,8 @@ const preparedImport = ref<{
 } | null>(null)
 const preparedImportReview = ref<HTMLElement | null>(null)
 const addImportedWalletButton = ref<HTMLButtonElement | null>(null)
+const configuredWalletsSection = ref<HTMLElement | null>(null)
+const walletSelector = ref<HTMLSelectElement | null>(null)
 const policyOrigin = ref('')
 const policyWorkspaceId = ref('')
 const policyDestination = ref('')
@@ -219,6 +221,19 @@ function network(): WalletNetwork {
   }
 }
 
+async function finishOnboarding(wallet: { id: string } | undefined): Promise<void> {
+  if (!wallet) return
+  name.value = ''
+  watchAddress.value = ''
+  dedicatedAgent.value = false
+  onboardingWorkspaceScope.value = 'selected'
+  onboardingWorkspaceIds.value = []
+  selectedWalletId.value = wallet.id
+  await nextTick()
+  configuredWalletsSection.value?.scrollIntoView?.({ block: 'start' })
+  walletSelector.value?.focus({ preventScroll: true })
+}
+
 async function submitOnboarding(): Promise<void> {
   const availableInAllWorkspaces = onboardingWorkspaceScope.value === 'all'
   const input = {
@@ -229,9 +244,9 @@ async function submitOnboarding(): Promise<void> {
     availableInAllWorkspaces
   }
   if (mode.value === 'generate') {
-    await props.controller.generate({ ...input, dedicatedAgent: dedicatedAgent.value })
+    await finishOnboarding(await props.controller.generate({ ...input, dedicatedAgent: dedicatedAgent.value }))
   } else if (mode.value === 'watch') {
-    await props.controller.addWatchOnly({ ...input, publicAddress: watchAddress.value.trim() })
+    await finishOnboarding(await props.controller.addWatchOnly({ ...input, publicAddress: watchAddress.value.trim() }))
   } else {
     const secret = recoveryInput.value?.value ?? ''
     if (recoveryInput.value) recoveryInput.value.value = ''
@@ -266,7 +281,10 @@ async function confirmPreparedImport(): Promise<void> {
     dedicatedAgent: pending.details.dedicatedAgent
   }
   const confirmed = await props.controller.confirmImport(pending.token, details)
-  if (confirmed) preparedImport.value = null
+  if (confirmed) {
+    preparedImport.value = null
+    await finishOnboarding(confirmed)
+  }
 }
 
 async function cancelPreparedImport(): Promise<void> {
@@ -442,7 +460,7 @@ async function addPolicy(): Promise<void> {
       </div>
     </section>
 
-    <section class="wallet-card">
+    <section ref="configuredWalletsSection" class="wallet-card">
       <div class="wallet-card-heading"><h4>{{ t('wallets.yourWallets') }}</h4><span class="wallet-count">{{ t('wallets.configuredCount', { count: controller.wallets.value.length }) }}</span></div>
       <div v-if="controller.wallets.value.length === 0" class="wallet-empty-state">
         <strong>{{ t('wallets.noWalletsConfigured') }}</strong>
@@ -452,7 +470,7 @@ async function addPolicy(): Promise<void> {
         <div><strong>{{ t('wallets.signingVault') }}</strong><small>{{ t('wallets.lockVaultDescription') }}</small></div>
         <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.lock">{{ t('wallets.lockSigningKeys') }}</button>
       </div>
-      <label v-if="controller.wallets.value.length > 0" class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
+      <label v-if="controller.wallets.value.length > 0" class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select ref="walletSelector" v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
       <template v-if="selectedWallet">
         <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
         <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">

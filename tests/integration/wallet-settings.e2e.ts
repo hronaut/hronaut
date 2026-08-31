@@ -354,7 +354,8 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   const panel = dialog.locator('.wallet-settings')
   await panel.getByRole('button', { name: 'Import' }).click()
-  await panel.getByRole('textbox', { name: 'Name', exact: true }).fill('Imported through Settings')
+  const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
+  await walletName.fill('Imported through Settings')
   await panel.getByRole('combobox', { name: 'Secret format' }).selectOption('private-key')
   await panel.getByRole('textbox', { name: 'Private key', exact: true }).fill(`0x${'01'.repeat(32)}`)
   await panel.getByRole('button', { name: 'Validate and review' }).click()
@@ -365,6 +366,10 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   await appWindow.screenshot({ path: testInfo.outputPath('wallet-import-review.png') })
   await panel.getByRole('button', { name: 'Add encrypted wallet' }).click()
 
+  const walletSelector = panel.getByRole('combobox', { name: 'Wallet to manage' })
+  await expect(walletName).toHaveValue('')
+  await expect(walletSelector).toBeFocused()
+  await expect(walletSelector.locator('option:checked')).toContainText('Imported through Settings')
   await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
     (wallets) => wallets.some((wallet) => wallet.name === 'Imported through Settings')
   )`)).toBe(true)

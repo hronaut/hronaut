@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Clarify Wallets onboarding with descriptive Generate, Import, and Watch-only choices, outcome-specific actions, a distinct wallet-management state, and signing-key controls only when a signing wallet exists.
+- Clarify Wallets onboarding with descriptive Generate, Import, and Watch-only choices, outcome-specific actions, a distinct wallet-management state, signing-key controls only when a signing wallet exists, and an automatic handoff to the newly added wallet without leaving duplicate-ready form values behind.
 
 ### Fixed
 
