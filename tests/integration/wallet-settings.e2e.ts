@@ -339,3 +339,33 @@ test('discards a generated wallet when recovery material is not confirmed', asyn
   })`)).rejects.toThrow('Wallet creation cancelled before recovery confirmation')
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
 })
+
+test('confirms a validated private-key import through the trusted Settings IPC boundary', async ({ appWindow }, testInfo) => {
+  await appWindow.evaluate(`(async () => {
+    const status = await window.hronautWallets.status()
+    if (status.managedWallets === 'passphrase-setup-required') {
+      await window.hronautWallets.setupPassphrase('docker-wallet-import-passphrase')
+    }
+  })()`)
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  const panel = dialog.locator('.wallet-settings')
+  await panel.getByRole('button', { name: 'Import' }).click()
+  await panel.getByRole('textbox', { name: 'Name', exact: true }).fill('Imported through Settings')
+  await panel.getByRole('combobox', { name: 'Secret format' }).selectOption('private-key')
+  await panel.getByRole('textbox', { name: 'Private key', exact: true }).fill(`0x${'01'.repeat(32)}`)
+  await panel.getByRole('button', { name: 'Validate wallet secret' }).click()
+  await expect(panel.getByText('Step 2 of 2 · Add wallet')).toBeVisible()
+  await expect(panel.getByText('Wallet validated')).toBeVisible()
+  await expect(panel.getByText('No workspace access')).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Private key', exact: true })).toHaveCount(0)
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-import-review.png') })
+  await panel.getByRole('button', { name: 'Add encrypted wallet' }).click()
+
+  await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
+    (wallets) => wallets.some((wallet) => wallet.name === 'Imported through Settings')
+  )`)).toBe(true)
+  await expect(panel.getByRole('alert')).toHaveCount(0)
+})

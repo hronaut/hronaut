@@ -184,15 +184,20 @@ describe('WalletsSettingsPanel', () => {
     await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret phrase never retained in Vue state')
     await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
 
-    expect(screen.getByLabelText('Chain')).toBeDisabled()
-    expect(screen.getByLabelText('Network preset')).toBeDisabled()
-    expect(screen.getByLabelText('EVM chain ID')).toBeDisabled()
+    expect(screen.queryByLabelText('Chain')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Network preset')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('EVM chain ID')).not.toBeInTheDocument()
+    expect(screen.getByText('Step 2 of 2 · Add wallet')).toBeInTheDocument()
+    expect(screen.getByText('Wallet validated')).toBeInTheDocument()
+    expect(screen.getByText('No workspace access')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add encrypted wallet' })).toHaveFocus()
 
-    await user.click(screen.getByRole('button', { name: 'Confirm and encrypt' }))
+    await user.click(screen.getByRole('button', { name: 'Add encrypted wallet' }))
     expect(wallets.confirmImport).toHaveBeenCalledOnce()
     const [token, details] = vi.mocked(wallets.confirmImport).mock.calls[0]
     expect(token).toBe('import-token')
     expect(details.network.id).toBe('11155111')
+    expect(() => structuredClone(details)).not.toThrow()
   })
 
   it('keeps new-wallet workspace choices independent from configured-wallet editing', async () => {

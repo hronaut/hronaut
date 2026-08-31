@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconCheck from '~icons/material-symbols/check-rounded'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import {
@@ -52,6 +53,8 @@ const preparedImport = ref<{
     dedicatedAgent: boolean
   }
 } | null>(null)
+const preparedImportReview = ref<HTMLElement | null>(null)
+const addImportedWalletButton = ref<HTMLButtonElement | null>(null)
 const policyOrigin = ref('')
 const policyWorkspaceId = ref('')
 const policyDestination = ref('')
@@ -72,6 +75,14 @@ const vaultUsesPassphrase = computed(() => ['passphrase', 'basic_text', 'unknown
 const selectedWallet = computed(() => props.controller.wallets.value.find((wallet) => wallet.id === selectedWalletId.value))
 const selectedPolicies = computed(() => props.controller.policies.value.filter((policy) => policy.walletId === selectedWalletId.value))
 const selectedPermissions = computed(() => props.controller.permissions.value.filter((permission) => permission.walletId === selectedWalletId.value))
+const preparedImportWorkspaceLabel = computed(() => {
+  const details = preparedImport.value?.details
+  if (!details) return ''
+  if (details.availableInAllWorkspaces) return t('wallets.anyWorkspace')
+  if (details.workspaceIds.length === 0) return t('wallets.noWorkspaceAccess')
+  const names = new Map(props.workspaces.map((workspace) => [workspace.id, workspace.name]))
+  return details.workspaceIds.map((workspaceId) => names.get(workspaceId) ?? workspaceId).join(', ')
+})
 const configuredRpcLabel = computed(() => selectedWallet.value?.chainFamily === 'solana'
   ? t('wallets.solanaRpcUrl')
   : selectedWallet.value?.chainFamily === 'tron'
@@ -235,13 +246,24 @@ async function submitOnboarding(): Promise<void> {
           dedicatedAgent: dedicatedAgent.value
         }
       }
+      await nextTick()
+      preparedImportReview.value?.scrollIntoView?.({ block: 'start' })
+      addImportedWalletButton.value?.focus({ preventScroll: true })
     }
   }
 }
 
 async function confirmPreparedImport(): Promise<void> {
   if (!preparedImport.value) return
-  const confirmed = await props.controller.confirmImport(preparedImport.value.token, preparedImport.value.details)
+  const pending = preparedImport.value
+  const details = {
+    name: pending.details.name,
+    network: { ...pending.details.network },
+    workspaceIds: [...pending.details.workspaceIds],
+    availableInAllWorkspaces: pending.details.availableInAllWorkspaces,
+    dedicatedAgent: pending.details.dedicatedAgent
+  }
+  const confirmed = await props.controller.confirmImport(pending.token, details)
   if (confirmed) preparedImport.value = null
 }
 
@@ -370,7 +392,8 @@ async function addPolicy(): Promise<void> {
       <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
         <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-pressed="mode === entry" :disabled="preparedImport !== null" @click="mode = entry">{{ t(`wallets.modes.${entry}`) }}</button>
       </div>
-      <form class="wallet-form" @submit.prevent="submitOnboarding">
+      <form v-if="!preparedImport" class="wallet-form" @submit.prevent="submitOnboarding">
+        <p v-if="mode === 'import'" class="wallet-wide wallet-import-step">{{ t('wallets.importValidateStep') }}</p>
         <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="preparedImport !== null"></label>
         <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="preparedImport !== null"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
         <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="preparedImport !== null" />
@@ -391,10 +414,19 @@ async function addPolicy(): Promise<void> {
         </section>
         <button class="primary-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ mode === 'import' ? t('wallets.validateImport') : t('wallets.addWallet') }}</button>
       </form>
-      <div v-if="preparedImport" class="wallet-import-confirm">
-        <strong>{{ t('wallets.confirmDerivedAddress') }}</strong><code>{{ preparedImport.publicAddress }}</code>
-        <button class="primary-button" type="button" :disabled="controller.busy.value" @click="confirmPreparedImport">{{ t('wallets.confirmAndEncrypt') }}</button>
-        <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelPreparedImport">{{ t('wallets.cancel') }}</button>
+      <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status">
+        <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>
+        <div class="wallet-import-confirm-heading"><span aria-hidden="true"><IconCheck /></span><div><strong>{{ t('wallets.walletValidated') }}</strong><p>{{ t('wallets.importValidatedDescription') }}</p></div></div>
+        <dl class="wallet-import-review">
+          <div><dt>{{ t('wallets.name') }}</dt><dd>{{ preparedImport.details.name }}</dd></div>
+          <div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ preparedImport.publicAddress }}</code></dd></div>
+          <div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: preparedImport.details.network.name, environment: preparedImport.details.network.environment }) }}</dd></div>
+          <div><dt>{{ t('wallets.workspaceAccess') }}</dt><dd>{{ preparedImportWorkspaceLabel }}</dd></div>
+        </dl>
+        <div class="wallet-actions">
+          <button ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</button>
+          <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelPreparedImport">{{ t('wallets.cancel') }}</button>
+        </div>
       </div>
     </section>
 

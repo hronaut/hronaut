@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Send a plain-data wallet import confirmation through Electron IPC so validated mnemonic and private-key imports can be encrypted instead of failing with a data-clone error.
+
+### Improved
+
+- Make wallet imports a clear two-step flow that moves focus to a public-details review, explains when local encryption occurs, shows workspace access, and provides an explicit **Add encrypted wallet** action.
+
 ## [1.11.9] - 2026-08-31
 
 ### Fixed

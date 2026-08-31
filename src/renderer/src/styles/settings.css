@@ -123,7 +123,15 @@
 .wallet-network-error { border: 1px solid color-mix(in srgb, #dc2626 55%, var(--border-soft)); color: var(--text) !important; background: color-mix(in srgb, #dc2626 12%, var(--surface)); }
 .wallet-form fieldset, .wallet-card fieldset { display: flex; flex-wrap: wrap; gap: 9px 16px; margin: 0; padding: 10px; border: 1px solid var(--border-soft); border-radius: 8px; }
 .wallet-form fieldset label, .wallet-card fieldset label { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 12px; }
-.wallet-import-confirm { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }
+.wallet-import-step { margin: 0; color: var(--accent); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wallet-import-confirm { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.wallet-import-confirm-heading { display: flex; gap: 10px; align-items: flex-start; }
+.wallet-import-confirm-heading > span { display: grid; flex: 0 0 24px; height: 24px; place-items: center; border-radius: 999px; background: var(--accent); color: var(--button-text); font-weight: 800; }
+.wallet-import-confirm-heading p { margin: 4px 0 0; color: var(--text-muted); }
+.wallet-import-review { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.wallet-import-review div { min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.wallet-import-review dt { color: var(--text-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wallet-import-review dd { margin: 4px 0 0; overflow-wrap: anywhere; }
 .wallet-import-confirm code, .wallet-descriptor code { overflow-wrap: anywhere; }
 .wallet-selector { width: 100%; }
 .wallet-selector-label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
