@@ -46,6 +46,7 @@ export interface AppShellKeyboardFeatureControllerOptions {
     walletApproval: AppShellKeyboardSurface
     workspaceEditor: AppShellKeyboardSurface
     credentialPicker: Ref<boolean>
+    releaseHistory: AppShellKeyboardSurface
     helpDialog: AppShellKeyboardSurface
     settings: AppShellKeyboardSurface
   }
@@ -95,6 +96,7 @@ export function useAppShellKeyboardFeatureController(
       customSurface(modals.walletApproval),
       customSurface(modals.workspaceEditor),
       refSurface(modals.credentialPicker),
+      customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
       customSurface(modals.settings)
     ],

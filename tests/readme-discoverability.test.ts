@@ -40,8 +40,10 @@ describe('README discoverability', () => {
       bugs?: { url?: string }
       keywords?: string[]
     }
+    const quickstart = readme.match(/## Start in three steps\n[\s\S]*?(?=\n#{2,3} )/u)?.[0] ?? ''
 
     expect(readme).toContain('## Start in three steps')
+    expect(quickstart).toContain('[Download the latest Hronaut](https://hronaut.dev/download)')
     expect(readme).toContain('https://github.com/hronaut/hronaut/releases/latest')
     expect(readme).toContain('https://hronaut.dev/setup')
     expect(readme).toContain('https://hronaut.dev/authenticated-browser-agents')

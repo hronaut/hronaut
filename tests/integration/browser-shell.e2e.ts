@@ -98,6 +98,26 @@ test('traps keyboard focus inside Settings at minimum scaled window', async ({
   await expect(settingsButton).toBeFocused()
 })
 
+test("treats What's new as a keyboard modal and closes it with Escape", async ({ appWindow }) => {
+  const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
+  await settingsButton.click()
+  const settings = appWindow.getByRole('dialog', { name: 'Settings' })
+  await settings.getByRole('button', { name: /Updates Automatic checks/ }).click()
+  await settings.getByRole('button', { name: "View what's new" }).click()
+
+  const releaseHistory = appWindow.getByRole('dialog', { name: "What's new" })
+  await expect(settings).toBeHidden()
+  await expect(releaseHistory).toBeVisible()
+
+  await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)
+  await expect(releaseHistory).toBeVisible()
+  await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toBeHidden()
+
+  await appWindow.keyboard.press('Escape')
+  await expect(releaseHistory).toBeHidden()
+  await expect(settingsButton).toBeFocused()
+})
+
 test('opens a scheme-less loopback address over HTTP from the address bar', async ({ appWindow }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })

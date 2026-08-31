@@ -9,6 +9,7 @@ function createHarness() {
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     helpDialog: ref(false),
+    releaseHistory: ref(false),
     settings: ref(false),
     siteStorage: ref(false),
     siteControls: ref(false),
@@ -46,6 +47,7 @@ function createHarness() {
   const actions = {
     closeWorkspaceEditor: vi.fn(() => { surfaces.workspaceEditor.value = false }),
     closeHelpDialog: vi.fn(() => { surfaces.helpDialog.value = false }),
+    closeReleaseHistory: vi.fn(() => { surfaces.releaseHistory.value = false }),
     closeSettings: vi.fn(() => { surfaces.settings.value = false }),
     closeFind: vi.fn(() => { surfaces.find.value = false }),
     closeBookmarks: vi.fn(() => { surfaces.bookmarks.value = false }),
@@ -62,6 +64,7 @@ function createHarness() {
       workspaceEditor: { open: surfaces.workspaceEditor, close: actions.closeWorkspaceEditor },
       credentialPicker: surfaces.credentialPicker,
       helpDialog: { open: surfaces.helpDialog, close: actions.closeHelpDialog },
+      releaseHistory: { open: surfaces.releaseHistory, close: actions.closeReleaseHistory },
       settings: { open: surfaces.settings, close: actions.closeSettings }
     },
     overlays: {
@@ -178,5 +181,22 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(actions.runShortcut).not.toHaveBeenCalled()
     expect(escape.defaultPrevented).toBe(true)
     expect(surfaces.walletApproval.value).toBe(true)
+  })
+
+  it('keeps browser shortcuts behind release history and closes it with Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.releaseHistory.value = true
+    const shortcut = new KeyboardEvent('keydown', {
+      key: 'l', ctrlKey: true, cancelable: true
+    })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    controller.handleKeyDown(escape)
+
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(escape.defaultPrevented).toBe(true)
+    expect(actions.closeReleaseHistory).toHaveBeenCalledOnce()
+    expect(surfaces.releaseHistory.value).toBe(false)
   })
 })

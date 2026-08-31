@@ -20,7 +20,7 @@ Not sure which browser model fits your workflow? Read the source-backed [Browser
 
 ## Start in three steps
 
-1. [Download the latest Hronaut](https://github.com/hronaut/hronaut/releases/latest) for Windows, macOS, or Linux and start it.
+1. [Download the latest Hronaut](https://hronaut.dev/download) for Windows, macOS, or Linux and start it.
 2. On Hronaut Home, choose your coding agent and copy its generated setup, or use the [generic setup guide](https://hronaut.dev/setup). The in-app setup always reflects the current local endpoint and authentication choice.
 3. Ask the connected agent: `Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.`
 

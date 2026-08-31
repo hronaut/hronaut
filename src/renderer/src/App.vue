@@ -245,6 +245,10 @@ const {
   dispose: disposeAppSettingsFeatureController
 } = appSettingsFeatureController
 const {
+  open: releaseHistoryOpen,
+  close: closeReleaseHistory
+} = appSettingsFeatureController.releaseHistoryController
+const {
   entries: sitePermissions,
   replace: replaceSitePermissions
 } = sitePermissionsController
@@ -691,6 +695,7 @@ const shellKeyboardController = useAppShellKeyboardFeatureController({
     walletApproval: { open: walletApprovalOpen, close: () => undefined },
     workspaceEditor: { open: workspaceEditorOpen, close: closeWorkspaceEditor },
     credentialPicker: credentialPickerOpen,
+    releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
     helpDialog: { open: helpDialogOpen, close: closeHelpDialog },
     settings: { open: settingsOpen, close: closeSettings }
   },
