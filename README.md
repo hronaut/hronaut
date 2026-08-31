@@ -190,7 +190,7 @@ Release packaging and publishing are centralized in [`.github/workflows/release.
 
 Hronaut is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Uses not permitted by that license require an active [commercial subscription license](COMMERCIAL-LICENSE.md).
 
-Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow [SECURITY.md](SECURITY.md).
+Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow the [security policy](.github/SECURITY.md).
 
 For billing and licensing support, contact [support@hronaut.dev](mailto:support@hronaut.dev).
 

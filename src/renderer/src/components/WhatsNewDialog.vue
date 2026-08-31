@@ -108,7 +108,7 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
       <footer class="whats-new-footer">
         <span v-if="error && releases.length > 0" role="alert">{{ error }}</span>
         <span v-else>{{ t('updates.history.source') }}</span>
-        <button v-if="hasMore && releases.length > 0" class="secondary-button" type="button" :disabled="busy" @click="loadMore">
+        <button v-if="hasMore" class="secondary-button" type="button" :disabled="busy" @click="loadMore">
           <IconProgress v-if="operation === 'more'" class="state-spinner" aria-hidden="true" />
           {{ operation === 'more' ? t('updates.history.loadingMore') : t('updates.history.loadMore') }}
         </button>

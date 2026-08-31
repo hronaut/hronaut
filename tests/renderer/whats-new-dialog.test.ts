@@ -77,4 +77,20 @@ describe('WhatsNewDialog', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled()
     expect(screen.getByRole('button', { name: "Close What's new" })).toBeEnabled()
   })
+
+  it('keeps older stable releases reachable when the current GitHub page is filtered empty', async () => {
+    const loadMore = vi.fn(async () => true)
+    renderDialog({
+      releases: ref([]),
+      state: ref('ready'),
+      hasMore: ref(true),
+      loadMore
+    })
+    const user = userEvent.setup()
+
+    expect(screen.getByText('No published releases')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Load older releases' }))
+
+    expect(loadMore).toHaveBeenCalledOnce()
+  })
 })

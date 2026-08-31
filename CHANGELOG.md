@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Hand the GitHub-backed **What's new** view off from Settings and About instead of stacking multiple `aria-modal` dialogs, keeping focus and assistive-technology semantics on one trusted surface.
 - Treat **What's new** as a real keyboard modal so Escape closes it and application shortcuts cannot execute behind it.
+- Keep older stable releases reachable when a GitHub history page contains only filtered prereleases.
+- Repair the public security-policy link and guard repository-relative README links against future 404s.
 
 ## [1.11.5] - 2026-08-31
 

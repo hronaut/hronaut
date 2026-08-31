@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { access, readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 const clientGuidePaths = [
@@ -64,5 +64,24 @@ describe('README discoverability', () => {
       'persistent-browser',
       'qa-automation'
     ]))
+  })
+
+  it('keeps every repository-relative documentation link valid', async () => {
+    const readme = await readFile('README.md', 'utf8')
+    const targets = [...readme.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/gu)]
+      .map((match) => match[1]!)
+      .filter((target) => !target.startsWith('#') && !/^[a-z][a-z0-9+.-]*:/iu.test(target))
+      .map((target) => decodeURIComponent(target.split(/[?#]/u, 1)[0]!))
+    const missing: string[] = []
+
+    for (const target of new Set(targets)) {
+      try {
+        await access(target)
+      } catch {
+        missing.push(target)
+      }
+    }
+
+    expect(missing).toEqual([])
   })
 })
