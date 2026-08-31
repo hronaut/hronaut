@@ -115,6 +115,10 @@ export class HistoryStore {
     return sortedHistory(this.entries.values())
   }
 
+  flush(): Promise<void> {
+    return this.mutationQueue
+  }
+
   async record(value: { url: string; title: string }): Promise<BrowserHistoryEntry | null> {
     const url = normalizeHistoryUrl(value.url)
     if (!url) return null

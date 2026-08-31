@@ -7,9 +7,11 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Add a three-step first-run path, workflow links, platform/CI badges, and machine-readable package discovery metadata to make the public repository easier to evaluate and adopt, and send first-time downloads through the curated OS/package chooser instead of GitHub's raw asset list.
+- Link future unsigned-package release warnings directly to the SHA-256 and GitHub attestation verification guide.
 
 ### Fixed
 
+- Drain queued browsing-history writes during shutdown so the final visit is not lost when Hronaut quits immediately after navigation.
 - Hand the GitHub-backed **What's new** view off from Settings and About instead of stacking multiple `aria-modal` dialogs, keeping focus and assistive-technology semantics on one trusted surface.
 - Treat **What's new** as a real keyboard modal so Escape closes it and application shortcuts cannot execute behind it.
 - Keep older stable releases reachable when a GitHub history page contains only filtered prereleases.

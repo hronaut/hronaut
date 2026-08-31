@@ -43,6 +43,24 @@ describe('HistoryStore', () => {
     expect(restored.list()).toEqual(store.list())
   })
 
+  it('lets shutdown wait for already-queued history writes', async () => {
+    const { path, store } = await storeAt()
+    const recording = store.record({
+      url: 'https://shutdown-history.example/last-visit',
+      title: 'Last visit before shutdown'
+    })
+
+    await store.flush()
+
+    expect(await recording).toMatchObject({ title: 'Last visit before shutdown' })
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([
+      expect.objectContaining({
+        url: 'https://shutdown-history.example/last-visit',
+        title: 'Last visit before shutdown'
+      })
+    ])
+  })
+
   it('does not persist embedded HTTP credentials from a URL fallback title', async () => {
     const { path, store } = await storeAt()
     const privateUrl = 'https://person:history-secret@example.com/private#fragment'

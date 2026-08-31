@@ -371,7 +371,7 @@ jobs:
             echo '<!-- hronaut-release-notes -->'
             echo '<!-- unsigned-release-warning -->'
             echo '> [!WARNING]'
-            echo '> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. Verify downloads with `hashes.txt` and the GitHub artifact attestations.'
+            echo '> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding either warning.'
             echo
             echo '## Start here'
             echo

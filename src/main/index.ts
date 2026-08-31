@@ -3696,6 +3696,7 @@ async function releaseRuntimeResources(): Promise<void> {
       ...await Promise.allSettled([
         manager?.flushPersist(),
         manager?.flushWorkspaceProfiles(),
+        historyStore?.flush(),
         settingsMutationQueue,
         flushWindowState(),
         flushPanelWindowState(),

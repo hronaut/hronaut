@@ -80,6 +80,9 @@ describe('release quality gates', () => {
 
   it('gives each published release a factual demo, download, setup, and license path', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const warningStart = workflow.indexOf('<!-- unsigned-release-warning -->')
+    const startHere = workflow.indexOf("echo '## Start here'")
+    const unsignedWarning = workflow.slice(warningStart, startHere)
 
     expect(workflow).toContain("echo '## Start here'")
     expect(workflow).toContain('https://hronaut.dev/#demo')
@@ -87,8 +90,10 @@ describe('release quality gates', () => {
     expect(workflow).toContain('https://hronaut.dev/setup')
     expect(workflow).toContain('Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, or another MCP client')
     expect(workflow).toContain('PolyForm Noncommercial 1.0.0')
-    expect(workflow.indexOf('<!-- unsigned-release-warning -->')).toBeLessThan(workflow.indexOf("echo '## Start here'"))
-    expect(workflow.indexOf("echo '## Start here'")).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))
+    expect(warningStart).toBeGreaterThanOrEqual(0)
+    expect(unsignedWarning).toContain('https://hronaut.dev/security#verify-release')
+    expect(warningStart).toBeLessThan(startHere)
+    expect(startHere).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))
   })
 
   it('verifies hronaut.dev has resolved every published release and download', async () => {
