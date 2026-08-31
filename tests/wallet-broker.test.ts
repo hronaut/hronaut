@@ -1842,24 +1842,38 @@ describe('WalletBroker', () => {
       if (status === 'expired') throw new Error('expiry persistence result was uncertain')
       return record
     })
+    let expireRequest!: () => void
+    let scheduledDelay = -1
+    let pendingReady!: () => void
+    const ready = new Promise<void>((resolve) => { pendingReady = resolve })
+    let now = new Date('2026-08-31T12:00:00.000Z')
     const broker = new WalletBroker(service, {
       adapters: { evm: adapter() },
-      requestTtlMs: 100
+      now: () => now,
+      requestTtlMs: 100,
+      requestExpiryScheduler: (callback, delay) => {
+        expireRequest = callback
+        scheduledDelay = delay
+        return vi.fn()
+      },
+      onPendingChanged: (requests) => {
+        if (requests.some((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')) {
+          pendingReady()
+        }
+      }
     })
     const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['uncertain-expiry-message', wallet.publicAddress]
     }))
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
-      request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    await ready
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
 
-    await expect(Promise.race([
-      result,
-      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 2_000))
-    ])).resolves.toMatchObject({
+    expect(scheduledDelay).toBe(100)
+    now = new Date(now.getTime() + 100)
+    expireRequest()
+    await expect(result).resolves.toMatchObject({
       status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('expired') })
     })
     expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'expired' })
