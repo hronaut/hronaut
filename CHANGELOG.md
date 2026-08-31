@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Return the canonical cancellation result when wallet removal races request preparation, instead of exposing an internal approval-state transition error to the website provider.
+
 ## [1.11.7] - 2026-08-31
 
 ### Added

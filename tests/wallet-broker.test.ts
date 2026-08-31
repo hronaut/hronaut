@@ -54,6 +54,16 @@ function settle<T>(promise: Promise<T>): Promise<
   )
 }
 
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
 function adapter(): WalletChainAdapter & { sign: ReturnType<typeof vi.fn>; broadcast: ReturnType<typeof vi.fn> } {
   const sign = vi.fn(async (_wallet: WalletDescriptor, secret: { material: Buffer }) => {
     expect(secret.material.length).toBeGreaterThan(0)
@@ -1737,13 +1747,21 @@ describe('WalletBroker', () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
     await connect(broker)
+    const simulationStarted = deferred()
+    const continueSimulation = deferred()
+    const recordSimulation = service.approvals.recordSimulation.bind(service.approvals)
+    vi.spyOn(service.approvals, 'recordSimulation').mockImplementation(async (...args) => {
+      simulationStarted.resolve()
+      await continueSimulation.promise
+      return recordSimulation(...args)
+    })
     const result = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['remove-pending-wallet', wallet.publicAddress]
     }))
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-message').at(-1)?.details?.raw)
-      .toHaveProperty('message'))
+    await simulationStarted.promise
 
     await expect(broker.removeWallet(wallet.id)).resolves.toBe(true)
+    continueSimulation.resolve()
 
     await expect(result).resolves.toMatchObject({
       status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })

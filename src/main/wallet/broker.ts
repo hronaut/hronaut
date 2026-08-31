@@ -491,7 +491,7 @@ export class WalletBroker {
         }
         throw expired
       }
-      if (current?.status === 'approved') await this.fail(record.id, error)
+      if (current?.status === 'approved') throw await this.fail(record.id, error)
       throw sanitizedError(error)
     }
     try {
@@ -506,8 +506,7 @@ export class WalletBroker {
       this.publish()
       return summary(this.service.approvals.get(record.id)!, this.requireWallet(record.request.walletId))
     } catch (error) {
-      await this.fail(record.id, error)
-      throw sanitizedError(error)
+      throw await this.fail(record.id, error)
     }
   }
 
@@ -854,8 +853,7 @@ export class WalletBroker {
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)
     } catch (error) {
-      await this.fail(record.id, error)
-      throw error
+      throw await this.fail(record.id, error)
     }
   }
 
@@ -897,8 +895,7 @@ export class WalletBroker {
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)
     } catch (error) {
-      await this.fail(record.id, error)
-      throw error
+      throw await this.fail(record.id, error)
     }
   }
 
@@ -1045,8 +1042,7 @@ export class WalletBroker {
       this.publish()
       return record
     } catch (error) {
-      await this.fail(record.id, error)
-      throw error
+      throw await this.fail(record.id, error)
     }
   }
 
@@ -1200,8 +1196,7 @@ export class WalletBroker {
       this.publish()
       return this.service.approvals.get(record.id)!
     } catch (error) {
-      await this.fail(record.id, error)
-      throw error
+      throw await this.fail(record.id, error)
     }
   }
 
@@ -1459,18 +1454,33 @@ export class WalletBroker {
     }
   }
 
-  private async fail(requestId: string, error: unknown): Promise<void> {
+  private async fail(requestId: string, error: unknown): Promise<Error> {
     const record = this.service.approvals.get(requestId)
-    const failure = sanitizedError(error)
+    let failure = this.terminalRequestFailure(record) ?? sanitizedError(error)
     try {
       if (record && !TERMINAL_REQUEST_STATUSES.has(record.status)) {
-        await this.service.approvals.transition(requestId, 'failed', this.now())
-        await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
+        try {
+          await this.service.approvals.transition(requestId, 'failed', this.now())
+          await this.service.audit.append('request-failed', { requestId, error: failure.message }, this.now().toISOString())
+        } catch (transitionError) {
+          const concurrentTerminalFailure = this.terminalRequestFailure(this.service.approvals.get(requestId))
+          if (!concurrentTerminalFailure) throw transitionError
+          failure = concurrentTerminalFailure
+        }
       }
     } finally {
+      failure = this.terminalRequestFailure(this.service.approvals.get(requestId)) ?? failure
       this.rejectPending(requestId, failure)
       this.publish()
     }
+    return failure
+  }
+
+  private terminalRequestFailure(record: WalletApprovalRecord | undefined): Error | undefined {
+    if (record?.status === 'cancelled') return new Error('Wallet request was cancelled')
+    if (record?.status === 'expired') return new Error('Wallet request was expired')
+    if (record?.status === 'rejected') return new Error('Wallet request was rejected by the user')
+    return undefined
   }
 
   private rejectCancelled(): void {
