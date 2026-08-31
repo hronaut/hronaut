@@ -14,16 +14,49 @@ afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
-async function createStore(): Promise<{ path: string; store: CommercialLicenseStore }> {
+async function createStore(
+  commercialLicenseEncryption: CommercialLicenseEncryption = encryption
+): Promise<{ path: string; store: CommercialLicenseStore }> {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-license-test-'))
   temporaryDirectories.push(directory)
   const path = join(directory, 'profile', 'commercial-license.json')
-  const store = new CommercialLicenseStore(path, encryption)
+  const store = new CommercialLicenseStore(path, commercialLicenseEncryption)
   await store.load()
   return { path, store }
 }
 
 describe('CommercialLicenseStore', () => {
+  it('lets shutdown wait for an already-queued encrypted activation write', async () => {
+    let releaseEncryption: () => void = () => undefined
+    const encryptionGate = new Promise<void>((resolve) => { releaseEncryption = resolve })
+    const delayedEncryption: CommercialLicenseEncryption = {
+      ...encryption,
+      encrypt: async (value) => {
+        await encryptionGate
+        return encryption.encrypt(value)
+      }
+    }
+    const { path, store } = await createStore(delayedEncryption)
+    const activating = store.saveActivation('ABCD-EFGH-IJKL-MNOP', {
+      valid: true,
+      status: 'active',
+      productId: 'prod_hronaut',
+      instanceId: 'inst_shutdown1234'
+    })
+    let flushSettled = false
+    const flushing = store.flush().then(() => { flushSettled = true })
+
+    await Promise.resolve()
+    expect(flushSettled).toBe(false)
+    releaseEncryption()
+    await flushing
+    await activating
+
+    const restored = new CommercialLicenseStore(path, encryption)
+    await restored.load()
+    expect(restored.summary(true)).toMatchObject({ active: true, maskedKey: '••••-MNOP' })
+  })
+
   it('keeps a stable anonymous installation name before activation', async () => {
     const { path, store } = await createStore()
     const installationName = store.installationName()

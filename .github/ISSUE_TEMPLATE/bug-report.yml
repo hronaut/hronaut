@@ -1,0 +1,103 @@
+name: Bug report
+description: Report a reproducible, non-sensitive Hronaut product defect.
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Hronaut.
+
+        This issue will be public. Do not publish credentials, MCP bearer tokens, private URLs, page content, wallet material, personal data, screenshots containing private information, or raw browser-session logs. Report security vulnerabilities privately through [GitHub Security Advisories](https://github.com/hronaut/hronaut/security/advisories/new).
+
+  - type: input
+    id: hronaut-version
+    attributes:
+      label: Hronaut version
+      description: Find this in Settings → About or on the downloaded release.
+      placeholder: "For example, 1.11.6"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-package
+    attributes:
+      label: Installation package
+      options:
+        - Windows installer
+        - Windows portable
+        - macOS DMG
+        - macOS ZIP
+        - Linux AppImage
+        - Linux DEB
+        - Linux RPM
+        - Built from source
+        - Another package
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      options:
+        - Browser tabs and navigation
+        - Workspaces and profiles
+        - MCP connection or tools
+        - Wallets and Web3 providers
+        - Settings and appearance
+        - Updates and installation
+        - Another area
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable sequence after removing private data.
+      placeholder: |
+        1. Open…
+        2. Select…
+        3. Observe…
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+
+  - type: textarea
+    id: sanitized-diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Optional. Include only short, carefully reviewed diagnostics with secrets, private URLs, page content, personal data, and browser-session details removed.
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Public-data check
+      options:
+        - label: I removed credentials, MCP tokens, private URLs, page content, wallet material, personal data, and raw browser-session logs.
+          required: true

@@ -18,6 +18,18 @@ async function createStore(): Promise<{ path: string; store: SitePermissionStore
 }
 
 describe('SitePermissionStore', () => {
+  it('lets shutdown wait for an already-queued permission write', async () => {
+    const { path, store } = await createStore()
+    const remembering = store.set('https://shutdown-permission.example', 'notifications', 'allow')
+
+    await store.flush()
+
+    await expect(remembering).resolves.toMatchObject({ decision: 'allow' })
+    await expect(new SitePermissionStore(path).load()).resolves.toEqual([
+      expect.objectContaining({ origin: 'https://shutdown-permission.example', permission: 'notifications' })
+    ])
+  })
+
   it('ignores a site-permissions file containing JSON null', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })

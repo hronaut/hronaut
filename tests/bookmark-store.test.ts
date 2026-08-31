@@ -18,6 +18,18 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('lets shutdown wait for an already-queued bookmark write', async () => {
+    const { path, store } = await createStore()
+    const adding = store.add({ url: 'https://shutdown-bookmark.example/', title: 'Last bookmark before shutdown' })
+
+    await store.flush()
+
+    await expect(adding).resolves.toMatchObject({ title: 'Last bookmark before shutdown' })
+    await expect(new BookmarkStore(path).load()).resolves.toEqual([
+      expect.objectContaining({ url: 'https://shutdown-bookmark.example/' })
+    ])
+  })
+
   it('ignores a bookmark file containing JSON null', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })

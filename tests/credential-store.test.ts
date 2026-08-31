@@ -22,6 +22,32 @@ async function createStore(credentialEncryption: CredentialEncryption = encrypti
 }
 
 describe('CredentialStore', () => {
+  it('lets shutdown wait for an already-queued encrypted credential write', async () => {
+    let releaseEncryption: () => void = () => undefined
+    const encryptionGate = new Promise<void>((resolve) => { releaseEncryption = resolve })
+    const delayedEncryption: CredentialEncryption = {
+      ...encryption,
+      encrypt: async (value) => {
+        await encryptionGate
+        return encryption.encrypt(value)
+      }
+    }
+    const { path, store } = await createStore(delayedEncryption)
+    const saving = store.save('https://shutdown-credential.example', 'person', 'private password')
+    let flushSettled = false
+    const flushing = store.flush().then(() => { flushSettled = true })
+
+    await Promise.resolve()
+    expect(flushSettled).toBe(false)
+    releaseEncryption()
+    await flushing
+
+    await expect(saving).resolves.toMatchObject({ origin: 'https://shutdown-credential.example' })
+    await expect(new CredentialStore(path, encryption).load()).resolves.toEqual([
+      expect.objectContaining({ username: 'person' })
+    ])
+  })
+
   it('ignores a credential vault containing JSON null', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })

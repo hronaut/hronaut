@@ -220,6 +220,10 @@ export class CredentialStore {
     })
   }
 
+  flush(): Promise<void> {
+    return this.mutationQueue
+  }
+
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {
     const operation = this.mutationQueue.then(mutation)
     this.mutationQueue = operation.then(() => undefined, () => undefined)

@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a privacy-safe general bug-report form with reproducibility fields and explicit guidance to keep browser, wallet, and MCP secrets out of public issues.
+
+### Fixed
+
+- Drain queued bookmark, credential, site-permission, and commercial-license writes during shutdown so recent changes are not lost when Hronaut quits immediately after an action.
+
 ## [1.11.6] - 2026-08-31
 
 ### Changed
