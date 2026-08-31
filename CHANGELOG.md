@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Add a privacy-safe general bug-report form with reproducibility fields and explicit guidance to keep browser, wallet, and MCP secrets out of public issues.
 
+### Improved
+
+- Restyle the GitHub-backed **What's new** history as a compact release reader with date/version headers, denser categorized notes, and a narrower scrollable dialog.
+
 ### Fixed
 
 - Drain queued bookmark, credential, site-permission, and commercial-license writes during shutdown so recent changes are not lost when Hronaut quits immediately after an action.

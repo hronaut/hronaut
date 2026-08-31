@@ -21,6 +21,7 @@ const panel = ref<HTMLElement | null>(null)
 const { open, releases, state, error, operation, hasMore, busy, close, refresh, loadMore } = props.controller
 const formattedReleases = computed(() => releases.value.map((release) => ({
   ...release,
+  displayTitle: release.title === `Hronaut ${release.version}` ? '' : release.title,
   formattedNotes: release.notes ? formatReleaseNotes(release.notes) : ''
 })))
 
@@ -56,10 +57,7 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
       tabindex="-1"
     >
       <header class="whats-new-header">
-        <div>
-          <span class="eyebrow">{{ t('updates.history.kicker') }}</span>
-          <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
-        </div>
+        <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
         <div class="whats-new-header-actions">
           <button type="button" :disabled="busy" :title="t('updates.history.refresh')" :aria-label="t('updates.history.refresh')" @click="refresh"><IconRefresh aria-hidden="true" /></button>
           <button class="panel-close" type="button" :aria-label="t('updates.history.close')" @click="close"><IconClose aria-hidden="true" /></button>
@@ -84,11 +82,16 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
           <span>{{ t('updates.history.emptyDescription') }}</span>
         </div>
         <div v-else class="whats-new-list">
-          <article v-for="release in formattedReleases" :key="release.url" class="whats-new-release">
+          <article
+            v-for="release in formattedReleases"
+            :key="release.url"
+            class="whats-new-release"
+            :aria-label="release.title"
+          >
             <header>
               <div>
                 <time :datetime="release.publishedAt">{{ formatDate(release.publishedAt) }}</time>
-                <h3>{{ release.title }}</h3>
+                <h3 v-if="release.displayTitle" class="whats-new-release-title">{{ release.displayTitle }}</h3>
               </div>
               <button type="button" :aria-label="t('updates.history.openRelease', { version: release.version })" @click="openExternal(release.url)">
                 <code>v{{ release.version }}</code><IconLaunch aria-hidden="true" />

@@ -98,7 +98,10 @@ test('traps keyboard focus inside Settings at minimum scaled window', async ({
   await expect(settingsButton).toBeFocused()
 })
 
-test("treats What's new as a keyboard modal and closes it with Escape", async ({ appWindow }) => {
+test("keeps the compact What's new reader usable at desktop and minimum window sizes", async ({
+  appWindow,
+  electronApp
+}, testInfo) => {
   const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
   await settingsButton.click()
   const settings = appWindow.getByRole('dialog', { name: 'Settings' })
@@ -108,10 +111,26 @@ test("treats What's new as a keyboard modal and closes it with Escape", async ({
   const releaseHistory = appWindow.getByRole('dialog', { name: "What's new" })
   await expect(settings).toBeHidden()
   await expect(releaseHistory).toBeVisible()
+  await expect(releaseHistory).toHaveAttribute('aria-busy', 'false', { timeout: 15_000 })
+  const desktopBounds = await releaseHistory.boundingBox()
+  expect(desktopBounds).not.toBeNull()
+  expect(desktopBounds!.width).toBeLessThanOrEqual(560)
+  expect(desktopBounds!.height).toBeLessThanOrEqual(720)
+  await appWindow.screenshot({ path: testInfo.outputPath('whats-new-desktop.png') })
 
   await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)
   await expect(releaseHistory).toBeVisible()
   await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toBeHidden()
+
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))
+  const minimumBounds = await releaseHistory.boundingBox()
+  expect(minimumBounds).not.toBeNull()
+  expect(minimumBounds!.x).toBeGreaterThanOrEqual(0)
+  expect(minimumBounds!.y).toBeGreaterThanOrEqual(0)
+  expect(minimumBounds!.x + minimumBounds!.width).toBeLessThanOrEqual(760)
+  expect(minimumBounds!.y + minimumBounds!.height).toBeLessThanOrEqual(520)
+  await expect(releaseHistory.getByRole('button', { name: "Close What's new" })).toBeVisible()
+  await appWindow.screenshot({ path: testInfo.outputPath('whats-new-minimum.png') })
 
   await appWindow.keyboard.press('Escape')
   await expect(releaseHistory).toBeHidden()

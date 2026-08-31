@@ -50,7 +50,7 @@ describe('WhatsNewDialog', () => {
     const user = userEvent.setup()
 
     expect(screen.getByRole('dialog', { name: "What's new" })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Hronaut 1.11.4' })).toBeVisible()
+    expect(screen.getByRole('article', { name: 'Hronaut 1.11.4' })).toBeVisible()
     expect(screen.getByText('Reliable')).toBeVisible()
     expect(screen.queryByText(/hronaut-release-notes/)).not.toBeInTheDocument()
     expect(document.querySelector('script')).toBeNull()
@@ -60,6 +60,16 @@ describe('WhatsNewDialog', () => {
 
     expect(openUrl).toHaveBeenNthCalledWith(1, 'https://hronaut.dev/setup')
     expect(openUrl).toHaveBeenNthCalledWith(2, 'https://github.com/hronaut/hronaut/releases/tag/v1.11.4')
+  })
+
+  it('uses a compact release reader without repeating the generated release title', () => {
+    renderDialog()
+
+    const releaseArticle = screen.getByRole('article', { name: 'Hronaut 1.11.4' })
+    expect(releaseArticle).toContainElement(screen.getByText('August 31, 2026'))
+    expect(releaseArticle).toContainElement(screen.getByText('v1.11.4'))
+    expect(screen.queryByRole('heading', { name: 'Hronaut 1.11.4' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fixed' })).toBeVisible()
   })
 
   it('loads older releases and exposes a retry state without losing modal controls', async () => {
