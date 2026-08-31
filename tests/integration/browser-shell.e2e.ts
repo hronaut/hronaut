@@ -14,6 +14,16 @@ import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 const execFileAsync = promisify(execFile)
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
 
+async function closeFixtureServer(server: ReturnType<typeof createServer>): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve())
+    // Chromium can keep an otherwise idle page connection alive after every
+    // assertion has completed. Stop accepting first, then close those test-only
+    // sockets so teardown cannot consume the test's global timeout.
+    server.closeAllConnections()
+  })
+}
+
 function mcpResultText(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
   return content?.type === 'text' ? content.text : ''
@@ -1438,7 +1448,7 @@ test('keeps Find, Zoom, Tab Search, and the Split view menu mutually exclusive',
     await expect(splitViewMenu).toBeVisible()
     await expect(zoom).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4191,7 +4201,7 @@ test('rechecks a reordered sleeping close replacement before committing the clos
     expect(closeResult.state.tabs.find((tab) => tab.id === rejectedTabId)?.sleeping).toBe(true)
     expect(closeResult.state.tabs.find((tab) => tab.id === delayedTabId)?.sleeping).toBe(false)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 

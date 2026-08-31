@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Close Chromium keep-alive connections before local HTTP fixture teardown in long Electron shards, preventing completed shell tests from exhausting the global timeout during cleanup.
+
 ## [1.11.0] - 2026-08-31
 
 ### Added
