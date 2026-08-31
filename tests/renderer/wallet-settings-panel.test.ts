@@ -404,7 +404,9 @@ describe('WalletsSettingsPanel', () => {
   })
 
   it('renames a configured wallet inline without relying on unsupported prompt dialogs', async () => {
-    const wallets = controller({ wallets: ref([wallet('a', 'Old wallet name', [])]) })
+    const configured = wallet('a', 'Old wallet name', [])
+    const update = vi.fn(async () => configured)
+    const wallets = controller({ wallets: ref([configured]), update })
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
 
@@ -415,11 +417,52 @@ describe('WalletsSettingsPanel', () => {
     await user.type(input, 'Treasury testnet')
     await user.click(screen.getByRole('button', { name: 'Save name' }))
 
-    expect(wallets.update).toHaveBeenCalledWith('a', { name: 'Treasury testnet' })
+    expect(update).toHaveBeenCalledWith('a', { name: 'Treasury testnet' })
+    expect(screen.queryByLabelText('Wallet name')).not.toBeInTheDocument()
+  })
+
+  it('keeps a wallet-name draft open when persistence fails', async () => {
+    const wallets = controller({
+      wallets: ref([wallet('a', 'Old wallet name', [])]),
+      update: vi.fn(async () => undefined)
+    })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    const input = screen.getByLabelText('Wallet name')
+    await user.clear(input)
+    await user.type(input, 'Retry this name')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+
+    expect(input).toBeVisible()
+    expect(input).toHaveValue('Retry this name')
+    expect(screen.getByRole('button', { name: 'Save name' })).toBeEnabled()
+  })
+
+  it('keeps only one wallet editor open and locks its draft while an update is pending', async () => {
+    const busy = ref(false)
+    const wallets = controller({ wallets: ref([wallet('a', 'Editable wallet', [])]), busy })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    expect(screen.getByLabelText('Wallet name')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Change RPC endpoint' }))
+    expect(screen.queryByLabelText('Wallet name')).not.toBeInTheDocument()
+    const endpoint = screen.getAllByLabelText('JSON-RPC URL').at(-1)!
+
+    busy.value = true
+    await Promise.resolve()
+
+    expect(endpoint).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   })
 
   it('lets a configured wallet replace a failed RPC endpoint without recreating its identity', async () => {
-    const wallets = controller({ wallets: ref([wallet('a', 'RPC wallet', ['workspace-a'])]) })
+    const configured = wallet('a', 'RPC wallet', ['workspace-a'])
+    const update = vi.fn(async () => configured)
+    const wallets = controller({ wallets: ref([configured]), update })
     render(WalletsSettingsPanel, {
       props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
       global
@@ -434,7 +477,30 @@ describe('WalletsSettingsPanel', () => {
     await user.type(endpoint, 'http://127.0.0.1:9545')
     await user.click(screen.getByRole('button', { name: 'Save RPC endpoint' }))
 
-    expect(wallets.update).toHaveBeenCalledWith('a', { rpcUrl: 'http://127.0.0.1:9545' })
+    expect(update).toHaveBeenCalledWith('a', { rpcUrl: 'http://127.0.0.1:9545' })
+    expect(screen.getAllByLabelText('JSON-RPC URL')).toHaveLength(1)
+  })
+
+  it('keeps an RPC draft open when persistence fails', async () => {
+    const wallets = controller({
+      wallets: ref([wallet('a', 'RPC wallet', ['workspace-a'])]),
+      update: vi.fn(async () => undefined)
+    })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Change RPC endpoint' }))
+    const endpoint = screen.getAllByLabelText('JSON-RPC URL').at(-1)!
+    await user.clear(endpoint)
+    await user.type(endpoint, 'http://127.0.0.1:9545')
+    await user.click(screen.getByRole('button', { name: 'Save RPC endpoint' }))
+
+    expect(endpoint).toBeVisible()
+    expect(endpoint).toHaveValue('http://127.0.0.1:9545')
+    expect(screen.getByRole('button', { name: 'Save RPC endpoint' })).toBeEnabled()
   })
 
   it.each([

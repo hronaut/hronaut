@@ -340,6 +340,7 @@ async function attachWorkspaces(): Promise<void> {
 function renameWallet(): void {
   const wallet = selectedWallet.value
   if (!wallet) return
+  editingRpc.value = false
   renameDraft.value = wallet.name
   renamingWallet.value = true
 }
@@ -348,8 +349,7 @@ async function saveWalletName(): Promise<void> {
   const wallet = selectedWallet.value
   const next = renameDraft.value.trim()
   if (!wallet || !next) return
-  await props.controller.update(wallet.id, { name: next })
-  renamingWallet.value = false
+  if (await props.controller.update(wallet.id, { name: next })) renamingWallet.value = false
 }
 
 function cancelWalletRename(): void {
@@ -360,6 +360,7 @@ function cancelWalletRename(): void {
 function editWalletRpc(): void {
   const wallet = selectedWallet.value
   if (!wallet) return
+  renamingWallet.value = false
   rpcDraft.value = wallet.network.rpcUrl
   editingRpc.value = true
 }
@@ -368,8 +369,7 @@ async function saveWalletRpc(): Promise<void> {
   const wallet = selectedWallet.value
   const rpcUrl = rpcDraft.value.trim()
   if (!wallet || !configuredRpcValid.value || rpcUrl === wallet.network.rpcUrl) return
-  await props.controller.update(wallet.id, { rpcUrl })
-  editingRpc.value = false
+  if (await props.controller.update(wallet.id, { rpcUrl })) editingRpc.value = false
 }
 
 function cancelWalletRpcEdit(): void {
@@ -497,8 +497,8 @@ async function addPolicy(): Promise<void> {
           <fieldset :disabled="controller.busy.value || configuredWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
           <p class="wallet-access-security-note">{{ t('wallets.workspaceAccessSecurity') }}</p>
         </section>
-        <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><button class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</button><button class="secondary-button" type="button" @click="cancelWalletRename">{{ t('wallets.cancel') }}</button></div></form>
-        <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><button class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</button><button class="secondary-button" type="button" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</button></div></form>
+        <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><button class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</button><button class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</button></div></form>
+        <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><button class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</button><button class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</button></div></form>
         <div class="wallet-actions"><button class="secondary-button" type="button" :disabled="controller.busy.value" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</button><button v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</button><button v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</button><button class="danger-button" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</button></div>
 
         <div class="wallet-subsection"><h5>{{ t('wallets.boundedHeading') }}</h5><p>{{ t('wallets.boundedDescription') }}</p>

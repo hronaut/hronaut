@@ -159,6 +159,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   const renameInput = panel.getByRole('textbox', { name: 'Wallet name' })
   await expect(renameInput).toHaveValue('Wallet to rename')
   await renameInput.fill('Renamed inside Electron')
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-rename-editor.png') })
   await panel.getByRole('button', { name: 'Save name' }).click()
   await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
     (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.name
