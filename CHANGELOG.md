@@ -10,6 +10,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Replace Electron's unsupported wallet-rename prompt with an inline trusted editor, and add accessible labels to vault passphrase controls.
+- Require an explicit saved workspace selection for bounded wallet policies, preventing policies from silently targeting the first attached workspace.
+- Keep bounded-policy submission disabled until its origin, destination, method, limits, expiry, and operation count are valid.
+- Validate trimmed custom network identifiers, names, and HTTP(S) RPC URLs before wallet submission, while accepting harmless surrounding whitespace in EVM chain IDs.
+- Return a normal validation error for partially typed or malformed wallet RPC URLs instead of letting URL parsing throw from the shared schema.
+- Show public-RPC rate-limit guidance only for presets that actually use a public endpoint, not local or custom networks.
 - Scope active and archived MCP workspaces to the creating connection, hide other clients' identifiers and label collisions, preserve workspace identity through archive recovery, return a private cleanup capability for retained failed forks, and require that capability before a reconnect can recover persistent browsing state.
 - Require human approval for Solana and TRON public-testnet signing until their RPC endpoints can be independently attested, preventing a retained testnet label paired with a mainnet RPC from authorizing automatic transactions.
 - Validate custom EVM chain IDs inline and in every trusted wallet-creation path, preventing malformed or unsafe IDs from being persisted and failing later during RPC operations.

@@ -103,6 +103,13 @@ test('keeps the browser available and wallet operations fail closed when wallet 
 })
 
 test('keeps trusted Wallets settings usable at desktop and minimum window sizes', async ({ appWindow, electronApp }, testInfo) => {
+  await appWindow.evaluate(`window.hronautWallets.addWatchOnly({
+    name: 'Wallet to rename',
+    chainFamily: 'evm',
+    publicAddress: '0x0000000000000000000000000000000000000001',
+    network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+    workspaceIds: []
+  })`)
   await appWindow.evaluate(`window.hronaut.newTab({
     url: 'data:text/html,<title>Wallet settings hit testing</title><main>Website fixture</main>',
     active: true
@@ -122,6 +129,15 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(panel.getByRole('heading', { name: 'Wallets', exact: true })).toBeVisible()
   await expect(panel.getByText(/trusted main process/i)).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Generate' })).toBeVisible()
+
+  await panel.getByRole('button', { name: 'Rename' }).click()
+  const renameInput = panel.getByRole('textbox', { name: 'Wallet name' })
+  await expect(renameInput).toHaveValue('Wallet to rename')
+  await renameInput.fill('Renamed inside Electron')
+  await panel.getByRole('button', { name: 'Save name' }).click()
+  await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
+    (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.name
+  )`)).toBe('Renamed inside Electron')
 
   const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
   await walletName.scrollIntoViewIfNeeded()

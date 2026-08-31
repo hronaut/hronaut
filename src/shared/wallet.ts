@@ -14,8 +14,12 @@ export const WalletNetworkSchema = z.object({
   name: z.string().trim().min(1).max(128),
   environment: z.enum(['local', 'testnet', 'mainnet']),
   rpcUrl: z.url().refine((value) => {
-    const protocol = new URL(value).protocol
-    return protocol === 'http:' || protocol === 'https:'
+    try {
+      const protocol = new URL(value).protocol
+      return protocol === 'http:' || protocol === 'https:'
+    } catch {
+      return false
+    }
   }, 'Wallet RPC URL must use HTTP or HTTPS')
 }).strict()
 export type WalletNetwork = z.infer<typeof WalletNetworkSchema>

@@ -22,9 +22,22 @@ const { t } = useI18n({ useScope: 'global' })
 const presets = computed(() => walletNetworkPresetsFor(props.chainFamily))
 const selectedPreset = computed(() => walletNetworkPreset(presetId.value))
 const custom = computed(() => presetId.value === 'custom')
+const showPublicRpcNotice = computed(() => selectedPreset.value?.publicEndpoint === true)
 const mainnet = computed(() => network.value.environment === 'mainnet')
 const tronMainnet = computed(() => props.chainFamily === 'tron' && mainnet.value)
-const validationIssue = computed(() => walletNetworkValidationIssue(props.chainFamily, network.value))
+const normalizedId = computed(() => network.value.id.trim())
+const idValidationIssue = computed(() => normalizedId.value
+  ? walletNetworkValidationIssue(props.chainFamily, { id: normalizedId.value })
+  : 'network-id-required')
+const nameInvalid = computed(() => network.value.name.trim().length === 0)
+const rpcInvalid = computed(() => {
+  try {
+    const url = new URL(network.value.rpcUrl.trim())
+    return url.protocol !== 'http:' && url.protocol !== 'https:'
+  } catch {
+    return true
+  }
+})
 const idLabel = computed(() => props.chainFamily === 'evm'
   ? t('wallets.evmChainId')
   : props.chainFamily === 'solana'
@@ -81,8 +94,8 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
         <input
           :value="network.id"
           :inputmode="chainFamily === 'evm' ? 'numeric' : 'text'"
-          :aria-invalid="validationIssue ? 'true' : undefined"
-          :aria-describedby="validationIssue ? 'wallet-network-id-error' : undefined"
+          :aria-invalid="idValidationIssue ? 'true' : undefined"
+          :aria-describedby="idValidationIssue ? 'wallet-network-id-error' : undefined"
           maxlength="128"
           required
           :disabled="disabled || !custom"
@@ -93,6 +106,8 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
         {{ t('wallets.networkName') }}
         <input
           :value="network.name"
+          :aria-invalid="nameInvalid ? 'true' : undefined"
+          :aria-describedby="nameInvalid ? 'wallet-network-name-error' : undefined"
           maxlength="128"
           required
           :disabled="disabled || !custom"
@@ -116,6 +131,8 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
         <input
           :value="network.rpcUrl"
           type="url"
+          :aria-invalid="rpcInvalid ? 'true' : undefined"
+          :aria-describedby="rpcInvalid ? 'wallet-network-rpc-error' : undefined"
           required
           :disabled="disabled"
           @input="updateNetwork('rpcUrl', ($event.target as HTMLInputElement).value)"
@@ -123,9 +140,11 @@ function updateNetwork(field: keyof WalletNetwork, value: string): void {
       </label>
     </div>
 
-    <p v-if="validationIssue === 'evm-chain-id-invalid'" id="wallet-network-id-error" class="wallet-network-error" role="alert">{{ t('wallets.evmChainIdInvalid') }}</p>
+    <p v-if="idValidationIssue" id="wallet-network-id-error" class="wallet-network-error" role="alert">{{ t(idValidationIssue === 'evm-chain-id-invalid' ? 'wallets.evmChainIdInvalid' : 'wallets.networkIdRequired') }}</p>
+    <p v-if="nameInvalid" id="wallet-network-name-error" class="wallet-network-error" role="alert">{{ t('wallets.networkNameRequired') }}</p>
+    <p v-if="rpcInvalid" id="wallet-network-rpc-error" class="wallet-network-error" role="alert">{{ t('wallets.rpcUrlInvalid') }}</p>
 
-    <p class="wallet-network-notice">{{ t('wallets.publicRpcNotice') }}</p>
+    <p v-if="showPublicRpcNotice" class="wallet-network-notice">{{ t('wallets.publicRpcNotice') }}</p>
     <p v-if="mainnet" class="wallet-network-warning" role="alert">{{ t('wallets.mainnetWarning') }}</p>
     <p v-if="tronMainnet" class="wallet-network-warning" role="alert">{{ t('wallets.tronMainnetWarning') }}</p>
   </section>

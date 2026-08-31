@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import {
+  WalletNetworkSchema,
   walletNetworkValidationIssue,
   type WalletChainFamily,
   type WalletNetwork,
@@ -24,6 +25,8 @@ const { t } = useI18n({ useScope: 'global' })
 const mode = ref<'generate' | 'import' | 'watch'>('generate')
 const walletModes = ['generate', 'import', 'watch'] as const
 const selectedWalletId = ref('')
+const renamingWallet = ref(false)
+const renameDraft = ref('')
 const name = ref('')
 const chainFamily = ref<WalletChainFamily>('evm')
 const networkPresetId = ref(DEFAULT_WALLET_NETWORK_PRESET.evm)
@@ -45,6 +48,7 @@ const preparedImport = ref<{
   }
 } | null>(null)
 const policyOrigin = ref('')
+const policyWorkspaceId = ref('')
 const policyDestination = ref('')
 const policyMethod = ref('')
 const policyMaxAmount = ref('')
@@ -59,7 +63,43 @@ const dedicatedAgent = ref(false)
 const selectedWallet = computed(() => props.controller.wallets.value.find((wallet) => wallet.id === selectedWalletId.value))
 const selectedPolicies = computed(() => props.controller.policies.value.filter((policy) => policy.walletId === selectedWalletId.value))
 const selectedPermissions = computed(() => props.controller.permissions.value.filter((permission) => permission.walletId === selectedWalletId.value))
-const onboardingNetworkValid = computed(() => walletNetworkValidationIssue(chainFamily.value, networkDraft.value) === null)
+const onboardingNetworkValid = computed(() => {
+  const candidate = network()
+  return WalletNetworkSchema.safeParse(candidate).success
+    && walletNetworkValidationIssue(chainFamily.value, candidate) === null
+})
+const policyWorkspaceOptions = computed(() => {
+  const attached = new Set(selectedWallet.value?.workspaceIds ?? [])
+  return props.workspaces.filter((workspace) => attached.has(workspace.id))
+})
+const policyOriginValid = computed(() => {
+  const value = policyOrigin.value.trim()
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && value === url.origin
+  } catch {
+    return false
+  }
+})
+const optionalPolicyAmountsValid = computed(() => [
+  policyMaxAmount.value,
+  policyMaxTokenAmount.value,
+  policyMaxFee.value,
+  policySessionLimit.value,
+  policyDailyLimit.value
+].every((value) => !value || /^\d+(?:\.\d+)?$/.test(value)))
+const canAddBoundedPolicy = computed(() => (
+  selectedWallet.value?.network.environment !== 'mainnet'
+  && policyWorkspaceOptions.value.some((workspace) => workspace.id === policyWorkspaceId.value)
+  && policyOriginValid.value
+  && policyDestination.value.trim().length > 0
+  && policyMethod.value.trim().length > 0
+  && optionalPolicyAmountsValid.value
+  && Number.isInteger(policyMaximumOperations.value)
+  && policyMaximumOperations.value > 0
+  && policyMaximumOperations.value <= 1_000_000
+  && (!policyExpiry.value || Date.parse(policyExpiry.value) > Date.now())
+))
 const backendTranslationKeys: Record<string, string> = {
   'safe-storage': 'safeStorage',
   keychain: 'keychain',
@@ -94,6 +134,9 @@ watch(() => props.controller.wallets.value, (wallets) => {
 
 watch(selectedWallet, (wallet) => {
   configuredWorkspaceIds.value = wallet ? [...wallet.workspaceIds] : []
+  policyWorkspaceId.value = wallet?.workspaceIds[0] ?? ''
+  renamingWallet.value = false
+  renameDraft.value = wallet?.name ?? ''
 })
 
 watch(chainFamily, (family) => {
@@ -163,11 +206,24 @@ async function attachWorkspaces(): Promise<void> {
   if (selectedWallet.value) await props.controller.update(selectedWallet.value.id, { workspaceIds: [...configuredWorkspaceIds.value] })
 }
 
-async function renameWallet(): Promise<void> {
+function renameWallet(): void {
   const wallet = selectedWallet.value
   if (!wallet) return
-  const next = window.prompt(t('wallets.newName'), wallet.name)?.trim()
-  if (next) await props.controller.update(wallet.id, { name: next })
+  renameDraft.value = wallet.name
+  renamingWallet.value = true
+}
+
+async function saveWalletName(): Promise<void> {
+  const wallet = selectedWallet.value
+  const next = renameDraft.value.trim()
+  if (!wallet || !next) return
+  await props.controller.update(wallet.id, { name: next })
+  renamingWallet.value = false
+}
+
+function cancelWalletRename(): void {
+  renamingWallet.value = false
+  renameDraft.value = selectedWallet.value?.name ?? ''
 }
 
 async function removeWallet(): Promise<void> {
@@ -181,7 +237,7 @@ async function addPolicy(): Promise<void> {
   const expiry = policyExpiry.value ? new Date(policyExpiry.value).toISOString() : new Date(Date.now() + 60 * 60_000).toISOString()
   const policy: WalletPolicy = {
     id: crypto.randomUUID(), name: t('wallets.policyName', { network: wallet.network.name }), mode: 'bounded-auto', walletId: wallet.id,
-    workspaceId: configuredWorkspaceIds.value[0] ?? wallet.workspaceIds[0] ?? '', networkIds: [wallet.network.id],
+    workspaceId: policyWorkspaceId.value, networkIds: [wallet.network.id],
     origins: [policyOrigin.value.trim()], destinations: [policyDestination.value.trim()], methods: [policyMethod.value.trim()],
     ...(policyMaxAmount.value ? { maxNativeAmount: policyMaxAmount.value } : {}),
     ...(policyMaxTokenAmount.value ? { maxTokenAmount: policyMaxTokenAmount.value } : {}),
@@ -210,12 +266,12 @@ async function addPolicy(): Promise<void> {
     <form v-if="controller.status.value.managedWallets === 'passphrase-setup-required'" class="wallet-card" @submit.prevent="submitPassphrase('setup')">
       <h4>{{ t('wallets.createPassphrase') }}</h4>
       <p>{{ t('wallets.createPassphraseDescription') }}</p>
-      <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="new-password" required>
+      <label>{{ t('wallets.createPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="new-password" required></label>
       <button class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.createEncryptedVault') }}</button>
     </form>
     <form v-else-if="controller.status.value.managedWallets === 'locked'" class="wallet-card" @submit.prevent="submitPassphrase('unlock')">
       <h4>{{ t('wallets.unlockVault') }}</h4>
-      <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="current-password" required>
+      <label>{{ t('wallets.vaultPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="current-password" required></label>
       <button class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.unlock') }}</button>
     </form>
 
@@ -251,10 +307,11 @@ async function addPolicy(): Promise<void> {
       <template v-if="selectedWallet">
         <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
         <fieldset><legend>{{ t('wallets.workspaceAccess') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label></fieldset>
-        <div class="wallet-actions"><button class="secondary-button" type="button" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</button><button class="secondary-button" type="button" @click="renameWallet">{{ t('wallets.rename') }}</button><button class="danger-button" type="button" @click="removeWallet">{{ t('wallets.remove') }}</button></div>
+        <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><button class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</button><button class="secondary-button" type="button" @click="cancelWalletRename">{{ t('wallets.cancel') }}</button></div></form>
+        <div class="wallet-actions"><button class="secondary-button" type="button" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</button><button v-if="!renamingWallet" class="secondary-button" type="button" @click="renameWallet">{{ t('wallets.rename') }}</button><button class="danger-button" type="button" @click="removeWallet">{{ t('wallets.remove') }}</button></div>
 
         <div class="wallet-subsection"><h5>{{ t('wallets.boundedHeading') }}</h5><p>{{ t('wallets.boundedDescription') }}</p>
-          <div class="wallet-form"><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" :placeholder="t('wallets.originPlaceholder')"></label><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination"></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" max="1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><button class="primary-button" type="button" @click="addPolicy">{{ t('wallets.addBoundedPolicy') }}</button></div>
+          <div class="wallet-form"><label class="wallet-wide">{{ t('wallets.policyWorkspace') }} <select v-model="policyWorkspaceId" required :disabled="policyWorkspaceOptions.length === 0"><option value="" disabled>{{ t('wallets.selectPolicyWorkspace') }}</option><option v-for="workspace in policyWorkspaceOptions" :key="workspace.id" :value="workspace.id">{{ workspace.name }}</option></select></label><p v-if="policyWorkspaceOptions.length === 0" class="wallet-wide wallet-form-note">{{ t('wallets.policyWorkspaceRequired') }}</p><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" required :placeholder="t('wallets.originPlaceholder')"></label><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination" required></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" required :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" max="1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><button class="primary-button" type="button" :disabled="controller.busy.value || !canAddBoundedPolicy" @click="addPolicy">{{ t('wallets.addBoundedPolicy') }}</button></div>
           <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small></span><button type="button" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</button></li></ul>
         </div>
 

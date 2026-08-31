@@ -6,6 +6,21 @@ import {
 } from '../src/shared/wallet-network-presets.js'
 
 describe('wallet network presets', () => {
+  it('reports a partially typed RPC URL as invalid without throwing', () => {
+    expect(() => WalletNetworkSchema.safeParse({
+      id: 'localnet',
+      name: 'Local validator',
+      environment: 'local',
+      rpcUrl: 'http://'
+    })).not.toThrow()
+    expect(WalletNetworkSchema.safeParse({
+      id: 'localnet',
+      name: 'Local validator',
+      environment: 'local',
+      rpcUrl: 'http://'
+    }).success).toBe(false)
+  })
+
   it('provides a broad, valid, duplicate-free catalog without embedded credentials', () => {
     expect(walletNetworkPresetsFor('evm').length).toBeGreaterThanOrEqual(30)
     expect(walletNetworkPresetsFor('solana').length).toBeGreaterThanOrEqual(4)

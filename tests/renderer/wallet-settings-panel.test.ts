@@ -81,6 +81,16 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByLabelText('Network preset')).toHaveValue('custom')
   })
 
+  it('shows public RPC guidance only for presets that use a public endpoint', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    expect(screen.getByText(/built-in public RPCs are convenient defaults/i)).toBeVisible()
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'evm-31337')
+    expect(screen.queryByText(/built-in public RPCs are convenient defaults/i)).not.toBeInTheDocument()
+  })
+
   it('explains malformed custom EVM chain IDs and blocks wallet creation', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
@@ -95,6 +105,36 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByText(/positive whole number within the safe integer range/i)).toBeVisible()
     expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
     expect(wallets.generate).not.toHaveBeenCalled()
+  })
+
+  it('rejects whitespace-only custom network fields before trusted submission', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Name'), 'Whitespace network')
+    await user.selectOptions(screen.getByLabelText('Chain'), 'solana')
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
+    await user.clear(screen.getByLabelText('Solana cluster'))
+    await user.type(screen.getByLabelText('Solana cluster'), '   ')
+    await user.clear(screen.getByLabelText('Network name'))
+    await user.type(screen.getByLabelText('Network name'), '   ')
+
+    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeDisabled()
+  })
+
+  it('normalizes surrounding whitespace before validating an EVM chain ID', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Name'), 'Whitespace EVM')
+    await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
+    await user.clear(screen.getByLabelText('EVM chain ID'))
+    await user.type(screen.getByLabelText('EVM chain ID'), ' 31337 ')
+
+    expect(screen.getByLabelText('EVM chain ID')).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Add wallet' })).toBeEnabled()
   })
 
   it('adapts network fields and presets to Solana and Tron', async () => {
@@ -182,6 +222,64 @@ describe('WalletsSettingsPanel', () => {
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
       workspaceIds: ['workspace-new']
     }))
+  })
+
+  it('lets the user choose which attached workspace receives a bounded policy', async () => {
+    const wallets = controller({
+      wallets: ref([
+        wallet('a', 'Policy wallet', ['workspace-a', 'workspace-b'])
+      ])
+    })
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [
+          { id: 'workspace-a', name: 'Workspace A' },
+          { id: 'workspace-b', name: 'Workspace B' }
+        ]
+      },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.selectOptions(screen.getByLabelText('Policy workspace'), 'workspace-b')
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    expect(wallets.setPolicy).toHaveBeenCalledWith(expect.objectContaining({
+      walletId: 'a',
+      workspaceId: 'workspace-b'
+    }))
+  })
+
+  it('renames a configured wallet inline without relying on unsupported prompt dialogs', async () => {
+    const wallets = controller({ wallets: ref([wallet('a', 'Old wallet name', [])]) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Rename' }))
+    const input = screen.getByLabelText('Wallet name')
+    expect(input).toHaveValue('Old wallet name')
+    await user.clear(input)
+    await user.type(input, 'Treasury testnet')
+    await user.click(screen.getByRole('button', { name: 'Save name' }))
+
+    expect(wallets.update).toHaveBeenCalledWith('a', { name: 'Treasury testnet' })
+  })
+
+  it.each([
+    ['passphrase-setup-required', 'Create vault passphrase'],
+    ['locked', 'Vault passphrase']
+  ] as const)('labels the %s vault secret field', (managedWallets, label) => {
+    const wallets = controller({
+      status: ref({ managedWallets, backend: 'passphrase', watchOnlyAvailable: true })
+    })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+
+    expect(screen.getByLabelText(label)).toHaveAttribute('type', 'password')
   })
 
   it('presents secure-storage state in human language instead of internal enum values', () => {
