@@ -1055,6 +1055,16 @@ describe('WalletBroker', () => {
     expect(broker.listPending().find((entry) => entry.id === created.id)).toMatchObject({
       status: 'confirmed', transactionHash: '0xsubmitted-before-restart'
     })
+    await broker.shutdown()
+    expect(await service.auditHistory()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'transaction-confirmed',
+        payload: expect.objectContaining({
+          requestId: created.id,
+          transactionHash: '0xsubmitted-before-restart'
+        })
+      })
+    ]))
   })
 
   it('drains an in-flight confirmation and its audit before wallet shutdown completes', async () => {
