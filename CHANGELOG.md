@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.9] - 2026-08-31
+
 ### Fixed
 
 - Keep every trusted Settings descendant outside title-bar drag regions so Wallet form fields and selectors remain interactive after locking and unlocking tabs.
