@@ -4,9 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.1] - 2026-08-31
+
 ### Fixed
 
 - Close Chromium keep-alive connections before local HTTP fixture teardown in long Electron shards, preventing completed shell tests from exhausting the global timeout during cleanup.
+- Keep EIP-1193 accounts scoped to the active chain, switch among configured workspace networks with the required provider events, route signing to the requested permitted account, and notify connected dapps when account access changes after vault locking, permission revocation, wallet removal, or network fallback.
 
 ## [1.11.0] - 2026-08-31
 

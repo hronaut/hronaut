@@ -49,6 +49,16 @@ interface AgentOperationLifecycle {
   drainWaiters: Array<() => void>
 }
 
+interface EvmProviderSession {
+  workspaceId: string
+  tabId: string
+  navigationGeneration: number
+  topLevelOrigin: string
+  requester: WalletRequester
+  networkId: string
+  accounts: string[]
+}
+
 export interface WalletBrokerOptions {
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
   now?: () => Date
@@ -185,6 +195,7 @@ export class WalletBroker {
   private readonly confirmationInFlight = new Set<string>()
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
+  private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
@@ -221,6 +232,7 @@ export class WalletBroker {
       for (const timer of this.requestExpiryTimers.values()) clearTimeout(timer)
       this.requestExpiryTimers.clear()
       for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
+      this.evmProviderSessions.clear()
     })()
     return this.shutdownPromise
   }
@@ -385,6 +397,7 @@ export class WalletBroker {
       try {
         return await this.service.update(walletId, validated)
       } finally {
+        this.reconcileEvmProviderSessions()
         this.rejectCancelled()
       }
     })
@@ -403,6 +416,7 @@ export class WalletBroker {
       try {
         return await this.service.remove(walletId)
       } finally {
+        this.reconcileEvmProviderSessions()
         this.rejectCancelled()
       }
     })
@@ -426,9 +440,14 @@ export class WalletBroker {
         }
         return revoked
       } finally {
+        if (!this.service.permissions.get(permissionId)) this.reconcileEvmProviderSessions()
         this.rejectCancelled()
       }
     })
+  }
+
+  refreshProviderSessions(): void {
+    this.reconcileEvmProviderSessions()
   }
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
@@ -511,6 +530,9 @@ export class WalletBroker {
       tabId,
       Math.max(generation, this.minimumNavigationGeneration.get(tabId) ?? 0)
     )
+    this.clearEvmProviderSessions((session) => (
+      session.tabId === tabId && session.navigationGeneration < generation
+    ))
     await this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForNavigation(tabId, generation)
@@ -522,6 +544,7 @@ export class WalletBroker {
 
   async cancelForTab(tabId: string): Promise<void> {
     this.closedTabs.add(tabId)
+    this.clearEvmProviderSessions((session) => session.tabId === tabId)
     await this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForTab(tabId)
@@ -532,6 +555,7 @@ export class WalletBroker {
   }
 
   async cancelForWorkspace(workspaceId: string): Promise<void> {
+    this.clearEvmProviderSessions((session) => session.workspaceId === workspaceId)
     await this.queueLifecycle(async () => {
       try {
         await Promise.all([
@@ -552,6 +576,9 @@ export class WalletBroker {
     }
     this.agentOperations.set(requesterId, lifecycle)
     lifecycle.cancelled = true
+    this.clearEvmProviderSessions((session) => (
+      session.requester.type === 'agent' && session.requester.id === requesterId
+    ))
     const cancel = () => this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForRequester(requesterId)
@@ -578,33 +605,45 @@ export class WalletBroker {
   }
 
   private async evmRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'eth_accounts') return this.permittedAccounts(context, wallets)
-    const wallet = this.selectWallet(wallets)
-    if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
-    if (method === 'eth_requestAccounts') return this.connect(context, wallet)
     if (method === 'wallet_switchEthereumChain') {
       const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      if (typeof chainId !== 'string' || BigInt(chainId) !== BigInt(wallet.network.id)) throw new Error('Requested EVM chain is not configured for this workspace wallet')
-      return null
+      return this.switchEvmChain(context, wallets, chainId)
     }
-    this.assertAddressPermission(context, wallet, method === 'eth_sendTransaction' ? 'send' : 'sign')
+    if (!wallets.length) {
+      if (method === 'eth_accounts') return []
+      throw new Error('No wallet is attached to this workspace for the requested chain')
+    }
+    const activeWallets = this.activeEvmWallets(context, wallets)
+    if (method === 'eth_accounts') return this.permittedAccounts(context, activeWallets)
+    const wallet = this.selectWallet(activeWallets)
+    if (method === 'eth_chainId') return `0x${BigInt(wallet.network.id).toString(16)}`
+    if (method === 'eth_requestAccounts') {
+      const permitted = this.permittedAccounts(context, activeWallets)
+      return permitted.length ? permitted : this.connect(context, wallet)
+    }
     if (method === 'eth_sendTransaction' || method === 'eth_signTransaction') {
       const payload = paramsArray(params)[0]
-      return this.transactionRequest(context, wallet, payload, method === 'eth_sendTransaction')
+      const requestedFrom = payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? (payload as { from?: unknown }).from
+        : undefined
+      const selected = requestedFrom === undefined
+        ? wallet
+        : this.selectEvmAccount(activeWallets, requestedFrom)
+      this.assertAddressPermission(context, selected, method === 'eth_sendTransaction' ? 'send' : 'sign')
+      return this.transactionRequest(context, selected, payload, method === 'eth_sendTransaction')
     }
     if (method === 'personal_sign' || method === 'eth_sign' || method === 'eth_signTypedData_v4') {
       const values = paramsArray(params)
       const addressIndex = method === 'personal_sign' ? 1 : 0
       const messageIndex = method === 'personal_sign' ? 0 : 1
       const requestedAddress = values[addressIndex]
-      if (typeof requestedAddress !== 'string' || requestedAddress.toLowerCase() !== wallet.publicAddress.toLowerCase()) {
-        throw new Error('EVM message signer does not match the selected wallet')
-      }
+      const selected = this.selectEvmAccount(activeWallets, requestedAddress)
+      this.assertAddressPermission(context, selected, 'sign')
       if (method === 'eth_signTypedData_v4') {
         const typedData = typeof values[messageIndex] === 'string' ? JSON.parse(values[messageIndex]) : values[messageIndex]
-        return this.messageRequest(context, wallet, { kind: 'typed-data', typedData })
+        return this.messageRequest(context, selected, { kind: 'typed-data', typedData })
       }
-      return this.messageRequest(context, wallet, {
+      return this.messageRequest(context, selected, {
         kind: 'message', message: this.messageBytes(values[messageIndex])
       }, method === 'eth_sign')
     }
@@ -900,6 +939,7 @@ export class WalletBroker {
         }
         throw error
       }
+      if (wallet.chainFamily === 'evm') this.rememberEvmProviderAccounts(record, wallet.network.id)
       this.options.onProviderEvent?.(record.request.tabId, {
         family: wallet.chainFamily, event: 'accountsChanged', payload: [wallet.publicAddress]
       })
@@ -1203,6 +1243,169 @@ export class WalletBroker {
     const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
     if (!wallet) throw new Error('No wallet is attached to this workspace for the requested chain')
     return wallet
+  }
+
+  private evmProviderSessionKey(context: WalletBrokerContext): string {
+    return JSON.stringify([
+      context.workspaceId,
+      context.tabId,
+      context.navigationGeneration,
+      context.topLevelOrigin,
+      context.requester.type,
+      context.requester.id
+    ])
+  }
+
+  private activeEvmWallets(context: WalletBrokerContext, wallets: WalletDescriptor[]): WalletDescriptor[] {
+    const key = this.evmProviderSessionKey(context)
+    const existing = this.evmProviderSessions.get(key)
+    const fallback = this.selectWallet(wallets)
+    const networkId = existing && wallets.some((wallet) => wallet.network.id === existing.networkId)
+      ? existing.networkId
+      : fallback.network.id
+    this.evmProviderSessions.set(key, {
+      workspaceId: context.workspaceId,
+      tabId: context.tabId,
+      navigationGeneration: context.navigationGeneration,
+      topLevelOrigin: context.topLevelOrigin,
+      requester: structuredClone(context.requester),
+      networkId,
+      accounts: this.permittedAccounts(context, wallets.filter((wallet) => wallet.network.id === networkId))
+    })
+    const active = wallets.filter((wallet) => wallet.network.id === networkId)
+    const next = this.evmProviderSessions.get(key)!
+    if (existing) {
+      if (existing.networkId !== networkId) {
+        this.options.onProviderEvent?.(context.tabId, {
+          family: 'evm', event: 'chainChanged', payload: `0x${BigInt(networkId).toString(16)}`
+        })
+      }
+      if (!isDeepStrictEqual(existing.accounts, next.accounts)) {
+        this.options.onProviderEvent?.(context.tabId, {
+          family: 'evm', event: 'accountsChanged', payload: [...next.accounts]
+        })
+      }
+    }
+    return active
+  }
+
+  private switchEvmChain(
+    context: WalletBrokerContext,
+    wallets: WalletDescriptor[],
+    requestedChainId: unknown
+  ): null {
+    let numericChainId: bigint
+    try {
+      if (typeof requestedChainId !== 'string') throw new Error('invalid')
+      numericChainId = BigInt(requestedChainId)
+    } catch {
+      throw new Error('Requested EVM chain is invalid')
+    }
+    const matching = wallets.filter((wallet) => BigInt(wallet.network.id) === numericChainId)
+    if (!matching.length) throw new Error('Requested EVM chain is not configured for this workspace wallet')
+    const current = this.activeEvmWallets(context, wallets)
+    const nextNetworkId = matching[0]!.network.id
+    if (current[0]?.network.id === nextNetworkId) return null
+    const key = this.evmProviderSessionKey(context)
+    this.evmProviderSessions.set(key, {
+      workspaceId: context.workspaceId,
+      tabId: context.tabId,
+      navigationGeneration: context.navigationGeneration,
+      topLevelOrigin: context.topLevelOrigin,
+      requester: structuredClone(context.requester),
+      networkId: nextNetworkId,
+      accounts: this.permittedAccounts(context, matching)
+    })
+    const chainId = `0x${numericChainId.toString(16)}`
+    this.options.onProviderEvent?.(context.tabId, { family: 'evm', event: 'chainChanged', payload: chainId })
+    this.options.onProviderEvent?.(context.tabId, {
+      family: 'evm',
+      event: 'accountsChanged',
+      payload: this.permittedAccounts(context, matching)
+    })
+    return null
+  }
+
+  private selectEvmAccount(wallets: WalletDescriptor[], requestedAddress: unknown): WalletDescriptor {
+    if (typeof requestedAddress !== 'string') {
+      throw new Error('EVM transaction signer does not match the selected wallet')
+    }
+    const normalized = requestedAddress.toLowerCase()
+    const wallet = wallets.find((entry) => entry.publicAddress.toLowerCase() === normalized)
+    if (!wallet) throw new Error('EVM transaction signer does not match the selected wallet')
+    return wallet
+  }
+
+  private clearEvmProviderSessions(predicate: (session: EvmProviderSession) => boolean): void {
+    for (const [key, session] of this.evmProviderSessions) {
+      if (predicate(session)) this.evmProviderSessions.delete(key)
+    }
+  }
+
+  private rememberEvmProviderAccounts(record: WalletApprovalRecord, networkId: string): void {
+    const context: WalletBrokerContext = {
+      workspaceId: record.request.workspaceId,
+      tabId: record.request.tabId,
+      navigationGeneration: record.request.navigationGeneration,
+      topLevelOrigin: record.request.topLevelOrigin,
+      requester: structuredClone(record.request.requester)
+    }
+    const key = this.evmProviderSessionKey(context)
+    const session = this.evmProviderSessions.get(key)
+    if (!session || session.networkId !== networkId) return
+    session.accounts = this.permittedAccounts(
+      context,
+      this.accessibleWallets(context, 'evm').filter((wallet) => wallet.network.id === networkId)
+    )
+    this.evmProviderSessions.set(key, session)
+  }
+
+  private reconcileEvmProviderSessions(): void {
+    for (const [key, session] of this.evmProviderSessions) {
+      const context: WalletBrokerContext = {
+        workspaceId: session.workspaceId,
+        tabId: session.tabId,
+        navigationGeneration: session.navigationGeneration,
+        topLevelOrigin: session.topLevelOrigin,
+        requester: structuredClone(session.requester)
+      }
+      const wallets = this.accessibleWallets(context, 'evm')
+      const currentNetworkWallets = wallets.filter((wallet) => wallet.network.id === session.networkId)
+      if (currentNetworkWallets.length) {
+        const accounts = this.permittedAccounts(context, currentNetworkWallets)
+        if (!isDeepStrictEqual(session.accounts, accounts)) {
+          session.accounts = [...accounts]
+          this.evmProviderSessions.set(key, session)
+          this.options.onProviderEvent?.(session.tabId, {
+            family: 'evm', event: 'accountsChanged', payload: accounts
+          })
+        }
+        continue
+      }
+      if (!wallets.length) {
+        this.evmProviderSessions.delete(key)
+        if (session.accounts.length) {
+          this.options.onProviderEvent?.(session.tabId, {
+            family: 'evm', event: 'accountsChanged', payload: []
+          })
+        }
+        continue
+      }
+      const fallback = this.selectWallet(wallets)
+      session.networkId = fallback.network.id
+      session.accounts = this.permittedAccounts(
+        context,
+        wallets.filter((wallet) => wallet.network.id === fallback.network.id)
+      )
+      this.evmProviderSessions.set(key, session)
+      this.options.onProviderEvent?.(session.tabId, {
+        family: 'evm', event: 'chainChanged', payload: `0x${BigInt(fallback.network.id).toString(16)}`
+      })
+      this.options.onProviderEvent?.(session.tabId, {
+        family: 'evm', event: 'accountsChanged',
+        payload: [...session.accounts]
+      })
+    }
   }
 
   private permittedAccounts(context: WalletBrokerContext, wallets: WalletDescriptor[]): string[] {

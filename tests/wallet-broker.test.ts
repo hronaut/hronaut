@@ -517,6 +517,188 @@ describe('WalletBroker', () => {
     expect(events).toHaveBeenCalledWith('tab-1', expect.objectContaining({ family: 'evm', event: 'accountsChanged' }))
   })
 
+  it('isolates EVM accounts to the active chain and routes signing to the requested permitted account', async () => {
+    const { service, wallet: firstWallet } = await setup('testnet')
+    const secondSameChain = await service.generate({
+      name: 'Wallet B',
+      chainFamily: 'evm',
+      network: { ...firstWallet.network },
+      workspaceIds: ['workspace-1']
+    })
+    await service.confirmRecovery(secondSameChain.wallet.id)
+    const baseWallet = await service.generate({
+      name: 'Wallet C',
+      chainFamily: 'evm',
+      network: {
+        id: '84532', name: 'Base Sepolia', environment: 'testnet', rpcUrl: 'http://127.0.0.1:9545'
+      },
+      workspaceIds: ['workspace-1']
+    })
+    await service.confirmRecovery(baseWallet.wallet.id)
+    for (const wallet of [firstWallet, secondSameChain.wallet, baseWallet.wallet]) {
+      await service.permissions.grant({
+        walletId: wallet.id,
+        workspaceId: 'workspace-1',
+        origin: 'https://dapp.example',
+        account: wallet.publicAddress,
+        chainFamily: 'evm',
+        networkId: wallet.network.id,
+        capabilities: ['read'],
+        expiresAt: '2027-08-28T12:00:00.000Z'
+      })
+    }
+    const chain = adapter()
+    const normalize = vi.spyOn(chain, 'normalizeTransaction').mockImplementation(async (selected, payload) => {
+      const requested = payload as { from?: string }
+      if (requested.from?.toLowerCase() !== selected.publicAddress.toLowerCase()) {
+        throw new Error('EVM transaction signer does not match the selected wallet')
+      }
+      return {
+        chainFamily: 'evm', networkId: selected.network.id, signer: selected.publicAddress,
+        nonceOrBlockhash: '7', raw: { from: selected.publicAddress, nonce: 7n },
+        decoded: {
+          understood: true,
+          destination: '0x0000000000000000000000000000000000000002',
+          method: 'native-transfer', nativeAmount: '0', estimatedFee: '0.000021',
+          unlimitedAllowance: false, newContractOrProgram: false, blindMessage: false
+        }
+      }
+    })
+    const providerEvents = vi.fn()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain },
+      onProviderEvent: providerEvents
+    })
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_chainId' }))
+      .resolves.toBe('0xaa36a7')
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([firstWallet.publicAddress, secondSameChain.wallet.publicAddress])
+
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0x14a34' }]
+    })).resolves.toBeNull()
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'chainChanged', payload: '0x14a34'
+    })
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: [baseWallet.wallet.publicAddress]
+    })
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([baseWallet.wallet.publicAddress])
+    await expect(broker.providerRequest(context({ tabId: 'tab-2' }), { family: 'evm', method: 'eth_chainId' }))
+      .resolves.toBe('0xaa36a7')
+
+    await broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0xaa36a7' }]
+    })
+    const signing = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_signTransaction', params: [{ from: secondSameChain.wallet.publicAddress }]
+    })
+    await vi.waitFor(() => expect(broker.listPending().find((request) => (
+      request.walletId === secondSameChain.wallet.id && request.status === 'awaiting-human'
+    ))).toBeDefined())
+    const pending = broker.listPending().find((request) => (
+      request.walletId === secondSameChain.wallet.id && request.status === 'awaiting-human'
+    ))!
+    await broker.approve(pending.id)
+    await expect(signing).resolves.toBe('signed-transaction')
+    expect(normalize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: secondSameChain.wallet.id }),
+      { from: secondSameChain.wallet.publicAddress }
+    )
+    expect(chain.sign).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: secondSameChain.wallet.id }),
+      expect.anything(),
+      expect.objectContaining({ signer: secondSameChain.wallet.publicAddress })
+    )
+
+    const messageSigning = broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['0x6869', secondSameChain.wallet.publicAddress]
+    })
+    await vi.waitFor(() => expect(broker.listPending().find((request) => (
+      request.walletId === secondSameChain.wallet.id
+      && request.operation === 'sign-message'
+      && request.status === 'awaiting-human'
+    ))).toBeDefined())
+    const pendingMessage = broker.listPending().find((request) => (
+      request.walletId === secondSameChain.wallet.id
+      && request.operation === 'sign-message'
+      && request.status === 'awaiting-human'
+    ))!
+    await broker.approve(pendingMessage.id)
+    await expect(messageSigning).resolves.toMatch(/^0x[0-9a-f]+$/i)
+
+    await broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0x14a34' }]
+    })
+    providerEvents.mockClear()
+    await expect(broker.removeWallet(baseWallet.wallet.id)).resolves.toBe(true)
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'chainChanged', payload: '0xaa36a7'
+    })
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged',
+      payload: [firstWallet.publicAddress, secondSameChain.wallet.publicAddress]
+    })
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_chainId' }))
+      .resolves.toBe('0xaa36a7')
+
+    providerEvents.mockClear()
+    await expect(broker.removeWallet(secondSameChain.wallet.id)).resolves.toBe(true)
+    expect(providerEvents).not.toHaveBeenCalledWith('tab-1', expect.objectContaining({ event: 'chainChanged' }))
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: [firstWallet.publicAddress]
+    })
+
+    const remainingPermission = service.permissions.list().find((permission) => (
+      permission.walletId === firstWallet.id && permission.origin === 'https://dapp.example'
+    ))!
+    providerEvents.mockClear()
+    await expect(broker.revokePermission(remainingPermission.id)).resolves.toBe(true)
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: []
+    })
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([])
+  })
+
+  it('updates connected EVM accounts when the signing vault locks and unlocks', async () => {
+    const { service, wallet } = await setup()
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'evm',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      expiresAt: '2027-08-28T12:00:00.000Z'
+    })
+    const providerEvents = vi.fn()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      onProviderEvent: providerEvents
+    })
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([wallet.publicAddress])
+    providerEvents.mockClear()
+
+    service.lock()
+    broker.refreshProviderSessions()
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: []
+    })
+
+    providerEvents.mockClear()
+    await service.unlock('')
+    broker.refreshProviderSessions()
+    expect(providerEvents).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: [wallet.publicAddress]
+    })
+  })
+
   it('marks address-permission preparation failed instead of leaving it actionable', async () => {
     const { service } = await setup()
     vi.spyOn(service.approvals, 'recordSimulation').mockRejectedValueOnce(new Error('permission preparation failed'))

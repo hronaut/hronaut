@@ -51,7 +51,7 @@ Only wallets attached to the current workspace or explicitly marked **Any worksp
 
 ### EVM
 
-Hronaut exposes an EIP-1193 provider and announces it with EIP-6963. Supported methods are `eth_accounts`, `eth_requestAccounts`, `eth_chainId`, `wallet_switchEthereumChain` for the already configured network, `eth_sendTransaction`, `eth_signTransaction`, `personal_sign`, `eth_signTypedData_v4`, and `eth_sign`. Raw `eth_sign` always requires trusted human approval. Private-key, seed, arbitrary RPC-forwarding, and unknown methods are rejected.
+Hronaut exposes an EIP-1193 provider and announces it with EIP-6963. Supported methods are `eth_accounts`, `eth_requestAccounts`, `eth_chainId`, `wallet_switchEthereumChain` for networks configured on wallets available to the current workspace, `eth_sendTransaction`, `eth_signTransaction`, `personal_sign`, `eth_signTypedData_v4`, and `eth_sign`. Each tab and origin keeps its own active EVM network; account results include only permitted wallets on that network. Chain changes, wallet removal, permission revocation, and vault locking publish the corresponding `chainChanged` or `accountsChanged` event to connected dapps. Transaction and message requests select the exact permitted account requested by the dapp. Raw `eth_sign` always requires trusted human approval. Private-key, seed, arbitrary RPC-forwarding, and unknown methods are rejected.
 
 ### Solana
 

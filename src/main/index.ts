@@ -3357,7 +3357,10 @@ async function createWindow(): Promise<void> {
     directory: join(app.getPath('userData'), 'wallet'),
     platform: process.platform,
     safeStorage: safeStorage as unknown as WalletSafeStorage,
-    onChanged: (wallets) => sendToMainWindow('wallets:changed', wallets),
+    onChanged: (wallets) => {
+      sendToMainWindow('wallets:changed', wallets)
+      walletBroker?.refreshProviderSessions()
+    },
     onStatusChanged: (status) => sendToMainWindow('wallets:status-changed', status),
     warn: (message) => console.warn(`[wallet] ${message}`)
   })
