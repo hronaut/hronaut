@@ -310,6 +310,32 @@ describe('WalletService', () => {
     })).rejects.toThrow('not eligible for automatic approval')
   })
 
+  it('rejects signing automation policies for watch-only wallets', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const watchOnly = await service.addWatchOnly({
+      name: 'Read-only treasury',
+      chainFamily: 'evm',
+      publicAddress: '0x0000000000000000000000000000000000000001',
+      network: {
+        id: '11155111',
+        name: 'Sepolia',
+        environment: 'testnet',
+        rpcUrl: 'https://11155111.rpc.thirdweb.com'
+      },
+      workspaceIds: ['workspace-1']
+    })
+
+    await expect(service.setPolicy({
+      id: 'watch-only-policy', name: 'Impossible automation', mode: 'bounded-auto', walletId: watchOnly.id,
+      workspaceId: 'workspace-1', networkIds: ['11155111'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })).rejects.toThrow('Wallet does not support signing automation')
+  })
+
   it('requires a dedicated EVM agent wallet and complete limits for mainnet Bypass Approve mode', async () => {
     const path = await directory()
     const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })

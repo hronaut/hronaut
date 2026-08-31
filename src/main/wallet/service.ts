@@ -438,6 +438,9 @@ export class WalletService {
       throw new Error('Wallet policy expiry must be in the future')
     }
     const wallet = this.requireWallet(candidate.walletId)
+    if (candidate.mode === 'bounded-auto' && !wallet.capabilities.includes('sign')) {
+      throw new Error('Wallet does not support signing automation')
+    }
     if (!walletAllowsWorkspace(wallet, candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
     if (!candidate.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
     if (candidate.mode === 'bounded-auto') {

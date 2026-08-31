@@ -140,6 +140,11 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(panel.getByRole('heading', { name: 'Your wallets' })).toBeVisible()
   await expect(panel.getByText('1 configured')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Lock signing keys' })).toHaveCount(0)
+  const watchOnlyAutomationNote = panel.getByText(/watch-only wallets cannot sign/i)
+  await expect(watchOnlyAutomationNote).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Add bounded policy' })).toHaveCount(0)
+  await watchOnlyAutomationNote.scrollIntoViewIfNeeded()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-watch-only-automation.png') })
   await panel.getByLabel('Wallet to manage').scrollIntoViewIfNeeded()
   await appWindow.screenshot({ path: testInfo.outputPath('wallets-vault-control.png') })
 

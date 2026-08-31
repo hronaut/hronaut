@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep transaction-automation drafts scoped to the selected signing wallet, clear successful policy forms to prevent accidental duplicates, and reject misleading bounded automation policies for watch-only wallets.
 - Cancel validated wallet imports when the trusted Wallets panel closes or changes sections so abandoned recovery material is removed from signer memory immediately instead of waiting for expiry.
 - Let hidden full-page screenshots use Chromium's own capture presentation path instead of waiting on an unrelated compositor subscription that can be missed under load.
 

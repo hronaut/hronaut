@@ -212,6 +212,7 @@ export const enUS = {
     removeConfirm: 'Remove {name}? This cannot recover its secret material.',
     boundedHeading: 'Bounded agent automation',
     boundedDescription: 'Automatic policies are exact and limited. Unknown actions, unlimited approvals, new programs/contracts, blind messages, and failed simulations always ask.',
+    watchOnlyAutomationUnavailable: 'Watch-only wallets cannot sign, so they do not need transaction automation. You can still review and remove any previously saved policies below.',
     bypassApprove: 'Bypass Approve mode',
     bypassApproveDescription: 'Matching agent transactions run without a per-request approval dialog. Mainnet requires this dedicated EVM agent wallet plus one origin, destination, method, network, complete amount/spend/fee limits, at most 100 operations, successful simulation, and an expiry within 7 days.',
     bypassApproveUnavailable: 'Mainnet Bypass Approve mode is available only for dedicated EVM agent wallets. Websites, ordinary wallets, Solana, TRON, and message signing still require trusted approval.',

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
-import type { WalletDescriptor } from '../../src/shared/wallet.js'
+import type { WalletDescriptor, WalletPolicy } from '../../src/shared/wallet.js'
 
 const global = { plugins: [createHronautI18n('en-US')] }
 
@@ -295,10 +295,11 @@ describe('WalletsSettingsPanel', () => {
   })
 
   it('lets the user choose which attached workspace receives a bounded policy', async () => {
+    const signingWallet = wallet('a', 'Policy wallet', ['workspace-a', 'workspace-b'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
     const wallets = controller({
-      wallets: ref([
-        wallet('a', 'Policy wallet', ['workspace-a', 'workspace-b'])
-      ])
+      wallets: ref([signingWallet])
     })
     render(WalletsSettingsPanel, {
       props: {
@@ -323,6 +324,83 @@ describe('WalletsSettingsPanel', () => {
       walletId: 'a',
       workspaceId: 'workspace-b'
     }))
+  })
+
+  it('does not offer new signing automation for a watch-only wallet', () => {
+    const wallets = controller({
+      wallets: ref([wallet('watch', 'Read-only treasury', ['workspace-a'])])
+    })
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-a', name: 'Workspace A' }]
+      },
+      global
+    })
+
+    expect(screen.getByText(/watch-only wallets cannot sign/i)).toBeVisible()
+    expect(screen.getByText('Bounded agent automation')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Add bounded policy' })).not.toBeInTheDocument()
+  })
+
+  it('clears transaction-policy drafts when the managed wallet changes', async () => {
+    const first = wallet('a', 'Signing wallet A', ['workspace-a'])
+    first.kind = 'managed'
+    first.capabilities = ['read', 'sign', 'send']
+    const second = wallet('b', 'Signing wallet B', ['workspace-a'])
+    second.kind = 'managed'
+    second.capabilities = ['read', 'sign', 'send']
+    const wallets = controller({ wallets: ref([first, second]) })
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-a', name: 'Workspace A' }]
+      },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://wallet-a.example')
+    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
+    await user.type(screen.getByLabelText('Max native amount'), '1')
+    await user.clear(screen.getByLabelText('Operation count'))
+    await user.type(screen.getByLabelText('Operation count'), '7')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'b')
+
+    expect(screen.getByLabelText('Allowed origin')).toHaveValue('')
+    expect(screen.getByLabelText('Destination / contract')).toHaveValue('')
+    expect(screen.getByLabelText('Method / instruction')).toHaveValue('')
+    expect(screen.getByLabelText('Max native amount')).toHaveValue('')
+    expect(screen.getByLabelText('Operation count')).toHaveValue(1)
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
+  })
+
+  it('clears a transaction-policy draft after the policy is created', async () => {
+    const signingWallet = wallet('signing', 'Signing wallet', ['workspace-a'])
+    signingWallet.kind = 'managed'
+    signingWallet.capabilities = ['read', 'sign', 'send']
+    const setPolicy = vi.fn(async (policy: WalletPolicy) => policy)
+    const wallets = controller({ wallets: ref([signingWallet]), setPolicy })
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-a', name: 'Workspace A' }]
+      },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
+    await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
+    await user.click(screen.getByRole('button', { name: 'Add bounded policy' }))
+
+    expect(setPolicy).toHaveBeenCalledOnce()
+    expect(screen.getByLabelText('Allowed origin')).toHaveValue('')
+    expect(screen.getByLabelText('Destination / contract')).toHaveValue('')
+    expect(screen.getByLabelText('Method / instruction')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
   })
 
   it('renames a configured wallet inline without relying on unsupported prompt dialogs', async () => {
