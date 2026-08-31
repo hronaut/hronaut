@@ -2524,7 +2524,25 @@ export const plPL = {
     "releaseNotes": "Informacje o wydaniu",
     "download": "Pobierz aktualizację",
     "install": "Zainstaluj i uruchom ponownie",
-    "retryInstall": "Spróbuj zainstalować ponownie"
+    "retryInstall": "Spróbuj zainstalować ponownie",
+    "history": {
+      "kicker": "Wydania GitHub",
+      "title": "Co nowego",
+      "close": "Zamknij Co nowego",
+      "refresh": "Odśwież historię wydań",
+      "loading": "Wczytywanie historii wydań…",
+      "loadingDescription": "Wczytywanie oficjalnych wydań Hronaut z GitHub.",
+      "unavailable": "Historia wydań jest niedostępna",
+      "empty": "Brak opublikowanych wydań",
+      "emptyDescription": "Opublikowane wydania Hronaut pojawią się tutaj.",
+      "noNotes": "Dla tego wydania nie opublikowano informacji o zmianach.",
+      "source": "Źródło oficjalne: GitHub Releases",
+      "loadMore": "Wczytaj starsze wydania",
+      "loadingMore": "Wczytywanie…",
+      "openAll": "Zobacz wszystkie na GitHub",
+      "openRelease": "Otwórz Hronaut {version} na GitHub",
+      "view": "Zobacz co nowego"
+    }
   },
   "addressOverlay": {
     "label": "Lokalne sugestie adresów",

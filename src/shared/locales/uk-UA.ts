@@ -282,7 +282,15 @@ export const ukUA = {
     releaseNotes: 'Примітки до випуску',
     download: 'Завантажити оновлення',
     install: 'Встановити й перезапустити',
-    retryInstall: 'Повторити встановлення'
+    retryInstall: 'Повторити встановлення',
+    history: {
+      kicker: 'Випуски GitHub', title: 'Що нового', close: 'Закрити вікно «Що нового»', refresh: 'Оновити історію випусків',
+      loading: 'Завантаження історії випусків…', loadingDescription: 'Читання канонічних випусків Hronaut із GitHub.',
+      unavailable: 'Історія випусків недоступна', empty: 'Опублікованих випусків немає', emptyDescription: 'Опубліковані випуски Hronaut зʼявляться тут.',
+      noNotes: 'Для цієї версії примітки до випуску не опубліковано.', source: 'Джерело істини: GitHub Releases',
+      loadMore: 'Завантажити старіші випуски', loadingMore: 'Завантаження…', openAll: 'Переглянути все на GitHub',
+      openRelease: 'Відкрити Hronaut {version} на GitHub', view: 'Переглянути, що нового'
+    }
   },
   addressOverlay: {
     label: 'Локальні підказки адрес',

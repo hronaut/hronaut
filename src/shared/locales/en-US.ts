@@ -448,7 +448,15 @@ export const enUS = {
     releaseNotes: 'Release notes',
     download: 'Download update',
     install: 'Install and restart',
-    retryInstall: 'Try installation again'
+    retryInstall: 'Try installation again',
+    history: {
+      kicker: 'GitHub releases', title: "What's new", close: "Close What's new", refresh: 'Refresh release history',
+      loading: 'Loading release history…', loadingDescription: 'Reading the canonical Hronaut releases from GitHub.',
+      unavailable: 'Release history is unavailable', empty: 'No published releases', emptyDescription: 'Published Hronaut releases will appear here.',
+      noNotes: 'No release notes were published for this version.', source: 'Source of truth: GitHub Releases',
+      loadMore: 'Load older releases', loadingMore: 'Loading…', openAll: 'View all on GitHub',
+      openRelease: 'Open Hronaut {version} on GitHub', view: "View what's new"
+    }
   },
   addressOverlay: {
     label: 'Local address suggestions',

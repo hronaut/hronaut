@@ -13,6 +13,7 @@ function renderDialog() {
   const openUrl = vi.fn(async () => undefined)
   const openSupportSettings = vi.fn()
   const reportLayout = vi.fn()
+  const releaseHistoryController = { openDialog: vi.fn() }
   render(HelpDialog, {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
@@ -20,10 +21,11 @@ function renderDialog() {
       currentVersion: '1.7.2',
       openUrl,
       openSupportSettings,
+      releaseHistoryController: releaseHistoryController as never,
       reportLayout
     }
   })
-  return { controller, openSupportSettings, openUrl, reportLayout }
+  return { controller, openSupportSettings, openUrl, releaseHistoryController, reportLayout }
 }
 
 describe('HelpDialog', () => {
@@ -46,11 +48,13 @@ describe('HelpDialog', () => {
   })
 
   it('renders About actions and delegates navigation', async () => {
-    const { controller, openSupportSettings, openUrl } = renderDialog()
+    const { controller, openSupportSettings, openUrl, releaseHistoryController } = renderDialog()
     controller.openDialog('about')
 
     const dialog = await screen.findByRole('dialog', { name: 'About Hronaut' })
     expect(dialog).toHaveTextContent('Hronaut 1.7.2')
+    await userEvent.setup().click(screen.getByRole('button', { name: "View what's new" }))
+    expect(releaseHistoryController.openDialog).toHaveBeenCalledOnce()
     await userEvent.setup().click(screen.getByRole('button', { name: 'GitHub repository' }))
     expect(openUrl).toHaveBeenCalledWith('https://github.com/hronaut/hronaut')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Commercial license' }))

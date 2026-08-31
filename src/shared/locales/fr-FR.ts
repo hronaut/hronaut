@@ -2524,7 +2524,25 @@ export const frFR = {
     "releaseNotes": "Notes de version",
     "download": "Télécharger la mise à jour",
     "install": "Installer et redémarrer",
-    "retryInstall": "Réessayer l’installation"
+    "retryInstall": "Réessayer l’installation",
+    "history": {
+      "kicker": "Versions GitHub",
+      "title": "Nouveautés",
+      "close": "Fermer les nouveautés",
+      "refresh": "Actualiser l’historique des versions",
+      "loading": "Chargement de l’historique des versions…",
+      "loadingDescription": "Chargement des versions officielles de Hronaut depuis GitHub.",
+      "unavailable": "L’historique des versions est indisponible",
+      "empty": "Aucune version publiée",
+      "emptyDescription": "Les versions publiées de Hronaut apparaîtront ici.",
+      "noNotes": "Aucune note n’a été publiée pour cette version.",
+      "source": "Source officielle : GitHub Releases",
+      "loadMore": "Charger les versions précédentes",
+      "loadingMore": "Chargement…",
+      "openAll": "Tout voir sur GitHub",
+      "openRelease": "Ouvrir Hronaut {version} sur GitHub",
+      "view": "Voir les nouveautés"
+    }
   },
   "addressOverlay": {
     "label": "Suggestions d’adresses locales",

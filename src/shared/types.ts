@@ -471,6 +471,20 @@ export interface AppUpdateState {
   message?: string
 }
 
+export interface AppReleaseHistoryEntry {
+  version: string
+  title: string
+  publishedAt: string
+  url: string
+  notes: string
+}
+
+export interface AppReleaseHistoryPage {
+  page: number
+  releases: AppReleaseHistoryEntry[]
+  hasMore: boolean
+}
+
 export interface NewTabOptions {
   url?: string
   active?: boolean
@@ -2450,6 +2464,7 @@ export interface HronautCredentialsApi {
 
 export interface HronautUpdatesApi {
   getState(): Promise<AppUpdateState>
+  getReleaseHistory(page: number): Promise<AppReleaseHistoryPage>
   check(): Promise<AppUpdateState>
   download(): Promise<AppUpdateState>
   install(): Promise<boolean>

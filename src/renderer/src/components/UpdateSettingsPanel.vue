@@ -3,9 +3,11 @@ import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import UpdateNotification from './UpdateNotification.vue'
 import type { UpdateSettingsController } from '../composables/useUpdateSettingsController'
+import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
 
 const props = defineProps<{
   controller: UpdateSettingsController
+  releaseHistoryController: ReleaseHistoryController
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -59,9 +61,10 @@ async function changeStartupCheck(event: Event): Promise<void> {
           <strong>{{ t('settings.updates.current') }}</strong>
           <small>{{ state.currentVersion || t('help.developmentBuild') }}</small>
         </span>
-        <button class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">
-          {{ t('settings.updates.check') }}
-        </button>
+        <div class="update-settings-actions">
+          <button class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</button>
+          <button class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</button>
+        </div>
       </div>
     </div>
     <div class="settings-info">

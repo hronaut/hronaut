@@ -108,6 +108,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       },
       updates: {
         getState: vi.fn(() => updateState),
+        getReleaseHistory: vi.fn(),
         check: vi.fn(),
         download: vi.fn(),
         install: vi.fn(),

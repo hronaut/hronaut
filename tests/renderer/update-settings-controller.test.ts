@@ -29,6 +29,7 @@ function createController(
   const unsubscribe = vi.fn(() => { listener = undefined })
   const api: HronautUpdatesApi = {
     getState: vi.fn(getState),
+    getReleaseHistory: vi.fn(),
     check,
     download,
     install: vi.fn(async () => true),

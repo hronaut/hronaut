@@ -404,6 +404,7 @@ const licenseApi: HronautLicenseApi = {
 contextBridge.exposeInMainWorld('hronautLicense', licenseApi)
 const updatesApi: HronautUpdatesApi = {
   getState: () => ipcRenderer.invoke('updates:get-state'),
+  getReleaseHistory: (page: number) => ipcRenderer.invoke('updates:get-release-history', page),
   check: () => ipcRenderer.invoke('updates:check'),
   download: () => ipcRenderer.invoke('updates:download'),
   install: () => ipcRenderer.invoke('updates:install'),

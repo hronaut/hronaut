@@ -19,6 +19,7 @@ function renderPanel() {
   const check = vi.fn(async (): Promise<AppUpdateState> => ({ status: 'up-to-date', currentVersion: '1.7.1' }))
   const api: HronautUpdatesApi = {
     getState: vi.fn(async (): Promise<AppUpdateState> => ({ status: 'idle', currentVersion: '1.7.1' })),
+    getReleaseHistory: vi.fn(),
     check,
     download: vi.fn(async (): Promise<AppUpdateState> => ({ status: 'downloaded', currentVersion: '1.7.1' })),
     install: vi.fn(async () => true),
@@ -41,7 +42,7 @@ function renderPanel() {
   controller.accept({ status: 'disabled', currentVersion: '1.7.1', message: 'Updates unavailable in this build.' })
   render(UpdateSettingsPanel, {
     global: { plugins: [createHronautI18n('en-US')] },
-    props: { controller }
+    props: { controller, releaseHistoryController: { openDialog: vi.fn() } as never }
   })
   return { check, controller, setCheckOnStartup, settings }
 }

@@ -170,6 +170,61 @@
 .about-content p { margin: 7px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .about-actions { display: flex; flex-wrap: wrap; grid-column: 1 / -1; justify-content: flex-end; gap: 9px; margin-top: 8px; }
 .about-actions button { padding: 9px 14px; border-radius: 7px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.update-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.whats-new-overlay { z-index: 125; }
+.whats-new-dialog {
+  display: flex;
+  width: min(720px, calc(100vw - 56px));
+  height: min(760px, calc(100vh - 56px));
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  outline: 0;
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .56);
+  user-select: text;
+}
+:root[data-theme="cyberpunk"] .whats-new-dialog { border-color: #78309b; box-shadow: 0 0 0 1px rgba(0, 245, 255, .16), 0 28px 90px rgba(0, 0, 0, .62); }
+.whats-new-header { display: flex; min-height: 70px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 18px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.whats-new-header h2 { margin: 2px 0 0; font-size: 21px; line-height: 1.15; letter-spacing: -.02em; }
+.whats-new-header-actions { display: flex; align-items: center; gap: 5px; }
+.whats-new-header-actions button { display: grid; width: 32px; height: 32px; place-items: center; }
+.whats-new-header-actions svg { width: 19px; height: 19px; }
+.whats-new-content { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.whats-new-list { display: grid; }
+.whats-new-release { padding: 24px 26px 26px; }
+.whats-new-release + .whats-new-release { border-top: 1px solid var(--border); }
+.whats-new-release > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 17px; }
+.whats-new-release time { display: block; color: var(--muted); font-size: 12px; font-weight: 700; }
+.whats-new-release h3 { margin: 5px 0 0; font-size: 18px; letter-spacing: -.015em; }
+.whats-new-release > header button { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 7px; color: var(--muted); background: var(--surface-muted); }
+.whats-new-release > header button:hover { color: var(--text); }
+.whats-new-release > header button svg { width: 14px; height: 14px; }
+.whats-new-release > header code { font-size: 11px; }
+.whats-new-notes { max-height: none; overflow: visible; }
+.whats-new-notes h1, .whats-new-notes h2, .whats-new-notes h3, .whats-new-notes h4 { margin: 19px 0 8px; color: var(--muted); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; }
+.whats-new-notes h1:first-child, .whats-new-notes h2:first-child, .whats-new-notes h3:first-child, .whats-new-notes h4:first-child { margin-top: 0; }
+.whats-new-notes ul, .whats-new-notes ol { padding-left: 19px; }
+.whats-new-notes li { margin: 7px 0; line-height: 1.55; }
+.whats-new-notes p { line-height: 1.55; }
+.whats-new-no-notes { margin: 0; color: var(--muted); font-size: 13px; }
+.whats-new-state { display: grid; min-height: 360px; place-items: center; align-content: center; gap: 8px; padding: 34px; color: var(--muted); text-align: center; }
+.whats-new-state > svg { width: 30px; height: 30px; color: var(--accent-text); }
+.whats-new-state strong { color: var(--text); font-size: 15px; }
+.whats-new-state span { max-width: 450px; font-size: 13px; line-height: 1.5; }
+.whats-new-state button { margin-top: 7px; }
+.whats-new-footer { display: flex; min-height: 54px; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--border); background: var(--surface); }
+.whats-new-footer > span { min-width: 0; flex: 1 1 auto; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.whats-new-footer button { display: flex; align-items: center; gap: 6px; }
+.whats-new-footer button svg { width: 15px; height: 15px; }
+
+@media (max-width: 700px) {
+  .whats-new-dialog { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+  .whats-new-release { padding: 20px 18px 22px; }
+}
 
 :root[data-theme="cyberpunk"] .settings-dialog {
   border-color: #78309b;

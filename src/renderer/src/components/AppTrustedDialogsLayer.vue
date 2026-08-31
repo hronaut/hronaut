@@ -4,6 +4,7 @@ import type { HelpDialogController } from '../composables/useHelpDialogControlle
 import HelpDialog from './HelpDialog.vue'
 import SettingsDialog from './SettingsDialog.vue'
 import WalletApprovalDialog from './WalletApprovalDialog.vue'
+import WhatsNewDialog from './WhatsNewDialog.vue'
 
 const props = defineProps<{
   settingsController: AppSettingsFeatureController
@@ -29,6 +30,7 @@ const {
   sitePermissionsController,
   credentialsController,
   updateSettingsController,
+  releaseHistoryController,
   commercialLicenseController,
   settingsDialogController,
   walletsController
@@ -47,6 +49,7 @@ const { state: updateState } = updateSettingsController
     :permissions-controller="sitePermissionsController"
     :credentials-controller="credentialsController"
     :update-controller="updateSettingsController"
+    :release-history-controller="releaseHistoryController"
     :support-controller="commercialLicenseController"
     :wallets-controller="walletsController"
     :workspaces="workspaces"
@@ -59,11 +62,17 @@ const { state: updateState } = updateSettingsController
     :purchase-commercial-license="purchaseCommercialLicense"
   />
   <WalletApprovalDialog :controller="walletsController" />
+  <WhatsNewDialog
+    :controller="releaseHistoryController"
+    :open-url="openUrl"
+    :report-layout="reportLayout"
+  />
   <HelpDialog
     :controller="helpController"
     :current-version="updateState.currentVersion"
     :open-url="openUrl"
     :open-support-settings="openSupportSettings"
+    :release-history-controller="releaseHistoryController"
     :report-layout="reportLayout"
   />
 </template>

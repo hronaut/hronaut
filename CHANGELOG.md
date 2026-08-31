@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.5] - 2026-08-31
+
+### Added
+
+- Add a trusted, paginated **What's new** view in About and Software updates that renders sanitized notes from GitHub Releases, keeps GitHub as the single source of truth, and retains recently loaded history when the network is temporarily unavailable.
+
 ## [1.11.4] - 2026-08-31
 
 ### Fixed

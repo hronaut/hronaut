@@ -62,6 +62,8 @@ When a website requests access such as location, notifications, clipboard, camer
 
 Automatic update checks are enabled by default. Packaged builds check the public GitHub release feed shortly after startup unless you disable **Check for updates on startup**. Hronaut never downloads an update silently: an in-app notification shows the available version and release notes, then asks you to **Download update** and **Install and restart**.
 
+Open **What's new** from **Settings → Updates** or **Help → About Hronaut** to browse the complete published release history without leaving Hronaut. GitHub Releases is the source of truth: Hronaut fetches stable releases in bounded pages, sanitizes their notes before rendering, opens note links through trusted external navigation, and temporarily caches pages so an already viewed history remains available during a short GitHub outage. Use **View all on GitHub** when you want the canonical public release pages directly.
+
 On Linux, Hronaut waits for the old single-instance process to finish its bounded profile and MCP shutdown before launching the newly installed DEB, RPM, or AppImage. This prevents an immediate second update prompt from the still-running old binary during consecutive releases.
 
 You can also check manually from Settings, the Hronaut application menu, or the tray menu. Update preferences are stored in the persistent profile. Development builds do not contact the release feed; set `HRONAUT_DISABLE_AUTO_UPDATE=1` to disable checks for a packaged launch as well.

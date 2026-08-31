@@ -20,6 +20,7 @@ import type { McpSettingsController } from '../composables/useMcpSettingsControl
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 import type { PerformanceSettingsController } from '../composables/usePerformanceSettingsController.js'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController.js'
+import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
 import type { SearchSettingsController } from '../composables/useSearchSettingsController.js'
 import type { SettingsDialogController, SettingsSection } from '../composables/useSettingsDialogController.js'
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'
@@ -47,6 +48,7 @@ const props = defineProps<{
   permissionsController: SitePermissionsController
   credentialsController: CredentialsController
   updateController: UpdateSettingsController
+  releaseHistoryController: ReleaseHistoryController
   supportController: CommercialLicenseController
   walletsController: WalletsController
   workspaces: Array<{ id: string; name: string }>
@@ -190,6 +192,7 @@ useModalDialogFocus({ open, panel })
         <UpdateSettingsPanel
           v-else-if="section === 'updates'"
           :controller="updateController"
+          :release-history-controller="releaseHistoryController"
         />
         <SupportSettingsPanel
           v-else

@@ -18,6 +18,7 @@ describe('AppTrustedDialogsLayer', () => {
       sitePermissionsController: { id: 'permissions' },
       credentialsController: { id: 'credentials' },
       updateSettingsController: { id: 'updates', state: updateState },
+      releaseHistoryController: { id: 'release-history' },
       commercialLicenseController: { id: 'support' },
       settingsDialogController: { id: 'settings-dialog' },
       walletsController: { id: 'wallets' }

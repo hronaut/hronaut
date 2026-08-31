@@ -25,6 +25,7 @@ import { useMcpSettingsController } from './useMcpSettingsController.js'
 import { useMcpStatusController } from './useMcpStatusController.js'
 import { usePerformanceSettingsController } from './usePerformanceSettingsController.js'
 import { usePrivacySettingsController } from './usePrivacySettingsController.js'
+import { useReleaseHistoryController } from './useReleaseHistoryController.js'
 import { useSearchSettingsController } from './useSearchSettingsController.js'
 import { useSettingsDialogController } from './useSettingsDialogController.js'
 import { useSettingsSectionResetController } from './useSettingsSectionResetController.js'
@@ -155,6 +156,14 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
       options.translate('runtime.toast.actionFailed'),
       friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
     )
+  })
+  const releaseHistoryController = useReleaseHistoryController({
+    api: options.apis.updates,
+    beforeOpen: () => {
+      options.commandPaletteOpen.value = false
+      options.closeTransientPanels()
+    },
+    formatError: (error) => friendlyUiError(error, options.translate('updates.history.unavailable'))
   })
   const commercialLicenseController = useCommercialLicenseController({
     api: options.apis.license,
@@ -296,6 +305,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     generation += 1
     disposeAll([
       updateNoticePresentationController.dispose,
+      releaseHistoryController.dispose,
       downloadSettingsController.dispose,
       performanceSettingsController.dispose,
       mcpSettingsController.dispose,
@@ -318,6 +328,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     credentialsController,
     privacySettingsController,
     updateSettingsController,
+    releaseHistoryController,
     commercialLicenseController,
     mcpStatusController,
     downloadSettingsController,

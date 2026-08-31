@@ -2524,7 +2524,25 @@ export const ruRU = {
     "releaseNotes": "Примечания к выпуску",
     "download": "Загрузить обновление",
     "install": "Установить и перезапустить",
-    "retryInstall": "Повторить установку"
+    "retryInstall": "Повторить установку",
+    "history": {
+      "kicker": "Релизы GitHub",
+      "title": "Что нового",
+      "close": "Закрыть окно «Что нового»",
+      "refresh": "Обновить историю релизов",
+      "loading": "Загрузка истории релизов…",
+      "loadingDescription": "Загружаем официальные релизы Hronaut с GitHub.",
+      "unavailable": "История релизов недоступна",
+      "empty": "Опубликованных релизов пока нет",
+      "emptyDescription": "Опубликованные релизы Hronaut появятся здесь.",
+      "noNotes": "Для этого релиза примечания не опубликованы.",
+      "source": "Официальный источник: GitHub Releases",
+      "loadMore": "Загрузить ранние релизы",
+      "loadingMore": "Загрузка…",
+      "openAll": "Все релизы на GitHub",
+      "openRelease": "Открыть Hronaut {version} на GitHub",
+      "view": "Посмотреть, что нового"
+    }
   },
   "addressOverlay": {
     "label": "Локальные подсказки адресов",

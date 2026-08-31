@@ -60,6 +60,7 @@ import {
 } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
 import { CommercialLicenseStore } from './commercial-license-store.js'
+import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { renderHomePage } from './home-page.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
@@ -251,6 +252,7 @@ let resolvedLocale: SupportedLocale = 'en-US'
 let settingsMutationQueue: Promise<void> = Promise.resolve()
 let permissionRequestQueue: Promise<void> = Promise.resolve()
 let updateState: AppUpdateState = { status: 'idle', currentVersion: app.getVersion() }
+const releaseHistoryService = new ReleaseHistoryService()
 let updaterConfigured = false
 let updateInstallationInProgress = false
 let updateOperation: UpdateOperation | null = null
@@ -3306,6 +3308,11 @@ function registerIpc(): void {
     commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
   )
   ipcMain.handle('updates:get-state', (event) => { assertTrustedShellSender(event); return { ...updateState } })
+  ipcMain.handle('updates:get-release-history', (event, page: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof page !== 'number') throw new TypeError('Invalid release history page.')
+    return releaseHistoryService.getPage(page)
+  })
   ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
   ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })
   ipcMain.handle('updates:install', (event) => { assertTrustedShellSender(event); return installDownloadedUpdate() })

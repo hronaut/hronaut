@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
 import type { HelpDialogController } from '../composables/useHelpDialogController.js'
+import type { ReleaseHistoryController } from '../composables/useReleaseHistoryController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 
 const props = defineProps<{
@@ -11,6 +12,7 @@ const props = defineProps<{
   currentVersion: string
   openUrl: (url: string) => Promise<void>
   openSupportSettings: () => void
+  releaseHistoryController: ReleaseHistoryController
   reportLayout: () => void
 }>()
 
@@ -61,6 +63,7 @@ useModalDialogFocus({
           <p>{{ t('help.description') }}</p>
         </div>
         <div class="about-actions">
+          <button class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</button>
           <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut')">{{ t('help.repository') }}</button>
           <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('help.license') }}</button>
           <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('help.contribute') }}</button>

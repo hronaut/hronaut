@@ -2524,7 +2524,25 @@ export const deDE = {
     "releaseNotes": "Versionshinweise",
     "download": "Update herunterladen",
     "install": "Installieren und neu starten",
-    "retryInstall": "Installation erneut versuchen"
+    "retryInstall": "Installation erneut versuchen",
+    "history": {
+      "kicker": "GitHub-Veröffentlichungen",
+      "title": "Was ist neu",
+      "close": "Was ist neu schließen",
+      "refresh": "Versionsverlauf aktualisieren",
+      "loading": "Versionsverlauf wird geladen…",
+      "loadingDescription": "Kanonische Hronaut-Veröffentlichungen werden von GitHub geladen.",
+      "unavailable": "Versionsverlauf ist nicht verfügbar",
+      "empty": "Keine veröffentlichten Versionen",
+      "emptyDescription": "Veröffentlichte Hronaut-Versionen erscheinen hier.",
+      "noNotes": "Für diese Version wurden keine Versionshinweise veröffentlicht.",
+      "source": "Quelle der Wahrheit: GitHub Releases",
+      "loadMore": "Ältere Versionen laden",
+      "loadingMore": "Wird geladen…",
+      "openAll": "Alle auf GitHub ansehen",
+      "openRelease": "Hronaut {version} auf GitHub öffnen",
+      "view": "Was ist neu anzeigen"
+    }
   },
   "addressOverlay": {
     "label": "Lokale Adressvorschläge",

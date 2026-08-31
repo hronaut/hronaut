@@ -283,7 +283,10 @@ function renderMarkdown(source: string, document: Document): string {
 }
 
 export function formatReleaseNotes(source: string): string {
-  const bounded = source.slice(0, MAX_RELEASE_NOTES_LENGTH).trim()
+  const bounded = source
+    .slice(0, MAX_RELEASE_NOTES_LENGTH)
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, '')
+    .trim()
   if (!bounded) return ''
   return HTML_BLOCK_PATTERN.test(bounded)
     ? sanitizeHtml(bounded, document)
