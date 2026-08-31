@@ -190,6 +190,25 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
+  it('keeps the editor visible while an authoritative workspace save is in flight', async () => {
+    const { state, open, browser, controller } = createController()
+    await controller.openExisting('agent')
+    const pending = deferred<BrowserState>()
+    browser.updateTabGroup.mockReturnValueOnce(pending.promise)
+
+    const saving = controller.save()
+    controller.close()
+
+    expect(controller.actionPending.value).toBe(true)
+    expect(open.value).toBe(true)
+    expect(controller.workspaceId.value).toBe('agent')
+
+    pending.resolve(state.value)
+    await saving
+    expect(open.value).toBe(false)
+    controller.dispose()
+  })
+
   it('does not fork all Default data while the origin inventory is unresolved', async () => {
     const { browser, controller } = createController()
     const pendingOrigins = deferred<string[]>()
@@ -277,6 +296,50 @@ describe('workspace editor controller', () => {
     pendingRefresh.resolve(state.value)
     await transferring
     expect(controller.storageState.value).toBe('saved')
+    controller.dispose()
+  })
+
+  it('keeps the editor visible while an authoritative storage transfer is in flight', async () => {
+    const { open, browser, controller } = createController()
+    await controller.openExisting('agent')
+    const pending = deferred<Awaited<ReturnType<typeof browser.transferWorkspaceStorage>>>()
+    browser.transferWorkspaceStorage.mockReturnValueOnce(pending.promise)
+
+    const transferring = controller.transferStorage()
+    controller.close()
+
+    expect(controller.storageState.value).toBe('saving')
+    expect(open.value).toBe(true)
+    expect(controller.workspaceId.value).toBe('agent')
+
+    pending.resolve({
+      workspaceId: 'agent', direction: 'from-default', cookieCount: 1,
+      localStorageOriginCount: 1, localStorageItemCount: 1, origins: []
+    })
+    await transferring
+    expect(controller.storageState.value).toBe('saved')
+    expect(open.value).toBe(true)
+    controller.dispose()
+  })
+
+  it('does not save or dismiss while an authoritative storage transfer is in flight', async () => {
+    const { open, browser, controller } = createController()
+    await controller.openExisting('agent')
+    const pending = deferred<Awaited<ReturnType<typeof browser.transferWorkspaceStorage>>>()
+    browser.transferWorkspaceStorage.mockReturnValueOnce(pending.promise)
+
+    const transferring = controller.transferStorage()
+    await controller.save()
+
+    expect(controller.saveDisabled.value).toBe(true)
+    expect(browser.updateTabGroup).not.toHaveBeenCalled()
+    expect(open.value).toBe(true)
+
+    pending.resolve({
+      workspaceId: 'agent', direction: 'from-default', cookieCount: 1,
+      localStorageOriginCount: 1, localStorageItemCount: 1, origins: []
+    })
+    await transferring
     controller.dispose()
   })
 

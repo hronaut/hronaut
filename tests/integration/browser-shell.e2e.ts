@@ -4644,6 +4644,63 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.some((workspace) => workspace.name === 'Renamed debugging'))`)).toBe(false)
 })
 
+test('keeps the workspace editor trustworthy while a save is pending', async ({ appWindow, electronApp }, testInfo) => {
+  const state = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Pending workspace save', storage: 'scratch' })`) as BrowserState
+  const workspaceId = state.mcpTabGroups.find((workspace) => workspace.name === 'Pending workspace save')?.id
+  if (!workspaceId) throw new Error('Pending workspace fixture was not created')
+
+  await electronApp.evaluate(({ Menu }) => {
+    ;(globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu = undefined
+    Menu.prototype.popup = function (): void {
+      ;(globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu = this
+    }
+  })
+  await appWindow.locator('.tab-group-label', { hasText: 'Pending workspace save' }).click({ button: 'right' })
+  await expect.poll(() => electronApp.evaluate(() => Boolean(
+    (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu })
+      .__hronautTabMenu?.getMenuItemById('edit-workspace')?.click
+  ))).toBe(true)
+  await electronApp.evaluate(() => {
+    const item = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu })
+      .__hronautTabMenu?.getMenuItemById('edit-workspace')
+    if (!item?.click) throw new Error('Edit Workspace context action was not found')
+    ;(item.click as unknown as () => void)()
+  })
+
+  const editor = appWindow.getByRole('dialog', { name: 'Edit workspace' })
+  await expect(editor).toBeVisible()
+  await editor.getByLabel('Workspace name').fill('Saved after pending state')
+
+  await electronApp.evaluate(({ ipcMain }, input) => {
+    const scope = globalThis as typeof globalThis & { __resolveWorkspaceUpdate?: () => void }
+    ipcMain.removeHandler('browser:update-tab-group')
+    ipcMain.handle('browser:update-tab-group', () => new Promise((resolve) => {
+      scope.__resolveWorkspaceUpdate = () => {
+        delete scope.__resolveWorkspaceUpdate
+        resolve(input.state)
+      }
+    }))
+  }, { state })
+
+  await editor.getByRole('button', { name: 'Save changes' }).click()
+  await expect(editor).toHaveAttribute('aria-busy', 'true')
+  await expect(editor.getByRole('status')).toHaveText('Saving workspace…')
+  await expect(editor.getByRole('button', { name: 'Close workspace editor' })).toBeDisabled()
+  await expect(editor.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+  await expect(editor.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+
+  await appWindow.keyboard.press('Escape')
+  await expect(editor).toBeVisible()
+  await appWindow.screenshot({ path: testInfo.outputPath('workspace-editor-save-pending.png') })
+
+  await electronApp.evaluate(() => {
+    const resolve = (globalThis as typeof globalThis & { __resolveWorkspaceUpdate?: () => void }).__resolveWorkspaceUpdate
+    if (!resolve) throw new Error('Pending workspace update was not captured')
+    resolve()
+  })
+  await expect(editor).toBeHidden()
+})
+
 test('keeps the latest workspace editor request when native events resolve out of order', async ({ appWindow, electronApp }) => {
   const olderState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Older editor request', storage: 'scratch' })`) as BrowserState
   const olderWorkspaceId = olderState.mcpTabGroups.find((workspace) => workspace.name === 'Older editor request')?.id

@@ -624,6 +624,10 @@
 .tab-group-editor { display: flex; width: min(620px, calc(100vw - 48px)); max-height: min(760px, calc(100vh - 48px)); overflow: hidden; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--surface-raised); box-shadow: 0 24px 72px rgba(0, 0, 0, .46); }
 .tab-group-editor > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border-soft); background: var(--surface); }
 .tab-group-editor h2 { margin: 3px 0 0; font-size: 19px; }
+.workspace-editor-header-actions { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.workspace-editor-pending { display: inline-flex; min-width: 0; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.workspace-editor-pending > svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.workspace-editor-header-actions .panel-close:disabled { opacity: .35; cursor: default; }
 .workspace-editor-body { overflow-y: auto; padding: 18px; }
 .workspace-editor-body > label { display: block; margin: 0 0 7px; font-size: 13px; font-weight: 750; }
 .workspace-editor-body > label:not(:first-child) { margin-top: 18px; }
@@ -632,6 +636,8 @@
 .tab-group-color-options { display: grid; grid-template-columns: repeat(9, 1fr); gap: 7px; }
 .tab-group-color-option { display: grid; width: 100%; aspect-ratio: 1; place-items: center; padding: 0; border: 2px solid transparent; border-radius: 999px; outline: 0; color: #fff; background: var(--tab-group-color); cursor: pointer; }
 .tab-group-color-option:hover { transform: scale(1.08); }
+.tab-group-color-option:disabled { opacity: .55; cursor: default; }
+.tab-group-color-option:disabled:hover { transform: none; }
 .tab-group-color-option.selected { border-color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tab-group-color) 34%, transparent); }
 .tab-group-color-option:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .tab-group-color-option > svg { width: 17px; height: 17px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .65)); }
@@ -649,6 +655,7 @@
 .workspace-origin-picker > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .workspace-origin-picker > div strong { font-size: 12px; }
 .workspace-origin-picker button { padding: 3px 7px; border: 0; color: var(--accent-text); background: transparent; font-size: 11px; font-weight: 750; cursor: pointer; }
+.workspace-origin-picker button:disabled { opacity: .45; cursor: default; }
 .workspace-origin-picker > label { display: flex; min-width: 0; align-items: center; gap: 7px; font-size: 12px; }
 .workspace-origin-picker > label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-origin-picker > p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -665,5 +672,6 @@
 .workspace-editor-error { display: block; margin-top: 12px; font-size: 12px; }
 .tab-group-editor > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-soft); background: var(--surface); }
 .tab-group-editor > footer button { min-width: 86px; padding: 9px 12px; border: 1px solid var(--border-soft); border-radius: 8px; color: var(--text); background: var(--surface); font-size: 13px; font-weight: 750; cursor: pointer; }
-.tab-group-editor > footer button.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
+.tab-group-editor > footer button.primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-color: var(--accent); color: #fff; background: var(--accent); }
+.tab-group-editor > footer button.primary > svg { width: 15px; height: 15px; flex: 0 0 auto; }
 .tab-group-editor > footer button:disabled { opacity: .4; cursor: default; }

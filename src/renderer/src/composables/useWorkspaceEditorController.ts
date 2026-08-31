@@ -49,8 +49,9 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const workspace = computed(() => options.state.value.mcpTabGroups.find((candidate) => candidate.id === workspaceId.value))
   const isDefault = computed(() => workspace.value?.isDefault === true)
   const actionPending = computed(() => actionState.value !== 'idle')
+  const dismissBlocked = computed(() => actionPending.value || storageState.value === 'saving')
   const saveDisabled = computed(() => (
-    actionPending.value
+    dismissBlocked.value
     || !name.value.trim()
     || (mode.value === 'create'
       && storageMode.value === 'fork-default'
@@ -68,13 +69,18 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     return generation === presentationGeneration
   }
 
-  function close(): void {
+  function finishAndClose(): void {
     beginPresentation()
     options.open.value = false
     workspaceId.value = null
     error.value = ''
     storageState.value = 'idle'
     storageMessage.value = ''
+  }
+
+  function close(): void {
+    if (dismissBlocked.value) return
+    finishAndClose()
   }
 
   async function loadOrigins(browserState = options.state.value): Promise<void> {
@@ -184,7 +190,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
         }))
       }
       if (!isPresentationCurrent(presentation)) return
-      close()
+      finishAndClose()
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
       error.value = cause instanceof Error ? cause.message : String(cause)
@@ -243,7 +249,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     try {
       await options.syncState(options.browser.closeWorkspace(current.id))
       if (!isPresentationCurrent(presentation)) return
-      close()
+      finishAndClose()
     } catch (cause) {
       if (!isPresentationCurrent(presentation)) return
       error.value = cause instanceof Error ? cause.message : String(cause)
@@ -273,6 +279,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     storageMessage,
     actionState,
     actionPending,
+    dismissBlocked,
     saveDisabled,
     workspace,
     isDefault,
