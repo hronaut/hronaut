@@ -3,22 +3,16 @@ function text(result) {
   return content?.type === 'text' ? content.text : ''
 }
 
-export async function useMcpWorkspace(client, name, ensureTab = true, reuseExisting = false) {
+export async function connectMcpWorkspace(client, name, ensureTab = true, resume) {
   const callTool = client.callTool.bind(client)
-  const created = await callTool({ name: 'browser_workspaces', arguments: { action: 'create', name } })
-  if (created.isError && !reuseExisting) throw new Error(text(created))
-  const workspace = created.isError
-    ? await (async () => {
-        const listed = await callTool({ name: 'browser_workspaces', arguments: { action: 'list' } })
-        if (listed.isError) throw new Error(text(listed))
-        const normalizedName = name.trim().toLocaleLowerCase()
-        const match = JSON.parse(text(listed)).find(
-          (candidate) => candidate.name.trim().toLocaleLowerCase() === normalizedName
-        )
-        if (!match) throw new Error(text(created))
-        return match
-      })()
-    : JSON.parse(text(created))
+  const result = await callTool({
+    name: 'browser_workspaces',
+    arguments: resume
+      ? { action: 'resume', workspaceId: resume.workspaceId, resumeKey: resume.resumeKey }
+      : { action: 'create', name }
+  })
+  if (result.isError) throw new Error(text(result))
+  const workspace = JSON.parse(text(result))
 
   const workspaceId = workspace.id
   client.callTool = (request, ...rest) => callTool(
@@ -34,5 +28,9 @@ export async function useMcpWorkspace(client, name, ensureTab = true, reuseExist
     const ready = await client.callTool({ name: 'browser_wait', arguments: { timeoutMs: 5_000 } })
     if (ready.isError) throw new Error(text(ready))
   }
-  return workspaceId
+  return { workspaceId, resumeKey: workspace.resumeKey }
+}
+
+export async function useMcpWorkspace(client, name, ensureTab = true) {
+  return (await connectMcpWorkspace(client, name, ensureTab)).workspaceId
 }

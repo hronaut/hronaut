@@ -59,6 +59,7 @@
     "test:integration:docker": "docker compose --file compose.test.ci.yaml run --build --rm integration",
     "test:package:smoke": "node scripts/packaged-mcp-smoke.ts",
     "smoke:mcp": "node scripts/mcp-smoke.ts",
+    "smoke:profile:prepare": "node scripts/profile-smoke.ts prepare",
     "smoke:profile:write": "node scripts/profile-smoke.ts write",
     "smoke:profile:read": "node scripts/profile-smoke.ts read",
     "smoke:profile:cleanup": "node scripts/profile-smoke.ts cleanup"

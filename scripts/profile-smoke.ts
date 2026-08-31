@@ -1,7 +1,10 @@
+import { readFile, unlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { useMcpWorkspace } from './mcp-workspace.js'
+import { connectMcpWorkspace, type McpWorkspaceConnection } from './mcp-workspace.js'
 
 type ProfilePhase = 'prepare' | 'write' | 'read' | 'cleanup'
 
@@ -18,12 +21,21 @@ const typedPhase: ProfilePhase = phase
 
 const endpoint = new URL(process.env.HRONAUT_MCP_URL || 'http://127.0.0.1:47812/mcp')
 const pageUrl = process.env.HRONAUT_PROFILE_SMOKE_URL || 'http://127.0.0.1:47813/'
+const resumePath = process.env.HRONAUT_PROFILE_SMOKE_RESUME_PATH
+  || join(tmpdir(), `hronaut-profile-smoke-${endpoint.port}.json`)
 const token = process.env.HRONAUT_MCP_TOKEN
 const client = new Client({ name: 'hronaut-profile-smoke', version: '1.0.0' })
 await client.connect(new StreamableHTTPClientTransport(endpoint, {
   ...(token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : {})
 }))
-const workspaceId = await useMcpWorkspace(client, 'Profile smoke', true, typedPhase !== 'prepare')
+const resume = typedPhase === 'prepare'
+  ? undefined
+  : JSON.parse(await readFile(resumePath, 'utf8')) as McpWorkspaceConnection
+const workspace = await connectMcpWorkspace(client, 'Profile smoke', true, resume)
+const workspaceId = workspace.workspaceId
+if (typedPhase === 'prepare') {
+  await writeFile(resumePath, `${JSON.stringify(workspace)}\n`, { encoding: 'utf8', mode: 0o600 })
+}
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -66,6 +78,7 @@ try {
         arguments: { action: 'close', workspaceId }
       }) as CallToolResult
       if (closed.isError) throw new Error(text(closed))
+      await unlink(resumePath)
       console.log('Persistent profile smoke data and its workspace were removed.')
     } else {
       console.log(`Persistent profile ${typedPhase} phase passed: localStorage and cookie are present.`)

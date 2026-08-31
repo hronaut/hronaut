@@ -215,11 +215,23 @@ describe('TabStateStore', () => {
     expect(restored?.savedTabGroups?.[0]?.tabs[0]?.title).toMatch(/^Orders y+$/)
   })
 
+  it('restores distinct workspace identities that intentionally share a human label', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.savedTabGroups![0]!.name = 'Checkout debugging'
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+    expect(restored?.mcpTabGroups?.[1]).toMatchObject({ id: ACTIVE_WORKSPACE_ID, name: 'Checkout debugging' })
+    expect(restored?.savedTabGroups?.[0]).toMatchObject({ id: SAVED_WORKSPACE_ID, name: 'Checkout debugging' })
+  })
+
   it.each([
     ['a non-UUIDv7 tab ID', (state: PersistedBrowserState) => { state.tabs[0]!.id = 'legacy-tab' }],
     ['a non-UUIDv7 workspace ID', (state: PersistedBrowserState) => { state.mcpTabGroups![1]!.id = 'legacy-workspace' }],
     ['a missing isolated storage ID', (state: PersistedBrowserState) => { delete state.mcpTabGroups![1]!.storageId }],
-    ['a duplicate workspace name', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.name = 'Checkout debugging' }],
+    ['a non-default workspace named Default', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.name = 'Default' }],
     ['a tab owned by an archived workspace', (state: PersistedBrowserState) => { state.tabs[1]!.mcpGroupId = SAVED_WORKSPACE_ID }],
     ['a malformed active tab URL', (state: PersistedBrowserState) => { state.tabs[1]!.url = 'https://[' }],
     ['a malformed archived tab URL', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.tabs[0]!.url = 'https://[' }],

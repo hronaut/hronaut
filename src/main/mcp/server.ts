@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -10,6 +10,7 @@ import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import type { BrowserTabsManager } from '../browser/tabs-manager.js'
+import { RetainedBrowserWorkspaceError } from '../browser/workspace-errors.js'
 import type {
   BrowserBookmark,
   BrowserEmulationOptions,
@@ -38,6 +39,17 @@ import {
 
 const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
 const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
+const workspaceResumeKeySchema = z.string().regex(
+  /^hrw1_[A-Za-z0-9_-]{43}$/,
+  'Workspace resume key is malformed.'
+)
+
+function matchesWorkspaceResumeKey(expected: string, supplied: string): boolean {
+  const expectedBytes = Buffer.from(expected, 'utf8')
+  const suppliedBytes = Buffer.from(supplied, 'utf8')
+  return expectedBytes.length === suppliedBytes.length
+    && timingSafeEqual(expectedBytes, suppliedBytes)
+}
 
 export interface BookmarkOperations {
   list: () => BrowserBookmark[]
@@ -287,18 +299,20 @@ export function assertMcpToolRegistrationContract(
 }
 
 const BROWSER_WORKSPACES_DESCRIPTION = [
-  'Required first step: call browser_workspaces with action=create and a fresh, uniquely named workspace before using any page tools.',
+  'Required first step: call browser_workspaces with action=create and a fresh task workspace before using any page tools.',
   'Creation choice 1 — from scratch: storage=scratch (the default) starts a clean isolated browser profile. Example: {"action":"create","name":"Task name","storage":"scratch"}.',
   'Creation choice 2 — fork Default: storage=fork-default creates an isolated workspace after a one-time copy of reusable cookies and localStorage from the human Default profile. Example: {"action":"create","name":"Task name","storage":"fork-default"}. This is a copy, not a live link.',
   'For fork-default, optionally pass task-relevant HTTP(S) origins you already know. Omit origins to copy all available cookies and known localStorage; MCP deliberately does not expose Default\'s origin inventory.',
   'Optional merge-back: after the task, call action=save-default with your created workspaceId only if its resulting site state should be merged back into Default. Example: {"action":"save-default","workspaceId":"<id returned by create>"}. Use list-origins first when you want to select origins. Saving is another one-time merge, never ongoing synchronization.',
-  'Agents never browse Default directly and must never pass the workspace marked isDefault to page tools. Pass the UUIDv7 id returned by your own create call—or the fresh id returned when reopening your own archive—as workspaceId for the whole task. Renaming changes only the human-readable unique name.',
-  'Listing is for awareness and name-collision avoidance only: never use, rename, recolor, archive, or close a workspace you did not create.'
+  'Agents never browse Default directly and must never pass the workspace marked isDefault to page tools. Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
+  'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
+  'Listing returns only workspaces authorized for this MCP connection. Other clients and the human Default workspace remain private.'
 ].join('\n')
 
 export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
-  'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a unique task name. Never browse in Default or reuse a workspace or tab created by another task.',
+  'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse in Default or reuse a workspace or tab created by another task.',
+  'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
   'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. Use coordinate-based visual tools only when the target has no usable semantic representation.',
   'Call browser_show when the person should watch or take over. Call browser_request_user_attention only when a person must complete a manual browser step.',
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
@@ -313,7 +327,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   {
     name: 'browser_saved_workspaces',
     category: 'Session',
-    description: 'Archive your own task workspace for later or reopen an archive into a fresh visible workspaceId. Listing is for awareness only: never open or delete a saved workspace you did not create.'
+    description: 'Archive your own task workspace for later or reopen an authorized archive with the same stable workspaceId. Listing returns only archives authorized for this MCP connection. After reconnecting, call resume with the archived ID and its private resumeKey before opening or deleting it.'
   },
   { name: 'browser_status', category: 'Session', description: 'Show the current workspace, endpoint, tabs, and active workspace tab.' },
   { name: 'browser_show', category: 'Session', description: 'Show and focus the visible Hronaut window.' },
@@ -604,51 +618,113 @@ function createBrowserMcpServer(
     else registered.disable()
     return registered
   }) as typeof baseRegisterTool
+  const activeWorkspaceIds = new Set<string>()
+  const savedWorkspaceIds = new Set<string>()
+  const workspaceAuthorizationError = (): Error => new Error(
+    'Workspace is not authorized for this MCP client. Create a fresh workspace or resume your own workspace with its private resume key.'
+  )
+  const withResumeKey = <T extends { id: string }>(workspace: T): T & { resumeKey: string } => ({
+    ...workspace,
+    resumeKey: manager.mcpWorkspaceResumeKey(workspace.id)
+  })
+  const authorizedActiveWorkspaces = (): ReturnType<BrowserTabsManager['listMcpTabGroups']> => (
+    manager.listMcpTabGroups().filter((workspace) => activeWorkspaceIds.has(workspace.id))
+  )
+  const authorizedSavedWorkspaces = (): ReturnType<BrowserTabsManager['listSavedTabGroups']> => (
+    manager.listSavedTabGroups().filter((workspace) => savedWorkspaceIds.has(workspace.id))
+  )
+  const authorizeResume = (workspaceId: string, resumeKey: string, saved: boolean): void => {
+    let expected: string
+    try {
+      expected = manager.mcpWorkspaceResumeKey(workspaceId)
+    } catch {
+      throw workspaceAuthorizationError()
+    }
+    if (!matchesWorkspaceResumeKey(expected, resumeKey)) throw workspaceAuthorizationError()
+    if (saved) {
+      if (!manager.listSavedTabGroups().some((workspace) => workspace.id === workspaceId)) {
+        throw workspaceAuthorizationError()
+      }
+      savedWorkspaceIds.add(workspaceId)
+      return
+    }
+    const workspace = manager.requireMcpTabGroup(workspaceId)
+    if (workspace.isDefault) throw workspaceAuthorizationError()
+    activeWorkspaceIds.add(workspaceId)
+  }
   const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
+    if (!activeWorkspaceIds.has(workspaceId)) throw workspaceAuthorizationError()
     const workspace = manager.requireMcpTabGroup(workspaceId)
     if (workspace.isDefault) {
-      throw new Error('The human Default workspace is not available through MCP. Create a fresh agent workspace with browser_workspaces first.')
+      throw workspaceAuthorizationError()
     }
     return workspace
+  }
+  const requireSavedWorkspace = (workspaceId: string): void => {
+    if (!savedWorkspaceIds.has(workspaceId)) throw workspaceAuthorizationError()
   }
   registerTool(
     'browser_workspaces',
     {
       description: toolDescription('browser_workspaces'),
       inputSchema: {
-        action: z.enum(['list', 'create', 'update', 'rename', 'close', 'list-origins', 'import-default', 'save-default']).default('list').describe('Start with create. For create, choose storage=scratch or storage=fork-default. import-default copies selected Default state into your existing workspace; save-default optionally merges selected workspace state back into Default. Both are one-time transfers, not synchronization. list-origins lists only your workspace and never reveals Default\'s origin inventory.'),
-        workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools and save-default. Never pass the human Default id or an id discovered through list. A rename changes only the human name, never this ID.'),
+        action: z.enum(['list', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'import-default', 'save-default']).default('list').describe('Start with create. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations. For create, choose storage=scratch or storage=fork-default. import-default copies selected Default state into your existing workspace; save-default optionally merges selected workspace state back into Default. Both are one-time transfers, not synchronization. list-origins lists only your workspace and never reveals Default\'s origin inventory.'),
+        workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools and save-default. A rename changes only the human name, never this ID.'),
+        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
         storage: z.enum(['scratch', 'fork-default']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile; fork-default starts an isolated profile with a one-time copy of reusable cookies and localStorage from Default. Neither choice lets the agent browse Default directly.'),
         origins: z.array(z.string().url()).max(100).optional().describe('Optional task-relevant HTTP(S) origins whose cookies and localStorage are copied during fork-default create, import-default, or save-default. For fork-default/import-default, supply origins you already know or omit this field to copy all available cookies and known localStorage; Default\'s origin list is private. For save-default, use list-origins to review your workspace first.')
       }
     },
-    tool(async ({ action, workspaceId, name, color, storage, origins }: {
-      action: 'list' | 'create' | 'update' | 'rename' | 'close' | 'list-origins' | 'import-default' | 'save-default'
+    tool(async ({ action, workspaceId, resumeKey, name, color, storage, origins }: {
+      action: 'list' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins' | 'import-default' | 'save-default'
       workspaceId?: string
+      resumeKey?: string
       name?: string
       color?: BrowserTabGroupColor
       storage?: 'scratch' | 'fork-default'
       origins?: string[]
     }) => {
-      if (action === 'list') return textResult(manager.listMcpTabGroups())
+      if (action === 'list') return textResult(authorizedActiveWorkspaces())
       if (action === 'create') {
         if (!name) throw new TypeError('name is required to create a workspace')
         if (origins !== undefined && storage !== 'fork-default') {
           throw new TypeError('origins can be selected only when storage is fork-default')
         }
-        return textResult(await manager.createMcpTabGroup(name, color, storage, origins))
+        try {
+          const created = await manager.createMcpTabGroup(name, color, storage, origins, true)
+          activeWorkspaceIds.add(created.id)
+          return textResult(withResumeKey(created))
+        } catch (error) {
+          if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
+          const retained = manager.requireMcpTabGroup(error.workspaceId)
+          activeWorkspaceIds.add(retained.id)
+          return {
+            ...textResult({
+              error: error.message,
+              workspaceId: retained.id,
+              resumeKey: manager.mcpWorkspaceResumeKey(retained.id),
+              retained: true
+            }),
+            isError: true
+          }
+        }
       }
       if (!workspaceId) throw new TypeError(`workspaceId is required to ${action} a workspace`)
+      if (action === 'resume') {
+        if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
+        authorizeResume(workspaceId, resumeKey, false)
+        return textResult(withResumeKey(manager.requireMcpTabGroup(workspaceId)))
+      }
       requireAgentWorkspace(workspaceId)
       if (action === 'rename') {
         if (!name) throw new TypeError('name is required to rename a workspace')
-        return textResult(manager.renameMcpTabGroup(workspaceId, name))
+        return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
       }
       if (action === 'update') {
         if (!name && !color) throw new TypeError('name or color is required to update a workspace')
-        return textResult(manager.updateMcpTabGroup(workspaceId, { name, color }))
+        return textResult(manager.updateMcpTabGroup(workspaceId, { name, color }, true))
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       if (action === 'import-default' || action === 'save-default') {
@@ -658,7 +734,9 @@ function createBrowserMcpServer(
           ...(origins !== undefined ? { origins } : {})
         }))
       }
-      return textResult(await manager.closeMcpTabGroup(workspaceId))
+      await manager.closeMcpTabGroup(workspaceId)
+      activeWorkspaceIds.delete(workspaceId)
+      return textResult(authorizedActiveWorkspaces())
     })
   )
 
@@ -667,25 +745,51 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_saved_workspaces'),
       inputSchema: {
-        action: z.enum(['list', 'save', 'open', 'delete']).default('list'),
+        action: z.enum(['list', 'save', 'resume', 'open', 'delete']).default('list'),
         workspaceId: workspaceIdSchema.optional().describe('Your active UUIDv7 workspaceId. Required only for save.'),
-        savedWorkspaceId: workspaceIdSchema.optional().describe('Archived UUIDv7 workspace ID returned by your own save call. Required for open or delete.')
+        savedWorkspaceId: workspaceIdSchema.optional().describe('Archived UUIDv7 workspace ID returned by your own save call. Required for resume, open, or delete.'),
+        resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned by create or save. Required only for resume after reconnecting.')
       }
     },
-    tool(async ({ action, workspaceId, savedWorkspaceId }: {
-      action: 'list' | 'save' | 'open' | 'delete'
+    tool(async ({ action, workspaceId, savedWorkspaceId, resumeKey }: {
+      action: 'list' | 'save' | 'resume' | 'open' | 'delete'
       workspaceId?: string
       savedWorkspaceId?: string
+      resumeKey?: string
     }) => {
-      if (action === 'list') return textResult(manager.listSavedTabGroups())
+      if (action === 'list') return textResult(authorizedSavedWorkspaces())
       if (action === 'save') {
         if (!workspaceId) throw new TypeError('workspaceId is required to save a workspace')
         requireAgentWorkspace(workspaceId)
-        return textResult(await manager.saveAndCloseTabGroup(workspaceId))
+        const saved = await manager.saveAndCloseTabGroup(workspaceId)
+        activeWorkspaceIds.delete(workspaceId)
+        savedWorkspaceIds.add(saved.id)
+        return textResult(withResumeKey(saved))
       }
       if (!savedWorkspaceId) throw new TypeError(`savedWorkspaceId is required to ${action} a saved workspace`)
-      if (action === 'open') return textResult(await manager.restoreSavedTabGroup(savedWorkspaceId))
-      return textResult(await manager.deleteSavedTabGroup(savedWorkspaceId))
+      if (action === 'resume') {
+        if (!resumeKey) throw new TypeError('resumeKey is required to resume an archived workspace')
+        authorizeResume(savedWorkspaceId, resumeKey, true)
+        return textResult(withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!))
+      }
+      requireSavedWorkspace(savedWorkspaceId)
+      if (action === 'open') {
+        try {
+          const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
+          savedWorkspaceIds.delete(savedWorkspaceId)
+          activeWorkspaceIds.add(opened.id)
+          return textResult(withResumeKey(opened))
+        } catch (error) {
+          if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
+            savedWorkspaceIds.delete(savedWorkspaceId)
+            activeWorkspaceIds.add(savedWorkspaceId)
+          }
+          throw error
+        }
+      }
+      await manager.deleteSavedTabGroup(savedWorkspaceId)
+      savedWorkspaceIds.delete(savedWorkspaceId)
+      return textResult(authorizedSavedWorkspaces())
     })
   )
 
@@ -713,7 +817,7 @@ function createBrowserMcpServer(
       {
         ...config,
         inputSchema: {
-          workspaceId: workspaceIdSchema.describe('Stable UUIDv7 id returned by your own browser_workspaces create call or by reopening your own archive. Never use a listed workspace you did not create or the human Default workspace.'),
+          workspaceId: workspaceIdSchema.describe('Stable UUIDv7 id returned by your own browser_workspaces create call or by reopening your own archive. After reconnecting, resume that workspace with its private resume key before using page tools.'),
           ...(config.inputSchema ?? {})
         }
       },

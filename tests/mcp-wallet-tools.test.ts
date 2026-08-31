@@ -6,10 +6,37 @@ import { McpHttpServer, type WalletAgentOperations } from '../src/main/mcp/serve
 
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-678a-7abc-8def-0123456789ab'
+const workspaceResumeKey = `hrw1_${'A'.repeat(43)}`
 
 function text(result: CallToolResult): string {
   const item = result.content.find((entry) => entry.type === 'text')
   return item?.type === 'text' ? item.text : ''
+}
+
+function walletWorkspaceManager(): Record<string, unknown> {
+  return {
+    requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
+    requireTabInMcpGroup: vi.fn(() => tabId),
+    wakeTab: vi.fn(async () => undefined),
+    listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
+    listSavedTabGroups: vi.fn(() => []),
+    mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
+    getMcpGroupState: vi.fn(() => ({
+      activeTabId: tabId,
+      tabs: [{ id: tabId }],
+      closedTabs: [],
+      mcpTabGroups: [{ id: workspaceId, isDefault: false }],
+      savedTabGroups: []
+    }))
+  }
+}
+
+async function authorizeWorkspace(client: Client): Promise<void> {
+  const resumed = await client.callTool({
+    name: 'browser_workspaces',
+    arguments: { action: 'resume', workspaceId, resumeKey: workspaceResumeKey }
+  }) as CallToolResult
+  expect(resumed.isError, text(resumed)).not.toBe(true)
 }
 
 describe('MCP wallet tools', () => {
@@ -25,18 +52,7 @@ describe('MCP wallet tools', () => {
   })
 
   it('passes a stable client/workspace/tab target and never exposes an approval tool', async () => {
-    const manager = {
-      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
-      requireTabInMcpGroup: vi.fn(() => tabId),
-      wakeTab: vi.fn(async () => undefined),
-      getMcpGroupState: vi.fn(() => ({
-        activeTabId: tabId,
-        tabs: [{ id: tabId }],
-        closedTabs: [],
-        mcpTabGroups: [{ id: workspaceId, isDefault: false }],
-        savedTabGroups: []
-      }))
-    }
+    const manager = walletWorkspaceManager()
     const list = vi.fn<WalletAgentOperations['list']>(async () => [])
     const requestStatus = vi.fn<WalletAgentOperations['requestStatus']>(async (target, requestId) => ({ target, requestId }))
     const wallets: WalletAgentOperations = {
@@ -58,6 +74,7 @@ describe('MCP wallet tools', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'wallet-agent-test', version: '2.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
 
     const catalog = await client.listTools()
     expect(catalog.tools.map(({ name }) => name)).toEqual(expect.arrayContaining([
@@ -93,15 +110,7 @@ describe('MCP wallet tools', () => {
   })
 
   it('rejects secret-bearing transaction fields before invoking wallet operations', async () => {
-    const manager = {
-      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
-      requireTabInMcpGroup: vi.fn(() => tabId),
-      wakeTab: vi.fn(async () => undefined),
-      getMcpGroupState: vi.fn(() => ({
-        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
-        mcpTabGroups: [], savedTabGroups: []
-      }))
-    }
+    const manager = walletWorkspaceManager()
     const prepareTransaction = vi.fn(async () => ({}))
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
@@ -118,6 +127,7 @@ describe('MCP wallet tools', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'wallet-secret-rejection', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
 
     const listed = await client.callTool({ name: 'wallet_list', arguments: { workspaceId, tabId } }) as CallToolResult
     const { walletSessionId } = JSON.parse(text(listed)) as { walletSessionId: string }
@@ -137,15 +147,7 @@ describe('MCP wallet tools', () => {
     const balance = vi.fn<WalletAgentOperations['balance']>(async () => ({ status: 'ready' }))
     const list = vi.fn<WalletAgentOperations['list']>(async () => [])
     const cancelRequester = vi.fn<NonNullable<WalletAgentOperations['cancelRequester']>>(async () => undefined)
-    const manager = {
-      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
-      requireTabInMcpGroup: vi.fn(() => tabId),
-      wakeTab: vi.fn(async () => undefined),
-      getMcpGroupState: vi.fn(() => ({
-        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
-        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
-      }))
-    }
+    const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
       showWindow: () => undefined,
@@ -168,6 +170,8 @@ describe('MCP wallet tools', () => {
     await otherClient.connect(new StreamableHTTPClientTransport(new URL(endpoint), {
       requestInit: { headers: { 'user-agent': 'shared-wallet-client-agent' } }
     }))
+    await authorizeWorkspace(client)
+    await authorizeWorkspace(otherClient)
     const listed = await client.callTool({
       name: 'wallet_list', arguments: { workspaceId, tabId }
     }) as CallToolResult
@@ -206,15 +210,7 @@ describe('MCP wallet tools', () => {
     const cancellation = new Promise<void>((resolve) => { finishCancellation = resolve })
     const cancelRequester = vi.fn<NonNullable<WalletAgentOperations['cancelRequester']>>(() => cancellation)
     const list = vi.fn<WalletAgentOperations['list']>(async () => [])
-    const manager = {
-      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
-      requireTabInMcpGroup: vi.fn(() => tabId),
-      wakeTab: vi.fn(async () => undefined),
-      getMcpGroupState: vi.fn(() => ({
-        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
-        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
-      }))
-    }
+    const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
       showWindow: () => undefined,
@@ -230,6 +226,7 @@ describe('MCP wallet tools', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'wallet-shutdown-test', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
     await client.callTool({ name: 'wallet_list', arguments: { workspaceId, tabId } })
     const requesterId = list.mock.calls[0]![0].client.id
     await client.close()
@@ -248,15 +245,7 @@ describe('MCP wallet tools', () => {
   it('contains wallet-session cancellation failures during server shutdown', async () => {
     const cancellationError = new Error('durable cancellation failed')
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const manager = {
-      requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
-      requireTabInMcpGroup: vi.fn(() => tabId),
-      wakeTab: vi.fn(async () => undefined),
-      getMcpGroupState: vi.fn(() => ({
-        activeTabId: tabId, tabs: [{ id: tabId }], closedTabs: [],
-        mcpTabGroups: [{ id: workspaceId, isDefault: false }], savedTabGroups: []
-      }))
-    }
+    const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
       showWindow: () => undefined,
@@ -273,6 +262,7 @@ describe('MCP wallet tools', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'wallet-cancellation-failure-test', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
     await client.callTool({ name: 'wallet_list', arguments: { workspaceId, tabId } })
     await client.close()
     client = undefined

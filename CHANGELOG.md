@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Scope active and archived MCP workspaces to the creating connection, hide other clients' identifiers and label collisions, preserve workspace identity through archive recovery, return a private cleanup capability for retained failed forks, and require that capability before a reconnect can recover persistent browsing state.
 - Require human approval for Solana and TRON public-testnet signing until their RPC endpoints can be independently attested, preventing a retained testnet label paired with a mainnet RPC from authorizing automatic transactions.
 - Validate custom EVM chain IDs inline and in every trusted wallet-creation path, preventing malformed or unsafe IDs from being persisted and failing later during RPC operations.
 - Keep configured wallet RPC endpoints, embedded transport credentials, raw adapter failures, and simulation logs out of MCP responses and durable approval state.

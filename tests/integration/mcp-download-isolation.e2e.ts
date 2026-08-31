@@ -121,7 +121,7 @@ test('keeps MCP download history isolated across workspace archive and restore',
       action: 'open',
       savedWorkspaceId: saved.id
     }))) as { id: string }
-    expect(opened.id).not.toBe(firstWorkspaceId)
+    expect(opened.id).toBe(firstWorkspaceId)
 
     const restoredDownloads = JSON.parse(text(await call(client, 'browser_downloads', {
       workspaceId: opened.id
@@ -222,7 +222,7 @@ test('keeps MCP download history isolated across workspace archive and restore',
     }))) as Array<{ id: string; name: string }>
     const recoveredWorkspace = activeWorkspaces.find((workspace) => workspace.name === 'Second download workspace')
     if (!recoveredWorkspace) throw new Error('Recoverable download workspace remained unavailable')
-    expect(recoveredWorkspace.id).not.toBe(secondWorkspaceId)
+    expect(recoveredWorkspace.id).toBe(secondWorkspaceId)
     const recoveredDownloads = JSON.parse(text(await call(client, 'browser_downloads', {
       workspaceId: recoveredWorkspace.id
     }))) as BrowserDownloadState[]

@@ -11,10 +11,19 @@ import {
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-678a-7abc-8def-0123456789ab'
 const otherWorkspaceId = '01912345-678b-7abc-8def-0123456789ab'
+const workspaceResumeKey = `hrw1_${'A'.repeat(43)}`
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
   return content?.type === 'text' ? content.text : ''
+}
+
+async function authorizeWorkspace(client: Client): Promise<void> {
+  const resumed = await client.callTool({
+    name: 'browser_workspaces',
+    arguments: { action: 'resume', workspaceId, resumeKey: workspaceResumeKey }
+  }) as CallToolResult
+  expect(resumed.isError, text(resumed)).not.toBe(true)
 }
 
 describe('MCP user-attention presentation failures', () => {
@@ -37,6 +46,9 @@ describe('MCP user-attention presentation failures', () => {
       requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
       requireTabInMcpGroup: vi.fn(() => tabId),
       wakeTab: vi.fn(async () => undefined),
+      listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
+      listSavedTabGroups: vi.fn(() => []),
+      mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
       selectTabAndWait: vi.fn(async () => {
         throw new Error('simulated async show rejection')
       }),
@@ -57,6 +69,7 @@ describe('MCP user-attention presentation failures', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'hronaut-attention-await-test', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
 
     const attention = await client.callTool({
       name: 'browser_request_user_attention',
@@ -94,6 +107,9 @@ describe('MCP user-attention presentation failures', () => {
         throw new Error('No tab exists in this workspace')
       }),
       wakeTab: vi.fn(async () => undefined),
+      listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
+      listSavedTabGroups: vi.fn(() => []),
+      mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
       selectTabAndWait: vi.fn(async () => undefined),
       getState: vi.fn(() => ({ activeTabId: null, tabs: [] })),
       getMcpGroupState: vi.fn(() => ({
@@ -119,6 +135,7 @@ describe('MCP user-attention presentation failures', () => {
     const endpoint = await server.start()
     client = new Client({ name: 'hronaut-empty-workspace-attention-test', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
 
     const show = await client.callTool({
       name: 'browser_show',
@@ -153,6 +170,7 @@ describe('MCP user-attention presentation failures', () => {
       name: 'browser_status',
       arguments: { workspaceId: otherWorkspaceId }
     }) as CallToolResult
-    expect(JSON.parse(text(otherStatus)).userAttention).toBeNull()
+    expect(otherStatus.isError).toBe(true)
+    expect(text(otherStatus)).toContain('not authorized for this MCP client')
   })
 })

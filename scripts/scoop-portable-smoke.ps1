@@ -176,6 +176,7 @@ try {
   Start-Hronaut -Executable $installedExecutable -Port $mcpPort
   $env:HRONAUT_MCP_URL = "http://127.0.0.1:$mcpPort/mcp"
   $env:HRONAUT_PROFILE_SMOKE_URL = "http://127.0.0.1:$fixturePort/"
+  $env:HRONAUT_PROFILE_SMOKE_RESUME_PATH = Join-Path $temporaryRoot "profile-smoke-workspace.json"
   Remove-Item Env:HRONAUT_MCP_TOKEN -ErrorAction SilentlyContinue
   Invoke-CheckedCommand -Command "node" -Arguments @("scripts/profile-smoke.ts", "prepare")
   Stop-Hronaut -Executable $installedExecutable -Port $mcpPort

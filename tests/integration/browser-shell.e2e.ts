@@ -4674,7 +4674,7 @@ test('does not open a delayed native workspace editor over newer Settings', asyn
   }
 })
 
-test('archives a workspace from its context menu and restores it with a fresh workspace id', async ({ appWindow, electronApp }) => {
+test('archives a workspace from its context menu and restores it with the same stable workspace id', async ({ appWindow, electronApp }) => {
   await electronApp.evaluate(({ Menu }) => {
     ;(globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu = undefined
     Menu.prototype.popup = function (): void {
@@ -4711,7 +4711,7 @@ test('archives a workspace from its context menu and restores it with a fresh wo
   await expect(appWindow.getByRole('tab', { name: /^Saved research/ })).toBeVisible()
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({ saved: state.savedTabGroups.length, restored: state.mcpTabGroups.find((group) => group.name === 'Saved investigation')?.id }))`)).toEqual({
     saved: 0,
-    restored: expect.not.stringMatching(originalGroupId)
+    restored: originalGroupId
   })
 })
 

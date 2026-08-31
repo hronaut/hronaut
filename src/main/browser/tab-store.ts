@@ -154,7 +154,6 @@ export class TabStateStore {
 
       const usedWorkspaceIds = new Set<string>()
       const activeWorkspaceIds = new Set<string>()
-      const usedWorkspaceNames = new Set<string>()
       const usedStorageIds = new Set<string>()
       let repairedPersistedState = false
       const mcpTabGroups: PersistedTabGroup[] = []
@@ -169,19 +168,17 @@ export class TabStateStore {
           || candidate.name !== candidate.name.trim().normalize('NFC')
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
-          || usedWorkspaceNames.has(workspaceNameKey(candidate.name))
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.createdAt !== 'string'
           || typeof candidate.lastUsedAt !== 'string'
           || (candidate.activeTabId !== null && candidate.activeTabId !== undefined && typeof candidate.activeTabId !== 'string')
           || (candidate.id === data.defaultHumanGroupId
             ? candidate.name !== 'Default' || storageId !== undefined
-            : storageId === undefined)
+            : storageId === undefined || workspaceNameKey(candidate.name) === workspaceNameKey('Default'))
           || (storageId !== undefined && usedStorageIds.has(storageId))
         ) return null
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
-        usedWorkspaceNames.add(workspaceNameKey(candidate.name))
         if (storageId) usedStorageIds.add(storageId)
         mcpTabGroups.push({
           id: candidate.id,
@@ -208,7 +205,7 @@ export class TabStateStore {
           || candidate.name !== candidate.name.trim().normalize('NFC')
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
-          || usedWorkspaceNames.has(workspaceNameKey(candidate.name))
+          || workspaceNameKey(candidate.name) === workspaceNameKey('Default')
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.savedAt !== 'string'
           || !storageId
@@ -222,7 +219,6 @@ export class TabStateStore {
           ))
         ) return null
         usedWorkspaceIds.add(candidate.id)
-        usedWorkspaceNames.add(workspaceNameKey(candidate.name))
         usedStorageIds.add(storageId)
         savedTabGroups.push({
           id: candidate.id,

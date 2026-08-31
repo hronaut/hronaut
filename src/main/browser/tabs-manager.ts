@@ -58,6 +58,7 @@ import {
   type CoverageRange
 } from '../../shared/code-coverage.js'
 import { summarizeCpuProfile, type CdpCpuProfile } from '../../shared/cpu-profile.js'
+import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 import { summarizeAllocationProfile, type CdpSamplingHeapProfile } from '../../shared/allocation-profile.js'
 import {
   buildPerformanceComparison,
@@ -1063,10 +1064,11 @@ export class BrowserTabsManager {
     name: string,
     color?: BrowserTabGroupColor,
     storage: 'scratch' | 'fork-default' = 'scratch',
-    origins?: string[]
+    origins?: string[],
+    allowDuplicateName = false
   ): Promise<BrowserTabGroupState> {
     const normalizedName = normalizedWorkspaceName(name)
-    this.assertWorkspaceNameAvailable(normalizedName)
+    this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
     this.assertActiveWorkspaceCapacity()
     const now = new Date().toISOString()
     const id = uuidV7()
@@ -1108,8 +1110,9 @@ export class BrowserTabsManager {
           } catch (cleanupError) {
             group.origins = selectedOrigins
             this.changed()
-            throw new AggregateError(
+            throw new RetainedBrowserWorkspaceError(
               [error, cleanupError],
+              group.id,
               `Workspace ${group.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
             )
           }
@@ -1126,11 +1129,15 @@ export class BrowserTabsManager {
     return this.requireMcpTabGroup(group.id)
   }
 
-  renameMcpTabGroup(groupId: string, name: string): BrowserTabGroupState {
-    return this.updateMcpTabGroup(groupId, { name })
+  renameMcpTabGroup(groupId: string, name: string, allowDuplicateName = false): BrowserTabGroupState {
+    return this.updateMcpTabGroup(groupId, { name }, allowDuplicateName)
   }
 
-  updateMcpTabGroup(groupId: string, updates: { name?: string; color?: BrowserTabGroupColor }): BrowserTabGroupState {
+  updateMcpTabGroup(
+    groupId: string,
+    updates: { name?: string; color?: BrowserTabGroupColor },
+    allowDuplicateName = false
+  ): BrowserTabGroupState {
     if (updates.name === undefined && updates.color === undefined) throw new TypeError('A workspace name or color is required.')
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
@@ -1140,7 +1147,9 @@ export class BrowserTabsManager {
       if (group.id === this.defaultHumanGroupId && name !== group.name) {
         throw new Error('The Default workspace cannot be renamed.')
       }
-      this.assertWorkspaceNameAvailable(name, group.id)
+      if (name !== group.name) {
+        this.assertWorkspaceNameAvailable(name, group.id, undefined, allowDuplicateName)
+      }
       group.name = name
     }
     if (updates.color !== undefined) group.color = updates.color
@@ -1164,6 +1173,16 @@ export class BrowserTabsManager {
       storageKind: group.id === this.defaultHumanGroupId ? 'default' : 'isolated',
       storageOriginCount: group.origins.length
     }
+  }
+
+  mcpWorkspaceResumeKey(workspaceId: string): string {
+    const storageId = this.mcpTabGroups.get(workspaceId)?.storageId
+      ?? this.savedTabGroups.get(workspaceId)?.storageId
+    if (!storageId) throw new Error('Workspace resume access is unavailable.')
+    return `hrw1_${createHash('sha256')
+      .update('Hronaut MCP workspace resume key v1\0', 'utf8')
+      .update(storageId, 'utf8')
+      .digest('base64url')}`
   }
 
   async createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
@@ -1399,7 +1418,7 @@ export class BrowserTabsManager {
       if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) throw new Error(`Hronaut can keep up to ${MAX_SAVED_TAB_GROUPS} archived workspaces.`)
       const internalGroup = this.mcpTabGroups.get(groupId)!
       const saved: BrowserSavedTabGroupInternal = {
-        id: uuidV7(),
+        id: group.id,
         name: group.name,
         color: group.color,
         savedAt: new Date().toISOString(),
@@ -1432,14 +1451,14 @@ export class BrowserTabsManager {
   private async restoreSavedTabGroupInternal(savedGroupId: string): Promise<BrowserTabGroupState> {
     const saved = this.savedTabGroups.get(savedGroupId)
     if (!saved) throw new Error(`Unknown archived workspace: ${savedGroupId}.`)
-    this.assertWorkspaceNameAvailable(saved.name, undefined, savedGroupId)
+    this.assertWorkspaceNameAvailable(saved.name, undefined, savedGroupId, true)
     this.assertActiveWorkspaceCapacity()
     if (this.tabs.size + saved.tabs.length > MAX_TABS) {
       throw new Error(`Restoring "${saved.name}" would exceed the ${MAX_TABS}-tab limit.`)
     }
     const now = new Date().toISOString()
     const restoredGroup: BrowserTabGroup = {
-      id: uuidV7(),
+      id: saved.id,
       name: saved.name,
       color: saved.color,
       createdAt: now,
@@ -6089,9 +6108,14 @@ export class BrowserTabsManager {
   private assertWorkspaceNameAvailable(
     name: string,
     excludeActiveWorkspaceId?: string,
-    excludeSavedWorkspaceId?: string
+    excludeSavedWorkspaceId?: string,
+    allowDuplicateName = false
   ): void {
     const key = workspaceNameKey(name)
+    if (key === workspaceNameKey('Default')) {
+      throw new Error('The Default workspace name is reserved.')
+    }
+    if (allowDuplicateName) return
     const activeCollision = [...this.mcpTabGroups.values()].find((workspace) => (
       workspace.id !== excludeActiveWorkspaceId && workspaceNameKey(workspace.name) === key
     ))

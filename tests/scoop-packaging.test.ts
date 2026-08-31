@@ -41,10 +41,11 @@ describe('Scoop package QA', () => {
   })
 
   it('runs the Windows smoke without consuming a public release download', async () => {
-    const [workflow, smoke, profile] = await Promise.all([
+    const [workflow, smoke, profile, packageManifest] = await Promise.all([
       read('.github/workflows/scoop-smoke.yml'),
       read('scripts/scoop-portable-smoke.ps1'),
-      read('scripts/profile-smoke.ts')
+      read('scripts/profile-smoke.ts'),
+      read('package.json')
     ])
 
     expect(workflow).toContain('runs-on: windows-latest')
@@ -66,7 +67,9 @@ describe('Scoop package QA', () => {
     expect(smoke).toContain('uninstall\", \"hronaut\"')
     expect(profile).toContain('...(token ? { requestInit:')
     expect(profile).toContain("type ProfilePhase = 'prepare' | 'write' | 'read' | 'cleanup'")
-    expect(profile).toContain("typedPhase !== 'prepare'")
+    expect(profile).toContain("typedPhase === 'prepare'")
+    expect(profile).toContain("join(tmpdir(), `hronaut-profile-smoke-${endpoint.port}.json`)")
+    expect(JSON.parse(packageManifest).scripts['smoke:profile:prepare']).toBe('node scripts/profile-smoke.ts prepare')
   })
 
   it('publishes the verified Scoop hash and dispatches its post-release gates', async () => {

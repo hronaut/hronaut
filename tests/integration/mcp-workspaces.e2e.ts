@@ -8,6 +8,7 @@ import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const WORKSPACE_RESUME_KEY_PATTERN = /^hrw1_[A-Za-z0-9_-]{43}$/
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -31,13 +32,19 @@ async function connectClient(name: string, port: number, token: string): Promise
   return client
 }
 
-async function createWorkspace(client: Client, name: string, color?: string): Promise<string> {
+async function createWorkspaceAccess(client: Client, name: string, color?: string): Promise<{ id: string; resumeKey: string }> {
   const result = await client.callTool({
     name: 'browser_workspaces',
     arguments: { action: 'create', name, ...(color ? { color } : {}) }
   }) as CallToolResult
   expect(result.isError, text(result)).not.toBe(true)
-  return (JSON.parse(text(result)) as { id: string }).id
+  const workspace = JSON.parse(text(result)) as { id: string; resumeKey: string }
+  expect(workspace.resumeKey).toMatch(WORKSPACE_RESUME_KEY_PATTERN)
+  return workspace
+}
+
+async function createWorkspace(client: Client, name: string, color?: string): Promise<string> {
+  return (await createWorkspaceAccess(client, name, color)).id
 }
 
 test('uses UUIDv7 for tabs and puts the last-tab replacement in Default', async ({ appWindow }) => {
@@ -589,15 +596,19 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(groupsTool?.description).toContain('never ongoing synchronization')
     expect(groupsTool?.description).toContain("MCP deliberately does not expose Default's origin inventory")
     expect(groupsTool?.description).toContain('Use list-origins first when you want to select origins')
-    expect(groupsTool?.description).toContain('Pass the UUIDv7 id returned by your own create call—or the fresh id returned when reopening your own archive—as workspaceId')
-    expect(groupsTool?.description).toContain('must never pass the workspace marked isDefault to page tools')
+    expect(groupsTool?.description).toContain('Pass the stable UUIDv7 id returned by your own create call as workspaceId')
+    expect(groupsTool?.description).toContain('Create also returns a private resumeKey')
+    expect(groupsTool?.description).toContain('Listing returns only workspaces authorized for this MCP connection')
     expect(groupsTool?.inputSchema).toMatchObject({
       properties: {
         action: {
           description: expect.stringContaining('For create, choose storage=scratch or storage=fork-default')
         },
         workspaceId: {
-          description: expect.stringContaining('Never pass the human Default id')
+          description: expect.stringContaining('Stable UUIDv7 id returned by your own create call')
+        },
+        resumeKey: {
+          description: expect.stringContaining('Private resume key returned')
         },
         storage: {
           enum: ['scratch', 'fork-default'],
@@ -610,29 +621,27 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
       }
     })
     const initialWorkspaces = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
-    expect(JSON.parse(text(initialWorkspaces))).toEqual([
-      expect.objectContaining({ name: 'Default', isDefault: true, storageKind: 'default', tabCount: 0 })
-    ])
-    const defaultWorkspaceId = (JSON.parse(text(initialWorkspaces)) as Array<{ id: string }>)[0]!.id
+    expect(JSON.parse(text(initialWorkspaces))).toEqual([])
+    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id)`) as string
     expect(defaultWorkspaceId).toMatch(UUID_V7_PATTERN)
     const defaultStatus = await first.callTool({
       name: 'browser_status',
       arguments: { workspaceId: defaultWorkspaceId }
     }) as CallToolResult
     expect(defaultStatus.isError).toBe(true)
-    expect(text(defaultStatus)).toContain('Default workspace is not available through MCP')
+    expect(text(defaultStatus)).toContain('not authorized for this MCP client')
     const defaultOrigins = await first.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'list-origins', workspaceId: defaultWorkspaceId }
     }) as CallToolResult
     expect(defaultOrigins.isError).toBe(true)
-    expect(text(defaultOrigins)).toContain('Default workspace is not available through MCP')
+    expect(text(defaultOrigins)).toContain('not authorized for this MCP client')
     const defaultRename = await first.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'rename', workspaceId: defaultWorkspaceId, name: 'Agent profile' }
     }) as CallToolResult
     expect(defaultRename.isError).toBe(true)
-    expect(text(defaultRename)).toContain('Default workspace is not available through MCP')
+    expect(text(defaultRename)).toContain('not authorized for this MCP client')
 
     const unscoped = await first.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
     expect(unscoped.isError).toBe(true)
@@ -643,10 +652,10 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(firstGroupId).toMatch(UUID_V7_PATTERN)
     expect(secondGroupId).toMatch(UUID_V7_PATTERN)
     const listed = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
-    expect(JSON.parse(text(listed))).toEqual(expect.arrayContaining([
-      expect.objectContaining({ id: firstGroupId, name: 'Checkout agent', color: 'blue', tabCount: 0 }),
-      expect.objectContaining({ id: secondGroupId, name: 'Documentation agent', color: 'cyan', tabCount: 0 })
-    ]))
+    expect(JSON.parse(text(listed))).toEqual([
+      expect.objectContaining({ id: firstGroupId, name: 'Checkout agent', color: 'blue', tabCount: 0 })
+    ])
+    expect(text(listed)).not.toContain(secondGroupId)
 
     const renamed = await first.callTool({
       name: 'browser_workspaces',
@@ -664,8 +673,11 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
       name: 'browser_workspaces',
       arguments: { action: 'rename', workspaceId: secondGroupId, name: ' checkout debugging ' }
     }) as CallToolResult
-    expect(duplicateRename.isError).toBe(true)
-    expect(text(duplicateRename)).toContain('already exists')
+    expect(duplicateRename.isError, text(duplicateRename)).not.toBe(true)
+    expect(JSON.parse(text(duplicateRename))).toMatchObject({
+      id: secondGroupId,
+      name: 'checkout debugging'
+    })
     const recolored = await first.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'update', workspaceId: firstGroupId, color: 'orange' }
@@ -730,8 +742,8 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(crossGroupSnapshot.isError).toBe(true)
     expect(text(crossGroupSnapshot)).toContain('does not belong to workspace')
 
-    await expect(appWindow.locator('.tab-group-label', { hasText: 'Checkout debugging' })).toBeVisible()
-    await expect(appWindow.locator('.tab-group-label', { hasText: 'Documentation agent' })).toBeVisible()
+    await expect(appWindow.locator(`.tab-group-label[title*="${firstGroupId}"]`)).toContainText('Checkout debugging')
+    await expect(appWindow.locator(`.tab-group-label[title*="${secondGroupId}"]`)).toContainText('checkout debugging')
 
     await first.callTool({
       name: 'browser_evaluate',
@@ -751,19 +763,95 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
   }
 })
 
-test('rejects duplicate human names instead of reusing another workspace identity', async ({ mcpPort, mcpToken }) => {
+test('allows private MCP clients to use the same human label without revealing name collisions', async ({ appWindow, mcpPort, mcpToken }) => {
   const first = await connectClient('same-name-first', mcpPort, mcpToken)
   const second = await connectClient('same-name-second', mcpPort, mcpToken)
   try {
     const firstWorkspaceId = await useMcpWorkspace(first, 'Shared test label', false)
-    await expect(useMcpWorkspace(second, '  shared TEST label  ', false)).rejects.toThrow('already exists')
-    const listed = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
-    expect((JSON.parse(text(listed)) as Array<{ id: string; name: string }>).filter((workspace) => workspace.name === 'Shared test label')).toEqual([
+    const secondWorkspaceId = await useMcpWorkspace(second, 'Shared test label', false)
+    expect(secondWorkspaceId).not.toBe(firstWorkspaceId)
+    const firstList = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
+    const secondList = await second.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
+    expect(JSON.parse(text(firstList))).toEqual([
       expect.objectContaining({ id: firstWorkspaceId })
     ])
+    expect(JSON.parse(text(secondList))).toEqual([
+      expect.objectContaining({ id: secondWorkspaceId })
+    ])
+    const humanUpdate = await appWindow.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(firstWorkspaceId)}, {
+      name: 'Shared test label',
+      color: 'pink'
+    }).then(() => 'updated', (error) => String(error.message ?? error))`)
+    expect(humanUpdate).toBe('updated')
   } finally {
     await first.close()
     await second.close()
+  }
+})
+
+test('keeps workspace identifiers and page access private to the creating MCP client', async ({ mcpPort, mcpToken }) => {
+  const owner = await connectClient('workspace-owner', mcpPort, mcpToken)
+  const other = await connectClient('workspace-other-client', mcpPort, mcpToken)
+  try {
+    const workspaceId = await createWorkspace(owner, 'Private client workspace', 'purple')
+    const opened = await owner.callTool({
+      name: 'browser_new_tab',
+      arguments: {
+        workspaceId,
+        url: 'data:text/html,<title>Private client tab</title><h1>Owner only</h1>'
+      }
+    }) as CallToolResult
+    const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+
+    const listedByOther = await other.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'list' }
+    }) as CallToolResult
+    expect(JSON.parse(text(listedByOther))).not.toContainEqual(expect.objectContaining({ id: workspaceId }))
+
+    const tabsByOther = await other.callTool({
+      name: 'browser_tabs',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(tabsByOther.isError).toBe(true)
+    expect(text(tabsByOther)).toContain('not authorized for this MCP client')
+
+    const snapshotByOther = await other.callTool({
+      name: 'browser_snapshot',
+      arguments: { workspaceId, tabId }
+    }) as CallToolResult
+    expect(snapshotByOther.isError).toBe(true)
+    expect(text(snapshotByOther)).toContain('not authorized for this MCP client')
+
+    const ownerTabs = await owner.callTool({
+      name: 'browser_tabs',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(ownerTabs.isError, text(ownerTabs)).not.toBe(true)
+    expect(JSON.parse(text(ownerTabs))).toContainEqual(expect.objectContaining({ id: tabId }))
+
+    const archivedByOwner = await owner.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'save', workspaceId }
+    }) as CallToolResult
+    expect(archivedByOwner.isError, text(archivedByOwner)).not.toBe(true)
+    const archived = JSON.parse(text(archivedByOwner)) as { id: string; resumeKey: string }
+    expect(archived.resumeKey).toMatch(WORKSPACE_RESUME_KEY_PATTERN)
+
+    const archivesByOther = await other.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'list' }
+    }) as CallToolResult
+    expect(JSON.parse(text(archivesByOther))).toEqual([])
+    const deleteByOther = await other.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'delete', savedWorkspaceId: archived.id }
+    }) as CallToolResult
+    expect(deleteByOther.isError).toBe(true)
+    expect(text(deleteByOther)).toContain('not authorized for this MCP client')
+  } finally {
+    await owner.close()
+    await other.close()
   }
 })
 
@@ -812,7 +900,7 @@ test('caps new and restored workspaces so profiles cannot grow without bound', a
   }
 })
 
-test('archives an agent workspace and reopens it with a fresh workspace id', async ({ mcpPort, mcpToken }) => {
+test('archives an agent workspace and reopens it with the same stable workspace id', async ({ mcpPort, mcpToken }) => {
   const client = await connectClient('saved-group-test', mcpPort, mcpToken)
   try {
     const workspaceId = await createWorkspace(client, 'Deferred investigation', 'pink')
@@ -843,11 +931,75 @@ test('archives an agent workspace and reopens it with a fresh workspace id', asy
     const opened = JSON.parse(text(openedResult)) as { id: string; name: string; color: string; tabCount: number }
     expect(opened).toMatchObject({ name: 'Deferred investigation', color: 'pink', tabCount: 1 })
     expect(opened.id).toMatch(UUID_V7_PATTERN)
-    expect(opened.id).not.toBe(workspaceId)
+    expect(opened.id).toBe(workspaceId)
     const emptySaved = await client.callTool({ name: 'browser_saved_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(emptySaved))).toEqual([])
   } finally {
     await client.close()
+  }
+})
+
+test('requires the private resume key to recover an archived workspace after reconnecting', async ({ mcpPort, mcpToken }) => {
+  const owner = await connectClient('archived-resume-owner', mcpPort, mcpToken)
+  const created = await createWorkspaceAccess(owner, 'Archived private workspace', 'orange')
+  const opened = await owner.callTool({
+    name: 'browser_new_tab',
+    arguments: {
+      workspaceId: created.id,
+      url: 'data:text/html,<title>Archived private tab</title><h1>Resume me</h1>'
+    }
+  }) as CallToolResult
+  expect(opened.isError, text(opened)).not.toBe(true)
+  const savedResult = await owner.callTool({
+    name: 'browser_saved_workspaces',
+    arguments: { action: 'save', workspaceId: created.id }
+  }) as CallToolResult
+  expect(savedResult.isError, text(savedResult)).not.toBe(true)
+  const saved = JSON.parse(text(savedResult)) as { id: string; resumeKey: string }
+  expect(saved.resumeKey).toBe(created.resumeKey)
+  await owner.close()
+
+  const resumedClient = await connectClient('archived-resume-after', mcpPort, mcpToken)
+  try {
+    const initialList = await resumedClient.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'list' }
+    }) as CallToolResult
+    expect(JSON.parse(text(initialList))).toEqual([])
+
+    const openBeforeResume = await resumedClient.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'open', savedWorkspaceId: saved.id }
+    }) as CallToolResult
+    expect(openBeforeResume.isError).toBe(true)
+    expect(text(openBeforeResume)).toContain('not authorized for this MCP client')
+
+    const resumed = await resumedClient.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'resume', savedWorkspaceId: saved.id, resumeKey: saved.resumeKey }
+    }) as CallToolResult
+    expect(resumed.isError, text(resumed)).not.toBe(true)
+    expect(JSON.parse(text(resumed))).toMatchObject({ id: saved.id, resumeKey: saved.resumeKey })
+
+    const reopenedResult = await resumedClient.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'open', savedWorkspaceId: saved.id }
+    }) as CallToolResult
+    expect(reopenedResult.isError, text(reopenedResult)).not.toBe(true)
+    const reopened = JSON.parse(text(reopenedResult)) as { id: string; resumeKey: string; tabCount: number }
+    expect(reopened).toMatchObject({ resumeKey: saved.resumeKey, tabCount: 1 })
+    expect(reopened.id).toBe(created.id)
+
+    const tabs = await resumedClient.callTool({
+      name: 'browser_tabs',
+      arguments: { workspaceId: reopened.id }
+    }) as CallToolResult
+    expect(tabs.isError, text(tabs)).not.toBe(true)
+    expect(JSON.parse(text(tabs))).toContainEqual(expect.objectContaining({
+      url: expect.stringContaining('<title>Archived private tab</title>')
+    }))
+  } finally {
+    await resumedClient.close()
   }
 })
 
@@ -951,6 +1103,22 @@ test('keeps a failed archive restore under one active owner when rollback also f
         archived: (persisted.savedTabGroups ?? []).filter((workspace) => workspace.name === 'Recoverable archive').length
       }
     }).toEqual({ active: 1, archived: 0 })
+
+    const activeGroups = await client.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'list' }
+    }) as CallToolResult
+    expect(JSON.parse(text(activeGroups))).toContainEqual(expect.objectContaining({ id: workspaceId }))
+    const savedGroups = await client.callTool({
+      name: 'browser_saved_workspaces',
+      arguments: { action: 'list' }
+    }) as CallToolResult
+    expect(JSON.parse(text(savedGroups))).toEqual([])
+    const tabs = await client.callTool({
+      name: 'browser_tabs',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(tabs.isError, text(tabs)).not.toBe(true)
   } finally {
     await electronApp.evaluate(() => {
       const state = (globalThis as typeof globalThis & {
@@ -974,7 +1142,8 @@ test('restores workspace identity and tabs after an application restart', async 
   let instance = await launchHronaut(profileDirectory, mcpPort)
   const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
   const firstClient = await connectClient('group-restart-before', mcpPort, token)
-  const workspaceId = await createWorkspace(firstClient, 'Persistent investigation', 'green')
+  const createdWorkspace = await createWorkspaceAccess(firstClient, 'Persistent investigation', 'green')
+  const workspaceId = createdWorkspace.id
   const opened = await firstClient.callTool({
     name: 'browser_new_tab',
     arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
@@ -1020,7 +1189,27 @@ test('restores workspace identity and tabs after an application restart', async 
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     const listed = await secondClient.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
-    expect(JSON.parse(text(listed))).toContainEqual(expect.objectContaining({
+    expect(JSON.parse(text(listed))).toEqual([])
+    const statusBeforeResume = await secondClient.callTool({ name: 'browser_status', arguments: { workspaceId } }) as CallToolResult
+    expect(statusBeforeResume.isError).toBe(true)
+    expect(text(statusBeforeResume)).toContain('not authorized for this MCP client')
+    const wrongResume = await secondClient.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'resume', workspaceId, resumeKey: `hrw1_${'A'.repeat(43)}` }
+    }) as CallToolResult
+    expect(wrongResume.isError).toBe(true)
+    expect(text(wrongResume)).toContain('not authorized for this MCP client')
+    const resumed = await secondClient.callTool({
+      name: 'browser_workspaces',
+      arguments: { action: 'resume', workspaceId, resumeKey: createdWorkspace.resumeKey }
+    }) as CallToolResult
+    expect(resumed.isError, text(resumed)).not.toBe(true)
+    expect(JSON.parse(text(resumed))).toMatchObject({
+      id: workspaceId,
+      resumeKey: createdWorkspace.resumeKey
+    })
+    const listedAfterResume = await secondClient.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
+    expect(JSON.parse(text(listedAfterResume))).toContainEqual(expect.objectContaining({
       id: workspaceId,
       name: 'Persistent investigation',
       color: 'green',
