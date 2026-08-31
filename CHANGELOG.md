@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.7] - 2026-08-31
+
 ### Added
 
 - Add a privacy-safe general bug-report form with reproducibility fields and explicit guidance to keep browser, wallet, and MCP secrets out of public issues.
