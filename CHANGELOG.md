@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Drain queued bookmark, credential, site-permission, and commercial-license writes during shutdown so recent changes are not lost when Hronaut quits immediately after an action.
 - Keep a newer wallet-vault lock or application shutdown authoritative when an asynchronous unlock is still waiting on the operating-system credential store, preventing stale completion from restoring decrypted key material.
+- Restore the cached What's new history to a ready state when its dialog closes during a refresh, instead of leaving the controller permanently marked as loading.
 
 ## [1.11.6] - 2026-08-31
 

@@ -66,7 +66,7 @@ export function useReleaseHistoryController(options: ReleaseHistoryControllerOpt
     generation += 1
     operation.value = null
     open.value = false
-    if (releases.value.length === 0) state.value = 'idle'
+    state.value = releases.value.length === 0 ? 'idle' : 'ready'
   }
 
   function refresh(): Promise<boolean> {

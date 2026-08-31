@@ -63,6 +63,28 @@ describe('useReleaseHistoryController', () => {
     expect(controller.releases.value.map((release) => release.version)).toEqual(['1.11.5'])
   })
 
+  it('restores the ready state when a refresh is cancelled by closing the dialog', async () => {
+    const refresh = deferred<AppReleaseHistoryPage>()
+    const getReleaseHistory = vi.fn()
+      .mockResolvedValueOnce(page(1, ['1.11.4']))
+      .mockReturnValueOnce(refresh.promise)
+    const { controller } = createController(getReleaseHistory)
+
+    controller.openDialog()
+    await vi.waitFor(() => expect(controller.state.value).toBe('ready'))
+    const refreshing = controller.refresh()
+    expect(controller.state.value).toBe('loading')
+
+    controller.close()
+
+    expect(controller.state.value).toBe('ready')
+    expect(controller.releases.value.map((release) => release.version)).toEqual(['1.11.4'])
+
+    refresh.resolve(page(1, ['1.11.5']))
+    await expect(refreshing).resolves.toBe(false)
+    expect(controller.releases.value.map((release) => release.version)).toEqual(['1.11.4'])
+  })
+
   it('appends unique pages and retains loaded releases when loading more fails', async () => {
     const getReleaseHistory = vi.fn()
       .mockResolvedValueOnce(page(1, ['1.11.4'], true))
