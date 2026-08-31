@@ -5853,10 +5853,17 @@ test('rolls back tab and global interaction locks when the native input guard fa
       const debuggerApi = page.debugger
       const original = debuggerApi.sendCommand.bind(debuggerApi)
       let shouldFail = true
+      let lockGuardStarted = false
       Object.defineProperty(debuggerApi, 'sendCommand', {
         configurable: true,
         value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
-          if (method === requestedFailureMethod && shouldFail) {
+          if (method === 'Input.setIgnoreInputEvents' && commandParams?.ignore === true) {
+            lockGuardStarted = true
+          }
+          const belongsToLockAttempt = requestedFailureMethod === 'Input.setIgnoreInputEvents'
+            ? commandParams?.ignore === true
+            : lockGuardStarted
+          if (method === requestedFailureMethod && belongsToLockAttempt && shouldFail) {
             shouldFail = false
             throw new Error('Synthetic native input guard failure')
           }
