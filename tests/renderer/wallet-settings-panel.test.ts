@@ -436,6 +436,30 @@ describe('WalletsSettingsPanel', () => {
     })
   })
 
+  it('blocks workspace access saves while another wallet operation is still refreshing', () => {
+    const configured = wallet('configured-wallet', 'Configured wallet', ['workspace-1'])
+    const wallets = controller({
+      wallets: ref([configured]),
+      busy: ref(true)
+    })
+    const { container } = render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-1', name: 'Existing workspace' }]
+      },
+      global
+    })
+    const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
+
+    expect(screen.getByRole('button', { name: 'Save workspace access' })).toBeDisabled()
+    expect(accessPanel.getByLabelText('Selected workspaces')).toBeDisabled()
+    expect(accessPanel.getByLabelText('Any workspace')).toBeDisabled()
+    expect(accessPanel.getByLabelText('Existing workspace')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Rename' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Change RPC endpoint' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
+  })
+
   it('configures Bypass Approve mode only with explicit mainnet agent-wallet limits', async () => {
     const mainnetAgent: WalletDescriptor = {
       ...wallet('mainnet-agent', 'Mainnet agent', ['workspace-1']),
