@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { ref } from 'vue'
-import { fireEvent, render, screen, within } from '@testing-library/vue'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
@@ -58,6 +58,14 @@ function wallet(id: string, name: string, workspaceIds: string[]): WalletDescrip
     createdAt: '2026-08-31T00:00:00.000Z',
     updatedAt: '2026-08-31T00:00:00.000Z'
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
 }
 
 describe('WalletsSettingsPanel', () => {
@@ -263,6 +271,68 @@ describe('WalletsSettingsPanel', () => {
 
     expect(wallets.cancelImport).toHaveBeenCalledOnce()
     expect(wallets.cancelImport).toHaveBeenCalledWith('import-token')
+  })
+
+  it('keeps a validated import frozen until trusted cancellation succeeds', async () => {
+    const cancellation = deferred<boolean | undefined>()
+    const cancelImport = vi.fn(() => cancellation.promise)
+    const wallets = controller({ cancelImport })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Import being cancelled')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret never restored to the form')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(cancelImport).toHaveBeenCalledWith('import-token')
+    expect(screen.getByText('Wallet validated')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Add encrypted wallet' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+
+    cancellation.resolve(true)
+    await waitFor(() => expect(screen.getByLabelText('Name')).toBeVisible())
+    expect(screen.queryByText('Wallet validated')).not.toBeInTheDocument()
+  })
+
+  it('finishes cancellation when the trusted signer reports the import is already absent', async () => {
+    const wallets = controller({ cancelImport: vi.fn(async () => false) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Expired import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret already expired in trusted memory')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByText('Wallet validated')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toBeVisible()
+  })
+
+  it('retries trusted cleanup when the panel unmounts during an in-flight cancellation', async () => {
+    const cancellation = deferred<boolean | undefined>()
+    const cancelImport = vi.fn()
+      .mockImplementationOnce(() => cancellation.promise)
+      .mockResolvedValueOnce(true)
+    const wallets = controller({ cancelImport })
+    const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Closing import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret cleared again during teardown')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(cancelImport).toHaveBeenCalledOnce()
+
+    view.unmount()
+
+    expect(cancelImport).toHaveBeenCalledTimes(2)
+    expect(cancelImport).toHaveBeenLastCalledWith('import-token')
+    cancellation.resolve(undefined)
   })
 
   it('keeps new-wallet workspace choices independent from configured-wallet editing', async () => {

@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep validated wallet imports visible and immutable until trusted cancellation finishes, preventing a stale cancellation from colliding with a newer onboarding attempt.
 - Keep wallet rename and RPC drafts open for retry when persistence fails, prevent conflicting inline editors, and lock drafts while their update is in flight.
 - Keep transaction-automation drafts scoped to the selected signing wallet, clear successful policy forms to prevent accidental duplicates, and reject misleading bounded automation policies for watch-only wallets.
 - Cancel validated wallet imports when the trusted Wallets panel closes or changes sections so abandoned recovery material is removed from signer memory immediately instead of waiting for expiry.

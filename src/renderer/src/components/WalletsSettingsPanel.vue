@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
+import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import {
@@ -53,6 +54,7 @@ const preparedImport = ref<{
     dedicatedAgent: boolean
   }
 } | null>(null)
+const cancellingImport = ref(false)
 const preparedImportReview = ref<HTMLElement | null>(null)
 const addImportedWalletButton = ref<HTMLButtonElement | null>(null)
 const configuredWalletsSection = ref<HTMLElement | null>(null)
@@ -286,7 +288,7 @@ async function submitOnboarding(): Promise<void> {
 }
 
 async function confirmPreparedImport(): Promise<void> {
-  if (!preparedImport.value) return
+  if (!preparedImport.value || cancellingImport.value) return
   const pending = preparedImport.value
   const details = {
     name: pending.details.name,
@@ -303,11 +305,15 @@ async function confirmPreparedImport(): Promise<void> {
 }
 
 async function cancelPreparedImport(): Promise<void> {
-  if (!preparedImport.value) return
+  if (!preparedImport.value || cancellingImport.value) return
   const pending = preparedImport.value
-  preparedImport.value = null
-  const cancelled = await props.controller.cancelImport(pending.token)
-  if (cancelled === undefined) preparedImport.value = pending
+  cancellingImport.value = true
+  try {
+    const cancelled = await props.controller.cancelImport(pending.token)
+    if (cancelled !== undefined && preparedImport.value?.token === pending.token) preparedImport.value = null
+  } finally {
+    cancellingImport.value = false
+  }
 }
 
 onBeforeUnmount(() => {
@@ -459,7 +465,7 @@ async function addPolicy(): Promise<void> {
         </section>
         <button class="primary-button wallet-submit-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</button>
       </form>
-      <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status">
+      <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status" :aria-busy="cancellingImport || undefined">
         <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>
         <div class="wallet-import-confirm-heading"><span aria-hidden="true"><IconCheck /></span><div><strong>{{ t('wallets.walletValidated') }}</strong><p>{{ t('wallets.importValidatedDescription') }}</p></div></div>
         <dl class="wallet-import-review">
@@ -469,8 +475,8 @@ async function addPolicy(): Promise<void> {
           <div><dt>{{ t('wallets.workspaceAccess') }}</dt><dd>{{ preparedImportWorkspaceLabel }}</dd></div>
         </dl>
         <div class="wallet-actions">
-          <button ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</button>
-          <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelPreparedImport">{{ t('wallets.cancel') }}</button>
+          <button ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</button>
+          <button class="secondary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="cancelPreparedImport"><IconProgress v-if="cancellingImport" class="state-spinner" aria-hidden="true" />{{ t('wallets.cancel') }}</button>
         </div>
       </div>
     </section>
