@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.4] - 2026-08-31
+
 ### Fixed
 
 - Disable configured-wallet mutations while another wallet operation is still refreshing, preventing a fast second click from being silently discarded.
