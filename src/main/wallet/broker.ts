@@ -63,6 +63,7 @@ export interface WalletBrokerOptions {
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
   now?: () => Date
   requestTtlMs?: number
+  requestExpiryScheduler?: (callback: () => void, delay: number) => () => void
   confirmationPollIntervalMs?: number
   shutdownDrainTimeoutMs?: number
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
@@ -190,7 +191,7 @@ export class WalletBroker {
   private readonly policy = new WalletPolicyEngine()
   private readonly pending = new Map<string, PendingResult>()
   private readonly pendingMessages = new Map<string, WalletMessageSigningInput>()
-  private readonly requestExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  private readonly requestExpiryCancellations = new Map<string, () => void>()
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
   private readonly confirmationTasks = new Set<Promise<void>>()
@@ -217,8 +218,8 @@ export class WalletBroker {
     this.shuttingDown = true
     for (const timer of this.confirmationTimers.values()) clearTimeout(timer)
     this.confirmationTimers.clear()
-    for (const timer of this.requestExpiryTimers.values()) clearTimeout(timer)
-    this.requestExpiryTimers.clear()
+    for (const cancel of this.requestExpiryCancellations.values()) cancel()
+    this.requestExpiryCancellations.clear()
 
     this.shutdownPromise = (async () => {
       await this.lifecycleQueue
@@ -229,8 +230,8 @@ export class WalletBroker {
           await Promise.allSettled([...this.confirmationTasks])
         }
       }
-      for (const timer of this.requestExpiryTimers.values()) clearTimeout(timer)
-      this.requestExpiryTimers.clear()
+      for (const cancel of this.requestExpiryCancellations.values()) cancel()
+      this.requestExpiryCancellations.clear()
       for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
       this.evmProviderSessions.clear()
     })()
@@ -1630,12 +1631,16 @@ export class WalletBroker {
   private scheduleRequestExpiry(record: WalletApprovalRecord): void {
     this.clearRequestExpiry(record.id)
     const delay = Math.max(0, Date.parse(record.request.expiresAt) - this.now().getTime())
-    const timer = setTimeout(() => {
-      this.requestExpiryTimers.delete(record.id)
+    const expire = () => {
+      this.requestExpiryCancellations.delete(record.id)
       void this.queueLifecycle(() => this.expireRequest(record.id)).catch(() => undefined)
-    }, delay)
-    timer.unref()
-    this.requestExpiryTimers.set(record.id, timer)
+    }
+    const cancel = this.options.requestExpiryScheduler?.(expire, delay) ?? (() => {
+      const timer = setTimeout(expire, delay)
+      timer.unref()
+      return () => clearTimeout(timer)
+    })()
+    this.requestExpiryCancellations.set(record.id, cancel)
   }
 
   private async expireRequest(requestId: string): Promise<void> {
@@ -1661,9 +1666,8 @@ export class WalletBroker {
   }
 
   private clearRequestExpiry(requestId: string): void {
-    const timer = this.requestExpiryTimers.get(requestId)
-    if (timer) clearTimeout(timer)
-    this.requestExpiryTimers.delete(requestId)
+    this.requestExpiryCancellations.get(requestId)?.()
+    this.requestExpiryCancellations.delete(requestId)
   }
 
   private requestTtlMs(): number {
