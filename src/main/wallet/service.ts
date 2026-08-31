@@ -9,6 +9,7 @@ import {
   WalletPolicySchema,
   WalletUpdateInputSchema,
   WalletWatchOnlyInputSchema,
+  walletAllowsWorkspace,
   type WalletCreateInput,
   type WalletDescriptor,
   type WalletImportDetails,
@@ -30,7 +31,7 @@ import {
   type WalletVaultProtection
 } from './key-provider.js'
 import { WalletPermissionStore } from './permissions.js'
-import { isWalletNetworkEligibleForAutomation } from './policy.js'
+import { isMainnetAgentAutomationPolicy, isWalletNetworkEligibleForAutomation } from './policy.js'
 import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
 import { readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
@@ -194,7 +195,9 @@ export class WalletService {
 
   async unlock(passphrase: string): Promise<WalletServiceStatus> {
     if (this.statusValue.managedWallets !== 'locked' || !this.vault) throw new Error('Wallet vault is not locked')
-    const bytes = this.passphraseBytes(passphrase)
+    const bytes = this.protection?.mode === 'passphrase-required'
+      ? this.passphraseBytes(passphrase)
+      : undefined
     try {
       await this.vault.unlock(bytes)
       try {
@@ -208,7 +211,7 @@ export class WalletService {
       this.publish()
       return this.status()
     } finally {
-      bytes.fill(0)
+      bytes?.fill(0)
     }
   }
 
@@ -216,7 +219,7 @@ export class WalletService {
     this.vault?.lock()
     this.signingAuthorizations = new WeakMap()
     this.clearAuthorityStores()
-    if (this.vault && this.protection?.mode === 'passphrase-required' && existsSync(this.vaultPath)) {
+    if (this.vault && this.statusValue.managedWallets === 'ready' && existsSync(this.vaultPath)) {
       this.statusValue = { managedWallets: 'locked', backend: this.statusValue.backend, watchOnlyAvailable: true }
     }
     this.clearPendingImports()
@@ -233,6 +236,7 @@ export class WalletService {
       id: randomUUID(), name: validated.name, kind: validated.dedicatedAgent ? 'agent' : 'managed',
       chainFamily: validated.chainFamily, publicAddress: generated.publicAddress, network: validated.network,
       capabilities: ['read', 'sign', 'send'], workspaceIds: uniqueWorkspaceIds(validated.workspaceIds), policyIds: [],
+      ...(validated.availableInAllWorkspaces ? { availableInAllWorkspaces: true } : {}),
       recoveryConfirmed: false, createdAt: now, updatedAt: now
     }
     try {
@@ -290,6 +294,7 @@ export class WalletService {
       id: randomUUID(), name: input.name, kind: input.dedicatedAgent ? 'agent' : 'imported',
       chainFamily: pending.chainFamily, publicAddress: pending.publicAddress, network: input.network,
       capabilities: ['read', 'sign', 'send'], workspaceIds: uniqueWorkspaceIds(input.workspaceIds), policyIds: [],
+      ...(input.availableInAllWorkspaces ? { availableInAllWorkspaces: true } : {}),
       recoveryConfirmed: true, createdAt: now, updatedAt: now
     }
     const claimed = this.takePendingImport(token)
@@ -319,6 +324,7 @@ export class WalletService {
       id: randomUUID(), name: validated.name, kind: 'watch-only', chainFamily: validated.chainFamily,
       publicAddress: validated.publicAddress, network: validated.network, capabilities: ['read'],
       workspaceIds: uniqueWorkspaceIds(validated.workspaceIds), policyIds: [], recoveryConfirmed: true,
+      ...(validated.availableInAllWorkspaces ? { availableInAllWorkspaces: true } : {}),
       createdAt: now, updatedAt: now
     })
     await this.audit.append('wallet-created', {
@@ -332,20 +338,77 @@ export class WalletService {
     const validatedChanges = WalletUpdateInputSchema.parse(changes)
     const current = this.requireWallet(walletId)
     const name = validatedChanges.name === undefined ? current.name : validatedChanges.name
+    const rpcUrl = validatedChanges.rpcUrl === undefined ? current.network.rpcUrl : validatedChanges.rpcUrl
+    const rpcChanged = rpcUrl !== current.network.rpcUrl
     const workspaceIds = validatedChanges.workspaceIds === undefined
       ? current.workspaceIds
       : uniqueWorkspaceIds(validatedChanges.workspaceIds)
-    const detachedWorkspaceIds = new Set(current.workspaceIds.filter((workspaceId) => !workspaceIds.includes(workspaceId)))
+    const availableInAllWorkspaces = validatedChanges.availableInAllWorkspaces
+      ?? current.availableInAllWorkspaces
+      ?? false
+    const nextScope = { workspaceIds, availableInAllWorkspaces }
+    const outOfScopeWorkspaceIds = new Set([
+      ...current.workspaceIds,
+      ...this.approvals.list()
+        .filter((record) => record.request.walletId === walletId)
+        .map((record) => record.request.workspaceId),
+      ...this.permissions.list()
+        .filter((permission) => permission.walletId === walletId)
+        .map((permission) => permission.workspaceId),
+      ...this.policies.list(walletId).map((policy) => policy.workspaceId)
+    ].filter((workspaceId) => !walletAllowsWorkspace(nextScope, workspaceId)))
     const detachedPolicyIds = this.policies.list(walletId)
-      .filter((policy) => detachedWorkspaceIds.has(policy.workspaceId))
+      .filter((policy) => outOfScopeWorkspaceIds.has(policy.workspaceId))
       .map((policy) => policy.id)
-    for (const policyId of detachedPolicyIds) await this.removePolicy(policyId)
+    let removedPolicyCount = detachedPolicyIds.length
+    const detachedActive = this.approvals.list().find((request) => (
+      request.request.walletId === walletId
+      && outOfScopeWorkspaceIds.has(request.request.workspaceId)
+      && ['signing', 'submitted'].includes(request.status)
+    ))
+    if (detachedActive) throw new Error('Wallet has a signing or submitted request in a detached workspace')
+    if (rpcChanged) {
+      const active = this.approvals.list().find((request) => (
+        request.request.walletId === walletId && ['signing', 'submitted'].includes(request.status)
+      ))
+      if (active) throw new Error('Wallet has a signing or submitted request in progress')
+      await this.approvals.cancelForWallet(walletId)
+      const policyIds = this.policies.list(walletId).map((policy) => policy.id)
+      removedPolicyCount = policyIds.length
+      for (const policyId of policyIds) await this.removePolicy(policyId)
+    } else {
+      for (const workspaceId of outOfScopeWorkspaceIds) {
+        await this.approvals.cancelForWalletWorkspace(walletId, workspaceId)
+      }
+      for (const policyId of detachedPolicyIds) await this.removePolicy(policyId)
+    }
+    for (const workspaceId of outOfScopeWorkspaceIds) {
+      await this.permissions.revokeForWalletWorkspace(walletId, workspaceId)
+    }
     const now = this.now().toISOString()
-    const updater = (wallet: WalletDescriptor): WalletDescriptor => ({ ...wallet, name, workspaceIds, updatedAt: now })
+    const updater = (wallet: WalletDescriptor): WalletDescriptor => {
+      const { availableInAllWorkspaces: _previousScope, ...rest } = wallet
+      return {
+        ...rest,
+        name,
+        workspaceIds,
+        ...(availableInAllWorkspaces ? { availableInAllWorkspaces: true } : {}),
+        network: { ...wallet.network, rpcUrl },
+        updatedAt: now
+      }
+    }
     const updated = current.kind === 'watch-only'
       ? await this.watchOnly.update(walletId, updater)
       : await this.readyVault().updateDescriptor(walletId, updater)
-    await this.audit.append('wallet-updated', { walletId, name, workspaceIds }, now)
+    await this.audit.append('wallet-updated', { walletId, name, workspaceIds, availableInAllWorkspaces }, now)
+    if (rpcChanged) {
+      await this.audit.append('wallet-rpc-updated', {
+        walletId,
+        chainFamily: current.chainFamily,
+        networkId: current.network.id,
+        removedPolicyCount
+      }, now)
+    }
     this.publish()
     return updated
   }
@@ -375,10 +438,24 @@ export class WalletService {
       throw new Error('Wallet policy expiry must be in the future')
     }
     const wallet = this.requireWallet(candidate.walletId)
-    if (!wallet.workspaceIds.includes(candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
+    if (!walletAllowsWorkspace(wallet, candidate.workspaceId)) throw new Error('Wallet policy workspace is not attached to the wallet')
     if (!candidate.networkIds.includes(wallet.network.id)) throw new Error('Wallet policy must include the wallet network')
-    if (candidate.mode === 'bounded-auto' && !isWalletNetworkEligibleForAutomation(wallet)) {
-      throw new Error('Wallet network is not eligible for automatic approval')
+    if (candidate.mode === 'bounded-auto') {
+      if (wallet.network.environment === 'mainnet') {
+        if (wallet.chainFamily !== 'evm' || wallet.kind !== 'agent') {
+          throw new Error('Mainnet Bypass Approve mode requires a dedicated EVM agent wallet')
+        }
+        if (!isMainnetAgentAutomationPolicy(candidate, this.now())) {
+          throw new Error('Mainnet Bypass Approve mode requires complete transaction, spend, fee, operation, and expiry limits')
+        }
+      } else {
+        if (candidate.allowMainnetAgentAutomation) {
+          throw new Error('Bypass Approve mode is only valid for a mainnet agent policy')
+        }
+        if (!isWalletNetworkEligibleForAutomation(wallet)) {
+          throw new Error('Wallet network is not eligible for automatic approval')
+        }
+      }
     }
     const policy = await this.policies.set(candidate)
     if (!wallet.policyIds.includes(policy.id)) {
@@ -433,7 +510,7 @@ export class WalletService {
       wallet.kind === 'watch-only'
       || wallet.chainFamily !== record.request.chainFamily
       || wallet.network.id !== record.request.networkId
-      || !wallet.workspaceIds.includes(record.request.workspaceId)
+      || !walletAllowsWorkspace(wallet, record.request.workspaceId)
     ) throw new Error('Wallet signing authority no longer matches the wallet')
     if (!record.approvalHash) throw new Error('Wallet request is not approved')
     if (!this.permissions.allows({

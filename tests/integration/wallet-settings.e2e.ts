@@ -103,6 +103,11 @@ test('keeps the browser available and wallet operations fail closed when wallet 
 })
 
 test('keeps trusted Wallets settings usable at desktop and minimum window sizes', async ({ appWindow, electronApp }, testInfo) => {
+  await appWindow.setViewportSize({ width: 1200, height: 760 })
+  const walletStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
+  if (walletStatus.managedWallets === 'passphrase-setup-required') {
+    await appWindow.evaluate(`window.hronautWallets.setupPassphrase('docker-wallet-settings-passphrase')`)
+  }
   await appWindow.evaluate(`window.hronautWallets.addWatchOnly({
     name: 'Wallet to rename',
     chainFamily: 'evm',
@@ -129,6 +134,17 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(panel.getByRole('heading', { name: 'Wallets', exact: true })).toBeVisible()
   await expect(panel.getByText(/trusted main process/i)).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Generate' })).toBeVisible()
+  await expect(panel.getByText(/removes decrypted signing keys.*from memory/i)).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Lock signing keys' })).toBeVisible()
+  await panel.locator('.wallet-vault-control').scrollIntoViewIfNeeded()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallets-vault-control.png') })
+
+  await panel.getByRole('button', { name: 'Import' }).click()
+  await expect(panel.getByRole('textbox', { name: 'Mnemonic / recovery phrase' })).toHaveJSProperty('tagName', 'TEXTAREA')
+  await panel.getByRole('combobox', { name: 'Secret format' }).selectOption('private-key')
+  const privateKey = panel.getByRole('textbox', { name: 'Private key', exact: true })
+  await expect(privateKey).toHaveAttribute('type', 'password')
+  await panel.getByRole('button', { name: 'Generate' }).click()
 
   await panel.getByRole('button', { name: 'Rename' }).click()
   const renameInput = panel.getByRole('textbox', { name: 'Wallet name' })
@@ -138,6 +154,23 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
     (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.name
   )`)).toBe('Renamed inside Electron')
+
+  await panel.getByRole('button', { name: 'Change RPC endpoint' }).click()
+  const configuredRpc = panel.getByRole('textbox', { name: 'JSON-RPC URL' }).last()
+  await expect(configuredRpc).toHaveValue('http://127.0.0.1:8545')
+  await configuredRpc.fill('http://127.0.0.1:9545')
+  await panel.getByRole('button', { name: 'Save RPC endpoint' }).click()
+  await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
+    (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.network.rpcUrl
+  )`)).toBe('http://127.0.0.1:9545')
+
+  const configuredAccess = panel.locator('.wallet-configured-access')
+  await configuredAccess.getByLabel('Any workspace').click()
+  await expect(configuredAccess.getByText(/includes workspaces created later/i)).toBeVisible()
+  await panel.getByRole('button', { name: 'Save workspace access' }).click()
+  await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
+    (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.availableInAllWorkspaces
+  )`)).toBe(true)
 
   const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
   await walletName.scrollIntoViewIfNeeded()
@@ -211,6 +244,31 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await appWindow.keyboard.type('TQAInteractiveWalletAddress')
   await expect(publicAddress).toHaveValue('TQAInteractiveWalletAddress')
   await appWindow.screenshot({ path: testInfo.outputPath('wallets-desktop.png') })
+  const desktopLayout = await appWindow.evaluate<{
+    pageOverflow: number
+    dialogOverflow: number
+    panelOverflow: number
+    left: number
+    right: number
+    viewport: number
+  }>(`(() => {
+    const dialog = document.querySelector('.settings-dialog')
+    const panel = document.querySelector('.wallet-settings')
+    const rect = dialog?.getBoundingClientRect()
+    return {
+      pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      dialogOverflow: dialog ? dialog.scrollWidth - dialog.clientWidth : 1,
+      panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : 1,
+      left: rect?.left ?? -1,
+      right: rect?.right ?? Number.POSITIVE_INFINITY,
+      viewport: window.innerWidth
+    }
+  })()`)
+  expect(desktopLayout.pageOverflow).toBeLessThanOrEqual(1)
+  expect(desktopLayout.dialogOverflow).toBeLessThanOrEqual(1)
+  expect(desktopLayout.panelOverflow).toBeLessThanOrEqual(1)
+  expect(desktopLayout.left).toBeGreaterThanOrEqual(0)
+  expect(desktopLayout.right).toBeLessThanOrEqual(desktopLayout.viewport)
 
   await appWindow.setViewportSize({ width: 760, height: 520 })
   await expect(panel.getByRole('button', { name: 'Watch only' })).toBeVisible()

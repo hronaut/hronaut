@@ -6,6 +6,7 @@ import {
   WalletChainFamilySchema,
   WalletPolicySchema,
   WalletRequesterSchema,
+  walletAllowsWorkspace,
   type WalletCapability,
   type WalletDescriptor,
   type WalletPolicy,
@@ -155,7 +156,7 @@ export class WalletAuthorityPersistence {
           !wallet
           || wallet.kind === 'watch-only'
           || !wallet.policyIds.includes(policy.id)
-          || !wallet.workspaceIds.includes(policy.workspaceId)
+          || !walletAllowsWorkspace(wallet, policy.workspaceId)
           || !policy.networkIds.includes(wallet.network.id)
         ) return []
         return [{ ...policy, mode: policy.mode === 'bounded-auto' ? 'always-ask' as const : policy.mode }]

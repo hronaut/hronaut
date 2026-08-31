@@ -148,7 +148,8 @@ describe('release quality gates', () => {
 
     expect(reference).toContain('## Local Web3 wallets')
     expect(reference).toContain('[wallet security and usage reference](docs/WALLETS.md)')
-    expect(reference).toContain('Mainnet signing always requires explicit human approval')
+    expect(reference).toContain('Mainnet defaults to explicit human approval')
+    expect(reference).toContain('Bypass Approve')
     expect(reference).toContain('does not integrate WalletConnect, Reown, or external-wallet SDKs')
     expect(reference).not.toContain('external-wallet signing')
     expect(reference).not.toContain('design/web3-wallet-architecture.md')

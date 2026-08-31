@@ -24,7 +24,7 @@ function safeStorage(): WalletSafeStorage {
   }
 }
 
-async function setup(environment: 'local' | 'testnet' | 'mainnet' = 'testnet') {
+async function setup(environment: 'local' | 'testnet' | 'mainnet' = 'testnet', dedicatedAgent = false) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-wallet-broker-test-'))
   directories.push(directory)
   const service = new WalletService({ directory, platform: 'linux', safeStorage: safeStorage() })
@@ -32,7 +32,7 @@ async function setup(environment: 'local' | 'testnet' | 'mainnet' = 'testnet') {
   const generated = await service.generate({
     name: 'Wallet', chainFamily: 'evm',
     network: { id: environment === 'mainnet' ? '1' : '11155111', name: environment, environment, rpcUrl: 'http://127.0.0.1:8545' },
-    workspaceIds: ['workspace-1']
+    workspaceIds: ['workspace-1'], dedicatedAgent
   })
   await service.confirmRecovery(generated.wallet.id)
   return { directory, service, wallet: service.list()[0]! }
@@ -246,7 +246,7 @@ describe('WalletBroker', () => {
     await expect(broker.cancelAgentRequest(agentA, requestId)).resolves.toMatchObject({ status: 'cancelled' })
   })
 
-  it('never lets an agent auto-approve a mainnet request', async () => {
+  it('requires human approval for an agent mainnet request without explicit Bypass Approve mode', async () => {
     const { service, wallet } = await setup('mainnet')
     const chain = adapter()
     const broker = new WalletBroker(service, { adapters: { evm: chain } })
@@ -260,6 +260,111 @@ describe('WalletBroker', () => {
     expect(result).toMatchObject({ status: 'requested', request: { status: 'awaiting-human' } })
     expect(chain.sign).not.toHaveBeenCalled()
     expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('lets a dedicated agent wallet use an explicitly bounded Bypass Approve mode on EVM mainnet', async () => {
+    const { service, wallet } = await setup('mainnet', true)
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const agent = context({ requester: { type: 'agent', id: 'agent-mainnet-bypass', name: 'Agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    await service.setPolicy({
+      id: 'mainnet-bypass', name: 'Bounded mainnet agent', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: agent.workspaceId, networkIds: [wallet.network.id], origins: [agent.topLevelOrigin],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '0.01', maxTokenAmount: '1', maxFee: '0.001',
+      sessionSpendLimit: '0.02', dailySpendLimit: '0.05',
+      expiresAt: '2026-09-05T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false,
+      allowMainnetAgentAutomation: true
+    })
+
+    const result = await broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    expect(result).toMatchObject({ status: 'requested', request: { status: 'submitted' } })
+    const requestId = (result.request as { id: string }).id
+    await vi.waitFor(() => expect(broker.agentRequestStatus(agent, requestId).status).toBe('confirmed'))
+    expect(chain.sign).toHaveBeenCalledOnce()
+    expect(chain.broadcast).toHaveBeenCalledOnce()
+  })
+
+  it('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode', async () => {
+    const { service, wallet } = await setup('mainnet', true)
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    await service.setPolicy({
+      id: 'mainnet-agent-only', name: 'Agent only', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '0.01', maxTokenAmount: '1', maxFee: '0.001',
+      sessionSpendLimit: '0.02', dailySpendLimit: '0.05',
+      expiresAt: '2026-09-05T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false,
+      allowMainnetAgentAutomation: true
+    })
+
+    const result = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction'
+    )).at(-1)?.status).toBe('awaiting-human'))
+    expect(chain.sign).not.toHaveBeenCalled()
+    await broker.reject(broker.listPending().filter((request) => request.operation === 'sign-and-send-transaction').at(-1)!.id)
+    await expect(result).rejects.toThrow('rejected')
+  })
+
+  it('requires human approval when a mainnet Bypass Approve policy expires in the lifecycle queue', async () => {
+    const { service, wallet } = await setup('mainnet', true)
+    const chain = adapter()
+    let now = new Date()
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, now: () => now })
+    const agent = context({ requester: { type: 'agent', id: 'agent-expiring-bypass', name: 'Agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const policyExpiry = new Date(now.getTime() + 60_000)
+    await service.setPolicy({
+      id: 'mainnet-expiring-bypass', name: 'Expiring mainnet agent', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: agent.workspaceId, networkIds: [wallet.network.id], origins: [agent.topLevelOrigin],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '0.01', maxTokenAmount: '1', maxFee: '0.001',
+      sessionSpendLimit: '0.02', dailySpendLimit: '0.05',
+      expiresAt: policyExpiry.toISOString(), maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false,
+      allowMainnetAgentAutomation: true
+    })
+    let firstBroadcastEntered!: () => void
+    const firstBroadcastStarted = new Promise<void>((resolve) => { firstBroadcastEntered = resolve })
+    let releaseFirstBroadcast!: () => void
+    const firstBroadcastRelease = new Promise<void>((resolve) => { releaseFirstBroadcast = resolve })
+    chain.broadcast.mockImplementationOnce(async () => {
+      firstBroadcastEntered()
+      await firstBroadcastRelease
+      return '0xfirst-transaction'
+    })
+
+    const first = broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    await firstBroadcastStarted
+    const second = broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'policy-decision'
+    ))).toHaveLength(1))
+
+    now = new Date(policyExpiry.getTime() + 1)
+    releaseFirstBroadcast()
+
+    await expect(first).resolves.toMatchObject({ request: { status: 'submitted' } })
+    await expect(second).resolves.toMatchObject({ request: { status: 'awaiting-human' } })
+    expect(chain.sign).toHaveBeenCalledOnce()
+    expect(chain.broadcast).toHaveBeenCalledOnce()
   })
 
   it('does not create or sign an agent transaction after its requester session is cancelled', async () => {
@@ -1313,6 +1418,105 @@ describe('WalletBroker', () => {
       expect.objectContaining({ id: 'policy-retained-workspace', workspaceId: 'workspace-2' })
     ])
     expect(service.permissions.list()).toHaveLength(0)
+    expect(chain.sign).not.toHaveBeenCalled()
+  })
+
+  it('replaces a failed RPC endpoint without changing identity and invalidates endpoint-bound authority', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    await service.setPolicy({
+      id: 'policy-old-rpc', name: 'Old endpoint automation', mode: 'bounded-auto', walletId: wallet.id,
+      workspaceId: 'workspace-1', networkIds: [wallet.network.id], origins: ['https://automation.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '1', maxFee: '1', expiresAt: '2027-08-28T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    const signing = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'personal_sign', params: ['rpc-change', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+
+    const updated = await broker.updateWallet(wallet.id, { rpcUrl: 'http://127.0.0.1:9545' })
+
+    await expect(signing).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    expect(updated).toMatchObject({
+      id: wallet.id,
+      publicAddress: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      network: {
+        id: wallet.network.id,
+        name: wallet.network.name,
+        environment: wallet.network.environment,
+        rpcUrl: 'http://127.0.0.1:9545'
+      }
+    })
+    expect(service.policies.list(wallet.id)).toEqual([])
+    expect(service.permissions.list()).toHaveLength(1)
+    const audit = await service.auditHistory()
+    expect(audit).toContainEqual(expect.objectContaining({
+      type: 'wallet-rpc-updated',
+      payload: expect.objectContaining({
+        walletId: wallet.id,
+        chainFamily: wallet.chainFamily,
+        networkId: wallet.network.id,
+        removedPolicyCount: 1
+      })
+    }))
+    expect(JSON.stringify(audit)).not.toContain('127.0.0.1:9545')
+    expect(chain.sign).not.toHaveBeenCalled()
+  })
+
+  it('makes an any-workspace wallet discoverable without bypassing address approval', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    await broker.updateWallet(wallet.id, { availableInAllWorkspaces: true })
+    const otherWorkspace = context({
+      workspaceId: 'workspace-created-later',
+      tabId: 'tab-created-later',
+      requester: { type: 'agent', id: 'agent-created-later' }
+    })
+
+    expect(broker.listAgentWallets(otherWorkspace)).toContainEqual(expect.objectContaining({
+      id: wallet.id,
+      availableInAllWorkspaces: true,
+      addressPermission: false
+    }))
+    expect(JSON.stringify(broker.listAgentWallets(otherWorkspace))).not.toContain(wallet.publicAddress)
+    await expect(broker.agentBalance(otherWorkspace, wallet.id)).resolves.toMatchObject({
+      status: 'permission-required',
+      request: expect.objectContaining({ status: 'awaiting-human' })
+    })
+  })
+
+  it('cancels out-of-scope requests and permissions when any-workspace access is narrowed', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await broker.updateWallet(wallet.id, { availableInAllWorkspaces: true })
+    const otherWorkspace = context({ workspaceId: 'workspace-2', tabId: 'tab-2' })
+    const connection = broker.providerRequest(otherWorkspace, { family: 'evm', method: 'eth_requestAccounts' })
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+    await broker.approve(broker.listPending().at(-1)!.id)
+    await expect(connection).resolves.toEqual([wallet.publicAddress])
+    const signing = settle(broker.providerRequest(otherWorkspace, {
+      family: 'evm', method: 'personal_sign', params: ['scope-change', wallet.publicAddress]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().at(-1)?.status).toBe('awaiting-human'))
+
+    await broker.updateWallet(wallet.id, {
+      availableInAllWorkspaces: false,
+      workspaceIds: ['workspace-1']
+    })
+
+    await expect(signing).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    expect(service.permissions.list().filter((permission) => permission.workspaceId === 'workspace-2')).toEqual([])
+    expect(broker.listAgentWallets(otherWorkspace)).toEqual([])
     expect(chain.sign).not.toHaveBeenCalled()
   })
 

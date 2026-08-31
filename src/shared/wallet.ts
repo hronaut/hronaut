@@ -62,6 +62,7 @@ export const WalletDescriptorSchema = z.object({
   network: WalletNetworkSchema,
   capabilities: z.array(WalletCapabilitySchema).max(3),
   workspaceIds: z.array(WorkspaceIdSchema).max(256),
+  availableInAllWorkspaces: z.boolean().optional(),
   policyIds: z.array(z.string().trim().min(1).max(128)).max(256),
   recoveryConfirmed: z.boolean(),
   createdAt: IsoDateSchema,
@@ -77,6 +78,13 @@ export const WalletDescriptorSchema = z.object({
 })
 export type WalletDescriptor = z.infer<typeof WalletDescriptorSchema>
 
+export function walletAllowsWorkspace(
+  wallet: Pick<WalletDescriptor, 'workspaceIds' | 'availableInAllWorkspaces'>,
+  workspaceId: string
+): boolean {
+  return wallet.availableInAllWorkspaces === true || wallet.workspaceIds.includes(workspaceId)
+}
+
 export const WalletAgentDescriptorSchema = z.object({
   id: WalletIdSchema,
   name: z.string().trim().min(1).max(128),
@@ -84,6 +92,7 @@ export const WalletAgentDescriptorSchema = z.object({
   chainFamily: WalletChainFamilySchema,
   network: WalletNetworkSchema.omit({ rpcUrl: true }),
   capabilities: z.array(WalletCapabilitySchema).max(3),
+  availableInAllWorkspaces: z.boolean().optional(),
   addressPermission: z.boolean(),
   publicAddress: z.string().trim().min(1).max(256).optional()
 }).strict().superRefine((descriptor, context) => {
@@ -295,7 +304,8 @@ export const WalletPolicySchema = z.object({
   expiresAt: IsoDateSchema,
   maximumOperationCount: z.number().int().positive().max(1_000_000),
   requireSuccessfulSimulation: z.literal(true),
-  allowMessageSigning: z.boolean()
+  allowMessageSigning: z.boolean(),
+  allowMainnetAgentAutomation: z.boolean().optional()
 }).strict()
 export type WalletPolicy = z.infer<typeof WalletPolicySchema>
 
@@ -427,6 +437,7 @@ export const WalletCreateInputSchema = z.object({
   chainFamily: WalletChainFamilySchema,
   network: WalletNetworkSchema,
   workspaceIds: z.array(WorkspaceIdSchema).max(256),
+  availableInAllWorkspaces: z.boolean().default(false),
   dedicatedAgent: z.boolean().default(false)
 }).strict()
 export type WalletCreateInput = z.input<typeof WalletCreateInputSchema>
@@ -434,7 +445,7 @@ export type WalletCreateInput = z.input<typeof WalletCreateInputSchema>
 export const WalletWatchOnlyInputSchema = WalletCreateInputSchema.omit({ dedicatedAgent: true }).extend({
   publicAddress: z.string().trim().min(1).max(256)
 }).strict()
-export type WalletWatchOnlyInput = z.infer<typeof WalletWatchOnlyInputSchema>
+export type WalletWatchOnlyInput = z.input<typeof WalletWatchOnlyInputSchema>
 
 export const WalletSecretFormatSchema = z.enum(['private-key', 'mnemonic'])
 export type WalletSecretFormat = z.infer<typeof WalletSecretFormatSchema>
@@ -443,12 +454,15 @@ export const WalletImportDetailsSchema = z.object({
   name: z.string().trim().min(1).max(128),
   network: WalletNetworkSchema,
   workspaceIds: z.array(WorkspaceIdSchema).max(256),
+  availableInAllWorkspaces: z.boolean().default(false),
   dedicatedAgent: z.boolean().default(false)
 }).strict()
 export type WalletImportDetails = z.input<typeof WalletImportDetailsSchema>
 
 export const WalletUpdateInputSchema = z.object({
   name: z.string().trim().min(1).max(128).optional(),
-  workspaceIds: z.array(WorkspaceIdSchema).max(256).optional()
+  workspaceIds: z.array(WorkspaceIdSchema).max(256).optional(),
+  availableInAllWorkspaces: z.boolean().optional(),
+  rpcUrl: WalletNetworkSchema.shape.rpcUrl.optional()
 }).strict()
 export type WalletUpdateInput = z.infer<typeof WalletUpdateInputSchema>

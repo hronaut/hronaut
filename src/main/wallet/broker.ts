@@ -14,7 +14,7 @@ import type {
   WalletRequestSummary,
   WalletUpdateInput
 } from '../../shared/wallet.js'
-import { WalletProviderRequestSchema, WalletUpdateInputSchema } from '../../shared/wallet.js'
+import { WalletProviderRequestSchema, WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -26,7 +26,7 @@ import type {
   WalletTransactionSimulation
 } from './adapters/types.js'
 import { restoreWalletJson, walletJsonInspectable, walletJsonSafe } from './json-safe.js'
-import { WalletPolicyEngine } from './policy.js'
+import { isMainnetAgentAutomationPolicy, WalletPolicyEngine } from './policy.js'
 import type { WalletService } from './service.js'
 
 export interface WalletBrokerContext {
@@ -240,7 +240,7 @@ export class WalletBroker {
 
   listAgentWallets(context: WalletBrokerContext): WalletAgentDescriptor[] {
     return this.service.list()
-      .filter((wallet) => wallet.workspaceIds.includes(context.workspaceId))
+      .filter((wallet) => walletAllowsWorkspace(wallet, context.workspaceId))
       .map((wallet) => {
         const addressAllowed = this.hasAddressPermission(context, wallet)
         return {
@@ -254,6 +254,7 @@ export class WalletBroker {
             environment: wallet.network.environment
           },
           capabilities: [...wallet.capabilities],
+          ...(wallet.availableInAllWorkspaces === true ? { availableInAllWorkspaces: true } : {}),
           addressPermission: addressAllowed,
           ...(addressAllowed ? { publicAddress: wallet.publicAddress } : {})
         }
@@ -381,22 +382,7 @@ export class WalletBroker {
   updateWallet(walletId: string, changes: WalletUpdateInput): Promise<WalletDescriptor> {
     return this.queueLifecycle(async () => {
       const validated = WalletUpdateInputSchema.parse(changes)
-      const current = this.requireWallet(walletId)
-      const nextWorkspaceIds = validated.workspaceIds ?? current.workspaceIds
-      const removedWorkspaceIds = current.workspaceIds.filter((workspaceId) => !nextWorkspaceIds.includes(workspaceId))
-      const active = this.service.approvals.list().find((record) => (
-        record.request.walletId === walletId
-        && removedWorkspaceIds.includes(record.request.workspaceId)
-        && (record.status === 'signing' || record.status === 'submitted')
-      ))
-      if (active) throw new Error('Wallet has a signing or submitted request in a detached workspace')
       try {
-        for (const workspaceId of removedWorkspaceIds) {
-          await Promise.all([
-            this.service.approvals.cancelForWalletWorkspace(walletId, workspaceId),
-            this.service.permissions.revokeForWalletWorkspace(walletId, workspaceId)
-          ])
-        }
         return await this.service.update(walletId, validated)
       } finally {
         this.rejectCancelled()
@@ -793,10 +779,16 @@ export class WalletBroker {
           const currentWallet = this.requireAccessibleWallet(context, wallet.id)
           const currentPolicy = this.service.policies.list(wallet.id)
             .find((entry) => entry.id === policy.id)
+          const authorizationNow = this.now()
           if (
             !currentPolicy
             || !currentWallet.policyIds.includes(policy.id)
             || !isDeepStrictEqual(currentPolicy, policy)
+            || Date.parse(currentPolicy.expiresAt) <= authorizationNow.getTime()
+            || (
+              currentWallet.network.environment === 'mainnet'
+              && !isMainnetAgentAutomationPolicy(currentPolicy, authorizationNow)
+            )
           ) {
             policyInvalidated = true
             await this.service.audit.append('policy-authorization-invalidated', {
@@ -875,7 +867,7 @@ export class WalletBroker {
     if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
     if (record.request.operation === 'connect-account') {
       const wallet = this.requireWallet(record.request.walletId)
-      if (!wallet.workspaceIds.includes(record.request.workspaceId)) {
+      if (!walletAllowsWorkspace(wallet, record.request.workspaceId)) {
         throw new Error('Wallet is no longer attached to the requesting workspace')
       }
       if (activeAgentContext) this.assertRequestContextActive(activeAgentContext)
@@ -914,7 +906,7 @@ export class WalletBroker {
       return [wallet.publicAddress]
     }
     const wallet = this.requireWallet(record.request.walletId)
-    if (!wallet.workspaceIds.includes(record.request.workspaceId)) {
+    if (!walletAllowsWorkspace(wallet, record.request.workspaceId)) {
       throw new Error('Wallet is no longer attached to the requesting workspace')
     }
     if (!this.service.permissions.allows({
@@ -1097,12 +1089,12 @@ export class WalletBroker {
   }
 
   private accessibleWallets(context: WalletBrokerContext, family: WalletChainFamily): WalletDescriptor[] {
-    return this.service.list().filter((wallet) => wallet.chainFamily === family && wallet.workspaceIds.includes(context.workspaceId))
+    return this.service.list().filter((wallet) => wallet.chainFamily === family && walletAllowsWorkspace(wallet, context.workspaceId))
   }
 
   private requireAccessibleWallet(context: WalletBrokerContext, walletId: string): WalletDescriptor {
     const wallet = this.requireWallet(walletId)
-    if (!wallet.workspaceIds.includes(context.workspaceId)) {
+    if (!walletAllowsWorkspace(wallet, context.workspaceId)) {
       throw new Error('Wallet is not attached to the requesting workspace')
     }
     return wallet

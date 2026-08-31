@@ -151,6 +151,21 @@ describe('WalletService', () => {
     await expect(service.unlock('correct horse battery staple')).resolves.toMatchObject({ managedWallets: 'ready' })
   })
 
+  it('locks an OS-protected vault and reopens it through secure storage without a passphrase', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Managed', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+
+    service.lock()
+    expect(service.status()).toMatchObject({ managedWallets: 'locked', backend: 'gnome_libsecret' })
+    expect(service.list()).toContainEqual(expect.objectContaining({ id: generated.wallet.id }))
+    await expect(service.unlock('')).resolves.toMatchObject({ managedWallets: 'ready' })
+    expect(service.list()).toContainEqual(expect.objectContaining({ id: generated.wallet.id }))
+  })
+
   it('keeps a passphrase vault locked when an encrypted record fails authentication', async () => {
     const path = await directory()
     const passphrase = 'correct horse battery staple'
@@ -232,6 +247,36 @@ describe('WalletService', () => {
     expect(audit).toContain('wallet-removed')
   })
 
+  it('persists opt-in any-workspace access without rewriting the wallet identity', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const prepared = await created.prepareImport('evm', 'mnemonic', knownMnemonic)
+    const wallet = await created.confirmImport(prepared.token, {
+      name: 'Everywhere', network, workspaceIds: ['workspace-1'], dedicatedAgent: false
+    })
+
+    await expect(created.update(wallet.id, {
+      availableInAllWorkspaces: true,
+      workspaceIds: []
+    })).resolves.toMatchObject({
+      id: wallet.id,
+      publicAddress: wallet.publicAddress,
+      availableInAllWorkspaces: true,
+      workspaceIds: []
+    })
+    created.dispose()
+
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await restored.initialize()
+    expect(restored.list()).toContainEqual(expect.objectContaining({
+      id: wallet.id,
+      publicAddress: wallet.publicAddress,
+      availableInAllWorkspaces: true,
+      workspaceIds: []
+    }))
+  })
+
   it('rejects bounded automatic policies for networks that are not independently recognized as local or testnet', async () => {
     const path = await directory()
     const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
@@ -249,6 +294,40 @@ describe('WalletService', () => {
       expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
       requireSuccessfulSimulation: true, allowMessageSigning: false
     })).rejects.toThrow('not eligible for automatic approval')
+  })
+
+  it('requires a dedicated EVM agent wallet and complete limits for mainnet Bypass Approve mode', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const common = {
+      name: 'Mainnet', chainFamily: 'evm' as const,
+      network: { id: '1', name: 'Ethereum', environment: 'mainnet' as const, rpcUrl: 'https://ethereum-rpc.publicnode.com' },
+      workspaceIds: ['workspace-1']
+    }
+    const normal = await service.generate(common)
+    const dedicated = await service.generate({ ...common, name: 'Mainnet agent', dedicatedAgent: true })
+    const policy = {
+      id: 'mainnet-bypass', name: 'Mainnet bypass', mode: 'bounded-auto' as const,
+      workspaceId: 'workspace-1', networkIds: ['1'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      maxNativeAmount: '0.01', maxTokenAmount: '1', maxFee: '0.001',
+      sessionSpendLimit: '0.02', dailySpendLimit: '0.05',
+      expiresAt: '2026-09-05T12:00:00.000Z', maximumOperationCount: 10,
+      requireSuccessfulSimulation: true as const, allowMessageSigning: false,
+      allowMainnetAgentAutomation: true
+    }
+
+    await expect(service.setPolicy({ ...policy, walletId: normal.wallet.id }))
+      .rejects.toThrow(/dedicated EVM agent wallet/i)
+    await expect(service.setPolicy({
+      ...policy,
+      id: 'mainnet-incomplete',
+      walletId: dedicated.wallet.id,
+      dailySpendLimit: undefined
+    })).rejects.toThrow(/complete transaction, spend, fee, operation, and expiry limits/i)
+    await expect(service.setPolicy({ ...policy, walletId: dedicated.wallet.id }))
+      .resolves.toMatchObject({ allowMainnetAgentAutomation: true })
   })
 
   it.each([

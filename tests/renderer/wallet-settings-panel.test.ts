@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { ref } from 'vue'
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
@@ -181,7 +181,7 @@ describe('WalletsSettingsPanel', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Prepared EVM wallet')
-    await user.type(screen.getByLabelText('Recovery material'), 'test secret phrase never retained in Vue state')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret phrase never retained in Vue state')
     await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
 
     expect(screen.getByLabelText('Chain')).toBeDisabled()
@@ -270,6 +270,25 @@ describe('WalletsSettingsPanel', () => {
     expect(wallets.update).toHaveBeenCalledWith('a', { name: 'Treasury testnet' })
   })
 
+  it('lets a configured wallet replace a failed RPC endpoint without recreating its identity', async () => {
+    const wallets = controller({ wallets: ref([wallet('a', 'RPC wallet', ['workspace-a'])]) })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-a', name: 'Workspace A' }] },
+      global
+    })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Change RPC endpoint' }))
+    const endpoint = screen.getAllByLabelText('JSON-RPC URL').at(-1)!
+    expect(endpoint).toHaveValue('https://11155111.rpc.thirdweb.com')
+    expect(screen.getByText(/cancels pending wallet requests and removes bounded automatic policies/i)).toBeVisible()
+    await user.clear(endpoint)
+    await user.type(endpoint, 'http://127.0.0.1:9545')
+    await user.click(screen.getByRole('button', { name: 'Save RPC endpoint' }))
+
+    expect(wallets.update).toHaveBeenCalledWith('a', { rpcUrl: 'http://127.0.0.1:9545' })
+  })
+
   it.each([
     ['passphrase-setup-required', 'Create vault passphrase'],
     ['locked', 'Vault passphrase']
@@ -319,13 +338,31 @@ describe('WalletsSettingsPanel', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Imported wallet')
-    const recovery = screen.getByLabelText<HTMLTextAreaElement>('Recovery material')
+    const recovery = screen.getByLabelText<HTMLTextAreaElement>('Mnemonic / recovery phrase')
     await user.type(recovery, 'test secret phrase never retained in Vue state')
     await user.click(screen.getByRole('button', { name: 'Validate wallet secret' }))
 
     expect(recovery.value).toBe('')
     expect(wallets.prepareImport).toHaveBeenCalledWith('evm', 'mnemonic', 'test secret phrase never retained in Vue state')
     expect(await screen.findByText('0x1234')).toBeVisible()
+  })
+
+  it('uses the secret-format-specific input and clears material when the format changes', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+
+    const mnemonic = screen.getByLabelText('Mnemonic / recovery phrase')
+    expect(mnemonic.tagName).toBe('TEXTAREA')
+    await user.type(mnemonic, 'phrase that must not become a private key')
+    await user.selectOptions(screen.getByLabelText('Secret format'), 'private-key')
+
+    expect(screen.queryByLabelText('Mnemonic / recovery phrase')).not.toBeInTheDocument()
+    const privateKey = screen.getByLabelText('Private key')
+    expect(privateKey.tagName).toBe('INPUT')
+    expect(privateKey).toHaveAttribute('type', 'password')
+    expect(privateKey).toHaveValue('')
   })
 
   it('creates an explicitly designated agent wallet without weakening approval controls', async () => {
@@ -345,6 +382,136 @@ describe('WalletsSettingsPanel', () => {
       dedicatedAgent: true,
       workspaceIds: ['workspace-1']
     }))
-    expect(screen.getByText(/mainnet always requires you/i)).toBeVisible()
+    expect(screen.getByText(/unless you later create an exact Bypass Approve policy/i)).toBeVisible()
+  })
+
+  it('explains wallet purpose and can make one available to current and future workspaces', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-1', name: 'Existing workspace' }]
+      },
+      global
+    })
+    const user = userEvent.setup()
+
+    expect(screen.getByText(/marks this account as dedicated to agent-requested work/i)).toBeVisible()
+    expect(screen.getByText(/does not let an agent approve its own request/i)).toBeVisible()
+    expect(screen.getByText(/websites and agents in those workspaces can discover and request this wallet/i)).toBeVisible()
+    await user.type(screen.getByLabelText('Name'), 'Everywhere wallet')
+    await user.click(screen.getByLabelText('Any workspace'))
+
+    expect(screen.getByLabelText('Existing workspace')).toBeDisabled()
+    expect(screen.getByText(/includes workspaces created later/i)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Everywhere wallet',
+      availableInAllWorkspaces: true,
+      workspaceIds: []
+    }))
+  })
+
+  it('can broaden a configured wallet to future workspaces without implying signing approval', async () => {
+    const configured = wallet('configured-wallet', 'Configured wallet', ['workspace-1'])
+    const wallets = controller({ wallets: ref([configured]) })
+    const { container } = render(WalletsSettingsPanel, {
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-1', name: 'Existing workspace' }]
+      },
+      global
+    })
+    const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
+    const user = userEvent.setup()
+
+    await user.click(accessPanel.getByLabelText('Any workspace'))
+    expect(accessPanel.getByLabelText('Existing workspace')).toBeDisabled()
+    expect(accessPanel.getByText(/never grants signing approval automatically/i)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Save workspace access' }))
+
+    expect(wallets.update).toHaveBeenCalledWith(configured.id, {
+      workspaceIds: [],
+      availableInAllWorkspaces: true
+    })
+  })
+
+  it('configures Bypass Approve mode only with explicit mainnet agent-wallet limits', async () => {
+    const mainnetAgent: WalletDescriptor = {
+      ...wallet('mainnet-agent', 'Mainnet agent', ['workspace-1']),
+      kind: 'agent',
+      capabilities: ['read', 'sign', 'send'],
+      network: {
+        id: '1', name: 'Ethereum', environment: 'mainnet', rpcUrl: 'https://ethereum-rpc.publicnode.com'
+      }
+    }
+    const wallets = controller({ wallets: ref([mainnetAgent]) })
+    render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [{ id: 'workspace-1', name: 'Agent workspace' }] },
+      global
+    })
+    const user = userEvent.setup()
+
+    expect(screen.getByText(/matching agent transactions run without a per-request approval dialog/i)).toBeVisible()
+    await user.click(screen.getByLabelText('Bypass Approve mode'))
+    await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
+    await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000002')
+    await user.type(screen.getByLabelText('Method / instruction'), 'native-transfer')
+    await user.type(screen.getByLabelText('Max native amount'), '0.01')
+    await user.type(screen.getByLabelText('Max token amount'), '1')
+    await user.type(screen.getByLabelText('Max fee'), '0.001')
+    await user.type(screen.getByLabelText('Session native spend'), '0.02')
+    await user.type(screen.getByLabelText('Daily native spend'), '0.05')
+    await fireEvent.update(screen.getByLabelText('Expires'), '2026-09-05T12:00')
+    expect(screen.getByLabelText('Bypass Approve mode')).toBeChecked()
+    expect(screen.getByLabelText('Policy workspace')).toHaveValue('workspace-1')
+    expect(screen.getByLabelText('Allowed origin')).toHaveValue('https://dapp.example')
+    expect(screen.getByLabelText('Destination / contract')).toHaveValue('0x0000000000000000000000000000000000000002')
+    expect(screen.getByLabelText('Method / instruction')).toHaveValue('native-transfer')
+    expect(screen.getByLabelText('Max native amount')).toHaveValue('0.01')
+    expect(screen.getByLabelText('Max token amount')).toHaveValue('1')
+    expect(screen.getByLabelText('Max fee')).toHaveValue('0.001')
+    expect(screen.getByLabelText('Session native spend')).toHaveValue('0.02')
+    expect(screen.getByLabelText('Daily native spend')).toHaveValue('0.05')
+    expect(screen.getByLabelText('Expires')).toHaveValue('2026-09-05T12:00')
+    expect(screen.getByLabelText('Operation count')).toHaveValue(1)
+    const enableBypass = screen.getByRole('button', { name: 'Enable Bypass Approve' })
+    expect(enableBypass).toBeEnabled()
+    await user.click(enableBypass)
+
+    expect(wallets.setPolicy).toHaveBeenCalledWith(expect.objectContaining({
+      walletId: mainnetAgent.id,
+      workspaceId: 'workspace-1',
+      mode: 'bounded-auto',
+      allowMainnetAgentAutomation: true,
+      maxNativeAmount: '0.01',
+      maxTokenAmount: '1',
+      maxFee: '0.001',
+      sessionSpendLimit: '0.02',
+      dailySpendLimit: '0.05',
+      allowMessageSigning: false
+    }))
+  })
+
+  it('explains locking and unlocks an OS-protected vault without asking for a fake passphrase', async () => {
+    const wallets = controller()
+    const rendered = render(WalletsSettingsPanel, {
+      props: { controller: wallets, workspaces: [] },
+      global
+    })
+    const user = userEvent.setup()
+
+    expect(screen.getByText(/removes decrypted signing keys.*from memory/i)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Lock signing keys' }))
+    expect(wallets.lock).toHaveBeenCalledOnce()
+
+    wallets.status.value = {
+      managedWallets: 'locked', backend: 'safe-storage', watchOnlyAvailable: true
+    }
+    await rendered.rerender({ controller: wallets, workspaces: [] })
+    expect(screen.queryByLabelText('Vault passphrase')).not.toBeInTheDocument()
+    expect(screen.getByText(/ordinary browsing and watch-only wallets remain available/i)).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Unlock with system secure storage' }))
+    expect(wallets.unlock).toHaveBeenCalledWith('')
   })
 })

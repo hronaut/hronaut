@@ -7,15 +7,21 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add chain-aware wallet onboarding with curated EVM, Solana, and TRON network presets, editable RPC endpoints, a full custom-network path, and explicit public-RPC/mainnet safety guidance.
+- Let each wallet use either an explicit workspace allowlist or an opt-in **Any workspace** scope that also covers future workspaces, without granting address or signing permission.
+- Let a dedicated EVM agent wallet opt into a short-lived, fully bounded **Bypass Approve** policy for exact mainnet agent transactions, while websites and requests outside the delegation still require trusted approval.
 
 ### Fixed
 
+- Explain wallet-vault locking in context, make it reliably clear OS-protected signing keys from memory, and provide a system-secure-storage unlock path without requesting an irrelevant passphrase.
+- Switch wallet imports between a mnemonic phrase textarea and a masked private-key field, clearing any entered secret when the format changes.
+- Let configured wallets replace a failed or rate-limited RPC endpoint without recreating their signing identity, while cancelling pending requests and removing endpoint-bound automatic policies.
 - Replace Electron's unsupported wallet-rename prompt with an inline trusted editor, and add accessible labels to vault passphrase controls.
 - Require an explicit saved workspace selection for bounded wallet policies, preventing policies from silently targeting the first attached workspace.
 - Keep bounded-policy submission disabled until its origin, destination, method, limits, expiry, and operation count are valid.
 - Validate trimmed custom network identifiers, names, and HTTP(S) RPC URLs before wallet submission, while accepting harmless surrounding whitespace in EVM chain IDs.
 - Return a normal validation error for partially typed or malformed wallet RPC URLs instead of letting URL parsing throw from the shared schema.
 - Show public-RPC rate-limit guidance only for presets that actually use a public endpoint, not local or custom networks.
+- Revalidate automatic-policy expiry and mainnet Bypass Approve invariants at the final serialized signing boundary, preventing a queued transaction from signing after its delegation expires.
 - Scope active and archived MCP workspaces to the creating connection, hide other clients' identifiers and label collisions, preserve workspace identity through archive recovery, return a private cleanup capability for retained failed forks, and require that capability before a reconnect can recover persistent browsing state.
 - Require human approval for Solana and TRON public-testnet signing until their RPC endpoints can be independently attested, preventing a retained testnet label paired with a mainnet RPC from authorizing automatic transactions.
 - Validate custom EVM chain IDs inline and in every trusted wallet-creation path, preventing malformed or unsafe IDs from being persisted and failing later during RPC operations.

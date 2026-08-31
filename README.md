@@ -186,6 +186,6 @@ The [detailed reference](REFERENCE.md) covers browser behavior, privacy and secu
 
 ## Local Web3 wallets
 
-Hronaut can hold separate local EVM, Solana, and Tron accounts, attach them to selected workspaces, and mediate website or coding-agent requests through simulation, policy checks, and trusted Hronaut approval. Private keys and recovery phrases are not returned to website pages or MCP clients. Mainnet signing always requires explicit human approval; bounded automation is limited to configured local networks and testnets.
+Hronaut can hold separate local EVM, Solana, and Tron accounts, attach them to selected workspaces, and mediate website or coding-agent requests through simulation, policy checks, and trusted Hronaut approval. Private keys and recovery phrases are not returned to website pages or MCP clients. Mainnet defaults to explicit human approval. A dedicated EVM agent wallet can opt into an exact, short-lived **Bypass Approve** policy with complete transaction and spend limits; websites and all unbounded or unsupported mainnet requests still require a person.
 
 See [docs/WALLETS.md](docs/WALLETS.md) for the threat model, supported methods, Linux vault behavior, recovery, RPC configuration, revocation, and the exact security boundary. Hronaut does not use WalletConnect, Reown, hosted custody, or proprietary wallet SDKs.

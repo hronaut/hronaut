@@ -1,4 +1,4 @@
-import type { WalletDescriptor, WalletOperationRequest, WalletPolicy } from '../../shared/wallet.js'
+import { walletAllowsWorkspace, type WalletDescriptor, type WalletOperationRequest, type WalletPolicy } from '../../shared/wallet.js'
 
 export interface WalletDecodedOperation {
   understood: boolean
@@ -45,7 +45,7 @@ interface DecimalValue {
   scale: number
 }
 
-const AUTOMATION_ATTESTED_EVM_TESTNET_IDS: ReadonlySet<string> = new Set([
+const AUTOMATION_ALLOWED_EVM_TESTNET_IDS: ReadonlySet<string> = new Set([
   '97', // BNB Smart Chain testnet
   '17000', // Holesky
   '43113', // Avalanche Fuji
@@ -63,6 +63,29 @@ const AUTOMATION_LOCAL_IDS: Readonly<Record<WalletDescriptor['chainFamily'], Rea
   tron: new Set(['local', 'private', 'private-net'])
 }
 
+export const MAINNET_AGENT_AUTOMATION_MAX_OPERATIONS = 100
+export const MAINNET_AGENT_AUTOMATION_MAX_DURATION_MS = 7 * 24 * 60 * 60_000
+
+export function isMainnetAgentAutomationPolicy(policy: WalletPolicy, now: Date): boolean {
+  const expiresIn = Date.parse(policy.expiresAt) - now.getTime()
+  return policy.allowMainnetAgentAutomation === true
+    && policy.mode === 'bounded-auto'
+    && policy.networkIds.length === 1
+    && policy.origins.length === 1
+    && policy.destinations.length === 1
+    && policy.methods.length === 1
+    && policy.maxNativeAmount !== undefined
+    && policy.maxTokenAmount !== undefined
+    && policy.maxFee !== undefined
+    && policy.sessionSpendLimit !== undefined
+    && policy.dailySpendLimit !== undefined
+    && policy.maximumOperationCount <= MAINNET_AGENT_AUTOMATION_MAX_OPERATIONS
+    && policy.requireSuccessfulSimulation
+    && !policy.allowMessageSigning
+    && expiresIn > 0
+    && expiresIn <= MAINNET_AGENT_AUTOMATION_MAX_DURATION_MS
+}
+
 function isLoopbackRpc(rpcUrl: string): boolean {
   const hostname = new URL(rpcUrl).hostname.toLowerCase()
   return hostname === 'localhost'
@@ -74,10 +97,11 @@ function isLoopbackRpc(rpcUrl: string): boolean {
 export function isWalletNetworkEligibleForAutomation(wallet: WalletDescriptor): boolean {
   const networkId = wallet.network.id.toLowerCase()
   if (wallet.network.environment === 'testnet') {
-    // The EVM adapter attests eth_chainId against this ID before policy evaluation.
+    // The EVM adapter requires eth_chainId to match this configured allowlisted ID
+    // before policy evaluation. That does not independently prove endpoint honesty.
     // Solana and TRON must remain human-approved until their adapters bind a
     // trusted genesis/network fingerprint into the normalized request.
-    return wallet.chainFamily === 'evm' && AUTOMATION_ATTESTED_EVM_TESTNET_IDS.has(networkId)
+    return wallet.chainFamily === 'evm' && AUTOMATION_ALLOWED_EVM_TESTNET_IDS.has(networkId)
   }
   if (wallet.network.environment === 'local') {
     return AUTOMATION_LOCAL_IDS[wallet.chainFamily].has(networkId) && isLoopbackRpc(wallet.network.rpcUrl)
@@ -119,12 +143,17 @@ export class WalletPolicyEngine {
   evaluate(input: WalletPolicyEvaluation): WalletPolicyDecision {
     const { request, wallet, decoded, simulation } = input
     if (!wallet.capabilities.includes(request.capability)) return { outcome: 'rejected', reason: 'wallet-capability-disabled' }
-    if (!wallet.workspaceIds.includes(request.workspaceId)) return { outcome: 'rejected', reason: 'wallet-not-attached-to-workspace' }
+    if (!walletAllowsWorkspace(wallet, request.workspaceId)) return { outcome: 'rejected', reason: 'wallet-not-attached-to-workspace' }
     if (wallet.chainFamily !== request.chainFamily || wallet.network.id !== request.networkId) {
       return { outcome: 'rejected', reason: 'chain-or-network-mismatch' }
     }
     if (wallet.kind === 'watch-only' && request.capability !== 'read') return { outcome: 'rejected', reason: 'watch-only-wallet' }
-    if (wallet.network.environment === 'mainnet' && request.capability !== 'read') {
+    const mainnetAgentBypassCandidate = wallet.network.environment === 'mainnet'
+      && wallet.chainFamily === 'evm'
+      && wallet.kind === 'agent'
+      && request.requester.type === 'agent'
+      && request.operation !== 'sign-message'
+    if (wallet.network.environment === 'mainnet' && request.capability !== 'read' && !mainnetAgentBypassCandidate) {
       return { outcome: 'awaiting-human', reason: 'mainnet-requires-human' }
     }
     if (!decoded.understood) return { outcome: 'awaiting-human', reason: 'unknown-transaction' }
@@ -132,13 +161,14 @@ export class WalletPolicyEngine {
     if (decoded.newContractOrProgram) return { outcome: 'awaiting-human', reason: 'new-contract-or-program' }
     if (decoded.blindMessage) return { outcome: 'awaiting-human', reason: 'blind-message' }
     if (!simulation.attempted || !simulation.success) return { outcome: 'awaiting-human', reason: 'simulation-required' }
-    if (!isWalletNetworkEligibleForAutomation(wallet)) {
+    if (wallet.network.environment !== 'mainnet' && !isWalletNetworkEligibleForAutomation(wallet)) {
       return { outcome: 'awaiting-human', reason: 'network-not-eligible-for-automation' }
     }
 
     for (const policy of input.policies) {
       const usage = input.usageByPolicy?.[policy.id] ?? input
       if (policy.mode !== 'bounded-auto' || policy.walletId !== wallet.id || policy.workspaceId !== request.workspaceId) continue
+      if (wallet.network.environment === 'mainnet' && !isMainnetAgentAutomationPolicy(policy, input.now)) continue
       if (Date.parse(policy.expiresAt) <= input.now.getTime() || usage.operationCount >= policy.maximumOperationCount) continue
       if (!policy.networkIds.includes(request.networkId) || !policy.origins.includes(request.topLevelOrigin)) continue
       if (!includesNormalized(policy.destinations, decoded.destination) || !includesNormalized(policy.methods, decoded.method)) continue
