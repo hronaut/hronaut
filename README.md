@@ -2,6 +2,10 @@
 
 Hronaut is a visible, persistent Electron browser that exposes durable agent workspaces through MCP. It keeps the browser open independently of any individual AI session, so people can watch, pause, and take over while agents work in separate local browser profiles.
 
+[![Latest release](https://img.shields.io/github/v/release/hronaut/hronaut?display_name=tag&sort=semver)](https://github.com/hronaut/hronaut/releases/latest)
+[![CI](https://github.com/hronaut/hronaut/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/ci.yml)
+[![Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6866e9)](https://hronaut.dev/download)
+[![Source-available: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-source--available%20PolyForm%20Noncommercial%201.0.0-4b5563)](LICENSE)
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
 
 [Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
@@ -13,6 +17,14 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 Watch the [35-second product overview](https://hronaut.dev/#demo), then download Hronaut for Windows, macOS, or Linux.
 
 Not sure which browser model fits your workflow? Read the source-backed [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide), which compares Hronaut with Playwright MCP, Chrome DevTools MCP, and an extension-based Browser MCP without claiming persistence is unique.
+
+## Start in three steps
+
+1. [Download the latest Hronaut](https://github.com/hronaut/hronaut/releases/latest) for Windows, macOS, or Linux and start it.
+2. On Hronaut Home, choose your coding agent and copy its generated setup, or use the [generic setup guide](https://hronaut.dev/setup). The in-app setup always reflects the current local endpoint and authentication choice.
+3. Ask the connected agent: `Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.`
+
+A successful run stays visible in Hronaut, creates an isolated workspace, and remains available after that coding-agent conversation ends.
 
 ### Works with your coding agent
 
@@ -30,6 +42,8 @@ Hronaut fits when you already have a coding agent and want the browser to remain
 - Watch work as it happens, pause agent access, lock website interaction, or take over the same tab for CAPTCHA, 2FA, payment, and other human-only steps.
 - Resume one deliberately scoped browser workspace across compatible local MCP sessions with its private task capability, without exposing it to other connected clients or connecting the agent to your everyday browser profile.
 - Preserve tabs and evidence between coding sessions for debugging, authenticated QA, and multi-agent handoffs.
+
+Explore the source-backed workflows for [authenticated browser handoff](https://hronaut.dev/authenticated-browser-agents), [parallel agent workspaces](https://hronaut.dev/parallel-agent-browser-workspaces), [localhost QA](https://hronaut.dev/coding-agent-localhost-browser), [local Web3 wallets](https://hronaut.dev/local-web3-wallets-for-coding-agents), and [security and release trust](https://hronaut.dev/security).
 
 Use a task-owned headless browser or automation library when the browser should be disposable or embedded inside your own agent runtime. Use a hosted browser service when you need remote regions, managed proxies, stealth, or fleet-scale execution. The [decision guide](https://hronaut.dev/browser-mcp-guide) covers the tradeoffs in more detail.
 

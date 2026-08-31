@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Add a three-step first-run path, workflow links, platform/CI badges, and machine-readable package discovery metadata to make the public repository easier to evaluate and adopt.
+
+### Fixed
+
+- Hand the GitHub-backed **What's new** view off from Settings and About instead of stacking multiple `aria-modal` dialogs, keeping focus and assistive-technology semantics on one trusted surface.
+
 ## [1.11.5] - 2026-08-31
 
 ### Added

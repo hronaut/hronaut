@@ -157,14 +157,6 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
       friendlyUiError(error, options.translate('runtime.toast.actionFailed'))
     )
   })
-  const releaseHistoryController = useReleaseHistoryController({
-    api: options.apis.updates,
-    beforeOpen: () => {
-      options.commandPaletteOpen.value = false
-      options.closeTransientPanels()
-    },
-    formatError: (error) => friendlyUiError(error, options.translate('updates.history.unavailable'))
-  })
   const commercialLicenseController = useCommercialLicenseController({
     api: options.apis.license,
     confirmDeactivate: () => options.confirm(options.translate('runtimeDetails.deactivate')),
@@ -267,6 +259,16 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
       || (section === 'updates' && updateSettingsController.busy.value)
     ),
     onResetError: options.onSettingError
+  })
+  const releaseHistoryController = useReleaseHistoryController({
+    api: options.apis.updates,
+    beforeOpen: () => {
+      options.commandPaletteOpen.value = false
+      settingsDialogController.close()
+      options.closeHelpDialog()
+      options.closeTransientPanels()
+    },
+    formatError: (error) => friendlyUiError(error, options.translate('updates.history.unavailable'))
   })
   const updateNoticePresentationController = useUpdateNoticePresentationController({
     open: updateNoticeOpen,

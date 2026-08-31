@@ -1,15 +1,29 @@
 {
   "name": "hronaut",
   "version": "1.11.5",
-  "description": "A persistent, visible Electron browser controlled through MCP",
+  "description": "A visible local Browser MCP for coding agents with persistent tabs and isolated workspaces",
   "desktopName": "Hronaut",
   "author": "Hronaut",
-  "homepage": "https://github.com/hronaut/hronaut",
+  "homepage": "https://hronaut.dev",
   "license": "PolyForm-Noncommercial-1.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hronaut/hronaut.git"
   },
+  "bugs": {
+    "url": "https://github.com/hronaut/hronaut/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "browser-automation",
+    "browser-mcp",
+    "coding-agents",
+    "electron",
+    "mcp",
+    "model-context-protocol",
+    "persistent-browser",
+    "qa-automation"
+  ],
   "engines": {
     "node": ">=22"
   },

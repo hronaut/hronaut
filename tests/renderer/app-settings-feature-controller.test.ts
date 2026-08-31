@@ -228,4 +228,19 @@ describe('app settings feature controller', () => {
 
     expect(harness.controller.defaultDownloadDirectory.value).toBe('')
   })
+
+  it('hands release history off from other modal surfaces instead of stacking dialogs', () => {
+    const harness = createHarness()
+
+    harness.controller.settingsDialogController.openSection('updates')
+    expect(harness.controller.settingsDialogController.open.value).toBe(true)
+    vi.clearAllMocks()
+
+    harness.controller.releaseHistoryController.openDialog()
+
+    expect(harness.controller.settingsDialogController.open.value).toBe(false)
+    expect(harness.options.closeHelpDialog).toHaveBeenCalledOnce()
+    expect(harness.options.closeTransientPanels).toHaveBeenCalled()
+    expect(harness.controller.releaseHistoryController.open.value).toBe(true)
+  })
 })
