@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.6] - 2026-08-31
+
 ### Changed
 
 - Add a three-step first-run path, workflow links, platform/CI badges, and machine-readable package discovery metadata to make the public repository easier to evaluate and adopt, and send first-time downloads through the curated OS/package chooser instead of GitHub's raw asset list.
