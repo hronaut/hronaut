@@ -119,7 +119,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     url: 'data:text/html,<title>Wallet settings hit testing</title><main>Website fixture</main>',
     active: true
   })`)
-  await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+  await appWindow.getByRole('button', { name: /Lock all tabs/ }).click()
   await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
@@ -129,6 +129,9 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   const panel = dialog.locator('.wallet-settings')
 
   await expect.poll(() => appWindow.locator('.settings-overlay').evaluate((element) => (
+    getComputedStyle(element).getPropertyValue('-webkit-app-region')
+  ))).toBe('no-drag')
+  await expect.poll(() => panel.getByText('Name', { exact: true }).evaluate((element) => (
     getComputedStyle(element).getPropertyValue('-webkit-app-region')
   ))).toBe('no-drag')
   await expect(panel.getByRole('heading', { name: 'Wallets', exact: true })).toBeVisible()
@@ -188,6 +191,16 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(walletName).toBeFocused()
   await appWindow.keyboard.type('QA wallet')
   await expect(walletName).toHaveValue('QA wallet')
+
+  await appWindow.getByRole('button', { name: 'Close settings' }).click()
+  await appWindow.getByRole('button', { name: 'Unlock all tabs' }).click()
+  await expect(appWindow.getByRole('button', { name: /Lock all tabs/ })).toHaveAttribute('aria-pressed', 'false')
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  await walletName.click()
+  await expect(walletName).toBeFocused()
+  await appWindow.keyboard.type('QA wallet after unlock')
+  await expect(walletName).toHaveValue('QA wallet after unlock')
 
   const chain = panel.getByRole('combobox', { name: 'Chain' })
   await chain.click()

@@ -1,3 +1,9 @@
+.settings-overlay,
+.settings-overlay * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .settings-overlay {
   position: fixed;
   z-index: 100;
@@ -9,8 +15,6 @@
   background: rgba(7, 7, 12, 0.66);
   backdrop-filter: blur(7px);
   user-select: none;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 .wallet-approval-overlay { position: fixed; z-index: 130; inset: 0; display: grid; padding: 24px; place-items: center; background: rgba(4, 5, 10, .76); backdrop-filter: blur(8px); -webkit-app-region: no-drag; }
