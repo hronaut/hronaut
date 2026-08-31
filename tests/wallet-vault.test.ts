@@ -55,6 +55,26 @@ function fakeSafeStorage(): WalletSafeStorage {
 }
 
 describe('WalletVault', () => {
+  it('does not populate decrypted state when initialization is cancelled by a newer lock', async () => {
+    const path = await vaultPath()
+    const safeStorage = fakeSafeStorage()
+    const encrypt = safeStorage.encryptStringAsync
+    let releaseEncryption: () => void = () => undefined
+    const encryptionGate = new Promise<void>((resolve) => { releaseEncryption = resolve })
+    safeStorage.encryptStringAsync = async (value) => {
+      await encryptionGate
+      return encrypt(value)
+    }
+    const vault = new WalletVault(path, new SafeStorageWalletKeyWrapper(safeStorage))
+
+    const initializing = vault.initialize()
+    vault.lock()
+    releaseEncryption()
+
+    await expect(initializing).rejects.toThrow('Wallet vault initialization was cancelled')
+    expect(vault.isLocked()).toBe(true)
+  })
+
   it('atomically persists encrypted managed records and exposes descriptors only', async () => {
     const path = await vaultPath()
     const vault = new WalletVault(path, new SafeStorageWalletKeyWrapper(fakeSafeStorage()))
@@ -113,6 +133,30 @@ describe('WalletVault', () => {
 
     expect(vault.list()).toHaveLength(2)
     expect(vault.list().find((entry) => entry.id === 'watch')).toBeDefined()
+    await expect(vault.secret('wallet-1')).rejects.toThrow('Wallet vault is locked')
+  })
+
+  it('keeps a newer lock authoritative while an asynchronous unlock is pending', async () => {
+    const path = await vaultPath()
+    const safeStorage = fakeSafeStorage()
+    const vault = new WalletVault(path, new SafeStorageWalletKeyWrapper(safeStorage))
+    await vault.initialize()
+    await vault.add(descriptor(), { format: 'private-key', material: Buffer.from('secret') })
+    vault.lock()
+
+    const decrypt = safeStorage.decryptStringAsync
+    let releaseDecryption: () => void = () => undefined
+    const decryptionGate = new Promise<void>((resolve) => { releaseDecryption = resolve })
+    safeStorage.decryptStringAsync = async (value) => {
+      await decryptionGate
+      return decrypt(value)
+    }
+    const unlocking = vault.unlock()
+    vault.lock()
+    releaseDecryption()
+
+    await expect(unlocking).rejects.toThrow('Wallet vault unlock was cancelled')
+    expect(vault.isLocked()).toBe(true)
     await expect(vault.secret('wallet-1')).rejects.toThrow('Wallet vault is locked')
   })
 

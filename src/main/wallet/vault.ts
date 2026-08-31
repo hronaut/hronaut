@@ -131,6 +131,7 @@ export class WalletVault {
   private encryptedAuthority: EncryptedWalletSecret | undefined
   private legacyAuthorityMigration = false
   private mutationQueue: Promise<void> = Promise.resolve()
+  private lockGeneration = 0
 
   constructor(
     private readonly path: string,
@@ -138,15 +139,18 @@ export class WalletVault {
   ) {}
 
   async initialize(passphrase?: Uint8Array, initialAuthorityState: Uint8Array = Buffer.from('{}', 'utf8')): Promise<void> {
+    const generation = this.lockGeneration
     await this.queueMutation(async () => {
       if (this.keyProtection || this.wallets.size || this.records.size) throw new Error('Wallet vault is already initialized')
       const key = generateWalletDataEncryptionKey()
       try {
         const protection = await this.keyWrapper.wrap(key, passphrase)
+        this.assertLockGeneration(generation, 'initialization')
         const authority = this.encryptAuthorityStateWithKey(
           key, initialAuthorityState, protection, new Map(), new Map()
         )
         await this.persist({ version: 2, keyProtection: protection, wallets: [], records: [], authority })
+        this.assertLockGeneration(generation, 'initialization')
         this.keyProtection = protection
         this.encryptedAuthority = authority
         this.replaceDataEncryptionKey(key)
@@ -210,10 +214,12 @@ export class WalletVault {
 
   async unlock(passphrase?: Uint8Array): Promise<void> {
     if (!this.keyProtection) throw new Error('Wallet vault is not initialized')
+    const generation = this.lockGeneration
     const { key, replacement } = await this.keyWrapper.unwrap(this.keyProtection, passphrase)
+    let authorityState: Buffer | undefined
     try {
       this.authenticateRecords(key)
-      const authorityState = this.encryptedAuthority
+      authorityState = this.encryptedAuthority
         ? this.decryptAuthorityStateWithKey(
             key, this.encryptedAuthority, this.keyProtection, this.wallets, this.records
           )
@@ -224,22 +230,25 @@ export class WalletVault {
             key, authorityState, nextProtection, this.wallets, this.records
           )
         : this.encryptedAuthority
+      this.assertLockGeneration(generation, 'unlock')
       if (replacement || this.legacyAuthorityMigration) {
         const document = this.document(nextProtection, this.wallets, this.records, authority)
         await this.persist(document)
+        this.assertLockGeneration(generation, 'unlock')
         this.keyProtection = nextProtection
       }
       this.encryptedAuthority = authority
       this.replaceDataEncryptionKey(key)
       this.replaceAuthorityState(authorityState)
       this.legacyAuthorityMigration = authorityState.equals(LEGACY_AUTHORITY_MARKER)
-      authorityState.fill(0)
     } finally {
+      authorityState?.fill(0)
       key.fill(0)
     }
   }
 
   lock(): void {
+    this.lockGeneration += 1
     this.dataEncryptionKey?.fill(0)
     this.dataEncryptionKey = undefined
     this.authorityState?.fill(0)
@@ -516,6 +525,10 @@ export class WalletVault {
 
   private persist(document: PersistedWalletVault): Promise<void> {
     return writeTextFileAtomically(this.path, `${JSON.stringify(document, null, 2)}\n`)
+  }
+
+  private assertLockGeneration(generation: number, operation: 'initialization' | 'unlock'): void {
+    if (generation !== this.lockGeneration) throw new Error(`Wallet vault ${operation} was cancelled`)
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {
