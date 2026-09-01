@@ -17,7 +17,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     dockedPanelOpen: ComputedRef<boolean>
     tabRailWidth: ComputedRef<number>
     detachedWindow: boolean
-    shellApi: Pick<HronautShellApi, 'setToolbarHeight' | 'setContentInsets'>
+    shellApi: Pick<HronautShellApi, 'setToolbarHeight' | 'setContentInsets' | 'setBrowserContentOccluded'>
   }
   modals: {
     settings: BooleanState
@@ -124,6 +124,9 @@ export function useAppShellLayoutFeatureController(
     keepsSeparatePanelOpen: options.keepsSeparatePanelOpen,
     closePanelsExcept: options.closePanelsExcept,
     closeAddressSuggestions: options.closeAddressSuggestions,
+    setBrowserContentOccluded: (occluded) => {
+      if (!layout.detachedWindow) layout.shellApi.setBrowserContentOccluded(occluded)
+    },
     reportLayout: panelDockLayout.reportShellHeight
   })
 

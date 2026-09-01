@@ -30,6 +30,7 @@ interface Harness {
   closeAddressSuggestions: ReturnType<typeof vi.fn>
   setToolbarHeight: ReturnType<typeof vi.fn>
   setContentInsets: ReturnType<typeof vi.fn>
+  setBrowserContentOccluded: ReturnType<typeof vi.fn>
 }
 
 const mountedWrappers: VueWrapper[] = []
@@ -48,7 +49,7 @@ function bounds(height = 105): DOMRect {
   }
 }
 
-function createHarness(): Harness {
+function createHarness(detachedWindow = false): Harness {
   const dock = ref<PanelDock>('right')
   const dockedPanelOpen = ref(true)
   const tabRailWidth = ref(240)
@@ -80,6 +81,7 @@ function createHarness(): Harness {
   const closeAddressSuggestions = vi.fn()
   const setToolbarHeight = vi.fn()
   const setContentInsets = vi.fn()
+  const setBrowserContentOccluded = vi.fn()
   let controller!: AppShellLayoutFeatureController
   const wrapper = mount(defineComponent({
     setup() {
@@ -90,8 +92,8 @@ function createHarness(): Harness {
           shell,
           dockedPanelOpen: computed(() => dockedPanelOpen.value),
           tabRailWidth: computed(() => tabRailWidth.value),
-          detachedWindow: false,
-          shellApi: { setToolbarHeight, setContentInsets }
+          detachedWindow,
+          shellApi: { setToolbarHeight, setContentInsets, setBrowserContentOccluded }
         },
         modals,
         overlays,
@@ -113,7 +115,8 @@ function createHarness(): Harness {
     closePanelsExcept,
     closeAddressSuggestions,
     setToolbarHeight,
-    setContentInsets
+    setContentInsets,
+    setBrowserContentOccluded
   }
 }
 
@@ -162,6 +165,16 @@ describe('useAppShellLayoutFeatureController', () => {
     expect(harness.closePanelsExcept).not.toHaveBeenCalled()
   })
 
+  it('does not send main-window content occlusion from a detached panel window', async () => {
+    const harness = createHarness(true)
+
+    harness.modals.walletApproval.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.setBrowserContentOccluded).not.toHaveBeenCalled()
+  })
+
   it('reports policy-owned layout changes and stops overlay reactions on disposal', async () => {
     const harness = createHarness()
 
@@ -200,6 +213,7 @@ describe('useAppShellLayoutFeatureController', () => {
       bottom: 0,
       left: 0
     })
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
   })
 
   it("reveals What's new immediately above website content without waiting for a window resize", async () => {

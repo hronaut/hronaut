@@ -475,6 +475,7 @@ const shellApi: HronautShellApi = {
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),
+  setBrowserContentOccluded: (occluded: boolean) => ipcRenderer.send('browser:content-occluded', occluded),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: HelpMenuAction): void => listener(action)
     ipcRenderer.on('help:open', handler)

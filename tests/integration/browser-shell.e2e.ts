@@ -2174,6 +2174,22 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
       return pageView instanceof WebContentsView && pageView.getVisible()
     }, url)).toBe(false)
 
+    // A delayed ordinary shell measurement must not put the native website
+    // view back above a trusted approval. This reproduces the later signing
+    // and transaction approval race that appeared to require a window resize.
+    await appWindow.evaluate('window.hronautShell.setToolbarHeight(105)')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      const pageView = window?.contentView.children.find((view) => (
+        view instanceof WebContentsView
+        && !view.webContents.isDestroyed()
+        && view.webContents.getURL() === requestedUrl
+      ))
+      return pageView instanceof WebContentsView && pageView.getVisible()
+    }, url)).toBe(false)
+    await expect(appWindow.getByRole('alertdialog', { name: /Sign message/i })).toBeVisible()
+    await appWindow.screenshot({ path: testInfo.outputPath('wallet-signing-approval-after-stale-layout.png') })
+
     await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Wallet teardown WebContents was not found')

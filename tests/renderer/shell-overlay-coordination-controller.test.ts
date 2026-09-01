@@ -11,6 +11,7 @@ function createHarness(separatePanel = false) {
   const fullModalOpen = ref(false)
   const closePanelsExcept = vi.fn()
   const closeAddressSuggestions = vi.fn()
+  const setBrowserContentOccluded = vi.fn()
   const reportLayout = vi.fn()
   const controller = useShellOverlayCoordinationController({
     layoutSources: [settingsOpen, siteControlsOpen, downloadsOpen],
@@ -24,6 +25,7 @@ function createHarness(separatePanel = false) {
     keepsSeparatePanelOpen: () => separatePanel,
     closePanelsExcept,
     closeAddressSuggestions,
+    setBrowserContentOccluded,
     reportLayout
   })
   return {
@@ -34,6 +36,7 @@ function createHarness(separatePanel = false) {
     downloadsOpen,
     fullModalOpen,
     reportLayout,
+    setBrowserContentOccluded,
     settingsOpen,
     siteControlsOpen,
     siteStorageOpen
@@ -86,6 +89,21 @@ describe('shell overlay coordination controller', () => {
     harness.fullModalOpen.value = true
 
     expect(harness.closeAddressSuggestions).toHaveBeenCalledOnce()
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+  })
+
+  it('keeps native website content occluded until the modal has left the DOM', async () => {
+    const harness = createHarness()
+    await nextTick()
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
+
+    harness.fullModalOpen.value = true
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+
+    harness.fullModalOpen.value = false
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+    await nextTick()
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(false)
   })
 
   it('reports layout after rendering and stops every reaction on disposal', async () => {

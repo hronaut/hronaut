@@ -3334,6 +3334,11 @@ function registerIpc(): void {
       left: scaleShellMetric(left as number, event.sender.getZoomFactor())
     })
   })
+  ipcMain.on('browser:content-occluded', (event, occluded: unknown) => {
+    assertMainShellSender(event)
+    if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
+    tabsManager?.setBrowserContentOccluded(occluded)
+  })
 }
 
 async function loadAuthoritativeSettings(): Promise<void> {

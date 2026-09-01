@@ -14,6 +14,7 @@ export interface ShellOverlayCoordinationControllerOptions {
   keepsSeparatePanelOpen: () => boolean
   closePanelsExcept: (panel: DetachablePanelId | null) => void
   closeAddressSuggestions: () => void
+  setBrowserContentOccluded: (occluded: boolean) => void
   reportLayout: () => void
 }
 
@@ -45,12 +46,25 @@ export function useShellOverlayCoordinationController(
     if (open) options.closeAddressSuggestions()
   }, { flush: 'sync' })
 
+  const stopBrowserContentOcclusionWatch = watch(options.fullModalOpen, async (open) => {
+    // Hide a native WebContentsView before renderer-owned trusted chrome can
+    // be obscured. On close, wait until the modal has left the DOM before
+    // allowing website content to return.
+    if (!open) {
+      await nextTick()
+      if (options.fullModalOpen.value) return
+    }
+    if (!disposed) options.setBrowserContentOccluded(open)
+  }, { flush: 'sync', immediate: true })
+
   function dispose(): void {
     if (disposed) return
     disposed = true
     stopLayoutWatch()
     stopOverlayWatch()
     stopFullModalWatch()
+    stopBrowserContentOcclusionWatch()
+    options.setBrowserContentOccluded(false)
   }
 
   return { dispose }

@@ -904,6 +904,7 @@ export class BrowserTabsManager {
   private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+  private browserContentOccluded = false
   private readonly networkHookSessions = new WeakSet<Session>()
   private readonly downloadHookSessions = new WeakSet<Session>()
   private readonly webContentsToTab = new Map<number, string>()
@@ -5837,6 +5838,12 @@ export class BrowserTabsManager {
     this.layout()
   }
 
+  setBrowserContentOccluded(occluded: boolean): void {
+    if (this.destroyed || this.window.isDestroyed()) return
+    this.browserContentOccluded = occluded
+    this.layout()
+  }
+
   layout(): void {
     if (this.destroyed || this.window.isDestroyed() || !this.activeTabId) return
     const tab = this.tabs.get(this.activeTabId)
@@ -5845,7 +5852,7 @@ export class BrowserTabsManager {
     // Renderer-owned trusted modals cannot be placed above a native
     // WebContentsView. Hiding the page is more reliable than collapsing it to
     // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
-    const browserContentVisible = this.toolbarHeight < bounds.height - 1
+    const browserContentVisible = !this.browserContentOccluded && this.toolbarHeight < bounds.height - 1
     const availableWidth = Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right)
     const availableHeight = Math.max(
       1,

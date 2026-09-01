@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep trusted wallet approvals above website content even when a delayed shell measurement arrives, so connection, signing, and transaction confirmations no longer appear only after resizing the window.
 - Point the desktop repository's static reference site at the canonical Hronaut storefront and provide complete large-card Open Graph metadata instead of identifying GitHub as the shared page.
 
 ### Improved
