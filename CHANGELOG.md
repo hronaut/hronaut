@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.24] - 2026-09-02
+
 ### Fixed
 
 - Agent presentation and attention requests no longer steal keyboard or mouse focus when their target is already visible in split view.
