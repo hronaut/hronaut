@@ -6,8 +6,13 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconDatabase from '~icons/material-symbols/database-rounded'
 import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
+import IconShield from '~icons/material-symbols/shield-lock-rounded'
 import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
-import type { BrowserState } from '../../../shared/types.js'
+import type {
+  BrowserState,
+  BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceNavigationAuditSource
+} from '../../../shared/types.js'
 import {
   BROWSER_TAB_GROUP_COLORS,
   BROWSER_TAB_GROUP_COLOR_HEX,
@@ -39,6 +44,10 @@ const {
   storageMessage,
   actionState,
   actionPending,
+  navigationMode,
+  navigationRulesText,
+  navigationAudit,
+  navigationAuditState,
   dismissBlocked,
   saveDisabled,
   isDefault,
@@ -75,6 +84,27 @@ function colorStyle(value: (typeof BROWSER_TAB_GROUP_COLORS)[number]): Record<st
   return { '--tab-group-color': BROWSER_TAB_GROUP_COLOR_HEX[value] }
 }
 
+function formatAuditTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+function auditReasonLabel(reason: BrowserWorkspaceNavigationAuditEntry['reason']): string {
+  if (reason === 'credentials') return t('workspaceNavigationAudit.reasonCredentials')
+  if (reason === 'malformed') return t('workspaceNavigationAudit.reasonMalformed')
+  if (reason === 'unsupported-scheme') return t('workspaceNavigationAudit.reasonUnsupportedScheme')
+  return t('workspaceNavigationAudit.reasonNoMatch')
+}
+
+function auditSourceLabel(source: BrowserWorkspaceNavigationAuditSource): string {
+  if (source === 'direct') return t('workspaceNavigationAudit.sourceDirect')
+  if (source === 'page') return t('workspaceNavigationAudit.sourcePage')
+  if (source === 'redirect') return t('workspaceNavigationAudit.sourceRedirect')
+  if (source === 'popup') return t('workspaceNavigationAudit.sourcePopup')
+  if (source === 'history') return t('workspaceNavigationAudit.sourceHistory')
+  if (source === 'policy-change') return t('workspaceNavigationAudit.sourcePolicyChange')
+  return t('workspaceNavigationAudit.sourceRestore')
+}
+
 defineExpose({ openExisting, openNew, close })
 onBeforeUnmount(dispose)
 </script>
@@ -109,6 +139,31 @@ onBeforeUnmount(dispose)
             @click="color = option"
           ><IconCheck v-if="color === option" aria-hidden="true" /></button>
         </div>
+        <section v-if="mode === 'create' || !isDefault" class="workspace-site-access-section">
+          <div class="workspace-storage-heading"><IconShield aria-hidden="true" /><div><strong>{{ t('workspaceEditor.siteAccess') }}</strong><span>{{ t('workspaceEditor.siteAccessDescription') }}</span></div></div>
+          <label class="workspace-storage-choice">
+            <input v-model="navigationMode" type="radio" value="unrestricted" :disabled="dismissBlocked" />
+            <span><strong>{{ t('workspaceEditor.unrestricted') }}</strong><small>{{ t('workspaceEditor.unrestrictedDescription') }}</small></span>
+          </label>
+          <label class="workspace-storage-choice">
+            <input v-model="navigationMode" type="radio" value="restricted" :disabled="dismissBlocked" />
+            <span><strong>{{ t('workspaceEditor.restricted') }}</strong><small>{{ t('workspaceEditor.restrictedDescription') }}</small></span>
+          </label>
+          <div v-if="navigationMode === 'restricted'" class="workspace-navigation-rules">
+            <label for="workspace-navigation-rules">{{ t('workspaceEditor.allowedSites') }}</label>
+            <textarea id="workspace-navigation-rules" v-model="navigationRulesText" rows="5" spellcheck="false" autocomplete="off" :placeholder="t('workspaceEditor.allowedSitesPlaceholder')" :disabled="dismissBlocked" />
+            <small>{{ t('workspaceEditor.allowedSitesHelp') }}</small>
+          </div>
+          <details v-if="mode === 'edit'" class="workspace-navigation-audit">
+            <summary>{{ t('workspaceEditor.blockedAttempts', { count: navigationAudit.length }) }}</summary>
+            <p v-if="navigationAuditState === 'loading'">{{ t('workspaceEditor.auditLoading') }}</p>
+            <p v-else-if="navigationAuditState === 'error'" class="error">{{ t('workspaceEditor.auditError') }}</p>
+            <p v-else-if="!navigationAudit.length">{{ t('workspaceEditor.auditEmpty') }}</p>
+            <ol v-else>
+              <li v-for="entry in navigationAudit" :key="entry.id"><strong>{{ entry.targetOrigin }}</strong><span>{{ formatAuditTime(entry.timestamp) }} · {{ auditReasonLabel(entry.reason) }} · {{ auditSourceLabel(entry.source) }}</span></li>
+            </ol>
+          </details>
+        </section>
         <section v-if="mode === 'create'" class="workspace-storage-section">
           <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>
           <label class="workspace-storage-choice">

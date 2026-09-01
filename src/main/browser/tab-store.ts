@@ -9,6 +9,14 @@ import { isUuidV7 } from '../uuid-v7.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
+import {
+  evaluateWorkspaceNavigation,
+  normalizeWorkspaceNavigationPolicy
+} from './workspace-navigation-policy.js'
+import type {
+  BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceNavigationPolicy
+} from '../../shared/types.js'
 
 export const TAB_STATE_VERSION = 2 as const
 
@@ -30,6 +38,8 @@ export interface PersistedTabGroup {
   activeTabId?: string | null
   storageId?: string
   origins?: string[]
+  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
 }
 
 export interface PersistedSavedTabGroup {
@@ -39,6 +49,8 @@ export interface PersistedSavedTabGroup {
   savedAt: string
   storageId?: string
   origins?: string[]
+  navigationPolicy?: BrowserWorkspaceNavigationPolicy
+  navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
   tabs: Array<Pick<PersistedTab, 'title' | 'url' | 'pinned'>>
 }
 
@@ -59,6 +71,7 @@ const MAX_TABS = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SAVED_WORKSPACES = 50
 const MAX_WORKSPACE_NAME_LENGTH = 80
+const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -87,6 +100,60 @@ function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
 }
 
+function persistedWorkspaceNavigationAudit(value: unknown): BrowserWorkspaceNavigationAuditEntry[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) {
+    throw new TypeError('Workspace navigation audit is invalid.')
+  }
+  return value.map((candidate) => {
+    if (!isRecord(candidate)
+      || typeof candidate.id !== 'string'
+      || !isUuidV7(candidate.id)
+      || typeof candidate.timestamp !== 'string'
+      || !Number.isFinite(Date.parse(candidate.timestamp))
+      || typeof candidate.targetOrigin !== 'string'
+      || candidate.targetOrigin.length > 500
+      || (candidate.reason !== 'credentials'
+        && candidate.reason !== 'malformed'
+        && candidate.reason !== 'unsupported-scheme'
+        && candidate.reason !== 'no-match')
+      || (candidate.source !== 'direct'
+        && candidate.source !== 'page'
+        && candidate.source !== 'redirect'
+        && candidate.source !== 'popup'
+        && candidate.source !== 'history'
+        && candidate.source !== 'policy-change'
+        && candidate.source !== 'restore')) {
+      throw new TypeError('Workspace navigation audit entry is invalid.')
+    }
+    const targetOrigin = candidate.targetOrigin
+    if (targetOrigin !== 'invalid URL' && !/^[a-z][a-z\d+.-]*:$/.test(targetOrigin)) {
+      let url: URL
+      try {
+        url = new URL(targetOrigin)
+      } catch {
+        throw new TypeError('Workspace navigation audit origin is invalid.')
+      }
+      if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+        || url.origin !== targetOrigin
+        || url.username
+        || url.password
+        || url.pathname !== '/'
+        || url.search
+        || url.hash) {
+        throw new TypeError('Workspace navigation audit origin is invalid.')
+      }
+    }
+    return {
+      id: candidate.id,
+      timestamp: candidate.timestamp,
+      targetOrigin,
+      reason: candidate.reason,
+      source: candidate.source
+    }
+  })
+}
+
 function normalizePersistedTabUrl(value: unknown): string | null {
   if (typeof value !== 'string' || !value) return null
   const viewSourcePrefix = 'view-source:'
@@ -111,11 +178,27 @@ function normalizePersistedTabUrl(value: unknown): string | null {
 }
 
 function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrowserState {
-  const sanitizeTab = <T extends { title: string; url: string }>(tab: T, agentOwned: boolean): T => {
+  const activePolicies = new Map((state.mcpTabGroups ?? []).map((group) => [
+    group.id,
+    normalizeWorkspaceNavigationPolicy(group.navigationPolicy)
+  ]))
+  const savedPolicies = new Map((state.savedTabGroups ?? []).map((group) => [
+    group.id,
+    normalizeWorkspaceNavigationPolicy(group.navigationPolicy)
+  ]))
+  const sanitizeTab = <T extends { title: string; url: string }>(
+    tab: T,
+    agentOwned: boolean,
+    policy?: BrowserWorkspaceNavigationPolicy
+  ): T => {
     const originalUrl = tab.url
     const normalized = normalizePersistedTabUrl(originalUrl)
     if (!normalized) throw new TypeError('Persisted tab URL must be an absolute URL')
-    const url = agentOwned && !isAgentWorkspaceNavigationUrl(normalized) ? 'about:blank' : normalized
+    const allowed = !agentOwned || (
+      isAgentWorkspaceNavigationUrl(normalized)
+      && (!policy || evaluateWorkspaceNavigation(policy, normalized).allowed)
+    )
+    const url = allowed ? normalized : 'about:blank'
     return {
       ...tab,
       title: url !== normalized ? 'New tab' : tab.title === originalUrl ? normalized : tab.title,
@@ -124,13 +207,21 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
   }
   return {
     ...state,
+    mcpTabGroups: state.mcpTabGroups?.map((group) => ({
+      ...group,
+      navigationPolicy: activePolicies.get(group.id)!,
+      navigationAudit: persistedWorkspaceNavigationAudit(group.navigationAudit)
+    })),
     tabs: state.tabs.map((tab) => sanitizeTab(
       tab,
-      tab.mcpGroupId !== undefined && tab.mcpGroupId !== state.defaultHumanGroupId
+      tab.mcpGroupId !== undefined && tab.mcpGroupId !== state.defaultHumanGroupId,
+      tab.mcpGroupId ? activePolicies.get(tab.mcpGroupId) : undefined
     )),
     savedTabGroups: state.savedTabGroups?.map((group) => ({
       ...group,
-      tabs: group.tabs.map((tab) => sanitizeTab(tab, true))
+      navigationPolicy: savedPolicies.get(group.id)!,
+      navigationAudit: persistedWorkspaceNavigationAudit(group.navigationAudit),
+      tabs: group.tabs.map((tab) => sanitizeTab(tab, true, savedPolicies.get(group.id)))
     }))
   }
 }
@@ -165,6 +256,14 @@ export class TabStateStore {
       for (const candidate of data.mcpTabGroups) {
         if (!isRecord(candidate)) return null
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
+        let navigationPolicy: BrowserWorkspaceNavigationPolicy
+        let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
+        try {
+          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
+        } catch {
+          return null
+        }
         if (
           typeof candidate.id !== 'string'
           || !isUuidV7(candidate.id)
@@ -178,7 +277,7 @@ export class TabStateStore {
           || typeof candidate.lastUsedAt !== 'string'
           || (candidate.activeTabId !== null && candidate.activeTabId !== undefined && typeof candidate.activeTabId !== 'string')
           || (candidate.id === data.defaultHumanGroupId
-            ? candidate.name !== 'Default' || storageId !== undefined
+            ? candidate.name !== 'Default' || storageId !== undefined || navigationPolicy.mode !== 'unrestricted'
             : storageId === undefined || workspaceNameKey(candidate.name) === workspaceNameKey('Default'))
           || (storageId !== undefined && usedStorageIds.has(storageId))
         ) return null
@@ -193,8 +292,13 @@ export class TabStateStore {
           lastUsedAt: candidate.lastUsedAt,
           activeTabId: typeof candidate.activeTabId === 'string' ? candidate.activeTabId : null,
           ...(storageId ? { storageId } : {}),
-          origins: persistedWorkspaceOrigins(candidate.origins)
+          origins: persistedWorkspaceOrigins(candidate.origins),
+          navigationPolicy,
+          navigationAudit
         })
+        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+          repairedPersistedState = true
+        }
       }
       if (!usedWorkspaceIds.has(data.defaultHumanGroupId)) return null
 
@@ -202,6 +306,14 @@ export class TabStateStore {
       for (const candidate of data.savedTabGroups) {
         if (!isRecord(candidate) || !Array.isArray(candidate.tabs)) return null
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
+        let navigationPolicy: BrowserWorkspaceNavigationPolicy
+        let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
+        try {
+          navigationPolicy = normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
+          navigationAudit = persistedWorkspaceNavigationAudit(candidate.navigationAudit)
+        } catch {
+          return null
+        }
         if (
           typeof candidate.id !== 'string'
           || !isUuidV7(candidate.id)
@@ -232,10 +344,15 @@ export class TabStateStore {
           savedAt: candidate.savedAt,
           storageId,
           origins: persistedWorkspaceOrigins(candidate.origins),
+          navigationPolicy,
+          navigationAudit,
           tabs: candidate.tabs.map((tab) => {
             const originalUrl = (tab as Record<string, unknown>).url as string
             const normalizedUrl = normalizePersistedTabUrl(originalUrl)!
-            const url = isAgentWorkspaceNavigationUrl(normalizedUrl) ? normalizedUrl : 'about:blank'
+            const url = isAgentWorkspaceNavigationUrl(normalizedUrl)
+              && evaluateWorkspaceNavigation(navigationPolicy, normalizedUrl).allowed
+              ? normalizedUrl
+              : 'about:blank'
             const title = (tab as Record<string, unknown>).title as string
             if (url !== originalUrl) repairedPersistedState = true
             return {
@@ -247,6 +364,9 @@ export class TabStateStore {
             }
           })
         })
+        if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
+          repairedPersistedState = true
+        }
       }
 
       const usedTabIds = new Set<string>()
@@ -264,11 +384,14 @@ export class TabStateStore {
             && (typeof candidate.mcpGroupId !== 'string' || !activeWorkspaceIds.has(candidate.mcpGroupId)))
           || (candidate.mcpGroupId === undefined && url !== HRONAUT_HOME_URL)
         ) return null
+        const owningPolicy = typeof candidate.mcpGroupId === 'string'
+          ? mcpTabGroups.find((group) => group.id === candidate.mcpGroupId)?.navigationPolicy
+          : undefined
         const normalizedUrl = typeof candidate.mcpGroupId === 'string'
           && candidate.mcpGroupId !== data.defaultHumanGroupId
-          && !isAgentWorkspaceNavigationUrl(url)
-          ? 'about:blank'
-          : url
+          && (!isAgentWorkspaceNavigationUrl(url) || !owningPolicy || !evaluateWorkspaceNavigation(owningPolicy, url).allowed)
+            ? 'about:blank'
+            : url
         if (normalizedUrl !== candidate.url) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({

@@ -6,6 +6,8 @@ import type {
   BrowserTabGroupState,
   BrowserTabGroupUpdate,
   BrowserWorkspaceCreateOptions,
+  BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceNavigationPolicy,
   BrowserWorkspaceStorageTransferOptions
 } from '../../src/shared/types.js'
 
@@ -30,7 +32,10 @@ function workspace(id: string, name: string, isDefault = false): BrowserTabGroup
     activeTabId: null,
     isDefault,
     storageKind: isDefault ? 'default' : 'isolated',
-    storageOriginCount: isDefault ? 2 : 1
+    storageOriginCount: isDefault ? 2 : 1,
+    navigationPolicy: isDefault
+      ? { mode: 'unrestricted', rules: [] }
+      : { mode: 'restricted', rules: ['https://agent.example'] }
   }
 }
 
@@ -56,6 +61,14 @@ function createController(initialState = browserState()) {
     getState: vi.fn(async () => state.value),
     createWorkspace: vi.fn(async (_options: BrowserWorkspaceCreateOptions) => state.value),
     updateTabGroup: vi.fn(async (_id: string, _updates: BrowserTabGroupUpdate) => state.value),
+    updateWorkspaceNavigationPolicy: vi.fn(async (_id: string, _policy: BrowserWorkspaceNavigationPolicy) => state.value),
+    listWorkspaceNavigationAudit: vi.fn(async (_id: string): Promise<BrowserWorkspaceNavigationAuditEntry[]> => [{
+      id: '01912345-6789-7abc-8def-0123456789ab',
+      timestamp: '2026-08-22T00:00:00.000Z',
+      targetOrigin: 'https://blocked.example',
+      reason: 'no-match',
+      source: 'page'
+    }]),
     listWorkspaceStorageOrigins: vi.fn(async (id: string) => id === 'default'
       ? ['https://default.example', 'https://shared.example']
       : ['https://agent.example']),
@@ -240,7 +253,8 @@ describe('workspace editor controller', () => {
       name: 'Focused fork',
       color: 'purple',
       storage: 'fork-default',
-      origins: ['https://shared.example']
+      origins: ['https://shared.example'],
+      navigationPolicy: { mode: 'unrestricted', rules: [] }
     })
     expect(syncState).toHaveBeenCalledOnce()
     expect(open.value).toBe(false)
@@ -351,6 +365,65 @@ describe('workspace editor controller', () => {
     expect(confirm).not.toHaveBeenCalled()
     expect(browser.closeWorkspace).not.toHaveBeenCalled()
     expect(controller.error.value).toBe('runtime.workspace.unlock')
+    controller.dispose()
+  })
+
+  it('creates a restricted workspace from one rule per line', async () => {
+    const { browser, controller } = createController()
+    await controller.openNew()
+    controller.name.value = 'Production QA'
+    controller.navigationMode.value = 'restricted'
+    controller.navigationRulesText.value = 'https://app.example\n*.trusted.example\n\nhttps://app.example'
+
+    await controller.save()
+
+    expect(browser.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({
+      navigationPolicy: {
+        mode: 'restricted',
+        rules: ['https://app.example', '*.trusted.example']
+      }
+    }))
+    controller.dispose()
+  })
+
+  it('loads a workspace policy and its origin-only denied-navigation audit', async () => {
+    const { browser, controller } = createController()
+
+    await controller.openExisting('agent')
+
+    expect(controller.navigationMode.value).toBe('restricted')
+    expect(controller.navigationRulesText.value).toBe('https://agent.example')
+    expect(browser.listWorkspaceNavigationAudit).toHaveBeenCalledWith('agent')
+    expect(controller.navigationAudit.value).toEqual([
+      expect.objectContaining({ targetOrigin: 'https://blocked.example', reason: 'no-match' })
+    ])
+    controller.dispose()
+  })
+
+  it('persists a changed site-access policy through the trusted shell API', async () => {
+    const { browser, controller } = createController()
+    await controller.openExisting('agent')
+    controller.navigationRulesText.value = 'https://agent.example\nhttp://localhost:*'
+
+    await controller.save()
+
+    expect(browser.updateWorkspaceNavigationPolicy).toHaveBeenCalledWith('agent', {
+      mode: 'restricted',
+      rules: ['https://agent.example', 'http://localhost:*']
+    })
+    controller.dispose()
+  })
+
+  it('does not submit a restricted policy without any site rules', async () => {
+    const { browser, controller } = createController()
+    await controller.openNew()
+    controller.navigationMode.value = 'restricted'
+    controller.navigationRulesText.value = ' \n '
+
+    await controller.save()
+
+    expect(controller.saveDisabled.value).toBe(true)
+    expect(browser.createWorkspace).not.toHaveBeenCalled()
     controller.dispose()
   })
 })

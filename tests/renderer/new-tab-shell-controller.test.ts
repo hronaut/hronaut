@@ -34,7 +34,8 @@ function workspace(id = 'workspace'): BrowserTabGroupState {
     tabCount: 0,
     activeTabId: null,
     storageKind: 'isolated',
-    storageOriginCount: 0
+    storageOriginCount: 0,
+    navigationPolicy: { mode: 'unrestricted', rules: [] }
   }
 }
 

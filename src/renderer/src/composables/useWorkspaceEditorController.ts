@@ -2,6 +2,8 @@ import { computed, ref, watch, type Ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabGroupColor,
+  BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceNavigationPolicy,
   HronautApi
 } from '../../../shared/types.js'
 import { createWorkspaceOriginLoader } from './useWorkspaceOriginLoader.js'
@@ -11,6 +13,8 @@ type WorkspaceEditorBrowserApi = Pick<
   | 'getState'
   | 'createWorkspace'
   | 'updateTabGroup'
+  | 'updateWorkspaceNavigationPolicy'
+  | 'listWorkspaceNavigationAudit'
   | 'listWorkspaceStorageOrigins'
   | 'transferWorkspaceStorage'
   | 'closeWorkspace'
@@ -42,6 +46,10 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const storageState = ref<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('idle')
   const storageMessage = ref('')
   const actionState = ref<'idle' | 'saving' | 'closing'>('idle')
+  const navigationMode = ref<BrowserWorkspaceNavigationPolicy['mode']>('unrestricted')
+  const navigationRulesText = ref('')
+  const navigationAudit = ref<BrowserWorkspaceNavigationAuditEntry[]>([])
+  const navigationAuditState = ref<'idle' | 'loading' | 'error'>('idle')
   const originLoader = createWorkspaceOriginLoader((id) => options.browser.listWorkspaceStorageOrigins(id))
   let suppressDirectionReload = false
   let presentationGeneration = 0
@@ -53,6 +61,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const saveDisabled = computed(() => (
     dismissBlocked.value
     || !name.value.trim()
+    || (navigationMode.value === 'restricted' && navigationRules().length === 0)
     || (mode.value === 'create'
       && storageMode.value === 'fork-default'
       && (storageState.value === 'loading' || storageState.value === 'error'))
@@ -76,6 +85,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     error.value = ''
     storageState.value = 'idle'
     storageMessage.value = ''
+    navigationAudit.value = []
+    navigationAuditState.value = 'idle'
   }
 
   function close(): void {
@@ -129,12 +140,27 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     workspaceId.value = id
     name.value = group.name
     color.value = group.color
+    navigationMode.value = group.navigationPolicy.mode
+    navigationRulesText.value = group.navigationPolicy.rules.join('\n')
+    navigationAudit.value = []
+    navigationAuditState.value = group.isDefault ? 'idle' : 'loading'
     error.value = ''
     suppressDirectionReload = true
     transferDirection.value = 'from-default'
     suppressDirectionReload = false
     storageMessage.value = ''
-    await loadOrigins(next)
+    const auditPromise = group.isDefault
+      ? Promise.resolve()
+      : options.browser.listWorkspaceNavigationAudit(id)
+          .then((entries) => {
+            if (!isPresentationCurrent(presentation)) return
+            navigationAudit.value = entries
+            navigationAuditState.value = 'idle'
+          })
+          .catch(() => {
+            if (isPresentationCurrent(presentation)) navigationAuditState.value = 'error'
+          })
+    await Promise.all([loadOrigins(next), auditPromise])
   }
 
   async function openNew(): Promise<void> {
@@ -145,6 +171,10 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     workspaceId.value = null
     name.value = options.translate('runtime.workspace.newName')
     color.value = 'purple'
+    navigationMode.value = 'unrestricted'
+    navigationRulesText.value = ''
+    navigationAudit.value = []
+    navigationAuditState.value = 'idle'
     error.value = ''
     storageMode.value = 'scratch'
     suppressDirectionReload = true
@@ -160,6 +190,19 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     return selected.length === available.size && selected.every((origin) => available.has(origin))
       ? undefined
       : selected
+  }
+
+  function navigationRules(): string[] {
+    return [...new Set(navigationRulesText.value
+      .split(/\r?\n/)
+      .map((rule) => rule.trim())
+      .filter(Boolean))]
+  }
+
+  function navigationPolicy(): BrowserWorkspaceNavigationPolicy {
+    return navigationMode.value === 'restricted'
+      ? { mode: 'restricted', rules: navigationRules() }
+      : { mode: 'unrestricted', rules: [] }
   }
 
   function toggleAllOrigins(): void {
@@ -181,13 +224,22 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           name: name.value,
           color: color.value,
           storage: storageMode.value,
-          ...(storageMode.value === 'fork-default' ? { origins: transferOrigins() } : {})
+          ...(storageMode.value === 'fork-default' ? { origins: transferOrigins() } : {}),
+          navigationPolicy: navigationPolicy()
         }))
       } else if (currentWorkspaceId) {
-        await options.syncState(options.browser.updateTabGroup(currentWorkspaceId, {
+        const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
           color: color.value
-        }))
+        })
+        if (!isPresentationCurrent(presentation)) return
+        const currentPolicy = workspace.value?.navigationPolicy
+        const nextPolicy = navigationPolicy()
+        const state = currentPolicy
+          && JSON.stringify(currentPolicy) === JSON.stringify(nextPolicy)
+          ? updated
+          : await options.browser.updateWorkspaceNavigationPolicy(currentWorkspaceId, nextPolicy)
+        await options.syncState(state)
       }
       if (!isPresentationCurrent(presentation)) return
       finishAndClose()
@@ -278,6 +330,10 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     storageState,
     storageMessage,
     actionState,
+    navigationMode,
+    navigationRulesText,
+    navigationAudit,
+    navigationAuditState,
     actionPending,
     dismissBlocked,
     saveDisabled,

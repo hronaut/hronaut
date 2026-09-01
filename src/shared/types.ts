@@ -267,6 +267,28 @@ export interface BrowserInspectorIssuesReport {
   caveats: string[]
 }
 
+export interface BrowserWorkspaceNavigationPolicy {
+  mode: 'unrestricted' | 'restricted'
+  rules: string[]
+}
+
+export type BrowserWorkspaceNavigationAuditSource =
+  | 'direct'
+  | 'page'
+  | 'redirect'
+  | 'popup'
+  | 'history'
+  | 'policy-change'
+  | 'restore'
+
+export interface BrowserWorkspaceNavigationAuditEntry {
+  id: string
+  timestamp: string
+  targetOrigin: string
+  reason: 'credentials' | 'malformed' | 'unsupported-scheme' | 'no-match'
+  source: BrowserWorkspaceNavigationAuditSource
+}
+
 export interface BrowserTabGroupState {
   id: string
   name: string
@@ -278,6 +300,7 @@ export interface BrowserTabGroupState {
   isDefault: boolean
   storageKind: 'default' | 'isolated'
   storageOriginCount: number
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
 }
 
 export interface BrowserTabGroupUpdate {
@@ -297,6 +320,7 @@ export interface BrowserSavedTabGroupState {
   color: BrowserTabGroupColor
   savedAt: string
   storageOriginCount: number
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
   tabs: BrowserSavedTabGroupTab[]
 }
 
@@ -305,6 +329,7 @@ export interface BrowserWorkspaceCreateOptions {
   color?: BrowserTabGroupColor
   storage: 'scratch' | 'fork-default'
   origins?: string[]
+  navigationPolicy?: BrowserWorkspaceNavigationPolicy
 }
 
 export interface BrowserWorkspaceStorageTransferOptions {
@@ -2184,6 +2209,8 @@ export interface HronautApi {
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
   renameTabGroup(groupId: string, name: string): Promise<BrowserState>
   updateTabGroup(groupId: string, updates: BrowserTabGroupUpdate): Promise<BrowserState>
+  updateWorkspaceNavigationPolicy(groupId: string, policy: BrowserWorkspaceNavigationPolicy): Promise<BrowserState>
+  listWorkspaceNavigationAudit(groupId: string): Promise<BrowserWorkspaceNavigationAuditEntry[]>
   listWorkspaceStorageOrigins(workspaceId: string): Promise<string[]>
   transferWorkspaceStorage(options: BrowserWorkspaceStorageTransferOptions): Promise<BrowserWorkspaceStorageTransferResult>
   closeWorkspace(workspaceId: string): Promise<BrowserState>

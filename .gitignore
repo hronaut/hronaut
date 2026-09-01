@@ -230,6 +230,7 @@ dist
 dist/
 docs/*
 !docs/WALLETS.md
+!docs/WORKSPACE_SITE_ACCESS.md
 playwright-report/
 test-results/
 ci-artifacts/

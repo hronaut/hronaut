@@ -43,7 +43,9 @@ function currentState(): PersistedBrowserState {
         createdAt: '2026-08-20T09:00:00.000Z',
         lastUsedAt: '2026-08-20T09:01:00.000Z',
         activeTabId: null,
-        origins: []
+        origins: [],
+        navigationPolicy: { mode: 'unrestricted', rules: [] },
+        navigationAudit: []
       },
       {
         id: ACTIVE_WORKSPACE_ID,
@@ -53,7 +55,9 @@ function currentState(): PersistedBrowserState {
         lastUsedAt: '2026-08-20T09:03:00.000Z',
         activeTabId: ACTIVE_TAB_ID,
         storageId: ACTIVE_STORAGE_ID,
-        origins: ['https://shop.example']
+        origins: ['https://shop.example'],
+        navigationPolicy: { mode: 'restricted', rules: ['https://shop.example', '*.trusted.example'] },
+        navigationAudit: []
       }
     ],
     savedTabGroups: [{
@@ -63,6 +67,8 @@ function currentState(): PersistedBrowserState {
       savedAt: '2026-08-20T09:04:00.000Z',
       storageId: SAVED_STORAGE_ID,
       origins: ['https://docs.example'],
+      navigationPolicy: { mode: 'restricted', rules: ['https://docs.example'] },
+      navigationAudit: [],
       tabs: [{ title: 'Orders', url: 'https://docs.example/orders', pinned: true }]
     }],
     tabs: [
@@ -176,6 +182,63 @@ describe('TabStateStore', () => {
     const repaired = await readFile(path, 'utf8')
     expect(repaired).not.toContain('active-workspace-secret')
     expect(repaired).not.toContain('chrome://version')
+  })
+
+  it('repairs active and archived URLs that fall outside their persisted workspace allowlists', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.url = 'https://blocked.example/private?token=not-persisted'
+    state.tabs[1]!.title = state.tabs[1]!.url
+    state.savedTabGroups![0]!.tabs[0]!.url = 'https://blocked.example/archive/private'
+    state.savedTabGroups![0]!.tabs[0]!.title = state.savedTabGroups![0]!.tabs[0]!.url
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.tabs[1]).toMatchObject({ title: 'New tab', url: 'about:blank' })
+    expect(restored?.savedTabGroups?.[0]?.tabs[0]).toMatchObject({ title: 'New tab', url: 'about:blank' })
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toContain('not-persisted')
+    expect(repaired).not.toContain('/archive/private')
+  })
+
+  it('canonicalizes workspace allowlists without silently downgrading restricted policies', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![1]!.navigationPolicy = {
+      mode: 'restricted',
+      rules: ['https://SHOP.example:443/', 'https://shop.example', '*.BÜCHER.example.']
+    }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    expect((await store.load())?.mcpTabGroups?.[1]?.navigationPolicy).toEqual({
+      mode: 'restricted',
+      rules: ['https://shop.example', '*.xn--bcher-kva.example']
+    })
+
+    state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['file:///tmp/private'] }
+    await writeFile(path, JSON.stringify(state), 'utf8')
+    expect(await store.load()).toBeNull()
+  })
+
+  it('persists only bounded origin-level denied-navigation audit entries', async () => {
+    const { store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![1]!.navigationAudit = [{
+      id: '01912345-6790-7abc-8def-0123456789ab',
+      timestamp: '2026-08-20T09:05:00.000Z',
+      targetOrigin: 'https://blocked.example',
+      reason: 'no-match',
+      source: 'redirect'
+    }]
+    await store.save(state)
+
+    expect((await store.load())?.mcpTabGroups?.[1]?.navigationAudit).toEqual(state.mcpTabGroups![1]!.navigationAudit)
+
+    state.mcpTabGroups![1]!.navigationAudit![0]!.targetOrigin = 'https://blocked.example/private?secret=value'
+    expect(() => store.save(state)).toThrow('audit origin')
   })
 
   it('drops unversioned legacy tab state instead of migrating or restoring it', async () => {

@@ -48,6 +48,7 @@ import {
   type WalletWatchOnlyInput
 } from '../shared/wallet.js'
 import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
+import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { BookmarkStore } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
@@ -2320,6 +2321,17 @@ function registerIpc(): void {
     } satisfies BrowserTabGroupUpdate)
     return tabsManager!.getState()
   })
+  ipcMain.handle('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
+    const normalized = normalizeWorkspaceNavigationPolicy(policy)
+    return tabsManager!.updateWorkspaceNavigationPolicy(groupId, normalized)
+  })
+  ipcMain.handle('browser:list-workspace-navigation-audit', (event, groupId: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
+    return tabsManager!.listWorkspaceNavigationAudit(groupId)
+  })
   ipcMain.handle('browser:create-workspace', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
@@ -2330,11 +2342,15 @@ function registerIpc(): void {
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
       throw new TypeError('Invalid workspace storage origins')
     }
+    const navigationPolicy = candidate.navigationPolicy === undefined
+      ? undefined
+      : normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
     return tabsManager!.createWorkspace({
       name: candidate.name,
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
       storage: candidate.storage,
-      ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
+      ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {}),
+      ...(navigationPolicy ? { navigationPolicy } : {})
     } satisfies BrowserWorkspaceCreateOptions)
   })
   ipcMain.handle('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {

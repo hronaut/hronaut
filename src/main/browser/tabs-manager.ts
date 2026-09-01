@@ -256,6 +256,9 @@ import type {
   BrowserSavedTabGroupState,
   BrowserState,
   BrowserTabGroupState,
+  BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceNavigationAuditSource,
+  BrowserWorkspaceNavigationPolicy,
   BrowserWorkspaceCreateOptions,
   BrowserWorkspaceStorageTransferOptions,
   BrowserWorkspaceStorageTransferResult,
@@ -290,6 +293,11 @@ import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './
 import { normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl, normalizeAddress } from './url.js'
 import {
+  evaluateWorkspaceNavigation,
+  normalizeWorkspaceNavigationPolicy,
+  type WorkspaceNavigationDecision
+} from './workspace-navigation-policy.js'
+import {
   destroyWorkspaceStorage,
   flushBrowserSessionStorage,
   normalizeWorkspaceStorageOrigins,
@@ -300,6 +308,7 @@ import {
 export const HRONAUT_HOME_URL = 'hronaut://home/'
 const MAX_TABS = 50
 const MAX_SAVED_TAB_GROUPS = 50
+const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
@@ -477,11 +486,6 @@ function isWebUrl(url: string): boolean {
 
 const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.'
 
-function assertAgentWorkspaceNavigationUrl(url: string): void {
-  if (isAgentWorkspaceNavigationUrl(url)) return
-  throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
-}
-
 function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
   const options: LoadURLOptions = {}
   if (referrer.url) options.httpReferrer = referrer
@@ -540,6 +544,7 @@ interface BrowserTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  navigationPolicyDenialSequence: number
   pinned: boolean
   sleeping: boolean
   lastActiveAt: number
@@ -642,11 +647,14 @@ interface BrowserTabGroup {
   activeTabId: string | null
   storageId?: string
   origins: string[]
+  navigationPolicy: BrowserWorkspaceNavigationPolicy
+  navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
 }
 
 interface BrowserSavedTabGroupInternal extends BrowserSavedTabGroupState {
   storageId?: string
   origins: string[]
+  navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
 }
 
 interface BrowserWorkspaceOperation {
@@ -964,7 +972,9 @@ export class BrowserTabsManager {
       this.mcpTabGroups.set(group.id, {
         ...group,
         activeTabId: group.activeTabId ?? null,
-        origins: [...(group.origins ?? [])]
+        origins: [...(group.origins ?? [])],
+        navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
+        navigationAudit: [...(group.navigationAudit ?? [])]
       })
     }
     for (const group of saved?.savedTabGroups ?? []) {
@@ -972,6 +982,8 @@ export class BrowserTabsManager {
         ...group,
         storageOriginCount: group.origins?.length ?? 0,
         origins: [...(group.origins ?? [])],
+        navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
+        navigationAudit: [...(group.navigationAudit ?? [])],
         tabs: group.tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned === true }))
       })
     }
@@ -1057,7 +1069,11 @@ export class BrowserTabsManager {
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
       isDefault: group.id === this.defaultHumanGroupId,
       storageKind: group.id === this.defaultHumanGroupId ? 'default' : 'isolated',
-      storageOriginCount: group.origins.length
+      storageOriginCount: group.origins.length,
+      navigationPolicy: {
+        mode: group.navigationPolicy.mode,
+        rules: [...group.navigationPolicy.rules]
+      }
     }))
   }
 
@@ -1070,6 +1086,10 @@ export class BrowserTabsManager {
         color: group.color,
         savedAt: group.savedAt,
         storageOriginCount: group.origins.length,
+        navigationPolicy: {
+          mode: group.navigationPolicy.mode,
+          rules: [...group.navigationPolicy.rules]
+        },
         tabs: group.tabs.map((tab) => ({ ...tab }))
       }))
   }
@@ -1079,7 +1099,8 @@ export class BrowserTabsManager {
     color?: BrowserTabGroupColor,
     storage: 'scratch' | 'fork-default' = 'scratch',
     origins?: string[],
-    allowDuplicateName = false
+    allowDuplicateName = false,
+    navigationPolicy?: BrowserWorkspaceNavigationPolicy
   ): Promise<BrowserTabGroupState> {
     const normalizedName = normalizedWorkspaceName(name)
     this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
@@ -1095,7 +1116,9 @@ export class BrowserTabsManager {
       lastUsedAt: now,
       activeTabId: null,
       storageId,
-      origins: []
+      origins: [],
+      navigationPolicy: normalizeWorkspaceNavigationPolicy(navigationPolicy),
+      navigationAudit: []
     }
     if (storage === 'fork-default') {
       return this.withGlobalWorkspaceStorageOperation('creating the workspace from Default', async () => {
@@ -1185,8 +1208,111 @@ export class BrowserTabsManager {
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
       isDefault: group.id === this.defaultHumanGroupId,
       storageKind: group.id === this.defaultHumanGroupId ? 'default' : 'isolated',
-      storageOriginCount: group.origins.length
+      storageOriginCount: group.origins.length,
+      navigationPolicy: {
+        mode: group.navigationPolicy.mode,
+        rules: [...group.navigationPolicy.rules]
+      }
     }
+  }
+
+  listWorkspaceNavigationAudit(groupId: string): BrowserWorkspaceNavigationAuditEntry[] {
+    const audit = this.mcpTabGroups.get(groupId)?.navigationAudit
+      ?? this.savedTabGroups.get(groupId)?.navigationAudit
+    if (!audit) throw new Error(`Unknown workspace: ${groupId}.`)
+    return [...audit].reverse().map((entry) => ({ ...entry }))
+  }
+
+  async updateWorkspaceNavigationPolicy(
+    groupId: string,
+    value: BrowserWorkspaceNavigationPolicy
+  ): Promise<BrowserState> {
+    const group = this.mcpTabGroups.get(groupId)
+    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+    if (groupId === this.defaultHumanGroupId) throw new Error('Default workspace site access is always unrestricted.')
+    this.assertWorkspaceIdle(groupId)
+    const policy = normalizeWorkspaceNavigationPolicy(value)
+    group.navigationPolicy = policy
+    group.lastUsedAt = new Date().toISOString()
+    for (const tab of this.tabs.values()) {
+      if (tab.mcpGroupId !== groupId) continue
+      const decision = this.workspaceNavigationDecision(groupId, tab.url)
+      if (decision.allowed) continue
+      this.recordWorkspaceNavigationDenied(groupId, decision, 'policy-change')
+      this.prepareDiagnosticNavigation(tab)
+      try {
+        await tab.webContents.loadURL('about:blank')
+      } catch (error) {
+        if (!isAbortedLoad(error)) throw error
+      }
+    }
+    this.changed()
+    return this.getState()
+  }
+
+  private workspaceNavigationDecision(groupId: string, url: string): WorkspaceNavigationDecision {
+    const group = this.mcpTabGroups.get(groupId)
+    if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+    const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
+    if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
+    return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
+  }
+
+  private recordWorkspaceNavigationDenied(
+    groupId: string,
+    decision: WorkspaceNavigationDecision,
+    source: BrowserWorkspaceNavigationAuditSource
+  ): void {
+    if (decision.allowed || (
+      decision.reason !== 'credentials'
+      && decision.reason !== 'malformed'
+      && decision.reason !== 'unsupported-scheme'
+      && decision.reason !== 'no-match'
+    )) return
+    const group = this.mcpTabGroups.get(groupId)
+    if (!group) return
+    const previous = group.navigationAudit.at(-1)
+    if (
+      previous
+      && previous.targetOrigin === decision.targetOrigin
+      && previous.reason === decision.reason
+      && previous.source === source
+      && Date.now() - Date.parse(previous.timestamp) < 1_000
+    ) return
+    group.navigationAudit.push({
+      id: uuidV7(),
+      timestamp: new Date().toISOString(),
+      targetOrigin: decision.targetOrigin,
+      reason: decision.reason,
+      source
+    })
+    if (group.navigationAudit.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) group.navigationAudit.shift()
+    this.changed()
+  }
+
+  private workspaceNavigationAllowed(
+    groupId: string,
+    url: string,
+    source: BrowserWorkspaceNavigationAuditSource
+  ): boolean {
+    const decision = this.workspaceNavigationDecision(groupId, url)
+    if (decision.allowed) return true
+    this.recordWorkspaceNavigationDenied(groupId, decision, source)
+    return false
+  }
+
+  private assertWorkspaceNavigationAllowed(
+    groupId: string,
+    url: string,
+    source: BrowserWorkspaceNavigationAuditSource
+  ): void {
+    const decision = this.workspaceNavigationDecision(groupId, url)
+    if (decision.allowed) return
+    this.recordWorkspaceNavigationDenied(groupId, decision, source)
+    if (decision.reason !== 'no-match') throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
+    throw new Error(
+      `Workspace navigation to ${decision.targetOrigin} is blocked. Allow this origin in the trusted workspace Site access settings.`
+    )
   }
 
   mcpWorkspaceResumeKey(workspaceId: string): string {
@@ -1202,7 +1328,14 @@ export class BrowserTabsManager {
   async createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {
     if (!options.name.trim()) throw new TypeError('Workspace name cannot be empty.')
     this.ensureDefaultHumanGroup()
-    const workspace = await this.createMcpTabGroup(options.name, options.color, options.storage, options.origins)
+    const workspace = await this.createMcpTabGroup(
+      options.name,
+      options.color,
+      options.storage,
+      options.origins,
+      false,
+      options.navigationPolicy
+    )
     try {
       await this.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
       return this.getState()
@@ -1437,8 +1570,13 @@ export class BrowserTabsManager {
         color: group.color,
         savedAt: new Date().toISOString(),
         storageOriginCount: internalGroup.origins.length,
+        navigationPolicy: {
+          mode: internalGroup.navigationPolicy.mode,
+          rules: [...internalGroup.navigationPolicy.rules]
+        },
         ...(internalGroup.storageId ? { storageId: internalGroup.storageId } : {}),
         origins: [...internalGroup.origins],
+        navigationAudit: [...internalGroup.navigationAudit],
         tabs: tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned }))
       }
       await this.closeMcpTabGroupInternal(groupId, true)
@@ -1451,6 +1589,10 @@ export class BrowserTabsManager {
         color: saved.color,
         savedAt: saved.savedAt,
         storageOriginCount: saved.origins.length,
+        navigationPolicy: {
+          mode: saved.navigationPolicy.mode,
+          rules: [...saved.navigationPolicy.rules]
+        },
         tabs: saved.tabs.map((tab) => ({ ...tab }))
       }
     })
@@ -1479,7 +1621,12 @@ export class BrowserTabsManager {
       lastUsedAt: now,
       activeTabId: null,
       storageId: saved.storageId ?? randomUUID(),
-      origins: [...saved.origins]
+      origins: [...saved.origins],
+      navigationPolicy: {
+        mode: saved.navigationPolicy.mode,
+        rules: [...saved.navigationPolicy.rules]
+      },
+      navigationAudit: [...saved.navigationAudit]
     }
     this.savedTabGroups.delete(savedGroupId)
     this.mcpTabGroups.set(restoredGroup.id, restoredGroup)
@@ -2229,10 +2376,10 @@ export class BrowserTabsManager {
       if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
       return this.openHome()
     }
-    if (options.mcpGroupId && options.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(url)
     if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
     const groupId = options.mcpGroupId ?? this.ensureDefaultHumanGroup()
     this.requireMcpTabGroup(groupId)
+    if (groupId !== this.defaultHumanGroupId) this.assertWorkspaceNavigationAllowed(groupId, url, 'direct')
     await this.createTab({ url, active: options.active ?? true, mcpGroupId: groupId })
     return this.getState()
   }
@@ -3058,12 +3205,19 @@ export class BrowserTabsManager {
     if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
       throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
     }
-    if (tab.mcpGroupId && tab.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(normalized)
+    if (tab.mcpGroupId && tab.mcpGroupId !== this.defaultHumanGroupId) {
+      this.assertWorkspaceNavigationAllowed(tab.mcpGroupId, normalized, 'direct')
+    }
+    const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
     this.prepareDiagnosticNavigation(tab)
     try {
       await tab.webContents.loadURL(normalized)
     } catch (error) {
-      if (this.tabs.get(tab.id) === tab && !isAbortedLoad(error)) throw error
+      if (
+        this.tabs.get(tab.id) === tab
+        && !isAbortedLoad(error)
+        && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
+      ) throw error
     }
     return this.getState()
   }
@@ -3071,8 +3225,14 @@ export class BrowserTabsManager {
   async back(tabId?: string): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     if (tab.webContents.navigationHistory.canGoBack()) {
+      const history = tab.webContents.navigationHistory
+      const target = history.getAllEntries()[history.getActiveIndex() - 1]
+      if (tab.mcpGroupId
+        && tab.mcpGroupId !== this.defaultHumanGroupId
+        && target
+        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
       this.prepareDiagnosticNavigation(tab)
-      await tab.webContents.navigationHistory.goBack()
+      await history.goBack()
     }
     return this.getState()
   }
@@ -3080,8 +3240,14 @@ export class BrowserTabsManager {
   async forward(tabId?: string): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     if (tab.webContents.navigationHistory.canGoForward()) {
+      const history = tab.webContents.navigationHistory
+      const target = history.getAllEntries()[history.getActiveIndex() + 1]
+      if (tab.mcpGroupId
+        && tab.mcpGroupId !== this.defaultHumanGroupId
+        && target
+        && !this.workspaceNavigationAllowed(tab.mcpGroupId, target.url, 'history')) return this.getState()
       this.prepareDiagnosticNavigation(tab)
-      await tab.webContents.navigationHistory.goForward()
+      await history.goForward()
     }
     return this.getState()
   }
@@ -6015,7 +6181,9 @@ export class BrowserTabsManager {
     if (options.mcpGroupId && !options.allowBusyWorkspace) this.assertWorkspaceCanOpenTab(options.mcpGroupId)
     const id = options.id ?? uuidV7()
     const url = normalizeAddress(options.url, this.options.getSearchEngine?.())
-    if (options.mcpGroupId && options.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(url)
+    if (options.mcpGroupId && options.mcpGroupId !== this.defaultHumanGroupId) {
+      this.assertWorkspaceNavigationAllowed(options.mcpGroupId, url, 'direct')
+    }
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = workspace?.storageId
       ? workspacePartition(this.options.partition, workspace.storageId)
@@ -6040,6 +6208,7 @@ export class BrowserTabsManager {
       url,
       loading: true,
       navigationGeneration: 0,
+      navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
       sleeping: false,
       lastActiveAt: Date.now(),
@@ -6081,6 +6250,11 @@ export class BrowserTabsManager {
       : view.webContents.loadURL(url, options.loadOptions)
     void loading.catch((error: unknown) => {
       if (isAbortedLoad(error)) return
+      if (tab.navigationPolicyDenialSequence > 0) {
+        tab.loading = false
+        this.changed(false)
+        return
+      }
       tab.loading = false
       if (!tab.pageProblem) {
         tab.title = 'Site unavailable'
@@ -6104,7 +6278,9 @@ export class BrowserTabsManager {
       createdAt: now,
       lastUsedAt: now,
       activeTabId: null,
-      origins: []
+      origins: [],
+      navigationPolicy: { mode: 'unrestricted', rules: [] },
+      navigationAudit: []
     })
     this.defaultHumanGroupId = id
     return id
@@ -6555,24 +6731,21 @@ export class BrowserTabsManager {
     })
     webContents.on('will-frame-navigate', (details) => {
       if (tab.sleeping || !details.isMainFrame) return
-      if (
-        tab.mcpGroupId
+      if (tab.mcpGroupId
         && tab.mcpGroupId !== this.defaultHumanGroupId
-        && !isAgentWorkspaceNavigationUrl(details.url)
-      ) {
+        && !this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'page')) {
+        tab.navigationPolicyDenialSequence += 1
         details.preventDefault()
         return
       }
       this.prepareDiagnosticNavigation(tab)
     })
     webContents.on('will-redirect', (details) => {
-      if (
-        !tab.mcpGroupId
-        || tab.mcpGroupId === this.defaultHumanGroupId
-        || !details.isMainFrame
-        || isAgentWorkspaceNavigationUrl(details.url)
-      ) return
-      details.preventDefault()
+      if (!tab.mcpGroupId || tab.mcpGroupId === this.defaultHumanGroupId || !details.isMainFrame) return
+      if (!this.workspaceNavigationAllowed(tab.mcpGroupId, details.url, 'redirect')) {
+        tab.navigationPolicyDenialSequence += 1
+        details.preventDefault()
+      }
     })
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
@@ -6720,11 +6893,9 @@ export class BrowserTabsManager {
     })
     webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
       if (tab.mcpGroupId && isHronautHomeUrl(url)) return { action: 'deny' }
-      if (
-        tab.mcpGroupId
+      if (tab.mcpGroupId
         && tab.mcpGroupId !== this.defaultHumanGroupId
-        && !isAgentWorkspaceNavigationUrl(url)
-      ) return { action: 'deny' }
+        && !this.workspaceNavigationAllowed(tab.mcpGroupId, url, 'popup')) return { action: 'deny' }
       let loadOptions: LoadURLOptions | undefined
       try {
         loadOptions = interceptedWindowLoadOptions(postBody, referrer)
@@ -9200,6 +9371,11 @@ export class BrowserTabsManager {
         savedAt: group.savedAt,
         ...(group.storageId ? { storageId: group.storageId } : {}),
         origins: [...group.origins],
+        navigationPolicy: {
+          mode: group.navigationPolicy.mode,
+          rules: [...group.navigationPolicy.rules]
+        },
+        navigationAudit: group.navigationAudit.map((entry) => ({ ...entry })),
         tabs: group.tabs.map((tab) => ({ ...tab }))
       })),
       tabs: this.orderedTabs().map((tab) => ({

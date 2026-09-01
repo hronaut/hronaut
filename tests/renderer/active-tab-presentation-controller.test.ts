@@ -56,7 +56,8 @@ function state(active: BrowserTabState): BrowserState {
       activeTabId: active.id,
       isDefault: false,
       storageKind: 'isolated',
-      storageOriginCount: 1
+      storageOriginCount: 1,
+      navigationPolicy: { mode: 'unrestricted', rules: [] }
     }],
     savedTabGroups: []
   }

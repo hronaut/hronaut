@@ -44,6 +44,7 @@ function savedGroup(id: string): BrowserSavedTabGroupState {
     color: 'purple',
     savedAt: '2026-08-22T00:00:00.000Z',
     storageOriginCount: 0,
+    navigationPolicy: { mode: 'unrestricted', rules: [] },
     tabs: [{ title: 'Saved page', url: 'https://saved.example', pinned: false }]
   }
 }

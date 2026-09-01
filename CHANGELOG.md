@@ -4,6 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.22] - 2026-09-01
+
+### Added
+
+- Add trusted per-workspace Site access policies with exact origins, boundary-safe subdomain wildcards, and loopback port wildcards. Restricted policies cover direct and MCP navigation, redirects, page links and forms, popups, and back/forward history; they persist across restart and archive/restore while agents remain unable to change them.
+- Add a bounded, trusted blocked-navigation log that records only origin, reason, source, and time without persisting denied paths, queries, fragments, or embedded credentials.
+
+### Fixed
+
+- Treat a policy-blocked redirect as an intentional cancellation instead of surfacing a generic Chromium load failure.
+- Check back and forward targets before Chromium changes history so a disallowed origin cannot bypass a workspace policy.
+
 ## [1.11.21] - 2026-09-01
 
 ### Fixed
