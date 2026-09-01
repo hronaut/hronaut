@@ -6,6 +6,25 @@ import { matchingReleaseAsset, RELEASE_ASSET_MATCHERS } from '../src/shared/rele
 const websiteHtml = readFileSync(new URL('../website/index.html', import.meta.url), 'utf8')
 
 describe('public website content', () => {
+  it('points discovery metadata at the canonical storefront with a large social card', () => {
+    expect(websiteHtml).toContain('<link rel="canonical" href="https://hronaut.dev/" />')
+    expect(websiteHtml).toContain('<meta property="og:type" content="website" />')
+    expect(websiteHtml).toContain('<meta property="og:url" content="https://hronaut.dev/" />')
+    expect(websiteHtml).toContain('<meta property="og:image" content="https://hronaut.dev/hronaut-social-card.png" />')
+    expect(websiteHtml).toContain('<meta property="og:image:width" content="1200" />')
+    expect(websiteHtml).toContain('<meta property="og:image:height" content="630" />')
+    expect(websiteHtml).toContain('<meta property="og:image:alt"')
+    expect(websiteHtml).toContain('<meta name="twitter:card" content="summary_large_image" />')
+    expect(websiteHtml).not.toContain('property="og:url" content="https://github.com/')
+  })
+
+  it('keeps the advertised appearance choices aligned with the application', () => {
+    expect(websiteHtml).toContain('<strong>8</strong><span>palettes</span>')
+    for (const theme of ['System', 'Light', 'Dark', 'Midnight', 'Sepia', 'Cyberpunk', 'Matrix', 'Machine', 'Galactic']) {
+      expect(websiteHtml).toContain(theme)
+    }
+  })
+
   it('keeps the advertised MCP tool count aligned with the server catalog', () => {
     const count = BROWSER_TOOL_CATALOG.length
     expect(websiteHtml).toContain(`and ${count} MCP tools.`)

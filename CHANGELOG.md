@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Point the desktop repository's static reference site at the canonical Hronaut storefront and provide complete large-card Open Graph metadata instead of identifying GitHub as the shared page.
+
+### Improved
+
+- Keep the reference site's appearance copy aligned with all eight built-in palettes plus System mode.
+
 ## [1.11.16] - 2026-09-01
 
 ### Fixed
