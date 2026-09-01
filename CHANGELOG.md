@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.20] - 2026-09-01
+
 ### Fixed
 
 - Keep Lock Tabs from moving keyboard or mouse focus into Hronaut chrome when its state changes, while retaining the native input barrier that blocks physical interaction with locked website pages.
