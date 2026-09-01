@@ -4,16 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-
-- Wait for the persisted tray-close preference before exercising process shutdown in release validation, removing a race that could leave the test app hidden in the tray and block otherwise valid packages.
-
-## [1.11.14] - 2026-09-01
+## [1.11.15] - 2026-09-01
 
 ### Fixed
 
 - Keep Wallet Standard `silent` and legacy `onlyIfTrusted` Solana reconnect checks from opening trusted approval UI before a site has address permission.
 - Support the `off` event-listener cleanup used by maintained Solana wallet adapters so disconnecting cannot stall before Hronaut receives the request.
+- Wait for the persisted tray-close preference before exercising process shutdown in release validation, removing a race that could leave the test app hidden in the tray and block otherwise valid packages.
+
+## [1.11.14] - 2026-09-01
+
+### Release status
+
+- Not published: release validation detected a flaky tray-close test before any binaries were built. The fixes are included in 1.11.15.
 
 ## [1.11.13] - 2026-09-01
 
