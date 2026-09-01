@@ -6461,7 +6461,10 @@ test('preserves human focus across agent presentation, input, and active tab cha
   mcpToken
 }) => {
   const server = createServer((_request, response) => {
-    response.writeHead(200, { 'content-type': 'text/html' })
+    response.writeHead(200, {
+      'content-security-policy': "script-src 'unsafe-inline'",
+      'content-type': 'text/html'
+    })
     response.end(`<!doctype html>
       <title>Agent focus isolation</title>
       <button id="agent-focus" style="position:fixed;left:20px;top:20px;width:160px;height:48px">Agent focus</button>
@@ -6597,6 +6600,30 @@ test('preserves human focus across agent presentation, input, and active tab cha
       const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
       return mainWindow?.isFocusable()
     }, humanWindowId)).toBe(true)
+
+    const evaluated = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "({ alertResult: alert('background agent dialog'), confirmResult: confirm('dismiss background agent dialog') })",
+        dialogAction: 'dismiss'
+      }
+    }) as CallToolResult
+    expect(evaluated.isError, mcpResultText(evaluated)).not.toBe(true)
+    expect(JSON.parse(mcpResultText(evaluated))).toEqual({ confirmResult: false })
+
+    const accepted = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "confirm('accept background agent dialog')",
+        dialogAction: 'accept'
+      }
+    }) as CallToolResult
+    expect(accepted.isError, mcpResultText(accepted)).not.toBe(true)
+    expect(mcpResultText(accepted)).toBe('true')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
 
     const secondOpened = await client.callTool({
       name: 'browser_new_tab',

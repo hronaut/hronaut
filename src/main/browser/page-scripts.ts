@@ -994,6 +994,20 @@ export function dialogAwareCoordinateClickScript(
   })()`
 }
 
+export function dialogAwareEvaluateScript(
+  script: string,
+  action: 'accept' | 'dismiss'
+): string {
+  return `(async () => {
+    ${dialogOverridesScript(action)}
+    try {
+      return await (0, eval)(${JSON.stringify(script)});
+    } finally {
+      restoreDialogs();
+    }
+  })()`
+}
+
 export function targetExpression(target: { ref?: string; selector?: string }): string {
   const encodedTarget = JSON.stringify(target)
   return `(() => {

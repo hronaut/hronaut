@@ -272,6 +272,7 @@ import {
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
   dialogAwareCoordinateClickScript,
+  dialogAwareEvaluateScript,
   elementPickerInspectionAtPointScript,
   elementPickerNativeInputScript,
   elementPickerScript,
@@ -5509,7 +5510,14 @@ export class BrowserTabsManager {
     // human picker ignores them directly. Do not mark the whole evaluation as
     // agent input: an evaluated script may open a blocking dialog, which would
     // also block the cleanup executeJavaScript call and deadlock the MCP tool.
-    return this.withOptionalDialogHandling(webContents, dialog, () => webContents.executeJavaScript(script, true))
+    if (dialog.dialogAction === undefined) return webContents.executeJavaScript(script, true)
+    return this.withBackgroundAgentFocusGuard(() => this.withDebugger(webContents, async () => (
+      this.evaluateWithAttachedDebugger(
+        webContents,
+        dialogAwareEvaluateScript(script, dialog.dialogAction!),
+        await this.mainWorldContextId(webContents)
+      )
+    )))
   }
 
   async handleDialog(action: BrowserDialogAction, tabId?: string): Promise<{
@@ -8059,6 +8067,19 @@ export class BrowserTabsManager {
     if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
   }
 
+  private async withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
+    const backgroundWindowFocusGuard = !this.window.isFocused()
+    if (backgroundWindowFocusGuard) this.beginBackgroundAgentInputFocusGuard()
+    try {
+      return await operation()
+    } finally {
+      if (backgroundWindowFocusGuard) {
+        if (!this.window.isDestroyed() && this.window.isFocused()) this.window.blur()
+        this.endBackgroundAgentInputFocusGuard()
+      }
+    }
+  }
+
   private endBackgroundAgentInputFocusGuard(): void {
     this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
     if (this.backgroundAgentInputFocusGuardDepth !== 0) return
@@ -8594,6 +8615,7 @@ export class BrowserTabsManager {
       expression,
       ...(contextId !== undefined ? { contextId } : {}),
       awaitPromise: true,
+      allowUnsafeEvalBlockedByCSP: true,
       returnByValue: true,
       userGesture: true
     }) as {
