@@ -6508,6 +6508,18 @@ test('preserves human focus across agent presentation, input, and active tab cha
 
     await expect(addressInput).toBeFocused()
 
+    const splitOpened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/agent-focus-isolation-split`, active: false }
+    }) as CallToolResult
+    expect(splitOpened.isError, mcpResultText(splitOpened)).not.toBe(true)
+    const splitState = JSON.parse(mcpResultText(splitOpened)) as {
+      tabs: Array<{ id: string; url: string }>
+    }
+    const splitTabId = splitState.tabs.find((tab) => tab.url.endsWith('/agent-focus-isolation-split'))?.id
+    expect(splitTabId).toBeTruthy()
+    await appWindow.evaluate(`window.hronaut.openSplitView(${JSON.stringify(splitTabId)})`)
+
     humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
       const humanWindow = new BrowserWindow({ width: 320, height: 200, show: false })
       await humanWindow.loadURL('data:text/html,<title>Human focus owner</title><input autofocus>')
@@ -6524,6 +6536,14 @@ test('preserves human focus across agent presentation, input, and active tab cha
     }) as CallToolResult
     expect(shown.isError, mcpResultText(shown)).not.toBe(true)
     expect(mcpResultText(shown)).toContain('without taking keyboard or mouse focus')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const attention = await client.callTool({
+      name: 'browser_request_user_attention',
+      arguments: { tabId: splitTabId, reason: 'Review the split pane.' }
+    }) as CallToolResult
+    expect(attention.isError, mcpResultText(attention)).not.toBe(true)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

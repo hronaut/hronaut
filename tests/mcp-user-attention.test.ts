@@ -85,7 +85,7 @@ describe('MCP user-attention presentation failures', () => {
     }) as CallToolResult
     expect(show.isError).toBe(true)
     expect(text(show)).toContain('simulated async show rejection')
-    expect(manager.selectTabAndWait).toHaveBeenCalledWith(tabId)
+    expect(manager.selectTabAndWait).toHaveBeenCalledWith(tabId, { focus: false })
     expect(showWindowInactive).not.toHaveBeenCalled()
   })
 

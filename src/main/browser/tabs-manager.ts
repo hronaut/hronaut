@@ -863,6 +863,11 @@ export interface BrowserWalletPageContext {
   url: string
 }
 
+interface BrowserTabSelectionOptions {
+  /** Keep an already-visible split pane from claiming keyboard focus. */
+  focus?: boolean
+}
+
 export interface TabsManagerOptions {
   partition: string
   storePath: string
@@ -2877,7 +2882,7 @@ export class BrowserTabsManager {
     this.options.askWhereToSaveDownloads = askWhereToSaveDownloads
   }
 
-  async selectTabAndWait(tabId: string): Promise<BrowserState> {
+  async selectTabAndWait(tabId: string, options: BrowserTabSelectionOptions = {}): Promise<BrowserState> {
     const next = this.getTab(tabId)
     if (next.webContents.isDestroyed()) {
       throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
@@ -2898,10 +2903,10 @@ export class BrowserTabsManager {
       selectionGeneration !== this.tabSelectionGeneration
       || this.tabs.get(next.id) !== next
     ) return this.getState()
-    return this.selectTab(next.id)
+    return this.selectTab(next.id, options)
   }
 
-  selectTab(tabId: string): BrowserState {
+  selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
     const next = this.getTab(tabId)
     if (next.webContents.isDestroyed()) {
       throw new Error('This tab renderer is no longer available. Close the tab and reopen it from Recently closed.')
@@ -2913,7 +2918,7 @@ export class BrowserTabsManager {
       this.activeTabId = next.id
       this.markTabActiveInGroup(next)
       this.layout()
-      this.focusTabOrTrustedChrome(next)
+      if (options.focus !== false) this.focusTabOrTrustedChrome(next)
       this.changed()
       return this.getState()
     }

@@ -1389,7 +1389,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
     ...(input.workspaceId && { workspaceId: input.workspaceId }),
     ...(input.tabId && { tabId: input.tabId })
   }
-  if (input.tabId) await tabsManager?.selectTabAndWait(input.tabId)
+  if (input.tabId) await tabsManager?.selectTabAndWait(input.tabId, { focus: false })
   if (requestGeneration !== attentionRequestGeneration) {
     throw new Error('User attention request was superseded by a newer request.')
   }

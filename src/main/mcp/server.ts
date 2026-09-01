@@ -895,7 +895,7 @@ function createBrowserMcpServer(
     'browser_show',
     { description: toolDescription('browser_show'), inputSchema: {} },
     tool(async ({ tabId }: { tabId?: string }) => {
-      if (tabId) await manager.selectTabAndWait(tabId)
+      if (tabId) await manager.selectTabAndWait(tabId, { focus: false })
       showWindowInactive()
       return textResult('Browser window is visible without taking keyboard or mouse focus.')
     })
@@ -944,7 +944,7 @@ function createBrowserMcpServer(
     { description: toolDescription('browser_select_tab'), inputSchema: { tabId: tabIdSchema } },
     tabTool(
       'browser_select_tab',
-      async ({ tabId }: { tabId: string }) => textResult(await manager.selectTabAndWait(tabId)),
+      async ({ tabId }: { tabId: string }) => textResult(await manager.selectTabAndWait(tabId, { focus: false })),
       'handler-owned'
     )
   )
