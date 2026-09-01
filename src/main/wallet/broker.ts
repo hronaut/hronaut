@@ -110,6 +110,12 @@ function paramsArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : value === undefined ? [] : [value]
 }
 
+function isSilentSolanaConnect(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const options = value as { silent?: unknown; onlyIfTrusted?: unknown }
+  return options.silent === true || options.onlyIfTrusted === true
+}
+
 function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): WalletRequestSummary {
   const normalized = record.request.payload.normalized
     ? restoreWalletJson(record.request.payload.normalized) as WalletNormalizedTransaction
@@ -651,6 +657,10 @@ export class WalletBroker {
   }
 
   private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
+    if (method === 'connect' && isSilentSolanaConnect(params)) {
+      const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
+      if (!wallet || !this.hasAddressPermission(context, wallet)) return { accounts: [] }
+    }
     const wallet = this.selectWallet(wallets)
     if (method === 'connect') {
       const accounts = await this.connect(context, wallet)

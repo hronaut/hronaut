@@ -1582,6 +1582,51 @@ describe('WalletBroker', () => {
     }))
   })
 
+  it('keeps silent Solana reconnect checks from opening trusted approval UI', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana wallet', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const solanaWallet = await service.confirmRecovery(generated.wallet.id)
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    const standard = settle(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect', params: { silent: true }
+    }))
+
+    await expect(Promise.race([
+      standard,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toEqual({ status: 'fulfilled', value: { accounts: [] } })
+    expect(broker.listPending().filter((request) => request.operation === 'connect-account')).toHaveLength(0)
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect', params: { onlyIfTrusted: true }
+    })).resolves.toEqual({ accounts: [] })
+    await expect(broker.providerRequest(context({ workspaceId: 'workspace-without-solana' }), {
+      family: 'solana', method: 'connect', params: { silent: true }
+    })).resolves.toEqual({ accounts: [] })
+
+    await service.permissions.grant({
+      walletId: solanaWallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: solanaWallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: solanaWallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect', params: { silent: true }
+    })).resolves.toMatchObject({ accounts: [{ address: solanaWallet.publicAddress }] })
+    expect(broker.listPending().filter((request) => request.operation === 'connect-account')).toHaveLength(0)
+    expect(service.permissions.list()).toHaveLength(1)
+  })
+
   it('cancels a pending request when its wallet is detached from the workspace', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()

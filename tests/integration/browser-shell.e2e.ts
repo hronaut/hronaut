@@ -2189,7 +2189,7 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
   }
 })
 
-test('publishes legacy Solana connection state after trusted account approval', async ({
+test('keeps silent Solana reconnect quiet and publishes state after trusted approval', async ({
   appWindow,
   electronApp
 }) => {
@@ -2226,6 +2226,32 @@ test('publishes legacy Solana connection state after trusted account approval', 
       workspaceIds: [${JSON.stringify(tab.mcpGroupId)}],
       dedicatedAgent: false
     })`)
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Solana wallet WebContents was not found')
+      await page.executeJavaScript(`
+        window.__silentSolanaConnection = { phase: 'pending' };
+        void window.hronautSolana.connect({ onlyIfTrusted: true }).then(
+          () => { window.__silentSolanaConnection = { phase: 'connected' } },
+          (error) => {
+            window.__silentSolanaConnection = {
+              phase: 'rejected',
+              message: error.message,
+              isConnected: window.hronautSolana.isConnected
+            };
+          }
+        );
+        'started';
+      `)
+    }, url)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('window.__silentSolanaConnection')
+    }, url)).toMatchObject({ phase: 'rejected', isConnected: false })
+    expect((await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ operation: string }>))
+      .not.toContainEqual(expect.objectContaining({ operation: 'connect-account' }))
+    await expect(appWindow.getByRole('alertdialog', { name: /Connect account/i })).toBeHidden()
 
     await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
