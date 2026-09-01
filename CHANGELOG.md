@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.26] - 2026-09-02
+
 ### Fixed
 
 - Keep MCP `browser_evaluate` alert and confirm handling from activating Hronaut while a person works in another application, and preserve explicit accept/dismiss behavior on pages whose Content Security Policy blocks page-level `eval`.
