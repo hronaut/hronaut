@@ -773,6 +773,7 @@ const {
     settings: settingsOpen,
     commandPalette: commandPaletteOpen,
     helpDialog: helpDialogOpen,
+    releaseHistory: releaseHistoryOpen,
     workspaceEditor: workspaceEditorOpen,
     credentialPicker: credentialPickerOpen,
     walletApproval: walletApprovalOpen

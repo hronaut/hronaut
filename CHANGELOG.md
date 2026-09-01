@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reveal the GitHub-backed **What's new** reader immediately above normal website content without requiring a window resize, including at the minimum supported window size.
 - Refresh Responsive Preview controls from the applied tab viewport after closing and reopening during a pending Apply, without letting an older failure overwrite a newer draft.
 - Reveal trusted wallet connection and signing approvals immediately above website content without requiring a window resize, and keep approval actions visible while reviewing long requests.
 - Refresh Environment controls from authoritative tab state when a pending Apply finishes across close and reopen cycles, without letting an older failure overwrite a newer draft.

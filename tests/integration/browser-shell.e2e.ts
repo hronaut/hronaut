@@ -102,6 +102,19 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   appWindow,
   electronApp
 }, testInfo) => {
+  const fixtureUrl = 'data:text/html,<title>Release history website fixture</title><main>Release history website fixture</main>'
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(fixtureUrl)}, active: true })`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+    .toBe('Release history website fixture')
+  const websiteBounds = async () => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
+    const main = BrowserWindow.getAllWindows()[0]
+    const view = main?.contentView.children.find((candidate) => (
+      candidate instanceof WebContentsView && candidate.webContents.getURL() === requestedUrl
+    ))
+    return view?.getBounds()
+  }, fixtureUrl)
+  await expect.poll(async () => (await websiteBounds())?.height ?? 0).toBeGreaterThan(1)
+
   const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
   await settingsButton.click()
   const settings = appWindow.getByRole('dialog', { name: 'Settings' })
@@ -111,6 +124,7 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   const releaseHistory = appWindow.getByRole('dialog', { name: "What's new" })
   await expect(settings).toBeHidden()
   await expect(releaseHistory).toBeVisible()
+  await expect.poll(async () => (await websiteBounds())?.height).toBe(1)
   await expect(releaseHistory).toHaveAttribute('aria-busy', 'false', { timeout: 15_000 })
   const desktopBounds = await releaseHistory.boundingBox()
   expect(desktopBounds).not.toBeNull()
@@ -135,6 +149,7 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   await appWindow.keyboard.press('Escape')
   await expect(releaseHistory).toBeHidden()
   await expect(settingsButton).toBeFocused()
+  await expect.poll(async () => (await websiteBounds())?.height ?? 0).toBeGreaterThan(1)
 })
 
 test('opens a scheme-less loopback address over HTTP from the address bar', async ({ appWindow }) => {

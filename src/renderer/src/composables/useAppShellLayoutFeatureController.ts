@@ -23,6 +23,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     settings: BooleanState
     commandPalette: BooleanState
     helpDialog: BooleanState
+    releaseHistory: BooleanState
     workspaceEditor: BooleanState
     credentialPicker: BooleanState
     walletApproval: BooleanState
@@ -69,6 +70,7 @@ export function useAppShellLayoutFeatureController(
   const fullModalOpen = computed(() => modals.settings.value
     || modals.commandPalette.value
     || modals.helpDialog.value
+    || modals.releaseHistory.value
     || modals.workspaceEditor.value
     || modals.credentialPicker.value
     || modals.walletApproval.value)
@@ -86,6 +88,7 @@ export function useAppShellLayoutFeatureController(
       overlays.addressSuggestions,
       modals.commandPalette,
       modals.helpDialog,
+      modals.releaseHistory,
       overlays.tabSearch,
       overlays.downloads,
       overlays.history,
@@ -98,6 +101,7 @@ export function useAppShellLayoutFeatureController(
       modals.settings,
       modals.commandPalette,
       modals.helpDialog,
+      modals.releaseHistory,
       modals.workspaceEditor,
       modals.credentialPicker,
       overlays.siteControls,

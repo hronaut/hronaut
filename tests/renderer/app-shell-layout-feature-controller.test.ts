@@ -10,7 +10,7 @@ import {
 interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
@@ -56,6 +56,7 @@ function createHarness(): Harness {
     settings: ref(false),
     commandPalette: ref(false),
     helpDialog: ref(false),
+    releaseHistory: ref(false),
     workspaceEditor: ref(false),
     credentialPicker: ref(false),
     walletApproval: ref(false)
@@ -192,6 +193,23 @@ describe('useAppShellLayoutFeatureController', () => {
     await nextTick()
     await nextTick()
 
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setContentInsets).toHaveBeenLastCalledWith({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0
+    })
+  })
+
+  it("reveals What's new immediately above website content without waiting for a window resize", async () => {
+    const harness = createHarness()
+
+    harness.modals.releaseHistory.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
     expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({
       top: 0,
