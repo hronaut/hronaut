@@ -38,7 +38,7 @@ describe('MCP user-attention presentation failures', () => {
   })
 
   it('awaits rejected attention and show callbacks before reporting success', async () => {
-    const showWindow = vi.fn()
+    const showWindowInactive = vi.fn()
     const requestUserAttention = vi.fn(async () => {
       throw new Error('simulated async attention rejection')
     })
@@ -59,7 +59,7 @@ describe('MCP user-attention presentation failures', () => {
       host: '127.0.0.1',
       port: 0,
       version: 'test',
-      showWindow,
+      showWindowInactive,
       getUserAttention: () => null,
       requestUserAttention,
       bookmarks: {} as never,
@@ -86,11 +86,10 @@ describe('MCP user-attention presentation failures', () => {
     expect(show.isError).toBe(true)
     expect(text(show)).toContain('simulated async show rejection')
     expect(manager.selectTabAndWait).toHaveBeenCalledWith(tabId)
-    expect(showWindow).not.toHaveBeenCalled()
+    expect(showWindowInactive).not.toHaveBeenCalled()
   })
 
-  it('can show the app and request attention before a workspace has any tabs', async () => {
-    const showWindow = vi.fn()
+  it('shows the app without taking input focus and requests attention before a workspace has any tabs', async () => {
     const showWindowInactive = vi.fn()
     let allHumanInteractionLocked = false
     let userAttention: UserAttentionRequest | null = null
@@ -127,7 +126,6 @@ describe('MCP user-attention presentation failures', () => {
       host: '127.0.0.1',
       port: 0,
       version: 'test',
-      showWindow,
       showWindowInactive,
       getUserAttention: () => userAttention,
       requestUserAttention,
@@ -145,7 +143,8 @@ describe('MCP user-attention presentation failures', () => {
       arguments: { workspaceId }
     }) as CallToolResult
     expect(show.isError).not.toBe(true)
-    expect(showWindow).toHaveBeenCalledOnce()
+    expect(text(show)).toContain('without taking keyboard or mouse focus')
+    expect(showWindowInactive).toHaveBeenCalledOnce()
 
     allHumanInteractionLocked = true
     const lockedShow = await client.callTool({
@@ -153,9 +152,8 @@ describe('MCP user-attention presentation failures', () => {
       arguments: { workspaceId }
     }) as CallToolResult
     expect(lockedShow.isError).not.toBe(true)
-    expect(text(lockedShow)).toContain('without taking focus')
-    expect(showWindow).toHaveBeenCalledOnce()
-    expect(showWindowInactive).toHaveBeenCalledOnce()
+    expect(text(lockedShow)).toContain('without taking keyboard or mouse focus')
+    expect(showWindowInactive).toHaveBeenCalledTimes(2)
 
     const attention = await client.callTool({
       name: 'browser_request_user_attention',

@@ -195,8 +195,7 @@ export interface McpHttpServerOptions {
   token?: string
   version: string
   toolSet?: McpToolSet
-  showWindow: () => void
-  showWindowInactive?: () => void
+  showWindowInactive: () => void
   getUserAttention: () => UserAttentionRequest | null
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
   bookmarks: BookmarkOperations
@@ -315,7 +314,7 @@ export const BROWSER_SERVER_INSTRUCTIONS = [
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse in Default or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
   'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. Use coordinate-based visual tools only when the target has no usable semantic representation.',
-  'Call browser_show when the person should watch or take over. Call browser_request_user_attention only when a person must complete a manual browser step.',
+  'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
 ].join('\n')
 
@@ -331,7 +330,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
     description: 'Archive your own task workspace for later or reopen an authorized archive with the same stable workspaceId. Listing returns only archives authorized for this MCP connection. After reconnecting, call resume with the archived ID and its private resumeKey before opening or deleting it.'
   },
   { name: 'browser_status', category: 'Session', description: 'Show the current workspace, endpoint, tabs, and active workspace tab.' },
-  { name: 'browser_show', category: 'Session', description: 'Show the visible Hronaut window. Lock Tabs prevents this tool from taking focus.' },
+  { name: 'browser_show', category: 'Session', description: 'Show the visible Hronaut window without taking keyboard or mouse focus.' },
   {
     name: 'browser_request_user_attention',
     category: 'Session',
@@ -563,8 +562,7 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): C
 
 function createBrowserMcpServer(
   manager: BrowserTabsManager,
-  showWindow: () => void,
-  showWindowInactive: (() => void) | undefined,
+  showWindowInactive: () => void,
   getUserAttention: () => UserAttentionRequest | null,
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>,
   bookmarks: BookmarkOperations,
@@ -898,12 +896,8 @@ function createBrowserMcpServer(
     { description: toolDescription('browser_show'), inputSchema: {} },
     tool(async ({ tabId }: { tabId?: string }) => {
       if (tabId) await manager.selectTabAndWait(tabId)
-      if (manager.getState().allHumanInteractionLocked && showWindowInactive) {
-        showWindowInactive()
-        return textResult('Browser window is visible without taking focus because Lock Tabs is active.')
-      }
-      showWindow()
-      return textResult('Browser window is visible and focused.')
+      showWindowInactive()
+      return textResult('Browser window is visible without taking keyboard or mouse focus.')
     })
   )
   registerWorkspaceTool(
@@ -2530,7 +2524,6 @@ export class McpHttpServer {
           })
           const mcp = createBrowserMcpServer(
             this.manager,
-            this.options.showWindow,
             this.options.showWindowInactive,
             this.options.getUserAttention,
             this.options.requestUserAttention,

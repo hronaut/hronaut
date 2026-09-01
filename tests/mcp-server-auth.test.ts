@@ -36,7 +36,7 @@ describe('MCP HTTP authentication middleware order', () => {
       port: 0,
       version: 'test',
       token: TOKEN,
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never,

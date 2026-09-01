@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep MCP `browser_show` non-activating even when Lock Tabs is off, so an agent can reveal Hronaut for observation without taking keyboard or mouse focus from the application a person is using.
+
 ## [1.11.22] - 2026-09-01
 
 ### Added

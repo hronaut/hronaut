@@ -6454,7 +6454,7 @@ test('preserves the human focus owner after agent input in a locked tab', async 
   }
 })
 
-test('preserves human focus across agent input and active tab changes', async ({
+test('preserves human focus across agent presentation, input, and active tab changes', async ({
   appWindow,
   electronApp,
   mcpPort,
@@ -6508,7 +6508,6 @@ test('preserves human focus across agent input and active tab changes', async ({
 
     await expect(addressInput).toBeFocused()
 
-    await appWindow.getByRole('button', { name: 'Lock all tabs' }).click()
     humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
       const humanWindow = new BrowserWindow({ width: 320, height: 200, show: false })
       await humanWindow.loadURL('data:text/html,<title>Human focus owner</title><input autofocus>')
@@ -6519,12 +6518,25 @@ test('preserves human focus across agent input and active tab changes', async ({
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 
+    const shown = await client.callTool({
+      name: 'browser_show',
+      arguments: { tabId }
+    }) as CallToolResult
+    expect(shown.isError, mcpResultText(shown)).not.toBe(true)
+    expect(mcpResultText(shown)).toContain('without taking keyboard or mouse focus')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
     const shownWhileLocked = await client.callTool({
       name: 'browser_show',
       arguments: { tabId }
     }) as CallToolResult
     expect(shownWhileLocked.isError, mcpResultText(shownWhileLocked)).not.toBe(true)
-    expect(mcpResultText(shownWhileLocked)).toContain('without taking focus')
+    expect(mcpResultText(shownWhileLocked)).toContain('without taking keyboard or mouse focus')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

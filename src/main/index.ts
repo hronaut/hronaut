@@ -3802,7 +3802,6 @@ function createRuntimeMcpServer(
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
     version: app.getVersion(),
     toolSet: settings.mcpToolSet,
-    showWindow,
     showWindowInactive,
     getUserAttention: () => (userAttention ? { ...userAttention } : null),
     requestUserAttention,

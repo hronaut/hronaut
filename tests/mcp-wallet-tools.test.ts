@@ -66,7 +66,7 @@ describe('MCP wallet tools', () => {
     }
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never, wallets
@@ -114,7 +114,7 @@ describe('MCP wallet tools', () => {
     const prepareTransaction = vi.fn(async () => ({}))
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
@@ -150,7 +150,7 @@ describe('MCP wallet tools', () => {
     const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
@@ -213,7 +213,7 @@ describe('MCP wallet tools', () => {
     const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
@@ -248,7 +248,7 @@ describe('MCP wallet tools', () => {
     const manager = walletWorkspaceManager()
     server = new McpHttpServer(manager as never, {
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
-      showWindow: () => undefined,
+      showWindowInactive: () => undefined,
       getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
