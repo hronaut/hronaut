@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reveal trusted wallet connection and signing approvals immediately above website content without requiring a window resize, and keep approval actions visible while reviewing long requests.
+- Refresh Environment controls from authoritative tab state when a pending Apply finishes across close and reopen cycles, without letting an older failure overwrite a newer draft.
 - Keep the Workspace editor visible and clearly busy while saving, closing, or copying browser data; block every dismissal and conflicting edit path until the authoritative operation finishes.
 - Keep validated wallet imports visible and immutable until trusted cancellation finishes, preventing a stale cancellation from colliding with a newer onboarding attempt.
 - Keep wallet rename and RPC drafts open for retry when persistence fails, prevent conflicting inline editors, and lock drafts while their update is in flight.

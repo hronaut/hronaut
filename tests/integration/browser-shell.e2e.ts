@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
-import type { BrowserState, BrowserStorageResult, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
+import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
@@ -865,6 +865,73 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   await homeButton.click()
   await expect(appWindow.locator('.toolbar')).toBeHidden()
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
+})
+
+test('refreshes a reopened Environment panel after its pending apply completes', async ({ appWindow, electronApp }, testInfo) => {
+  const createdState = await appWindow.evaluate(`window.hronaut.newTab({
+    url: 'data:text/html,<title>Environment pending fixture</title><main>Environment fixture</main>',
+    active: true
+  })`) as BrowserState
+  const tabId = createdState.activeTabId
+  if (!tabId) throw new Error('Environment pending fixture did not create an active tab')
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+    state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.loading
+  ))`)).toBe(false)
+  const state = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  await appWindow.getByRole('dialog', { name: 'Page tools' })
+    .getByRole('button', { name: /^Environment:/ })
+    .click()
+  const environment = appWindow.getByRole('dialog', { name: 'Environment' })
+  await environment.getByLabel('Network', { exact: true }).selectOption('offline')
+
+  await electronApp.evaluate(({ ipcMain }, input) => {
+    const scope = globalThis as typeof globalThis & { __resolveEnvironmentApply?: () => void }
+    ipcMain.removeHandler('browser:set-tab-environment')
+    ipcMain.handle('browser:set-tab-environment', (_event, requestedTabId: unknown, value: unknown) => (
+      new Promise((resolve) => {
+        scope.__resolveEnvironmentApply = () => {
+          delete scope.__resolveEnvironmentApply
+          const settings = value as BrowserEnvironmentSettings
+          const { geolocation, ...environmentSettings } = settings
+          resolve({
+            ...input.state,
+            tabs: input.state.tabs.map((tab) => tab.id === requestedTabId
+              ? {
+                  ...tab,
+                  emulation: {
+                    ...tab.emulation,
+                    ...environmentSettings,
+                    ...(geolocation ? { geolocation } : {})
+                  }
+                }
+              : tab)
+          })
+        }
+      })
+    ))
+  }, { state })
+
+  await environment.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(environment).toHaveAttribute('aria-busy', 'true')
+  await environment.getByRole('button', { name: 'Close Environment' }).click()
+  await expect(environment).toBeHidden()
+
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  await appWindow.getByRole('dialog', { name: 'Page tools' })
+    .getByRole('button', { name: /^Environment:/ })
+    .click()
+  await expect(environment.getByLabel('Network', { exact: true })).toHaveValue('none')
+
+  await electronApp.evaluate(() => {
+    const resolve = (globalThis as typeof globalThis & { __resolveEnvironmentApply?: () => void }).__resolveEnvironmentApply
+    if (!resolve) throw new Error('Pending Environment apply was not captured')
+    resolve()
+  })
+  await expect(environment.getByLabel('Network', { exact: true })).toHaveValue('offline')
+  await expect(environment.locator('.environment-status')).toContainText('Environment applied')
+  await appWindow.screenshot({ path: testInfo.outputPath('environment-reopened-after-pending-apply.png') })
 })
 
 test('keeps the latest rapid tab selection when queued responses settle in request order', async ({
@@ -1918,7 +1985,7 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
 test('cancels a pending wallet approval as soon as its website renderer is destroyed', async ({
   appWindow,
   electronApp
-}) => {
+}, testInfo) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Wallet teardown fixture</title><main>Wallet teardown fixture</main>')
@@ -1957,11 +2024,16 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Wallet teardown WebContents was not found')
       await page.executeJavaScript(`
-        window.__walletConnectState = 'pending';
-        void window.ethereum.request({ method: 'eth_requestAccounts' }).then(
-          () => { window.__walletConnectState = 'resolved' },
-          (error) => { window.__walletConnectState = 'rejected:' + error.message }
-        );
+        window.__walletConnectState = 'waiting-provider';
+        window.addEventListener('eip6963:announceProvider', (event) => {
+          if (window.__walletConnectState !== 'waiting-provider' || event.detail?.info?.rdns !== 'dev.hronaut.wallet') return;
+          window.__walletConnectState = 'pending';
+          void event.detail.provider.request({ method: 'eth_requestAccounts' }).then(
+            () => { window.__walletConnectState = 'resolved' },
+            (error) => { window.__walletConnectState = 'rejected:' + error.message }
+          );
+        });
+        window.dispatchEvent(new Event('eip6963:requestProvider'));
         'started';
       `)
     }, url)
@@ -1969,9 +2041,11 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
       const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ id: string; operation: string; status: string }>
       return requests.find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')
     }).not.toBeUndefined()
-    const connectRequests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ id: string; operation: string; status: string }>
-    const connectId = connectRequests.find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')!.id
-    await appWindow.evaluate(`window.hronautWallets.approveRequest(${JSON.stringify(connectId)})`)
+    const approval = appWindow.getByRole('alertdialog', { name: /Connect account/i })
+    await expect(approval).toBeVisible()
+    await expect(approval.getByRole('button', { name: 'Approve exact request' })).toBeVisible()
+    await appWindow.screenshot({ path: testInfo.outputPath('wallet-provider-approval-without-resize.png') })
+    await approval.getByRole('button', { name: 'Approve exact request' }).click()
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript('window.__walletConnectState')

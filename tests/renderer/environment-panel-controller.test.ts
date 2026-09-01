@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useEnvironmentPanelController } from '../../src/renderer/src/composables/useEnvironmentPanelController.js'
 import { browserEnvironmentFromEmulation } from '../../src/shared/browser-environment.js'
@@ -109,6 +109,57 @@ describe('environment panel controller', () => {
     expect(controller.draft.value.network).toBe('fast-4g')
     expect(controller.pendingAction.value).toBeNull()
     expect(controller.state.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('refreshes a reopened panel when its pending apply completes', async () => {
+    const pending = deferred<BrowserState>()
+    const { open, activeTab, setTabEnvironment, controller } = createController()
+    setTabEnvironment.mockReturnValueOnce(pending.promise)
+    controller.draft.value.network = 'offline'
+    controller.markDraftChanged()
+
+    const applying = controller.apply()
+    open.value = false
+    await nextTick()
+    open.value = true
+    await nextTick()
+    expect(controller.draft.value.network).toBe('slow-3g')
+
+    const updatedTab = browserTab()
+    activeTab.value = {
+      ...updatedTab,
+      emulation: {
+        ...updatedTab.emulation!,
+        network: 'offline'
+      }
+    }
+    pending.resolve(browserState())
+    await applying
+
+    expect(controller.draft.value.network).toBe('offline')
+    expect(controller.pendingAction.value).toBeNull()
+    expect(controller.state.value).toBe('applied')
+    controller.dispose()
+  })
+
+  it('does not attach an older apply failure to a newer draft', async () => {
+    const pending = deferred<BrowserState>()
+    const { setTabEnvironment, controller } = createController()
+    setTabEnvironment.mockReturnValueOnce(pending.promise)
+    controller.draft.value.network = 'offline'
+    controller.markDraftChanged()
+
+    const applying = controller.apply()
+    controller.draft.value.network = 'fast-4g'
+    controller.markDraftChanged()
+    pending.reject(new Error('Older environment request failed'))
+    await applying
+
+    expect(controller.draft.value.network).toBe('fast-4g')
+    expect(controller.pendingAction.value).toBeNull()
+    expect(controller.state.value).toBe('idle')
+    expect(controller.error.value).toBe('')
     controller.dispose()
   })
 

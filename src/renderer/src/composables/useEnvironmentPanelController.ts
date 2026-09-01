@@ -34,7 +34,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   const state = ref<EnvironmentPanelState>('idle')
   const error = ref('')
   const pendingAction = ref<EnvironmentPanelAction | null>(null)
-  let presentationGeneration = 0
+  let draftRevision = 0
   let operationGeneration = 0
   let disposed = false
 
@@ -54,12 +54,12 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   ))
 
   function resetFeedback(): void {
-    presentationGeneration += 1
     state.value = 'idle'
     error.value = ''
   }
 
   function markDraftChanged(): void {
+    draftRevision += 1
     resetFeedback()
   }
 
@@ -98,7 +98,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
     if (!tab || !environment) return
     const mutation = options.beginMutation()
     const operation = ++operationGeneration
-    const presentation = presentationGeneration
+    const startingDraftRevision = draftRevision
     pendingAction.value = override ? 'reset' : reload ? 'apply-reload' : 'apply'
     state.value = 'applying'
     error.value = ''
@@ -117,12 +117,12 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
-      if (presentation !== presentationGeneration) {
+      if (startingDraftRevision !== draftRevision) {
         state.value = 'idle'
         return
       }
       loadDraft(options.activeTab.value?.emulation)
-      state.value = 'applied'
+      state.value = options.open.value ? 'applied' : 'idle'
     } catch (cause) {
       if (!options.isMutationCurrent(mutation, tab.id)) {
         finishSupersededOperation(operation)
@@ -130,6 +130,10 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
+      if (startingDraftRevision !== draftRevision) {
+        state.value = 'idle'
+        return
+      }
       state.value = 'error'
       error.value = cause instanceof Error ? cause.message : String(cause)
     }
@@ -153,7 +157,7 @@ export function useEnvironmentPanelController(options: EnvironmentPanelControlle
   function dispose(): void {
     if (disposed) return
     disposed = true
-    presentationGeneration += 1
+    draftRevision += 1
     operationGeneration += 1
     pendingAction.value = null
     state.value = 'idle'

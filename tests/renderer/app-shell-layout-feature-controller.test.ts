@@ -10,7 +10,7 @@ import {
 interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
-  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'workspaceEditor' | 'credentialPicker', Ref<boolean>>
+  modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
     find: Ref<boolean>
@@ -183,5 +183,21 @@ describe('useAppShellLayoutFeatureController', () => {
     expect(harness.setToolbarHeight).not.toHaveBeenCalled()
     expect(harness.closePanelsExcept).not.toHaveBeenCalled()
     expect(harness.closeAddressSuggestions).not.toHaveBeenCalled()
+  })
+
+  it('reveals a trusted wallet approval immediately without waiting for a window resize', async () => {
+    const harness = createHarness()
+
+    harness.modals.walletApproval.value = true
+    await nextTick()
+    await nextTick()
+
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setContentInsets).toHaveBeenLastCalledWith({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0
+    })
   })
 })

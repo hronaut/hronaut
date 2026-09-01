@@ -85,12 +85,14 @@ export function useAppShellLayoutFeatureController(
       overlays.activePanel,
       overlays.addressSuggestions,
       modals.commandPalette,
+      modals.helpDialog,
       overlays.tabSearch,
       overlays.downloads,
       overlays.history,
       overlays.splitMenu,
       modals.workspaceEditor,
-      modals.credentialPicker
+      modals.credentialPicker,
+      modals.walletApproval
     ],
     competingOverlayStates: [
       modals.settings,
