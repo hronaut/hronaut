@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent the MCP `browser_show` tool from taking foreground keyboard or mouse focus while Lock Tabs is active; agents can still make the window visible without interrupting work in another application.
+
 ## [1.11.20] - 2026-09-01
 
 ### Fixed

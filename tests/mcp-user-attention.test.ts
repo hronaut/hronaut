@@ -91,6 +91,8 @@ describe('MCP user-attention presentation failures', () => {
 
   it('can show the app and request attention before a workspace has any tabs', async () => {
     const showWindow = vi.fn()
+    const showWindowInactive = vi.fn()
+    let allHumanInteractionLocked = false
     let userAttention: UserAttentionRequest | null = null
     const requestUserAttention = vi.fn(async (request: UserAttentionInput): Promise<UserAttentionRequest> => {
       const nextAttention = {
@@ -111,7 +113,7 @@ describe('MCP user-attention presentation failures', () => {
       listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
       selectTabAndWait: vi.fn(async () => undefined),
-      getState: vi.fn(() => ({ activeTabId: null, tabs: [] })),
+      getState: vi.fn(() => ({ activeTabId: null, tabs: [], allHumanInteractionLocked })),
       getMcpGroupState: vi.fn(() => ({
         activeTabId: null,
         tabs: [],
@@ -126,6 +128,7 @@ describe('MCP user-attention presentation failures', () => {
       port: 0,
       version: 'test',
       showWindow,
+      showWindowInactive,
       getUserAttention: () => userAttention,
       requestUserAttention,
       bookmarks: {} as never,
@@ -143,6 +146,16 @@ describe('MCP user-attention presentation failures', () => {
     }) as CallToolResult
     expect(show.isError).not.toBe(true)
     expect(showWindow).toHaveBeenCalledOnce()
+
+    allHumanInteractionLocked = true
+    const lockedShow = await client.callTool({
+      name: 'browser_show',
+      arguments: { workspaceId }
+    }) as CallToolResult
+    expect(lockedShow.isError).not.toBe(true)
+    expect(text(lockedShow)).toContain('without taking focus')
+    expect(showWindow).toHaveBeenCalledOnce()
+    expect(showWindowInactive).toHaveBeenCalledOnce()
 
     const attention = await client.callTool({
       name: 'browser_request_user_attention',

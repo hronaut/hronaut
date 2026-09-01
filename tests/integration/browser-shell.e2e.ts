@@ -6506,7 +6506,7 @@ test('preserves human focus across agent input and active tab changes', async ({
 
     await expect(addressInput).toBeFocused()
 
-    await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
+    await appWindow.getByRole('button', { name: 'Lock all tabs' }).click()
     humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
       const humanWindow = new BrowserWindow({ width: 320, height: 200, show: false })
       await humanWindow.loadURL('data:text/html,<title>Human focus owner</title><input autofocus>')
@@ -6514,6 +6514,15 @@ test('preserves human focus across agent input and active tab changes', async ({
       humanWindow.focus()
       return humanWindow.id
     })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const shownWhileLocked = await client.callTool({
+      name: 'browser_show',
+      arguments: { tabId }
+    }) as CallToolResult
+    expect(shownWhileLocked.isError, mcpResultText(shownWhileLocked)).not.toBe(true)
+    expect(mcpResultText(shownWhileLocked)).toContain('without taking focus')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

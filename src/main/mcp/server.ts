@@ -196,6 +196,7 @@ export interface McpHttpServerOptions {
   version: string
   toolSet?: McpToolSet
   showWindow: () => void
+  showWindowInactive?: () => void
   getUserAttention: () => UserAttentionRequest | null
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>
   bookmarks: BookmarkOperations
@@ -330,7 +331,7 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
     description: 'Archive your own task workspace for later or reopen an authorized archive with the same stable workspaceId. Listing returns only archives authorized for this MCP connection. After reconnecting, call resume with the archived ID and its private resumeKey before opening or deleting it.'
   },
   { name: 'browser_status', category: 'Session', description: 'Show the current workspace, endpoint, tabs, and active workspace tab.' },
-  { name: 'browser_show', category: 'Session', description: 'Show and focus the visible Hronaut window.' },
+  { name: 'browser_show', category: 'Session', description: 'Show the visible Hronaut window. Lock Tabs prevents this tool from taking focus.' },
   {
     name: 'browser_request_user_attention',
     category: 'Session',
@@ -563,6 +564,7 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): C
 function createBrowserMcpServer(
   manager: BrowserTabsManager,
   showWindow: () => void,
+  showWindowInactive: (() => void) | undefined,
   getUserAttention: () => UserAttentionRequest | null,
   requestUserAttention: (request: UserAttentionInput) => Promise<UserAttentionRequest>,
   bookmarks: BookmarkOperations,
@@ -896,6 +898,10 @@ function createBrowserMcpServer(
     { description: toolDescription('browser_show'), inputSchema: {} },
     tool(async ({ tabId }: { tabId?: string }) => {
       if (tabId) await manager.selectTabAndWait(tabId)
+      if (manager.getState().allHumanInteractionLocked && showWindowInactive) {
+        showWindowInactive()
+        return textResult('Browser window is visible without taking focus because Lock Tabs is active.')
+      }
       showWindow()
       return textResult('Browser window is visible and focused.')
     })
@@ -2525,6 +2531,7 @@ export class McpHttpServer {
           const mcp = createBrowserMcpServer(
             this.manager,
             this.options.showWindow,
+            this.options.showWindowInactive,
             this.options.getUserAttention,
             this.options.requestUserAttention,
             this.options.bookmarks,

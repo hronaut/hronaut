@@ -448,6 +448,12 @@ function showWindow(): void {
   if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.show()
 }
 
+function showWindowInactive(): void {
+  if (!mainWindow) return
+  mainWindow.showInactive()
+  if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.showInactive()
+}
+
 function sendToShellWindows(channel: string, ...args: unknown[]): void {
   for (const window of [mainWindow, panelWindow]) {
     if (window && !window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -3781,6 +3787,7 @@ function createRuntimeMcpServer(
     version: app.getVersion(),
     toolSet: settings.mcpToolSet,
     showWindow,
+    showWindowInactive,
     getUserAttention: () => (userAttention ? { ...userAttention } : null),
     requestUserAttention,
     bookmarks: {
