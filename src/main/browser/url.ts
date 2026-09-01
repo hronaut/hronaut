@@ -25,14 +25,19 @@ export function isAgentWorkspaceNavigationUrl(value: string): boolean {
   if (value === 'about:blank') return true
   try {
     const url = new URL(value)
-    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'data:') return true
+    if (url.protocol === 'http:' || url.protocol === 'https:') return !url.username && !url.password
+    if (url.protocol === 'data:') return true
     if (url.protocol === 'view-source:') {
       const source = new URL(value.slice('view-source:'.length))
-      return source.protocol === 'http:' || source.protocol === 'https:'
+      return (source.protocol === 'http:' || source.protocol === 'https:')
+        && !source.username
+        && !source.password
     }
     if (url.protocol !== 'blob:') return false
     const source = new URL(value.slice('blob:'.length))
-    return source.protocol === 'http:' || source.protocol === 'https:'
+    return (source.protocol === 'http:' || source.protocol === 'https:')
+      && !source.username
+      && !source.password
   } catch {
     return false
   }

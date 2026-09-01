@@ -62,6 +62,9 @@ describe('isAgentWorkspaceNavigationUrl', () => {
 
   it.each([
     'file:///tmp/private.txt',
+    'https://agent:embedded-secret@example.com/private?token=query-secret',
+    'view-source:https://agent:embedded-secret@example.com/private',
+    'blob:https://agent:embedded-secret@example.com/01912345-6789-7abc-8def-0123456789ab',
     'hronaut://home/',
     'chrome://version',
     'devtools://devtools/bundled/inspector.html',

@@ -475,7 +475,7 @@ function isWebUrl(url: string): boolean {
   }
 }
 
-const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local or privileged browser URLs.'
+const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local, privileged, or credential-bearing browser URLs.'
 
 function assertAgentWorkspaceNavigationUrl(url: string): void {
   if (isAgentWorkspaceNavigationUrl(url)) return
@@ -3200,7 +3200,6 @@ export class BrowserTabsManager {
     tab.humanInteractionLocked = locked
     if (this.isHumanInteractionLocked(tab)) {
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
-      this.window.webContents.focus()
     }
     try {
       await this.syncHumanInteractionInputGuard(tab)
@@ -3229,7 +3228,6 @@ export class BrowserTabsManager {
       for (const tab of this.tabs.values()) {
         if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
       }
-      this.window.webContents.focus()
     }
     const results = await Promise.allSettled(
       [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
@@ -7862,13 +7860,12 @@ export class BrowserTabsManager {
             ))
           }
         }
-        this.restoreHumanFocusAfterAgentInput(tab, webContents, focusSnapshot)
+        this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
       }
     }
   }
 
   private restoreHumanFocusAfterAgentInput(
-    tab: BrowserTab | undefined,
     targetWebContents: BrowserTab['webContents'],
     snapshot: { mainWindowFocused: boolean; focusedWebContentsId: number | null } | undefined
   ): void {
@@ -7878,10 +7875,6 @@ export class BrowserTabsManager {
     if (!snapshot?.mainWindowFocused || !this.window.isFocused()) return
     const current = electronWebContents.getFocusedWebContents()
     if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
-    if (tab && this.isHumanInteractionLocked(tab) && this.activeTabId === tab.id) {
-      this.window.webContents.focus()
-      return
-    }
     if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return
     const previous = electronWebContents.fromId(snapshot.focusedWebContentsId)
     if (previous && !previous.isDestroyed()) previous.focus()

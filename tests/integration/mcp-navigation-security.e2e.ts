@@ -11,7 +11,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('rejects local file navigation from an agent workspace', async ({
+test('rejects local, privileged, and credential-bearing navigation from an agent workspace', async ({
   electronApp: _electronApp,
   mcpToken,
   mcpPort,
@@ -48,7 +48,7 @@ test('rejects local file navigation from an agent workspace', async ({
     }) as CallToolResult
 
     expect(attempted.isError).toBe(true)
-    expect(text(attempted)).toContain('Agent workspaces cannot open local or privileged browser URLs')
+    expect(text(attempted)).toContain('Agent workspaces cannot open local, privileged, or credential-bearing browser URLs')
     expect(text(attempted)).not.toContain(localPath)
     expect(text(attempted)).not.toContain(sentinel)
 
@@ -57,7 +57,7 @@ test('rejects local file navigation from an agent workspace', async ({
       arguments: { tabId: blankTabId, url: localUrl }
     }) as CallToolResult
     expect(navigated.isError).toBe(true)
-    expect(text(navigated)).toContain('Agent workspaces cannot open local or privileged browser URLs')
+    expect(text(navigated)).toContain('Agent workspaces cannot open local, privileged, or credential-bearing browser URLs')
     expect(text(navigated)).not.toContain(localPath)
 
     const privileged = await client.callTool({
@@ -65,7 +65,26 @@ test('rejects local file navigation from an agent workspace', async ({
       arguments: { tabId: blankTabId, url: 'chrome://version' }
     }) as CallToolResult
     expect(privileged.isError).toBe(true)
-    expect(text(privileged)).toContain('Agent workspaces cannot open local or privileged browser URLs')
+    expect(text(privileged)).toContain('Agent workspaces cannot open local, privileged, or credential-bearing browser URLs')
+
+    const credentialUrl = 'https://agent:embedded-secret@example.invalid/private?token=query-secret'
+    const credentialNavigation = await client.callTool({
+      name: 'browser_navigate',
+      arguments: { tabId: blankTabId, url: credentialUrl }
+    }) as CallToolResult
+    expect(credentialNavigation.isError).toBe(true)
+    expect(text(credentialNavigation)).toContain('Agent workspaces cannot open local, privileged, or credential-bearing browser URLs')
+    expect(text(credentialNavigation)).not.toContain('embedded-secret')
+    expect(text(credentialNavigation)).not.toContain('query-secret')
+
+    const credentialPopup = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId: blankTabId,
+        script: `window.open(${JSON.stringify(credentialUrl)}, '_blank'); 'attempted'`
+      }
+    }) as CallToolResult
+    expect(credentialPopup.isError, text(credentialPopup)).not.toBe(true)
 
     const pageNavigation = await client.callTool({
       name: 'browser_evaluate',

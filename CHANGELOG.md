@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Lock Tabs from moving keyboard or mouse focus into Hronaut chrome when its state changes, while retaining the native input barrier that blocks physical interaction with locked website pages.
+- Reject credential-bearing HTTP(S), `view-source:`, and origin-bound `blob:` URLs across agent workspace navigation so embedded usernames or passwords cannot enter live tabs through direct commands, redirects, or website popups.
+
 ### Improved
 
 - Make release auto-tagging idempotent when a matching signed tag is published concurrently, while still failing closed if the remote tag points at another commit.

@@ -5996,6 +5996,46 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
   }
 })
 
+test('locks website input without moving focus away from the current page', async ({
+  appWindow,
+  electronApp
+}) => {
+  const fixtureUrl = 'data:text/html,<title>Lock focus preservation</title><input id="human-input" autofocus>'
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(fixtureUrl)}, active: true })`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+    .toBe('Lock focus preservation')
+
+  const pageId = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error('Lock focus fixture web contents was not found')
+    page.focus()
+    await page.executeJavaScript("document.querySelector('#human-input').focus()")
+    return page.id
+  }, fixtureUrl)
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id))
+    .toBe(pageId)
+
+  try {
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id))
+      .toBe(pageId)
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Lock focus fixture web contents was not found')
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'X' })
+      page.sendInputEvent({ type: 'char', keyCode: 'X' })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'X' })
+    }, fixtureUrl)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript("document.querySelector('#human-input').value")
+    }, fixtureUrl)).toBe('')
+  } finally {
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)')
+  }
+})
+
 test('locks website input and tab closing across Hronaut while keeping browser chrome usable', async ({
   appWindow,
   electronApp
@@ -6345,8 +6385,9 @@ test('rolls back tab and global interaction locks when the native input guard fa
   await expect.poll(fixtureClicks).toBe(2)
 })
 
-test('returns physical keyboard focus to trusted chrome after agent input in a locked tab', async ({
+test('preserves the human focus owner after agent input in a locked tab', async ({
   appWindow,
+  electronApp,
   mcpPort,
   mcpToken
 }) => {
@@ -6386,26 +6427,32 @@ test('returns physical keyboard focus to trusted chrome after agent input in a l
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
 
     await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
+    const pageId = await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Locked agent focus fixture web contents was not found')
+      page.focus()
+      return page.id
+    }, `http://127.0.0.1:${address.port}/locked-agent-focus`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id))
+      .toBe(pageId)
     const pressed = await client.callTool({
       name: 'browser_press',
       arguments: { tabId, key: 'Escape' }
     }) as CallToolResult
     expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
-    await execFileAsync('python3', [
-      join(process.cwd(), 'tests/integration/x11-input.py'),
-      '0',
-      '0',
-      '--shortcut=Control_L+l'
-    ])
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.id))
+      .toBe(pageId)
 
-    await expect(appWindow.getByRole('combobox', { name: 'Address' })).toBeFocused()
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await addressInput.click()
+    await expect(addressInput).toBeFocused()
   } finally {
     await client.close().catch(() => undefined)
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
 
-test('preserves human focus across unlocked and locked agent input', async ({
+test('preserves human focus across agent input and active tab changes', async ({
   appWindow,
   electronApp,
   mcpPort,
@@ -6467,6 +6514,22 @@ test('preserves human focus across unlocked and locked agent input', async ({
       humanWindow.focus()
       return humanWindow.id
     })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const secondOpened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/agent-focus-isolation-second`, active: true }
+    }) as CallToolResult
+    expect(secondOpened.isError, mcpResultText(secondOpened)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const selected = await client.callTool({
+      name: 'browser_select_tab',
+      arguments: { tabId }
+    }) as CallToolResult
+    expect(selected.isError, mcpResultText(selected)).not.toBe(true)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

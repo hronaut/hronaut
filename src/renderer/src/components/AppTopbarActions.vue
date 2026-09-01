@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
@@ -15,7 +14,7 @@ import type { McpStatusController } from '../composables/useMcpStatusController.
 import McpStatusControls from './McpStatusControls.vue'
 import UpdateNotification from './UpdateNotification.vue'
 
-const props = defineProps<{
+defineProps<{
   commandPaletteOpen: boolean
   tabSearchOpen: boolean
   downloadsOpen: boolean
@@ -42,16 +41,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const allInteractionLockButton = ref<HTMLButtonElement | null>(null)
-
-watch(
-  () => props.allInteractionLocked,
-  async (locked) => {
-    if (!locked) return
-    await nextTick()
-    allInteractionLockButton.value?.focus()
-  }
-)
 </script>
 
 <template>
@@ -105,7 +94,6 @@ watch(
     </button>
     <span class="topbar-actions-divider" aria-hidden="true" />
     <button
-      ref="allInteractionLockButton"
       class="browser-lock-button all-lock-button"
       :class="{ locked: allInteractionLocked }"
       type="button"

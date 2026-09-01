@@ -1,5 +1,5 @@
-import { ref } from 'vue'
-import { render, screen, waitFor } from '@testing-library/vue'
+import { nextTick, ref } from 'vue'
+import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import AppTopbarActions from '../../src/renderer/src/components/AppTopbarActions.vue'
@@ -90,7 +90,7 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 
-  it('focuses the lock after it activates and reflects completed downloads', async () => {
+  it('preserves the current chrome focus when the lock activates and reflects completed downloads', async () => {
     const rendered = renderActions({
       downloads: [download(1)],
       activeDownloads: [],
@@ -98,6 +98,8 @@ describe('AppTopbarActions', () => {
     })
     const completed = screen.getByRole('button', { name: 'Download complete' })
     expect(completed).toHaveClass('complete')
+    completed.focus()
+    expect(completed).toHaveFocus()
 
     await rendered.rerender({
       allInteractionLocked: true,
@@ -105,7 +107,8 @@ describe('AppTopbarActions', () => {
     })
 
     const lock = screen.getByRole('button', { name: 'Unlock all tabs' })
-    await waitFor(() => expect(lock).toHaveFocus())
+    await nextTick()
+    expect(completed).toHaveFocus()
     expect(lock).toHaveAttribute('aria-pressed', 'true')
     rendered.mcpStatusController.dispose()
   })
