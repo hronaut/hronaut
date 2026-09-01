@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.17] - 2026-09-01
+
 ### Fixed
 
 - Keep trusted wallet approvals above website content even when a delayed shell measurement arrives, so connection, signing, and transaction confirmations no longer appear only after resizing the window.
