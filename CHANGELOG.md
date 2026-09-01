@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Shut down wallet brokers before deleting their temporary vaults in unit tests so background confirmation and audit work cannot race test cleanup on slower runners.
+
 ## [1.11.15] - 2026-09-01
 
 ### Fixed

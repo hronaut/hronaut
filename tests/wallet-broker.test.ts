@@ -3,14 +3,28 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { verifyMessage } from 'viem'
-import { WalletBroker, type WalletBrokerContext } from '../src/main/wallet/broker.js'
+import {
+  WalletBroker as BaseWalletBroker,
+  type WalletBrokerContext,
+  type WalletBrokerOptions
+} from '../src/main/wallet/broker.js'
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 import type { WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
 
 const directories: string[] = []
+const brokers: BaseWalletBroker[] = []
+
+class WalletBroker extends BaseWalletBroker {
+  constructor(service: WalletService, options?: WalletBrokerOptions) {
+    super(service, options)
+    brokers.push(this)
+  }
+}
+
 afterEach(async () => {
+  await Promise.all(brokers.splice(0).map((broker) => broker.shutdown()))
   await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
