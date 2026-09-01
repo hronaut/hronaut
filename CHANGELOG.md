@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.18] - 2026-09-01
+
 ### Fixed
 
 - Preserve the human's active window and trusted-chrome focus across agent clicks, typing, and key presses, including when page input is locked, so background MCP work cannot reactivate Hronaut and capture physical keyboard or mouse input.
