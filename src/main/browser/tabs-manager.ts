@@ -12,6 +12,7 @@ import {
   nativeImage,
   session,
   shell,
+  webContents as electronWebContents,
   WebContentsView,
   type ContextMenuParams,
   type DownloadItem,
@@ -891,6 +892,10 @@ export class BrowserTabsManager {
   private splitViewGeneration = 0
   private allHumanInteractionLocked = false
   private readonly agentInputWebContents = new Map<number, number>()
+  private readonly agentInputFocusSnapshots = new Map<number, {
+    mainWindowFocused: boolean
+    focusedWebContentsId: number | null
+  }>()
   private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
   private destroyed = false
@@ -5982,6 +5987,7 @@ export class BrowserTabsManager {
     this.networkRouteRefreshTimers.clear()
     this.defaultExecutionContexts.clear()
     this.renderQueues.clear()
+    this.agentInputFocusSnapshots.clear()
   }
 
   private async createTab(options: {
@@ -7784,6 +7790,12 @@ export class BrowserTabsManager {
     operation: () => Promise<T>
   ): Promise<T> {
     const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
+    if (depth === 1) {
+      this.agentInputFocusSnapshots.set(webContents.id, {
+        mainWindowFocused: this.window.isFocused(),
+        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
+      })
+    }
     this.agentInputWebContents.set(webContents.id, depth)
     try {
       if (depth === 1 && !webContents.isDestroyed()) {
@@ -7804,20 +7816,43 @@ export class BrowserTabsManager {
         this.agentInputWebContents.set(webContents.id, remaining)
       } else {
         this.agentInputWebContents.delete(webContents.id)
+        const focusSnapshot = this.agentInputFocusSnapshots.get(webContents.id)
+        this.agentInputFocusSnapshots.delete(webContents.id)
+        let tab: BrowserTab | undefined
         if (!webContents.isDestroyed()) {
           await webContents.executeJavaScript('delete window.__hronautAgentInputActive', true).catch(() => undefined)
           const tabId = this.webContentsToTab.get(webContents.id)
-          const tab = tabId ? this.tabs.get(tabId) : undefined
+          tab = tabId ? this.tabs.get(tabId) : undefined
           if (tab && this.isHumanInteractionLocked(tab)) {
             await this.withDebugger(webContents, () => webContents.debugger.sendCommand(
               'Input.setIgnoreInputEvents',
               { ignore: true }
             ))
-            if (this.activeTabId === tab.id) this.focusTabOrTrustedChrome(tab)
           }
         }
+        this.restoreHumanFocusAfterAgentInput(tab, webContents, focusSnapshot)
       }
     }
+  }
+
+  private restoreHumanFocusAfterAgentInput(
+    tab: BrowserTab | undefined,
+    targetWebContents: BrowserTab['webContents'],
+    snapshot: { mainWindowFocused: boolean; focusedWebContentsId: number | null } | undefined
+  ): void {
+    // Agent input must not activate Hronaut when the human is working in
+    // another window, or overwrite a newer focus change made while the tool
+    // was running.
+    if (!snapshot?.mainWindowFocused || !this.window.isFocused()) return
+    const current = electronWebContents.getFocusedWebContents()
+    if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
+    if (tab && this.isHumanInteractionLocked(tab) && this.activeTabId === tab.id) {
+      this.window.webContents.focus()
+      return
+    }
+    if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return
+    const previous = electronWebContents.fromId(snapshot.focusedWebContentsId)
+    if (previous && !previous.isDestroyed()) previous.focus()
   }
 
   private async withRenderableTab<T>(

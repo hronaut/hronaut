@@ -6405,6 +6405,88 @@ test('returns physical keyboard focus to trusted chrome after agent input in a l
   }
 })
 
+test('preserves human focus across unlocked and locked agent input', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Agent focus isolation</title><input aria-label="Agent field">')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const client = new Client({ name: 'hronaut-agent-focus-isolation-test', version: '1.0.0' })
+  const authorization = `Bearer ${mcpToken}`
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+  let humanWindowId: number | undefined
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Test server did not expose a TCP port')
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Agent focus isolation tests', false)
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/agent-focus-isolation`, active: true }
+    }) as CallToolResult
+    expect(opened.isError, mcpResultText(opened)).not.toBe(true)
+    const tabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
+    const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
+    expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await addressInput.click()
+    await expect(addressInput).toBeFocused()
+
+    const typed = await client.callTool({
+      name: 'browser_type',
+      arguments: { tabId, selector: 'input', text: 'agent input' }
+    }) as CallToolResult
+    expect(typed.isError, mcpResultText(typed)).not.toBe(true)
+
+    await expect(addressInput).toBeFocused()
+
+    await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
+    humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
+      const humanWindow = new BrowserWindow({ width: 320, height: 200, show: false })
+      await humanWindow.loadURL('data:text/html,<title>Human focus owner</title><input autofocus>')
+      humanWindow.show()
+      humanWindow.focus()
+      return humanWindow.id
+    })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const pressed = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'Escape' }
+    }) as CallToolResult
+    expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
+
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+  } finally {
+    if (humanWindowId !== undefined) {
+      await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.destroy(), humanWindowId)
+    }
+    await client.close().catch(() => undefined)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})
+
 test('picks a page element and copies safe agent-ready DOM context from an MCP-created tab', async ({
   appWindow,
   electronApp,
