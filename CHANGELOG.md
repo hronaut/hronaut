@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Publish legacy Solana `publicKey` and connection state after selecting Hronaut so compatible dapps stop waiting and can continue to their trusted approval flow.
+- Dispatch agent keyboard shortcuts through Chromium's awaited input channel so background-focus races cannot report a successful key press that the page never received.
 
 ## [1.11.12] - 2026-09-01
 

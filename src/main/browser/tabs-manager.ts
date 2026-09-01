@@ -25,13 +25,14 @@ import {
   type WebContents
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
-import { browserKeyCharacter, parseBrowserKeyPress } from '../../shared/keyboard-input.js'
+import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
 import { MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
+import { dispatchNativeKeyPress } from './native-keyboard.js'
 import { dispatchNativeDrag } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
@@ -5308,31 +5309,10 @@ export class BrowserTabsManager {
   async press(key: string, tabId?: string): Promise<void> {
     const webContents = this.getTab(tabId).webContents
     const input = parseBrowserKeyPress(key)
-    const character = browserKeyCharacter(input)
-    await this.withAgentInput(webContents, async () => {
-      webContents.focus()
-      try {
-        webContents.sendInputEvent({
-          type: 'keyDown',
-          keyCode: input.keyCode,
-          modifiers: input.modifiers
-        })
-        if (character !== null) {
-          webContents.sendInputEvent({
-            type: 'char',
-            keyCode: character,
-            modifiers: input.modifiers
-          })
-        }
-      } finally {
-        webContents.sendInputEvent({
-          type: 'keyUp',
-          keyCode: input.keyCode,
-          modifiers: input.modifiers
-        })
-      }
-      await new Promise<void>((resolve) => setImmediate(resolve))
-    })
+    await this.withAgentInput(webContents, () => this.withDebugger(
+      webContents,
+      () => dispatchNativeKeyPress(webContents.debugger, input)
+    ))
   }
 
   async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
