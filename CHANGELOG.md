@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.12] - 2026-09-01
+
 ### Fixed
 
 - Hide native website views while trusted Hronaut dialogs are open so wallet approvals appear immediately after a dapp selects Hronaut, without requiring a window resize, and restore the page between consecutive requests.
