@@ -2119,12 +2119,31 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
     const approval = appWindow.getByRole('alertdialog', { name: /Connect account/i })
     await expect(approval).toBeVisible()
     await expect(approval.getByRole('button', { name: 'Approve exact request' })).toBeVisible()
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      const pageView = window?.contentView.children.find((view) => (
+        view instanceof WebContentsView
+        && !view.webContents.isDestroyed()
+        && view.webContents.getURL() === requestedUrl
+      ))
+      if (!(pageView instanceof WebContentsView)) throw new Error('Wallet teardown WebContentsView was not found')
+      return pageView.getVisible()
+    }, url)).toBe(false)
     await appWindow.screenshot({ path: testInfo.outputPath('wallet-provider-approval-without-resize.png') })
     await approval.getByRole('button', { name: 'Approve exact request' }).click()
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript('window.__walletConnectState')
     }, url)).toBe('resolved')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      const pageView = window?.contentView.children.find((view) => (
+        view instanceof WebContentsView
+        && !view.webContents.isDestroyed()
+        && view.webContents.getURL() === requestedUrl
+      ))
+      return pageView instanceof WebContentsView && pageView.getVisible()
+    }, url)).toBe(true)
 
     await electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
@@ -2145,6 +2164,15 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
       const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ operation: string; status: string }>
       return requests.some((request) => request.operation === 'sign-message' && request.status === 'awaiting-human')
     }).toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
+      const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
+      const pageView = window?.contentView.children.find((view) => (
+        view instanceof WebContentsView
+        && !view.webContents.isDestroyed()
+        && view.webContents.getURL() === requestedUrl
+      ))
+      return pageView instanceof WebContentsView && pageView.getVisible()
+    }, url)).toBe(false)
 
     await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)

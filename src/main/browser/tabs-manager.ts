@@ -5862,6 +5862,10 @@ export class BrowserTabsManager {
     const tab = this.tabs.get(this.activeTabId)
     if (!tab) return
     const bounds = this.window.getContentBounds()
+    // Renderer-owned trusted modals cannot be placed above a native
+    // WebContentsView. Hiding the page is more reliable than collapsing it to
+    // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
+    const browserContentVisible = this.toolbarHeight < bounds.height - 1
     const availableWidth = Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right)
     const availableHeight = Math.max(
       1,
@@ -5878,12 +5882,15 @@ export class BrowserTabsManager {
       const secondTab = this.tabs.get(this.splitView.secondTabId)
       if (firstTab && secondTab) {
         const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio)
+        firstTab.view.setVisible(browserContentVisible)
+        secondTab.view.setVisible(browserContentVisible)
         firstTab.view.setBounds(splitBounds.first)
         secondTab.view.setBounds(splitBounds.second)
         return
       }
       this.splitView = null
     }
+    tab.view.setVisible(browserContentVisible)
     tab.view.setBounds(viewBounds)
   }
 
