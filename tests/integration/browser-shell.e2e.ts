@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -6458,7 +6458,8 @@ test('preserves human focus across agent presentation, input, and active tab cha
   appWindow,
   electronApp,
   mcpPort,
-  mcpToken
+  mcpToken,
+  profileDirectory
 }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, {
@@ -6469,7 +6470,11 @@ test('preserves human focus across agent presentation, input, and active tab cha
       <title>Agent focus isolation</title>
       <button id="agent-focus" style="position:fixed;left:20px;top:20px;width:160px;height:48px">Agent focus</button>
       <input aria-label="Agent field">
-      <script>document.querySelector('#agent-focus').addEventListener('click', () => window.focus())</script>`)
+      <input id="agent-upload" aria-label="Agent upload" type="file">
+      <script>
+        document.querySelector('#agent-focus').addEventListener('click', () => window.focus())
+        document.querySelector('#agent-upload').addEventListener('change', () => window.focus())
+      </script>`)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -6622,6 +6627,28 @@ test('preserves human focus across agent presentation, input, and active tab cha
     }) as CallToolResult
     expect(accepted.isError, mcpResultText(accepted)).not.toBe(true)
     expect(mcpResultText(accepted)).toBe('true')
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const uploadPath = join(profileDirectory, 'background-agent-upload.txt')
+    await writeFile(uploadPath, 'background agent upload', 'utf8')
+    const uploaded = await client.callTool({
+      name: 'browser_file_upload',
+      arguments: { tabId, selector: '#agent-upload', paths: [uploadPath] }
+    }) as CallToolResult
+    expect(uploaded.isError, mcpResultText(uploaded)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    const rawEvaluation = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "window.focus(); confirm('dismiss background evaluation dialog')"
+      }
+    }) as CallToolResult
+    expect(rawEvaluation.isError, mcpResultText(rawEvaluation)).not.toBe(true)
+    expect(mcpResultText(rawEvaluation)).toBe('false')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

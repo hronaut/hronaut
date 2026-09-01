@@ -5506,15 +5506,24 @@ export class BrowserTabsManager {
   async evaluate(script: string, tabId?: string, dialog: BrowserDialogHandlingOptions = {}): Promise<unknown> {
     const webContents = this.getTab(tabId).webContents
     if (dialog.promptText !== undefined) throw new Error('Text prompts are supported by browser_click; Electron does not implement prompt() evaluation')
-    // DOM events dispatched by evaluated page scripts are untrusted and the
-    // human picker ignores them directly. Do not mark the whole evaluation as
-    // agent input: an evaluated script may open a blocking dialog, which would
-    // also block the cleanup executeJavaScript call and deadlock the MCP tool.
-    if (dialog.dialogAction === undefined) return webContents.executeJavaScript(script, true)
+    // Preserve foreground native-dialog behavior, but never let a background
+    // evaluation activate Hronaut. Unexpected background dialogs are dismissed
+    // inside the page wrapper; explicit dialogAction still wins.
+    if (dialog.dialogAction === undefined && this.window.isFocused()) {
+      return webContents.executeJavaScript(script, true)
+    }
+    // DevTools owns Chromium's debugger session. Keep direct evaluation
+    // available there while the native non-focusable guard blocks activation.
+    if (dialog.dialogAction === undefined && (
+      this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()
+    )) {
+      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
+    }
+    const dialogAction = dialog.dialogAction ?? 'dismiss'
     return this.withBackgroundAgentFocusGuard(() => this.withDebugger(webContents, async () => (
       this.evaluateWithAttachedDebugger(
         webContents,
-        dialogAwareEvaluateScript(script, dialog.dialogAction!),
+        dialogAwareEvaluateScript(script, dialogAction),
         await this.mainWorldContextId(webContents)
       )
     )))
