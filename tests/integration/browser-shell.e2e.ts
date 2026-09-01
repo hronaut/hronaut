@@ -2512,6 +2512,9 @@ test('reports a failed native repository tab without leaving the menu action sil
 
 test('keeps MCP pause changes handled when the Home refresh fails', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate('window.hronaut.openHome()')
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  ))).toBe(true)
   await electronApp.evaluate(({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
