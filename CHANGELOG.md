@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.27] - 2026-09-02
+
 ### Fixed
 
 - Prevent background MCP JavaScript evaluations from taking keyboard or mouse focus from the application a person is using; unexpected dialogs are safely dismissed on isolated evaluations, while DevTools-open tabs retain compatible guarded evaluation.
