@@ -915,7 +915,10 @@ export class BrowserTabsManager {
   private readonly agentInputFocusSnapshots = new Map<number, {
     mainWindowFocused: boolean
     focusedWebContentsId: number | null
+    backgroundWindowFocusGuard: boolean
   }>()
+  private backgroundAgentInputFocusGuardDepth = 0
+  private mainWindowFocusableBeforeAgentInput = true
   private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
   private destroyed = false
@@ -7997,9 +8000,13 @@ export class BrowserTabsManager {
   ): Promise<T> {
     const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
     if (depth === 1) {
+      const mainWindowFocused = this.window.isFocused()
+      const backgroundWindowFocusGuard = !mainWindowFocused
+      if (backgroundWindowFocusGuard) this.beginBackgroundAgentInputFocusGuard()
       this.agentInputFocusSnapshots.set(webContents.id, {
-        mainWindowFocused: this.window.isFocused(),
-        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
+        mainWindowFocused,
+        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null,
+        backgroundWindowFocusGuard
       })
     }
     this.agentInputWebContents.set(webContents.id, depth)
@@ -8036,19 +8043,49 @@ export class BrowserTabsManager {
             ))
           }
         }
-        this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
+        try {
+          this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
+        } finally {
+          if (focusSnapshot?.backgroundWindowFocusGuard) this.endBackgroundAgentInputFocusGuard()
+        }
       }
+    }
+  }
+
+  private beginBackgroundAgentInputFocusGuard(): void {
+    this.backgroundAgentInputFocusGuardDepth += 1
+    if (this.backgroundAgentInputFocusGuardDepth !== 1 || this.window.isDestroyed()) return
+    this.mainWindowFocusableBeforeAgentInput = this.window.isFocusable()
+    if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
+  }
+
+  private endBackgroundAgentInputFocusGuard(): void {
+    this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
+    if (this.backgroundAgentInputFocusGuardDepth !== 0) return
+    const restoreFocusable = this.mainWindowFocusableBeforeAgentInput
+    this.mainWindowFocusableBeforeAgentInput = true
+    if (restoreFocusable && !this.window.isDestroyed() && !this.window.isFocusable()) {
+      this.window.setFocusable(true)
     }
   }
 
   private restoreHumanFocusAfterAgentInput(
     targetWebContents: BrowserTab['webContents'],
-    snapshot: { mainWindowFocused: boolean; focusedWebContentsId: number | null } | undefined
+    snapshot: {
+      mainWindowFocused: boolean
+      focusedWebContentsId: number | null
+      backgroundWindowFocusGuard: boolean
+    } | undefined
   ): void {
     // Agent input must not activate Hronaut when the human is working in
     // another window, or overwrite a newer focus change made while the tool
     // was running.
-    if (!snapshot?.mainWindowFocused || !this.window.isFocused()) return
+    if (!snapshot) return
+    if (!snapshot.mainWindowFocused) {
+      if (this.window.isFocused()) this.window.blur()
+      return
+    }
+    if (!this.window.isFocused()) return
     const current = electronWebContents.getFocusedWebContents()
     if (current && current.id !== targetWebContents.id && current.id !== snapshot.focusedWebContentsId) return
     if (snapshot.focusedWebContentsId === null || current?.id === snapshot.focusedWebContentsId) return

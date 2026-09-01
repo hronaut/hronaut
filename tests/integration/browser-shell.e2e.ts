@@ -6462,7 +6462,11 @@ test('preserves human focus across agent presentation, input, and active tab cha
 }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end('<!doctype html><title>Agent focus isolation</title><input aria-label="Agent field">')
+    response.end(`<!doctype html>
+      <title>Agent focus isolation</title>
+      <button id="agent-focus" style="position:fixed;left:20px;top:20px;width:160px;height:48px">Agent focus</button>
+      <input aria-label="Agent field">
+      <script>document.querySelector('#agent-focus').addEventListener('click', () => window.focus())</script>`)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -6559,6 +6563,40 @@ test('preserves human focus across agent presentation, input, and active tab cha
     expect(mcpResultText(shownWhileLocked)).toContain('without taking keyboard or mouse focus')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
+
+    await electronApp.evaluate(({ BrowserWindow, webContents }, options) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === options.requestedUrl)
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== options.humanWindowId)
+      if (!page || !mainWindow) throw new Error('Agent focus isolation fixtures were not found')
+      const original = page.debugger.sendCommand.bind(page.debugger)
+      let forcedFocus = false
+      Object.defineProperty(page.debugger, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
+          const result = await original(method, commandParams, sessionId)
+          if (!forcedFocus && method === 'Input.dispatchMouseEvent' && commandParams?.type === 'mousePressed') {
+            forcedFocus = true
+            mainWindow.focus()
+          }
+          return result
+        }
+      })
+    }, {
+      requestedUrl: `http://127.0.0.1:${address.port}/agent-focus-isolation`,
+      humanWindowId
+    })
+
+    const clicked = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: 100, y: 44 }
+    }) as CallToolResult
+    expect(clicked.isError, mcpResultText(clicked)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, windowId) => {
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
+      return mainWindow?.isFocusable()
+    }, humanWindowId)).toBe(true)
 
     const secondOpened = await client.callTool({
       name: 'browser_new_tab',
