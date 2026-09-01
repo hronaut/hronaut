@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useResponsivePreviewController } from '../../src/renderer/src/composables/useResponsivePreviewController.js'
 import type {
@@ -104,6 +104,64 @@ describe('responsive preview controller', () => {
     expect(controller.presetId.value).toBe('desktop')
     expect(controller.state.value).toBe('idle')
     expect(controller.pendingAction.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('refreshes a reopened panel when its pending viewport apply completes', async () => {
+    const initialViewport: BrowserViewportEmulation = {
+      width: 777,
+      height: 555,
+      deviceScaleFactor: 1.25,
+      mobile: false,
+      touch: true,
+      orientation: 'landscape'
+    }
+    const appliedViewport: BrowserViewportEmulation = {
+      width: 1024,
+      height: 768,
+      deviceScaleFactor: 2,
+      mobile: true,
+      touch: true,
+      orientation: 'landscape'
+    }
+    const pending = deferred<BrowserState>()
+    const { open, activeTab, setTabViewport, controller } = createController(initialViewport)
+    setTabViewport.mockReturnValueOnce(pending.promise)
+    controller.selectPreset('tablet')
+    controller.setOrientation('landscape')
+
+    const applying = controller.apply()
+    open.value = false
+    await nextTick()
+    open.value = true
+    await nextTick()
+    expect(controller.viewport.value).toEqual(initialViewport)
+
+    activeTab.value = browserTab(appliedViewport)
+    pending.resolve(browserState())
+    await applying
+
+    expect(controller.viewport.value).toEqual(appliedViewport)
+    expect(controller.pendingAction.value).toBeNull()
+    expect(controller.state.value).toBe('applied')
+    controller.dispose()
+  })
+
+  it('does not attach an older viewport failure to a newer draft', async () => {
+    const pending = deferred<BrowserState>()
+    const { setTabViewport, controller } = createController()
+    setTabViewport.mockReturnValueOnce(pending.promise)
+    controller.selectPreset('tablet')
+
+    const applying = controller.apply()
+    controller.selectPreset('desktop')
+    pending.reject(new Error('Older viewport request failed'))
+    await applying
+
+    expect(controller.presetId.value).toBe('desktop')
+    expect(controller.pendingAction.value).toBeNull()
+    expect(controller.state.value).toBe('idle')
+    expect(controller.error.value).toBe('')
     controller.dispose()
   })
 

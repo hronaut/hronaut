@@ -35,8 +35,9 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
   const state = ref<ResponsivePreviewState>('idle')
   const error = ref('')
   const pendingAction = ref<ResponsivePreviewAction | null>(null)
-  let presentationGeneration = 0
+  let draftRevision = 0
   let operationGeneration = 0
+  let disposed = false
 
   const viewport = computed<BrowserViewportEmulation | null>(() => {
     if (presetId.value !== 'custom') return resolveViewportPreset(presetId.value, orientation.value)
@@ -60,12 +61,12 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
   })
 
   function resetFeedback(): void {
-    presentationGeneration += 1
     state.value = 'idle'
     error.value = ''
   }
 
   function markDraftChanged(): void {
+    draftRevision += 1
     resetFeedback()
   }
 
@@ -140,13 +141,13 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
   }
 
   async function apply(): Promise<void> {
-    if (pendingAction.value) return
+    if (disposed || pendingAction.value) return
     const tab = options.activeTab.value
     const nextViewport = viewport.value
     if (!tab || !nextViewport) return
     const mutation = options.beginMutation()
     const operation = ++operationGeneration
-    const presentation = presentationGeneration
+    const startingDraftRevision = draftRevision
     pendingAction.value = 'apply'
     state.value = 'applying'
     error.value = ''
@@ -158,7 +159,12 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
-      state.value = presentation === presentationGeneration ? 'applied' : 'idle'
+      if (startingDraftRevision !== draftRevision) {
+        state.value = 'idle'
+        return
+      }
+      loadDraft(options.activeTab.value?.emulation?.viewport)
+      state.value = options.open.value ? 'applied' : 'idle'
     } catch (cause) {
       if (!options.isMutationCurrent(mutation, tab.id)) {
         finishSupersededOperation(operation)
@@ -166,18 +172,22 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
+      if (startingDraftRevision !== draftRevision) {
+        state.value = 'idle'
+        return
+      }
       state.value = 'error'
       error.value = cause instanceof Error ? cause.message : String(cause)
     }
   }
 
   async function reset(): Promise<void> {
-    if (pendingAction.value) return
+    if (disposed || pendingAction.value) return
     const tab = options.activeTab.value
     if (!tab) return
     const mutation = options.beginMutation()
     const operation = ++operationGeneration
-    const presentation = presentationGeneration
+    const startingDraftRevision = draftRevision
     pendingAction.value = 'reset'
     state.value = 'applying'
     error.value = ''
@@ -189,8 +199,11 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
-      if (presentation === presentationGeneration) loadDraft(null)
-      else state.value = 'idle'
+      if (startingDraftRevision !== draftRevision) {
+        state.value = 'idle'
+        return
+      }
+      loadDraft(null)
     } catch (cause) {
       if (!options.isMutationCurrent(mutation, tab.id)) {
         finishSupersededOperation(operation)
@@ -198,6 +211,10 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
       }
       if (operation !== operationGeneration) return
       pendingAction.value = null
+      if (startingDraftRevision !== draftRevision) {
+        state.value = 'idle'
+        return
+      }
       state.value = 'error'
       error.value = cause instanceof Error ? cause.message : String(cause)
     }
@@ -213,6 +230,12 @@ export function useResponsivePreviewController(options: ResponsivePreviewControl
   })
 
   function dispose(): void {
+    if (disposed) return
+    disposed = true
+    draftRevision += 1
+    operationGeneration += 1
+    pendingAction.value = null
+    state.value = 'idle'
     stopOpenTracking()
   }
 

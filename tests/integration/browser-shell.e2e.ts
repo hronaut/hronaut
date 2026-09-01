@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
-import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
+import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, BrowserViewportEmulation, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
 import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
@@ -932,6 +932,66 @@ test('refreshes a reopened Environment panel after its pending apply completes',
   await expect(environment.getByLabel('Network', { exact: true })).toHaveValue('offline')
   await expect(environment.locator('.environment-status')).toContainText('Environment applied')
   await appWindow.screenshot({ path: testInfo.outputPath('environment-reopened-after-pending-apply.png') })
+})
+
+test('refreshes a reopened Responsive preview after its pending apply completes', async ({ appWindow, electronApp }, testInfo) => {
+  const createdState = await appWindow.evaluate(`window.hronaut.newTab({
+    url: 'data:text/html,<title>Responsive pending fixture</title><main>Responsive fixture</main>',
+    active: true
+  })`) as BrowserState
+  const tabId = createdState.activeTabId
+  if (!tabId) throw new Error('Responsive pending fixture did not create an active tab')
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+    state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.loading
+  ))`)).toBe(false)
+  const state = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  await appWindow.getByRole('dialog', { name: 'Page tools' })
+    .getByRole('button', { name: /^Responsive preview:/ })
+    .click()
+  const responsive = appWindow.getByRole('dialog', { name: 'Responsive preview' })
+  const tablet = responsive.getByRole('button', { name: /^Tablet/ })
+  await tablet.click()
+
+  await electronApp.evaluate(({ ipcMain }, input) => {
+    const scope = globalThis as typeof globalThis & { __resolveResponsiveApply?: () => void }
+    ipcMain.removeHandler('browser:set-tab-viewport')
+    ipcMain.handle('browser:set-tab-viewport', (_event, requestedTabId: unknown, value: unknown) => (
+      new Promise((resolve) => {
+        scope.__resolveResponsiveApply = () => {
+          delete scope.__resolveResponsiveApply
+          const viewport = value as BrowserViewportEmulation
+          resolve({
+            ...input.state,
+            tabs: input.state.tabs.map((tab) => tab.id === requestedTabId
+              ? { ...tab, emulation: { ...tab.emulation, viewport } }
+              : tab)
+          })
+        }
+      })
+    ))
+  }, { state })
+
+  await responsive.getByRole('button', { name: 'Apply preview' }).click()
+  await expect(responsive).toHaveAttribute('aria-busy', 'true')
+  await responsive.getByRole('button', { name: 'Close responsive preview' }).click()
+  await expect(responsive).toBeHidden()
+
+  await appWindow.getByRole('button', { name: 'Page tools' }).click()
+  await appWindow.getByRole('dialog', { name: 'Page tools' })
+    .getByRole('button', { name: /^Responsive preview:/ })
+    .click()
+  await expect(tablet).toHaveAttribute('aria-pressed', 'false')
+
+  await electronApp.evaluate(() => {
+    const resolve = (globalThis as typeof globalThis & { __resolveResponsiveApply?: () => void }).__resolveResponsiveApply
+    if (!resolve) throw new Error('Pending Responsive preview apply was not captured')
+    resolve()
+  })
+  await expect(tablet).toHaveAttribute('aria-pressed', 'true')
+  await expect(responsive).toContainText('Viewport applied')
+  await appWindow.screenshot({ path: testInfo.outputPath('responsive-reopened-after-pending-apply.png') })
 })
 
 test('keeps the latest rapid tab selection when queued responses settle in request order', async ({
