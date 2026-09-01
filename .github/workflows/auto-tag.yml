@@ -48,14 +48,23 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; no action needed."
-            exit 0
+          verify_remote_tag() {
+            git tag -d "$TAG" >/dev/null 2>&1 || true
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            if [[ "$(git rev-parse "$TAG^{commit}")" != "$(git rev-parse HEAD)" ]]; then
+              echo "Remote tag $TAG does not point at this version commit." >&2
+              exit 1
+            fi
+            echo "Tag $TAG already exists at this version commit; no action needed."
+          }
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            verify_remote_tag
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG" || verify_remote_tag
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
 
       - name: Dispatch release workflow
         if: steps.version.outputs.should_tag == 'true'

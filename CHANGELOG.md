@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Make release auto-tagging idempotent when a matching signed tag is published concurrently, while still failing closed if the remote tag points at another commit.
+
 ## [1.11.19] - 2026-09-01
 
 ### Fixed

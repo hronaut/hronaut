@@ -11,6 +11,15 @@ function job(source: string, name: string): string {
 }
 
 describe('release quality gates', () => {
+  it('treats a concurrently published version tag as an idempotent auto-tag success', async () => {
+    const workflow = await readFile('.github/workflows/auto-tag.yml', 'utf8')
+    const remoteCheck = workflow.indexOf('git ls-remote --exit-code --tags origin "refs/tags/$TAG"')
+    const createTag = workflow.indexOf('git tag -a "$TAG"')
+
+    expect(remoteCheck).toBeGreaterThanOrEqual(0)
+    expect(createTag).toBeGreaterThan(remoteCheck)
+  })
+
   it('runs the concurrent static validation gate in pull-request CI', async () => {
     const [workflow, packageSource] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),
