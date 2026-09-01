@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.19] - 2026-09-01
+
 ### Fixed
 
 - Block local-file and privileged/internal-scheme navigation in agent-owned workspace tabs, including direct commands, redirects, popups, and restored profile state, so MCP browser access cannot become an unrestricted local-content viewer. Existing unsafe persisted tabs are repaired to blank documents without preventing startup. Normal web, embedded QA, and origin-bound blob documents remain supported; the explicit file-upload tool still attaches agent-supplied local paths only to website file inputs.
