@@ -98,19 +98,47 @@ export function installHronautWalletProviders(): void {
   announceEvm()
 
   const solanaEvents = createEmitter('solana')
+  interface LegacySolanaPublicKey {
+    toBase58(): string
+    toString(): string
+    toBytes(): Uint8Array
+  }
+  const legacyPublicKeyFromAccount = (account: unknown): LegacySolanaPublicKey | null => {
+    if (!account || typeof account !== 'object') return null
+    const candidate = account as { address?: unknown; publicKey?: unknown }
+    if (typeof candidate.address !== 'string' || !(candidate.publicKey instanceof Uint8Array)) return null
+    const address = candidate.address
+    const bytes = Uint8Array.from(candidate.publicKey)
+    return Object.freeze({
+      toBase58: () => address,
+      toString: () => address,
+      toBytes: () => Uint8Array.from(bytes)
+    })
+  }
   let solanaAccounts: readonly unknown[] = []
+  let legacySolanaPublicKey: LegacySolanaPublicKey | null = null
   const solanaRequest = async (method: string, params?: unknown): Promise<unknown> => {
     const result = await bridge.request({ family: 'solana', method, ...(params === undefined ? {} : { params }) })
     if (method === 'connect' && result && typeof result === 'object' && Array.isArray((result as { accounts?: unknown }).accounts)) {
       solanaAccounts = Object.freeze([...(result as { accounts: unknown[] }).accounts])
+      legacySolanaPublicKey = legacyPublicKeyFromAccount(solanaAccounts[0])
     } else if (method === 'disconnect') {
       solanaAccounts = []
+      legacySolanaPublicKey = null
     }
     return result
   }
   const standardEvents = new Set<(properties: { accounts?: readonly unknown[] }) => void>()
   solanaEvents.on('accountsChanged', (accounts) => {
-    solanaAccounts = Array.isArray(accounts) ? Object.freeze([...accounts]) : []
+    const addresses = Array.isArray(accounts) ? accounts.filter((value): value is string => typeof value === 'string') : []
+    const currentAddress = legacySolanaPublicKey?.toBase58()
+    if (!addresses.length) {
+      solanaAccounts = []
+      legacySolanaPublicKey = null
+    } else if (!addresses.includes(currentAddress ?? '')) {
+      solanaAccounts = []
+      legacySolanaPublicKey = null
+    }
     for (const listener of standardEvents) listener({ accounts: solanaAccounts })
   })
   const solanaWallet = Object.freeze({
@@ -164,7 +192,13 @@ export function installHronautWalletProviders(): void {
   }
   const legacySolana = Object.freeze({
     isHronaut: true,
-    connect: (options?: unknown) => solanaRequest('connect', options),
+    get publicKey() { return legacySolanaPublicKey },
+    get isConnected() { return legacySolanaPublicKey !== null },
+    connect: async (options?: unknown) => {
+      await solanaRequest('connect', options)
+      if (!legacySolanaPublicKey) throw new Error('Solana connection returned an invalid account')
+      return { publicKey: legacySolanaPublicKey }
+    },
     disconnect: () => solanaRequest('disconnect'),
     signTransaction: legacySignedTransaction,
     signAllTransactions: async (transactions: unknown[]) => {

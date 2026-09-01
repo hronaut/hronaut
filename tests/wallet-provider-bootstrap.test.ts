@@ -10,7 +10,17 @@ interface TestWindow extends Window {
   }
   ethereum?: { request(input: unknown): Promise<unknown>; isHronaut: boolean }
   hronautEthereum?: unknown
-  solana?: { connect(): Promise<unknown>; signTransaction(value: unknown): Promise<unknown> }
+  solana?: {
+    readonly publicKey: null | {
+      toBase58(): string
+      toString(): string
+      toBytes(): Uint8Array
+    }
+    readonly isConnected: boolean
+    connect(): Promise<{ publicKey: NonNullable<TestWindow['solana']>['publicKey'] }>
+    disconnect(): Promise<unknown>
+    signTransaction(value: unknown): Promise<unknown>
+  }
   hronautSolana?: unknown
   tron?: {
     request(input: unknown): Promise<unknown>
@@ -26,6 +36,7 @@ interface TestWindow extends Window {
 }
 
 const target = window as TestWindow
+let emitWalletEvent: (event: unknown) => void
 
 beforeEach(() => {
   delete target.ethereum
@@ -39,6 +50,9 @@ beforeEach(() => {
     request: vi.fn(async (input: unknown) => ({ input })),
     subscribe: (listener) => { listeners.add(listener) },
     unsubscribe: (listener) => { listeners.delete(listener) }
+  }
+  emitWalletEvent = (event) => {
+    for (const listener of listeners) listener(event)
   }
 })
 
@@ -95,6 +109,48 @@ describe('wallet provider bootstrap', () => {
     })
   })
 
+  it('publishes legacy Solana connection state after the user selects Hronaut', async () => {
+    const address = 'HronautSolanaWalletAddress'
+    const publicKeyBytes = Uint8Array.from([1, 2, 3, 4])
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce({
+      accounts: [{
+        address,
+        publicKey: publicKeyBytes,
+        chains: ['solana:devnet'],
+        features: ['solana:signTransaction'],
+        label: 'Solana developer account'
+      }]
+    })
+    installHronautWalletProviders()
+
+    expect(target.solana?.publicKey).toBeNull()
+    expect(target.solana?.isConnected).toBe(false)
+
+    const connected = await target.solana?.connect()
+
+    expect(connected?.publicKey?.toBase58()).toBe(address)
+    expect(connected?.publicKey?.toString()).toBe(address)
+    expect([...connected!.publicKey!.toBytes()]).toEqual([...publicKeyBytes])
+    expect(target.solana?.publicKey?.toBase58()).toBe(address)
+    expect(target.solana?.isConnected).toBe(true)
+
+    const returnedBytes = connected!.publicKey!.toBytes()
+    returnedBytes[0] = 255
+    expect([...target.solana!.publicKey!.toBytes()]).toEqual([...publicKeyBytes])
+
+    emitWalletEvent({ family: 'solana', event: 'accountsChanged', payload: [address] })
+    expect(target.solana?.isConnected).toBe(true)
+
+    emitWalletEvent({ family: 'solana', event: 'accountsChanged', payload: [] })
+    expect(target.solana?.publicKey).toBeNull()
+    expect(target.solana?.isConnected).toBe(false)
+
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce(undefined)
+    await target.solana?.disconnect()
+    expect(target.solana?.publicKey).toBeNull()
+    expect(target.solana?.isConnected).toBe(false)
+  })
+
   it('rejects non-serializable legacy Solana transaction objects before IPC', async () => {
     installHronautWalletProviders()
 
@@ -127,7 +183,13 @@ describe('wallet provider bootstrap', () => {
 
   it('does not replace providers already installed by another wallet', () => {
     const existingEthereum = { request: vi.fn(async () => undefined), isHronaut: false }
-    const existingSolana = { connect: vi.fn(async () => undefined), signTransaction: vi.fn(async () => undefined) }
+    const existingSolana = {
+      publicKey: null,
+      isConnected: false,
+      connect: vi.fn(async () => ({ publicKey: null })),
+      disconnect: vi.fn(async () => undefined),
+      signTransaction: vi.fn(async () => undefined)
+    }
     const existingTron = { request: vi.fn(async () => undefined), isHronaut: false, tronWeb: false as const }
     target.ethereum = existingEthereum
     target.solana = existingSolana

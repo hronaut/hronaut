@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Publish legacy Solana `publicKey` and connection state after selecting Hronaut so compatible dapps stop waiting and can continue to their trusted approval flow.
+
 ## [1.11.12] - 2026-09-01
 
 ### Fixed

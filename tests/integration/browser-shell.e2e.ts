@@ -2189,6 +2189,93 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
   }
 })
 
+test('publishes legacy Solana connection state after trusted account approval', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Solana wallet fixture</title><main>Solana wallet fixture</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Solana wallet fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/solana-wallet`
+    const created = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+    const tab = created.tabs.find((entry) => entry.url === url)
+    if (!tab?.mcpGroupId) throw new Error('Solana wallet tab did not expose a workspace')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((entry) => entry.active)?.title)'))
+      .toBe('Solana wallet fixture')
+
+    const vaultStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
+    if (vaultStatus.managedWallets === 'passphrase-setup-required') {
+      await appWindow.evaluate(`window.hronautWallets.setupPassphrase('solana provider integration passphrase')`)
+    }
+    const prepared = await appWindow.evaluate(`window.hronautWallets.prepareImport(
+      'solana',
+      'mnemonic',
+      'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
+    )`) as { token: string; publicAddress: string }
+    await appWindow.evaluate(`window.hronautWallets.confirmImport(${JSON.stringify(prepared.token)}, {
+      name: 'Solana provider account',
+      network: { id: 'devnet', name: 'Solana Devnet', environment: 'testnet', rpcUrl: 'https://api.devnet.solana.com' },
+      workspaceIds: [${JSON.stringify(tab.mcpGroupId)}],
+      dedicatedAgent: false
+    })`)
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Solana wallet WebContents was not found')
+      await page.executeJavaScript(`
+        window.__legacySolanaConnection = { phase: 'pending' };
+        void window.hronautSolana.connect().then(
+          ({ publicKey }) => {
+            window.__legacySolanaConnection = {
+              phase: 'connected',
+              returnedAddress: publicKey.toBase58(),
+              providerAddress: window.hronautSolana.publicKey?.toString(),
+              publicKeyBytes: Array.from(publicKey.toBytes()),
+              isConnected: window.hronautSolana.isConnected
+            };
+          },
+          (error) => { window.__legacySolanaConnection = { phase: 'rejected', message: error.message } }
+        );
+        'started';
+      `)
+    }, url)
+
+    await expect.poll(async () => {
+      const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{ operation: string; status: string }>
+      return requests.some((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')
+    }).toBe(true)
+    const approval = appWindow.getByRole('alertdialog', { name: /Connect account/i })
+    await expect(approval).toBeVisible()
+    await approval.getByRole('button', { name: 'Approve exact request' }).click()
+
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('window.__legacySolanaConnection')
+    }, url)).toMatchObject({
+      phase: 'connected',
+      returnedAddress: prepared.publicAddress,
+      providerAddress: prepared.publicAddress,
+      isConnected: true
+    })
+
+    const publicKeyLength = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('window.__legacySolanaConnection.publicKeyBytes.length')
+    }, url)
+    expect(publicKeyLength).toBe(32)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('keeps shell state usable when Electron destroys a tab WebContents independently', async ({
   appWindow,
   electronApp
