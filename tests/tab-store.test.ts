@@ -159,6 +159,25 @@ describe('TabStateStore', () => {
     expect(repaired).not.toContain('saved-secret')
   })
 
+  it('repairs privileged URLs left in active and archived agent workspaces', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.url = 'file:///tmp/active-workspace-secret.txt'
+    state.tabs[1]!.title = state.tabs[1]!.url
+    state.savedTabGroups![0]!.tabs[0]!.url = 'chrome://version'
+    state.savedTabGroups![0]!.tabs[0]!.title = state.savedTabGroups![0]!.tabs[0]!.url
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.tabs[1]).toMatchObject({ title: 'New tab', url: 'about:blank' })
+    expect(restored?.savedTabGroups?.[0]?.tabs[0]).toMatchObject({ title: 'New tab', url: 'about:blank' })
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toContain('active-workspace-secret')
+    expect(repaired).not.toContain('chrome://version')
+  })
+
   it('drops unversioned legacy tab state instead of migrating or restoring it', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })

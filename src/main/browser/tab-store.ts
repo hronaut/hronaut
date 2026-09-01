@@ -8,6 +8,7 @@ import {
 import { isUuidV7 } from '../uuid-v7.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { normalizeTabTitle } from './tab-metadata.js'
+import { isAgentWorkspaceNavigationUrl } from './url.js'
 
 export const TAB_STATE_VERSION = 2 as const
 
@@ -110,22 +111,26 @@ function normalizePersistedTabUrl(value: unknown): string | null {
 }
 
 function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrowserState {
-  const sanitizeTab = <T extends { title: string; url: string }>(tab: T): T => {
+  const sanitizeTab = <T extends { title: string; url: string }>(tab: T, agentOwned: boolean): T => {
     const originalUrl = tab.url
     const normalized = normalizePersistedTabUrl(originalUrl)
     if (!normalized) throw new TypeError('Persisted tab URL must be an absolute URL')
+    const url = agentOwned && !isAgentWorkspaceNavigationUrl(normalized) ? 'about:blank' : normalized
     return {
       ...tab,
-      title: tab.title === originalUrl ? normalized : tab.title,
-      url: normalized
+      title: url !== normalized ? 'New tab' : tab.title === originalUrl ? normalized : tab.title,
+      url
     }
   }
   return {
     ...state,
-    tabs: state.tabs.map(sanitizeTab),
+    tabs: state.tabs.map((tab) => sanitizeTab(
+      tab,
+      tab.mcpGroupId !== undefined && tab.mcpGroupId !== state.defaultHumanGroupId
+    )),
     savedTabGroups: state.savedTabGroups?.map((group) => ({
       ...group,
-      tabs: group.tabs.map(sanitizeTab)
+      tabs: group.tabs.map((tab) => sanitizeTab(tab, true))
     }))
   }
 }
@@ -229,14 +234,14 @@ export class TabStateStore {
           origins: persistedWorkspaceOrigins(candidate.origins),
           tabs: candidate.tabs.map((tab) => {
             const originalUrl = (tab as Record<string, unknown>).url as string
-            const url = normalizePersistedTabUrl(originalUrl)!
+            const normalizedUrl = normalizePersistedTabUrl(originalUrl)!
+            const url = isAgentWorkspaceNavigationUrl(normalizedUrl) ? normalizedUrl : 'about:blank'
             const title = (tab as Record<string, unknown>).title as string
             if (url !== originalUrl) repairedPersistedState = true
             return {
-              title: normalizeTabTitle(
-                title === originalUrl ? url : title,
-                url
-              ),
+              title: url !== normalizedUrl
+                ? 'New tab'
+                : normalizeTabTitle(title === originalUrl ? url : title, url),
               url,
               pinned: (tab as Record<string, unknown>).pinned === true
             }
@@ -259,12 +264,19 @@ export class TabStateStore {
             && (typeof candidate.mcpGroupId !== 'string' || !activeWorkspaceIds.has(candidate.mcpGroupId)))
           || (candidate.mcpGroupId === undefined && url !== HRONAUT_HOME_URL)
         ) return null
-        if (url !== candidate.url) repairedPersistedState = true
+        const normalizedUrl = typeof candidate.mcpGroupId === 'string'
+          && candidate.mcpGroupId !== data.defaultHumanGroupId
+          && !isAgentWorkspaceNavigationUrl(url)
+          ? 'about:blank'
+          : url
+        if (normalizedUrl !== candidate.url) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({
           id: candidate.id,
-          title: normalizeTabTitle(candidate.title === candidate.url ? url : candidate.title, url),
-          url,
+          title: normalizedUrl !== url
+            ? 'New tab'
+            : normalizeTabTitle(candidate.title === candidate.url ? normalizedUrl : candidate.title, normalizedUrl),
+          url: normalizedUrl,
           pinned: candidate.pinned === true,
           humanInteractionLocked: candidate.humanInteractionLocked === true,
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})

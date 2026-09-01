@@ -288,7 +288,7 @@ import {
 } from './page-scripts.js'
 import { TAB_STATE_VERSION, TabStateStore, type PersistedBrowserState } from './tab-store.js'
 import { normalizeTabTitle } from './tab-metadata.js'
-import { normalizeAddress } from './url.js'
+import { isAgentWorkspaceNavigationUrl, normalizeAddress } from './url.js'
 import {
   destroyWorkspaceStorage,
   flushBrowserSessionStorage,
@@ -473,6 +473,13 @@ function isWebUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+const AGENT_NAVIGATION_SCHEME_ERROR = 'Agent workspaces cannot open local or privileged browser URLs.'
+
+function assertAgentWorkspaceNavigationUrl(url: string): void {
+  if (isAgentWorkspaceNavigationUrl(url)) return
+  throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
 }
 
 function interceptedWindowLoadOptions(postBody: PostBody | undefined, referrer: Referrer): LoadURLOptions | undefined {
@@ -2217,11 +2224,12 @@ export class BrowserTabsManager {
   }
 
   async newTab(options: NewTabOptions = {}): Promise<BrowserState> {
-    const url = options.url ?? 'about:blank'
+    const url = normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.())
     if (isHronautHomeUrl(url)) {
       if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
       return this.openHome()
     }
+    if (options.mcpGroupId && options.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(url)
     if (this.tabs.size >= MAX_TABS) throw new Error(`Tab limit reached (${MAX_TABS})`)
     const groupId = options.mcpGroupId ?? this.ensureDefaultHumanGroup()
     this.requireMcpTabGroup(groupId)
@@ -3050,6 +3058,7 @@ export class BrowserTabsManager {
     if (tab.mcpGroupId && isHronautHomeUrl(normalized)) {
       throw new Error('Hronaut Home is a human application page and cannot be opened inside an agent workspace.')
     }
+    if (tab.mcpGroupId && tab.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(normalized)
     this.prepareDiagnosticNavigation(tab)
     try {
       await tab.webContents.loadURL(normalized)
@@ -6008,6 +6017,7 @@ export class BrowserTabsManager {
     if (options.mcpGroupId && !options.allowBusyWorkspace) this.assertWorkspaceCanOpenTab(options.mcpGroupId)
     const id = options.id ?? uuidV7()
     const url = normalizeAddress(options.url, this.options.getSearchEngine?.())
+    if (options.mcpGroupId && options.mcpGroupId !== this.defaultHumanGroupId) assertAgentWorkspaceNavigationUrl(url)
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = workspace?.storageId
       ? workspacePartition(this.options.partition, workspace.storageId)
@@ -6547,7 +6557,24 @@ export class BrowserTabsManager {
     })
     webContents.on('will-frame-navigate', (details) => {
       if (tab.sleeping || !details.isMainFrame) return
+      if (
+        tab.mcpGroupId
+        && tab.mcpGroupId !== this.defaultHumanGroupId
+        && !isAgentWorkspaceNavigationUrl(details.url)
+      ) {
+        details.preventDefault()
+        return
+      }
       this.prepareDiagnosticNavigation(tab)
+    })
+    webContents.on('will-redirect', (details) => {
+      if (
+        !tab.mcpGroupId
+        || tab.mcpGroupId === this.defaultHumanGroupId
+        || !details.isMainFrame
+        || isAgentWorkspaceNavigationUrl(details.url)
+      ) return
+      details.preventDefault()
     })
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
@@ -6695,6 +6722,11 @@ export class BrowserTabsManager {
     })
     webContents.setWindowOpenHandler(({ url, disposition, postBody, referrer }) => {
       if (tab.mcpGroupId && isHronautHomeUrl(url)) return { action: 'deny' }
+      if (
+        tab.mcpGroupId
+        && tab.mcpGroupId !== this.defaultHumanGroupId
+        && !isAgentWorkspaceNavigationUrl(url)
+      ) return { action: 'deny' }
       let loadOptions: LoadURLOptions | undefined
       try {
         loadOptions = interceptedWindowLoadOptions(postBody, referrer)

@@ -21,6 +21,23 @@ function hasSchemeLessUserInfo(value: string): boolean {
   return authority.includes('@')
 }
 
+export function isAgentWorkspaceNavigationUrl(value: string): boolean {
+  if (value === 'about:blank') return true
+  try {
+    const url = new URL(value)
+    if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'data:') return true
+    if (url.protocol === 'view-source:') {
+      const source = new URL(value.slice('view-source:'.length))
+      return source.protocol === 'http:' || source.protocol === 'https:'
+    }
+    if (url.protocol !== 'blob:') return false
+    const source = new URL(value.slice('blob:'.length))
+    return source.protocol === 'http:' || source.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function normalizeAddress(input: string, searchEngine: SearchEngineName = DEFAULT_SEARCH_ENGINE): string {
   const value = input.trim()
   if (!value) return 'about:blank'

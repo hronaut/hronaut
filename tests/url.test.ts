@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeAddress } from '../src/main/browser/url.js'
+import { isAgentWorkspaceNavigationUrl, normalizeAddress } from '../src/main/browser/url.js'
 
 describe('normalizeAddress', () => {
   it('keeps explicit schemes', () => {
@@ -45,5 +45,31 @@ describe('normalizeAddress', () => {
 
   it('uses a blank page for empty input', () => {
     expect(normalizeAddress('   ')).toBe('about:blank')
+  })
+})
+
+describe('isAgentWorkspaceNavigationUrl', () => {
+  it.each([
+    'about:blank',
+    'https://example.com/page',
+    'http://localhost:4173/',
+    'data:text/html,<h1>QA fixture</h1>',
+    'view-source:https://example.com/',
+    'blob:https://example.com/01912345-6789-7abc-8def-0123456789ab'
+  ])('keeps non-privileged agent documents available: %s', (url) => {
+    expect(isAgentWorkspaceNavigationUrl(url)).toBe(true)
+  })
+
+  it.each([
+    'file:///tmp/private.txt',
+    'hronaut://home/',
+    'chrome://version',
+    'devtools://devtools/bundled/inspector.html',
+    'javascript:document.body.textContent',
+    'view-source:file:///tmp/private.txt',
+    'blob:null/01912345-6789-7abc-8def-0123456789ab',
+    'blob:file:///tmp/private.txt'
+  ])('rejects local or privileged agent documents: %s', (url) => {
+    expect(isAgentWorkspaceNavigationUrl(url)).toBe(false)
   })
 })
