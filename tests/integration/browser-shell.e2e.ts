@@ -2189,7 +2189,7 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
   }
 })
 
-test('keeps silent Solana reconnect quiet and publishes state after trusted approval', async ({
+test('keeps silent Solana reconnect quiet and supports adapter-compatible disconnect cleanup', async ({
   appWindow,
   electronApp
 }) => {
@@ -2297,6 +2297,33 @@ test('keeps silent Solana reconnect quiet and publishes state after trusted appr
       return page?.executeJavaScript('window.__legacySolanaConnection.publicKeyBytes.length')
     }, url)
     expect(publicKeyLength).toBe(32)
+
+    const disconnectState = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Solana wallet WebContents was not found')
+      return page.executeJavaScript(`(async () => {
+        let disconnectEvents = 0;
+        const listener = () => { disconnectEvents += 1 };
+        const provider = window.hronautSolana;
+        const onResult = provider.on('disconnect', listener);
+        const offResult = provider.off('disconnect', listener);
+        await provider.disconnect();
+        return {
+          onReturnedProvider: onResult === provider,
+          offReturnedProvider: offResult === provider,
+          disconnectEvents,
+          isConnected: provider.isConnected,
+          publicKey: provider.publicKey
+        };
+      })()`)
+    }, url)
+    expect(disconnectState).toEqual({
+      onReturnedProvider: true,
+      offReturnedProvider: true,
+      disconnectEvents: 0,
+      isConnected: false,
+      publicKey: null
+    })
   } finally {
     await closeFixtureServer(server)
   }

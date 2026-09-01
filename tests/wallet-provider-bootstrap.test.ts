@@ -20,6 +20,9 @@ interface TestWindow extends Window {
     connect(): Promise<{ publicKey: NonNullable<TestWindow['solana']>['publicKey'] }>
     disconnect(): Promise<unknown>
     signTransaction(value: unknown): Promise<unknown>
+    on(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
+    off(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
+    removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
   }
   hronautSolana?: unknown
   tron?: {
@@ -151,6 +154,19 @@ describe('wallet provider bootstrap', () => {
     expect(target.solana?.isConnected).toBe(false)
   })
 
+  it('supports adapter-compatible Solana event cleanup through off', () => {
+    installHronautWalletProviders()
+    const listener = vi.fn()
+
+    expect(target.solana?.on('disconnect', listener)).toBe(target.solana)
+    emitWalletEvent({ family: 'solana', event: 'disconnect' })
+    expect(listener).toHaveBeenCalledOnce()
+
+    expect(target.solana?.off('disconnect', listener)).toBe(target.solana)
+    emitWalletEvent({ family: 'solana', event: 'disconnect' })
+    expect(listener).toHaveBeenCalledOnce()
+  })
+
   it('rejects non-serializable legacy Solana transaction objects before IPC', async () => {
     installHronautWalletProviders()
 
@@ -188,7 +204,10 @@ describe('wallet provider bootstrap', () => {
       isConnected: false,
       connect: vi.fn(async () => ({ publicKey: null })),
       disconnect: vi.fn(async () => undefined),
-      signTransaction: vi.fn(async () => undefined)
+      signTransaction: vi.fn(async () => undefined),
+      on: vi.fn(),
+      off: vi.fn(),
+      removeListener: vi.fn()
     }
     const existingTron = { request: vi.fn(async () => undefined), isHronaut: false, tronWeb: false as const }
     target.ethereum = existingEthereum

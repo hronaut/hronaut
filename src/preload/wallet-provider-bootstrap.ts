@@ -44,6 +44,10 @@ export function installHronautWalletProviders(): void {
       removeListener(event: string, listener: Listener) {
         listeners.get(event)?.delete(listener)
         return this
+      },
+      off(event: string, listener: Listener) {
+        listeners.get(event)?.delete(listener)
+        return this
       }
     })
   }
@@ -228,6 +232,7 @@ export function installHronautWalletProviders(): void {
       compatibility: 'legacy'
     }]),
     on: solanaEvents.on,
+    off: solanaEvents.off,
     removeListener: solanaEvents.removeListener
   })
   target.hronautSolana = legacySolana

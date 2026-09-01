@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep Wallet Standard `silent` and legacy `onlyIfTrusted` Solana reconnect checks from opening trusted approval UI before a site has address permission.
+- Support the `off` event-listener cleanup used by maintained Solana wallet adapters so disconnecting cannot stall before Hronaut receives the request.
 
 ## [1.11.13] - 2026-09-01
 
