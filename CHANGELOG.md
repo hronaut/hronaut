@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wait for the persisted tray-close preference before exercising process shutdown in release validation, removing a race that could leave the test app hidden in the tray and block otherwise valid packages.
+
 ## [1.11.14] - 2026-09-01
 
 ### Fixed

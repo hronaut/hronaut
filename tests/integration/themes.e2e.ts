@@ -334,11 +334,22 @@ test('resets every Appearance preference including interface size', async ({
   })
 })
 
-test('can disable hiding in the tray so closing the window quits Hronaut', async ({ appWindow, electronApp }) => {
+test('can disable hiding in the tray so closing the window quits Hronaut', async ({
+  appWindow,
+  electronApp,
+  profileDirectory
+}) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const hideInTray = appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })
   await expect(hideInTray).toBeChecked()
   await hideInTray.uncheck()
+  await expect.poll(async () => {
+    try {
+      return JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).hideInTray
+    } catch {
+      return undefined
+    }
+  }).toBe(false)
 
   const child = electronApp.process()
   const exited = new Promise<number | null>((resolve) => child.once('exit', resolve))
