@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.25] - 2026-09-02
+
 ### Fixed
 
 - Prevent trusted agent clicks from activating the Hronaut window while the person is working elsewhere, including when Lock Tabs temporarily permits agent input to a locked page.
