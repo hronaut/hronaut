@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.35] - 2026-09-03
+
 ### Added
 
 - Add a client-specific setup guide action to Hronaut Home for every supported coding agent, opened through a trusted Hronaut-only URL allowlist in the system browser.
