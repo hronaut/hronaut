@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.31] - 2026-09-02
+
 ### Added
 
 - Add a guided Home troubleshooting path that opens the MCP connection check in the system browser and offers a privacy-safe way to report unresolved setup trouble.
