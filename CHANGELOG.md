@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.32] - 2026-09-02
+
 ### Fixed
 
 - Stop delayed address-navigation errors and site-summary responses from updating the shell after its navigation controller has been disposed.
