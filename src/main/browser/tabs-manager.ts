@@ -920,6 +920,7 @@ export class BrowserTabsManager {
   }>()
   private backgroundAgentInputFocusGuardDepth = 0
   private mainWindowFocusableBeforeAgentInput = true
+  private backgroundAgentFocusOwnerWindowId: number | null = null
   private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
   private destroyed = false
@@ -5478,7 +5479,7 @@ export class BrowserTabsManager {
       if (!file.isFile()) throw new Error(`Path is not a file: ${path}`)
     }
     const webContents = this.getTab(target.tabId).webContents
-    await this.withDebugger(webContents, async () => {
+    await this.withAgentInput(webContents, () => this.withDebugger(webContents, async () => {
       const evaluated = await webContents.debugger.sendCommand('Runtime.evaluate', {
         expression: targetExpression(target),
         returnByValue: false
@@ -5490,7 +5491,7 @@ export class BrowserTabsManager {
       } finally {
         await webContents.debugger.sendCommand('Runtime.releaseObject', { objectId }).catch(() => undefined)
       }
-    })
+    }))
     return { files: [...paths] }
   }
 
@@ -8073,6 +8074,7 @@ export class BrowserTabsManager {
     this.backgroundAgentInputFocusGuardDepth += 1
     if (this.backgroundAgentInputFocusGuardDepth !== 1 || this.window.isDestroyed()) return
     this.mainWindowFocusableBeforeAgentInput = this.window.isFocusable()
+    this.backgroundAgentFocusOwnerWindowId = BrowserWindow.getFocusedWindow()?.id ?? null
     if (this.mainWindowFocusableBeforeAgentInput) this.window.setFocusable(false)
   }
 
@@ -8093,9 +8095,25 @@ export class BrowserTabsManager {
     this.backgroundAgentInputFocusGuardDepth = Math.max(0, this.backgroundAgentInputFocusGuardDepth - 1)
     if (this.backgroundAgentInputFocusGuardDepth !== 0) return
     const restoreFocusable = this.mainWindowFocusableBeforeAgentInput
+    const focusOwnerWindowId = this.backgroundAgentFocusOwnerWindowId
     this.mainWindowFocusableBeforeAgentInput = true
+    this.backgroundAgentFocusOwnerWindowId = null
+    const currentFocusOwner = BrowserWindow.getFocusedWindow()
     if (restoreFocusable && !this.window.isDestroyed() && !this.window.isFocusable()) {
       this.window.setFocusable(true)
+    }
+    const focusOwner = currentFocusOwner && currentFocusOwner !== this.window
+      ? currentFocusOwner
+      : focusOwnerWindowId === null
+        ? null
+        : BrowserWindow.fromId(focusOwnerWindowId)
+    if (focusOwner && focusOwner !== this.window && !focusOwner.isDestroyed()) {
+      focusOwner.focus()
+    } else if (!this.window.isDestroyed() && this.window.isFocused()) {
+      // Re-enabling focusability can activate the window on some Linux window
+      // managers. An external application's window is not addressable through
+      // Electron, so blur Hronaut and let the desktop restore its prior owner.
+      this.window.blur()
     }
   }
 

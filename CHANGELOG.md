@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Add first-class Windsurf Cascade setup on Hronaut Home, including Streamable HTTP configuration, connection verification, and owner-token file interpolation that avoids copying authentication secrets into JSON.
 
+### Fixed
+
+- Prevent background agent input from activating Hronaut when Electron restores the main window's focusability, including while tabs are locked on Linux desktop environments that focus a window during that transition.
+
 ## [1.11.27] - 2026-09-02
 
 ### Fixed

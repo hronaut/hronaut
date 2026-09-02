@@ -6542,6 +6542,21 @@ test('preserves human focus across agent presentation, input, and active tab cha
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 
+    await electronApp.evaluate(({ BrowserWindow }, windowId) => {
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
+      if (!mainWindow) throw new Error('Hronaut focus isolation window was not found')
+      const setFocusable = mainWindow.setFocusable.bind(mainWindow)
+      Object.defineProperty(mainWindow, 'setFocusable', {
+        configurable: true,
+        value: (focusable: boolean) => {
+          setFocusable(focusable)
+          // Some desktop window managers activate a window when Electron
+          // restores its focusability after guarded background input.
+          if (focusable) mainWindow.focus()
+        }
+      })
+    }, humanWindowId)
+
     const shown = await client.callTool({
       name: 'browser_show',
       arguments: { tabId }
