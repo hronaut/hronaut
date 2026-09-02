@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.30] - 2026-09-02
+
 ### Added
 
 - After its first successful agent action, Hronaut Home can copy a privacy-safe recommendation with an attributable public link, without including browser, workspace, or agent data.
