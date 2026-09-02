@@ -45,6 +45,8 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('data-copy-target="first-run-prompt"')
     expect(html).toContain('Do not use the Default workspace.')
     expect(html).toContain('data-setup-feedback')
+    expect(html).toContain('data-setup-help')
+    expect(html).toContain('Troubleshoot connection')
     expect(html).toContain('Share your setup result')
     expect(html).toContain('Never include credentials, tokens, private URLs, or page content.')
     expect(html).toContain('data-copy-target="support-recommend-message"')
@@ -196,13 +198,16 @@ api_key_format = "Bearer {token}"`)
     expect(html).toContain(dashboard.endpoint)
   })
 
-  it('reveals setup feedback only after the first completed tool call', () => {
+  it('offers troubleshooting before success and reveals referral sharing only after a successful call', () => {
     const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'en-US' })
 
-    expect(html).toContain('id="support-contribute"')
+    expect(html).toContain('id="support-troubleshoot"')
     expect(html).toContain('id="support-feedback"')
-    expect(html).toContain("supportContribute.hidden = completed > 0")
-    expect(html).toContain("supportFeedback.hidden = completed === 0")
+    expect(html).toContain('const successful = Math.max(0, completed - failures)')
+    expect(html).toContain('supportTroubleshoot.hidden = successful > 0')
+    expect(html).toContain('supportRecommend.hidden = successful === 0')
+    expect(html).toContain('supportFeedback.textContent = successful > 0')
+    expect(html).toContain('window.hronautHome.openSetupHelp()')
     expect(html).toContain("window.hronautHome.openSetupFeedback()")
   })
 

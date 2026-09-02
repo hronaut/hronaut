@@ -603,12 +603,12 @@ export function renderHomePage(options: HomePageOptions): string {
           <span>${escapeHtml(home.support.kicker)}</span>
           <h3 id="support-heading">${escapeHtml(home.support.heading)}</h3>
           <p id="support-message">${escapeHtml(home.support.message)}</p>
-          <a id="support-contribute" href="https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer">${escapeHtml(home.support.contribute)}</a>
-          <button id="support-feedback" type="button" data-setup-feedback hidden>${escapeHtml(home.support.feedback)}</button>
+          <button id="support-troubleshoot" type="button" data-setup-help>${escapeHtml(home.support.troubleshoot)}</button>
+          <button id="support-feedback" class="secondary" type="button" data-setup-feedback>${escapeHtml(home.support.reportTrouble)}</button>
           <button id="support-recommend" class="secondary" type="button" data-copy-target="support-recommend-message" hidden>${escapeHtml(home.support.recommend)}</button>
           <span id="support-recommend-message" hidden>${escapeHtml(home.support.recommendMessage)}</span>
-          <small id="support-welcome">${escapeHtml(home.support.welcome)}</small>
-          <small id="support-feedback-privacy" hidden>${escapeHtml(home.support.feedbackPrivacy)}</small>
+          <small id="support-welcome">${escapeHtml(home.support.helpPrivacy)}</small>
+          <small id="support-feedback-privacy">${escapeHtml(home.support.feedbackPrivacy)}</small>
           <small id="support-recommend-privacy" hidden>${escapeHtml(home.support.recommendPrivacy)}</small>
         </aside>
       </div>
@@ -761,6 +761,23 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     }
 
+    const setupHelpButton = document.querySelector('[data-setup-help]');
+    if (setupHelpButton) {
+      setupHelpButton.addEventListener('click', async () => {
+        if (setupHelpButton.disabled) return;
+        setupHelpButton.disabled = true;
+        setupHelpButton.title = '';
+        try {
+          if (!window.hronautHome?.openSetupHelp) throw new Error(messages.support.troubleshootUnavailable);
+          await window.hronautHome.openSetupHelp();
+        } catch (error) {
+          setupHelpButton.title = error instanceof Error ? error.message : messages.support.troubleshootUnavailable;
+        } finally {
+          setupHelpButton.disabled = false;
+        }
+      });
+    }
+
     function renderDashboard() {
       const active = dashboard.activeRequests;
       const serverState = document.getElementById('server-state');
@@ -778,29 +795,31 @@ export function renderHomePage(options: HomePageOptions): string {
 
       const completed = dashboard.completedToolCalls || 0;
       const failures = (dashboard.toolMetrics || []).reduce((total, metric) => total + metric.failures, 0);
-      const successRate = completed ? new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format((completed - failures) / completed) : '—';
+      const successful = Math.max(0, completed - failures);
+      const successRate = completed ? new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(successful / completed) : '—';
       document.getElementById('activity-count').textContent = countMessage(messages.counts.actionsOne, messages.counts.actionsOther, completed);
       document.getElementById('completed-count').textContent = new Intl.NumberFormat(locale).format(completed);
       document.getElementById('tool-types-count').textContent = new Intl.NumberFormat(locale).format((dashboard.toolMetrics || []).length);
       document.getElementById('success-rate').textContent = successRate;
-      document.getElementById('support-heading').textContent = completed
-        ? countMessage(messages.support.activeHeadingOne, messages.support.activeHeadingOther, completed)
-        : messages.support.heading;
-      document.getElementById('support-message').textContent = completed
+      document.getElementById('support-heading').textContent = successful
+        ? countMessage(messages.support.activeHeadingOne, messages.support.activeHeadingOther, successful)
+        : completed ? messages.support.failedHeading : messages.support.heading;
+      document.getElementById('support-message').textContent = successful
         ? messages.support.activeMessage
-        : messages.support.message;
-      const supportContribute = document.getElementById('support-contribute');
+        : completed ? messages.support.failedMessage : messages.support.message;
+      const supportTroubleshoot = document.getElementById('support-troubleshoot');
       const supportFeedback = document.getElementById('support-feedback');
       const supportRecommend = document.getElementById('support-recommend');
       const supportWelcome = document.getElementById('support-welcome');
       const supportFeedbackPrivacy = document.getElementById('support-feedback-privacy');
       const supportRecommendPrivacy = document.getElementById('support-recommend-privacy');
-      supportContribute.hidden = completed > 0;
-      supportFeedback.hidden = completed === 0;
-      supportRecommend.hidden = completed === 0;
-      supportWelcome.hidden = completed > 0;
-      supportFeedbackPrivacy.hidden = completed === 0;
-      supportRecommendPrivacy.hidden = completed === 0;
+      supportTroubleshoot.hidden = successful > 0;
+      supportFeedback.hidden = false;
+      supportFeedback.textContent = successful > 0 ? messages.support.feedback : messages.support.reportTrouble;
+      supportRecommend.hidden = successful === 0;
+      supportWelcome.hidden = successful > 0;
+      supportFeedbackPrivacy.hidden = false;
+      supportRecommendPrivacy.hidden = successful === 0;
 
       const activityList = document.getElementById('activity-list');
       if (!dashboard.recentActivity?.length) {

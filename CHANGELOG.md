@@ -4,6 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a guided Home troubleshooting path that opens the MCP connection check in the system browser and offers a privacy-safe way to report unresolved setup trouble.
+
+### Fixed
+
+- Keep troubleshooting visible when an agent's first tool call fails, and only enable setup referrals after at least one successful agent action.
+
+### Improved
+
+- Reuse focused Docker dependency images and volumes across release-only version bumps while still invalidating the cache when dependencies, the dependency lock graph, or the test image changes.
+
 ## [1.11.30] - 2026-09-02
 
 ### Added

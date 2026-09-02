@@ -4,11 +4,12 @@ ENV CI=true
 WORKDIR /workspace
 
 COPY package-lock.json ./
+COPY scripts/docker-dependency-cache-key.ts ./scripts/
 RUN node -e "const fs=require('node:fs');const root=JSON.parse(fs.readFileSync('package-lock.json','utf8')).packages[''];const fields=['dependencies','devDependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','engines','os','cpu','workspaces'];const manifest={name:root.name,version:root.version,private:true};for(const field of fields)if(root[field]!==undefined)manifest[field]=root[field];fs.writeFileSync('package.json',JSON.stringify(manifest))"
 RUN npm ci \
     && node node_modules/electron/install.js \
     && ./node_modules/.bin/electron-builder install-app-deps \
-    && sha256sum package-lock.json | cut -d ' ' -f 1 > node_modules/.hronaut-package-lock.sha256
+    && node scripts/docker-dependency-cache-key.ts package-lock.json > node_modules/.hronaut-package-lock.sha256
 
 FROM dependencies AS integration
 

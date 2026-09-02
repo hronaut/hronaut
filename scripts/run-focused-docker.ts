@@ -42,9 +42,16 @@ const installManifest = Object.fromEntries(
   installFields.filter((field) => packageJson[field] !== undefined).map((field) => [field, packageJson[field]])
 )
 
+const dependencyLockHash = spawnSync(
+  process.execPath,
+  ['scripts/docker-dependency-cache-key.ts', 'package-lock.json'],
+  { encoding: 'utf8' }
+)
+if (dependencyLockHash.status !== 0) process.exit(dependencyLockHash.status ?? 1)
 const dependencyCacheKey = createHash('sha256')
-  .update(readFileSync('package-lock.json'))
+  .update(dependencyLockHash.stdout.trim())
   .update(readFileSync('Dockerfile.test'))
+  .update(readFileSync('scripts/docker-dependency-cache-key.ts'))
   .update(JSON.stringify(installManifest))
   .digest('hex')
   .slice(0, 20)
@@ -53,6 +60,10 @@ const volumeCreate = spawnSync('docker', ['volume', 'create', volumeName], {
   stdio: ['ignore', 'ignore', 'inherit']
 })
 if (volumeCreate.status !== 0) process.exit(volumeCreate.status ?? 1)
+const imageName = `hronaut-focused-${dependencyCacheKey}-integration`
+const imageAvailable = spawnSync('docker', ['image', 'inspect', imageName], {
+  stdio: 'ignore'
+}).status === 0
 
 const testCommand = mode === 'unit'
   ? ['npm', 'test', '--', ...forwardedArguments]
@@ -64,7 +75,7 @@ const composeArguments = [
   '--project-name', `hronaut-focused-${dependencyCacheKey}`,
   '--file', 'compose.test.ci.yaml',
   '--file', 'compose.test.focused.yaml',
-  'run', '--build', '--rm', 'integration',
+  'run', ...(imageAvailable ? [] : ['--build']), '--rm', 'integration',
   'bash', 'scripts/run-with-verified-dependencies.sh',
   ...testCommand
 ]

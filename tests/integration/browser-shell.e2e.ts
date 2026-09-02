@@ -435,7 +435,7 @@ test('opens credential-free VS Code MCP setup through the system protocol handle
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
-test('offers privacy-safe setup feedback and referral sharing after agent activity', async ({
+test('offers troubleshooting until an agent action succeeds, then enables referral sharing', async ({
   appWindow,
   electronApp
 }) => {
@@ -444,12 +444,12 @@ test('offers privacy-safe setup feedback and referral sharing after agent activi
   ))).toBe(true)
   await electronApp.evaluate(({ shell }) => {
     ;(globalThis as typeof globalThis & {
-      __hronautSetupFeedbackUrls?: string[]
-    }).__hronautSetupFeedbackUrls = []
+      __hronautHomeExternalUrls?: string[]
+    }).__hronautHomeExternalUrls = []
     shell.openExternal = async (url): Promise<void> => {
       ;(globalThis as typeof globalThis & {
-        __hronautSetupFeedbackUrls?: string[]
-      }).__hronautSetupFeedbackUrls?.push(url)
+        __hronautHomeExternalUrls?: string[]
+      }).__hronautHomeExternalUrls?.push(url)
     }
   })
   await electronApp.evaluate(({ clipboard }) => clipboard.clear())
@@ -460,31 +460,62 @@ test('offers privacy-safe setup feedback and referral sharing after agent activi
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
       const before = {
-        contributeHidden: document.getElementById('support-contribute')?.hidden,
+        troubleshootHidden: document.getElementById('support-troubleshoot')?.hidden,
         feedbackHidden: document.getElementById('support-feedback')?.hidden,
-        recommendHidden: document.getElementById('support-recommend')?.hidden
+        feedbackText: document.getElementById('support-feedback')?.textContent,
+        recommendHidden: document.getElementById('support-recommend')?.hidden,
+        message: document.getElementById('support-message')?.textContent
       };
-      dashboard = { ...dashboard, completedToolCalls: 1 };
+      document.getElementById('support-troubleshoot')?.click();
+      dashboard = {
+        ...dashboard,
+        completedToolCalls: 1,
+        toolMetrics: [{ toolName: 'browser_snapshot', count: 1, failures: 1, totalDurationMs: 20, lastUsedAt: new Date().toISOString() }]
+      };
       renderDashboard();
       renderDashboard();
       const feedback = document.getElementById('support-feedback');
       const recommend = document.getElementById('support-recommend');
-      const after = {
-        contributeHidden: document.getElementById('support-contribute')?.hidden,
+      const afterFailure = {
+        troubleshootHidden: document.getElementById('support-troubleshoot')?.hidden,
         feedbackHidden: feedback?.hidden,
+        feedbackText: feedback?.textContent,
+        recommendHidden: recommend?.hidden,
+        message: document.getElementById('support-message')?.textContent,
+        privacy: document.getElementById('support-feedback-privacy')?.textContent
+      };
+      dashboard = {
+        ...dashboard,
+        completedToolCalls: 2,
+        toolMetrics: [{ toolName: 'browser_snapshot', count: 2, failures: 1, totalDurationMs: 40, lastUsedAt: new Date().toISOString() }]
+      };
+      renderDashboard();
+      const afterSuccess = {
+        troubleshootHidden: document.getElementById('support-troubleshoot')?.hidden,
+        feedbackHidden: feedback?.hidden,
+        feedbackText: feedback?.textContent,
         recommendHidden: recommend?.hidden,
         privacy: document.getElementById('support-feedback-privacy')?.textContent,
         recommendPrivacy: document.getElementById('support-recommend-privacy')?.textContent
       };
       feedback?.click();
       recommend?.click();
-      return { before, after };
+      return { before, afterFailure, afterSuccess };
     })()`)
   }) as {
-    before: { contributeHidden: boolean; feedbackHidden: boolean; recommendHidden: boolean }
-    after: {
-      contributeHidden: boolean
+    before: { troubleshootHidden: boolean; feedbackHidden: boolean; feedbackText: string; recommendHidden: boolean; message: string }
+    afterFailure: {
+      troubleshootHidden: boolean
       feedbackHidden: boolean
+      feedbackText: string
+      recommendHidden: boolean
+      message: string
+      privacy: string
+    }
+    afterSuccess: {
+      troubleshootHidden: boolean
+      feedbackHidden: boolean
+      feedbackText: string
       recommendHidden: boolean
       privacy: string
       recommendPrivacy: string
@@ -492,18 +523,36 @@ test('offers privacy-safe setup feedback and referral sharing after agent activi
   }
 
   expect(state).toEqual({
-    before: { contributeHidden: false, feedbackHidden: true, recommendHidden: true },
-    after: {
-      contributeHidden: true,
+    before: {
+      troubleshootHidden: false,
       feedbackHidden: false,
+      feedbackText: 'Report setup trouble ↗',
+      recommendHidden: true,
+      message: 'Connect an agent and complete one safe browser action. If setup stalls, open the guided connection check.'
+    },
+    afterFailure: {
+      troubleshootHidden: false,
+      feedbackHidden: false,
+      feedbackText: 'Report setup trouble ↗',
+      recommendHidden: true,
+      message: 'The first action did not complete. Check the MCP connection separately from your client configuration.',
+      privacy: 'Never include credentials, tokens, private URLs, or page content.'
+    },
+    afterSuccess: {
+      troubleshootHidden: true,
+      feedbackHidden: false,
+      feedbackText: 'Share your setup result ↗',
       recommendHidden: false,
       privacy: 'Never include credentials, tokens, private URLs, or page content.',
       recommendPrivacy: 'Copies only this public message. No browser, workspace, or agent data is included.'
     }
   })
   await expect.poll(() => electronApp.evaluate(() => (
-    globalThis as typeof globalThis & { __hronautSetupFeedbackUrls?: string[] }
-  ).__hronautSetupFeedbackUrls)).toEqual(['https://hronaut.dev/go/desktop-setup-feedback'])
+    globalThis as typeof globalThis & { __hronautHomeExternalUrls?: string[] }
+  ).__hronautHomeExternalUrls)).toEqual([
+    'https://hronaut.dev/go/desktop-setup-help',
+    'https://hronaut.dev/go/desktop-setup-feedback'
+  ])
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(
     'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share'
   )

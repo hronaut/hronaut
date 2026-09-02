@@ -10,7 +10,7 @@ if [[ ! -f "$marker_path" ]]; then
   exit 1
 fi
 
-expected_hash="$(sha256sum package-lock.json | cut -d ' ' -f 1)"
+expected_hash="$(node scripts/docker-dependency-cache-key.ts package-lock.json)"
 actual_hash="$(tr -d '[:space:]' < "$marker_path")"
 if [[ "$actual_hash" != "$expected_hash" ]]; then
   echo "Focused Docker dependency cache does not match package-lock.json. Run npm run test:docker:cache:prune, then retry." >&2

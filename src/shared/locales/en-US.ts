@@ -561,11 +561,14 @@ export const enUS = {
       failed: 'Failed', done: 'Done'
     },
     support: {
-      kicker: 'Source-available', heading: 'Use Hronaut under clear license terms.',
-      activeHeadingOne: 'Hronaut handled {count} tab action this launch.', activeHeadingOther: 'Hronaut handled {count} tab actions this launch.',
-      message: 'PolyForm Noncommercial 1.0.0 covers permitted noncommercial use. Commercial use requires an active paid subscription.',
+      kicker: 'Get connected', heading: 'Connect and verify Hronaut.', failedHeading: 'The first action needs attention.',
+      activeHeadingOne: 'Hronaut completed {count} tab action successfully.', activeHeadingOther: 'Hronaut completed {count} tab actions successfully.',
+      message: 'Connect an agent and complete one safe browser action. If setup stalls, open the guided connection check.',
+      failedMessage: 'The first action did not complete. Check the MCP connection separately from your client configuration.',
       activeMessage: 'Buy a commercial license for business use, or contribute fixes and documentation to the project.',
       contribute: 'Contribute ↗', welcome: 'Focused issues and signed-off code contributions are welcome.',
+      troubleshoot: 'Troubleshoot connection ↗', troubleshootUnavailable: 'The connection troubleshooting guide is unavailable.',
+      reportTrouble: 'Report setup trouble ↗', helpPrivacy: 'The guide opens in your default browser and receives no browser or agent data.',
       feedback: 'Share your setup result ↗', feedbackPrivacy: 'Never include credentials, tokens, private URLs, or page content.',
       feedbackUnavailable: 'The setup feedback link is unavailable.', recommend: 'Recommend Hronaut',
       recommendMessage: 'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share',
