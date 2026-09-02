@@ -30,33 +30,23 @@ import { useAppSettingsFeatureController } from './composables/useAppSettingsFea
 import { useAppSiteManagementFeatureController } from './composables/useAppSiteManagementFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
-import { useHelpShellController } from './composables/useHelpShellController'
 import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
 import { useAddressBarController } from './composables/useAddressBarController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useAppEventsController } from './composables/useAppEventsController'
-import { useBrowserShortcutController } from './composables/useBrowserShortcutController'
 import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
-import { useAppShellKeyboardFeatureController } from './composables/useAppShellKeyboardFeatureController'
-import { useTabNavigationController } from './composables/useTabNavigationController'
-import { useFindTransitionController } from './composables/useFindTransitionController'
-import { useFindShellController } from './composables/useFindShellController'
-import { useSplitViewShellController } from './composables/useSplitViewShellController'
-import { useTabSearchShellController } from './composables/useTabSearchShellController'
-import { useZoomShellController } from './composables/useZoomShellController'
-import { useAppCommandPaletteFeatureController } from './composables/useAppCommandPaletteFeatureController'
-import { useUiActionController } from './composables/useUiActionController'
+import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
 import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
 import { useLocaleFormatters } from './composables/useLocaleFormatters'
-import { useHomeNavigationController } from './composables/useHomeNavigationController'
 import { useAppShellLayoutFeatureController } from './composables/useAppShellLayoutFeatureController'
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
+import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -150,7 +140,6 @@ const {
   openCredentialPicker,
   setZoom: setTransientZoom
 } = appTransientShellLayerController
-const { run: runFindTransition } = useFindTransitionController({ findOpen, closeFind })
 const siteStorageOpen = ref(false)
 const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
 const pageToolsOpen = ref(false)
@@ -284,8 +273,6 @@ const {
   downloadsOpen,
   bookmarksOpen,
   historyOpen,
-  toggleCurrentBookmark,
-  toggleVisitHistory,
   dispose: disposeAppBrowserCollectionsFeatureController
 } = browserCollectionsFeatureController
 const browserTabActionsController = useBrowserTabActionsController({
@@ -379,7 +366,6 @@ const {
   refreshSiteDataSummary,
   resetSiteStorageView,
   refreshSiteStorage,
-  openPrivacySettings,
   openUpdateSettings,
   dispose: disposeAppSiteManagementFeatureController
 } = appSiteManagementFeatureController
@@ -402,7 +388,6 @@ const appPageToolsFeatureController = useAppPageToolsFeatureController({
 })
 const {
   diagnosticsController,
-  toggleElementPicker,
   disposeCaptureAndExport: disposeAppPageToolsCaptureAndExport,
   disposeDiagnostics: disposeAppPageToolsDiagnostics
 } = appPageToolsFeatureController
@@ -476,80 +461,103 @@ const {
   dispose: disposeAppPanelFeatureController
 } = appPanelFeatureController
 const {
-  open: splitMenuOpen,
-  prepareOpen: prepareSplitViewMenu,
-  handleError: handleSplitViewError
-} = useSplitViewShellController({
-  settingsOpen,
-  bookmarksOpen,
-  closeTransientPanels,
-  reportError: (error, fallback) => showAppToast(
-    'error',
-    t('runtime.workspace.splitFailed'),
-    friendlyUiError(error, fallback)
-  )
-})
-const { open: openFind } = useFindShellController({
-  activeTab,
-  settingsOpen,
   splitMenuOpen,
-  closeTransientPanels: transientPanelsController.close,
-  openForTab: openFindForTab
-})
-const { toggle: toggleTabSearch } = useTabSearchShellController({
-  open: tabSearchOpen,
-  panel: tabSearchPanel,
-  settingsOpen,
-  bookmarksOpen,
-  splitMenuOpen,
-  closeTransientPanels: transientPanelsController.close
-})
-const { toggle: toggleZoom } = useZoomShellController({
-  activeTab,
-  open: zoomOpen,
-  bar: zoomBar,
-  settingsOpen,
-  bookmarksOpen,
-  splitMenuOpen,
-  closeTransientPanels: transientPanelsController.close
-})
-const {
-  run: runShellAction,
-  dispose: disposeUiActionController
-} = useUiActionController({ onError: reportShellActionError })
-const {
-  openDialog: openHelpDialog,
+  prepareSplitViewMenu,
+  handleSplitViewError,
+  openFind,
+  toggleTabSearch,
+  toggleZoom,
+  runShellAction,
   openSupportSettings,
-  handleRequested: handleHelpRequested,
-  openUrl: openSupport,
-  purchaseCommercialLicense
-} = useHelpShellController({
-  commandPaletteOpen,
-  blocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
-  closeSettings,
-  closeHelpDialog,
-  showHelpDialog,
-  showSupportSettings: () => openSettingsSection('support'),
-  navigate: (url) => syncState(browser.newTab({ url, active: true })),
-  openPurchase: () => window.hronautLicense.openPurchase(),
-  runAction: runShellAction
-})
-const {
-  openHome: openApplicationHome,
-  preferredWebsiteTab: preferredWebTab,
-  rememberWebsiteTab
-} = useHomeNavigationController({
+  handleHelpRequested,
+  openSupport,
+  purchaseCommercialLicense,
+  openApplicationHome,
+  rememberWebsiteTab,
+  newTabInWorkspace,
+  toggleCommandPalette,
+  runCommandPaletteCommand,
+  runBrowserShortcut,
+  guardShellInteraction,
+  handleKeyDown,
+  dispose: disposeAppShellInteractionFeatureController
+} = useAppShellInteractionFeatureController({
+  state,
   activeTab,
-  websiteTabs: () => state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')),
-  settingsOpen,
-  updateNoticeOpen,
-  downloadsOpen,
-  bookmarksOpen,
-  historyOpen,
-  tabSearchOpen,
-  zoomOpen,
-  runFindTransition,
-  navigateHome: () => syncState(browser.openHome())
+  browser,
+  syncState,
+  isHome: () => activeIsHome.value,
+  transient: {
+    credentialPickerOpen,
+    workspaceEditorOpen,
+    findOpen,
+    zoomOpen,
+    tabSearchOpen,
+    commandPaletteOpen,
+    tabSearchPanel,
+    zoomBar,
+    commandPalettePanel,
+    openFindForTab,
+    closeFind,
+    closeWorkspace: closeWorkspaceEditor,
+    setZoom: setTransientZoom
+  },
+  surfaces: {
+    settings: { open: settingsOpen, close: closeSettings, openSection: openSettingsSection },
+    updateNotice: updateNoticeOpen,
+    help: { open: helpDialogOpen, close: closeHelpDialog, openDialog: showHelpDialog },
+    releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
+    walletApproval: walletApprovalOpen,
+    siteStorage: siteStorageOpen,
+    siteControls: siteControlsOpen,
+    addressSuggestions: addressSuggestionsOpen,
+    pageTools: pageToolsOpen,
+    console: consolePanelOpen,
+    network: networkMonitorOpen,
+    responsive: {
+      open: responsivePanelOpen,
+      close: () => responsivePanel.value?.handleEscape()
+    },
+    environment: environmentPanelOpen
+  },
+  features: {
+    collections: browserCollectionsFeatureController,
+    emulation: appEmulationFeatureController,
+    pageTools: appPageToolsFeatureController,
+    panels: appPanelFeatureController,
+    site: appSiteManagementFeatureController
+  },
+  navigation: {
+    selectBrowserTab,
+    focusAddressInput: () => {
+      addressInput.value?.focus()
+      addressInput.value?.select()
+    },
+    expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
+    togglePageTools,
+    toggleDeveloperTools
+  },
+  actions: {
+    closeTransientPanels,
+    toggleMcpPaused,
+    openPurchase: () => window.hronautLicense.openPurchase(),
+    reportActionError: reportShellActionError,
+    reportSplitViewError: (error, fallback) => showAppToast(
+      'error',
+      t('runtime.workspace.splitFailed'),
+      friendlyUiError(error, fallback)
+    ),
+    reportWorkspaceError: (workspace, error) => showAppToast(
+      'error',
+      t('runtime.workspace.newTabFailed'),
+      friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name }))
+    ),
+    reportShortcutError: (_action, error) => showAppToast(
+      'error',
+      t('runtimeDetails.browserAction'),
+      friendlyUiError(error, t('runtime.toast.actionFailed'))
+    )
+  }
 })
 const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
   activeTab,
@@ -593,134 +601,6 @@ const {
     t('runtime.toast.startupRecoveredDescription')
   )
 })
-const commandPaletteShellController = useAppCommandPaletteFeatureController({
-  open: commandPaletteOpen,
-  panel: commandPalettePanel,
-  canOpen: () => !workspaceEditorOpen.value && !credentialPickerOpen.value,
-  beforeOpen: () => {
-    closeSettings()
-    closeHelpDialog()
-    closeTransientPanels()
-  },
-  browser: {
-    openHome: openApplicationHome,
-    runShortcut: (action) => browserShortcutController.run(action),
-    toggleTabSearch,
-    openFind,
-    togglePageTools,
-    toggleDeveloperTools
-  },
-  collections: browserCollectionsFeatureController,
-  emulation: appEmulationFeatureController,
-  pageTools: appPageToolsFeatureController,
-  panels: appPanelFeatureController,
-  site: appSiteManagementFeatureController,
-  settings: {
-    openSection: openSettingsSection,
-    openHelp: openHelpDialog,
-    toggleMcpPaused
-  }
-})
-const {
-  toggle: toggleCommandPalette,
-  run: runCommandPaletteCommand
-} = commandPaletteShellController
-const {
-  focusAddress,
-  openNewTab,
-  newTabInWorkspace
-} = useTabNavigationController({
-  state,
-  isHome: () => activeIsHome.value,
-  preferredWebTab,
-  selectBrowserTab,
-  browser,
-  syncState,
-  settingsOpen,
-  updateNoticeOpen,
-  zoomOpen,
-  tabSearchOpen,
-  runFindTransition,
-  focusInput: () => {
-    addressInput.value?.focus()
-    addressInput.value?.select()
-  },
-  expandTabGroup: (groupId) => browserChromeLayer.value?.expandTabGroup(groupId),
-  onWorkspaceError: (workspace, error) => showAppToast(
-    'error',
-    t('runtime.workspace.newTabFailed'),
-    friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name }))
-  )
-})
-const browserShortcutController = useBrowserShortcutController({
-  state,
-  activeTab,
-  browser,
-  syncState,
-  settingsOpen,
-  canRunAction: (action) => action !== 'pick-element' || !(
-    commandPaletteOpen.value
-    || workspaceEditorOpen.value
-    || credentialPickerOpen.value
-    || helpDialogOpen.value
-    || settingsOpen.value
-  ),
-  openNewTab: async () => { await openNewTab() },
-  focusAddress: async () => { await focusAddress() },
-  openFind,
-  setZoom: setTransientZoom,
-  toggleCurrentBookmark,
-  toggleVisitHistory,
-  toggleTabSearch,
-  openPrivacySettings: () => openPrivacySettings(),
-  toggleCommandPalette,
-  toggleElementPicker,
-  toggleDeveloperTools,
-  onError: (_action, error) => showAppToast(
-    'error',
-    t('runtimeDetails.browserAction'),
-    friendlyUiError(error, t('runtime.toast.actionFailed'))
-  )
-})
-const {
-  run: runBrowserShortcut,
-  dispose: disposeBrowserShortcutController
-} = browserShortcutController
-const shellKeyboardController = useAppShellKeyboardFeatureController({
-  allInteractionLocked: () => state.value.allHumanInteractionLocked,
-  commandPalette: commandPaletteOpen,
-  modals: {
-    walletApproval: { open: walletApprovalOpen, close: () => undefined },
-    workspaceEditor: { open: workspaceEditorOpen, close: closeWorkspaceEditor },
-    credentialPicker: credentialPickerOpen,
-    releaseHistory: { open: releaseHistoryOpen, close: closeReleaseHistory },
-    helpDialog: { open: helpDialogOpen, close: closeHelpDialog },
-    settings: { open: settingsOpen, close: closeSettings }
-  },
-  overlays: {
-    siteStorage: siteStorageOpen,
-    siteControls: siteControlsOpen,
-    addressSuggestions: addressSuggestionsOpen,
-    find: { open: findOpen, close: () => { void closeFind() } },
-    tabSearch: tabSearchOpen,
-    splitMenu: splitMenuOpen,
-    zoom: zoomOpen,
-    updateNotice: updateNoticeOpen
-  },
-  collections: browserCollectionsFeatureController,
-  pageTools: { panelOpen: pageToolsOpen, ...appPageToolsFeatureController },
-  developerPanels: { console: consolePanelOpen, network: networkMonitorOpen },
-  responsivePreview: {
-    open: responsivePanelOpen,
-    close: () => responsivePanel.value?.handleEscape()
-  },
-  environmentPanel: environmentPanelOpen,
-  runShortcut: (shortcut) => { void runBrowserShortcut(shortcut) }
-})
-const {
-  guardInteraction: guardShellInteraction,
-  handleKeyDown
-} = shellKeyboardController
 const { dispose: disposeAppEventsController } = useAppEventsController({
   browserApi: browser,
   permissionsApi: window.hronautPermissions,
@@ -880,8 +760,8 @@ async function closeFind(): Promise<void> {
   await closeTransientFind()
 }
 
-function closeTransientPanels(): void {
-  transientPanelsController.close()
+function closeTransientPanels(options?: TransientPanelsCloseOptions): void {
+  transientPanelsController.close(options)
 }
 
 function togglePageTools(): void {
@@ -903,8 +783,7 @@ useAppLifecycleController({
     disposeAppShellLayoutFeatureController,
     disposeActiveTabContextController,
     disposeAppEmulationFeatureController,
-    disposeBrowserShortcutController,
-    disposeUiActionController,
+    disposeAppShellInteractionFeatureController,
     browserStore.dispose,
     settingsStore.dispose,
     disposeAppEventsController,

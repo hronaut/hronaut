@@ -282,6 +282,8 @@ For text-first context, choose **Page tools → Copy page snapshot** or search t
 
 Hronaut includes concise workflow instructions in the MCP initialization response. Compatible clients learn to create a fresh isolated workspace before browsing, prefer semantic snapshots and refs over coordinates, bring the visible browser forward for observation or takeover, and request attention only for a manual step. Client behavior is never treated as a security boundary: Hronaut still validates workspace ownership, tab identities, input bounds, authorization, and interaction locks in the server.
 
+Every advertised tool includes a human-readable title and explicit MCP safety annotations. Hronaut marks a tool read-only only when every supported mode is observational; a combined list/edit/clear tool remains non-read-only even when its default action only reads. Browser-facing reads retain the open-world hint because sanitized page, network, and storage evidence still originates outside Hronaut. These annotations help compatible clients present tools and approval choices, but they are advisory metadata rather than enforcement: Hronaut's authorization, workspace isolation, input validation, human approval, and side-effect confirmations remain the security boundary.
+
 - `browser_workspaces`, `browser_saved_workspaces`
 - `browser_status`, `browser_show`, `browser_tabs`
 - `browser_request_user_attention`

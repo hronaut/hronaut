@@ -600,7 +600,7 @@ export function renderHomePage(options: HomePageOptions): string {
           <p class="privacy-note">${escapeHtml(home.activity.privacy)}</p>
         </div>
         <aside class="support-card">
-          <span>${escapeHtml(home.support.kicker)}</span>
+          <span id="support-kicker">${escapeHtml(home.support.kicker)}</span>
           <h3 id="support-heading">${escapeHtml(home.support.heading)}</h3>
           <p id="support-message">${escapeHtml(home.support.message)}</p>
           <button id="support-troubleshoot" type="button" data-setup-help>${escapeHtml(home.support.troubleshoot)}</button>
@@ -801,6 +801,8 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('completed-count').textContent = new Intl.NumberFormat(locale).format(completed);
       document.getElementById('tool-types-count').textContent = new Intl.NumberFormat(locale).format((dashboard.toolMetrics || []).length);
       document.getElementById('success-rate').textContent = successRate;
+      const supportKicker = document.getElementById('support-kicker');
+      supportKicker.textContent = successful > 0 ? messages.support.activeKicker : messages.support.kicker;
       document.getElementById('support-heading').textContent = successful
         ? countMessage(messages.support.activeHeadingOne, messages.support.activeHeadingOther, successful)
         : completed ? messages.support.failedHeading : messages.support.heading;

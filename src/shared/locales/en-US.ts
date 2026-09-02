@@ -561,11 +561,11 @@ export const enUS = {
       failed: 'Failed', done: 'Done'
     },
     support: {
-      kicker: 'Get connected', heading: 'Connect and verify Hronaut.', failedHeading: 'The first action needs attention.',
+      kicker: 'Get connected', activeKicker: 'Share Hronaut', heading: 'Connect and verify Hronaut.', failedHeading: 'The first action needs attention.',
       activeHeadingOne: 'Hronaut completed {count} tab action successfully.', activeHeadingOther: 'Hronaut completed {count} tab actions successfully.',
       message: 'Connect an agent and complete one safe browser action. If setup stalls, open the guided connection check.',
       failedMessage: 'The first action did not complete. Check the MCP connection separately from your client configuration.',
-      activeMessage: 'Buy a commercial license for business use, or contribute fixes and documentation to the project.',
+      activeMessage: 'Share what worked to help other users, or recommend Hronaut to another team.',
       contribute: 'Contribute ↗', welcome: 'Focused issues and signed-off code contributions are welcome.',
       troubleshoot: 'Troubleshoot connection ↗', troubleshootUnavailable: 'The connection troubleshooting guide is unavailable.',
       reportTrouble: 'Report setup trouble ↗', helpPrivacy: 'The guide opens in your default browser and receives no browser or agent data.',

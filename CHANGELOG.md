@@ -11,9 +11,13 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep troubleshooting visible when an agent's first tool call fails, and only enable setup referrals after at least one successful agent action.
+- Keep the Home success card aligned with its available feedback and recommendation actions instead of showing stale connection and licensing guidance.
+- Prevent agent-driven scrolling from reclaiming keyboard or mouse focus on Linux while Hronaut is in the background, including when page input is blocked.
 
 ### Improved
 
+- Publish human-readable titles and conservative MCP safety annotations for every tool so compatible clients can distinguish pure inspection from browser, storage, file, and wallet actions without weakening Hronaut's enforced boundaries.
+- Keep `App.vue` composition-focused by moving shell interaction routing, keyboard precedence, and shortcut lifecycle handling into a dedicated controller.
 - Reuse focused Docker dependency images and volumes across release-only version bumps while still invalidating the cache when dependencies, the dependency lock graph, or the test image changes.
 
 ## [1.11.30] - 2026-09-02

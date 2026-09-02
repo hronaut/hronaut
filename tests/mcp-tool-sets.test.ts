@@ -70,6 +70,56 @@ describe('MCP tool sets', () => {
     expect(all.some((name) => /approve|decrypt|export|private|seed|mnemonic/i.test(name))).toBe(false)
   })
 
+  it('publishes complete, conservative display and safety metadata for every tool', () => {
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(71)
+    for (const tool of BROWSER_TOOL_CATALOG) {
+      expect(tool.title, tool.name).toMatch(/\S/)
+      expect(tool.annotations, tool.name).toEqual({
+        readOnlyHint: expect.any(Boolean),
+        destructiveHint: expect.any(Boolean),
+        idempotentHint: expect.any(Boolean),
+        openWorldHint: expect.any(Boolean)
+      })
+    }
+
+    expect(BROWSER_TOOL_CATALOG
+      .filter(({ annotations }) => annotations.readOnlyHint)
+      .map(({ name }) => name))
+      .toEqual([
+        'browser_status',
+        'browser_tabs',
+        'browser_storage_usage',
+        'browser_indexeddb',
+        'browser_pwa',
+        'browser_snapshot',
+        'browser_find',
+        'browser_element_inspect',
+        'browser_generate_locator',
+        'browser_wait',
+        'browser_accessibility_audit',
+        'browser_quality_audit',
+        'browser_design_overview',
+        'browser_page_metadata',
+        'browser_security',
+        'browser_debug_report',
+        'browser_network_wait',
+        'browser_network_search',
+        'browser_network_request',
+        'wallet_request_status'
+      ])
+
+    expect(BROWSER_TOOL_CATALOG
+      .filter(({ annotations }) => annotations.readOnlyHint && annotations.openWorldHint)
+      .map(({ name }) => name))
+      .toContain('browser_snapshot')
+    expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'browser_click')?.annotations)
+      .toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true })
+    expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'browser_pdf_save')?.annotations)
+      .toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true })
+    expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'wallet_request')?.annotations)
+      .toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true })
+  })
+
   it('uses Browser Essentials for new profiles and accepts only named tool sets', () => {
     expect(DEFAULT_MCP_TOOL_SET).toBe('essentials')
     expect(['essentials', 'qa', 'complete'].every(isMcpToolSet)).toBe(true)
@@ -101,9 +151,19 @@ describe('MCP tool sets', () => {
     const [firstClient, secondClient] = await Promise.all([connect('first'), connect('second')])
     const [firstEssentials, secondEssentials] = await Promise.all([firstClient.listTools(), secondClient.listTools()])
 
+    const listedMetadata = (tools: typeof firstEssentials.tools) => tools
+      .map(({ name, title, annotations }) => ({ name, title, annotations }))
+      .sort((left, right) => left.name.localeCompare(right.name))
+    const catalogMetadata = (toolSet: Parameters<typeof mcpToolCatalogForSet>[0]) => (
+      mcpToolCatalogForSet(toolSet)
+        .map(({ name, title, annotations }) => ({ name, title, annotations }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+    )
+
     expect(new Set(firstEssentials.tools.map(({ name }) => name))).toEqual(
       new Set(mcpToolCatalogForSet('essentials').map(({ name }) => name))
     )
+    expect(listedMetadata(firstEssentials.tools)).toEqual(catalogMetadata('essentials'))
     expect(secondEssentials.tools).toEqual(firstEssentials.tools)
     await expect(firstClient.callTool({ name: 'browser_accessibility_audit', arguments: {} }))
       .resolves.toMatchObject({
@@ -116,6 +176,7 @@ describe('MCP tool sets', () => {
     expect(new Set(firstQa.tools.map(({ name }) => name))).toEqual(
       new Set(mcpToolCatalogForSet('qa').map(({ name }) => name))
     )
+    expect(listedMetadata(firstQa.tools)).toEqual(catalogMetadata('qa'))
     expect(secondQa.tools).toEqual(firstQa.tools)
 
     server.setToolSet('complete')
@@ -123,6 +184,7 @@ describe('MCP tool sets', () => {
     expect(new Set(complete.tools.map(({ name }) => name))).toEqual(
       new Set(BROWSER_TOOL_CATALOG.map(({ name }) => name))
     )
+    expect(listedMetadata(complete.tools)).toEqual(catalogMetadata('complete'))
     expect(JSON.stringify(firstEssentials.tools).length).toBeLessThan(JSON.stringify(complete.tools).length / 2)
   })
 

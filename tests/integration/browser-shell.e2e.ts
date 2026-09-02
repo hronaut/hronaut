@@ -491,9 +491,11 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
       };
       renderDashboard();
       const afterSuccess = {
+        kicker: document.getElementById('support-kicker')?.textContent,
         troubleshootHidden: document.getElementById('support-troubleshoot')?.hidden,
         feedbackHidden: feedback?.hidden,
         feedbackText: feedback?.textContent,
+        message: document.getElementById('support-message')?.textContent,
         recommendHidden: recommend?.hidden,
         privacy: document.getElementById('support-feedback-privacy')?.textContent,
         recommendPrivacy: document.getElementById('support-recommend-privacy')?.textContent
@@ -513,9 +515,11 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
       privacy: string
     }
     afterSuccess: {
+      kicker: string
       troubleshootHidden: boolean
       feedbackHidden: boolean
       feedbackText: string
+      message: string
       recommendHidden: boolean
       privacy: string
       recommendPrivacy: string
@@ -539,9 +543,11 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
       privacy: 'Never include credentials, tokens, private URLs, or page content.'
     },
     afterSuccess: {
+      kicker: 'Share Hronaut',
       troubleshootHidden: true,
       feedbackHidden: false,
       feedbackText: 'Share your setup result ↗',
+      message: 'Share what worked to help other users, or recommend Hronaut to another team.',
       recommendHidden: false,
       privacy: 'Never include credentials, tokens, private URLs, or page content.',
       recommendPrivacy: 'Copies only this public message. No browser, workspace, or agent data is included.'
@@ -6627,6 +6633,7 @@ test('preserves human focus across agent presentation, input, and active tab cha
     })
     response.end(`<!doctype html>
       <title>Agent focus isolation</title>
+      <style>body { min-height: 4000px; }</style>
       <button id="agent-focus" style="position:fixed;left:20px;top:20px;width:160px;height:48px">Agent focus</button>
       <input aria-label="Agent field">
       <input id="agent-upload" aria-label="Agent upload" type="file">
@@ -6879,6 +6886,31 @@ test('preserves human focus across agent presentation, input, and active tab cha
     }) as CallToolResult
     expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
 
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    await electronApp.evaluate(({ BrowserWindow, webContents }, options) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === options.requestedUrl)
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== options.humanWindowId)
+      if (!page || !mainWindow) throw new Error('Agent scroll focus fixtures were not found')
+      const executeJavaScript = page.executeJavaScript.bind(page)
+      Object.defineProperty(page, 'executeJavaScript', {
+        configurable: true,
+        value: async (script: string, userGesture?: boolean) => {
+          const result = await executeJavaScript(script, userGesture)
+          if (script.includes("behavior: 'instant'")) mainWindow.focus()
+          return result
+        }
+      })
+    }, {
+      requestedUrl: `http://127.0.0.1:${address.port}/agent-focus-isolation`,
+      humanWindowId
+    })
+    const scrolled = await client.callTool({
+      name: 'browser_scroll',
+      arguments: { tabId, deltaY: 600 }
+    }) as CallToolResult
+    expect(scrolled.isError, mcpResultText(scrolled)).not.toBe(true)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 

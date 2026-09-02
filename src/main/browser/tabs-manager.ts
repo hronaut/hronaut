@@ -4660,13 +4660,13 @@ export class BrowserTabsManager {
     const hasExplicitDelta = options.deltaX !== undefined || options.deltaY !== undefined
     const deltaX = Math.min(Math.max(options.deltaX ?? 0, -100_000), 100_000)
     const deltaY = Math.min(Math.max(options.deltaY ?? (hasExplicitDelta ? 0 : 600), -100_000), 100_000)
-    return tab.webContents.executeJavaScript(`(() => {
+    return this.withBackgroundAgentFocusGuard(() => tab.webContents.executeJavaScript(`(() => {
       const target = ${target};
       if (!target) throw new Error('Scroll target not found.');
       if (target === document.scrollingElement) window.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
       else target.scrollBy({ left: ${deltaX}, top: ${deltaY}, behavior: 'instant' });
       return { x: target.scrollLeft ?? window.scrollX, y: target.scrollTop ?? window.scrollY };
-    })()`, true)
+    })()`, true))
   }
 
   consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {

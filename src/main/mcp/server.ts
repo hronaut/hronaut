@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
@@ -218,8 +218,16 @@ export interface UserAttentionRequest extends UserAttentionInput {
 
 export interface BrowserToolDefinition {
   name: string
+  title?: string
   category: 'Session' | 'Navigation' | 'Interaction' | 'Inspection' | 'Wallet'
   description: string
+  annotations?: Required<Pick<ToolAnnotations,
+    'readOnlyHint' | 'destructiveHint' | 'idempotentHint' | 'openWorldHint'>>
+}
+
+interface AdvertisedBrowserToolDefinition extends BrowserToolDefinition {
+  title: string
+  annotations: NonNullable<BrowserToolDefinition['annotations']>
 }
 
 export interface McpClientActivity {
@@ -318,7 +326,123 @@ export const BROWSER_SERVER_INSTRUCTIONS = [
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
 ].join('\n')
 
-export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
+type BrowserToolMetadata = Pick<AdvertisedBrowserToolDefinition, 'title' | 'annotations'>
+
+const readOnlyTool = (title: string, openWorldHint = true): BrowserToolMetadata => ({
+  title,
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint
+  }
+})
+
+const nonDestructiveTool = (
+  title: string,
+  idempotentHint = false,
+  openWorldHint = true
+): BrowserToolMetadata => ({
+  title,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint,
+    openWorldHint
+  }
+})
+
+const destructiveTool = (
+  title: string,
+  idempotentHint = false,
+  openWorldHint = true
+): BrowserToolMetadata => ({
+  title,
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint,
+    openWorldHint
+  }
+})
+
+const BROWSER_TOOL_METADATA = {
+  browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
+  browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
+  browser_status: readOnlyTool('Show browser status'),
+  browser_show: nonDestructiveTool('Show Hronaut', true, false),
+  browser_request_user_attention: nonDestructiveTool('Request user attention', false, false),
+  browser_tabs: readOnlyTool('List browser tabs'),
+  browser_new_tab: nonDestructiveTool('Open a new tab'),
+  browser_select_tab: nonDestructiveTool('Select a browser tab', true),
+  browser_close_tab: destructiveTool('Close a browser tab'),
+  browser_bookmarks: destructiveTool('Manage bookmarks'),
+  browser_visit_history: destructiveTool('Manage visit history'),
+  browser_site_data: destructiveTool('Manage website data'),
+  browser_storage: destructiveTool('Manage browser storage'),
+  browser_storage_changes: nonDestructiveTool('Track browser storage changes'),
+  browser_storage_usage: readOnlyTool('Inspect browser storage usage'),
+  browser_indexeddb: readOnlyTool('Inspect IndexedDB'),
+  browser_pwa: readOnlyTool('Inspect PWA and offline data'),
+  browser_navigate: destructiveTool('Navigate the browser'),
+  browser_history: destructiveTool('Control page history'),
+  browser_snapshot: readOnlyTool('Capture a page snapshot'),
+  browser_find: readOnlyTool('Find in the page snapshot'),
+  browser_element_inspect: readOnlyTool('Inspect a page element'),
+  browser_generate_locator: readOnlyTool('Generate a Playwright locator'),
+  browser_click: destructiveTool('Click a page element'),
+  browser_dialog: destructiveTool('Handle a page dialog'),
+  browser_type: destructiveTool('Type into the page'),
+  browser_select: destructiveTool('Select a form option'),
+  browser_fill_form: destructiveTool('Fill a form'),
+  browser_hover: destructiveTool('Hover over the page'),
+  browser_drag: destructiveTool('Drag on the page'),
+  browser_scroll: destructiveTool('Scroll the page'),
+  browser_press: destructiveTool('Press a keyboard key'),
+  browser_file_upload: destructiveTool('Upload a file'),
+  browser_wait: readOnlyTool('Wait for page state'),
+  browser_emulate: nonDestructiveTool('Emulate a browser environment'),
+  browser_resize: nonDestructiveTool('Resize the page viewport', true),
+  browser_zoom: nonDestructiveTool('Change page zoom'),
+  browser_audio: nonDestructiveTool('Control tab audio', true),
+  browser_screenshot: nonDestructiveTool('Capture a screenshot', true),
+  browser_pdf_save: nonDestructiveTool('Save the page as PDF'),
+  browser_accessibility_audit: readOnlyTool('Run an accessibility audit'),
+  browser_quality_audit: readOnlyTool('Run a page quality audit'),
+  browser_performance: nonDestructiveTool('Measure page performance'),
+  browser_design_overview: readOnlyTool('Inspect the page design'),
+  browser_page_metadata: readOnlyTool('Inspect page metadata'),
+  browser_security: readOnlyTool('Inspect connection security'),
+  browser_code_coverage: nonDestructiveTool('Record code coverage'),
+  browser_cpu_profile: nonDestructiveTool('Record a CPU profile'),
+  browser_memory: nonDestructiveTool('Inspect page memory'),
+  browser_debug_report: readOnlyTool('Create a debug report'),
+  browser_repro: destructiveTool('Record a reproduction'),
+  browser_dom_changes: nonDestructiveTool('Track DOM changes'),
+  browser_visual_compare: nonDestructiveTool('Compare page appearance'),
+  browser_issues: destructiveTool('Manage Chromium issues'),
+  browser_console: destructiveTool('Inspect or clear the console'),
+  browser_diagnostic_logs: destructiveTool('Manage diagnostic logs'),
+  browser_network: destructiveTool('Inspect or clear network requests'),
+  browser_network_wait: readOnlyTool('Wait for a network request'),
+  browser_network_search: readOnlyTool('Search network activity'),
+  browser_network_request: readOnlyTool('Inspect a network request'),
+  browser_network_replay: destructiveTool('Replay a network request'),
+  browser_network_har: nonDestructiveTool('Create a network HAR'),
+  browser_network_routes: destructiveTool('Manage network routes'),
+  browser_downloads: destructiveTool('Manage downloads'),
+  browser_evaluate: destructiveTool('Evaluate JavaScript'),
+  wallet_list: nonDestructiveTool('List attached wallets', false, false),
+  wallet_balance: nonDestructiveTool('Read a wallet balance'),
+  wallet_prepare_transaction: nonDestructiveTool('Prepare a wallet transaction'),
+  wallet_request: destructiveTool('Request a wallet action'),
+  wallet_request_status: readOnlyTool('Read wallet request status', false),
+  wallet_cancel_request: destructiveTool('Cancel a wallet request', false, false)
+} as const satisfies Record<string, BrowserToolMetadata>
+
+type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
+
+const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
   {
     name: 'browser_workspaces',
     category: 'Session',
@@ -428,6 +552,11 @@ export const BROWSER_TOOL_CATALOG: BrowserToolDefinition[] = [
   { name: 'wallet_cancel_request', category: 'Wallet', description: 'Using the walletSessionId from wallet_list, cancel a pending request created by this exact wallet session, workspace, tab, and current top-level page.' }
 ]
 
+export const BROWSER_TOOL_CATALOG: AdvertisedBrowserToolDefinition[] = BROWSER_TOOL_BASE_CATALOG.map((tool) => ({
+  ...tool,
+  ...BROWSER_TOOL_METADATA[tool.name]
+}))
+
 const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_workspaces',
   'browser_saved_workspaces',
@@ -488,16 +617,20 @@ const QA_TOOL_NAMES = new Set([
   'browser_network_har'
 ])
 
-export function mcpToolCatalogForSet(toolSet: McpToolSet): BrowserToolDefinition[] {
+export function mcpToolCatalogForSet(toolSet: McpToolSet): AdvertisedBrowserToolDefinition[] {
   if (toolSet === 'complete') return BROWSER_TOOL_CATALOG.map((tool) => ({ ...tool }))
   const selectedNames = toolSet === 'essentials' ? ESSENTIALS_TOOL_NAMES : QA_TOOL_NAMES
   return BROWSER_TOOL_CATALOG.filter(({ name }) => selectedNames.has(name)).map((tool) => ({ ...tool }))
 }
 
-function toolDescription(name: string): string {
+function toolDefinition(name: string): AdvertisedBrowserToolDefinition {
   const tool = BROWSER_TOOL_CATALOG.find((candidate) => candidate.name === name)
   if (!tool) throw new Error(`Unknown browser tool: ${name}`)
-  return tool.description
+  return tool
+}
+
+function toolDescription(name: string): string {
+  return toolDefinition(name).description
 }
 
 const NETWORK_FILTER_QUERY_DESCRIPTION = 'Free text plus Chrome-style AND filters: domain (wildcards allowed), is:running, larger-than (B, K/KB, M/MB), method, resource-type, scheme, status-code, and url. Quote a phrase that contains spaces.'
@@ -612,7 +745,12 @@ function createBrowserMcpServer(
   const registeredTools = new Map<string, RegisteredTool>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
-    const registered = baseRegisterTool(name, config as never, handler as never)
+    const definition = toolDefinition(name)
+    const registered = baseRegisterTool(name, {
+      ...(config as Record<string, unknown>),
+      title: definition.title,
+      annotations: definition.annotations
+    } as never, handler as never)
     registeredTools.set(name, registered)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
