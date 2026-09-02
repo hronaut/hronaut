@@ -146,6 +146,51 @@ describe('commercial license controller', () => {
     expect(unsubscribe).toHaveBeenCalledOnce()
   })
 
+  it('keeps a leaked failed-initialization listener inert and allows a clean retry', async () => {
+    const sourceError = new Error('license service unavailable')
+    const recovered = license({ status: 'active', active: true, maskedKey: '••••-RECOVERED' })
+    const getState = vi.fn()
+      .mockRejectedValueOnce(sourceError)
+      .mockResolvedValueOnce(recovered)
+    const { controller, emit, unsubscribe } = createController(getState)
+    unsubscribe.mockImplementationOnce(() => {
+      throw new Error('license listener still registered')
+    })
+
+    await expect(controller.initialize()).rejects.toThrow()
+
+    emit(license({ status: 'active', active: true, maskedKey: '••••-STALE' }))
+    expect(controller.state.value).toEqual(license({ secureStorageAvailable: false }))
+    expect(controller.errorMessage.value).toBe('license service unavailable')
+
+    await expect(controller.initialize()).resolves.toBeUndefined()
+    expect(getState).toHaveBeenCalledTimes(2)
+    expect(controller.state.value).toEqual(recovered)
+    expect(controller.errorMessage.value).toBe('')
+    controller.dispose()
+  })
+
+  it('settles an in-flight activation when failed initialization invalidates only its listener', async () => {
+    const initial = deferred<CommercialLicenseState>()
+    const activating = deferred<CommercialLicenseState>()
+    const { activate, controller } = createController(() => initial.promise)
+    activate.mockReturnValueOnce(activating.promise)
+
+    const initializing = controller.initialize()
+    controller.keyDraft.value = 'ABCD-EFGH-IJKL-MNOP'
+    const activation = controller.activate()
+    initial.reject(new Error('license service unavailable'))
+    await expect(initializing).rejects.toThrow('license service unavailable')
+
+    const active = license({ status: 'active', active: true, maskedKey: '••••-ACTIVE' })
+    activating.resolve(active)
+    await expect(activation).resolves.toBe(true)
+    expect(controller.state.value).toEqual(active)
+    expect(controller.action.value).toBe('idle')
+    expect(controller.keyDraft.value).toBe('')
+    controller.dispose()
+  })
+
   it('clears a pending license action when listener disposal fails', async () => {
     const activating = deferred<CommercialLicenseState>()
     const { activate, controller, unsubscribe } = createController()

@@ -138,7 +138,9 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
       // application. Focusing it in that state can activate Hronaut on some
       // desktop environments; the trap still takes over when the user returns.
       if (options.focusOnOpen !== false && applicationWasFocused) {
-        options.panel.value?.focus({ preventScroll: true })
+        const applicationIsFocused = await applicationHasFocus()
+        if (operationGeneration !== focusGeneration || !options.open.value) return
+        if (applicationIsFocused) options.panel.value?.focus({ preventScroll: true })
       }
       options.afterLayout?.()
       return

@@ -20,6 +20,7 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
   const action = ref<CommercialLicenseAction>('idle')
   const errorMessage = ref('')
   let generation = 0
+  let listenerGeneration = 0
   let revision = 0
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
@@ -43,18 +44,28 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
 
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
-    const currentGeneration = ++generation
+    const currentGeneration = generation
+    const currentListenerGeneration = ++listenerGeneration
     const initialRevision = revision
     detachListener()
     unsubscribe = options.api.onChanged((next) => {
-      if (generation === currentGeneration) accept(next)
+      if (generation === currentGeneration && listenerGeneration === currentListenerGeneration) accept(next)
     })
     initializePromise = options.api.getState()
       .then((next) => {
-        if (generation === currentGeneration && revision === initialRevision) accept(next)
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+          && revision === initialRevision
+        ) accept(next)
       })
       .catch((error: unknown) => {
-        if (generation !== currentGeneration) return
+        if (generation !== currentGeneration || listenerGeneration !== currentListenerGeneration) return
+        // Revoke the listener before native cleanup. A throwing unsubscribe
+        // must not leave the failed initialization callback authorized to
+        // overwrite its source error or a later retry.
+        listenerGeneration += 1
+        initializePromise = null
         const failures = [error]
         try {
           detachListener()
@@ -70,7 +81,10 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
         throw new AggregateError(failures, 'License initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
-        if (generation === currentGeneration) initializePromise = null
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+        ) initializePromise = null
       })
     return initializePromise
   }
@@ -119,6 +133,7 @@ export function useCommercialLicenseController(options: CommercialLicenseControl
 
   function dispose(): void {
     generation += 1
+    listenerGeneration += 1
     initializePromise = null
     action.value = 'idle'
     detachListener()

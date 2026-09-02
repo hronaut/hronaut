@@ -399,7 +399,14 @@ jobs:
             echo "No regular release assets were downloaded." >&2
             exit 1
           fi
-          gh release upload "$TAG" "${release_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          release_upload_arguments="$RUNNER_TEMP/hronaut-release-upload-arguments"
+          node scripts/release-asset-labels.ts "${release_files[@]}" > "$release_upload_arguments"
+          mapfile -d '' release_upload_files < "$release_upload_arguments"
+          if (( ${#release_upload_files[@]} != ${#release_files[@]} )); then
+            echo "Release asset label generation returned an incomplete argument list." >&2
+            exit 1
+          fi
+          gh release upload "$TAG" "${release_upload_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   verify-public-release:

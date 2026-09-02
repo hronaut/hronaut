@@ -118,8 +118,12 @@ describe('release quality gates', () => {
     const publish = job(workflow, 'publish-release')
 
     expect(publish).toContain("find release-assets -maxdepth 1 -type f -print0")
-    expect(publish).toContain('gh release upload "$TAG" "${release_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber')
+    expect(publish).toContain('node scripts/release-asset-labels.ts "${release_files[@]}"')
+    expect(publish).toContain("mapfile -d '' release_upload_files")
+    expect(publish.match(/gh release upload/gu)).toHaveLength(1)
+    expect(publish).toContain('gh release upload "$TAG" "${release_upload_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber')
     expect(publish).not.toContain('gh release upload "$TAG" release-assets/*')
+    expect(publish.indexOf('gh release upload')).toBeLessThan(publish.indexOf('gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false'))
   })
 
   it('retains bounded Playwright diagnostics when Docker integration fails', async () => {

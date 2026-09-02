@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { nextTick, ref } from 'vue'
+import { ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -63,9 +63,7 @@ describe('WalletApprovalDialog', () => {
     const reject = screen.getByRole('button', { name: 'Reject' })
     const approve = screen.getByRole('button', { name: 'Approve exact request' })
     const user = userEvent.setup()
-    await nextTick()
-
-    expect(dialog).toHaveFocus()
+    await vi.waitFor(() => expect(dialog).toHaveFocus())
     await user.tab({ shift: true })
     expect(approve).toHaveFocus()
     await user.tab()

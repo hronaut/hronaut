@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recheck native window focus immediately before focusing an automatic trusted dialog so a wallet approval, Settings, or What's new prompt cannot reactivate Hronaut after the user switches to another application.
+- Keep leaked commercial-license listeners inert when failed initialization cleanup also throws, preserving the real setup error and a clean retry path.
+
+### Improved
+
+- Give the checksum manifest and every public Windows, macOS, and Linux installer a human-readable GitHub Release label while keeping updater metadata machine-readable and unchanged.
+
 ## [1.11.34] - 2026-09-02
 
 ### Fixed

@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 
+function deferred<Value>() {
+  let resolve!: (value: Value) => void
+  const promise = new Promise<Value>((next) => { resolve = next })
+  return { promise, resolve }
+}
+
 const ModalHandoffHarness = defineComponent({
   setup() {
     const firstOpen = ref(false)
@@ -90,6 +96,33 @@ describe('modal dialog focus lifecycle', () => {
     expect(background).toHaveFocus()
     view.unmount()
     background.remove()
+  })
+
+  it('does not claim input focus when Hronaut becomes inactive while a modal is opening', async () => {
+    const initialFocus = deferred<boolean>()
+    const isWindowFocused = vi.fn()
+      .mockImplementationOnce(() => initialFocus.promise)
+      .mockResolvedValueOnce(false)
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { isWindowFocused }
+    })
+
+    const view = render(BackgroundModalHarness)
+    try {
+      const dialog = await screen.findByRole('dialog', { name: 'Background modal' })
+      const focus = vi.spyOn(dialog, 'focus')
+
+      await vi.waitFor(() => expect(isWindowFocused).toHaveBeenCalledOnce())
+      initialFocus.resolve(true)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(focus).not.toHaveBeenCalled()
+      expect(isWindowFocused).toHaveBeenCalledTimes(2)
+    } finally {
+      view.unmount()
+      Reflect.deleteProperty(window, 'hronautShell')
+    }
   })
 
   it('does not restore stale Hronaut focus when an automatic modal closes in the background', async () => {
