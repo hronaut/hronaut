@@ -7,6 +7,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Remove legacy **Start here** onboarding and licensing boilerplate when regenerating an existing GitHub release, keeping every release changelog focused on that version's changes.
+- Move keyboard focus into a trusted modal when a background-open wallet approval, Settings window, or other Hronaut dialog becomes active, preventing hidden shell fields from retaining input.
+- Restore wallet-provider access after an isolated workspace deletion rolls back, while keeping requests from the closed tab lifecycle cancelled.
 
 ## [1.11.35] - 2026-09-03
 

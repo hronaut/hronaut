@@ -28,8 +28,10 @@ const FOCUSABLE_SELECTOR = [
 
 const activeDialogs: ActiveDialog[] = []
 let listeningDocument: Document | null = null
+let listeningWindow: Window | null = null
 let returnFocus: HTMLElement | null = null
 let restoreGeneration = 0
+let reactivationGeneration = 0
 
 function topDialogPanel(): HTMLElement | null {
   return activeDialogs.at(-1)?.panel.value ?? null
@@ -82,17 +84,36 @@ function handleModalFocusIn(event: FocusEvent): void {
   focusInside(panel)
 }
 
+async function focusTopDialogAfterWindowActivation(operationGeneration: number): Promise<void> {
+  await nextTick()
+  if (operationGeneration !== reactivationGeneration) return
+  const applicationFocused = await applicationHasFocus()
+  if (operationGeneration !== reactivationGeneration || !applicationFocused) return
+  const panel = topDialogPanel()
+  if (!panel || panel.contains(panel.ownerDocument.activeElement)) return
+  panel.focus({ preventScroll: true })
+}
+
+function handleModalWindowFocus(): void {
+  void focusTopDialogAfterWindowActivation(++reactivationGeneration)
+}
+
 function syncDocumentListeners(): void {
   if (activeDialogs.length > 0) {
     if (listeningDocument) return
     listeningDocument = document
+    listeningWindow = listeningDocument.defaultView
     listeningDocument.addEventListener('keydown', handleModalKeydown, true)
     listeningDocument.addEventListener('focusin', handleModalFocusIn, true)
+    listeningWindow?.addEventListener('focus', handleModalWindowFocus)
     return
   }
+  reactivationGeneration += 1
   listeningDocument?.removeEventListener('keydown', handleModalKeydown, true)
   listeningDocument?.removeEventListener('focusin', handleModalFocusIn, true)
+  listeningWindow?.removeEventListener('focus', handleModalWindowFocus)
   listeningDocument = null
+  listeningWindow = null
 }
 
 function removeActiveDialog(dialog: ActiveDialog): void {

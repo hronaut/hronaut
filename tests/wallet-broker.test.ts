@@ -1506,6 +1506,42 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
+  it('keeps a closed tab generation cancelled while allowing its restored lifecycle', async () => {
+    const { service } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const first = settle(broker.providerRequest(context({ navigationGeneration: 3 }), {
+      family: 'evm', method: 'eth_requestAccounts'
+    }))
+    await vi.waitFor(() => expect(service.approvals.list().some((request) => (
+      request.status === 'awaiting-human' && request.request.navigationGeneration === 3
+    ))).toBe(true))
+
+    await broker.cancelForTab('tab-1')
+    await expect(first).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    await expect(broker.providerRequest(context({ navigationGeneration: 3 }), {
+      family: 'evm', method: 'eth_chainId'
+    })).rejects.toThrow('no longer active')
+
+    await broker.resumeTab('tab-1', 4)
+    await expect(broker.providerRequest(context({ navigationGeneration: 3 }), {
+      family: 'evm', method: 'eth_chainId'
+    })).rejects.toThrow('no longer active')
+
+    const restored = broker.providerRequest(context({ navigationGeneration: 4 }), {
+      family: 'evm', method: 'eth_requestAccounts'
+    })
+    await vi.waitFor(() => expect(service.approvals.list().some((request) => (
+      request.status === 'awaiting-human' && request.request.navigationGeneration === 4
+    ))).toBe(true))
+    const pending = service.approvals.list().find((request) => (
+      request.status === 'awaiting-human' && request.request.navigationGeneration === 4
+    ))!
+    await broker.approve(pending.id)
+    await expect(restored).resolves.toHaveLength(1)
+  })
+
   it('cancels a website request when navigation lands while durable creation is returning', async () => {
     const { service } = await setup()
     const chain = adapter()

@@ -98,6 +98,38 @@ describe('modal dialog focus lifecycle', () => {
     background.remove()
   })
 
+  it('moves focus into an automatic modal when the inactive Hronaut window is reactivated', async () => {
+    const background = document.createElement('input')
+    background.setAttribute('aria-label', 'Hidden settings field')
+    document.body.append(background)
+    background.focus()
+    let windowFocused = false
+    const isWindowFocused = vi.fn(async () => windowFocused)
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { isWindowFocused }
+    })
+
+    const view = render(BackgroundModalHarness)
+    try {
+      const dialog = await screen.findByRole('dialog', { name: 'Background modal' })
+      await vi.waitFor(() => expect(isWindowFocused).toHaveBeenCalled())
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(background).toHaveFocus()
+      windowFocused = true
+      window.dispatchEvent(new FocusEvent('focus'))
+
+      await vi.waitFor(() => expect(dialog).toHaveFocus())
+      await userEvent.setup().keyboard('not hidden')
+      expect(background).toHaveValue('')
+    } finally {
+      view.unmount()
+      Reflect.deleteProperty(window, 'hronautShell')
+      background.remove()
+    }
+  })
+
   it('does not claim input focus when Hronaut becomes inactive while a modal is opening', async () => {
     const initialFocus = deferred<boolean>()
     const isWindowFocused = vi.fn()

@@ -3499,6 +3499,7 @@ async function createWindow(): Promise<void> {
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
     onWalletNavigation: (tabId, generation) => void walletBroker?.cancelForNavigation(tabId, generation),
     onWalletTabClosed: (tabId) => void walletBroker?.cancelForTab(tabId),
+    onWalletTabRestored: async (tabId, generation) => walletBroker?.resumeTab(tabId, generation),
     onWalletWorkspaceClosed: (workspaceId) => void walletBroker?.cancelForWorkspace(workspaceId),
     onPageVisited: ({ url, title }) => {
       void historyStore?.record({ url, title })

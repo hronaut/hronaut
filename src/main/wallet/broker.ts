@@ -459,6 +459,7 @@ export class WalletBroker {
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
     try {
+      this.assertRequestContextActive(context)
       const request = WalletProviderRequestSchema.parse(input)
       const wallets = this.accessibleWallets(context, request.family)
       if (request.family === 'evm') return await this.evmRequest(context, wallets, request.method, request.params)
@@ -557,6 +558,19 @@ export class WalletBroker {
       } finally {
         this.rejectCancelled()
       }
+    })
+  }
+
+  async resumeTab(tabId: string, navigationGeneration: number): Promise<void> {
+    if (!Number.isSafeInteger(navigationGeneration) || navigationGeneration < 0) {
+      throw new Error('Wallet tab navigation generation is invalid')
+    }
+    await this.queueLifecycle(async () => {
+      this.minimumNavigationGeneration.set(
+        tabId,
+        Math.max(navigationGeneration, this.minimumNavigationGeneration.get(tabId) ?? 0)
+      )
+      this.closedTabs.delete(tabId)
     })
   }
 

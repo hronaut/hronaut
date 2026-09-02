@@ -376,6 +376,18 @@ test('restores the only workspace without leaving a phantom Default tab when pro
     }
     const workspaceId = created.mcpTabGroups.find((workspace) => workspace.name === 'Only isolated workspace')!.id
     const workspaceTabId = created.activeTabId
+    const walletAddress = '0x0000000000000000000000000000000000000001'
+    const vaultStatus = await appWindow.evaluate('window.hronautWallets.status()') as { managedWallets: string }
+    if (vaultStatus.managedWallets === 'passphrase-setup-required') {
+      await appWindow.evaluate(`window.hronautWallets.setupPassphrase('workspace-rollback-wallet-passphrase')`)
+    }
+    await appWindow.evaluate(`window.hronautWallets.addWatchOnly({
+      name: 'Workspace rollback wallet',
+      chainFamily: 'evm',
+      publicAddress: ${JSON.stringify(walletAddress)},
+      network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' },
+      workspaceIds: [${JSON.stringify(workspaceId)}]
+    })`)
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(workspaceTabId)}, url: ${JSON.stringify(url)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, targetUrl) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === targetUrl)
@@ -409,6 +421,37 @@ test('restores the only workspace without leaving a phantom Default tab when pro
       tabs: [{ id: workspaceTabId, mcpGroupId: workspaceId }],
       workspaceTabCount: 1
     })
+
+    await electronApp.evaluate(async ({ webContents }, targetUrl) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === targetUrl)
+      if (!contents) throw new Error('Restored workspace page was not found')
+      await contents.executeJavaScript(`
+        window.__restoredWalletState = 'pending';
+        void window.hronautEthereum.request({ method: 'eth_requestAccounts' }).then(
+          (accounts) => { window.__restoredWalletState = 'resolved:' + accounts.join(',') },
+          (error) => { window.__restoredWalletState = 'rejected:' + error.message }
+        );
+        'started';
+      `)
+    }, url)
+    await expect.poll(async () => {
+      const requests = await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{
+        id: string
+        operation: string
+        status: string
+      }>
+      return requests.find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')
+    }).not.toBeUndefined()
+    const requestId = (await appWindow.evaluate('window.hronautWallets.listRequests()') as Array<{
+      id: string
+      operation: string
+      status: string
+    }>).find((request) => request.operation === 'connect-account' && request.status === 'awaiting-human')!.id
+    await appWindow.evaluate(`window.hronautWallets.approveRequest(${JSON.stringify(requestId)})`)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, targetUrl) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === targetUrl)
+      return contents?.executeJavaScript('window.__restoredWalletState')
+    }, url)).toBe(`resolved:${walletAddress}`)
 
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(workspaceId)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => ({ tabCount: state.tabs.length, workspaceCount: state.mcpTabGroups.length }))')).toEqual({

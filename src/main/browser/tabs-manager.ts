@@ -894,6 +894,7 @@ export interface TabsManagerOptions {
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
   onWalletNavigation?: (tabId: string, navigationGeneration: number) => void
   onWalletTabClosed?: (tabId: string) => void
+  onWalletTabRestored?: (tabId: string, navigationGeneration: number) => Promise<void>
   onWalletWorkspaceClosed?: (workspaceId: string) => void
   configureSession?: (browserSession: Session) => void
 }
@@ -1509,6 +1510,7 @@ export class BrowserTabsManager {
       url: tab.url,
       pinned: tab.pinned,
       humanInteractionLocked: tab.humanInteractionLocked,
+      navigationGeneration: tab.navigationGeneration,
       navigationHistory: this.navigationHistorySnapshot(tab)
     }))
     const removeClosedWorkspaceTabs = (): void => {
@@ -1519,13 +1521,21 @@ export class BrowserTabsManager {
     const restoreWorkspaceTabs = async (): Promise<void> => {
       for (const tab of tabSnapshots) {
         if (this.tabs.has(tab.id)) continue
-        await this.createTab({
-          ...tab,
-          suppressInitialHistory: true,
-          active: false,
-          mcpGroupId: groupId,
-          allowBusyWorkspace: true
-        })
+        const navigationGeneration = tab.navigationGeneration + 1
+        await this.options.onWalletTabRestored?.(tab.id, navigationGeneration)
+        try {
+          await this.createTab({
+            ...tab,
+            navigationGeneration,
+            suppressInitialHistory: true,
+            active: false,
+            mcpGroupId: groupId,
+            allowBusyWorkspace: true
+          })
+        } catch (error) {
+          this.options.onWalletTabClosed?.(tab.id)
+          throw error
+        }
       }
       if (previousGroupActiveTabId && this.tabs.get(previousGroupActiveTabId)?.mcpGroupId === groupId) {
         group.activeTabId = previousGroupActiveTabId
@@ -6212,6 +6222,7 @@ export class BrowserTabsManager {
     url: string
     pinned?: boolean
     humanInteractionLocked?: boolean
+    navigationGeneration?: number
     suppressInitialHistory?: boolean
     navigationHistory?: { entries: NavigationEntry[]; index: number }
     loadOptions?: LoadURLOptions
@@ -6250,7 +6261,7 @@ export class BrowserTabsManager {
       ),
       url,
       loading: true,
-      navigationGeneration: 0,
+      navigationGeneration: options.navigationGeneration ?? 0,
       navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
       sleeping: false,
@@ -6453,8 +6464,8 @@ export class BrowserTabsManager {
     webContents.once('destroyed', () => {
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
-      this.options.onWalletTabClosed?.(tab.id)
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
+      this.options.onWalletTabClosed?.(tab.id)
       tab.loading = false
       tab.pageProblem = {
         kind: 'renderer-gone',
