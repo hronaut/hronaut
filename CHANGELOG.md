@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Require fresh trusted-dialog focus for every queued wallet approval so a repeated Enter or Space cannot approve the next request without a new review.
+- Keep GitHub release-note reruns idempotent so the generated comparison section never accumulates duplicate separators.
 - Recheck native window focus immediately before focusing an automatic trusted dialog so a wallet approval, Settings, or What's new prompt cannot reactivate Hronaut after the user switches to another application.
 - Keep leaked commercial-license listeners inert when failed initialization cleanup also throws, preserving the real setup error and a clean retry path.
 - Keep an in-flight update check or MCP Pause action authoritative and usable when automatic startup recovery retries its status subscription.

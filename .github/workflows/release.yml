@@ -361,28 +361,8 @@ jobs:
           fi
 
           current_notes="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body')"
-          node scripts/release-notes.ts "$VERSION" > changelog-notes.md
-          if [[ "$current_notes" == *"<!-- hronaut-generated-notes -->"* ]]; then
-            comparison_notes="$(printf '%s\n' "$current_notes" | sed -n '/<!-- hronaut-generated-notes -->/,$p' | tail -n +2)"
-          else
-            comparison_notes="$current_notes"
-          fi
-          {
-            echo '<!-- hronaut-release-notes -->'
-            echo '<!-- unsigned-release-warning -->'
-            echo '> [!WARNING]'
-            echo '> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding either warning.'
-            echo
-            echo "## What's changed"
-            echo
-            cat changelog-notes.md
-            if [[ -n "$comparison_notes" ]]; then
-              echo
-              echo '<!-- hronaut-generated-notes -->'
-              echo '---'
-              printf '%s\n' "$comparison_notes"
-            fi
-          } > release-notes.md
+          printf '%s\n' "$current_notes" > current-release-notes.md
+          node scripts/release-notes.ts "$VERSION" CHANGELOG.md current-release-notes.md > release-notes.md
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
           gh release edit "$TAG" \
             --repo "$GITHUB_REPOSITORY" \

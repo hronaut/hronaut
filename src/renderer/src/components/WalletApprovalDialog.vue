@@ -11,6 +11,7 @@ const props = defineProps<{
 const { t } = useI18n({ useScope: 'global' })
 const request = computed(() => props.controller.awaitingApproval.value[0])
 const open = computed(() => Boolean(request.value))
+const requestId = computed(() => request.value?.id)
 const workspaceName = computed(() => {
   const workspaceId = request.value?.workspaceId
   if (!workspaceId) return ''
@@ -18,7 +19,7 @@ const workspaceName = computed(() => {
 })
 const panel = ref<HTMLElement | null>(null)
 
-useModalDialogFocus({ open, panel })
+useModalDialogFocus({ open, panel, focusKey: requestId })
 
 function rawDetails(): string {
   return JSON.stringify(request.value?.details?.raw ?? {}, null, 2)
@@ -27,7 +28,7 @@ function rawDetails(): string {
 
 <template>
   <div v-if="request" class="wallet-approval-overlay">
-    <section ref="panel" class="wallet-approval-dialog" role="alertdialog" aria-modal="true" aria-labelledby="wallet-approval-title" tabindex="-1">
+    <section :key="request.id" ref="panel" class="wallet-approval-dialog" role="alertdialog" aria-modal="true" aria-labelledby="wallet-approval-title" tabindex="-1">
       <header>
         <span class="eyebrow">{{ t('wallets.approval.eyebrow') }}</span>
         <h2 id="wallet-approval-title">{{ t('wallets.approval.operation', { operation: request.operation.replaceAll('-', ' ') }) }}</h2>

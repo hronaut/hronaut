@@ -8,14 +8,14 @@ import type { WalletsController } from '../../src/renderer/src/composables/useWa
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { WalletRequestSummary } from '../../src/shared/wallet.js'
 
-function request(): WalletRequestSummary {
+function request(id = 'request-1', walletName = 'Main wallet'): WalletRequestSummary {
   return {
-    id: 'request-1', walletId: 'wallet-1', workspaceId: 'workspace-1', status: 'awaiting-human',
+    id, walletId: 'wallet-1', workspaceId: 'workspace-1', status: 'awaiting-human',
     approvalHash: 'a'.repeat(64), operation: 'sign-message',
     requester: { type: 'website', id: 'tab-1', name: 'Dapp' }, origin: 'https://dapp.example',
     networkId: '1', createdAt: '2026-08-28T12:00:00.000Z', expiresAt: '2026-08-28T12:05:00.000Z',
     details: {
-      walletName: 'Main wallet', publicAddress: '0x0000000000000000000000000000000000000001',
+      walletName, publicAddress: '0x0000000000000000000000000000000000000001',
       chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true,
       simulationAttempted: false, simulationSuccess: false, method: 'personal_sign',
       raw: { messageCanonicalBase64: 'c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=', messageUtf8Preview: 'sign this exact message' }
@@ -87,5 +87,44 @@ describe('WalletApprovalDialog', () => {
 
     expect(screen.getByRole('alertdialog', { name: /sign message/i }))
       .toHaveTextContent('workspace-1')
+  })
+
+  it('requires fresh review focus when the next queued request replaces an approved request', async () => {
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { isWindowFocused: vi.fn(async () => true) }
+    })
+    const first = request()
+    const second = request('request-2', 'Second wallet')
+    const awaitingApproval = ref([first, second])
+    const approve = vi.fn(async (requestId: string) => {
+      awaitingApproval.value = awaitingApproval.value.filter((pending) => pending.id !== requestId)
+    })
+    const wallets = {
+      awaitingApproval,
+      busy: ref(false),
+      errorMessage: ref(''),
+      approve,
+      reject: vi.fn(async () => undefined)
+    } as unknown as WalletsController
+    try {
+      render(WalletApprovalDialog, {
+        props: { controller: wallets, workspaces: [] },
+        global: { plugins: [createHronautI18n('en-US')] }
+      })
+      const user = userEvent.setup()
+
+      const firstApprove = screen.getByRole('button', { name: 'Approve exact request' })
+      await user.click(firstApprove)
+      await screen.findByText('Second wallet')
+      const secondDialog = screen.getByRole('alertdialog', { name: /sign message/i })
+
+      await vi.waitFor(() => expect(secondDialog).toHaveFocus())
+      await user.keyboard('{Enter}')
+      expect(approve).toHaveBeenCalledOnce()
+      expect(approve).toHaveBeenCalledWith('request-1')
+    } finally {
+      Reflect.deleteProperty(window, 'hronautShell')
+    }
   })
 })

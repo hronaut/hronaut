@@ -89,16 +89,22 @@ describe('release quality gates', () => {
   })
 
   it('keeps published release notes focused on changes and the artifact warning', async () => {
-    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
-    const warningStart = workflow.indexOf('<!-- unsigned-release-warning -->')
-    const changesStart = workflow.indexOf('echo "## What\'s changed"')
-    const unsignedWarning = workflow.slice(warningStart, changesStart)
+    const [workflow, generator] = await Promise.all([
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('scripts/release-notes.ts', 'utf8')
+    ])
+    const warningStart = generator.indexOf('<!-- unsigned-release-warning -->')
+    const changesStart = generator.indexOf("## What's changed")
+    const unsignedWarning = generator.slice(warningStart, changesStart)
 
-    expect(workflow).not.toContain("echo '## Start here'")
-    expect(workflow).not.toContain('Watch the 35-second product demo')
-    expect(workflow).not.toContain('Choose the right Windows, macOS, or Linux package')
-    expect(workflow).not.toContain('Connect Codex, Claude Code, Gemini CLI')
-    expect(workflow).not.toContain('Permitted noncommercial use is free')
+    expect(workflow).toContain('node scripts/release-notes.ts "$VERSION" CHANGELOG.md current-release-notes.md')
+    for (const source of [workflow, generator]) {
+      expect(source).not.toContain("echo '## Start here'")
+      expect(source).not.toContain('Watch the 35-second product demo')
+      expect(source).not.toContain('Choose the right Windows, macOS, or Linux package')
+      expect(source).not.toContain('Connect Codex, Claude Code, Gemini CLI')
+      expect(source).not.toContain('Permitted noncommercial use is free')
+    }
     expect(warningStart).toBeGreaterThanOrEqual(0)
     expect(unsignedWarning).toContain('https://hronaut.dev/security#verify-release')
     expect(warningStart).toBeLessThan(changesStart)

@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, watch, type Ref } from 'vue'
 export interface ModalDialogFocusOptions {
   open: Readonly<Ref<boolean>>
   panel: Readonly<Ref<HTMLElement | null>>
+  focusKey?: Readonly<Ref<unknown>>
   afterLayout?: () => void
   focusOnOpen?: boolean
 }
@@ -115,57 +116,61 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
   let focusGeneration = 0
   const activeDialog: ActiveDialog = { panel: options.panel }
 
-  const stop = watch(options.open, async (open) => {
-    if (open) {
-      if (!registered) {
-        if (activeDialogs.length === 0 && returnFocus === null) {
-          const activeElement = document.activeElement
-          returnFocus = activeElement instanceof HTMLElement && activeElement !== document.body
-            ? activeElement
-            : null
+  const stop = watch(
+    () => [options.open.value, options.focusKey?.value] as const,
+    async ([open]) => {
+      if (open) {
+        if (!registered) {
+          if (activeDialogs.length === 0 && returnFocus === null) {
+            const activeElement = document.activeElement
+            returnFocus = activeElement instanceof HTMLElement && activeElement !== document.body
+              ? activeElement
+              : null
+          }
+          activeDialogs.push(activeDialog)
+          syncDocumentListeners()
+          registered = true
         }
-        activeDialogs.push(activeDialog)
-        syncDocumentListeners()
-        registered = true
-      }
-      const operationGeneration = ++focusGeneration
-      const focusState = applicationHasFocus()
-      await nextTick()
-      if (operationGeneration !== focusGeneration || !options.open.value) return
-      const applicationWasFocused = await focusState
-      if (operationGeneration !== focusGeneration || !options.open.value) return
-      // Request-driven chrome may appear while the human is typing in another
-      // application. Focusing it in that state can activate Hronaut on some
-      // desktop environments; the trap still takes over when the user returns.
-      if (options.focusOnOpen !== false && applicationWasFocused) {
-        const applicationIsFocused = await applicationHasFocus()
+        const operationGeneration = ++focusGeneration
+        const focusState = applicationHasFocus()
+        await nextTick()
         if (operationGeneration !== focusGeneration || !options.open.value) return
-        if (applicationIsFocused) options.panel.value?.focus({ preventScroll: true })
+        const applicationWasFocused = await focusState
+        if (operationGeneration !== focusGeneration || !options.open.value) return
+        // Request-driven chrome may appear while the human is typing in another
+        // application. Focusing it in that state can activate Hronaut on some
+        // desktop environments; the trap still takes over when the user returns.
+        if (options.focusOnOpen !== false && applicationWasFocused) {
+          const applicationIsFocused = await applicationHasFocus()
+          if (operationGeneration !== focusGeneration || !options.open.value) return
+          if (applicationIsFocused) options.panel.value?.focus({ preventScroll: true })
+        }
+        options.afterLayout?.()
+        return
+      }
+
+      if (!registered) return
+      registered = false
+      removeActiveDialog(activeDialog)
+      focusGeneration += 1
+      const operationGeneration = ++restoreGeneration
+      await nextTick()
+      if (operationGeneration !== restoreGeneration) return
+      const applicationFocused = await applicationHasFocus()
+      if (operationGeneration !== restoreGeneration) return
+      const remainingPanel = topDialogPanel()
+      if (remainingPanel) {
+        if (applicationFocused && !remainingPanel.contains(document.activeElement)) focusInside(remainingPanel)
+        return
       }
       options.afterLayout?.()
-      return
-    }
-
-    if (!registered) return
-    registered = false
-    removeActiveDialog(activeDialog)
-    focusGeneration += 1
-    const operationGeneration = ++restoreGeneration
-    await nextTick()
-    if (operationGeneration !== restoreGeneration) return
-    const applicationFocused = await applicationHasFocus()
-    if (operationGeneration !== restoreGeneration) return
-    const remainingPanel = topDialogPanel()
-    if (remainingPanel) {
-      if (applicationFocused && !remainingPanel.contains(document.activeElement)) focusInside(remainingPanel)
-      return
-    }
-    options.afterLayout?.()
-    const target = returnFocus
-    returnFocus = null
-    if (!applicationFocused || !target?.isConnected) return
-    target.focus({ preventScroll: true })
-  }, { immediate: true })
+      const target = returnFocus
+      returnFocus = null
+      if (!applicationFocused || !target?.isConnected) return
+      target.focus({ preventScroll: true })
+    },
+    { immediate: true }
+  )
 
   onBeforeUnmount(() => {
     focusGeneration += 1
