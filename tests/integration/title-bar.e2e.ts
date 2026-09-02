@@ -78,23 +78,45 @@ test('uses the horizontal tab strip as the title bar without swallowing tab or a
     return { autoHide: main?.isMenuBarAutoHide(), visible: main?.isMenuBarVisible() }
   })).toEqual({ autoHide: true, visible: false })
 
-  await electronApp.evaluate(({ Menu }) => {
-    const mainGlobal = globalThis as typeof globalThis & { __hronautAltMenuShown?: boolean }
+  await electronApp.evaluate(({ BrowserWindow, Menu }) => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __hronautAltMenuShown?: boolean
+      __hronautAltMenuClosed?: boolean
+    }
+    const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
+    const menu = Menu.getApplicationMenu()
     mainGlobal.__hronautAltMenuShown = false
-    Menu.getApplicationMenu()?.once('menu-will-show', () => { mainGlobal.__hronautAltMenuShown = true })
+    mainGlobal.__hronautAltMenuClosed = false
+    menu?.once('menu-will-show', () => {
+      mainGlobal.__hronautAltMenuShown = true
+      // A visible native menu can block a later Playwright main-process
+      // evaluation under hosted-runner load. Close it from the same native
+      // event turn so the Alt-access assertion cannot strand teardown.
+      setImmediate(() => {
+        if (main && !main.isDestroyed()) menu.closePopup(main)
+        mainGlobal.__hronautAltMenuClosed = true
+      })
+    })
   })
   await electronApp.evaluate(({ BrowserWindow }) => {
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
     main?.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Alt' })
     main?.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Alt' })
   })
-  await expect.poll(() => electronApp.evaluate(() => (
-    (globalThis as typeof globalThis & { __hronautAltMenuShown?: boolean }).__hronautAltMenuShown
-  ))).toBe(true)
-  await electronApp.evaluate(({ BrowserWindow, Menu }) => {
-    const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
-    if (main) Menu.getApplicationMenu()?.closePopup(main)
-    delete (globalThis as typeof globalThis & { __hronautAltMenuShown?: boolean }).__hronautAltMenuShown
+  await expect.poll(() => electronApp.evaluate(() => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __hronautAltMenuShown?: boolean
+      __hronautAltMenuClosed?: boolean
+    }
+    return { shown: mainGlobal.__hronautAltMenuShown, closed: mainGlobal.__hronautAltMenuClosed }
+  })).toEqual({ shown: true, closed: true })
+  await electronApp.evaluate(() => {
+    const mainGlobal = globalThis as typeof globalThis & {
+      __hronautAltMenuShown?: boolean
+      __hronautAltMenuClosed?: boolean
+    }
+    delete mainGlobal.__hronautAltMenuShown
+    delete mainGlobal.__hronautAltMenuClosed
   })
 })
 
