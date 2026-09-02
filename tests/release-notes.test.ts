@@ -78,4 +78,34 @@ describe('GitHub release notes', () => {
     expect(completeReleaseNotes(changelog, '1.2.3', first)).toBe(first)
     expect(first).not.toContain('<!-- hronaut-generated-notes -->')
   })
+
+  it('drops legacy Start here onboarding when regenerating an existing release', () => {
+    const changelog = `# Changelog
+
+## [1.2.3] - 2026-09-03
+
+### Fixed
+
+- Kept release notes focused on product changes.`
+    const existing = `## Start here
+
+- Watch the 35-second product demo
+- Choose the right Windows, macOS, or Linux package
+- Connect Codex, Claude Code, Gemini CLI, Cursor, or another MCP client
+
+Hronaut is source-available under PolyForm Noncommercial 1.0.0. Permitted noncommercial use is free; other use requires an active commercial license.
+
+## What's Changed
+
+- Internal comparison note.
+
+**Full Changelog**: https://github.com/hronaut/hronaut/compare/v1.2.2...v1.2.3`
+
+    const notes = completeReleaseNotes(changelog, '1.2.3', existing)
+
+    expect(notes).not.toContain('## Start here')
+    expect(notes).not.toContain('Watch the 35-second product demo')
+    expect(notes).not.toContain('Permitted noncommercial use is free')
+    expect(notes).toContain("## What's Changed\n\n- Internal comparison note.")
+  })
 })

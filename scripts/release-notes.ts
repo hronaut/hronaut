@@ -24,16 +24,33 @@ const GENERATED_NOTES_MARKER = '<!-- hronaut-generated-notes -->'
 const UNSIGNED_WARNING_MARKER = '<!-- unsigned-release-warning -->'
 const UNSIGNED_WARNING = '> [!WARNING]\n> These desktop artifacts are not platform code-signed or Apple-notarized. macOS Gatekeeper and Windows SmartScreen may warn before first launch. [Verify the download with SHA-256 and GitHub artifact attestations](https://hronaut.dev/security#verify-release) before overriding either warning.'
 
+function withoutLegacyOnboarding(notes: string): string {
+  const lines = notes.split(/\r?\n/)
+  const kept: string[] = []
+  let skipping = false
+
+  for (const line of lines) {
+    if (/^##[ \t]+Start[ \t]+here[ \t]*$/iu.test(line)) {
+      skipping = true
+      continue
+    }
+    if (skipping && /^##[ \t]+/u.test(line)) skipping = false
+    if (!skipping) kept.push(line)
+  }
+
+  return kept.join('\n').trim()
+}
+
 function comparisonNotes(currentNotes: string): string {
   const marker = currentNotes.indexOf(GENERATED_NOTES_MARKER)
   if (marker < 0 && currentNotes.includes(RELEASE_NOTES_MARKER)) return ''
   const notes = marker >= 0
     ? currentNotes.slice(marker + GENERATED_NOTES_MARKER.length)
     : currentNotes
-  return notes
+  return withoutLegacyOnboarding(notes
     .trim()
     .replace(/^(?:---[ \t]*(?:\r?\n|$)[\r\n]*)+/u, '')
-    .trim()
+    .trim())
 }
 
 export function completeReleaseNotes(changelog: string, version: string, currentNotes: string): string {
