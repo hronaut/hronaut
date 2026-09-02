@@ -2052,6 +2052,48 @@ test('does not report a superseded address navigation as failed', async ({ appWi
   }
 })
 
+test('keeps a submitted address visible while the destination is still connecting', async ({ appWindow }) => {
+  let markRequested: (() => void) | undefined
+  let pendingResponse: import('node:http').ServerResponse | undefined
+  const requested = new Promise<void>((resolve) => {
+    markRequested = resolve
+  })
+  const server = createServer((_request, response) => {
+    pendingResponse = response
+    markRequested?.()
+  })
+  const address = await new Promise<{ port: number }>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve(server.address() as { port: number }))
+  })
+  const targetUrl = `http://127.0.0.1:${address.port}/still-connecting`
+
+  const finishResponse = (): void => {
+    if (!pendingResponse) return
+    pendingResponse.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    pendingResponse.end('<!doctype html><title>Connected destination</title><main>Ready</main>')
+    pendingResponse = undefined
+  }
+
+  try {
+    await appWindow.evaluate('window.hronaut.newTab({ active: true })')
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await addressInput.fill(targetUrl)
+    await addressInput.press('Enter')
+    await requested
+
+    await expect(addressInput).toHaveValue(targetUrl)
+
+    finishResponse()
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
+    )).toBe('Connected destination')
+  } finally {
+    finishResponse()
+    await closeFixtureServer(server)
+  }
+})
+
 test('treats tab closure as cancellation during address navigation', async ({
   appWindow,
   electronApp

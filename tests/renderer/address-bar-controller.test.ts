@@ -29,6 +29,7 @@ function createHarness(options: {
   activeTab?: BrowserTabState
   bookmarks?: BrowserBookmark[]
   history?: BrowserHistoryEntry[]
+  onNavigate?: (address: string) => Promise<void>
   selectedUnsubscribe?: () => void
   dismissedRegistrationError?: Error
 } = {}) {
@@ -36,7 +37,7 @@ function createHarness(options: {
   const bookmarks = ref(options.bookmarks ?? [])
   const history = ref(options.history ?? [])
   const onOpen = vi.fn()
-  const onNavigate = vi.fn(async () => undefined)
+  const onNavigate = vi.fn(options.onNavigate ?? (async () => undefined))
   const onFocusLeft = vi.fn()
   let selectedListener: ((id: string) => void) | undefined
   let dismissedListener: (() => void) | undefined
@@ -104,6 +105,33 @@ function createHarness(options: {
 afterEach(() => vi.useRealTimers())
 
 describe('address bar controller', () => {
+  it('keeps a submitted address visible until the current tab commits navigation', async () => {
+    vi.useFakeTimers()
+    let finishNavigation!: () => void
+    const navigation = new Promise<void>((resolve) => {
+      finishNavigation = resolve
+    })
+    const rendered = createHarness({
+      activeTab: tab('first', 'hronaut://home'),
+      onNavigate: async () => navigation
+    })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    const targetUrl = 'https://typed.example/pending'
+    await fireEvent.focus(input)
+    await fireEvent.update(input, targetUrl)
+
+    const submission = rendered.controller.submit()
+    await vi.runAllTimersAsync()
+
+    expect(input).toHaveValue(targetUrl)
+    rendered.activeTab.value = tab('first', targetUrl)
+    await nextTick()
+    expect(input).toHaveValue(targetUrl)
+
+    finishNavigation()
+    await submission
+  })
+
   it('preserves an address selection when the current page commits before typing starts', async () => {
     const rendered = createHarness()
     const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })

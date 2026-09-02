@@ -50,6 +50,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
   let cleanupCallbacks: (() => void)[] = []
+  let pendingNavigation: {
+    tabId: string | undefined
+    initialUrl: string | undefined
+    address: string
+  } | null = null
   let disposed = false
 
   function suggestionId(suggestion: AddressSuggestion): string {
@@ -70,7 +75,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   function restoreActiveAddress(): void {
-    address.value = displayedAddress(options.activeTab.value?.url)
+    const tab = options.activeTab.value
+    address.value = pendingNavigation
+      && pendingNavigation.tabId === tab?.id
+      && pendingNavigation.initialUrl === tab?.url
+      ? pendingNavigation.address
+      : displayedAddress(tab?.url)
     dirty.value = false
   }
 
@@ -123,26 +133,38 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     }
   }
 
-  async function submit(): Promise<void> {
-    if (disposed || !address.value.trim()) return
-    const target = address.value
+  async function navigateTo(target: string): Promise<void> {
+    const tab = options.activeTab.value
+    const navigation = {
+      tabId: tab?.id,
+      initialUrl: tab?.url,
+      address: target
+    }
+    pendingNavigation = navigation
     cancelBlur()
     editing.value = false
     dirty.value = false
     close()
     input.value?.blur()
-    await options.onNavigate(target)
+    try {
+      await options.onNavigate(target)
+    } finally {
+      if (pendingNavigation === navigation) {
+        pendingNavigation = null
+        restoreActiveAddress()
+      }
+    }
+  }
+
+  async function submit(): Promise<void> {
+    if (disposed || !address.value.trim()) return
+    await navigateTo(address.value)
   }
 
   async function chooseSuggestion(suggestion: AddressSuggestion): Promise<void> {
     if (disposed) return
-    cancelBlur()
     address.value = suggestion.url
-    editing.value = false
-    dirty.value = false
-    close()
-    input.value?.blur()
-    await options.onNavigate(suggestion.url)
+    await navigateTo(suggestion.url)
   }
 
   function revealSelected(): void {
@@ -231,6 +253,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       ([tabId, url], [previousTabId]) => {
         if (disposed) return
         const tabChanged = previousTabId !== undefined && tabId !== previousTabId
+        if (tabChanged || (
+          pendingNavigation
+          && pendingNavigation.tabId === tabId
+          && pendingNavigation.initialUrl !== url
+        )) pendingNavigation = null
         if (tabChanged || !editing.value) {
           cancelBlur()
           close()
@@ -271,6 +298,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     cancelBlur()
     open.value = false
     presentedSuggestions = []
+    pendingNavigation = null
     const callbacks = cleanupCallbacks
     cleanupCallbacks = []
     disposeAll([
