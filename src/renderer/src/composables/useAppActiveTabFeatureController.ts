@@ -16,7 +16,7 @@ export interface AppActiveTabFeatureControllerOptions {
     pickerOpen: Ref<boolean>
     openPicker: () => void | Promise<void>
     fillCredential: (tabId: string, credentialId: string) => Promise<boolean>
-    missingCredentialMessage: string
+    missingCredentialMessage: () => string
     onFilled: (credential: CredentialSummary) => void
     onError: (error: unknown) => void
   }

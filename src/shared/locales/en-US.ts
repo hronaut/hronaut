@@ -511,6 +511,8 @@ export const enUS = {
       copy: 'Copy',
       beforeLaunch: 'Before launching client',
       verify: 'Verify connection',
+      openGuide: 'Open full {name} guide ↗',
+      guideUnavailable: 'The setup guide for this client is unavailable.',
       openVsCode: 'Open in VS Code',
       openingVsCode: 'Opening VS Code…',
       vscodeOpened: 'VS Code opened. Confirm the Hronaut MCP server there.',

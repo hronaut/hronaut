@@ -323,6 +323,8 @@ export const ukUA = {
       copy: 'Копіювати',
       beforeLaunch: 'Перед запуском клієнта',
       verify: 'Перевірити з’єднання',
+      openGuide: 'Відкрити повний посібник для {name} ↗',
+      guideUnavailable: 'Посібник із налаштування для цього клієнта недоступний.',
       openVsCode: 'Відкрити у VS Code',
       openingVsCode: 'Відкриваємо VS Code…',
       vscodeOpened: 'VS Code відкрито. Підтвердьте додавання MCP-сервера Hronaut.',

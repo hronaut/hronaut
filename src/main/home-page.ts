@@ -1,5 +1,6 @@
 import type { McpDashboardState } from './mcp/server.js'
 import { localeMessages } from '../shared/i18n.js'
+import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { SupportedLocale } from '../shared/locale.js'
 
 interface HomePageOptions {
@@ -12,7 +13,7 @@ interface HomePageOptions {
 }
 
 interface AgentGuide {
-  id: string
+  id: AgentGuideId
   name: string
   note: string
   location: string
@@ -424,6 +425,10 @@ export function renderHomePage(options: HomePageOptions): string {
     .verify-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 750; }
     .verify code { min-width: 0; flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--soft); font: 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
     .verify .copy-button { padding: 7px 10px; }
+    .guide-doc-action { margin-top: 13px; }
+    .guide-doc-action button { padding: 9px 13px; border: 1px solid color-mix(in srgb, var(--accent) 68%, var(--border)); border-radius: 9px; color: var(--accent); background: var(--panel-solid); cursor: pointer; font-size: 13px; font-weight: 780; }
+    .guide-doc-action button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel-solid)); }
+    .guide-doc-action button:disabled { cursor: wait; opacity: .72; }
     .guide-primary-action { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
     .guide-primary-action[hidden] { display: none; }
     .guide-primary-action button { flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--accent); border-radius: 9px; color: white; background: var(--accent); cursor: pointer; font-size: 13px; font-weight: 780; }
@@ -553,6 +558,9 @@ export function renderHomePage(options: HomePageOptions): string {
               <code id="guide-verify-command"></code>
               <button class="copy-button" type="button" data-copy-target="guide-verify-command">${escapeHtml(home.connect.copy)}</button>
             </div>
+            <div class="guide-doc-action">
+              <button type="button" data-agent-guide></button>
+            </div>
             ${options.authenticationDisabled ? `<div id="guide-primary-action" class="guide-primary-action" hidden>
               <button type="button" data-vscode-install>${escapeHtml(home.connect.openVsCode)}</button>
               <span id="guide-primary-status" class="guide-primary-status" aria-live="polite"></span>
@@ -632,6 +640,7 @@ export function renderHomePage(options: HomePageOptions): string {
     const renderedPresentationRevision = dashboard.presentationRevision;
     let selectedGuide = guides[0].id;
     const copyButtonStates = new WeakMap();
+    let agentGuideSequence = 0;
     let vscodeInstallSequence = 0;
 
     function resetCopyButton(button) {
@@ -705,6 +714,11 @@ export function renderHomePage(options: HomePageOptions): string {
       const verifyCommand = document.getElementById('guide-verify-command');
       verify.hidden = !guide.verifyCommand;
       verifyCommand.textContent = guide.verifyCommand || '';
+      agentGuideSequence += 1;
+      const agentGuideButton = document.querySelector('[data-agent-guide]');
+      agentGuideButton.disabled = false;
+      agentGuideButton.title = '';
+      agentGuideButton.textContent = interpolate(messages.connect.openGuide, { name: guide.name });
       const primaryAction = document.getElementById('guide-primary-action');
       if (primaryAction) {
         const showPrimaryAction = guide.action === 'open-vscode-install';
@@ -719,6 +733,24 @@ export function renderHomePage(options: HomePageOptions): string {
       }
       document.querySelectorAll('[data-copy-target^="guide-"]').forEach(resetCopyButton);
     }
+
+    const agentGuideButton = document.querySelector('[data-agent-guide]');
+    agentGuideButton.addEventListener('click', async () => {
+      if (agentGuideButton.disabled) return;
+      const requestedGuide = selectedGuide;
+      const sequence = ++agentGuideSequence;
+      agentGuideButton.disabled = true;
+      agentGuideButton.title = '';
+      try {
+        if (!window.hronautHome?.openAgentGuide) throw new Error(messages.connect.guideUnavailable);
+        await window.hronautHome.openAgentGuide(requestedGuide);
+      } catch (error) {
+        if (sequence !== agentGuideSequence || selectedGuide !== requestedGuide) return;
+        agentGuideButton.title = error instanceof Error ? error.message : messages.connect.guideUnavailable;
+      } finally {
+        if (sequence === agentGuideSequence) agentGuideButton.disabled = false;
+      }
+    });
 
     const vscodeInstallButton = document.querySelector('[data-vscode-install]');
     if (vscodeInstallButton) {

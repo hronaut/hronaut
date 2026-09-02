@@ -10,7 +10,7 @@ type CredentialsApi = Pick<HronautCredentialsApi, 'importFromCsv' | 'remove'>
 export interface CredentialsControllerOptions {
   api: CredentialsApi
   initializingReason: string
-  missingCredentialMessage: string
+  missingCredentialMessage: () => string
   formatError: (error: unknown) => string
   onRemoved: () => void
   onError: (error: unknown) => void
@@ -66,7 +66,7 @@ export function useCredentialsController(options: CredentialsControllerOptions) 
     errorMessage.value = ''
     try {
       const removed = await options.api.remove(id)
-      if (!removed) throw new Error(options.missingCredentialMessage)
+      if (!removed) throw new Error(options.missingCredentialMessage())
       if (operation.generation !== generation) return false
       if (operation.revision === revision) {
         entries.value = entries.value.filter((entry) => entry.id !== id)

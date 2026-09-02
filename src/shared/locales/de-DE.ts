@@ -2606,6 +2606,8 @@ export const deDE = {
       "copy": "Kopieren",
       "beforeLaunch": "Vor dem Start des Clients",
       "verify": "Verbindung prüfen",
+      "openGuide": "Vollständige Anleitung für {name} öffnen ↗",
+      "guideUnavailable": "Die Einrichtungsanleitung für diesen Client ist nicht verfügbar.",
       "openVsCode": "In VS Code öffnen",
       "openingVsCode": "VS Code wird geöffnet…",
       "vscodeOpened": "VS Code wurde geöffnet. Bestätige dort den Hronaut-MCP-Server.",

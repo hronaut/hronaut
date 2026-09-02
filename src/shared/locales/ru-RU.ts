@@ -2606,6 +2606,8 @@ export const ruRU = {
       "copy": "Копировать",
       "beforeLaunch": "Перед запуском клиента",
       "verify": "Проверить подключение",
+      "openGuide": "Открыть полное руководство для {name} ↗",
+      "guideUnavailable": "Руководство по настройке для этого клиента недоступно.",
       "openVsCode": "Открыть в VS Code",
       "openingVsCode": "Открываем VS Code…",
       "vscodeOpened": "VS Code открыт. Подтвердите там сервер MCP Hronaut.",

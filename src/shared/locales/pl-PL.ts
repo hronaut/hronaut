@@ -2606,6 +2606,8 @@ export const plPL = {
       "copy": "Kopiuj",
       "beforeLaunch": "Przed uruchomieniem klienta",
       "verify": "Sprawdź połączenie",
+      "openGuide": "Otwórz pełny przewodnik dla {name} ↗",
+      "guideUnavailable": "Przewodnik konfiguracji dla tego klienta jest niedostępny.",
       "openVsCode": "Otwórz w VS Code",
       "openingVsCode": "Otwieranie VS Code…",
       "vscodeOpened": "VS Code został otwarty. Potwierdź tam serwer MCP Hronaut.",

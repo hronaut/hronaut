@@ -28,7 +28,7 @@ function renderPanel() {
   const controller = useCredentialsController({
     api,
     initializingReason: 'Initializing secure storage',
-    missingCredentialMessage: 'Saved credential no longer exists',
+    missingCredentialMessage: () => 'Saved credential no longer exists',
     formatError: (error) => error instanceof Error ? error.message : String(error),
     onRemoved: vi.fn(),
     onError: vi.fn()

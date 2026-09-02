@@ -2606,6 +2606,8 @@ export const esES = {
       "copy": "Copiar",
       "beforeLaunch": "Antes de iniciar el cliente",
       "verify": "Verificar conexión",
+      "openGuide": "Abrir la guía completa de {name} ↗",
+      "guideUnavailable": "La guía de configuración para este cliente no está disponible.",
       "openVsCode": "Abrir en VS Code",
       "openingVsCode": "Abriendo VS Code…",
       "vscodeOpened": "VS Code está abierto. Confirma allí el servidor MCP de Hronaut.",

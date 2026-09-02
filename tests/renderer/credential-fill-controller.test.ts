@@ -43,7 +43,10 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-function create(initialCredentials = [credential()]) {
+function create(
+  initialCredentials = [credential()],
+  missingCredentialMessage = () => 'Page no longer matches this password'
+) {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const activeCredentials = ref(initialCredentials)
   const pickerOpen = ref(false)
@@ -57,7 +60,7 @@ function create(initialCredentials = [credential()]) {
     pickerOpen,
     openPicker,
     fillCredential,
-    missingCredentialMessage: 'Page no longer matches this password',
+    missingCredentialMessage,
     onFilled,
     onError
   })
@@ -120,6 +123,22 @@ describe('credential fill controller', () => {
 
     await harness.controller.fillSelectedCredential(credential())
     expect(harness.fillCredential).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a rejected stale document in the current interface language', async () => {
+    let language: 'English' | 'Deutsch' = 'English'
+    const translate = () => language === 'English'
+      ? 'Page no longer matches this password'
+      : 'Die Seite stimmt nicht mehr mit diesem Passwort überein'
+    const harness = create([credential()], translate)
+    harness.fillCredential.mockResolvedValueOnce(false)
+
+    language = 'Deutsch'
+    await harness.controller.fillSelectedCredential(credential())
+
+    expect(harness.onError).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Die Seite stimmt nicht mehr mit diesem Passwort überein'
+    }))
   })
 
   it('suppresses delayed success feedback after the active tab changes', async () => {

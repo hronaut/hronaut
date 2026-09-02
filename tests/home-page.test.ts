@@ -34,6 +34,36 @@ const dashboard: McpDashboardState = {
 }
 
 describe('Hronaut Home localization', () => {
+  it('offers a client-aware external setup guide without serializing a destination URL', () => {
+    const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'en-US' })
+
+    expect(html).toContain('data-agent-guide')
+    expect(html).toContain('window.hronautHome.openAgentGuide(requestedGuide)')
+    expect(html).toContain("interpolate(messages.connect.openGuide, { name: guide.name })")
+    expect(html).not.toContain('guide.guideUrl')
+  })
+
+  it('localizes the client-specific guide action in every supported locale', () => {
+    const labels = {
+      'en-US': 'Open full {name} guide ↗',
+      'uk-UA': 'Відкрити повний посібник для {name} ↗',
+      'ru-RU': 'Открыть полное руководство для {name} ↗',
+      'de-DE': 'Vollständige Anleitung für {name} öffnen ↗',
+      'fr-FR': 'Ouvrir le guide complet pour {name} ↗',
+      'es-ES': 'Abrir la guía completa de {name} ↗',
+      'pl-PL': 'Otwórz pełny przewodnik dla {name} ↗'
+    } as const
+
+    for (const [locale, label] of Object.entries(labels)) {
+      const html = renderHomePage({
+        endpoint: dashboard.endpoint,
+        initialState: dashboard,
+        locale: locale as keyof typeof labels
+      })
+      expect(html).toContain(label)
+    }
+  })
+
   it('renders English metadata and interface copy', () => {
     const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'en-US' })
     expect(html).toContain('<html lang="en-US">')

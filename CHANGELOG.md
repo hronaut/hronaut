@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a client-specific setup guide action to Hronaut Home for every supported coding agent, opened through a trusted Hronaut-only URL allowlist in the system browser.
+
 ### Fixed
 
 - Recheck native window focus immediately before focusing an automatic trusted dialog so a wallet approval, Settings, or What's new prompt cannot reactivate Hronaut after the user switches to another application.
@@ -11,6 +15,8 @@ All notable changes to Hronaut are documented in this file.
 - Keep an in-flight update check or MCP Pause action authoritative and usable when automatic startup recovery retries its status subscription.
 - Ignore leaked wallet listeners after failed startup cleanup so obsolete wallet state cannot repopulate Settings while the service reconnects.
 - Suppress delayed credential-fill success or failure feedback after the human switches tabs or the original page navigates.
+- Use the current interface language for delayed saved-password fill and removal errors instead of retaining the language active when Hronaut started.
+- Cancel wallet import tokens that finish validation after the Wallets panel closes so abandoned recovery material is released from signer memory immediately.
 
 ### Improved
 

@@ -555,6 +555,45 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
+test('opens the selected client setup guide externally without creating a browser tab', async ({
+  appWindow,
+  electronApp
+}) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  ))).toBe(true)
+  await electronApp.evaluate(({ shell }) => {
+    ;(globalThis as typeof globalThis & { __hronautHomeGuideUrls?: string[] }).__hronautHomeGuideUrls = []
+    shell.openExternal = async (url): Promise<void> => {
+      ;(globalThis as typeof globalThis & { __hronautHomeGuideUrls?: string[] })
+        .__hronautHomeGuideUrls?.push(url)
+    }
+  })
+  const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
+
+  const labels = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(() => {
+      const guideButton = document.querySelector('[data-agent-guide]');
+      const before = guideButton?.textContent;
+      document.querySelector('[data-guide="opencode"]')?.click();
+      const after = guideButton?.textContent;
+      guideButton?.click();
+      return { before, after };
+    })()`)
+  }) as { before?: string; after?: string }
+
+  expect(labels).toEqual({
+    before: 'Open full Codex guide ↗',
+    after: 'Open full OpenCode guide ↗'
+  })
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautHomeGuideUrls?: string[] }
+  ).__hronautHomeGuideUrls)).toEqual(['https://hronaut.dev/opencode-browser-mcp'])
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
+})
+
 test('clears stale VS Code launch errors after a successful retry', async ({ electronApp }) => {
   await expect.poll(() => electronApp.evaluate(({ webContents }) => (
     webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))

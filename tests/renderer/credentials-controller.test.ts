@@ -22,7 +22,7 @@ function deferred<Value>() {
   return { promise, resolve, reject }
 }
 
-function createController() {
+function createController(missingCredentialMessage = () => 'Saved credential no longer exists') {
   const api = {
     importFromCsv: vi.fn(async () => ({ canceled: false, added: 0, updated: 0, skipped: 0 })),
     remove: vi.fn(async () => true)
@@ -32,7 +32,7 @@ function createController() {
   const controller = useCredentialsController({
     api,
     initializingReason: 'Initializing secure storage',
-    missingCredentialMessage: 'Saved credential no longer exists',
+    missingCredentialMessage,
     formatError: (error) => error instanceof Error ? error.message : String(error),
     onRemoved,
     onError
@@ -95,6 +95,23 @@ describe('credentials controller', () => {
     expect(onError).toHaveBeenCalledOnce()
     expect(onRemoved).not.toHaveBeenCalled()
     expect(controller.busy.value).toBe(false)
+    controller.dispose()
+  })
+
+  it('reports a missing credential in the current interface language', async () => {
+    let language: 'English' | 'Deutsch' = 'English'
+    const translate = () => language === 'English'
+      ? 'Saved credential no longer exists'
+      : 'Die gespeicherten Anmeldedaten sind nicht mehr vorhanden'
+    const { api, controller, onError } = createController(translate)
+    api.remove.mockResolvedValueOnce(false)
+
+    language = 'Deutsch'
+    await expect(controller.remove('first')).resolves.toBe(false)
+
+    expect(onError).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Die gespeicherten Anmeldedaten sind nicht mehr vorhanden'
+    }))
     controller.dispose()
   })
 })

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
+import type { WalletPreparedImport } from '../../../shared/types.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import WalletNetworkFields from './WalletNetworkFields.vue'
 import {
@@ -54,6 +55,7 @@ const preparedImport = ref<{
     dedicatedAgent: boolean
   }
 } | null>(null)
+const preparingImport = ref(false)
 const cancellingImport = ref(false)
 const preparedImportReview = ref<HTMLElement | null>(null)
 const addImportedWalletButton = ref<HTMLButtonElement | null>(null)
@@ -72,6 +74,8 @@ const policyMaximumOperations = ref(1)
 const policyExpiry = ref('')
 const dedicatedAgent = ref(false)
 const policyBypassApprove = ref(false)
+let importPreparationGeneration = 0
+let unmounted = false
 const vaultUsesPassphrase = computed(() => ['passphrase', 'basic_text', 'unknown'].includes(
   props.controller.status.value.backend
 ))
@@ -80,6 +84,7 @@ const selectedWallet = computed(() => props.controller.wallets.value.find((walle
 const selectedWalletCanSign = computed(() => selectedWallet.value?.capabilities.includes('sign') === true)
 const hasSigningWallet = computed(() => props.controller.wallets.value.some((wallet) => wallet.capabilities.includes('sign')))
 const onboardingSubmitLabel = computed(() => t(`wallets.onboardingActions.${mode.value}`))
+const onboardingLocked = computed(() => preparingImport.value || preparedImport.value !== null)
 const selectedPolicies = computed(() => props.controller.policies.value.filter((policy) => policy.walletId === selectedWalletId.value))
 const selectedPermissions = computed(() => props.controller.permissions.value.filter((permission) => permission.walletId === selectedWalletId.value))
 const preparedImportWorkspaceLabel = computed(() => {
@@ -267,7 +272,18 @@ async function submitOnboarding(): Promise<void> {
   } else {
     const secret = recoveryInput.value?.value ?? ''
     if (recoveryInput.value) recoveryInput.value.value = ''
-    const prepared = await props.controller.prepareImport(chainFamily.value, secretFormat.value, secret)
+    const preparationGeneration = ++importPreparationGeneration
+    preparingImport.value = true
+    let prepared: WalletPreparedImport | undefined
+    try {
+      prepared = await props.controller.prepareImport(chainFamily.value, secretFormat.value, secret)
+    } finally {
+      if (!unmounted && preparationGeneration === importPreparationGeneration) preparingImport.value = false
+    }
+    if (prepared && (unmounted || preparationGeneration !== importPreparationGeneration)) {
+      await props.controller.cancelImport(prepared.token)
+      return
+    }
     if (prepared) {
       preparedImport.value = {
         token: prepared.token,
@@ -281,6 +297,7 @@ async function submitOnboarding(): Promise<void> {
         }
       }
       await nextTick()
+      if (unmounted || preparationGeneration !== importPreparationGeneration || preparedImport.value?.token !== prepared.token) return
       preparedImportReview.value?.scrollIntoView?.({ block: 'start' })
       addImportedWalletButton.value?.focus({ preventScroll: true })
     }
@@ -317,6 +334,8 @@ async function cancelPreparedImport(): Promise<void> {
 }
 
 onBeforeUnmount(() => {
+  unmounted = true
+  importPreparationGeneration += 1
   const pending = preparedImport.value
   if (!pending) return
   preparedImport.value = null
@@ -441,29 +460,29 @@ async function addPolicy(): Promise<void> {
     <section class="wallet-card">
       <div class="wallet-card-heading"><h4>{{ t('wallets.addWallet') }}</h4><span>{{ t('wallets.secretsNotCopied') }}</span></div>
       <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
-        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-label="t(`wallets.modes.${entry}`)" :aria-pressed="mode === entry" :disabled="preparedImport !== null" @click="mode = entry"><strong>{{ t(`wallets.modes.${entry}`) }}</strong><small>{{ t(`wallets.modeDescriptions.${entry}`) }}</small></button>
+        <button v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-label="t(`wallets.modes.${entry}`)" :aria-pressed="mode === entry" :disabled="onboardingLocked" @click="mode = entry"><strong>{{ t(`wallets.modes.${entry}`) }}</strong><small>{{ t(`wallets.modeDescriptions.${entry}`) }}</small></button>
       </div>
       <form v-if="!preparedImport" class="wallet-form" @submit.prevent="submitOnboarding">
         <p v-if="mode === 'import'" class="wallet-wide wallet-import-step">{{ t('wallets.importValidateStep') }}</p>
-        <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="preparedImport !== null"></label>
-        <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="preparedImport !== null"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
-        <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="preparedImport !== null" />
-        <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required :disabled="preparedImport !== null"></label>
+        <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="onboardingLocked"></label>
+        <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="onboardingLocked"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
+        <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="onboardingLocked" />
+        <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required :disabled="onboardingLocked"></label>
         <template v-if="mode === 'import'">
-          <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat" :disabled="preparedImport !== null"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
-          <label v-if="secretFormat === 'mnemonic'" class="wallet-wide">{{ t('wallets.mnemonicInput') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="preparedImport !== null"></textarea></label>
-          <label v-else class="wallet-wide">{{ t('wallets.privateKey') }} <input ref="recoveryInput" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="preparedImport !== null"></label>
+          <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat" :disabled="onboardingLocked"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
+          <label v-if="secretFormat === 'mnemonic'" class="wallet-wide">{{ t('wallets.mnemonicInput') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></textarea></label>
+          <label v-else class="wallet-wide">{{ t('wallets.privateKey') }} <input ref="recoveryInput" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></label>
         </template>
-        <label v-if="mode !== 'watch'" class="wallet-wide wallet-choice-card"><input v-model="dedicatedAgent" type="checkbox" :aria-label="t('wallets.dedicatedAgent')" :disabled="preparedImport !== null"><span><strong>{{ t('wallets.dedicatedAgent') }}</strong><small>{{ t('wallets.dedicatedAgentDescription') }}</small></span></label>
+        <label v-if="mode !== 'watch'" class="wallet-wide wallet-choice-card"><input v-model="dedicatedAgent" type="checkbox" :aria-label="t('wallets.dedicatedAgent')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.dedicatedAgent') }}</strong><small>{{ t('wallets.dedicatedAgentDescription') }}</small></span></label>
         <section class="wallet-wide wallet-access-panel" aria-labelledby="wallet-onboarding-access-heading">
           <div class="wallet-access-heading"><h5 id="wallet-onboarding-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
           <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
-            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="preparedImport !== null"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
-            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="preparedImport !== null"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
+            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
+            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
           </div>
-          <fieldset :disabled="preparedImport !== null || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
+          <fieldset :disabled="onboardingLocked || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
         </section>
-        <button class="primary-button wallet-submit-button" type="submit" :disabled="preparedImport !== null || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</button>
+        <button class="primary-button wallet-submit-button" type="submit" :disabled="onboardingLocked || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</button>
       </form>
       <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status" :aria-busy="cancellingImport || undefined">
         <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>

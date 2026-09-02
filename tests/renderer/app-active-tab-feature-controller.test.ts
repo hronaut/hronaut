@@ -83,7 +83,7 @@ function createHarness() {
       pickerOpen,
       openPicker,
       fillCredential,
-      missingCredentialMessage: 'Credential no longer matches',
+      missingCredentialMessage: () => 'Credential no longer matches',
       onFilled,
       onError
     },

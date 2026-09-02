@@ -1,3 +1,5 @@
+import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
+import type { BrowserActionFailure, BrowserTabGroupState } from '../../../shared/types.js'
 import type { AppToastTone } from './useAppToastController.js'
 import { friendlyUiError } from './useAppToastController.js'
 
@@ -11,7 +13,7 @@ interface ShellFeedbackFailure {
 
 export interface ShellFeedbackControllerOptions {
   browser: ShellFeedbackBrowserApi
-  translate: (key: string) => string
+  translate: (key: string, parameters?: Record<string, unknown>) => string
   showToast: (tone: AppToastTone, title: string, message: string) => void
 }
 
@@ -61,12 +63,61 @@ export function useShellFeedbackController(options: ShellFeedbackControllerOptio
     )
   }
 
+  function reportSplitViewError(error: unknown, fallback: string): void {
+    options.showToast(
+      'error',
+      options.translate('runtime.workspace.splitFailed'),
+      friendlyUiError(error, fallback)
+    )
+  }
+
+  function reportWorkspaceError(workspace: BrowserTabGroupState, error: unknown): void {
+    options.showToast(
+      'error',
+      options.translate('runtime.workspace.newTabFailed'),
+      friendlyUiError(
+        error,
+        options.translate('runtime.workspace.newTabDescription', { workspace: workspace.name })
+      )
+    )
+  }
+
+  function reportShortcutError(_action: BrowserShortcutAction, error: unknown): void {
+    reportActionError(error)
+  }
+
+  function reportClipboardFailure(message: string): void {
+    options.showToast(
+      'error',
+      options.translate('runtime.capture.copyFailed'),
+      friendlyUiError(message, options.translate('runtime.capture.clipboardFailed'))
+    )
+  }
+
+  function reportBrowserActionFailure({ action, message }: BrowserActionFailure): void {
+    const title = action === 'reload'
+      ? options.translate('runtimeActions.actionFailure.reload')
+      : action === 'save link'
+        ? options.translate('runtimeActions.actionFailure.saveLink')
+        : options.translate('runtimeActions.actionFailure.generic')
+    options.showToast(
+      'error',
+      title,
+      friendlyUiError(message, options.translate('runtime.toast.actionFailed'))
+    )
+  }
+
   return {
     reportActionError,
     reportStartupFailure,
     reportSearchError,
     copyText,
-    reportSettingError
+    reportSettingError,
+    reportSplitViewError,
+    reportWorkspaceError,
+    reportShortcutError,
+    reportClipboardFailure,
+    reportBrowserActionFailure
   }
 }
 

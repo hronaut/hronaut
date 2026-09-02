@@ -273,6 +273,41 @@ describe('WalletsSettingsPanel', () => {
     expect(wallets.cancelImport).toHaveBeenCalledWith('import-token')
   })
 
+  it('cancels an import that finishes preparation after the Wallets panel unmounts', async () => {
+    const preparation = deferred<{
+      token: string
+      chainFamily: 'evm'
+      publicAddress: string
+      expiresAt: string
+    }>()
+    const prepareImport = vi.fn(() => preparation.promise)
+    const cancelImport = vi.fn(async () => true)
+    const wallets = controller({ prepareImport, cancelImport })
+    const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Late prepared import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret cleared while validation is pending')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await waitFor(() => expect(prepareImport).toHaveBeenCalledOnce())
+    expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Import' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Watch only' })).toBeDisabled()
+    expect(screen.getByLabelText('Name')).toBeDisabled()
+    expect(screen.getByLabelText('Chain')).toBeDisabled()
+
+    view.unmount()
+    preparation.resolve({
+      token: 'late-import-token',
+      chainFamily: 'evm',
+      publicAddress: '0x5678',
+      expiresAt: '2026-09-02T20:00:00.000Z'
+    })
+
+    await waitFor(() => expect(cancelImport).toHaveBeenCalledWith('late-import-token'))
+  })
+
   it('keeps a validated import frozen until trusted cancellation succeeds', async () => {
     const cancellation = deferred<boolean | undefined>()
     const cancelImport = vi.fn(() => cancellation.promise)

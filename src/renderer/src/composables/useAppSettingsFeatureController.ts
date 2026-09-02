@@ -109,7 +109,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   const credentialsController = useCredentialsController({
     api: options.apis.credentials,
     initializingReason: options.translate('runtime.initializingStorage'),
-    missingCredentialMessage: options.translate('runtimeActions.credential.noLongerExists'),
+    missingCredentialMessage: () => options.translate('runtimeActions.credential.noLongerExists'),
     formatError: (error) => friendlyUiError(
       error,
       options.translate('runtime.toast.passwordRemoveDescription')

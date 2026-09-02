@@ -7,7 +7,7 @@ export interface CredentialFillControllerOptions {
   pickerOpen: Ref<boolean>
   openPicker: () => void | Promise<void>
   fillCredential: (tabId: string, credentialId: string) => Promise<boolean>
-  missingCredentialMessage: string
+  missingCredentialMessage: () => string
   onFilled: (credential: CredentialSummary) => void
   onError: (error: unknown) => void
 }
@@ -28,7 +28,7 @@ export function useCredentialFillController(options: CredentialFillControllerOpt
     try {
       const filled = await options.fillCredential(requestContext.tabId, credential.id)
       if (!isRequestContextActive()) return
-      if (!filled) throw new Error(options.missingCredentialMessage)
+      if (!filled) throw new Error(options.missingCredentialMessage())
       options.onFilled(credential)
     } catch (error) {
       if (isRequestContextActive()) options.onError(error)

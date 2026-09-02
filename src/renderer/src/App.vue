@@ -64,10 +64,15 @@ const {
   reportStartupFailure: reportAppBootstrapFailure,
   reportSearchError: showTabSearchError,
   copyText: copyAppText,
-  reportSettingError: handleExtractedSettingError
+  reportSettingError: handleExtractedSettingError,
+  reportSplitViewError,
+  reportWorkspaceError,
+  reportShortcutError,
+  reportClipboardFailure,
+  reportBrowserActionFailure
 } = useShellFeedbackController({
   browser,
-  translate: (key) => t(key),
+  translate: (key, parameters) => t(key, parameters ?? {}),
   showToast: showAppToast
 })
 const appTabRuntimeFeatureController = useAppTabRuntimeFeatureController({
@@ -501,21 +506,9 @@ const {
     toggleMcpPaused,
     openPurchase: () => window.hronautLicense.openPurchase(),
     reportActionError: reportShellActionError,
-    reportSplitViewError: (error, fallback) => showAppToast(
-      'error',
-      t('runtime.workspace.splitFailed'),
-      friendlyUiError(error, fallback)
-    ),
-    reportWorkspaceError: (workspace, error) => showAppToast(
-      'error',
-      t('runtime.workspace.newTabFailed'),
-      friendlyUiError(error, t('runtime.workspace.newTabDescription', { workspace: workspace.name }))
-    ),
-    reportShortcutError: (_action, error) => showAppToast(
-      'error',
-      t('runtimeDetails.browserAction'),
-      friendlyUiError(error, t('runtime.toast.actionFailed'))
-    )
+    reportSplitViewError,
+    reportWorkspaceError,
+    reportShortcutError
   }
 })
 const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
@@ -573,17 +566,8 @@ const { dispose: disposeAppEventsController } = useAppEventsController({
   onCredentialsChanged: replaceCredentials,
   onUpdateOpen: openUpdateSettings,
   onHelp: handleHelpRequested,
-  onClipboardFailure: (message) => {
-    showAppToast('error', t('runtime.capture.copyFailed'), friendlyUiError(message, t('runtime.capture.clipboardFailed')))
-  },
-  onActionFailure: ({ action, message }) => {
-    const title = action === 'reload'
-      ? t('runtimeActions.actionFailure.reload')
-      : action === 'save link'
-        ? t('runtimeActions.actionFailure.saveLink')
-        : t('runtimeActions.actionFailure.generic')
-    showAppToast('error', title, friendlyUiError(message, t('runtime.toast.actionFailed')))
-  },
+  onClipboardFailure: reportClipboardFailure,
+  onActionFailure: reportBrowserActionFailure,
   onError: reportShellActionError
 })
 const {
@@ -651,7 +635,7 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
     pickerOpen: credentialPickerOpen,
     openPicker: openCredentialPicker,
     fillCredential: (tabId, credentialId) => window.hronautCredentials.fill(tabId, credentialId),
-    missingCredentialMessage: t('runtimeActions.credential.noLongerMatches'),
+    missingCredentialMessage: () => t('runtimeActions.credential.noLongerMatches'),
     onFilled: (credential) => showAppToast(
       'success',
       t('runtime.toast.passwordFilled'),
