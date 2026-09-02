@@ -24,19 +24,15 @@ import type {
   ConsolePanelShellHandle,
   NetworkPanelShellHandle
 } from './composables/useDeveloperPanelsShellController'
-import type { SiteStorageShellPanel } from './composables/useSiteStorageShellController'
 import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
-import { useAppSiteManagementFeatureController } from './composables/useAppSiteManagementFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
-import { useSiteDataSummaryController } from './composables/useSiteDataSummaryController'
-import { useAddressBarController } from './composables/useAddressBarController'
 import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useAppEventsController } from './composables/useAppEventsController'
-import { useBrowserTabActionsController } from './composables/useBrowserTabActionsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
+import { useAppSiteNavigationFeatureController } from './composables/useAppSiteNavigationFeatureController'
 import { useAppStartupFeatureController } from './composables/useAppStartupFeatureController'
 import { friendlyUiError, useAppToastController } from './composables/useAppToastController'
 import { useShellFeedbackController } from './composables/useShellFeedbackController'
@@ -140,8 +136,6 @@ const {
   openCredentialPicker,
   setZoom: setTransientZoom
 } = appTransientShellLayerController
-const siteStorageOpen = ref(false)
-const siteStoragePanel = ref<SiteStorageShellPanel | null>(null)
 const pageToolsOpen = ref(false)
 const responsivePanelOpen = ref(false)
 const responsivePanel = ref<ResponsivePanelSurface | null>(null)
@@ -173,13 +167,6 @@ const {
   loadEnvironmentDraft,
   dispose: disposeAppEmulationFeatureController
 } = appEmulationFeatureController
-const siteControlsOpen = ref(false)
-const siteDataController = useSiteDataSummaryController({
-  current: () => activeTab.value && activeWebUrl.value
-    ? { tabId: activeTab.value.id, url: activeWebUrl.value }
-    : null,
-  load: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId)
-})
 const browserChromeLayer = ref<InstanceType<typeof AppBrowserChromeLayer> | null>(null)
 const helpDialogController = useHelpDialogController({
   beforeOpen: closeTransientPanels,
@@ -275,99 +262,92 @@ const {
   historyOpen,
   dispose: disposeAppBrowserCollectionsFeatureController
 } = browserCollectionsFeatureController
-const browserTabActionsController = useBrowserTabActionsController({
+const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController({
   state,
   activeTab,
   isHome: () => activeTab.value?.url.startsWith('hronaut://home') ?? true,
   browser,
   syncState,
-  beforeToggleDeveloperTools: () => {
-    closeHelpDialog()
-    closeSettings()
-    closeTransientPanels()
+  collections: {
+    bookmarks,
+    history: visitHistory,
+    downloadsOpen,
+    bookmarksOpen,
+    historyOpen
   },
-  onSelectError: (error) => showAppToast(
-    'error',
-    t('runtime.workspace.openFailed'),
-    friendlyUiError(error, t('runtime.workspace.openDescription'))
-  ),
-  onNavigateError: (error) => showAppToast(
-    'error',
-    t('runtime.navigation.failed'),
-    friendlyUiError(error, t('runtime.navigation.failedDescription'))
-  )
+  shell: {
+    settingsOpen,
+    settingsSection,
+    updateNoticeOpen,
+    tabSearchOpen,
+    zoomOpen,
+    findOpen
+  },
+  site: {
+    keepsSeparatePanelOpen,
+    activeUrl: () => activeWebUrl.value,
+    activeOrigin: () => activeOrigin.value,
+    usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
+    settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value
+  },
+  address: {
+    overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
+    theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
+    locale: () => resolvedLocale.value,
+    translate: (key, parameters, plural) => plural === undefined
+      ? t(key, parameters ?? {})
+      : t(key, parameters ?? {}, plural),
+    formatNumber: localNumber
+  },
+  privacy: {
+    janitorSearch,
+    refresh: refreshPrivacySettings
+  },
+  actions: {
+    closeTransientPanels,
+    closeHelp: closeHelpDialog,
+    closeFind,
+    openSettingsSection,
+    loadSiteSummary: ({ url, tabId }) => window.hronautBrowsingData.siteSummary(url, tabId),
+    onActionError: reportShellActionError,
+    onSelectError: (error) => showAppToast(
+      'error',
+      t('runtime.workspace.openFailed'),
+      friendlyUiError(error, t('runtime.workspace.openDescription'))
+    ),
+    onNavigateError: (error) => showAppToast(
+      'error',
+      t('runtime.navigation.failed'),
+      friendlyUiError(error, t('runtime.navigation.failedDescription'))
+    )
+  }
 })
 const {
+  siteStorageOpen,
+  siteControlsOpen,
+  siteDataController,
+  browserTabActionsController,
+  addressBarController,
+  siteManagementController: appSiteManagementFeatureController,
+  setSiteStoragePanel,
+  dispose: disposeAppSiteNavigationFeatureController
+} = appSiteNavigationFeatureController
+const {
   selectBrowserTab,
-  navigateAddress,
   retryActivePageProblem,
   toggleDeveloperTools
 } = browserTabActionsController
-const addressBarController = useAddressBarController({
-  activeTab,
-  bookmarks,
-  history: visitHistory,
-  overlay: isDetachedPanelWindow ? undefined : window.hronautAddressOverlay,
-  theme: () => settings.value.theme === 'system' ? systemTheme.value : settings.value.theme,
-  locale: () => resolvedLocale.value,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
-  formatNumber: localNumber,
-  onOpen: () => {
-    siteControlsOpen.value = false
-    settingsOpen.value = false
-    updateNoticeOpen.value = false
-    downloadsOpen.value = false
-    bookmarksOpen.value = false
-    historyOpen.value = false
-    tabSearchOpen.value = false
-    zoomOpen.value = false
-    if (findOpen.value) void closeFind()
-  },
-  onNavigate: navigateAddress,
-  onFocusLeft: () => (siteControlsOpen.value = false)
-})
 const {
   input: addressInput,
   open: addressSuggestionsOpen,
   close: closeAddressSuggestions,
   handleResize: resizeAddressSuggestions
 } = addressBarController
-const appSiteManagementFeatureController = useAppSiteManagementFeatureController({
-  siteDataController,
-  siteControlsOpen,
-  siteStorageOpen,
-  siteStoragePanel,
-  keepsSeparatePanelOpen,
-  canOpenSiteControls: () => Boolean(activeWebUrl.value),
-  settingsOpen,
-  settingsSection,
-  updateNoticeOpen,
-  downloadsOpen,
-  bookmarksOpen,
-  historyOpen,
-  tabSearchOpen,
-  zoomOpen,
-  addressSuggestionsOpen,
-  findOpen,
-  janitorSearch,
-  usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
-  activeOrigin: () => activeOrigin.value,
-  settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value,
-  openSettingsSection,
-  closeSettings,
-  closeHelp: closeHelpDialog,
-  closeFind,
-  refreshPrivacySettings,
-  onActionError: reportShellActionError
-})
 const {
   refreshSiteDataSummary,
   resetSiteStorageView,
   refreshSiteStorage,
-  openUpdateSettings,
-  dispose: disposeAppSiteManagementFeatureController
+  openUpdateSettings
 } = appSiteManagementFeatureController
 const appPageToolsFeatureController = useAppPageToolsFeatureController({
   activeTab,
@@ -399,7 +379,7 @@ const pageToolsLayerHandles = {
   setResponsivePanel: (panel: ResponsivePanelSurface | null) => (responsivePanel.value = panel),
   setConsolePanel: (panel: ConsolePanelShellHandle | null) => (consolePanel.value = panel),
   setNetworkPanel: (panel: NetworkPanelShellHandle | null) => (networkPanel.value = panel),
-  setSiteStoragePanel: (panel: SiteStorageShellPanel | null) => (siteStoragePanel.value = panel)
+  setSiteStoragePanel
 }
 const appPanelFeatureController = useAppPanelFeatureController({
   registry: {
@@ -790,7 +770,7 @@ useAppLifecycleController({
     disposeAppPanelFeatureController,
     disposeAppPageToolsCaptureAndExport,
     disposeHelpDialogController,
-    disposeAppSiteManagementFeatureController,
+    disposeAppSiteNavigationFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
     disposeAppPageToolsDiagnostics,

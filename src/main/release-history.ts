@@ -85,12 +85,12 @@ export class ReleaseHistoryService {
     this.#cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS
   }
 
-  async getPage(page: number): Promise<AppReleaseHistoryPage> {
+  async getPage(page: number, bypassCache = false): Promise<AppReleaseHistoryPage> {
     if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) {
       throw new TypeError('Invalid release history page.')
     }
     const cached = this.#cache.get(page)
-    if (cached && cached.expiresAt > this.#now()) return clonePage(cached.value)
+    if (!bypassCache && cached && cached.expiresAt > this.#now()) return clonePage(cached.value)
 
     try {
       const response = await this.#fetch(

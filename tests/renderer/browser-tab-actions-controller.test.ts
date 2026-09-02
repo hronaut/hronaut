@@ -37,6 +37,14 @@ function browserState(active: BrowserTabState = tab()): BrowserState {
   }
 }
 
+function deferred<Value>() {
+  let reject!: (error: unknown) => void
+  const promise = new Promise<Value>((_resolve, fail) => {
+    reject = fail
+  })
+  return { promise, reject }
+}
+
 function createHarness() {
   const active = tab()
   const state = ref(browserState(active))
@@ -126,6 +134,21 @@ describe('browser tab actions controller', () => {
     await harness.controller.navigateAddress('https://failed.test/')
     expect(harness.onNavigateError).toHaveBeenCalledOnce()
     expect(harness.onNavigateError).toHaveBeenCalledWith(newestFailure)
+  })
+
+  it('ignores a delayed navigation failure after disposal', async () => {
+    const harness = createHarness()
+    const pending = deferred<BrowserState>()
+    harness.browser.navigate.mockReturnValueOnce(pending.promise)
+
+    const navigation = harness.controller.navigateAddress('https://slow.test/')
+    const dispose = (harness.controller as typeof harness.controller & { dispose?: () => void }).dispose
+    dispose?.()
+    pending.reject(new Error('late navigation failure'))
+    await navigation
+
+    expect(dispose).toBeTypeOf('function')
+    expect(harness.onNavigateError).not.toHaveBeenCalled()
   })
 
   it('targets the current tab for navigation and page-problem retry', async () => {

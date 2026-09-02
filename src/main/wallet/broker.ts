@@ -812,6 +812,7 @@ export class WalletBroker {
             requestId: record.id, walletId: wallet.id, policyId: policy.id, reason: reservation.reason
           }, this.now().toISOString())
           await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+          if (returnSummary) this.publish()
           return returnSummary
             ? agentSummary(this.service.approvals.get(record.id)!, wallet)
             : this.wait(record.id)
@@ -853,12 +854,14 @@ export class WalletBroker {
         })
         if (policyInvalidated) {
           const current = this.service.approvals.get(record.id)!
+          if (returnSummary) this.publish()
           return returnSummary ? agentSummary(current, this.requireWallet(wallet.id)) : this.wait(record.id)
         }
         this.clearRequestExpiry(record.id)
         return returnSummary ? agentSummary(this.service.approvals.get(record.id)!, wallet) : result
       }
       await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+      if (returnSummary) this.publish()
       return returnSummary
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)
@@ -901,6 +904,7 @@ export class WalletBroker {
         policyDecision: 'awaiting-human', reason: rawSigning ? 'raw-signing-requires-human' : 'message-signing-requires-human'
       }, this.now().toISOString())
       await this.service.approvals.transition(record.id, 'awaiting-human', this.now())
+      if (returnSummary) this.publish()
       return returnSummary
         ? agentSummary(this.service.approvals.get(record.id)!, wallet)
         : this.wait(record.id)

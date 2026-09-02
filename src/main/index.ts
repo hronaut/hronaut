@@ -3339,10 +3339,12 @@ function registerIpc(): void {
     commercialLicensePurchaseHandler(assertTrustedShellSender, (url) => shell.openExternal(url))
   )
   ipcMain.handle('updates:get-state', (event) => { assertTrustedShellSender(event); return { ...updateState } })
-  ipcMain.handle('updates:get-release-history', (event, page: unknown) => {
+  ipcMain.handle('updates:get-release-history', (event, page: unknown, bypassCache: unknown) => {
     assertTrustedShellSender(event)
-    if (typeof page !== 'number') throw new TypeError('Invalid release history page.')
-    return releaseHistoryService.getPage(page)
+    if (typeof page !== 'number' || typeof bypassCache !== 'boolean') {
+      throw new TypeError('Invalid release history request.')
+    }
+    return releaseHistoryService.getPage(page, bypassCache)
   })
   ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
   ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })

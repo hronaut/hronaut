@@ -2492,7 +2492,7 @@ export interface HronautCredentialsApi {
 
 export interface HronautUpdatesApi {
   getState(): Promise<AppUpdateState>
-  getReleaseHistory(page: number): Promise<AppReleaseHistoryPage>
+  getReleaseHistory(page: number, bypassCache: boolean): Promise<AppReleaseHistoryPage>
   check(): Promise<AppUpdateState>
   download(): Promise<AppUpdateState>
   install(): Promise<boolean>

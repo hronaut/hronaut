@@ -6,6 +6,9 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop delayed address-navigation errors and site-summary responses from updating the shell after its navigation controller has been disposed.
+- Show trusted wallet approval requests immediately for MCP agent signing and transaction operations instead of waiting for an unrelated UI refresh or window resize.
+- Make the What's new Refresh action bypass its short-lived GitHub cache while retaining cached release history as an offline fallback.
 - Keep generated GitHub release notes focused on version changes instead of repeating the product demo, downloads, setup clients, and license introduction.
 - Prevent concurrent DOM-changes panel refreshes from leaving the trusted diagnostics UI stuck in a loading state.
 - Keep release reruns from treating retained Playwright diagnostics as downloadable application assets.

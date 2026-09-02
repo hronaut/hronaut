@@ -33,10 +33,14 @@ export interface BrowserTabActionsControllerOptions {
 export function useBrowserTabActionsController(options: BrowserTabActionsControllerOptions) {
   const toggleOperations = new Map<string, Promise<void>>()
   const navigationGenerations = new Map<string, number>()
+  let disposed = false
 
   function enqueueToggle(key: string, action: () => Promise<void>): Promise<void> {
+    if (disposed) return Promise.resolve()
     const previous = toggleOperations.get(key) ?? Promise.resolve()
-    const operation = previous.catch(() => undefined).then(action)
+    const operation = previous.catch(() => undefined).then(async () => {
+      if (!disposed) await action()
+    })
     toggleOperations.set(key, operation)
     return operation.finally(() => {
       if (toggleOperations.get(key) === operation) toggleOperations.delete(key)
@@ -48,20 +52,23 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     targetTabId: string
     placement: 'before' | 'after'
   }): Promise<void> {
+    if (disposed) return
     await options.syncState(options.browser.reorderTab(details.tabId, details.targetTabId, details.placement))
   }
 
   async function selectBrowserTab(tabId: string): Promise<boolean> {
+    if (disposed) return false
     try {
       await options.syncState(options.browser.selectTab(tabId))
-      return true
+      return !disposed
     } catch (error) {
-      options.onSelectError(error)
+      if (!disposed) options.onSelectError(error)
       return false
     }
   }
 
   async function navigateAddress(address: string): Promise<void> {
+    if (disposed) return
     const tabId = options.state.value.activeTabId ?? undefined
     const navigationKey = tabId ?? 'active-tab'
     const generation = (navigationGenerations.get(navigationKey) ?? 0) + 1
@@ -72,29 +79,32 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
         tabId
       }))
     } catch (error) {
-      if (navigationGenerations.get(navigationKey) === generation) options.onNavigateError(error)
+      if (!disposed && navigationGenerations.get(navigationKey) === generation) options.onNavigateError(error)
     } finally {
       if (navigationGenerations.get(navigationKey) === generation) navigationGenerations.delete(navigationKey)
     }
   }
 
   async function retryActivePageProblem(): Promise<void> {
+    if (disposed) return
     const tab = options.activeTab.value
     if (!tab?.pageProblem) return
     await options.syncState(options.browser.reload(tab.id))
   }
 
   async function showWorkspaceContextMenu(groupId: string): Promise<void> {
+    if (disposed) return
     await options.browser.showWorkspaceContextMenu(groupId)
   }
 
   async function closeTab(tabId: string): Promise<void> {
-    if (options.state.value.allHumanInteractionLocked) return
+    if (disposed || options.state.value.allHumanInteractionLocked) return
     await options.syncState(options.browser.closeTab(tabId))
   }
 
   async function toggleTabMuted(tab: BrowserTabState): Promise<void> {
     await enqueueToggle(`mute:${tab.id}`, async () => {
+      if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
       if (!currentTab) return
       await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted))
@@ -102,9 +112,11 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   }
 
   async function toggleTabHumanInteraction(): Promise<void> {
+    if (disposed) return
     const tab = options.activeTab.value
     if (!tab || options.isHome() || options.state.value.allHumanInteractionLocked) return
     await enqueueToggle(`interaction:${tab.id}`, async () => {
+      if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
       if (!currentTab || options.state.value.allHumanInteractionLocked) return
       await options.syncState(options.browser.setTabHumanInteractionLocked(tab.id, !currentTab.humanInteractionLocked))
@@ -113,17 +125,26 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
 
   async function toggleAllHumanInteraction(): Promise<void> {
     await enqueueToggle('interaction:all', async () => {
+      if (disposed) return
       await options.syncState(options.browser.setAllHumanInteractionLocked(!options.state.value.allHumanInteractionLocked))
     })
   }
 
   async function toggleDeveloperTools(): Promise<void> {
+    if (disposed) return
     const tab = options.activeTab.value
     if (!tab || options.isHome() || options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked) return
     options.beforeToggleDeveloperTools()
     await enqueueToggle(`devtools:${tab.id}`, async () => {
       await options.browser.toggleDevTools(tab.id)
     })
+  }
+
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    navigationGenerations.clear()
+    toggleOperations.clear()
   }
 
   return {
@@ -136,7 +157,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     toggleTabMuted,
     toggleTabHumanInteraction,
     toggleAllHumanInteraction,
-    toggleDeveloperTools
+    toggleDeveloperTools,
+    dispose
   }
 }
 

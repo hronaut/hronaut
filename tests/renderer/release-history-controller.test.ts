@@ -101,4 +101,15 @@ describe('useReleaseHistoryController', () => {
     expect(controller.error.value).toBe('GitHub is unavailable')
     expect(controller.state.value).toBe('ready')
   })
+
+  it('bypasses the service cache only when the user explicitly refreshes', async () => {
+    const { controller, getReleaseHistory } = createController()
+
+    controller.openDialog()
+    await vi.waitFor(() => expect(controller.state.value).toBe('ready'))
+    await controller.refresh()
+
+    expect(getReleaseHistory).toHaveBeenNthCalledWith(1, 1, false)
+    expect(getReleaseHistory).toHaveBeenNthCalledWith(2, 1, true)
+  })
 })

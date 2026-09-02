@@ -286,6 +286,36 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
 
+  it('publishes the final human-approval state for agent signing requests', async () => {
+    const { service, wallet } = await setup()
+    const pendingChanged = vi.fn()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      onPendingChanged: pendingChanged
+    })
+    const agent = context({ requester: { type: 'agent', id: 'agent-approval-ui', name: 'Approval UI agent' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    pendingChanged.mockClear()
+
+    const transaction = await broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    const transactionId = (transaction.request as { id: string }).id
+
+    expect(pendingChanged).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: transactionId, status: 'awaiting-human' })
+    ]))
+    pendingChanged.mockClear()
+
+    const message = await broker.requestAgentMessage(agent, wallet.id, Buffer.from('approve this agent message'))
+    const messageId = (message.request as { id: string }).id
+
+    expect(pendingChanged).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ id: messageId, status: 'awaiting-human' })
+    ]))
+  })
+
   it('lets a dedicated agent wallet use an explicitly bounded Bypass Approve mode on EVM mainnet', async () => {
     const { service, wallet } = await setup('mainnet', true)
     const chain = adapter()

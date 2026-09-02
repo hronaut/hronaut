@@ -30,7 +30,7 @@ export function useReleaseHistoryController(options: ReleaseHistoryControllerOpt
     if (releases.value.length === 0 || nextOperation === 'refresh') state.value = 'loading'
     error.value = ''
     try {
-      const result = await options.api.getReleaseHistory(targetPage)
+      const result = await options.api.getReleaseHistory(targetPage, nextOperation === 'refresh')
       if (disposed || currentGeneration !== generation) return false
       if (nextOperation === 'more') {
         const known = new Set(releases.value.map((release) => release.url))

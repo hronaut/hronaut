@@ -65,6 +65,27 @@ describe('ReleaseHistoryService', () => {
     expect(fetch).toHaveBeenCalledTimes(2)
   })
 
+  it('bypasses a fresh cache for an explicit refresh while retaining it as an offline fallback', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([release()])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        release({ tag_name: 'v1.11.5', name: 'Hronaut 1.11.5' })
+      ])))
+      .mockRejectedValueOnce(new Error('offline'))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await expect(service.getPage(1)).resolves.toMatchObject({
+      releases: [expect.objectContaining({ version: '1.11.4' })]
+    })
+    await expect(service.getPage(1, true)).resolves.toMatchObject({
+      releases: [expect.objectContaining({ version: '1.11.5' })]
+    })
+    await expect(service.getPage(1, true)).resolves.toMatchObject({
+      releases: [expect.objectContaining({ version: '1.11.5' })]
+    })
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
   it('fails closed for invalid pages and untrusted response shapes', async () => {
     const fetch = vi.fn(async () => new Response('{"message":"rate limited"}', { status: 200 }))
     const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
