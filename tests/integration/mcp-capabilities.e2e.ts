@@ -3553,6 +3553,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       const current = await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult
       return JSON.parse(text(current)).javaScriptDisabled ?? false
     }).toBe(false)
+    await expect(disabledJavaScriptPanel.locator('.environment-status')).toContainText('Environment applied')
     await client.callTool({ name: 'browser_wait', arguments: { tabId } })
     const restoredJavaScriptSnapshot = await client.callTool({
       name: 'browser_snapshot',
