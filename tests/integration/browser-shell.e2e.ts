@@ -2232,6 +2232,8 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
     const created = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
     const tab = created.tabs.find((entry) => entry.url === url)
     if (!tab?.mcpGroupId) throw new Error('Wallet teardown tab did not expose a workspace')
+    const workspace = created.mcpTabGroups.find((entry) => entry.id === tab.mcpGroupId)
+    if (!workspace) throw new Error('Wallet teardown workspace was not found')
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((entry) => entry.active)?.title)'))
       .toBe('Wallet teardown fixture')
 
@@ -2274,6 +2276,7 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
     }).not.toBeUndefined()
     const approval = appWindow.getByRole('alertdialog', { name: /Connect account/i })
     await expect(approval).toBeVisible()
+    await expect(approval).toContainText(workspace.name)
     await expect(approval.getByRole('button', { name: 'Approve exact request' })).toBeVisible()
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
       const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
@@ -5896,15 +5899,23 @@ test('shows a native webpage context menu and suppresses it while human interact
       const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
       const item = menu?.getMenuItemById('copy-link-address')
       if (!item?.click) throw new Error('Copy Link Address context action was not found')
-      const originalReadText = clipboard.readText
+      ;(globalThis as typeof globalThis & {
+        __hronautOriginalClipboardReadText?: typeof clipboard.readText
+      }).__hronautOriginalClipboardReadText = clipboard.readText
       clipboard.readText = () => ''
       ;(item.click as unknown as () => void)()
-      setTimeout(() => { clipboard.readText = originalReadText }, 500)
     })
     const copyFailure = appWindow.getByRole('alert', { name: 'Copy failed' })
     await expect(copyFailure).toBeVisible()
     await expect(copyFailure).toContainText('system clipboard did not accept it')
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await electronApp.evaluate(({ clipboard }) => {
+      const testState = globalThis as typeof globalThis & {
+        __hronautOriginalClipboardReadText?: typeof clipboard.readText
+      }
+      if (!testState.__hronautOriginalClipboardReadText) throw new Error('Clipboard readText test double was not installed')
+      clipboard.readText = testState.__hronautOriginalClipboardReadText
+      delete testState.__hronautOriginalClipboardReadText
+    })
 
     await electronApp.evaluate(() => {
       const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
@@ -5959,15 +5970,23 @@ test('shows a native webpage context menu and suppresses it while human interact
       const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
       const item = menu?.getMenuItemById('copy-image')
       if (!item?.click) throw new Error('Copy Image context action was not found')
-      const originalReadImage = clipboard.readImage
+      ;(globalThis as typeof globalThis & {
+        __hronautOriginalClipboardReadImage?: typeof clipboard.readImage
+      }).__hronautOriginalClipboardReadImage = clipboard.readImage
       clipboard.readImage = () => nativeImage.createEmpty()
       ;(item.click as unknown as () => void)()
-      setTimeout(() => { clipboard.readImage = originalReadImage }, 700)
     })
     const imageCopyFailure = appWindow.getByRole('alert', { name: 'Copy failed' })
     await expect(imageCopyFailure).toBeVisible()
     await expect(imageCopyFailure).toContainText('system clipboard did not accept it')
-    await new Promise((resolve) => setTimeout(resolve, 800))
+    await electronApp.evaluate(({ clipboard }) => {
+      const testState = globalThis as typeof globalThis & {
+        __hronautOriginalClipboardReadImage?: typeof clipboard.readImage
+      }
+      if (!testState.__hronautOriginalClipboardReadImage) throw new Error('Clipboard readImage test double was not installed')
+      clipboard.readImage = testState.__hronautOriginalClipboardReadImage
+      delete testState.__hronautOriginalClipboardReadImage
+    })
 
     await rightClick('#link')
     await expect.poll(contextMenuItems).toEqual(expect.arrayContaining([

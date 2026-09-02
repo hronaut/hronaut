@@ -17,11 +17,13 @@ All notable changes to Hronaut are documented in this file.
 - Suppress delayed credential-fill success or failure feedback after the human switches tabs or the original page navigates.
 - Use the current interface language for delayed saved-password fill and removal errors instead of retaining the language active when Hronaut started.
 - Cancel wallet import tokens that finish validation after the Wallets panel closes so abandoned recovery material is released from signer memory immediately.
+- Show the human-readable workspace name in trusted wallet approvals, with the immutable workspace ID retained as a fallback when that workspace was removed.
 
 ### Improved
 
 - Give the checksum manifest and every public Windows, macOS, and Linux installer a human-readable GitHub Release label while keeping updater metadata machine-readable and unchanged.
 - Make installed Linux packages discoverable in GNOME and KDE launcher searches for browsers, MCP, coding agents, automation, QA, and testing.
+- Reuse ESLint's content cache across hosted CI runs so small follow-up changes receive substantially faster static feedback without skipping any validation gate.
 
 ## [1.11.34] - 2026-09-02
 

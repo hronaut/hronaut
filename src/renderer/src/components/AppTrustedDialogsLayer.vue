@@ -61,7 +61,7 @@ const { state: updateState } = updateSettingsController
     :open-url="openUrl"
     :purchase-commercial-license="purchaseCommercialLicense"
   />
-  <WalletApprovalDialog :controller="walletsController" />
+  <WalletApprovalDialog :controller="walletsController" :workspaces="workspaces" />
   <WhatsNewDialog
     :controller="releaseHistoryController"
     :open-url="openUrl"

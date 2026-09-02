@@ -76,8 +76,10 @@ describe('AppTrustedDialogsLayer', () => {
       purchaseCommercialLicense
     })
 
-    expect(wrapper.findComponent(WalletApprovalDialog).props('controller'))
-      .toBe(controllers.walletsController)
+    expect(wrapper.findComponent(WalletApprovalDialog).props()).toMatchObject({
+      controller: controllers.walletsController,
+      workspaces
+    })
     expect(wrapper.findComponent(HelpDialog).props()).toMatchObject({
       controller: helpController,
       currentVersion: '1.9.11',

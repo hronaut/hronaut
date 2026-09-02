@@ -43,15 +43,15 @@ describe('release quality gates', () => {
     }
   })
 
-  it('restores complete TypeScript build state only after install and saves it only after validation', async () => {
+  it('restores complete static-analysis state only after install and saves it only after validation', async () => {
     const workflow = await readFile('.github/workflows/ci.yml', 'utf8')
     const validate = job(workflow, 'validate')
     const install = validate.indexOf('name: Install dependencies')
     const restore = validate.indexOf('uses: actions/cache/restore@v6')
     const staticValidation = validate.indexOf('run: npm run validate')
     const save = validate.indexOf('uses: actions/cache/save@v6')
-    const configHash = "${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}"
-    const cachePrefix = `typecheck-\${{ runner.os }}-node24-${configHash}`
+    const configHash = "${{ hashFiles('package-lock.json', 'package.json', 'eslint.config.mjs', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}"
+    const cachePrefix = `static-analysis-v2-\${{ runner.os }}-node24-${configHash}`
 
     expect(install).toBeGreaterThanOrEqual(0)
     expect(restore).toBeGreaterThan(install)
@@ -61,6 +61,7 @@ describe('release quality gates', () => {
     expect(validate).toContain(`key: ${cachePrefix}-\${{ github.sha }}`)
     expect(validate).toContain(`restore-keys: |\n            ${cachePrefix}-`)
     for (const path of [
+      'node_modules/.cache/eslint',
       'tsconfig.node.tsbuildinfo',
       'tsconfig.web.tsbuildinfo',
       'tsconfig.website.tsbuildinfo'

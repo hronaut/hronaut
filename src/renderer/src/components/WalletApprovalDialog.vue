@@ -4,10 +4,18 @@ import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
 import { useModalDialogFocus } from '../composables/useModalDialogFocus.js'
 
-const props = defineProps<{ controller: WalletsController }>()
+const props = defineProps<{
+  controller: WalletsController
+  workspaces: readonly { id: string; name: string }[]
+}>()
 const { t } = useI18n({ useScope: 'global' })
 const request = computed(() => props.controller.awaitingApproval.value[0])
 const open = computed(() => Boolean(request.value))
+const workspaceName = computed(() => {
+  const workspaceId = request.value?.workspaceId
+  if (!workspaceId) return ''
+  return props.workspaces.find((workspace) => workspace.id === workspaceId)?.name ?? workspaceId
+})
 const panel = ref<HTMLElement | null>(null)
 
 useModalDialogFocus({ open, panel })
@@ -30,7 +38,7 @@ function rawDetails(): string {
         <div><dt>{{ t('wallets.approval.account') }}</dt><dd><code>{{ request.details?.publicAddress }}</code></dd></div>
         <div><dt>{{ t('wallets.approval.network') }}</dt><dd>{{ request.details?.networkName ?? request.networkId }}</dd></div>
         <div><dt>{{ t('wallets.approval.origin') }}</dt><dd><code>{{ request.origin }}</code></dd></div>
-        <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd>{{ request.workspaceId }}</dd></div>
+        <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd :title="request.workspaceId">{{ workspaceName }}</dd></div>
         <div><dt>{{ t('wallets.approval.requester') }}</dt><dd>{{ t('wallets.approval.requesterValue', { name: request.requester.name ?? request.requester.id, type: request.requester.type }) }}</dd></div>
         <div v-if="request.details?.method"><dt>{{ t('wallets.approval.method') }}</dt><dd>{{ request.details.method }}</dd></div>
         <div v-if="request.details?.destination"><dt>{{ t('wallets.approval.destination') }}</dt><dd><code>{{ request.details.destination }}</code></dd></div>

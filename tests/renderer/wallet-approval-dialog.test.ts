@@ -35,12 +35,17 @@ describe('WalletApprovalDialog', () => {
   it('shows exact trusted message content and only acts from explicit chrome buttons', async () => {
     const wallets = controller()
     const view = render(WalletApprovalDialog, {
-      props: { controller: wallets }, global: { plugins: [createHronautI18n('en-US')] }
+      props: {
+        controller: wallets,
+        workspaces: [{ id: 'workspace-1', name: 'Primary workspace' }]
+      },
+      global: { plugins: [createHronautI18n('en-US')] }
     })
     const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
 
     expect(dialog).toHaveTextContent('sign this exact message')
     expect(dialog).toHaveTextContent('c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=')
+    expect(dialog).toHaveTextContent('Primary workspace')
     await userEvent.setup().click(view.container.querySelector('.wallet-approval-overlay')!)
     expect(wallets.approve).not.toHaveBeenCalled()
 
@@ -56,7 +61,7 @@ describe('WalletApprovalDialog', () => {
     background.focus()
     const wallets = controller()
     render(WalletApprovalDialog, {
-      props: { controller: wallets }, global: { plugins: [createHronautI18n('en-US')] }
+      props: { controller: wallets, workspaces: [] }, global: { plugins: [createHronautI18n('en-US')] }
     })
 
     const dialog = screen.getByRole('alertdialog', { name: /sign message/i })
@@ -71,5 +76,16 @@ describe('WalletApprovalDialog', () => {
     background.focus()
     expect(dialog.contains(document.activeElement)).toBe(true)
     background.remove()
+  })
+
+  it('falls back to the immutable workspace ID when the workspace no longer exists', () => {
+    const wallets = controller()
+    render(WalletApprovalDialog, {
+      props: { controller: wallets, workspaces: [] },
+      global: { plugins: [createHronautI18n('en-US')] }
+    })
+
+    expect(screen.getByRole('alertdialog', { name: /sign message/i }))
+      .toHaveTextContent('workspace-1')
   })
 })
