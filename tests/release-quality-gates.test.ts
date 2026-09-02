@@ -115,6 +115,15 @@ describe('release quality gates', () => {
     expect(verification).toContain('run: node scripts/verify-public-release.ts "$VERSION"')
   })
 
+  it('uploads only regular release files when a rerun still has failure diagnostics', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const publish = job(workflow, 'publish-release')
+
+    expect(publish).toContain("find release-assets -maxdepth 1 -type f -print0")
+    expect(publish).toContain('gh release upload "$TAG" "${release_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber')
+    expect(publish).not.toContain('gh release upload "$TAG" release-assets/*')
+  })
+
   it('retains bounded Playwright diagnostics when Docker integration fails', async () => {
     const [ciWorkflow, releaseWorkflow, runner, playwright] = await Promise.all([
       readFile('.github/workflows/ci.yml', 'utf8'),

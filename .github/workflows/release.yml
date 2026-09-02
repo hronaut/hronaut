@@ -402,7 +402,12 @@ jobs:
           TAG: ${{ needs.prepare-release.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release upload "$TAG" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          mapfile -d '' release_files < <(find release-assets -maxdepth 1 -type f -print0)
+          if (( ${#release_files[@]} == 0 )); then
+            echo "No regular release assets were downloaded." >&2
+            exit 1
+          fi
+          gh release upload "$TAG" "${release_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
 
   verify-public-release:
