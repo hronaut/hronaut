@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.36] - 2026-09-03
+
 ### Fixed
 
 - Remove legacy **Start here** onboarding and licensing boilerplate when regenerating an existing GitHub release, keeping every release changelog focused on that version's changes.
