@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.34] - 2026-09-02
+
 ### Fixed
 
 - Stop a human tab close from completing after **Block input** engages while Hronaut is waking the replacement tab; agent-driven closes remain available.
