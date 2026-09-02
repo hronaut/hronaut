@@ -2676,7 +2676,10 @@ export const deDE = {
       "welcome": "Fokussierte Issues und abgezeichnete Codebeiträge sind willkommen.",
       "feedback": "Einrichtungsergebnis teilen ↗",
       "feedbackPrivacy": "Geben Sie niemals Anmeldedaten, Token, private URLs oder Seiteninhalte an.",
-      "feedbackUnavailable": "Der Link für Einrichtungsfeedback ist nicht verfügbar."
+      "feedbackUnavailable": "Der Link für Einrichtungsfeedback ist nicht verfügbar.",
+      "recommend": "Hronaut empfehlen",
+      "recommendMessage": "Ich verwende Hronaut, um Coding-Agenten einen dauerhaften Browser zu geben: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendPrivacy": "Kopiert nur diese öffentliche Nachricht. Browser-, Arbeitsbereichs- oder Agentendaten werden nicht einbezogen."
     },
     "tools": {
       "heading": "Browserwerkzeuge",

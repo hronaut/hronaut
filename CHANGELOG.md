@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- After its first successful agent action, Hronaut Home can copy a privacy-safe recommendation with an attributable public link, without including browser, workspace, or agent data.
+
+### Fixed
+
+- Keep trusted element and screenshot-area selection responsive on locked pages when an agent click, key press, or other input finishes while the human selection is still active.
+
 ## [1.11.29] - 2026-09-02
 
 ### Added

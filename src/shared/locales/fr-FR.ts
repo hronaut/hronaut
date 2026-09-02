@@ -2676,7 +2676,10 @@ export const frFR = {
       "welcome": "Les problèmes ciblés et les contributions de code signées sont les bienvenus.",
       "feedback": "Partager le résultat de la configuration ↗",
       "feedbackPrivacy": "N’incluez jamais d’identifiants, de jetons, d’URL privées ni de contenu de page.",
-      "feedbackUnavailable": "Le lien de retour sur la configuration n’est pas disponible."
+      "feedbackUnavailable": "Le lien de retour sur la configuration n’est pas disponible.",
+      "recommend": "Recommander Hronaut",
+      "recommendMessage": "J’utilise Hronaut pour fournir un navigateur persistant aux agents de programmation : https://hronaut.dev/go/desktop-first-run-share",
+      "recommendPrivacy": "Copie uniquement ce message public. Aucune donnée de navigateur, d’espace de travail ou d’agent n’est incluse."
     },
     "tools": {
       "heading": "Outils du navigateur",

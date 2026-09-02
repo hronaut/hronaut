@@ -470,6 +470,9 @@ export function renderHomePage(options: HomePageOptions): string {
     .support-card h3 { margin: 9px 0; font-size: 17px; line-height: 1.2; }
     .support-card p { margin: 0 0 15px; color: var(--muted); font-size: 13px; line-height: 1.55; }
     .support-card a, .support-card button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; color: white; background: var(--accent); text-align: center; text-decoration: none; cursor: pointer; font-size: 13px; font-weight: 800; }
+    .support-card a + button, .support-card button + button { margin-top: 8px; }
+    .support-card button.secondary { border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border)); color: var(--accent); background: var(--panel-solid); }
+    .support-card button.secondary:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel-solid)); }
     .support-card button:disabled { cursor: wait; opacity: .72; }
     .support-card [hidden] { display: none; }
     .support-card small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
@@ -602,8 +605,11 @@ export function renderHomePage(options: HomePageOptions): string {
           <p id="support-message">${escapeHtml(home.support.message)}</p>
           <a id="support-contribute" href="https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer">${escapeHtml(home.support.contribute)}</a>
           <button id="support-feedback" type="button" data-setup-feedback hidden>${escapeHtml(home.support.feedback)}</button>
+          <button id="support-recommend" class="secondary" type="button" data-copy-target="support-recommend-message" hidden>${escapeHtml(home.support.recommend)}</button>
+          <span id="support-recommend-message" hidden>${escapeHtml(home.support.recommendMessage)}</span>
           <small id="support-welcome">${escapeHtml(home.support.welcome)}</small>
           <small id="support-feedback-privacy" hidden>${escapeHtml(home.support.feedbackPrivacy)}</small>
+          <small id="support-recommend-privacy" hidden>${escapeHtml(home.support.recommendPrivacy)}</small>
         </aside>
       </div>
     </section>
@@ -785,12 +791,16 @@ export function renderHomePage(options: HomePageOptions): string {
         : messages.support.message;
       const supportContribute = document.getElementById('support-contribute');
       const supportFeedback = document.getElementById('support-feedback');
+      const supportRecommend = document.getElementById('support-recommend');
       const supportWelcome = document.getElementById('support-welcome');
       const supportFeedbackPrivacy = document.getElementById('support-feedback-privacy');
+      const supportRecommendPrivacy = document.getElementById('support-recommend-privacy');
       supportContribute.hidden = completed > 0;
       supportFeedback.hidden = completed === 0;
+      supportRecommend.hidden = completed === 0;
       supportWelcome.hidden = completed > 0;
       supportFeedbackPrivacy.hidden = completed === 0;
+      supportRecommendPrivacy.hidden = completed === 0;
 
       const activityList = document.getElementById('activity-list');
       if (!dashboard.recentActivity?.length) {

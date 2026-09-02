@@ -2676,7 +2676,10 @@ export const esES = {
       "welcome": "Se agradecen los problemas concretos y las contribuciones de código firmadas.",
       "feedback": "Compartir el resultado de la configuración ↗",
       "feedbackPrivacy": "Nunca incluyas credenciales, tokens, URL privadas ni contenido de páginas.",
-      "feedbackUnavailable": "El enlace de comentarios sobre la configuración no está disponible."
+      "feedbackUnavailable": "El enlace de comentarios sobre la configuración no está disponible.",
+      "recommend": "Recomendar Hronaut",
+      "recommendMessage": "Uso Hronaut para dar a los agentes de programación un navegador persistente: https://hronaut.dev/go/desktop-first-run-share",
+      "recommendPrivacy": "Solo copia este mensaje público. No incluye datos del navegador, espacio de trabajo ni agente."
     },
     "tools": {
       "heading": "Herramientas del navegador",

@@ -8055,10 +8055,7 @@ export class BrowserTabsManager {
           const tabId = this.webContentsToTab.get(webContents.id)
           tab = tabId ? this.tabs.get(tabId) : undefined
           if (tab && this.isHumanInteractionLocked(tab)) {
-            await this.withDebugger(webContents, () => webContents.debugger.sendCommand(
-              'Input.setIgnoreInputEvents',
-              { ignore: true }
-            ))
+            await this.syncHumanInteractionInputGuard(tab)
           }
         }
         try {

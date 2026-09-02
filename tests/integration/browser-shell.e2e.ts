@@ -435,7 +435,7 @@ test('opens credential-free VS Code MCP setup through the system protocol handle
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
-test('offers privacy-safe setup feedback after agent activity in the system browser', async ({
+test('offers privacy-safe setup feedback and referral sharing after agent activity', async ({
   appWindow,
   electronApp
 }) => {
@@ -452,6 +452,7 @@ test('offers privacy-safe setup feedback after agent activity in the system brow
       }).__hronautSetupFeedbackUrls?.push(url)
     }
   })
+  await electronApp.evaluate(({ clipboard }) => clipboard.clear())
   const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
 
   const state = await electronApp.evaluate(async ({ webContents }) => {
@@ -460,36 +461,52 @@ test('offers privacy-safe setup feedback after agent activity in the system brow
     return home.executeJavaScript(`(() => {
       const before = {
         contributeHidden: document.getElementById('support-contribute')?.hidden,
-        feedbackHidden: document.getElementById('support-feedback')?.hidden
+        feedbackHidden: document.getElementById('support-feedback')?.hidden,
+        recommendHidden: document.getElementById('support-recommend')?.hidden
       };
       dashboard = { ...dashboard, completedToolCalls: 1 };
       renderDashboard();
       renderDashboard();
       const feedback = document.getElementById('support-feedback');
+      const recommend = document.getElementById('support-recommend');
       const after = {
         contributeHidden: document.getElementById('support-contribute')?.hidden,
         feedbackHidden: feedback?.hidden,
-        privacy: document.getElementById('support-feedback-privacy')?.textContent
+        recommendHidden: recommend?.hidden,
+        privacy: document.getElementById('support-feedback-privacy')?.textContent,
+        recommendPrivacy: document.getElementById('support-recommend-privacy')?.textContent
       };
       feedback?.click();
+      recommend?.click();
       return { before, after };
     })()`)
   }) as {
-    before: { contributeHidden: boolean; feedbackHidden: boolean }
-    after: { contributeHidden: boolean; feedbackHidden: boolean; privacy: string }
+    before: { contributeHidden: boolean; feedbackHidden: boolean; recommendHidden: boolean }
+    after: {
+      contributeHidden: boolean
+      feedbackHidden: boolean
+      recommendHidden: boolean
+      privacy: string
+      recommendPrivacy: string
+    }
   }
 
   expect(state).toEqual({
-    before: { contributeHidden: false, feedbackHidden: true },
+    before: { contributeHidden: false, feedbackHidden: true, recommendHidden: true },
     after: {
       contributeHidden: true,
       feedbackHidden: false,
-      privacy: 'Never include credentials, tokens, private URLs, or page content.'
+      recommendHidden: false,
+      privacy: 'Never include credentials, tokens, private URLs, or page content.',
+      recommendPrivacy: 'Copies only this public message. No browser, workspace, or agent data is included.'
     }
   })
   await expect.poll(() => electronApp.evaluate(() => (
     globalThis as typeof globalThis & { __hronautSetupFeedbackUrls?: string[] }
   ).__hronautSetupFeedbackUrls)).toEqual(['https://hronaut.dev/go/desktop-setup-feedback'])
+  await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+    'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share'
+  )
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
@@ -6578,6 +6595,17 @@ test('preserves human focus across agent presentation, input, and active tab cha
 
     await expect(addressInput).toBeFocused()
 
+    const foregroundEvaluation = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: "window.focus(); document.querySelector('input')?.focus(); 'foreground evaluation'"
+      }
+    }) as CallToolResult
+    expect(foregroundEvaluation.isError, mcpResultText(foregroundEvaluation)).not.toBe(true)
+    expect(mcpResultText(foregroundEvaluation)).toBe('foreground evaluation')
+    await expect(addressInput).toBeFocused()
+
     const splitOpened = await client.callTool({
       name: 'browser_new_tab',
       arguments: { url: `http://127.0.0.1:${address.port}/agent-focus-isolation-split`, active: false }
@@ -6985,9 +7013,34 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
       return page?.executeJavaScript('window.scrollY')
     })).toBe(0)
 
+    await electronApp.evaluate(({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
+      if (!page) throw new Error('Locked picker input guard fixture web contents was not found')
+      const original = page.debugger.sendCommand.bind(page.debugger)
+      Object.defineProperty(page.debugger, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
+          const result = await original(method, commandParams, sessionId)
+          if (method === 'Input.setIgnoreInputEvents') {
+            ;(globalThis as typeof globalThis & { __hronautPickerIgnoresInput?: boolean })
+              .__hronautPickerIgnoresInput = commandParams?.ignore === true
+          }
+          return result
+        }
+      })
+    })
     const lockedPicker = appWindow.getByRole('button', { name: 'Select an element to copy for agent' })
     await lockedPicker.click()
     await expect(appWindow.getByRole('button', { name: 'Cancel element selection' })).toBeVisible()
+    const lockedAgentClickWhilePicking = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId: mcpTabId, selector: '#save-profile' }
+    }) as CallToolResult
+    expect(lockedAgentClickWhilePicking.isError, mcpResultText(lockedAgentClickWhilePicking)).not.toBe(true)
+    await expect(appWindow.getByRole('button', { name: 'Cancel element selection' })).toBeVisible()
+    expect(await electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautPickerIgnoresInput?: boolean }
+    ).__hronautPickerIgnoresInput)).toBe(false)
     await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
       if (!page) throw new Error('Locked picker fixture web contents was not found')
@@ -7002,7 +7055,11 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
     expect(await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
       return page?.executeJavaScript('window.fixtureClicks')
-    })).toBe(0)
+    })).toBe(1)
+    await electronApp.evaluate(async ({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
+      await page?.executeJavaScript('window.fixtureClicks = 0')
+    })
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(activeTabId)})?.humanInteractionLocked)`)).toBe(true)
 
     await new Promise((resolve) => setTimeout(resolve, 1_600))

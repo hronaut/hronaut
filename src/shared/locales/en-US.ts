@@ -567,7 +567,9 @@ export const enUS = {
       activeMessage: 'Buy a commercial license for business use, or contribute fixes and documentation to the project.',
       contribute: 'Contribute ↗', welcome: 'Focused issues and signed-off code contributions are welcome.',
       feedback: 'Share your setup result ↗', feedbackPrivacy: 'Never include credentials, tokens, private URLs, or page content.',
-      feedbackUnavailable: 'The setup feedback link is unavailable.'
+      feedbackUnavailable: 'The setup feedback link is unavailable.', recommend: 'Recommend Hronaut',
+      recommendMessage: 'I use Hronaut to give coding agents a persistent browser: https://hronaut.dev/go/desktop-first-run-share',
+      recommendPrivacy: 'Copies only this public message. No browser, workspace, or agent data is included.'
     },
     tools: { heading: 'Browser tooling', description: 'The live MCP catalog available to every connected agent.' },
     footer: 'Hronaut keeps running when its window is closed.',
