@@ -1916,7 +1916,7 @@ test('does not open Home after a newer tab selection during delayed Find cleanup
       mainGlobal.__resolveDelayedHomeFindCleanup?.()
       delete mainGlobal.__resolveDelayedHomeFindCleanup
     }).catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
