@@ -87,22 +87,20 @@ describe('release quality gates', () => {
     }
   })
 
-  it('gives each published release a factual demo, download, setup, and license path', async () => {
+  it('keeps published release notes focused on changes and the artifact warning', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
     const warningStart = workflow.indexOf('<!-- unsigned-release-warning -->')
-    const startHere = workflow.indexOf("echo '## Start here'")
-    const unsignedWarning = workflow.slice(warningStart, startHere)
+    const changesStart = workflow.indexOf('echo "## What\'s changed"')
+    const unsignedWarning = workflow.slice(warningStart, changesStart)
 
-    expect(workflow).toContain("echo '## Start here'")
-    expect(workflow).toContain('https://hronaut.dev/#demo')
-    expect(workflow).toContain('https://hronaut.dev/download')
-    expect(workflow).toContain('https://hronaut.dev/setup')
-    expect(workflow).toContain('Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, or another MCP client')
-    expect(workflow).toContain('PolyForm Noncommercial 1.0.0')
+    expect(workflow).not.toContain("echo '## Start here'")
+    expect(workflow).not.toContain('Watch the 35-second product demo')
+    expect(workflow).not.toContain('Choose the right Windows, macOS, or Linux package')
+    expect(workflow).not.toContain('Connect Codex, Claude Code, Gemini CLI')
+    expect(workflow).not.toContain('Permitted noncommercial use is free')
     expect(warningStart).toBeGreaterThanOrEqual(0)
     expect(unsignedWarning).toContain('https://hronaut.dev/security#verify-release')
-    expect(warningStart).toBeLessThan(startHere)
-    expect(startHere).toBeLessThan(workflow.indexOf('echo "## What\'s changed"'))
+    expect(warningStart).toBeLessThan(changesStart)
   })
 
   it('verifies hronaut.dev has resolved every published release and download', async () => {

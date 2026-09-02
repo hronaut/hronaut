@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep generated GitHub release notes focused on version changes instead of repeating the product demo, downloads, setup clients, and license introduction.
 - Prevent concurrent DOM-changes panel refreshes from leaving the trusted diagnostics UI stuck in a loading state.
 - Keep release reruns from treating retained Playwright diagnostics as downloadable application assets.
 

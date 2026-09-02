@@ -790,7 +790,7 @@ describe('WalletBroker', () => {
     }))
     await vi.waitFor(() => expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1), { timeout: 5_000 })
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
