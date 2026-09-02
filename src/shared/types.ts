@@ -2401,6 +2401,7 @@ export interface WindowChromeState {
 
 export interface HronautShellApi {
   windowChrome: WindowChromeState
+  isWindowFocused(): Promise<boolean>
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   setBrowserContentOccluded(occluded: boolean): void

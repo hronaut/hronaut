@@ -100,6 +100,16 @@ function removeActiveDialog(dialog: ActiveDialog): void {
   syncDocumentListeners()
 }
 
+async function applicationHasFocus(): Promise<boolean> {
+  const shell = window.hronautShell
+  if (!shell?.isWindowFocused) return document.hasFocus()
+  try {
+    return await shell.isWindowFocused()
+  } catch {
+    return false
+  }
+}
+
 export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
   let registered = false
   let focusGeneration = 0
@@ -119,13 +129,15 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
         registered = true
       }
       const operationGeneration = ++focusGeneration
-      const documentWasFocused = document.hasFocus()
+      const focusState = applicationHasFocus()
       await nextTick()
+      if (operationGeneration !== focusGeneration || !options.open.value) return
+      const applicationWasFocused = await focusState
       if (operationGeneration !== focusGeneration || !options.open.value) return
       // Request-driven chrome may appear while the human is typing in another
       // application. Focusing it in that state can activate Hronaut on some
       // desktop environments; the trap still takes over when the user returns.
-      if (options.focusOnOpen !== false && documentWasFocused) {
+      if (options.focusOnOpen !== false && applicationWasFocused) {
         options.panel.value?.focus({ preventScroll: true })
       }
       options.afterLayout?.()
@@ -139,15 +151,17 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
     const operationGeneration = ++restoreGeneration
     await nextTick()
     if (operationGeneration !== restoreGeneration) return
+    const applicationFocused = await applicationHasFocus()
+    if (operationGeneration !== restoreGeneration) return
     const remainingPanel = topDialogPanel()
     if (remainingPanel) {
-      if (!remainingPanel.contains(document.activeElement)) focusInside(remainingPanel)
+      if (applicationFocused && !remainingPanel.contains(document.activeElement)) focusInside(remainingPanel)
       return
     }
     options.afterLayout?.()
     const target = returnFocus
     returnFocus = null
-    if (!target?.isConnected) return
+    if (!applicationFocused || !target?.isConnected) return
     target.focus({ preventScroll: true })
   }, { immediate: true })
 

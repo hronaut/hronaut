@@ -17,6 +17,7 @@ function deferred<Value>() {
 
 describe('SettingsDialog', () => {
   it('focuses the selected section, serializes reset interaction, and closes accessibly', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const trigger = document.createElement('button')
     document.body.append(trigger)
     trigger.focus()

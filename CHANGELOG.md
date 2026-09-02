@@ -4,12 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.33] - 2026-09-02
+
 ### Added
 
 - Add copy-ready starter workflows for authenticated handoff, localhost defect triage, and responsive review with explicit workspace and privacy boundaries.
 
 ### Fixed
 
+- Keep trusted modal cleanup from restoring stale Hronaut focus while another application owns input, and fail closed if the native focus query is unavailable.
+- Invalidate later cached changelog pages after a successful refresh so newly shifted releases cannot disappear at a page boundary.
+- Ignore a leaked native update listener after failed startup cleanup so stale release state cannot overwrite a successful retry.
 - Refresh transitive URI and query-string parsing dependencies to patched BSD-licensed releases after newly published host-confusion, SSRF, and denial-of-service advisories.
 - Close active Chromium connections when tearing down integration HTTP fixtures so otherwise-passing Docker cases cannot spend their timeout waiting on idle sockets.
 - Stop panel-dock watchers, queued layout IPC, and active resize listeners when the shell layout controller is disposed.
@@ -18,6 +23,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Improved
 
+- Make Hronaut's published Agent Skill discoverable for authenticated browser QA, localhost and responsive testing, accessibility checks, and performance diagnosis.
 - Add copyable GitHub attestation and SHA-256 verification steps for unsigned release downloads to the README.
 - Serialize focused Docker dependency-cache initialization so concurrent cold starts cannot observe a partially populated cache.
 - Split hosted Electron integration coverage across three balanced shards to shorten feedback while retaining all scenarios.

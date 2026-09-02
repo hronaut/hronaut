@@ -67,6 +67,7 @@ const BackgroundModalHarness = defineComponent({
   template: `
     <section v-if="open" ref="panel" role="dialog" aria-modal="true" aria-label="Background modal" tabindex="-1">
       <button type="button">Review</button>
+      <button type="button" @click="open = false">Close background modal</button>
     </section>
   `
 })
@@ -91,6 +92,54 @@ describe('modal dialog focus lifecycle', () => {
     background.remove()
   })
 
+  it('does not restore stale Hronaut focus when an automatic modal closes in the background', async () => {
+    const background = document.createElement('button')
+    background.textContent = 'Previous Hronaut focus owner'
+    document.body.append(background)
+    background.focus()
+    const restoreFocus = vi.spyOn(background, 'focus')
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+
+    render(BackgroundModalHarness)
+    const close = await screen.findByRole('button', { name: 'Close background modal' })
+    close.click()
+    await nextTick()
+    await nextTick()
+
+    expect(screen.queryByRole('dialog', { name: 'Background modal' })).not.toBeInTheDocument()
+    expect(restoreFocus).not.toHaveBeenCalled()
+    background.remove()
+  })
+
+  it('fails closed when the native window-focus query is unavailable during modal cleanup', async () => {
+    const background = document.createElement('button')
+    background.textContent = 'Previous Hronaut focus owner'
+    document.body.append(background)
+    background.focus()
+    const restoreFocus = vi.spyOn(background, 'focus')
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const isWindowFocused = vi.fn().mockRejectedValue(new Error('focus IPC unavailable'))
+    Object.defineProperty(window, 'hronautShell', {
+      configurable: true,
+      value: { isWindowFocused }
+    })
+
+    try {
+      render(BackgroundModalHarness)
+      const close = await screen.findByRole('button', { name: 'Close background modal' })
+      close.click()
+      await nextTick()
+      await vi.waitFor(() => expect(isWindowFocused).toHaveBeenCalledTimes(2))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(screen.queryByRole('dialog', { name: 'Background modal' })).not.toBeInTheDocument()
+      expect(restoreFocus).not.toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(window, 'hronautShell')
+      background.remove()
+    }
+  })
+
   it('wraps keyboard focus inside the active modal and redirects escaped focus', async () => {
     const user = userEvent.setup()
     render(ModalTrapHarness)
@@ -111,6 +160,7 @@ describe('modal dialog focus lifecycle', () => {
   })
 
   it('preserves the original focus target across a modal handoff', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const user = userEvent.setup()
     render(ModalHandoffHarness)
     const trigger = screen.getByRole('button', { name: 'Open first' })

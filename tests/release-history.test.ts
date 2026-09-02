@@ -86,6 +86,34 @@ describe('ReleaseHistoryService', () => {
     expect(fetch).toHaveBeenCalledTimes(3)
   })
 
+  it('invalidates later cached pages after a successful first-page refresh', async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        release({ tag_name: 'v1.11.4', name: 'Hronaut 1.11.4' })
+      ])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        release({ tag_name: 'v1.11.3', name: 'Hronaut 1.11.3' })
+      ])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        release({ tag_name: 'v1.11.5', name: 'Hronaut 1.11.5' })
+      ])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([
+        release({ tag_name: 'v1.11.4', name: 'Hronaut 1.11.4' })
+      ])))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await service.getPage(1)
+    await expect(service.getPage(2)).resolves.toMatchObject({
+      releases: [expect.objectContaining({ version: '1.11.3' })]
+    })
+    await service.getPage(1, true)
+
+    await expect(service.getPage(2)).resolves.toMatchObject({
+      releases: [expect.objectContaining({ version: '1.11.4' })]
+    })
+    expect(fetch).toHaveBeenCalledTimes(4)
+  })
+
   it('fails closed for invalid pages and untrusted response shapes', async () => {
     const fetch = vi.fn(async () => new Response('{"message":"rate limited"}', { status: 200 }))
     const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })

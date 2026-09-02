@@ -54,6 +54,11 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
+        // Invalidate the listener before attempting native cleanup. An IPC
+        // unsubscribe can fail while its callback remains live; that stale
+        // callback must not accept update state or compete with a retry.
+        generation += 1
+        initializePromise = null
         const failures = [error]
         try {
           detachListener()

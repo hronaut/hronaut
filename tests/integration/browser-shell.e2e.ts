@@ -6609,6 +6609,61 @@ test('preserves the human focus owner after agent input in a locked tab', async 
   }
 })
 
+test('does not restore stale shell focus when trusted chrome closes in the background', async ({
+  appWindow,
+  electronApp
+}) => {
+  let humanWindowId: number | undefined
+  const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
+  await settingsButton.click()
+  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+
+  await appWindow.evaluate(() => {
+    const trigger = document.querySelector<HTMLButtonElement>('button[aria-label="Settings"]')
+    if (!trigger) throw new Error('Settings focus trigger was not found')
+    const focus = trigger.focus.bind(trigger)
+    ;(window as typeof window & { __hronautBackgroundRestoreFocusCalls?: number })
+      .__hronautBackgroundRestoreFocusCalls = 0
+    trigger.focus = (options?: FocusOptions) => {
+      const browserWindow = window as typeof window & { __hronautBackgroundRestoreFocusCalls?: number }
+      browserWindow.__hronautBackgroundRestoreFocusCalls =
+        (browserWindow.__hronautBackgroundRestoreFocusCalls ?? 0) + 1
+      focus(options)
+    }
+  })
+
+  try {
+    humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
+      const humanWindow = new BrowserWindow({ width: 320, height: 200, show: false })
+      await humanWindow.loadURL('data:text/html,<title>Background focus owner</title><input autofocus>')
+      humanWindow.show()
+      humanWindow.focus()
+      return humanWindow.id
+    })
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    await appWindow.evaluate(() => {
+      const close = document.querySelector<HTMLButtonElement>('.settings-dialog .panel-close')
+      if (!close) throw new Error('Settings close button was not found')
+      close.click()
+    })
+    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeHidden()
+    await appWindow.waitForTimeout(100)
+
+    expect(await appWindow.evaluate(() => (
+      (window as typeof window & { __hronautBackgroundRestoreFocusCalls?: number })
+        .__hronautBackgroundRestoreFocusCalls ?? 0
+    ))).toBe(0)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+  } finally {
+    if (humanWindowId !== undefined) {
+      await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.destroy(), humanWindowId)
+    }
+  }
+})
+
 test('preserves human focus across agent presentation, input, and active tab changes', async ({
   appWindow,
   electronApp,

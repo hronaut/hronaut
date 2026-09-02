@@ -17,6 +17,7 @@ function credential(id: string, username: string): CredentialSummary {
 
 describe('CredentialPicker', () => {
   it('returns focus to its invoking control after close', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const trigger = document.createElement('button')
     document.body.append(trigger)
     trigger.focus()

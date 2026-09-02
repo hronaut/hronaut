@@ -26,18 +26,20 @@ function createController(
   let listener: ((state: AppUpdateState) => void) | undefined
   const check = vi.fn(async () => update('up-to-date'))
   const download = vi.fn(async () => update('downloaded'))
+  const getStateMock = vi.fn(getState)
   const unsubscribe = vi.fn(() => { listener = undefined })
+  const onChanged = vi.fn((next: (state: AppUpdateState) => void) => {
+    listener = next
+    onSubscribe?.(next)
+    return unsubscribe
+  })
   const api: HronautUpdatesApi = {
-    getState: vi.fn(getState),
+    getState: getStateMock,
     getReleaseHistory: vi.fn(),
     check,
     download,
     install: vi.fn(async () => true),
-    onChanged: vi.fn((next: (state: AppUpdateState) => void) => {
-      listener = next
-      onSubscribe?.(next)
-      return unsubscribe
-    }),
+    onChanged,
     onOpenRequested: vi.fn(() => () => undefined)
   }
   const setCheckOnStartup = vi.fn(async (enabled: boolean) => {
@@ -63,6 +65,8 @@ function createController(
     controller,
     download,
     emit: (state: AppUpdateState) => listener?.(state),
+    getState: getStateMock,
+    onChanged,
     onActionError,
     onCheckStarted,
     onSettingError,
@@ -145,7 +149,7 @@ describe('update settings controller', () => {
     const initial = deferred<AppUpdateState>()
     const sourceError = new Error('update state unavailable')
     const cleanupError = new Error('update listener already closed')
-    const { controller, onActionError, unsubscribe } = createController(() => initial.promise)
+    const { controller, emit, getState, onActionError, onChanged, onStateAccepted, unsubscribe } = createController(() => initial.promise)
     unsubscribe.mockImplementationOnce(() => {
       throw cleanupError
     })
@@ -156,6 +160,15 @@ describe('update settings controller', () => {
 
     expect(onActionError).toHaveBeenCalledWith(sourceError)
     expect(unsubscribe).toHaveBeenCalledOnce()
+
+    emit({ ...update('available'), availableVersion: '9.9.9' })
+    expect(onStateAccepted).not.toHaveBeenCalled()
+
+    getState.mockResolvedValueOnce(update('up-to-date'))
+    await expect(controller.initialize()).resolves.toBeUndefined()
+    expect(onChanged).toHaveBeenCalledTimes(2)
+    expect(controller.state.value.status).toBe('up-to-date')
+    controller.dispose()
   })
 
   it('clears a pending update operation when native listener disposal fails', async () => {

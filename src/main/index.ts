@@ -3349,6 +3349,10 @@ function registerIpc(): void {
   ipcMain.handle('updates:check', (event) => { assertTrustedShellSender(event); return checkForUpdates() })
   ipcMain.handle('updates:download', (event) => { assertTrustedShellSender(event); return downloadUpdate() })
   ipcMain.handle('updates:install', (event) => { assertTrustedShellSender(event); return installDownloadedUpdate() })
+  ipcMain.handle('shell:is-window-focused', (event) => {
+    assertTrustedShellSender(event)
+    return BrowserWindow.fromWebContents(event.sender)?.isFocused() ?? false
+  })
   ipcMain.on('browser:toolbar-height', (event, height: number) => {
     assertMainShellSender(event)
     tabsManager?.setToolbarHeight(scaleShellMetric(height, event.sender.getZoomFactor()))

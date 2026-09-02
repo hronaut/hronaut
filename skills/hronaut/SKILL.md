@@ -1,6 +1,6 @@
 ---
 name: hronaut
-description: Use the Hronaut desktop browser through MCP for visible, persistent web workflows with isolated agent workspaces. Use when a task should survive one agent session, reuse local browser state, or allow the user to watch and take over.
+description: Use the Hronaut desktop Browser MCP for visible, persistent web workflows in isolated agent workspaces. Use for authenticated browser QA with human handoff, localhost or responsive testing, accessibility and performance diagnosis, or tasks that should survive one agent session while the user watches or takes over.
 license: PolyForm Noncommercial 1.0.0
 metadata:
   author: hronaut
@@ -10,6 +10,12 @@ metadata:
 # Use Hronaut
 
 Use Hronaut as a browser owned by the user, not as a disposable browser process owned by the current task. Its tabs and isolated workspace state can remain after this conversation ends.
+
+## Good fits
+
+- For authenticated application QA, create the task workspace first, open its initial page with `browser_new_tab`, and use `browser_request_user_attention` when a person must complete sign-in, CAPTCHA, consent, or another sensitive step.
+- For localhost and preview-environment debugging, inspect the current state with `browser_snapshot`, then collect only relevant sanitized evidence with `browser_debug_report` or `browser_network_search`.
+- For responsive, accessibility, and performance checks, use `browser_resize`, `browser_screenshot`, `browser_accessibility_audit`, or `browser_performance` as the task requires. Reset temporary viewport or emulation conditions after the check.
 
 ## Connect safely
 

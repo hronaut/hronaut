@@ -109,6 +109,11 @@ export class ReleaseHistoryService {
         throw new Error('GitHub returned an oversized release history response.')
       }
       const value = parseReleaseHistoryPage(page, await response.text(), response.headers.get('link'))
+      if (bypassCache && page === 1) {
+        for (const cachedPage of this.#cache.keys()) {
+          if (cachedPage > page) this.#cache.delete(cachedPage)
+        }
+      }
       this.#cache.set(page, { expiresAt: this.#now() + this.#cacheTtlMs, value })
       return clonePage(value)
     } catch (error) {

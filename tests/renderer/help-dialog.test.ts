@@ -30,6 +30,7 @@ function renderDialog() {
 
 describe('HelpDialog', () => {
   it('renders shortcuts, focuses the modal, and restores invoking focus on close', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     const trigger = document.createElement('button')
     document.body.append(trigger)
     trigger.focus()

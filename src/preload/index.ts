@@ -475,6 +475,7 @@ const shellApi: HronautShellApi = {
     mode: process.argv.includes('--hronaut-window-chrome=overlay') ? 'overlay' : 'system',
     mainWindow: process.argv.includes('--hronaut-window-kind=main')
   },
+  isWindowFocused: () => ipcRenderer.invoke('shell:is-window-focused'),
   setToolbarHeight: (height: number) => ipcRenderer.send('browser:toolbar-height', height),
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),
