@@ -2260,7 +2260,10 @@ function registerIpc(): void {
     return tabsManager!.reopenClosedTab(closedTabId)
   })
   ipcMain.handle('browser:select-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.selectTabAndWait(tabId) })
-  ipcMain.handle('browser:close-tab', (event, tabId) => { assertTrustedShellSender(event); return tabsManager!.closeTab(tabId) })
+  ipcMain.handle('browser:close-tab', (event, tabId) => {
+    assertTrustedShellSender(event)
+    return tabsManager!.closeTab(tabId, true)
+  })
   ipcMain.handle('browser:open-split-view', (event, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid split-view tab ID')

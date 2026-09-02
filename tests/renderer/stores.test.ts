@@ -156,6 +156,36 @@ describe('browser Pinia store lifecycle', () => {
     expect(onStateChanged).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps a leaked browser listener inert when failed initialization cleanup throws', async () => {
+    const sourceError = new Error('state unavailable')
+    const getState = vi.fn()
+      .mockRejectedValueOnce(sourceError)
+      .mockResolvedValueOnce(browserState('recovered'))
+    const listeners: Array<(state: BrowserState) => void> = []
+    const onStateChanged = vi.fn((listener: (state: BrowserState) => void) => {
+      listeners.push(listener)
+      if (listeners.length === 1) {
+        return () => {
+          throw new Error('browser listener already closed')
+        }
+      }
+      return vi.fn()
+    })
+    installBrowserApi({ getState, onStateChanged })
+    const store = useBrowserStore()
+
+    await expect(store.initialize()).rejects.toThrow()
+    expect(store.initializationError).toBe(sourceError)
+
+    listeners[0]?.(browserState('stale-listener'))
+    expect(store.state.activeTabId).toBeNull()
+
+    await expect(store.initialize()).resolves.toBeUndefined()
+    expect(store.state.activeTabId).toBe('recovered')
+    expect(onStateChanged).toHaveBeenCalledTimes(2)
+    store.dispose()
+  })
+
   it('delegates actions and does not apply events after disposal', async () => {
     let listener: ((state: BrowserState) => void) | undefined
     const selectTab = vi.fn(async (tabId: string) => browserState(tabId))
@@ -362,6 +392,37 @@ describe('settings Pinia store lifecycle', () => {
     await store.initialize()
     expect(store.initialized).toBe(true)
     expect(getRendererState).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps a leaked settings listener inert when failed initialization cleanup throws', async () => {
+    const sourceError = new Error('settings unavailable')
+    const getRendererState = vi.fn()
+      .mockRejectedValueOnce(sourceError)
+      .mockResolvedValueOnce(settingsState('en-US'))
+    const listeners: Array<(state: RendererSettingsState) => void> = []
+    const onRendererStateChanged = vi.fn((listener: (state: RendererSettingsState) => void) => {
+      listeners.push(listener)
+      if (listeners.length === 1) {
+        return () => {
+          throw new Error('settings listener already closed')
+        }
+      }
+      return vi.fn()
+    })
+    installSettingsApi({ getRendererState, onRendererStateChanged })
+    const store = useSettingsStore()
+
+    await expect(store.initialize()).rejects.toThrow()
+    expect(store.initializationError).toBe(sourceError)
+
+    listeners[0]?.(settingsState('uk-UA'))
+    expect(store.resolvedLocale).toBe('en-US')
+
+    await expect(store.initialize()).resolves.toBeUndefined()
+    expect(store.initialized).toBe(true)
+    expect(store.resolvedLocale).toBe('en-US')
+    expect(onRendererStateChanged).toHaveBeenCalledTimes(2)
+    store.dispose()
   })
 
   it('does not let an older settings response overwrite a newer response', async () => {

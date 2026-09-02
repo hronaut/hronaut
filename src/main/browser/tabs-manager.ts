@@ -2826,25 +2826,25 @@ export class BrowserTabsManager {
         id: 'close-tab',
         label: this.text('native.context.closeTab'),
         enabled: !this.allHumanInteractionLocked,
-        click: () => runAction('close the tab', () => this.closeTab(tab.id))
+        click: () => runAction('close the tab', () => this.closeTab(tab.id, true))
       },
       {
         id: 'close-other-tabs',
         label: this.text('native.context.closeOthers'),
         enabled: !this.allHumanInteractionLocked && otherTabs.length > 0,
-        click: () => runAction('close other tabs', () => this.closeTabs(otherTabs.map((candidate) => candidate.id)))
+        click: () => runAction('close other tabs', () => this.closeTabs(otherTabs.map((candidate) => candidate.id), true, true))
       },
       {
         id: 'close-tabs-to-right',
         label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
         enabled: !this.allHumanInteractionLocked && tabsToRight.length > 0,
-        click: () => runAction('close tabs to the right', () => this.closeTabs(tabsToRight.map((candidate) => candidate.id)))
+        click: () => runAction('close tabs to the right', () => this.closeTabs(tabsToRight.map((candidate) => candidate.id), true, true))
       },
       {
         id: 'close-duplicate-tabs',
         label: this.text('native.context.closeDuplicates'),
         enabled: !this.allHumanInteractionLocked && duplicateTabs.length > 0,
-        click: () => runAction('close duplicate tabs', () => this.closeTabs(duplicateTabs.map((candidate) => candidate.id)))
+        click: () => runAction('close duplicate tabs', () => this.closeTabs(duplicateTabs.map((candidate) => candidate.id), true, true))
       },
       { type: 'separator' },
       {
@@ -3046,8 +3046,8 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async closeTab(tabId: string): Promise<BrowserState> {
-    return this.closeTabInternal(tabId, true)
+  async closeTab(tabId: string, respectGlobalInteractionLock = false): Promise<BrowserState> {
+    return this.closeTabInternal(tabId, true, respectGlobalInteractionLock)
   }
 
   private closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
@@ -3101,8 +3101,13 @@ export class BrowserTabsManager {
     }
   }
 
-  private async closeTabInternal(tabId: string, ensureReplacement: boolean): Promise<BrowserState> {
+  private async closeTabInternal(
+    tabId: string,
+    ensureReplacement: boolean,
+    respectGlobalInteractionLock = false
+  ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
+    if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
     const webContents = tab.webContents
     // A WebContentsView may be destroyed independently (renderer failure,
     // devtools teardown, or an Electron close race). Purge those stale siblings
@@ -3116,6 +3121,10 @@ export class BrowserTabsManager {
     }
     if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
+    // The close may have yielded while waking a sleeping successor. Re-check
+    // the global guard before committing any irreversible tab state so a lock
+    // engaged during that wake takes effect immediately.
+    if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
     const wasActive = tab.id === this.activeTabId
     this.rejectNetworkWaiters(tab.id, 'The tab closed while waiting for network activity.')
     this.clearReproRecording(tab)
@@ -3176,9 +3185,15 @@ export class BrowserTabsManager {
     }
   }
 
-  private async closeTabs(tabIds: string[], ensureReplacement = true): Promise<BrowserState> {
+  private async closeTabs(
+    tabIds: string[],
+    ensureReplacement = true,
+    respectGlobalInteractionLock = false
+  ): Promise<BrowserState> {
     for (const tabId of tabIds) {
-      if (this.tabs.has(tabId)) await this.closeTabInternal(tabId, ensureReplacement)
+      if (this.tabs.has(tabId)) {
+        await this.closeTabInternal(tabId, ensureReplacement, respectGlobalInteractionLock)
+      }
     }
     return this.getState()
   }

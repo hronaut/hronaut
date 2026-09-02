@@ -158,7 +158,10 @@ describe('MCP status controller', () => {
   it('reports the MCP source error when listener cleanup also fails', async () => {
     const initial = deferred<McpControlState>()
     const sourceError = new Error('MCP status unavailable')
-    const { controller, onPauseError, unsubscribe } = createController(() => initial.promise)
+    const getState = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockResolvedValueOnce(control())
+    const { controller, emit, onPauseError, unsubscribe } = createController(getState)
     unsubscribe.mockImplementationOnce(() => {
       throw new Error('MCP listener already closed')
     })
@@ -169,6 +172,14 @@ describe('MCP status controller', () => {
 
     expect(onPauseError).toHaveBeenCalledWith(sourceError)
     expect(unsubscribe).toHaveBeenCalledOnce()
+
+    emit(control({ status: 'paused', paused: true }))
+    expect(controller.state.value).toEqual({ status: 'starting', paused: false })
+
+    await expect(controller.initialize()).resolves.toBeUndefined()
+    expect(getState).toHaveBeenCalledTimes(2)
+    expect(controller.state.value).toEqual(control())
+    controller.dispose()
   })
 
   it('clears pending MCP feedback and pause state when listener disposal fails', async () => {

@@ -49,6 +49,10 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
+        // Make a listener inert before native cleanup. If unsubscribe throws,
+        // its callback may still be live and must not publish stale MCP state.
+        generation += 1
+        initializePromise = null
         const failures = [error]
         try {
           detachListener()

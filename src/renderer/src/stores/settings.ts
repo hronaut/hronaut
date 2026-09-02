@@ -59,6 +59,12 @@ export const useSettingsStore = defineStore('settings', () => {
     resolvedLocale.value = next.resolvedLocale
   }
 
+  function detachListener(): void {
+    const current = unsubscribe
+    unsubscribe = null
+    current?.()
+  }
+
   function hydrate(next: RendererSettingsState): void {
     settings.value = next.settings
     systemTheme.value = next.systemTheme
@@ -89,11 +95,21 @@ export const useSettingsStore = defineStore('settings', () => {
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
-        unsubscribe?.()
-        unsubscribe = null
+        // Invalidate the callback before native cleanup. An unsubscribe
+        // failure can leave the callback alive, but it must stay inert.
+        generation += 1
+        initializePromise = null
+        initializing.value = false
         initializationError.value = error
         initialized.value = false
-        throw error
+        const failures = [error]
+        try {
+          detachListener()
+        } catch (cleanupError) {
+          failures.push(cleanupError)
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'Settings initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
         if (generation === currentGeneration) {
@@ -106,11 +122,10 @@ export const useSettingsStore = defineStore('settings', () => {
 
   function dispose(): void {
     generation += 1
-    unsubscribe?.()
-    unsubscribe = null
     initializePromise = null
     initialized.value = false
     initializing.value = false
+    detachListener()
   }
 
   async function applySettings(operation: Promise<AppSettings>): Promise<AppSettings> {

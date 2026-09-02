@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Stop a human tab close from completing after **Block input** engages while Hronaut is waking the replacement tab; agent-driven closes remain available.
+- Keep leaked browser, settings, and MCP status listeners inert when failed startup cleanup also throws, preserve the original initialization error, and allow a clean retry.
+
+### Improved
+
+- Add a GitHub support resource that routes setup, product defects, security reports, and licensing questions to focused privacy-safe channels.
+
 ## [1.11.33] - 2026-09-02
 
 ### Added

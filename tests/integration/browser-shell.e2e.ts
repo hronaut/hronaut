@@ -4226,6 +4226,110 @@ test('keeps the active tab when a sleeping close replacement cannot wake', async
   }
 })
 
+test('does not finish a pending tab close after the global interaction lock engages', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Locked close replacement</title><main>Wake before locking</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Locked close-replacement fixture did not expose a port')
+  const replacementUrl = `http://127.0.0.1:${address.port}/locked-close-replacement`
+  const activeUrl = 'data:text/html,<title>Locked pending close</title><main>Keep this tab open</main>'
+  const created = await appWindow.evaluate(async ({ replacementUrl, activeUrl }) => {
+    const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+    await browser.newTab({ url: replacementUrl, active: true })
+    const active = await browser.newTab({ url: activeUrl, active: true })
+    return {
+      replacementTabId: active.tabs.find((tab) => tab.url === replacementUrl)?.id ?? null,
+      activeTabId: active.activeTabId
+    }
+  }, { replacementUrl, activeUrl }) as { replacementTabId: string | null; activeTabId: string | null }
+  expect(created.replacementTabId).toBeTruthy()
+  expect(created.activeTabId).toBeTruthy()
+  const replacementTabId = created.replacementTabId!
+  const activeTabId = created.activeTabId!
+  await expect.poll(() => appWindow.evaluate((tabId) => (
+    window as unknown as { hronaut: HronautApi }
+  ).hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === tabId)?.loading), replacementTabId)).toBe(false)
+  const replacementPageId = await electronApp.evaluate(({ webContents }, requestedUrl) => (
+    webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.id ?? null
+  ), replacementUrl)
+  expect(replacementPageId).toBeTruthy()
+  await appWindow.evaluate((tabId) => (
+    window as unknown as { hronaut: HronautApi }
+  ).hronaut.setTabSleeping(tabId, true), replacementTabId)
+
+  await electronApp.evaluate(({ webContents }, pageId) => {
+    const page = webContents.fromId(pageId)
+    if (!page) throw new Error('Locked close replacement WebContents was not found')
+    const originalRestore = page.navigationHistory.restore.bind(page.navigationHistory)
+    const control = { started: false, release: undefined as (() => void) | undefined }
+    ;(globalThis as typeof globalThis & { __hronautLockedCloseWake?: typeof control }).__hronautLockedCloseWake = control
+    Object.defineProperty(page.navigationHistory, 'restore', {
+      configurable: true,
+      value: async (...args: Parameters<typeof originalRestore>) => {
+        control.started = true
+        await new Promise<void>((resolve) => { control.release = resolve })
+        return originalRestore(...args)
+      }
+    })
+  }, replacementPageId!)
+
+  try {
+    await appWindow.evaluate((tabId) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      const shellWindow = globalThis as typeof globalThis & {
+        __hronautPendingLockedClose?: Promise<BrowserState>
+      }
+      shellWindow.__hronautPendingLockedClose = browser.closeTab(tabId)
+    }, activeTabId)
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautLockedCloseWake?: { started: boolean } })
+        .__hronautLockedCloseWake?.started ?? false
+    ))).toBe(true)
+
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautLockedCloseWake?: { release?: () => void }
+      }).__hronautLockedCloseWake
+      if (!control?.release) throw new Error('Locked close wake was not waiting')
+      control.release()
+    })
+    const state = await appWindow.evaluate(async () => {
+      const shellWindow = globalThis as typeof globalThis & {
+        __hronautPendingLockedClose?: Promise<BrowserState>
+      }
+      const pending = shellWindow.__hronautPendingLockedClose
+      if (!pending) throw new Error('Pending locked close was not found')
+      const result = await pending
+      delete shellWindow.__hronautPendingLockedClose
+      return result
+    })
+
+    expect(state.allHumanInteractionLocked).toBe(true)
+    expect(state.activeTabId).toBe(activeTabId)
+    expect(state.tabs.some((tab) => tab.id === activeTabId)).toBe(true)
+  } finally {
+    await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautLockedCloseWake?: { release?: () => void }
+      }).__hronautLockedCloseWake
+      control?.release?.()
+      delete (globalThis as typeof globalThis & { __hronautLockedCloseWake?: unknown }).__hronautLockedCloseWake
+    })
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)')
+    await closeFixtureServer(server)
+  }
+})
+
 test('keeps a newer selection authoritative while an active close wakes its replacement', async ({
   appWindow,
   electronApp

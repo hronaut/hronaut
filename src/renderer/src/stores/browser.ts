@@ -47,6 +47,12 @@ export const useBrowserStore = defineStore('browser', () => {
     state.value = next
   }
 
+  function detachListener(): void {
+    const current = unsubscribe
+    unsubscribe = null
+    current?.()
+  }
+
   async function initialize(): Promise<void> {
     if (initialized.value) return
     if (initializePromise) return initializePromise
@@ -65,11 +71,21 @@ export const useBrowserStore = defineStore('browser', () => {
       })
       .catch((error: unknown) => {
         if (generation !== currentGeneration) return
-        unsubscribe?.()
-        unsubscribe = null
+        // Invalidate the callback before native cleanup. An unsubscribe
+        // failure can leave the callback alive, but it must stay inert.
+        generation += 1
+        initializePromise = null
+        initializing.value = false
         initializationError.value = error
         initialized.value = false
-        throw error
+        const failures = [error]
+        try {
+          detachListener()
+        } catch (cleanupError) {
+          failures.push(cleanupError)
+        }
+        if (failures.length === 1) throw error
+        throw new AggregateError(failures, 'Browser initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
         if (generation === currentGeneration) {
@@ -84,11 +100,10 @@ export const useBrowserStore = defineStore('browser', () => {
     generation += 1
     pendingOperations.clear()
     completedOperations.clear()
-    unsubscribe?.()
-    unsubscribe = null
     initializePromise = null
     initialized.value = false
     initializing.value = false
+    detachListener()
   }
 
   function reconcileOperations(): void {
