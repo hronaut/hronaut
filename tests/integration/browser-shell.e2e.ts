@@ -6047,6 +6047,9 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     const askWhere = settingsDialog.getByRole('checkbox', { name: 'Ask where to save each file' })
     await askWhere.check()
     await expect(askWhere).toBeChecked()
+    await expect(settingsDialog.getByText(
+      'Hronaut will ask where to save each new website download.'
+    )).toBeVisible()
     await electronApp.evaluate(({ session }) => {
       session.fromPartition('persist:hronaut').once('will-download', (_event, item) => {
         ;(globalThis as typeof globalThis & {
