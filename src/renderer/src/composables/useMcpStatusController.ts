@@ -13,6 +13,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   const copied = ref(false)
   const pauseBusy = ref(false)
   let generation = 0
+  let listenerGeneration = 0
   let revision = 0
   let copySequence = 0
   let initializePromise: Promise<void> | null = null
@@ -37,21 +38,26 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
 
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
-    const currentGeneration = ++generation
+    const currentGeneration = generation
+    const currentListenerGeneration = ++listenerGeneration
     const initialRevision = revision
     detachListener()
     unsubscribe = options.api.onChanged((next) => {
-      if (generation === currentGeneration) accept(next)
+      if (generation === currentGeneration && listenerGeneration === currentListenerGeneration) accept(next)
     })
     initializePromise = options.api.getState()
       .then((next) => {
-        if (generation === currentGeneration && revision === initialRevision) accept(next)
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+          && revision === initialRevision
+        ) accept(next)
       })
       .catch((error: unknown) => {
-        if (generation !== currentGeneration) return
+        if (generation !== currentGeneration || listenerGeneration !== currentListenerGeneration) return
         // Make a listener inert before native cleanup. If unsubscribe throws,
         // its callback may still be live and must not publish stale MCP state.
-        generation += 1
+        listenerGeneration += 1
         initializePromise = null
         const failures = [error]
         try {
@@ -68,7 +74,10 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
         throw new AggregateError(failures, 'MCP initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
-        if (generation === currentGeneration) initializePromise = null
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+        ) initializePromise = null
       })
     return initializePromise
   }
@@ -113,6 +122,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
 
   function dispose(): void {
     generation += 1
+    listenerGeneration += 1
     copySequence += 1
     initializePromise = null
     pauseBusy.value = false

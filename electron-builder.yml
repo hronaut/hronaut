@@ -66,6 +66,11 @@ linux:
   icon: build/icons
   syncDesktopName: true
   category: Network
+  description: Visible, persistent browser for coding agents
+  desktop:
+    entry:
+      GenericName: Browser MCP
+      Keywords: browser;MCP;AI;coding agent;automation;QA;testing;
   maintainer: Hronaut
   executableName: hronaut
   target:

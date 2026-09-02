@@ -157,6 +157,24 @@ describe('wallets controller', () => {
     controller.dispose()
   })
 
+  it('keeps a leaked wallet listener inert after failed initialization cleanup', async () => {
+    const sourceError = new Error('wallet policy snapshot unavailable')
+    const { controller, emitWallets, listPolicies, walletUnsubscribe } = createController()
+    listPolicies.mockRejectedValueOnce(sourceError)
+    walletUnsubscribe.mockImplementationOnce(() => {
+      throw new Error('wallet listener still registered')
+    })
+
+    await expect(controller.initialize()).rejects.toThrow()
+
+    emitWallets([wallet('stale-wallet')])
+    expect(controller.wallets.value).toEqual([])
+
+    await expect(controller.initialize()).resolves.toBeUndefined()
+    expect(controller.wallets.value).toEqual([])
+    controller.dispose()
+  })
+
   it('preserves authoritative events delivered while startup listeners are attached', async () => {
     const newestWallet = wallet('synchronous-startup-wallet')
     const lockedStatus: WalletServiceStatus = {

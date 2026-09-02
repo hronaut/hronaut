@@ -122,6 +122,43 @@ describe('credential fill controller', () => {
     expect(harness.fillCredential).toHaveBeenCalledTimes(2)
   })
 
+  it('suppresses delayed success feedback after the active tab changes', async () => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementation(() => pending.promise)
+
+    const fill = harness.controller.fillSelectedCredential(credential())
+    await Promise.resolve()
+    harness.activeTab.value = tab('tab-2')
+    pending.resolve(true)
+    await fill
+
+    expect(harness.fillCredential).toHaveBeenCalledWith('tab-1', 'credential-1')
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
+    expect(harness.controller.state.value).toBe('idle')
+  })
+
+  it('suppresses delayed failure feedback after the active page navigates', async () => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementation(() => pending.promise)
+
+    const fill = harness.controller.fillSelectedCredential(credential())
+    await Promise.resolve()
+    harness.activeTab.value = {
+      ...tab(),
+      url: 'https://example.test/another-page'
+    }
+    pending.reject(new Error('The original document was replaced'))
+    await fill
+
+    expect(harness.fillCredential).toHaveBeenCalledWith('tab-1', 'credential-1')
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
+    expect(harness.controller.state.value).toBe('idle')
+  })
+
   it('does nothing without an active tab or matching credential', async () => {
     const harness = create([])
     await harness.controller.fillSavedPassword()

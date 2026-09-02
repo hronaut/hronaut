@@ -17,6 +17,7 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
   const state = ref<AppUpdateState>({ status: 'idle', currentVersion: '' })
   const operation = ref<UpdateOperation>('idle')
   let generation = 0
+  let listenerGeneration = 0
   let revision = 0
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
@@ -42,22 +43,27 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
 
   function initialize(): Promise<void> {
     if (initializePromise) return initializePromise
-    const currentGeneration = ++generation
+    const currentGeneration = generation
+    const currentListenerGeneration = ++listenerGeneration
     const initialRevision = revision
     detachListener()
     unsubscribe = options.api.onChanged((next) => {
-      if (generation === currentGeneration) accept(next)
+      if (generation === currentGeneration && listenerGeneration === currentListenerGeneration) accept(next)
     })
     initializePromise = options.api.getState()
       .then((next) => {
-        if (generation === currentGeneration && revision === initialRevision) accept(next)
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+          && revision === initialRevision
+        ) accept(next)
       })
       .catch((error: unknown) => {
-        if (generation !== currentGeneration) return
+        if (generation !== currentGeneration || listenerGeneration !== currentListenerGeneration) return
         // Invalidate the listener before attempting native cleanup. An IPC
         // unsubscribe can fail while its callback remains live; that stale
         // callback must not accept update state or compete with a retry.
-        generation += 1
+        listenerGeneration += 1
         initializePromise = null
         const failures = [error]
         try {
@@ -74,7 +80,10 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
         throw new AggregateError(failures, 'Update initialization failed and listener cleanup was incomplete')
       })
       .finally(() => {
-        if (generation === currentGeneration) initializePromise = null
+        if (
+          generation === currentGeneration
+          && listenerGeneration === currentListenerGeneration
+        ) initializePromise = null
       })
     return initializePromise
   }
@@ -145,6 +154,7 @@ export function useUpdateSettingsController(options: UpdateSettingsControllerOpt
 
   function dispose(): void {
     generation += 1
+    listenerGeneration += 1
     initializePromise = null
     operation.value = 'idle'
     detachListener()

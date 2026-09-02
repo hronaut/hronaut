@@ -16,16 +16,22 @@ export function useCredentialFillController(options: CredentialFillControllerOpt
   const state = ref<'idle' | 'filling'>('idle')
 
   async function fillSelectedCredential(credential: CredentialSummary): Promise<void> {
-    const tabId = options.activeTab.value?.id
-    if (!tabId || state.value === 'filling') return
+    const tab = options.activeTab.value
+    if (!tab || state.value === 'filling') return
+    const requestContext = { tabId: tab.id, url: tab.url }
+    const isRequestContextActive = () => {
+      const activeTab = options.activeTab.value
+      return activeTab?.id === requestContext.tabId && activeTab.url === requestContext.url
+    }
     options.pickerOpen.value = false
     state.value = 'filling'
     try {
-      const filled = await options.fillCredential(tabId, credential.id)
+      const filled = await options.fillCredential(requestContext.tabId, credential.id)
+      if (!isRequestContextActive()) return
       if (!filled) throw new Error(options.missingCredentialMessage)
       options.onFilled(credential)
     } catch (error) {
-      options.onError(error)
+      if (isRequestContextActive()) options.onError(error)
     } finally {
       state.value = 'idle'
     }

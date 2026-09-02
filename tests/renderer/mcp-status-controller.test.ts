@@ -182,6 +182,36 @@ describe('MCP status controller', () => {
     controller.dispose()
   })
 
+  it('keeps a user pause authoritative while failed startup initialization retries', async () => {
+    const initial = deferred<McpControlState>()
+    const retrySnapshot = deferred<McpControlState>()
+    const pausing = deferred<McpControlState>()
+    const getState = vi.fn()
+      .mockReturnValueOnce(initial.promise)
+      .mockReturnValueOnce(retrySnapshot.promise)
+    const { controller, emit, setPaused } = createController(getState)
+
+    const initializing = controller.initialize()
+    emit(control())
+    initial.reject(new Error('MCP status unavailable'))
+    await expect(initializing).rejects.toThrow('MCP status unavailable')
+    expect(controller.canTogglePaused.value).toBe(true)
+
+    setPaused.mockReturnValueOnce(pausing.promise)
+    const pauseOperation = controller.togglePaused()
+    const retrying = controller.initialize()
+    pausing.resolve(control({ status: 'paused', paused: true }))
+
+    await expect(pauseOperation).resolves.toBe(true)
+    expect(controller.state.value).toEqual(control({ status: 'paused', paused: true }))
+    expect(controller.pauseBusy.value).toBe(false)
+    expect(controller.canTogglePaused.value).toBe(true)
+
+    retrySnapshot.resolve(control({ status: 'paused', paused: true }))
+    await expect(retrying).resolves.toBeUndefined()
+    controller.dispose()
+  })
+
   it('clears pending MCP feedback and pause state when listener disposal fails', async () => {
     vi.useFakeTimers()
     const pausing = deferred<McpControlState>()

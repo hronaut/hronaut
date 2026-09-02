@@ -171,6 +171,25 @@ describe('update settings controller', () => {
     controller.dispose()
   })
 
+  it('settles an in-flight update check when failed initialization invalidates only its listener', async () => {
+    const initial = deferred<AppUpdateState>()
+    const checking = deferred<AppUpdateState>()
+    const { check, controller } = createController(() => initial.promise)
+    check.mockReturnValueOnce(checking.promise)
+
+    const initializing = controller.initialize()
+    const operation = controller.check()
+    initial.reject(new Error('update state unavailable'))
+    await expect(initializing).rejects.toThrow('update state unavailable')
+
+    const current = update('up-to-date')
+    checking.resolve(current)
+    await expect(operation).resolves.toBe(true)
+    expect(controller.state.value).toEqual(current)
+    expect(controller.operation.value).toBe('idle')
+    controller.dispose()
+  })
+
   it('clears a pending update operation when native listener disposal fails', async () => {
     const pendingCheck = deferred<AppUpdateState>()
     const { check, controller, unsubscribe } = createController()

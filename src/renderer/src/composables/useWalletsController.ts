@@ -37,6 +37,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
   let disposed = false
   let initialized = false
   let initializePromise: Promise<void> | null = null
+  let subscriptionGeneration = 0
   let detailsGeneration = 0
   let statusRevision = 0
   let walletsRevision = 0
@@ -65,19 +66,22 @@ export function useWalletsController(options: WalletsControllerOptions) {
 
   function attachSubscriptions(): void {
     if (initialized || disposed) return
+    const currentGeneration = ++subscriptionGeneration
     subscriptions.push(...registerDisposers([
       () => options.api.onChanged((next) => {
-        if (!disposed) acceptWallets(next)
+        if (!disposed && subscriptionGeneration === currentGeneration) acceptWallets(next)
       }),
       () => options.api.onStatusChanged((next) => {
-        if (!disposed) acceptStatus(next)
+        if (!disposed && subscriptionGeneration === currentGeneration) acceptStatus(next)
       }),
       () => options.api.onRequestsChanged((next) => {
-        if (disposed) return
+        if (disposed || subscriptionGeneration !== currentGeneration) return
         requestsRevision += 1
         requests.value = next
       })
-    ]))
+    ], () => {
+      if (subscriptionGeneration === currentGeneration) subscriptionGeneration += 1
+    }))
     initialized = true
   }
 
@@ -119,6 +123,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
         const failures = [error]
         if (!disposed) {
           initialized = false
+          subscriptionGeneration += 1
           try {
             detachSubscriptions()
           } catch (cleanupError) {
@@ -198,6 +203,7 @@ export function useWalletsController(options: WalletsControllerOptions) {
 
   function dispose(): void {
     disposed = true
+    subscriptionGeneration += 1
     detailsGeneration += 1
     detachSubscriptions()
   }
