@@ -4,6 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Refresh transitive URI and query-string parsing dependencies to patched BSD-licensed releases after newly published host-confusion, SSRF, and denial-of-service advisories.
+- Close active Chromium connections when tearing down integration HTTP fixtures so otherwise-passing Docker cases cannot spend their timeout waiting on idle sockets.
+- Roll back page capture, export, and diagnostics resources when page-tools panel composition fails during application startup.
+- Let focused static validation accept intentionally ignored documentation files without turning ESLint's ignored-file notice into a false failure.
+
+### Improved
+
+- Add copyable GitHub attestation and SHA-256 verification steps for unsigned release downloads to the README.
+- Keep `App.vue` composition-focused by grouping page-tools and panel wiring, owned surface handles, and lifecycle cleanup in a dedicated controller.
+
 ## [1.11.32] - 2026-09-02
 
 ### Fixed

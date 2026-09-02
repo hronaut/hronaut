@@ -156,6 +156,7 @@ describe('focused Docker integration feedback', () => {
     expect(packageJson.scripts.lint).toContain('--cache')
     expect(packageJson.scripts.lint).toContain('--cache-strategy content')
     expect(packageJson.scripts['lint:focused']).not.toContain('eslint .')
+    expect(packageJson.scripts['lint:focused']).toContain('--no-warn-ignored')
     expect(packageJson.scripts.typecheck).toBe('npm run typecheck:incremental')
     expect(packageJson.scripts['typecheck:incremental']).toBe(
       'node scripts/run-typecheck-projects.ts'

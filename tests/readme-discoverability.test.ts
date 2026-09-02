@@ -84,4 +84,18 @@ describe('README discoverability', () => {
 
     expect(missing).toEqual([])
   })
+
+  it('gives unsigned-package evaluators a copyable release verification path', async () => {
+    const readme = await readFile('README.md', 'utf8')
+    const install = readme.match(/## Install\n[\s\S]*?(?=\n## Run from source)/u)?.[0] ?? ''
+
+    expect(install).toContain('### Verify an unsigned download')
+    expect(install).toContain('gh release download --repo hronaut/hronaut --pattern hashes.txt')
+    expect(install).toContain('gh attestation verify "./PACKAGE_FILENAME" --repo hronaut/hronaut')
+    expect(install).toContain('sha256sum "./PACKAGE_FILENAME"')
+    expect(install).toContain('shasum -a 256 "./PACKAGE_FILENAME"')
+    expect(install).toContain('Get-FileHash .\\PACKAGE_FILENAME -Algorithm SHA256')
+    expect(install).toContain('matching filename in `hashes.txt`')
+    expect(install).toContain('[release trust guide](https://hronaut.dev/security#verify-release)')
+  })
 })

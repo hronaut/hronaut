@@ -175,7 +175,7 @@ test('opens a scheme-less loopback address over HTTP from the address bar', asyn
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
     )).toBe('Scheme-less loopback')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -280,7 +280,7 @@ test('locks Site Storage controls while a destructive mutation is pending', asyn
     await expect(storagePanel.getByRole('button', { name: 'Delete first' })).toHaveCount(0)
     await expect(storagePanel.getByRole('button', { name: 'Delete second' })).toBeEnabled()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -1674,7 +1674,7 @@ test('keeps per-site controls above the website view', async ({ appWindow, elect
     await siteControls.getByRole('button', { name: 'Close site controls' }).click()
     await expect.poll(browserViewY).toBe(105)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -1703,7 +1703,7 @@ test('closes Find when Page Tools opens', async ({ appWindow }) => {
     await expect(appWindow.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
     await expect(find).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -1810,7 +1810,7 @@ test('does not open Site Controls underneath Settings after delayed Find cleanup
     await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
     await expect(siteControls).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -1860,7 +1860,7 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
 
     await expect(settings).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -1934,9 +1934,7 @@ test('shows a recoverable site error and retries the failed address', async ({ a
       else resolve(address.port)
     })
   })
-  const close = (): Promise<void> => new Promise((resolve, reject) => {
-    server.close((error) => error ? reject(error) : resolve())
-  })
+  const close = (): Promise<void> => closeFixtureServer(server)
   const browserViewY = (): Promise<number | undefined> => electronApp.evaluate(({ BrowserWindow }) => (
     BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds().y
   ))
@@ -2021,8 +2019,7 @@ test('does not report a superseded address navigation as failed', async ({ appWi
     )).toBe('Fast destination')
     await expect(appWindow.getByRole('alert', { name: 'Navigation failed' })).toHaveCount(0)
   } finally {
-    server.closeAllConnections()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -2183,7 +2180,7 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     expect(recoveredProcessId).toBeTruthy()
     expect(recoveredProcessId).not.toBe(firstProcessId)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -2331,7 +2328,7 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
       return requests.find((request) => request.operation === 'sign-message')?.status
     }).toBe('cancelled')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -2699,7 +2696,7 @@ test('reloads the active website from View and bypasses cached subresources on d
     await expect.poll(activeTitle).toBe('Reload 2 / 3')
     expect(scriptRequests).toBe(2)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -3406,7 +3403,7 @@ test('floats bookmark and history suggestions above pages while allowing duplica
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Suggestion history')
     await expect(address).toHaveAttribute('aria-expanded', 'false')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -3461,7 +3458,7 @@ test('suggests a committed address before every page resource finishes loading',
     await expect.poll(() => appWindow.evaluate(`window.hronautHistory.list().then((entries) => entries.find((entry) => entry.url === ${JSON.stringify(historyUrl)})?.visitCount)`)).toBe(1)
   } finally {
     finishPendingResource?.()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -3949,7 +3946,7 @@ test('puts an active website tab to sleep from its native context menu and wakes
     await expect(appWindow.getByRole('alert', { name: 'Browser action failed' })).toContainText('partially filled form')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => ({ active: state.activeTabId === ${JSON.stringify(tabId)}, sleeping: state.tabs.find((candidate) => candidate.id === ${JSON.stringify(tabId)})?.sleeping }))`)).toEqual({ active: true, sleeping: false })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4038,7 +4035,7 @@ test('rolls back pinning when a sleeping tab cannot wake and permits a retry', a
       return page?.executeJavaScript('document.body.innerText')
     }, url)).toContain('Wake retry restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4124,7 +4121,7 @@ test('rolls back selection when a sleeping tab cannot wake and permits a retry',
       return page?.executeJavaScript('document.body.innerText')
     }, url)).toContain('Selection retry restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4235,7 +4232,7 @@ test('keeps the active tab when a sleeping close replacement cannot wake', async
       return page?.executeJavaScript('document.body.innerText')
     }, url)).toContain('Close retry restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4350,7 +4347,7 @@ test('keeps a newer selection authoritative while an active close wakes its repl
       expectedActiveTabPresent: true
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4466,7 +4463,7 @@ test('uses the next close replacement when the pending sleeping replacement clos
       secondClosedPresent: false
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4566,7 +4563,7 @@ test('commits one close when duplicate requests wait on the same sleeping replac
       matchingClosedEntries: 1
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4785,7 +4782,7 @@ test('does not override a newer tab selection when a sleeping tab finishes wakin
       return page?.executeJavaScript('document.body.innerText')
     }, url)).toContain('Delayed selection restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4889,7 +4886,7 @@ test('treats tab closure as cancellation while a sleeping selection is waking', 
     expect(selectionResult.state.activeTabId).toBe(fallbackTabId)
     expect(selectionResult.state.tabs.some((tab) => tab.id === tabId)).toBe(false)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -4980,7 +4977,7 @@ test('does not override a newer tab selection while a context-menu sleep check i
       sleeping: state.tabs.find((tab) => tab.id === ${JSON.stringify(targetTabId)})?.sleeping
     }))`)).toEqual({ activeTabId: newerSelectionId, sleeping: true })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5404,7 +5401,7 @@ test('saves, searches, renames, and removes local bookmarks', async ({ appWindow
     await panel.getByRole('button', { name: 'Remove Renamed bookmark' }).click()
     await expect(panel).toContainText('No bookmarks yet')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5466,7 +5463,7 @@ test('records, searches, removes, and clears local browsing history', async ({ a
       return value.entries
     }).toEqual([])
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5504,7 +5501,7 @@ test('does not count restored tabs as new browsing-history visits', async ({ pro
   } finally {
     if (first) await closeHronaut(first.app)
     if (second) await closeHronaut(second.app)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5559,7 +5556,7 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
       return page?.isAudioMuted()
     }, url)).toBe(false)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5617,7 +5614,7 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
     await appWindow.keyboard.press('Escape')
     await expect(findBar).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5671,7 +5668,7 @@ test('zooms website content with familiar shortcuts and visible controls', async
     await appWindow.keyboard.press('Escape')
     await expect(controls).toBeHidden()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5880,7 +5877,7 @@ test('shows a native webpage context menu and suppresses it while human interact
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(await contextMenuItems()).toEqual([])
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -5970,7 +5967,7 @@ test('preserves intercepted new-tab requests and background disposition', async 
     })
     expect(backgroundReferrer).toBe(url)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -6127,7 +6124,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     }
     expect(persisted).toMatchObject({ downloadDirectory: null, askWhereToSaveDownloads: false })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -6469,7 +6466,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => fixtureScrollY(secondPath)).toBeGreaterThan(0)
     await expect.poll(() => fixtureWheelEvents(secondPath)).toBeGreaterThan(0)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -6618,7 +6615,7 @@ test('preserves the human focus owner after agent input in a locked tab', async 
     await expect(addressInput).toBeFocused()
   } finally {
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -6986,7 +6983,7 @@ test('preserves human focus across agent presentation, input, and active tab cha
       await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.destroy(), humanWindowId)
     }
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -7289,7 +7286,7 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
     await expect(appWindow.getByRole('button', { name: 'Select an element to copy for agent' })).toBeVisible()
   } finally {
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -7610,7 +7607,7 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(mcpTabId)})?.humanInteractionLocked)`)).toBe(true)
   } finally {
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -7914,7 +7911,7 @@ test('controls whether bounded diagnostic logs survive page navigation', async (
       ])
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -7945,6 +7942,6 @@ test('quits cleanly while a tab navigation is still active', async ({ appWindow,
     await appWindow.evaluate('setTimeout(() => window.hronaut.quit(), 0)')
     await expect(exited).resolves.toBe(0)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

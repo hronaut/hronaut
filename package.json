@@ -58,7 +58,7 @@
     "validate": "node scripts/run-static-gates.ts",
     "validate:focused": "node scripts/run-focused-static-gates.ts",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint --cache-strategy content --max-warnings 0",
-    "lint:focused": "eslint --cache --cache-location node_modules/.cache/eslint --cache-strategy content --max-warnings 0",
+    "lint:focused": "eslint --cache --cache-location node_modules/.cache/eslint --cache-strategy content --no-warn-ignored --max-warnings 0",
     "lint:fix": "eslint . --fix --cache --cache-location node_modules/.cache/eslint --cache-strategy content",
     "test:integration": "npm run build && playwright test",
     "test:integration:run": "playwright test",

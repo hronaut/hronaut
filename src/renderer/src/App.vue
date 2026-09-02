@@ -19,12 +19,7 @@ import {
   useAppEmulationFeatureController,
   type ResponsivePanelSurface
 } from './composables/useAppEmulationFeatureController'
-import { useAppPanelFeatureController } from './composables/useAppPanelFeatureController'
-import type {
-  ConsolePanelShellHandle,
-  NetworkPanelShellHandle
-} from './composables/useDeveloperPanelsShellController'
-import { useAppPageToolsFeatureController } from './composables/useAppPageToolsFeatureController'
+import { useAppPageToolsPanelFeatureController } from './composables/useAppPageToolsPanelFeatureController'
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
@@ -136,7 +131,6 @@ const {
   openCredentialPicker,
   setZoom: setTransientZoom
 } = appTransientShellLayerController
-const pageToolsOpen = ref(false)
 const responsivePanelOpen = ref(false)
 const responsivePanel = ref<ResponsivePanelSurface | null>(null)
 const environmentPanelOpen = ref(false)
@@ -349,86 +343,72 @@ const {
   refreshSiteStorage,
   openUpdateSettings
 } = appSiteManagementFeatureController
-const appPageToolsFeatureController = useAppPageToolsFeatureController({
-  activeTab,
-  browser,
-  emulation: emulationController,
-  environmentState,
-  environmentOverrideCount: activeEnvironmentOverrideCount,
-  copyText: copyAppText,
-  closeTransientPanels,
-  keepsSeparatePanelOpen,
-  translate: (key, parameters, plural) => plural === undefined
-    ? t(key, parameters ?? {})
-    : t(key, parameters ?? {}, plural),
-  formatNumber: localNumber,
-  formatPercent: localPercent,
-  formatBytes,
-  showToast: showAppToast
-})
 const {
-  diagnosticsController,
-  disposeCaptureAndExport: disposeAppPageToolsCaptureAndExport,
-  disposeDiagnostics: disposeAppPageToolsDiagnostics
-} = appPageToolsFeatureController
-const consolePanelOpen = ref(false)
-const consolePanel = ref<ConsolePanelShellHandle | null>(null)
-const networkMonitorOpen = ref(false)
-const networkPanel = ref<NetworkPanelShellHandle | null>(null)
-const pageToolsLayerHandles = {
-  setResponsivePanel: (panel: ResponsivePanelSurface | null) => (responsivePanel.value = panel),
-  setConsolePanel: (panel: ConsolePanelShellHandle | null) => (consolePanel.value = panel),
-  setNetworkPanel: (panel: NetworkPanelShellHandle | null) => (networkPanel.value = panel),
+  pageToolsController: appPageToolsFeatureController,
+  panelController: appPanelFeatureController,
+  pageToolsOpen,
+  consolePanelOpen,
+  networkMonitorOpen,
+  layerHandles: pageToolsLayerHandles,
+  dispose: disposeAppPageToolsPanelFeatureController
+} = useAppPageToolsPanelFeatureController({
+  pageTools: {
+    activeTab,
+    browser,
+    emulation: emulationController,
+    environmentState,
+    environmentOverrideCount: activeEnvironmentOverrideCount,
+    copyText: copyAppText,
+    closeTransientPanels,
+    keepsSeparatePanelOpen,
+    translate: (key, parameters, plural) => plural === undefined
+      ? t(key, parameters ?? {})
+      : t(key, parameters ?? {}, plural),
+    formatNumber: localNumber,
+    formatPercent: localPercent,
+    formatBytes,
+    showToast: showAppToast
+  },
+  panel: {
+    registry: {
+      siteControlsOpen,
+      siteStorageOpen,
+      responsivePanelOpen,
+      environmentPanelOpen,
+      bookmarksOpen,
+      onActivate: setDetachedPanelTitle
+    },
+    transient: {
+      shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
+      addressSuggestionsOpen,
+      zoomOpen,
+      downloadsOpen,
+      historyOpen,
+      tabSearchOpen,
+      updateNoticeOpen,
+      findOpen,
+      closeFind
+    },
+    developer: { keepsSeparatePanelOpen },
+    detached: {
+      panelId: detachedPanelId,
+      detachedWindow: isDetachedPanelWindow,
+      api: window.hronautPanelWindow,
+      context: () => ({
+        tabId: state.value.activeTabId,
+        url: activeTab.value?.url,
+        loading: activeTab.value?.loading
+      }),
+      refreshSiteData: refreshSiteDataSummary,
+      refreshSiteStorage,
+      loadResponsiveDraft,
+      loadEnvironmentDraft
+    },
+    dock: { panelDock, persistDock: persistPanelDock },
+    onError: reportShellActionError
+  },
+  responsivePanel,
   setSiteStoragePanel
-}
-const appPanelFeatureController = useAppPanelFeatureController({
-  registry: {
-    siteControlsOpen,
-    siteStorageOpen,
-    pageToolsOpen,
-    responsivePanelOpen,
-    environmentPanelOpen,
-    bookmarksOpen,
-    onActivate: setDetachedPanelTitle
-  },
-  transient: {
-    shouldCloseDockedPanels: () => isDetachedPanelWindow || panelDock.value !== 'window',
-    addressSuggestionsOpen,
-    zoomOpen,
-    downloadsOpen,
-    historyOpen,
-    tabSearchOpen,
-    updateNoticeOpen,
-    findOpen,
-    closeFind
-  },
-  developer: {
-    consoleOpen: consolePanelOpen,
-    consolePanel,
-    networkOpen: networkMonitorOpen,
-    networkPanel,
-    keepsSeparatePanelOpen
-  },
-  detached: {
-    panelId: detachedPanelId,
-    detachedWindow: isDetachedPanelWindow,
-    api: window.hronautPanelWindow,
-    context: () => ({
-      tabId: state.value.activeTabId,
-      url: activeTab.value?.url,
-      loading: activeTab.value?.loading
-    }),
-    refreshSiteData: refreshSiteDataSummary,
-    refreshSiteStorage,
-    loadResponsiveDraft,
-    loadEnvironmentDraft,
-    diagnostics: diagnosticsController
-  },
-  dock: {
-    panelDock,
-    persistDock: persistPanelDock
-  },
-  onError: reportShellActionError
 })
 const {
   transientPanelsController,
@@ -437,8 +417,7 @@ const {
   closeDockedPanels,
   closeDockedPanelsExcept,
   resetConsoleView,
-  resetNetworkMonitorView,
-  dispose: disposeAppPanelFeatureController
+  resetNetworkMonitorView
 } = appPanelFeatureController
 const {
   splitMenuOpen,
@@ -767,13 +746,11 @@ useAppLifecycleController({
     browserStore.dispose,
     settingsStore.dispose,
     disposeAppEventsController,
-    disposeAppPanelFeatureController,
-    disposeAppPageToolsCaptureAndExport,
+    disposeAppPageToolsPanelFeatureController,
     disposeHelpDialogController,
     disposeAppSiteNavigationFeatureController,
     disposeAppSettingsFeatureController,
     disposeAppBrowserCollectionsFeatureController,
-    disposeAppPageToolsDiagnostics,
     disposeAppToastController
   ]
 })

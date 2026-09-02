@@ -72,6 +72,33 @@ scoop install https://raw.githubusercontent.com/hronaut/hronaut/main/packaging/s
 
 The Windows binary remains unsigned, and the macOS packages are not Apple-notarized, so Windows SmartScreen or macOS Gatekeeper may show a warning. Verify downloads with the published `hashes.txt` file and GitHub artifact attestations.
 
+### Verify an unsigned download
+
+Keep the downloaded package in one directory, replace `PACKAGE_FILENAME` below with its exact filename, and use the [GitHub CLI](https://cli.github.com/) to verify both the package and the checksum manifest against this repository's release workflow:
+
+```bash
+gh release download --repo hronaut/hronaut --pattern hashes.txt
+gh attestation verify hashes.txt --repo hronaut/hronaut
+gh attestation verify "./PACKAGE_FILENAME" --repo hronaut/hronaut
+```
+
+Compute the package's SHA-256 digest with the command for your platform:
+
+```bash
+# Linux
+sha256sum "./PACKAGE_FILENAME"
+
+# macOS
+shasum -a 256 "./PACKAGE_FILENAME"
+```
+
+```powershell
+# Windows PowerShell
+Get-FileHash .\PACKAGE_FILENAME -Algorithm SHA256
+```
+
+Compare the result with the matching filename in `hashes.txt`. Attestations and hashes establish release-workflow provenance and file integrity; they do not make these packages platform code-signed or Apple-notarized. The [release trust guide](https://hronaut.dev/security#verify-release) explains the boundary and additional checks.
+
 ## Run from source
 
 Requirements: Node.js 22 or newer and a graphical Linux, macOS, or Windows session.
