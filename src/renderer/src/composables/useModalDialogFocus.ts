@@ -119,9 +119,15 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
         registered = true
       }
       const operationGeneration = ++focusGeneration
+      const documentWasFocused = document.hasFocus()
       await nextTick()
       if (operationGeneration !== focusGeneration || !options.open.value) return
-      if (options.focusOnOpen !== false) options.panel.value?.focus({ preventScroll: true })
+      // Request-driven chrome may appear while the human is typing in another
+      // application. Focusing it in that state can activate Hronaut on some
+      // desktop environments; the trap still takes over when the user returns.
+      if (options.focusOnOpen !== false && documentWasFocused) {
+        options.panel.value?.focus({ preventScroll: true })
+      }
       options.afterLayout?.()
       return
     }

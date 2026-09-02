@@ -133,6 +133,32 @@ describe('panel window sync controller', () => {
     harness.controller.dispose()
   })
 
+  it('does not let an older panel-open failure redock a newer panel choice', async () => {
+    const harness = createHarness()
+    let rejectOpen = (_error: Error): void => undefined
+    harness.activePanelId.value = 'network'
+    await nextTick()
+    harness.api.open.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => {
+      rejectOpen = reject
+    }))
+    harness.panelDock.value = 'window'
+    await nextTick()
+    expect(harness.api.open).toHaveBeenCalledWith('network')
+
+    harness.activePanelId.value = 'console'
+    await nextTick()
+    expect(harness.api.open).toHaveBeenLastCalledWith('console')
+
+    rejectOpen(new Error('obsolete network panel failure'))
+    await Promise.resolve()
+    await nextTick()
+
+    expect(harness.panelDock.value).toBe('window')
+    expect(harness.persistDock).toHaveBeenLastCalledWith('window')
+    expect(harness.onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'obsolete network panel failure' }))
+    harness.controller.dispose()
+  })
+
   it('contains dock persistence failures without changing the live dock', async () => {
     const harness = createHarness()
     const failure = new Error('dock storage unavailable')

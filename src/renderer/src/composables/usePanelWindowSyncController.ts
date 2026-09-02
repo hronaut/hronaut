@@ -43,10 +43,14 @@ export function usePanelWindowSyncController(options: PanelWindowSyncControllerO
     const sequence = ++dockSequence
     const previousDock = lastDock
     lastDock = dock
-    const recoverCurrentDock = (): void => {
-      if (sequence === dockSequence && options.panelDock.value === dock) restoreDock(previousDock)
-    }
     const panel = options.activePanelId.value
+    const recoverCurrentDock = (): void => {
+      if (
+        sequence === dockSequence
+        && options.panelDock.value === dock
+        && options.activePanelId.value === panel
+      ) restoreDock(previousDock)
+    }
     if (options.detachedWindow) {
       if (dock !== 'window' && panel) {
         run(() => options.api.redock(panel, dock), recoverCurrentDock)

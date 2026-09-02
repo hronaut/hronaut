@@ -6281,6 +6281,37 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await browserLock.click()
     await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
 
+    const websiteTabCount = (): Promise<number> => appWindow.evaluate(
+      `window.hronaut.getState().then((state) => state.tabs.filter((tab) => !tab.url.startsWith('hronaut://')).length)`
+    )
+    await appWindow.getByRole('button', { name: 'New tab in Default workspace' }).click()
+    await expect.poll(websiteTabCount).toBe(3)
+    const lockedCreatedPath = '/interaction-lock-created'
+    const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
+    await expect(addressInput).toBeFocused()
+    await addressInput.fill(`${baseUrl}${lockedCreatedPath}`)
+    await addressInput.press('Enter')
+    await expect.poll(() => appWindow.evaluate(
+      `window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)`
+    )).toBe(`${baseUrl}${lockedCreatedPath}`)
+    await clickFixture(lockedCreatedPath)
+    await expect.poll(() => fixtureClicks(lockedCreatedPath)).toBe(0)
+
+    await appWindow.keyboard.press('Control+T')
+    await expect.poll(websiteTabCount).toBe(4)
+    const lockedCreatedTabIds = await appWindow.evaluate(
+      `window.hronaut.getState().then((state) => state.tabs.filter((tab) => tab.url === 'about:blank' || tab.url.includes(${JSON.stringify(lockedCreatedPath)})).map((tab) => tab.id))`
+    ) as string[]
+    expect(lockedCreatedTabIds).toHaveLength(2)
+    await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
+    for (const tabId of lockedCreatedTabIds.reverse()) {
+      await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
+    }
+    await expect.poll(websiteTabCount).toBe(2)
+    await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
+    await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+    await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
+
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const lockedPageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
     await expect(lockedPageTools).toBeVisible()
@@ -6316,6 +6347,10 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       { id: 'close-tabs-to-right', enabled: false },
       { id: 'close-duplicate-tabs', enabled: false }
     ])
+    await expect.poll(() => electronApp.evaluate(() => {
+      const menu = (globalThis as typeof globalThis & { __hronautLockedTabMenu?: Electron.Menu }).__hronautLockedTabMenu
+      return menu?.getMenuItemById('workspace')?.submenu?.getMenuItemById('new-tab-in-workspace')?.enabled
+    })).toBe(true)
 
     await electronApp.evaluate(({ clipboard }) => clipboard.clear())
     await appWindow.getByRole('button', { name: 'Open Hronaut Home' }).click()
@@ -6795,6 +6830,71 @@ test('preserves human focus across agent presentation, input, and active tab cha
     }) as CallToolResult
     expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
 
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)')
+    await electronApp.evaluate(({ BrowserWindow }, windowId) => {
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
+      if (!mainWindow) throw new Error('Hronaut focus isolation window was not found')
+      mainWindow.focus()
+    }, humanWindowId)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .not.toBe(humanWindowId)
+
+    await electronApp.evaluate(({ BrowserWindow, webContents }, options) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === options.requestedUrl)
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== options.humanWindowId)
+      if (!page || !mainWindow) throw new Error('Agent focus isolation fixtures were not found')
+      const executeJavaScript = page.executeJavaScript.bind(page)
+      Object.defineProperty(page, 'executeJavaScript', {
+        configurable: true,
+        value: async (script: string, userGesture?: boolean) => {
+          const result = await executeJavaScript(script, userGesture)
+          if (script.includes('__hronautDelayedFocusStarted')) mainWindow.focus()
+          return result
+        }
+      })
+    }, {
+      requestedUrl: `http://127.0.0.1:${address.port}/agent-focus-isolation`,
+      humanWindowId
+    })
+
+    const delayedForegroundEvaluation = client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: `new Promise((resolve) => {
+          window.__hronautDelayedFocusStarted = true
+          const finish = () => {
+            if (!window.__hronautReleaseDelayedFocus) return setTimeout(finish, 20)
+            window.focus()
+            resolve('delayed foreground evaluation')
+          }
+          finish()
+        })`
+      }
+    }) as Promise<CallToolResult>
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('Boolean(window.__hronautDelayedFocusStarted)')
+    }, `http://127.0.0.1:${address.port}/agent-focus-isolation`)).toBe(true)
+
+    // The user can lock page input and leave Hronaut while a previously
+    // foregrounded agent operation is still pending. Its later page callback
+    // must not reactivate the application.
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.focus(), humanWindowId)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Agent focus isolation fixture was not found')
+      return page.executeJavaScript('window.__hronautReleaseDelayedFocus = true')
+    }, `http://127.0.0.1:${address.port}/agent-focus-isolation`)
+    const delayedResult = await delayedForegroundEvaluation
+    expect(delayedResult.isError, mcpResultText(delayedResult)).not.toBe(true)
+    expect(mcpResultText(delayedResult)).toBe('delayed foreground evaluation')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
   } finally {

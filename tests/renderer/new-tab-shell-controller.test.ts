@@ -133,15 +133,25 @@ describe('useNewTabShellController', () => {
     expect(harness.expandTabGroup).not.toHaveBeenCalled()
   })
 
-  it('rejects locked or missing workspace requests without opening a tab', async () => {
+  it('opens workspace tabs while page input is globally blocked and still rejects missing workspaces', async () => {
     const harness = createController()
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
-    await expect(harness.controller.openInWorkspace('workspace')).resolves.toBe(false)
+    const created = {
+      ...browserState('created'),
+      allHumanInteractionLocked: true,
+      tabs: [...browserState(null).tabs, tab('created', true)]
+    }
+    harness.browser.newTab.mockImplementationOnce(async () => {
+      harness.state.value = created
+      return created
+    })
 
-    harness.state.value = { ...harness.state.value, allHumanInteractionLocked: false }
+    await expect(harness.controller.openInWorkspace('workspace')).resolves.toBe(true)
+    expect(harness.browser.newTab).toHaveBeenCalledWith({ active: true, mcpGroupId: 'workspace' })
+
     await expect(harness.controller.openInWorkspace('missing')).resolves.toBe(false)
 
-    expect(harness.browser.newTab).not.toHaveBeenCalled()
+    expect(harness.browser.newTab).toHaveBeenCalledOnce()
   })
 
   it('contains and reports workspace creation failures', async () => {

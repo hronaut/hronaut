@@ -916,8 +916,8 @@ export class BrowserTabsManager {
   private readonly agentInputFocusSnapshots = new Map<number, {
     mainWindowFocused: boolean
     focusedWebContentsId: number | null
-    backgroundWindowFocusGuard: boolean
   }>()
+  private readonly agentInputFocusGuardReleases = new Map<number, () => void>()
   private backgroundAgentInputFocusGuardDepth = 0
   private mainWindowFocusableBeforeAgentInput = true
   private backgroundAgentFocusOwnerWindowId: number | null = null
@@ -2627,7 +2627,6 @@ export class BrowserTabsManager {
       {
         id: 'new-tab-in-workspace',
         label: this.text('native.context.newTabWorkspace'),
-        enabled: !this.allHumanInteractionLocked,
         click: () => runAction('open a new tab in the workspace', () => (
           this.createTab({ url: 'about:blank', active: true, mcpGroupId: group.id })
         ))
@@ -5511,7 +5510,7 @@ export class BrowserTabsManager {
     // evaluation activate Hronaut. Unexpected background dialogs are dismissed
     // inside the page wrapper; explicit dialogAction still wins.
     if (dialog.dialogAction === undefined && this.window.isFocused()) {
-      return webContents.executeJavaScript(script, true)
+      return this.withBackgroundAgentFocusGuard(() => webContents.executeJavaScript(script, true))
     }
     // DevTools owns Chromium's debugger session. Keep direct evaluation
     // available there while the native non-focusable guard blocks activation.
@@ -6186,6 +6185,9 @@ export class BrowserTabsManager {
     this.networkRouteRefreshTimers.clear()
     this.defaultExecutionContexts.clear()
     this.renderQueues.clear()
+    for (const releaseFocusGuard of this.agentInputFocusGuardReleases.values()) releaseFocusGuard()
+    this.agentInputFocusGuardReleases.clear()
+    this.agentInputWebContents.clear()
     this.agentInputFocusSnapshots.clear()
   }
 
@@ -8019,12 +8021,10 @@ export class BrowserTabsManager {
     const depth = (this.agentInputWebContents.get(webContents.id) ?? 0) + 1
     if (depth === 1) {
       const mainWindowFocused = this.window.isFocused()
-      const backgroundWindowFocusGuard = !mainWindowFocused
-      if (backgroundWindowFocusGuard) this.beginBackgroundAgentInputFocusGuard()
+      this.agentInputFocusGuardReleases.set(webContents.id, this.beginAgentFocusIsolation())
       this.agentInputFocusSnapshots.set(webContents.id, {
         mainWindowFocused,
-        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null,
-        backgroundWindowFocusGuard
+        focusedWebContentsId: electronWebContents.getFocusedWebContents()?.id ?? null
       })
     }
     this.agentInputWebContents.set(webContents.id, depth)
@@ -8061,9 +8061,37 @@ export class BrowserTabsManager {
         try {
           this.restoreHumanFocusAfterAgentInput(webContents, focusSnapshot)
         } finally {
-          if (focusSnapshot?.backgroundWindowFocusGuard) this.endBackgroundAgentInputFocusGuard()
+          const releaseFocusGuard = this.agentInputFocusGuardReleases.get(webContents.id)
+          this.agentInputFocusGuardReleases.delete(webContents.id)
+          releaseFocusGuard?.()
         }
       }
+    }
+  }
+
+  private beginAgentFocusIsolation(): () => void {
+    let guardingBackgroundFocus = false
+    let released = false
+    const guardWhenBackgrounded = (): void => {
+      if (
+        released
+        || guardingBackgroundFocus
+        || this.destroyed
+        || this.window.isDestroyed()
+        || this.window.isFocused()
+      ) return
+      guardingBackgroundFocus = true
+      this.beginBackgroundAgentInputFocusGuard()
+    }
+    this.window.on('blur', guardWhenBackgrounded)
+    guardWhenBackgrounded()
+    return () => {
+      if (released) return
+      released = true
+      if (!this.window.isDestroyed()) this.window.removeListener('blur', guardWhenBackgrounded)
+      if (!guardingBackgroundFocus) return
+      if (!this.window.isDestroyed() && this.window.isFocused()) this.window.blur()
+      this.endBackgroundAgentInputFocusGuard()
     }
   }
 
@@ -8076,15 +8104,11 @@ export class BrowserTabsManager {
   }
 
   private async withBackgroundAgentFocusGuard<T>(operation: () => Promise<T>): Promise<T> {
-    const backgroundWindowFocusGuard = !this.window.isFocused()
-    if (backgroundWindowFocusGuard) this.beginBackgroundAgentInputFocusGuard()
+    const releaseFocusGuard = this.beginAgentFocusIsolation()
     try {
       return await operation()
     } finally {
-      if (backgroundWindowFocusGuard) {
-        if (!this.window.isDestroyed() && this.window.isFocused()) this.window.blur()
-        this.endBackgroundAgentInputFocusGuard()
-      }
+      releaseFocusGuard()
     }
   }
 
@@ -8119,7 +8143,6 @@ export class BrowserTabsManager {
     snapshot: {
       mainWindowFocused: boolean
       focusedWebContentsId: number | null
-      backgroundWindowFocusGuard: boolean
     } | undefined
   ): void {
     // Agent input must not activate Hronaut when the human is working in

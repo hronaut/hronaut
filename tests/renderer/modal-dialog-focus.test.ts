@@ -1,7 +1,7 @@
 import { defineComponent, nextTick, ref } from 'vue'
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useModalDialogFocus } from '../../src/renderer/src/composables/useModalDialogFocus.js'
 
 const ModalHandoffHarness = defineComponent({
@@ -57,7 +57,40 @@ const ModalTrapHarness = defineComponent({
   `
 })
 
+const BackgroundModalHarness = defineComponent({
+  setup() {
+    const open = ref(true)
+    const panel = ref<HTMLElement | null>(null)
+    useModalDialogFocus({ open, panel })
+    return { open, panel }
+  },
+  template: `
+    <section v-if="open" ref="panel" role="dialog" aria-modal="true" aria-label="Background modal" tabindex="-1">
+      <button type="button">Review</button>
+    </section>
+  `
+})
+
 describe('modal dialog focus lifecycle', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('does not claim input focus when an automatic modal opens while Hronaut is inactive', async () => {
+    const background = document.createElement('button')
+    background.textContent = 'External focus owner'
+    document.body.append(background)
+    background.focus()
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+
+    const view = render(BackgroundModalHarness)
+    const dialog = await screen.findByRole('dialog', { name: 'Background modal' })
+    await nextTick()
+
+    expect(dialog).not.toHaveFocus()
+    expect(background).toHaveFocus()
+    view.unmount()
+    background.remove()
+  })
+
   it('wraps keyboard focus inside the active modal and redirects escaped focus', async () => {
     const user = userEvent.setup()
     render(ModalTrapHarness)

@@ -10,6 +10,10 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Hronaut from reclaiming keyboard or mouse focus when the user leaves the app during an already-running agent action, including after **Block input** is enabled.
+- Prevent automatically opened trusted dialogs, including wallet approvals, from taking keyboard focus when Hronaut is in the background.
+- Prevent an obsolete detached-panel open failure from redocking a newer panel selection.
+- Keep the enabled workspace New Tab button, keyboard shortcut, and context-menu action usable while global page input is blocked; newly opened pages remain protected by the same lock.
 - Keep trusted element and screenshot-area selection responsive on locked pages when an agent click, key press, or other input finishes while the human selection is still active.
 
 ## [1.11.29] - 2026-09-02

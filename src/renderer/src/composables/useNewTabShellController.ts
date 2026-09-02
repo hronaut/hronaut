@@ -42,7 +42,6 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
   }
 
   async function openInWorkspace(groupId: string): Promise<boolean> {
-    if (options.state.value.allHumanInteractionLocked) return false
     const workspace = options.state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
     if (!workspace) return false
     try {
