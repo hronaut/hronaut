@@ -29,7 +29,8 @@ const pageLocation = (globalThis as unknown as {
 if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
   contextBridge.exposeInMainWorld('hronautHome', {
     copyText: (text: string) => ipcRenderer.invoke('hronaut-home:copy-text', text),
-    openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install')
+    openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
+    openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback')
   })
 } else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
   const walletListeners = new Set<(event: WalletProviderEvent) => void>()

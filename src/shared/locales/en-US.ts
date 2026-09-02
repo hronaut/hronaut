@@ -565,7 +565,9 @@ export const enUS = {
       activeHeadingOne: 'Hronaut handled {count} tab action this launch.', activeHeadingOther: 'Hronaut handled {count} tab actions this launch.',
       message: 'PolyForm Noncommercial 1.0.0 covers permitted noncommercial use. Commercial use requires an active paid subscription.',
       activeMessage: 'Buy a commercial license for business use, or contribute fixes and documentation to the project.',
-      contribute: 'Contribute ↗', welcome: 'Focused issues and signed-off code contributions are welcome.'
+      contribute: 'Contribute ↗', welcome: 'Focused issues and signed-off code contributions are welcome.',
+      feedback: 'Share your setup result ↗', feedbackPrivacy: 'Never include credentials, tokens, private URLs, or page content.',
+      feedbackUnavailable: 'The setup feedback link is unavailable.'
     },
     tools: { heading: 'Browser tooling', description: 'The live MCP catalog available to every connected agent.' },
     footer: 'Hronaut keeps running when its window is closed.',

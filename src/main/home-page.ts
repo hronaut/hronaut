@@ -469,7 +469,9 @@ export function renderHomePage(options: HomePageOptions): string {
     .support-card span { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
     .support-card h3 { margin: 9px 0; font-size: 17px; line-height: 1.2; }
     .support-card p { margin: 0 0 15px; color: var(--muted); font-size: 13px; line-height: 1.55; }
-    .support-card a { display: block; padding: 10px 12px; border-radius: 8px; color: white; background: var(--accent); text-align: center; text-decoration: none; font-size: 13px; font-weight: 800; }
+    .support-card a, .support-card button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; color: white; background: var(--accent); text-align: center; text-decoration: none; cursor: pointer; font-size: 13px; font-weight: 800; }
+    .support-card button:disabled { cursor: wait; opacity: .72; }
+    .support-card [hidden] { display: none; }
     .support-card small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
     .tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; padding: 18px; }
     .tool { min-width: 0; padding: 15px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--panel-solid) 72%, transparent); }
@@ -598,8 +600,10 @@ export function renderHomePage(options: HomePageOptions): string {
           <span>${escapeHtml(home.support.kicker)}</span>
           <h3 id="support-heading">${escapeHtml(home.support.heading)}</h3>
           <p id="support-message">${escapeHtml(home.support.message)}</p>
-          <a href="https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer">${escapeHtml(home.support.contribute)}</a>
-          <small>${escapeHtml(home.support.welcome)}</small>
+          <a id="support-contribute" href="https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md" target="_blank" rel="noreferrer">${escapeHtml(home.support.contribute)}</a>
+          <button id="support-feedback" type="button" data-setup-feedback hidden>${escapeHtml(home.support.feedback)}</button>
+          <small id="support-welcome">${escapeHtml(home.support.welcome)}</small>
+          <small id="support-feedback-privacy" hidden>${escapeHtml(home.support.feedbackPrivacy)}</small>
         </aside>
       </div>
     </section>
@@ -734,6 +738,23 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     }
 
+    const setupFeedbackButton = document.querySelector('[data-setup-feedback]');
+    if (setupFeedbackButton) {
+      setupFeedbackButton.addEventListener('click', async () => {
+        if (setupFeedbackButton.disabled) return;
+        setupFeedbackButton.disabled = true;
+        setupFeedbackButton.title = '';
+        try {
+          if (!window.hronautHome?.openSetupFeedback) throw new Error(messages.support.feedbackUnavailable);
+          await window.hronautHome.openSetupFeedback();
+        } catch (error) {
+          setupFeedbackButton.title = error instanceof Error ? error.message : messages.support.feedbackUnavailable;
+        } finally {
+          setupFeedbackButton.disabled = false;
+        }
+      });
+    }
+
     function renderDashboard() {
       const active = dashboard.activeRequests;
       const serverState = document.getElementById('server-state');
@@ -762,6 +783,14 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('support-message').textContent = completed
         ? messages.support.activeMessage
         : messages.support.message;
+      const supportContribute = document.getElementById('support-contribute');
+      const supportFeedback = document.getElementById('support-feedback');
+      const supportWelcome = document.getElementById('support-welcome');
+      const supportFeedbackPrivacy = document.getElementById('support-feedback-privacy');
+      supportContribute.hidden = completed > 0;
+      supportFeedback.hidden = completed === 0;
+      supportWelcome.hidden = completed > 0;
+      supportFeedbackPrivacy.hidden = completed === 0;
 
       const activityList = document.getElementById('activity-list');
       if (!dashboard.recentActivity?.length) {

@@ -2673,7 +2673,10 @@ export const deDE = {
       "message": "PolyForm Noncommercial 1.0.0 erlaubt die darin definierte nichtkommerzielle Nutzung. Kommerzielle Nutzung erfordert ein aktives kostenpflichtiges Abonnement.",
       "activeMessage": "Kaufen Sie eine kommerzielle Lizenz für die geschäftliche Nutzung oder tragen Sie Korrekturen und Dokumentation bei.",
       "contribute": "Mitwirken ↗",
-      "welcome": "Fokussierte Issues und abgezeichnete Codebeiträge sind willkommen."
+      "welcome": "Fokussierte Issues und abgezeichnete Codebeiträge sind willkommen.",
+      "feedback": "Einrichtungsergebnis teilen ↗",
+      "feedbackPrivacy": "Geben Sie niemals Anmeldedaten, Token, private URLs oder Seiteninhalte an.",
+      "feedbackUnavailable": "Der Link für Einrichtungsfeedback ist nicht verfügbar."
     },
     "tools": {
       "heading": "Browserwerkzeuge",

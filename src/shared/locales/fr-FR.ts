@@ -2673,7 +2673,10 @@ export const frFR = {
       "message": "PolyForm Noncommercial 1.0.0 couvre les usages non commerciaux autorisés. Toute utilisation commerciale nécessite un abonnement payant actif.",
       "activeMessage": "Achetez une licence commerciale pour un usage professionnel ou contribuez des corrections et de la documentation.",
       "contribute": "Contribuer ↗",
-      "welcome": "Les problèmes ciblés et les contributions de code signées sont les bienvenus."
+      "welcome": "Les problèmes ciblés et les contributions de code signées sont les bienvenus.",
+      "feedback": "Partager le résultat de la configuration ↗",
+      "feedbackPrivacy": "N’incluez jamais d’identifiants, de jetons, d’URL privées ni de contenu de page.",
+      "feedbackUnavailable": "Le lien de retour sur la configuration n’est pas disponible."
     },
     "tools": {
       "heading": "Outils du navigateur",

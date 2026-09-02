@@ -435,6 +435,64 @@ test('opens credential-free VS Code MCP setup through the system protocol handle
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
 })
 
+test('offers privacy-safe setup feedback after agent activity in the system browser', async ({
+  appWindow,
+  electronApp
+}) => {
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
+  ))).toBe(true)
+  await electronApp.evaluate(({ shell }) => {
+    ;(globalThis as typeof globalThis & {
+      __hronautSetupFeedbackUrls?: string[]
+    }).__hronautSetupFeedbackUrls = []
+    shell.openExternal = async (url): Promise<void> => {
+      ;(globalThis as typeof globalThis & {
+        __hronautSetupFeedbackUrls?: string[]
+      }).__hronautSetupFeedbackUrls?.push(url)
+    }
+  })
+  const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')
+
+  const state = await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(`(() => {
+      const before = {
+        contributeHidden: document.getElementById('support-contribute')?.hidden,
+        feedbackHidden: document.getElementById('support-feedback')?.hidden
+      };
+      dashboard = { ...dashboard, completedToolCalls: 1 };
+      renderDashboard();
+      renderDashboard();
+      const feedback = document.getElementById('support-feedback');
+      const after = {
+        contributeHidden: document.getElementById('support-contribute')?.hidden,
+        feedbackHidden: feedback?.hidden,
+        privacy: document.getElementById('support-feedback-privacy')?.textContent
+      };
+      feedback?.click();
+      return { before, after };
+    })()`)
+  }) as {
+    before: { contributeHidden: boolean; feedbackHidden: boolean }
+    after: { contributeHidden: boolean; feedbackHidden: boolean; privacy: string }
+  }
+
+  expect(state).toEqual({
+    before: { contributeHidden: false, feedbackHidden: true },
+    after: {
+      contributeHidden: true,
+      feedbackHidden: false,
+      privacy: 'Never include credentials, tokens, private URLs, or page content.'
+    }
+  })
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautSetupFeedbackUrls?: string[] }
+  ).__hronautSetupFeedbackUrls)).toEqual(['https://hronaut.dev/go/desktop-setup-feedback'])
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')).toBe(tabCount)
+})
+
 test('clears stale VS Code launch errors after a successful retry', async ({ electronApp }) => {
   await expect.poll(() => electronApp.evaluate(({ webContents }) => (
     webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))

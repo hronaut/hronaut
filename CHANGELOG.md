@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- After Hronaut completes its first agent tool call, Home offers a privacy-safe **Share your setup result** action that opens the existing structured GitHub feedback form in the system browser without attaching runtime data.
+
 ### Improved
 
 - Rename the global tab-lock control to **Block input** and clarify across all supported languages that it blocks human website input and tab closing while Hronaut controls and agents keep working; foreground-focus protection remains automatic regardless of this setting.

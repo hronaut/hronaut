@@ -65,6 +65,7 @@ import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { renderHomePage } from './home-page.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
+import { setupFeedbackHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
   mcpToolCatalogForSet,
@@ -2243,6 +2244,10 @@ function registerIpc(): void {
       openExternal: (url) => shell.openExternal(url)
     })
   })
+  ipcMain.handle(
+    'hronaut-home:open-setup-feedback',
+    setupFeedbackHandler(assertHomePageSender, (url) => shell.openExternal(url))
+  )
   ipcMain.handle('browser:open-home', (event) => { assertTrustedShellSender(event); return tabsManager!.openHome() })
   ipcMain.handle('browser:new-tab', (event, options) => { assertTrustedShellSender(event); return tabsManager!.newTab(options) })
   ipcMain.handle('browser:reopen-closed-tab', (event, closedTabId: unknown) => {

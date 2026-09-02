@@ -44,6 +44,9 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
     expect(html).toContain('Do not use the Default workspace.')
+    expect(html).toContain('data-setup-feedback')
+    expect(html).toContain('Share your setup result')
+    expect(html).toContain('Never include credentials, tokens, private URLs, or page content.')
     const codex = renderedGuides(html).find((guide) => guide.id === 'codex')
     expect(codex?.verifyCommand).toBe('codex mcp list')
     expect(codex?.code).toContain(dashboard.endpoint)
@@ -184,8 +187,19 @@ api_key_format = "Bearer {token}"`)
     expect(html).toContain('Під’єднайте агента програмування')
     expect(html).toContain('Спробуйте Hronaut на одному безпечному завданні')
     expect(html).toContain('Не використовуй робочий простір Default.')
+    expect(html).toContain('Поділитися результатом налаштування')
     expect(html).toContain('browser_click')
     expect(html).toContain(dashboard.endpoint)
+  })
+
+  it('reveals setup feedback only after the first completed tool call', () => {
+    const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'en-US' })
+
+    expect(html).toContain('id="support-contribute"')
+    expect(html).toContain('id="support-feedback"')
+    expect(html).toContain("supportContribute.hidden = completed > 0")
+    expect(html).toContain("supportFeedback.hidden = completed === 0")
+    expect(html).toContain("window.hronautHome.openSetupFeedback()")
   })
 
   it('localizes the authentication warning without exposing a token value', () => {

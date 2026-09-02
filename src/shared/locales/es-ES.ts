@@ -2673,7 +2673,10 @@ export const esES = {
       "message": "PolyForm Noncommercial 1.0.0 cubre el uso no comercial permitido. El uso comercial requiere una suscripción de pago activa.",
       "activeMessage": "Compra una licencia comercial para uso empresarial o aporta correcciones y documentación al proyecto.",
       "contribute": "Colaborar ↗",
-      "welcome": "Se agradecen los problemas concretos y las contribuciones de código firmadas."
+      "welcome": "Se agradecen los problemas concretos y las contribuciones de código firmadas.",
+      "feedback": "Compartir el resultado de la configuración ↗",
+      "feedbackPrivacy": "Nunca incluyas credenciales, tokens, URL privadas ni contenido de páginas.",
+      "feedbackUnavailable": "El enlace de comentarios sobre la configuración no está disponible."
     },
     "tools": {
       "heading": "Herramientas del navegador",
