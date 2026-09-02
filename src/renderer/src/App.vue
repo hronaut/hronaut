@@ -3,10 +3,7 @@ import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import {
-  BrowserState,
-  BrowserTabState
-} from '../../shared/types'
+import { BrowserState } from '../../shared/types'
 import AppToastRegion from './components/AppToastRegion.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
@@ -59,6 +56,7 @@ import { useAppShellLayoutFeatureController } from './composables/useAppShellLay
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
+import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 
 const { t } = useI18n({ useScope: 'global' })
 const browserStore = useBrowserStore()
@@ -847,18 +845,35 @@ const {
   detachedPanelLabelText,
   describeTabEmulation
 } = appActiveTabFeatureController
-function expandTabGroupForTab(tab: BrowserTabState): void {
-  browserChromeLayer.value?.expandTabGroupForTab(tab)
-}
+const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
+  browserChromeLayer,
+  pageToolsOpen,
+  closeTransientPanels,
+  resize: {
+    syncTitleBarGeometry,
+    updateViewportWidth,
+    reportShellHeight,
+    resizeAddressSuggestions
+  },
+  actions: {
+    openHome: openApplicationHome,
+    newTabInWorkspace,
+    openNewWorkspaceEditor,
+    toggleCommandPalette,
+    toggleTabSearch,
+    openFind,
+    toggleZoom,
+    prepareSplitViewMenu,
+    handleSplitViewError
+  }
+})
+const {
+  expandTabGroupForTab,
+  handleWindowResize,
+  browserChromeActions
+} = appBrowserChromeFeatureController
 async function syncState(next: Promise<BrowserState> | BrowserState): Promise<void> {
   await browserStore.syncOperation(Promise.resolve(next))
-}
-
-function handleWindowResize(): void {
-  syncTitleBarGeometry()
-  updateViewportWidth()
-  reportShellHeight()
-  resizeAddressSuggestions()
 }
 
 async function closeFind(): Promise<void> {
@@ -870,25 +885,7 @@ function closeTransientPanels(): void {
 }
 
 function togglePageTools(): void {
-  if (pageToolsOpen.value) {
-    pageToolsOpen.value = false
-    return
-  }
-  closeTransientPanels()
-  pageToolsOpen.value = true
-}
-
-const browserChromeActions = {
-  openHome: openApplicationHome,
-  newTabInWorkspace,
-  openNewWorkspaceEditor,
-  toggleCommandPalette,
-  toggleTabSearch,
-  openFind,
-  toggleZoom,
-  togglePageTools,
-  prepareSplitViewMenu,
-  handleSplitViewError
+  appBrowserChromeFeatureController.togglePageTools()
 }
 
 useAppLifecycleController({

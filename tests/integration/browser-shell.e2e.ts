@@ -6530,6 +6530,7 @@ test('preserves human focus across agent presentation, input, and active tab cha
     }
     const splitTabId = splitState.tabs.find((tab) => tab.url.endsWith('/agent-focus-isolation-split'))?.id
     expect(splitTabId).toBeTruthy()
+    if (!splitTabId) throw new Error('Agent focus isolation split tab was not created')
     await appWindow.evaluate(`window.hronaut.openSplitView(${JSON.stringify(splitTabId)})`)
 
     humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }) => {
@@ -6666,6 +6667,25 @@ test('preserves human focus across agent presentation, input, and active tab cha
     expect(mcpResultText(rawEvaluation)).toBe('false')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
+
+    const concurrentEvaluations = await Promise.all([tabId, splitTabId].map(async (concurrentTabId, index) => {
+      const result = await client.callTool({
+        name: 'browser_evaluate',
+        arguments: {
+          tabId: concurrentTabId,
+          script: `new Promise((resolve) => setTimeout(() => { window.focus(); resolve(${index}) }, 180))`
+        }
+      }) as CallToolResult
+      expect(result.isError, mcpResultText(result)).not.toBe(true)
+      return Number(mcpResultText(result))
+    }))
+    expect(concurrentEvaluations).toEqual([0, 1])
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
+      .toBe(humanWindowId)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, windowId) => {
+      const mainWindow = BrowserWindow.getAllWindows().find((candidate) => candidate.id !== windowId)
+      return mainWindow?.isFocusable()
+    }, humanWindowId)).toBe(true)
 
     const secondOpened = await client.callTool({
       name: 'browser_new_tab',
