@@ -657,11 +657,11 @@ export const deDE = {
     },
     "locks": {
       "websiteOnly": "Tab-Sperre ist auf Websites verfügbar",
-      "allLocked": "Alle Tabs gesperrt — Seiteneingabe und Schließen von Tabs sind blockiert",
+      "allLocked": "Menschliche Seiteneingabe und das Schließen von Tabs sind blockiert; Hronaut-Bedienelemente und Agenten arbeiten weiter",
       "unlockTab": "Seiteneingabe in diesem Tab entsperren",
       "lockTab": "Seiteneingabe in diesem Tab sperren",
-      "unlockAll": "Alle Tabs entsperren",
-      "lockAll": "Alle Tabs sperren — blockiert Seiteneingabe und Schließen von Tabs; Tabwechsel und Hronaut-Bedienelemente bleiben verfügbar",
+      "unlockAll": "Menschliche Seiteneingabe und das Schließen aller Website-Tabs zulassen. Der Fokusschutz bleibt automatisch aktiv.",
+      "lockAll": "Menschliche Seiteneingabe und das Schließen aller Website-Tabs blockieren; Hronaut-Bedienelemente und Agenten arbeiten weiter. Der Fokusschutz bleibt automatisch aktiv.",
       "unlockToClose": "Entsperre alle Tabs, um diesen Tab zu schließen",
       "closeShortcut": "Tab schließen (Ctrl/Cmd+W)",
       "closeUnavailable": "Tab kann nicht geschlossen werden, solange alle Tabs gesperrt sind",
@@ -1012,8 +1012,8 @@ export const deDE = {
       "workspace": "Arbeitsbereich",
       "collapseRail": "Tableiste bei Nichtverwendung einklappen",
       "keepRailExpanded": "Tableiste ausgeklappt lassen",
-      "locked": "Tabs gesperrt",
-      "lock": "Tabs sperren"
+      "locked": "Eingabe blockiert",
+      "lock": "Eingabe blockieren"
     },
     "actions": {
       "commandsTitle": "Befehle (Ctrl/Cmd+Shift+P)",

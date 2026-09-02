@@ -110,6 +110,14 @@ describe('locale catalogs', () => {
     expect(translate('uk-UA', 'updates.status.available', { version: '2.0.0' })).toBe('Доступний Hronaut 2.0.0')
   })
 
+  it('distinguishes the human page-input lock from automatic app focus protection', () => {
+    expect(translate('en-US', 'shell.tabs.lock')).toBe('Block input')
+    expect(translate('en-US', 'shell.tabs.locked')).toBe('Input blocked')
+    expect(translate('en-US', 'runtime.locks.lockAll')).toContain('human page input')
+    expect(translate('en-US', 'runtime.locks.lockAll')).toContain('Focus protection stays automatic')
+    expect(translate('en-US', 'runtime.locks.unlockAll')).toContain('Focus protection stays automatic')
+  })
+
   it('localizes diagnostic-panel chrome and stable report explanations', () => {
     expect(translate('uk-UA', 'designOverview.heading')).toBe('Огляд дизайну')
     expect(translate('uk-UA', 'pageMetadata.issues.missingTitle.message')).toBe('Додайте стислий описовий елемент title.')

@@ -657,11 +657,11 @@ export const frFR = {
     },
     "locks": {
       "websiteOnly": "Le verrouillage des onglets est disponible sur les sites",
-      "allLocked": "Tous les onglets sont verrouillés — la saisie dans la page et la fermeture des onglets sont bloquées",
+      "allLocked": "La saisie humaine dans les pages et la fermeture des onglets sont bloquées ; les commandes Hronaut et les agents continuent de fonctionner",
       "unlockTab": "Déverrouiller la saisie dans cet onglet",
       "lockTab": "Verrouiller la saisie dans cet onglet",
-      "unlockAll": "Déverrouiller tous les onglets",
-      "lockAll": "Verrouiller tous les onglets — bloque la saisie et la fermeture ; le changement d’onglet et les commandes Hronaut restent disponibles",
+      "unlockAll": "Autoriser la saisie humaine et la fermeture de tous les onglets de sites. La protection du focus reste automatique.",
+      "lockAll": "Bloquer la saisie humaine et la fermeture de tous les onglets de sites ; les commandes Hronaut et les agents continuent de fonctionner. La protection du focus reste automatique.",
       "unlockToClose": "Déverrouillez tous les onglets pour fermer celui-ci",
       "closeShortcut": "Fermer l’onglet (Ctrl/Cmd+W)",
       "closeUnavailable": "Impossible de fermer l’onglet lorsque tous les onglets sont verrouillés",
@@ -1012,8 +1012,8 @@ export const frFR = {
       "workspace": "Espace de travail",
       "collapseRail": "Réduire la barre d’onglets lorsqu’elle n’est pas utilisée",
       "keepRailExpanded": "Garder la barre d’onglets développée",
-      "locked": "Onglets verrouillés",
-      "lock": "Verrouiller les onglets"
+      "locked": "Saisie bloquée",
+      "lock": "Bloquer la saisie"
     },
     "actions": {
       "commandsTitle": "Commandes (Ctrl/Cmd+Shift+P)",

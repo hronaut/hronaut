@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Rename the global tab-lock control to **Block input** and clarify across all supported languages that it blocks human website input and tab closing while Hronaut controls and agents keep working; foreground-focus protection remains automatic regardless of this setting.
+
 ## [1.11.28] - 2026-09-02
 
 ### Added

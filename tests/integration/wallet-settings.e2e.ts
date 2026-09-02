@@ -119,8 +119,8 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     url: 'data:text/html,<title>Wallet settings hit testing</title><main>Website fixture</main>',
     active: true
   })`)
-  await appWindow.getByRole('button', { name: /Lock all tabs/ }).click()
-  await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
+  await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+  await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
   await dialog.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
@@ -200,8 +200,8 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(walletName).toHaveValue('QA wallet')
 
   await appWindow.getByRole('button', { name: 'Close settings' }).click()
-  await appWindow.getByRole('button', { name: 'Unlock all tabs' }).click()
-  await expect(appWindow.getByRole('button', { name: /Lock all tabs/ })).toHaveAttribute('aria-pressed', 'false')
+  await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
+  await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toHaveAttribute('aria-pressed', 'false')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   await walletName.click()

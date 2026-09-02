@@ -657,11 +657,11 @@ export const plPL = {
     },
     "locks": {
       "websiteOnly": "Blokada karty jest dostępna w witrynach",
-      "allLocked": "Wszystkie karty zablokowane — wprowadzanie danych na stronie i zamykanie kart są zablokowane",
+      "allLocked": "Wprowadzanie danych przez człowieka na stronach i zamykanie kart są zablokowane; elementy Hronaut i agenci nadal działają",
       "unlockTab": "Odblokuj wprowadzanie danych na tej karcie",
       "lockTab": "Zablokuj wprowadzanie danych na tej karcie",
-      "unlockAll": "Odblokuj wszystkie karty",
-      "lockAll": "Zablokuj wszystkie karty — blokuje wprowadzanie danych i zamykanie kart; przełączanie kart i elementy Hronaut pozostają dostępne",
+      "unlockAll": "Zezwól na wprowadzanie danych przez człowieka i zamykanie wszystkich kart witryn. Ochrona fokusu pozostaje automatyczna.",
+      "lockAll": "Zablokuj wprowadzanie danych przez człowieka i zamykanie wszystkich kart witryn; elementy Hronaut i agenci nadal działają. Ochrona fokusu pozostaje automatyczna.",
       "unlockToClose": "Odblokuj wszystkie karty, aby zamknąć tę kartę",
       "closeShortcut": "Zamknij kartę (Ctrl/Cmd+W)",
       "closeUnavailable": "Nie można zamknąć karty, gdy wszystkie karty są zablokowane",
@@ -1012,8 +1012,8 @@ export const plPL = {
       "workspace": "Obszar roboczy",
       "collapseRail": "Zwijaj pasek kart, gdy nie jest używany",
       "keepRailExpanded": "Pozostaw pasek kart rozwinięty",
-      "locked": "Karty zablokowane",
-      "lock": "Zablokuj karty"
+      "locked": "Wprowadzanie zablokowane",
+      "lock": "Zablokuj wprowadzanie"
     },
     "actions": {
       "commandsTitle": "Polecenia (Ctrl/Cmd+Shift+P)",

@@ -6199,12 +6199,12 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.getByRole('button', { name: 'Unlock page input in this tab' }).click()
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${baseUrl}${secondPath}`)}, active: true })`)
     await expect.poll(() => fixtureClicks(secondPath)).toBe(0)
-    const browserLock = appWindow.getByRole('button', { name: /Lock all tabs/ })
+    const browserLock = appWindow.getByRole('button', { name: /Block human page input/ })
     const tabLock = appWindow.getByRole('button', { name: 'Lock page input in this tab' })
     const [browserLockBounds, tabLockBounds] = await Promise.all([browserLock.boundingBox(), tabLock.boundingBox()])
     expect(browserLockBounds?.y).toBeLessThan(tabLockBounds?.y ?? 0)
     await browserLock.click()
-    await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const lockedPageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
@@ -6265,7 +6265,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     })
     await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
       .toContain('https://opencode.ai/config.json')
-    await expect(appWindow.getByRole('button', { name: 'Unlock all tabs' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
 
     await clickFixture(secondPath)
@@ -6290,8 +6290,8 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.keyboard.press('Control+Shift+Tab')
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
 
-    await appWindow.getByRole('button', { name: 'Unlock all tabs' }).click()
-    await expect(appWindow.getByRole('button', { name: /Lock all tabs/ })).toHaveAttribute('aria-pressed', 'false')
+    await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
+    await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toHaveAttribute('aria-pressed', 'false')
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).click()
     await electronApp.evaluate(async ({ webContents }, requestedPath) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
