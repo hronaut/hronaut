@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent concurrent DOM-changes panel refreshes from leaving the trusted diagnostics UI stuck in a loading state.
 - Keep release reruns from treating retained Playwright diagnostics as downloadable application assets.
 
 ## [1.11.31] - 2026-09-02

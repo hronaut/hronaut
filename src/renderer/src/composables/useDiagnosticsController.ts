@@ -151,6 +151,11 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     issues: 0
   }
   let domRefreshTimer: number | undefined
+  let domChangesReadRequest: {
+    tabId: string
+    url: string
+    promise: Promise<BrowserDomChangesReport>
+  } | undefined
   const feedbackTimers = new Map<CopyFeedback, number>()
 
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
@@ -506,7 +511,24 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     domChangesError.value = ''
     if (!quiet) domChangesCopied.value = false
     try {
-      const report = await options.browser.manageDomChanges(action, request.tab.id)
+      if (action !== 'get') domChangesReadRequest = undefined
+      let operation = domChangesReadRequest
+      if (action !== 'get' || operation?.tabId !== request.tab.id || operation.url !== request.tab.url) {
+        const promise = options.browser.manageDomChanges(action, request.tab.id)
+        operation = { tabId: request.tab.id, url: request.tab.url, promise }
+        if (action === 'get') {
+          domChangesReadRequest = operation
+          void promise.then(
+            () => {
+              if (domChangesReadRequest === operation) domChangesReadRequest = undefined
+            },
+            () => {
+              if (domChangesReadRequest === operation) domChangesReadRequest = undefined
+            }
+          )
+        }
+      }
+      const report = await operation.promise
       if (!current('dom', request)) return
       domChangesReport.value = report
       domChangesState.value = 'ready'

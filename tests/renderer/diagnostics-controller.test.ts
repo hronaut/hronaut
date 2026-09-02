@@ -230,6 +230,35 @@ describe('diagnostics controller', () => {
     expect(browser.manageDomChanges).toHaveBeenCalledTimes(2)
   })
 
+  it('coalesces the panel-open DOM refresh with the matching tab-state refresh', async () => {
+    const first = deferred<BrowserDomChangesReport>()
+    const duplicate = deferred<BrowserDomChangesReport>()
+    const { activeTab, browser, controller } = createController()
+    browser.manageDomChanges
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => duplicate.promise)
+
+    controller.domChangesPanelOpen.value = true
+    activeTab.value = {
+      ...tab(),
+      domChangesRecording: {
+        active: false,
+        changeCount: 4,
+        startedAt: '2026-08-21T11:59:00.000Z'
+      }
+    }
+    await nextTick()
+
+    expect(browser.manageDomChanges).toHaveBeenCalledTimes(1)
+    first.resolve(domReport(false))
+    await first.promise
+    await nextTick()
+
+    expect(controller.domChangesState.value).toBe('ready')
+    expect(controller.domChangesReport.value).toEqual(domReport(false))
+    controller.dispose()
+  })
+
   it('restarts copied feedback when the same diagnostic report is copied again', async () => {
     vi.useFakeTimers()
     const { controller } = createController()
