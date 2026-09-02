@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 test('cancels native page selections when the website navigates', async ({
   appWindow,
@@ -46,6 +46,6 @@ test('cancels native page selections when the website navigates', async ({
     await navigateWebsite('/after-area-capture')
     await expect(areaCapture).toBeVisible({ timeout: 4_000 })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

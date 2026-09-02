@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { createServer, type ServerResponse } from 'node:http'
 import { basename } from 'node:path'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 test('keeps website download paths collision-safe and portable', async ({
   appWindow,
@@ -104,6 +104,6 @@ test('keeps website download paths collision-safe and portable', async ({
     })
   } finally {
     for (const download of pending.splice(0)) download.response.destroy()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

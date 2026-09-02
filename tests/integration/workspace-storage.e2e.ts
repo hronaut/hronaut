@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('isolates workspace profiles and explicitly forks or saves data through Default', async ({
   appWindow,
@@ -348,7 +348,7 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
     expect(freshData).toEqual({ localStorage: null, cookies: [] })
     expect(internalTransferRequests).toBe(0)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -416,7 +416,7 @@ test('restores the only workspace without leaving a phantom Default tab when pro
       workspaceCount: 1
     })
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -483,6 +483,6 @@ test('keeps an isolated workspace profile across restart until the workspace is 
     await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.some((workspace) => workspace.id === ${JSON.stringify(workspaceId)}))`)).toBe(false)
   } finally {
     await closeHronaut(instance.app)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

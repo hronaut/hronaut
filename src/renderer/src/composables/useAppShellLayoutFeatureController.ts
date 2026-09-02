@@ -4,6 +4,7 @@ import type {
   HronautShellApi,
   PanelDock
 } from '../../../shared/types.js'
+import { disposeAll } from './dispose-all.js'
 import { usePanelDockLayout } from './usePanelDockLayout.js'
 import { useShellOverlayCoordinationController } from './useShellOverlayCoordinationController.js'
 
@@ -129,10 +130,17 @@ export function useAppShellLayoutFeatureController(
     },
     reportLayout: panelDockLayout.reportShellHeight
   })
+  let disposed = false
+
+  function dispose(): void {
+    if (disposed) return
+    disposed = true
+    disposeAll([overlayCoordination.dispose, panelDockLayout.dispose])
+  }
 
   return {
     ...panelDockLayout,
     fullModalOpen,
-    dispose: overlayCoordination.dispose
+    dispose
   }
 }

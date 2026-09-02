@@ -19,6 +19,27 @@ export interface HronautInstance {
   window: Page
 }
 
+interface FixtureServer {
+  close(callback: (error?: Error) => void): unknown
+  closeAllConnections?: () => void
+}
+
+export async function closeFixtureServer(server: FixtureServer): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+        reject(error)
+        return
+      }
+      resolve()
+    })
+    // Chromium can keep an otherwise idle page connection alive after every
+    // assertion has completed. Stop accepting first, then close those test-only
+    // sockets so teardown cannot consume the test's global timeout.
+    server.closeAllConnections?.()
+  })
+}
+
 export async function blockFileDestination(path: string): Promise<() => Promise<void>> {
   const backupPath = `${path}.${randomUUID()}.test-backup`
   await rename(path, backupPath)

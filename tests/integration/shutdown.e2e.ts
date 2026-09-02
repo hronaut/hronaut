@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const electronPath = join(
@@ -163,8 +163,7 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
         if (!await waitForChildExit(child, 2_000)) child.kill('SIGKILL')
       }
     }
-    shellServer.closeAllConnections()
-    await new Promise<void>((resolve) => shellServer.close(() => resolve()))
+    await closeFixtureServer(shellServer)
   }
 })
 
@@ -479,7 +478,6 @@ test('cancels durable agent wallet approvals before application shutdown complet
     expect(persisted.requests.find((entry) => entry.id === request.id)?.status).toBe('cancelled')
   } finally {
     await client.close().catch(() => undefined)
-    website.closeAllConnections()
-    await new Promise<void>((resolve) => website.close(() => resolve()))
+    await closeFixtureServer(website)
   }
 })

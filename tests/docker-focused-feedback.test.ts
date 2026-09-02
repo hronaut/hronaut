@@ -38,7 +38,9 @@ describe('focused Docker integration feedback', () => {
     expect(launcher).toContain("'--project-name', `hronaut-focused-${dependencyCacheKey}`")
     expect(launcher).not.toContain("'run', '--build', '--rm', 'integration'")
     expect(launcher).toContain("['image', 'inspect', imageName]")
-    expect(launcher).toContain("'run', ...(imageAvailable ? [] : ['--build']), '--rm', 'integration'")
+    expect(launcher).toContain('if (!imageAvailable)')
+    expect(launcher).toContain("[...composeBaseArguments, 'build', 'integration']")
+    expect(launcher).toContain("'run', '--rm', 'integration'")
     expect(launcher).toContain('run-with-verified-dependencies.sh')
     expect(verifier).toContain('node_modules/.hronaut-package-lock.sha256')
     expect(verifier).toContain('node scripts/docker-dependency-cache-key.ts package-lock.json')
@@ -53,6 +55,16 @@ describe('focused Docker integration feedback', () => {
     expect(packageJson.scripts['test:unit:docker:focused']).toBe(
       'node scripts/run-focused-docker.ts unit'
     )
+  })
+
+  it('serializes cold dependency-cache initialization before focused tests start', async () => {
+    const launcher = await readFile('scripts/run-focused-docker.ts', 'utf8')
+
+    expect(launcher).toContain("'build', 'integration'")
+    expect(launcher).toContain("'flock', '/cache/.hronaut-bootstrap.lock'")
+    expect(launcher).toContain('type=volume,source=${volumeName},target=/cache')
+    expect(launcher).toContain('cp -a /workspace/node_modules/. /cache/')
+    expect(launcher).toContain('node_modules/.hronaut-package-lock.sha256')
   })
 
   it('runs a warm full Electron preflight without repeating type analysis', async () => {
@@ -115,8 +127,9 @@ describe('focused Docker integration feedback', () => {
     ])
 
     expect(workflow).toContain('integration-shard:')
-    expect(workflow).toContain('shard: [1, 2]')
-    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/2"')
+    expect(workflow).toContain('name: Electron integration shard ${{ matrix.shard }}/3')
+    expect(workflow).toContain('shard: [1, 2, 3]')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"')
     expect(workflow).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
     expect(workflow).toContain('needs: integration-shard')
     expect(compose).toContain('HRONAUT_INTEGRATION_SHARD: "${HRONAUT_INTEGRATION_SHARD:-}"')

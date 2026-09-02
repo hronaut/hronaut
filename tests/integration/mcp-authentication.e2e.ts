@@ -3,7 +3,7 @@ import { get } from 'node:http'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 test('repairs a malformed profile token before starting the browser and MCP listener', async ({
   profileDirectory,
@@ -88,7 +88,7 @@ test('starts without MCP authentication and can enable or disable it in Settings
       .toMatchObject({ mcpAuthentication: true, mcpPort: DEFAULT_MCP_PORT })
   } finally {
     if (reservedDefaultPort) {
-      await new Promise<void>((resolve) => defaultPortOwner.close(() => resolve()))
+      await closeFixtureServer(defaultPortOwner)
     }
   }
 
@@ -173,7 +173,7 @@ test('recovers Home setup after a committed MCP port change when its main-proces
     })
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Could not allocate a test port')
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
     return address.port
   }
   const healthStatus = async (port: number): Promise<number> => {
@@ -247,7 +247,7 @@ test('moves the live MCP listener to a validated available port and rolls back o
     })
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Could not allocate a test port')
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
     return address.port
   }
 
@@ -280,7 +280,7 @@ test('moves the live MCP listener to a validated available port and rolls back o
     await expect.poll(() => status(nextPort)).toBe(200)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.mcpUrl)')).toBe(`http://127.0.0.1:${nextPort}/mcp`)
   } finally {
-    await new Promise<void>((resolve) => conflict.close(() => resolve()))
+    await closeFixtureServer(conflict)
   }
 
   await closeHronaut(electronApp)

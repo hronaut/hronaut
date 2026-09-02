@@ -26,6 +26,8 @@ Not sure which browser model fits your workflow? Read the source-backed [Browser
 
 A successful run stays visible in Hronaut, creates an isolated workspace, and remains available after that coding-agent conversation ends.
 
+Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.md) for authenticated handoff, localhost QA, and responsive review without weakening Hronaut's workspace and privacy boundaries.
+
 ### Works with your coding agent
 
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):

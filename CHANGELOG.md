@@ -4,16 +4,23 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add copy-ready starter workflows for authenticated handoff, localhost defect triage, and responsive review with explicit workspace and privacy boundaries.
+
 ### Fixed
 
 - Refresh transitive URI and query-string parsing dependencies to patched BSD-licensed releases after newly published host-confusion, SSRF, and denial-of-service advisories.
 - Close active Chromium connections when tearing down integration HTTP fixtures so otherwise-passing Docker cases cannot spend their timeout waiting on idle sockets.
+- Stop panel-dock watchers, queued layout IPC, and active resize listeners when the shell layout controller is disposed.
 - Roll back page capture, export, and diagnostics resources when page-tools panel composition fails during application startup.
 - Let focused static validation accept intentionally ignored documentation files without turning ESLint's ignored-file notice into a false failure.
 
 ### Improved
 
 - Add copyable GitHub attestation and SHA-256 verification steps for unsigned release downloads to the README.
+- Serialize focused Docker dependency-cache initialization so concurrent cold starts cannot observe a partially populated cache.
+- Split hosted Electron integration coverage across three balanced shards to shorten feedback while retaining all scenarios.
 - Keep `App.vue` composition-focused by grouping page-tools and panel wiring, owned surface handles, and lifecycle cleanup in a dedicated controller.
 
 ## [1.11.32] - 2026-09-02

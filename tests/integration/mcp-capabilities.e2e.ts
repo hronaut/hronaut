@@ -6,7 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
 function webSocketServerFrame(payload: string | Buffer, opcode = 1): Buffer {
@@ -3739,6 +3739,6 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
 
   } finally {
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

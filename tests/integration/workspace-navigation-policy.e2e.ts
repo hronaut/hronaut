@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { BrowserState } from '../../src/shared/types.js'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 async function listen(server: Server): Promise<string> {
   await new Promise<void>((resolve, reject) => {
@@ -9,10 +9,6 @@ async function listen(server: Server): Promise<string> {
     server.listen(0, '127.0.0.1', () => resolve())
   })
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-}
-
-async function closeServer(server: Server): Promise<void> {
-  await new Promise<void>((resolve) => server.close(() => resolve()))
 }
 
 test('enforces trusted workspace allowlists for direct and page-driven top-level navigation', async ({
@@ -151,7 +147,7 @@ test('enforces trusted workspace allowlists for direct and page-driven top-level
       rules: [allowedOrigin]
     })
   } finally {
-    await Promise.all([closeServer(allowedServer), closeServer(blockedServer)])
+    await Promise.all([closeFixtureServer(allowedServer), closeFixtureServer(blockedServer)])
   }
 })
 

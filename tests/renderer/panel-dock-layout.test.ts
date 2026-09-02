@@ -223,4 +223,23 @@ describe('usePanelDockLayout', () => {
     expect(harness.controller.resizeGesture.value).toBeNull()
     expect(second.releasePointerCapture).toHaveBeenCalledWith(12)
   })
+
+  it('stops queued layout work and active resize listeners on explicit disposal', async () => {
+    const harness = mountHarness()
+    const { handle, releasePointerCapture } = resizeHandle()
+    harness.controller.startResize(pointerEvent(handle, { pointerId: 13, clientX: 700 }))
+
+    harness.dock.value = 'bottom'
+    harness.controller.dispose()
+    harness.controller.dispose()
+    harness.setToolbarHeight.mockClear()
+    harness.setContentInsets.mockClear()
+    await nextTick()
+    await nextTick()
+
+    expect(harness.controller.resizeGesture.value).toBeNull()
+    expect(releasePointerCapture).toHaveBeenCalledWith(13)
+    expect(harness.setToolbarHeight).not.toHaveBeenCalled()
+    expect(harness.setContentInsets).not.toHaveBeenCalled()
+  })
 })

@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -118,6 +118,6 @@ test('contains a rejected delayed Repro scroll capture', async ({
     expect(capture.captured).toBeNull()
   } finally {
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

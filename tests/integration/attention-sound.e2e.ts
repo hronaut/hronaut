@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
 process.env.HRONAUT_INTEGRATION_TEST_HOOKS = '1'
@@ -319,7 +319,7 @@ test('keeps the current tab selected when presentation actions cannot wake their
       delete scope.__hronautRejectedTrayWake
     }).catch(() => undefined)
     await client.close()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -456,6 +456,6 @@ test('keeps newer user attention authoritative when an older tab wake finishes l
       delete scope.__hronautPendingAttentionRequest
     }).catch(() => undefined)
     await client.close()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

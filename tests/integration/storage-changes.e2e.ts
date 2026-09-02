@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -185,6 +185,6 @@ test('compares bounded browser storage changes for people and grouped agents', a
     })
   } finally {
     await client.close()
-    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    await closeFixtureServer(server)
   }
 })

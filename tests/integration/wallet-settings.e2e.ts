@@ -6,7 +6,7 @@ import { promisify } from 'node:util'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -98,7 +98,7 @@ test('keeps the browser available and wallet operations fail closed when wallet 
   } finally {
     await client.close().catch(() => undefined)
     await closeHronaut(instance.app)
-    await new Promise<void>((resolve) => website.close(() => resolve()))
+    await closeFixtureServer(website)
   }
 })
 

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { closeHronaut, expect, launchHronaut, test, type HronautInstance } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test, type HronautInstance } from './fixtures.js'
 import type { BrowserState } from '../../src/shared/types.js'
 
 test('shows two live tabs, changes their layout, and exits split view', async ({ appWindow, electronApp }) => {
@@ -220,7 +220,7 @@ test('keeps the current pane when a sleeping split target cannot wake and permit
       return page?.executeJavaScript('document.body.innerText')
     }, targetUrl)).toContain('Split retry restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -301,7 +301,7 @@ test('does not open a delayed sleeping split target after a newer tab selection'
       return page?.executeJavaScript('document.body.innerText')
     }, targetUrl)).toContain('Delayed split restored this page')
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 

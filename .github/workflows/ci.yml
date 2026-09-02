@@ -60,19 +60,19 @@ jobs:
           key: typecheck-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'tsconfig.json', 'tsconfig.node.json', 'tsconfig.web.json', 'tsconfig.website.json') }}-${{ github.sha }}
 
   integration-shard:
-    name: Electron integration shard ${{ matrix.shard }}/2
+    name: Electron integration shard ${{ matrix.shard }}/3
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
       - name: Run Electron integration tests in Docker
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/2"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 

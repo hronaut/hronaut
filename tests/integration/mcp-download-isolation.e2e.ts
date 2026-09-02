@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserDownloadState } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -250,6 +250,6 @@ test('keeps MCP download history isolated across workspace archive and restore',
       delete (globalThis as typeof globalThis & { __hronautDownloadRestoreFault?: unknown }).__hronautDownloadRestoreFault
     }).catch(() => undefined)
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

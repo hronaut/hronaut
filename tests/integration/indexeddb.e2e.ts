@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -149,6 +149,6 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
     await expect(storagePanel.getByRole('button', { name: 'Copied' })).toBeVisible()
   } finally {
     await client.close()
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

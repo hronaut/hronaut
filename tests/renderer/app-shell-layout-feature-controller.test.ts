@@ -10,6 +10,7 @@ import {
 interface Harness {
   controller: AppShellLayoutFeatureController
   wrapper: VueWrapper
+  dock: Ref<PanelDock>
   modals: Record<'settings' | 'commandPalette' | 'helpDialog' | 'releaseHistory' | 'workspaceEditor' | 'credentialPicker' | 'walletApproval', Ref<boolean>>
   overlays: {
     updateNotice: Ref<boolean>
@@ -109,6 +110,7 @@ function createHarness(detachedWindow = false): Harness {
   return {
     controller,
     wrapper,
+    dock,
     modals,
     overlays,
     separatePanel,
@@ -191,6 +193,7 @@ describe('useAppShellLayoutFeatureController', () => {
     harness.overlays.updateNotice.value = false
     harness.overlays.siteStorage.value = true
     harness.modals.workspaceEditor.value = true
+    harness.dock.value = 'bottom'
     await nextTick()
     await nextTick()
 

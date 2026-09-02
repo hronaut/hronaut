@@ -64,6 +64,53 @@ const imageName = `hronaut-focused-${dependencyCacheKey}-integration`
 const imageAvailable = spawnSync('docker', ['image', 'inspect', imageName], {
   stdio: 'ignore'
 }).status === 0
+const composeBaseArguments = [
+  'compose',
+  '--project-name', `hronaut-focused-${dependencyCacheKey}`,
+  '--file', 'compose.test.ci.yaml',
+  '--file', 'compose.test.focused.yaml'
+]
+const focusedDockerEnvironment = {
+  ...process.env,
+  HRONAUT_DEPENDENCY_CACHE_KEY: dependencyCacheKey,
+  ...(mode === 'integration-all' ? { HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true' } : {})
+}
+
+if (!imageAvailable) {
+  const imageBuild = spawnSync(
+    'docker',
+    [...composeBaseArguments, 'build', 'integration'],
+    { env: focusedDockerEnvironment, stdio: 'inherit' }
+  )
+  if (imageBuild.error) console.error(imageBuild.error.message)
+  if (imageBuild.status !== 0) process.exit(imageBuild.status ?? 1)
+}
+
+const cacheBootstrapScript = `
+source_marker=/workspace/node_modules/.hronaut-package-lock.sha256
+ready_marker=/cache/.hronaut-cache-ready.sha256
+expected_hash="$(tr -d '[:space:]' < "$source_marker")"
+actual_hash=""
+if [[ -f "$ready_marker" ]]; then
+  actual_hash="$(tr -d '[:space:]' < "$ready_marker")"
+fi
+if [[ "$actual_hash" == "$expected_hash" ]]; then
+  exit 0
+fi
+find /cache -mindepth 1 -maxdepth 1 ! -name .hronaut-bootstrap.lock -exec rm -rf -- {} +
+cp -a /workspace/node_modules/. /cache/
+printf '%s\n' "$expected_hash" > "$ready_marker.tmp"
+mv "$ready_marker.tmp" "$ready_marker"
+`
+const cacheBootstrap = spawnSync('docker', [
+  'run', '--rm',
+  '--mount', `type=volume,source=${volumeName},target=/cache`,
+  imageName,
+  'flock', '/cache/.hronaut-bootstrap.lock',
+  'bash', '-ceu', cacheBootstrapScript
+], { stdio: 'inherit' })
+if (cacheBootstrap.error) console.error(cacheBootstrap.error.message)
+if (cacheBootstrap.status !== 0) process.exit(cacheBootstrap.status ?? 1)
 
 const testCommand = mode === 'unit'
   ? ['npm', 'test', '--', ...forwardedArguments]
@@ -71,20 +118,13 @@ const testCommand = mode === 'unit'
     ? ['bash', 'scripts/run-integration-suite-docker.sh']
     : ['bash', 'scripts/run-focused-integration-docker.sh', ...forwardedArguments]
 const composeArguments = [
-  'compose',
-  '--project-name', `hronaut-focused-${dependencyCacheKey}`,
-  '--file', 'compose.test.ci.yaml',
-  '--file', 'compose.test.focused.yaml',
-  'run', ...(imageAvailable ? [] : ['--build']), '--rm', 'integration',
+  ...composeBaseArguments,
+  'run', '--rm', 'integration',
   'bash', 'scripts/run-with-verified-dependencies.sh',
   ...testCommand
 ]
 const result = spawnSync('docker', composeArguments, {
-  env: {
-    ...process.env,
-    HRONAUT_DEPENDENCY_CACHE_KEY: dependencyCacheKey,
-    ...(mode === 'integration-all' ? { HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true' } : {})
-  },
+  env: focusedDockerEnvironment,
   stdio: 'inherit'
 })
 

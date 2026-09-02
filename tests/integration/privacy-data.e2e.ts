@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 test('summarizes and selectively clears browsing data without removing retained profile data', async ({
   appWindow,
@@ -171,7 +171,7 @@ test('summarizes and selectively clears browsing data without removing retained 
       return page?.executeJavaScript(`localStorage.getItem('hronaut-privacy-fixture')`)
     }, url)).toBeNull()
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 

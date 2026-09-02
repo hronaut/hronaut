@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -120,6 +120,6 @@ test('uses the selected search engine for address-bar and MCP searches', async (
   } finally {
     releaseFirstFixtureResponse()
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })

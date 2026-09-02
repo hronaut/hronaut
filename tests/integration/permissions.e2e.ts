@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ElectronApplication } from '@playwright/test'
-import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 async function delayPermissionDialog(electronApp: ElectronApplication): Promise<void> {
   await electronApp.evaluate(({ dialog }) => {
@@ -238,8 +238,8 @@ test('serializes concurrent permission prompts and preserves their decisions', a
     })
   } finally {
     await Promise.all([
-      new Promise<void>((resolve) => firstServer.close(() => resolve())),
-      new Promise<void>((resolve) => secondServer.close(() => resolve()))
+      closeFixtureServer(firstServer),
+      closeFixtureServer(secondServer)
     ])
   }
 })
@@ -316,8 +316,8 @@ test('drops a queued permission request when its tab closes before presentation'
     }])
   } finally {
     await Promise.all([
-      new Promise<void>((resolve) => blockingServer.close(() => resolve())),
-      new Promise<void>((resolve) => staleServer.close(() => resolve()))
+      closeFixtureServer(blockingServer),
+      closeFixtureServer(staleServer)
     ])
   }
 })
@@ -358,7 +358,7 @@ test('does not persist a stale permission decision after the requesting tab navi
 
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -401,7 +401,7 @@ test('does not persist a stale permission decision after the requesting tab clos
       .resolves.toBeGreaterThan(0)
     expect(await electronApp.evaluate(() => process.exitCode ?? 0)).toBe(0)
   } finally {
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -444,8 +444,8 @@ test('persists a permission decision for a still-live cross-origin iframe', asyn
     }])
   } finally {
     await Promise.all([
-      new Promise<void>((resolve) => childServer.close(() => resolve())),
-      new Promise<void>((resolve) => hostServer.close(() => resolve()))
+      closeFixtureServer(childServer),
+      closeFixtureServer(hostServer)
     ])
   }
 })
@@ -494,8 +494,8 @@ test('does not persist an iframe permission after the requesting frame navigates
     await expect.poll(() => appWindow.evaluate('window.hronautPermissions.list()')).toEqual([])
   } finally {
     await Promise.all([
-      new Promise<void>((resolve) => childServer.close(() => resolve())),
-      new Promise<void>((resolve) => hostServer.close(() => resolve()))
+      closeFixtureServer(childServer),
+      closeFixtureServer(hostServer)
     ])
   }
 })

@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { expect, test } from './fixtures.js'
+import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -182,7 +182,7 @@ test('attributes omitted-tab activity only to the validated workspace target', a
     } catch {
       // A failed assertion can close Electron while the delayed MCP request is settling.
     }
-    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await closeFixtureServer(server)
   }
 })
 
@@ -283,7 +283,7 @@ test('keeps a newer human selection authoritative while MCP wakes a sleeping sel
       delete scope.__hronautDelayedMcpSelectionWake
     }).catch(() => undefined)
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => fixture.server.close(() => resolve()))
+    await closeFixtureServer(fixture.server)
   }
 })
 
@@ -380,6 +380,6 @@ test('closes a sleeping MCP tab without trying to wake it', async ({
       delete scope.__hronautRejectedMcpCloseWake
     }).catch(() => undefined)
     await client.close().catch(() => undefined)
-    await new Promise<void>((resolve) => fixture.server.close(() => resolve()))
+    await closeFixtureServer(fixture.server)
   }
 })

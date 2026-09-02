@@ -2,14 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
 import type { BrowserState } from '../../src/shared/types.js'
-import { blockFileDestination, expect, test } from './fixtures.js'
-
-const closeFixtureServer = async (server: ReturnType<typeof createServer>): Promise<void> => {
-  await new Promise<void>((resolve) => {
-    server.close(() => resolve())
-    server.closeAllConnections()
-  })
-}
+import { blockFileDestination, closeFixtureServer, expect, test } from './fixtures.js'
 
 test('serializes Memory Saver settings and sleeps eligible tabs without stale shell state', async ({
   appWindow,

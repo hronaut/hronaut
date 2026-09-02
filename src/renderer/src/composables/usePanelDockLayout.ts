@@ -49,6 +49,7 @@ function isDockedPosition(dock: PanelDock): dock is DockedPanelPosition {
 }
 
 export function usePanelDockLayout(options: PanelDockLayoutOptions) {
+  let disposed = false
   const size = ref(480)
   const shellContentTop = ref(105)
   const horizontalSize = ref<number | null>(storedPositiveNumber(HORIZONTAL_SIZE_KEY))
@@ -70,7 +71,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   }
 
   function reportShellHeight(): void {
-    if (options.detachedWindow || !options.shell.value) return
+    if (disposed || options.detachedWindow || !options.shell.value) return
     const shellHeight = options.shell.value.getBoundingClientRect().height
     shellContentTop.value = Math.ceil(shellHeight)
     const dock = options.dock.value
@@ -105,6 +106,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   }
 
   function setSize(nextSize: number, persist: boolean, dock: DockedPanelPosition): void {
+    if (disposed) return
     const maximum = maximumSize(dock)
     const minimum = minimumSize(dock, maximum)
     const next = Math.round(Math.min(maximum, Math.max(minimum, nextSize)))
@@ -132,6 +134,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   }
 
   function startResize(event: PointerEvent): void {
+    if (disposed) return
     const dock = options.dock.value
     if (event.button !== 0 || !isDockedPosition(dock)) return
     event.preventDefault()
@@ -197,22 +200,28 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     reportShellHeight()
   }
 
-  watch(options.dock, async (dock) => {
+  const stopDockWatch = watch(options.dock, async (dock) => {
     const gesture = resizeGesture.value
     if (gesture && gesture.dock !== dock) endResize(gesture.pointerId, true)
     await nextTick()
-    reportShellHeight()
+    if (!disposed) reportShellHeight()
   })
 
-  watch(options.tabRailWidth, async () => {
+  const stopTabRailWidthWatch = watch(options.tabRailWidth, async () => {
     await nextTick()
-    reportShellHeight()
+    if (!disposed) reportShellHeight()
   })
 
-  onBeforeUnmount(() => {
+  function dispose(): void {
+    if (disposed) return
     const gesture = resizeGesture.value
     if (gesture) endResize(gesture.pointerId, false)
-  })
+    disposed = true
+    stopDockWatch()
+    stopTabRailWidthWatch()
+  }
+
+  onBeforeUnmount(dispose)
 
   return {
     size,
@@ -225,6 +234,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     moveResize,
     finishResize,
     resizeWithKeyboard,
-    resetSize
+    resetSize,
+    dispose
   }
 }

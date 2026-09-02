@@ -9,20 +9,10 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import { BROWSER_TOOL_CATALOG } from '../../src/main/mcp/server.js'
 import type { BrowserEnvironmentSettings, BrowserState, BrowserStorageResult, BrowserViewportEmulation, HronautApi, RendererSettingsState } from '../../src/shared/types.js'
-import { closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
 const execFileAsync = promisify(execFile)
 const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-
-async function closeFixtureServer(server: ReturnType<typeof createServer>): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => error ? reject(error) : resolve())
-    // Chromium can keep an otherwise idle page connection alive after every
-    // assertion has completed. Stop accepting first, then close those test-only
-    // sockets so teardown cannot consume the test's global timeout.
-    server.closeAllConnections()
-  })
-}
 
 function mcpResultText(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
@@ -872,7 +862,7 @@ test('shows an error status when the MCP port is already in use', async ({
       .toMatchObject({ status: 'error', error: expect.stringContaining('EADDRINUSE') })
   } finally {
     if (conflictingApp) await closeHronaut(conflictingApp.app)
-    await new Promise<void>((resolve) => portOwner.close(() => resolve()))
+    await closeFixtureServer(portOwner)
   }
 })
 
