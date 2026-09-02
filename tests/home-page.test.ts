@@ -39,7 +39,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('15 clients')
+    expect(html).toContain('16 clients')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -164,6 +164,17 @@ api_key_format = "Bearer {token}"`)
         }
       }
     })
+    const windsurf = renderedGuides(html).find((guide) => guide.id === 'windsurf')
+    expect(windsurf?.location).toBe('~/.codeium/windsurf/mcp_config.json')
+    expect(windsurf?.verifyCommand).toBe('Cascade → MCPs: hronaut is connected')
+    expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          serverUrl: dashboard.endpoint,
+          headers: { Authorization: 'Bearer ${env:HRONAUT_MCP_TOKEN}' }
+        }
+      }
+    })
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -264,6 +275,7 @@ api_key_format = "Bearer {token}"`)
     const claudeCode = guides.find((guide) => guide.id === 'claude-code')
     const kiro = guides.find((guide) => guide.id === 'kiro')
     const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
+    const windsurf = guides.find((guide) => guide.id === 'windsurf')
 
     expect(codex?.code).toContain(
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
@@ -276,6 +288,14 @@ api_key_format = "Bearer {token}"`)
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
     )
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
+    expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          serverUrl: dashboard.endpoint,
+          headers: { Authorization: `Bearer \${file:${tokenPath}}` }
+        }
+      }
+    })
   })
 
   it('renders Gemini CLI without an authentication header when local authentication is disabled', () => {
@@ -470,6 +490,36 @@ url = "${dashboard.endpoint}"`)
     expect(mistralVibe?.code).not.toContain(tokenPath)
     expect(kiro?.setupCommand).toBe(`export HRONAUT_MCP_TOKEN="$(cat '${tokenPath}')"`)
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
+  })
+
+  it('keeps the owner token inside Windsurf file interpolation', () => {
+    const tokenPath = '/tmp/private Hronaut token'
+    const windsurf = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      tokenPath
+    })).find((guide) => guide.id === 'windsurf')
+    const config = JSON.parse(windsurf?.code ?? '{}') as {
+      mcpServers?: { hronaut?: { headers?: { Authorization?: string } } }
+    }
+
+    expect(config.mcpServers?.hronaut?.headers?.Authorization)
+      .toBe(`Bearer \${file:${tokenPath}}`)
+    expect(windsurf?.code).not.toContain('<paste token')
+  })
+
+  it('renders Windsurf without authentication material when local authentication is disabled', () => {
+    const windsurf = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })).find((guide) => guide.id === 'windsurf')
+
+    expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
+      mcpServers: { hronaut: { serverUrl: dashboard.endpoint } }
+    })
   })
 
   it('keeps Windows token paths literal inside Kilo trusted file references', () => {

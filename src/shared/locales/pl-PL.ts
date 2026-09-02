@@ -2600,7 +2600,7 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "15 klientów",
+      "clients": "16 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
@@ -2626,6 +2626,7 @@ export const plPL = {
         "zed": "Dodaje Hronaut jako niestandardowy serwer zdalny dla Zed Agent i agentów zewnętrznych przekazywanych przez ACP.",
         "mistralVibe": "Dodaje Hronaut do konfiguracji współdzielonej przez lokalne sesje Vibe CLI i VS Code.",
         "warp": "Dodaje Hronaut jako serwer URL użytkownika dla lokalnego agenta Warp.",
+        "windsurf": "Dodaje Hronaut do Windsurf Cascade przez konfigurację Streamable HTTP użytkownika.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }

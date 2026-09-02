@@ -7316,7 +7316,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         devinConfig: null,
         devinVerifyCommand: null,
         zedConfig: null,
-        zedVerifyCommand: null
+        zedVerifyCommand: null,
+        windsurfConfig: null,
+        windsurfVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
@@ -7332,6 +7334,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       document.querySelector('[data-guide="zed"]')?.click();
       result.zedConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
       result.zedVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="windsurf"]')?.click();
+      result.windsurfConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      result.windsurfVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -7392,9 +7397,18 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       }
     }
     zedVerifyCommand: string
+    windsurfConfig: {
+      mcpServers?: {
+        hronaut?: {
+          serverUrl?: string
+          headers?: { Authorization?: string }
+        }
+      }
+    }
+    windsurfVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -7424,6 +7438,10 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     headers: { Authorization: 'Hronaut local-no-auth' }
   })
   expect(homeContent.zedVerifyCommand).toBe('Settings → AI → MCP Servers: Server is active')
+  expect(homeContent.windsurfConfig.mcpServers?.hronaut).toEqual({
+    serverUrl: `http://127.0.0.1:${mcpPort}/mcp`
+  })
+  expect(homeContent.windsurfVerifyCommand).toBe('Cascade → MCPs: hronaut is connected')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

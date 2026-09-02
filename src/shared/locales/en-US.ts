@@ -505,7 +505,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '15 clients',
+      clients: '16 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -531,6 +531,7 @@ export const enUS = {
         zed: 'Adds Hronaut as a custom remote server for Zed Agent and ACP-forwarded external agents.',
         mistralVibe: 'Adds Hronaut to the configuration shared by local Vibe CLI and VS Code sessions.',
         warp: 'Adds Hronaut as a user-level URL server for Warp\'s local Agent.',
+        windsurf: 'Adds Hronaut to Windsurf Cascade through its user-level Streamable HTTP configuration.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

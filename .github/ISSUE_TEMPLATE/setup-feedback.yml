@@ -30,6 +30,7 @@ body:
         - Zed
         - Mistral Vibe
         - Warp
+        - Windsurf
         - Another MCP client
     validations:
       required: true

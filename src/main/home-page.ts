@@ -79,6 +79,13 @@ function agentGuides(
   const zedHeaders = authenticationDisabled
     ? { Authorization: 'Hronaut local-no-auth' }
     : headers
+  const windsurfHeaders = authenticationDisabled
+    ? undefined
+    : {
+        Authorization: tokenPath
+          ? `Bearer \${file:${tokenPath}}`
+          : 'Bearer ${env:HRONAUT_MCP_TOKEN}'
+      }
   return [
     {
       id: 'codex',
@@ -287,6 +294,21 @@ function agentGuides(
         }
       }, null, 2),
       verifyCommand: 'Settings → Agents → MCP servers: hronaut is running'
+    },
+    {
+      id: 'windsurf',
+      name: 'Windsurf',
+      note: home.connect.guides.windsurf,
+      location: '~/.codeium/windsurf/mcp_config.json',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            serverUrl: endpoint,
+            ...(windsurfHeaders && { headers: windsurfHeaders })
+          }
+        }
+      }, null, 2),
+      verifyCommand: 'Cascade → MCPs: hronaut is connected'
     },
     {
       id: 'generic',

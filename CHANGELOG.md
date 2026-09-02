@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add first-class Windsurf Cascade setup on Hronaut Home, including Streamable HTTP configuration, connection verification, and owner-token file interpolation that avoids copying authentication secrets into JSON.
+
 ## [1.11.27] - 2026-09-02
 
 ### Fixed

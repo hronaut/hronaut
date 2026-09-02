@@ -56,6 +56,7 @@ describe('setup feedback issue form', () => {
       'Zed',
       'Mistral Vibe',
       'Warp',
+      'Windsurf',
       'Another MCP client'
     ])
 

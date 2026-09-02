@@ -97,7 +97,7 @@ describe('release quality gates', () => {
     expect(workflow).toContain('https://hronaut.dev/#demo')
     expect(workflow).toContain('https://hronaut.dev/download')
     expect(workflow).toContain('https://hronaut.dev/setup')
-    expect(workflow).toContain('Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, or another MCP client')
+    expect(workflow).toContain('Codex, Claude Code, Gemini CLI, Cursor, Copilot, OpenCode, Cline, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, or another MCP client')
     expect(workflow).toContain('PolyForm Noncommercial 1.0.0')
     expect(warningStart).toBeGreaterThanOrEqual(0)
     expect(unsignedWarning).toContain('https://hronaut.dev/security#verify-release')
