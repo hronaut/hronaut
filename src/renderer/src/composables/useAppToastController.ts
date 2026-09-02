@@ -20,13 +20,14 @@ export function friendlyUiError(error: unknown, fallback: string): string {
 
 export function useAppToastController() {
   const toasts = ref<AppToast[]>([])
-  const timers = new Map<number, number>()
+  const timers = new Map<number, { handle: number; generation: number }>()
   let nextId = 1
+  let nextTimerGeneration = 1
   let disposed = false
 
   function dismiss(id: number): void {
     const timer = timers.get(id)
-    if (timer !== undefined) window.clearTimeout(timer)
+    if (timer !== undefined) window.clearTimeout(timer.handle)
     timers.delete(id)
     toasts.value = toasts.value.filter((toast) => toast.id !== id)
   }
@@ -43,13 +44,18 @@ export function useAppToastController() {
     const id = replacementId ?? nextId++
     toasts.value = [{ id, tone, title: boundedTitle, message: boundedMessage }]
     const duration = tone === 'error' ? 8_000 : 3_600
-    timers.set(id, window.setTimeout(() => dismiss(id), duration))
+    const generation = nextTimerGeneration++
+    const handle = window.setTimeout(() => {
+      if (timers.get(id)?.generation !== generation) return
+      dismiss(id)
+    }, duration)
+    timers.set(id, { handle, generation })
   }
 
   function dispose(): void {
     if (disposed) return
     disposed = true
-    for (const timer of timers.values()) window.clearTimeout(timer)
+    for (const timer of timers.values()) window.clearTimeout(timer.handle)
     timers.clear()
     toasts.value = []
   }

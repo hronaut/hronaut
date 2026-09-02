@@ -6,6 +6,7 @@ import {
 
 afterEach(() => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('app toast controller', () => {
@@ -48,6 +49,27 @@ describe('app toast controller', () => {
     expect(controller.toasts.value[0]?.title).toBe('Failed')
     await vi.advanceTimersByTimeAsync(1)
     expect(controller.toasts.value).toEqual([])
+    controller.dispose()
+  })
+
+  it('does not let an already-queued expiry dismiss its replacement', () => {
+    const callbacks: Array<() => void> = []
+    vi.spyOn(window, 'setTimeout').mockImplementation(((callback: TimerHandler) => {
+      callbacks.push(callback as () => void)
+      return callbacks.length
+    }) as typeof window.setTimeout)
+    vi.spyOn(window, 'clearTimeout').mockImplementation(() => undefined)
+    const controller = useAppToastController()
+
+    controller.show('success', 'Saved', 'First')
+    const staleExpiry = callbacks[0]
+    controller.show('error', 'Save link failed', 'The tab is no longer available')
+    staleExpiry()
+
+    expect(controller.toasts.value[0]).toMatchObject({
+      tone: 'error',
+      title: 'Save link failed'
+    })
     controller.dispose()
   })
 

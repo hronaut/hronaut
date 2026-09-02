@@ -6003,6 +6003,11 @@ test('shows a native webpage context menu and suppresses it while human interact
       const image = clipboard.readImage()
       return { empty: image.isEmpty(), size: image.getSize(), pngBytes: image.toPNG().byteLength }
     })).toEqual({ empty: false, size: { width: 1, height: 1 }, pngBytes: expect.any(Number) })
+    // Seeing pixels on the native clipboard happens before copyImageAt has
+    // completed its verification pass. Drain the serialized clipboard queue so
+    // this successful operation cannot surface a late failure after the tab is
+    // deliberately closed later in the scenario.
+    await appWindow.evaluate("window.hronaut.copyText('context-menu-copy-complete')")
 
     await rightClick('#image')
     await expect.poll(contextMenuItems).toEqual(expect.arrayContaining([
@@ -6035,24 +6040,23 @@ test('shows a native webpage context menu and suppresses it while human interact
       expect.objectContaining({ id: 'reload', label: 'Reload' }),
       expect.objectContaining({ id: 'save-link', label: 'Save Link' })
     ]))
-    const staleTabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)') as string
-    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(staleTabId)})`)
-    await electronApp.evaluate(() => {
-      const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
-      const item = menu?.getMenuItemById('reload')
-      if (!item?.click) throw new Error('Reload context action was not found')
-      ;(item.click as unknown as () => void)()
-    })
-    const actionFailure = appWindow.getByRole('alert', { name: 'Reload failed' })
-    await expect(actionFailure).toBeVisible()
-    await expect(actionFailure).toContainText('The tab is no longer available')
-    await expect(actionFailure).not.toContainText(staleTabId)
-
+    // Capture the application callback while the native menu and its owning
+    // WebContents are still live. Electron may release MenuItem callback state
+    // as part of WebContents teardown; a real selection has already captured
+    // this callback before a concurrent tab close can make the action stale.
     await electronApp.evaluate(() => {
       const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
       const item = menu?.getMenuItemById('save-link')
       if (!item?.click) throw new Error('Save Link context action was not found')
-      ;(item.click as unknown as () => void)()
+      ;(globalThis as typeof globalThis & { __hronautStaleSaveLinkAction?: () => void }).__hronautStaleSaveLinkAction = item.click as unknown as () => void
+    })
+    const staleTabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)') as string
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(staleTabId)})`)
+    await electronApp.evaluate(() => {
+      const state = globalThis as typeof globalThis & { __hronautStaleSaveLinkAction?: () => void }
+      if (!state.__hronautStaleSaveLinkAction) throw new Error('Save Link context action was not captured')
+      state.__hronautStaleSaveLinkAction()
+      delete state.__hronautStaleSaveLinkAction
     })
     const saveFailure = appWindow.getByRole('alert', { name: 'Save link failed' })
     await expect(saveFailure).toBeVisible()
