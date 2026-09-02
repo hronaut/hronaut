@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.29] - 2026-09-02
+
 ### Added
 
 - After Hronaut completes its first agent tool call, Home offers a privacy-safe **Share your setup result** action that opens the existing structured GitHub feedback form in the system browser without attaching runtime data.
