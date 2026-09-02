@@ -35,8 +35,12 @@ export function useAppToastController() {
     if (disposed) return
     const boundedTitle = title.trim().slice(0, 120)
     const boundedMessage = message.trim().slice(0, 1_000)
+    const replacementId = toasts.value[0]?.id
     for (const toast of [...toasts.value]) dismiss(toast.id)
-    const id = nextId++
+    // Preserve the rendered key when replacing the single toast slot. A new
+    // key makes TransitionGroup keep the old alert in its leave animation
+    // while mounting the replacement, briefly exposing duplicate live alerts.
+    const id = replacementId ?? nextId++
     toasts.value = [{ id, tone, title: boundedTitle, message: boundedMessage }]
     const duration = tone === 'error' ? 8_000 : 3_600
     timers.set(id, window.setTimeout(() => dismiss(id), duration))

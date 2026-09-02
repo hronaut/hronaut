@@ -33,8 +33,8 @@ import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
-import { dispatchNativeKeyPress } from './native-keyboard.js'
-import { dispatchNativeDrag } from './native-pointer.js'
+import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
+import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
 import { buildBrowserDebugReport, redactDiagnosticText, sanitizeConsoleMessage } from '../../shared/debug-report.js'
@@ -869,6 +869,24 @@ interface BrowserTabSelectionOptions {
   focus?: boolean
 }
 
+interface AuthorizedAgentMouseInput {
+  type: Electron.MouseInputEvent['type']
+  x: number
+  y: number
+  button: Electron.MouseInputEvent['button'] | undefined
+  buttons: number
+  clickCount: number
+  modifiers: number
+}
+
+interface AuthorizedAgentKeyboardInput {
+  type: Electron.Input['type']
+  key: string
+  code: string
+  modifiers: number
+  autoRepeat: boolean
+}
+
 export interface TabsManagerOptions {
   partition: string
   storePath: string
@@ -914,6 +932,8 @@ export class BrowserTabsManager {
   private splitViewGeneration = 0
   private allHumanInteractionLocked = false
   private readonly agentInputWebContents = new Map<number, number>()
+  private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
+  private readonly authorizedAgentKeyboardInput = new Map<number, AuthorizedAgentKeyboardInput>()
   private readonly agentInputFocusSnapshots = new Map<number, {
     mainWindowFocused: boolean
     focusedWebContentsId: number | null
@@ -4391,13 +4411,14 @@ export class BrowserTabsManager {
     point: { x: number; y: number },
     doubleClick: boolean
   ): Promise<void> {
-    await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+    const inputDebugger = this.agentInputDebugger(webContents)
+    await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: point.x,
       y: point.y
     })
     for (const clickCount of doubleClick ? [1, 2] : [1]) {
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x: point.x,
         y: point.y,
@@ -4405,7 +4426,7 @@ export class BrowserTabsManager {
         buttons: 1,
         clickCount
       })
-      await webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      await inputDebugger.sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x: point.x,
         y: point.y,
@@ -4459,7 +4480,7 @@ export class BrowserTabsManager {
     }
     if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
     await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
-      webContents.debugger.sendCommand('Input.dispatchMouseEvent', {
+      this.agentInputDebugger(webContents).sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseMoved',
         x: point.x,
         y: point.y
@@ -4493,7 +4514,7 @@ export class BrowserTabsManager {
     }
     await this.withAgentInput(webContents, () => this.withDebugger(
       webContents,
-      () => dispatchNativeDrag(webContents.debugger, from, to)
+      () => dispatchNativeDrag(this.agentInputDebugger(webContents), from, to)
     ))
     return { ok: true, from, to }
   }
@@ -5524,7 +5545,7 @@ export class BrowserTabsManager {
     const input = parseBrowserKeyPress(key)
     await this.withAgentInput(webContents, () => this.withDebugger(
       webContents,
-      () => dispatchNativeKeyPress(webContents.debugger, input)
+      () => dispatchNativeKeyPress(this.agentInputDebugger(webContents), input)
     ))
   }
 
@@ -6201,6 +6222,8 @@ export class BrowserTabsManager {
     this.tabs.clear()
     this.mcpActivitiesByTab.clear()
     this.webContentsToTab.clear()
+    this.authorizedAgentMouseInput.clear()
+    this.authorizedAgentKeyboardInput.clear()
     this.downloadItems.clear()
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
@@ -6584,7 +6607,7 @@ export class BrowserTabsManager {
         repeat: input.isAutoRepeat,
         composing: input.isComposing
       }) : null
-      if (this.shouldBlockHumanKeyboardInput(tab)) {
+      if (this.shouldBlockHumanKeyboardInput(tab, input)) {
         event.preventDefault()
         if (shortcut && (!this.allHumanInteractionLocked || shortcut !== 'close-tab')) {
           this.options.onUserInteraction?.()
@@ -6994,7 +7017,7 @@ export class BrowserTabsManager {
       this.options.onActionFailed?.(action, error)
     }
     const withLiveContents = (actionName: string, action: () => void): (() => void) => () => {
-      if (webContents.isDestroyed()) {
+      if (webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) {
         reportActionFailure(actionName, new Error('The tab is no longer available.'))
         return
       }
@@ -7676,13 +7699,178 @@ export class BrowserTabsManager {
     tab.webContents.focus()
   }
 
-  private shouldBlockHumanKeyboardInput(tab: BrowserTab): boolean {
-    return this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)
+  private shouldBlockHumanKeyboardInput(tab: BrowserTab, input: Electron.Input): boolean {
+    return this.isHumanInteractionLocked(tab)
+      && !this.isAuthorizedAgentKeyboardInput(tab.webContents.id, input)
   }
 
   private shouldBlockHumanMouseInput(tab: BrowserTab, mouse: Electron.MouseInputEvent): boolean {
-    void mouse
-    return this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)
+    return this.isHumanInteractionLocked(tab)
+      && !this.isAuthorizedAgentMouseInput(tab.webContents.id, mouse)
+  }
+
+  private agentInputDebugger(
+    webContents: BrowserTab['view']['webContents']
+  ): PointerDebugger & KeyboardDebugger {
+    return {
+      sendCommand: (method, commandParams) => this.sendAuthorizedAgentInputCommand(
+        webContents,
+        method,
+        commandParams
+      )
+    }
+  }
+
+  private async sendAuthorizedAgentInputCommand(
+    webContents: BrowserTab['view']['webContents'],
+    method: string,
+    commandParams: Record<string, unknown> = {}
+  ): Promise<unknown> {
+    const mouse = method === 'Input.dispatchMouseEvent'
+      ? this.authorizedMouseInputFromCommand(commandParams)
+      : null
+    const keyboard = method === 'Input.dispatchKeyEvent'
+      ? this.authorizedKeyboardInputFromCommand(commandParams)
+      : null
+    const tabId = this.webContentsToTab.get(webContents.id)
+    const tab = tabId ? this.tabs.get(tabId) : undefined
+    const temporarilyPermitNativeInput = Boolean((mouse || keyboard) && tab && this.isHumanInteractionLocked(tab))
+    if (temporarilyPermitNativeInput) {
+      await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: false })
+    }
+    try {
+      if (mouse) this.authorizedAgentMouseInput.set(webContents.id, mouse)
+      if (keyboard) this.authorizedAgentKeyboardInput.set(webContents.id, keyboard)
+      return await webContents.debugger.sendCommand(method, commandParams)
+    } finally {
+      if (mouse && this.authorizedAgentMouseInput.get(webContents.id) === mouse) {
+        this.authorizedAgentMouseInput.delete(webContents.id)
+      }
+      if (keyboard && this.authorizedAgentKeyboardInput.get(webContents.id) === keyboard) {
+        this.authorizedAgentKeyboardInput.delete(webContents.id)
+      }
+      if (temporarilyPermitNativeInput && !webContents.isDestroyed()) {
+        // Lift the compositor barrier for this single CDP event only. The
+        // before-input guards remain active and admit only the matching event;
+        // physical wheel/gesture input and mismatched event shapes stay blocked.
+        await webContents.debugger.sendCommand('Input.setIgnoreInputEvents', { ignore: true })
+      }
+    }
+  }
+
+  private authorizedMouseInputFromCommand(
+    commandParams: Record<string, unknown>
+  ): AuthorizedAgentMouseInput | null {
+    const type = {
+      mouseMoved: 'mouseMove',
+      mousePressed: 'mouseDown',
+      mouseReleased: 'mouseUp',
+      mouseWheel: 'mouseWheel'
+    }[String(commandParams.type)] as Electron.MouseInputEvent['type'] | undefined
+    const x = Number(commandParams.x)
+    const y = Number(commandParams.y)
+    if (!type || !Number.isFinite(x) || !Number.isFinite(y)) return null
+    const buttonValue = typeof commandParams.button === 'string' ? commandParams.button : undefined
+    const button = buttonValue === 'left' || buttonValue === 'middle' || buttonValue === 'right'
+      ? buttonValue
+      : undefined
+    const postEventButtons = Number(commandParams.buttons ?? 0)
+    const clickCount = Number(commandParams.clickCount ?? 0)
+    const modifiers = Number(commandParams.modifiers ?? 0)
+    if (
+      !Number.isInteger(postEventButtons)
+      || postEventButtons < 0
+      || postEventButtons > 7
+      || !Number.isInteger(clickCount)
+      || clickCount < 0
+      || !Number.isInteger(modifiers)
+    ) return null
+    const changedButton = button === 'left' ? 1 : button === 'right' ? 2 : button === 'middle' ? 4 : 0
+    // CDP reports the complete button mask. Electron reports independently
+    // held buttons in modifiers while exposing the button changed by down/up
+    // separately, so remove that changed button before comparing the masks.
+    const buttons = type === 'mouseDown' || type === 'mouseUp'
+      ? postEventButtons & ~changedButton
+      : postEventButtons
+    return {
+      type,
+      x,
+      y,
+      button,
+      buttons,
+      clickCount,
+      modifiers
+    }
+  }
+
+  private authorizedKeyboardInputFromCommand(
+    commandParams: Record<string, unknown>
+  ): AuthorizedAgentKeyboardInput | null {
+    const commandType = String(commandParams.type)
+    const type = commandType === 'keyUp'
+      ? 'keyUp'
+      : commandType === 'rawKeyDown'
+        ? 'rawKeyDown'
+        : commandType === 'keyDown'
+          ? 'keyDown'
+          : null
+    const key = typeof commandParams.key === 'string' ? commandParams.key : null
+    const code = typeof commandParams.code === 'string' ? commandParams.code : null
+    const modifiers = Number(commandParams.modifiers ?? 0)
+    if (!type || !key || !code || !Number.isInteger(modifiers)) return null
+    return { type, key, code, modifiers, autoRepeat: commandParams.autoRepeat === true }
+  }
+
+  private isAuthorizedAgentMouseInput(
+    webContentsId: number,
+    mouse: Electron.MouseInputEvent
+  ): boolean {
+    const expected = this.authorizedAgentMouseInput.get(webContentsId)
+    const modifierBits = this.electronModifierBits(mouse.modifiers)
+    const buttonBits = this.electronButtonBits(mouse.modifiers)
+    const matches = expected !== undefined
+      && mouse.type === expected.type
+      && Math.abs(mouse.x - expected.x) < 1
+      && Math.abs(mouse.y - expected.y) < 1
+      && mouse.button === expected.button
+      && buttonBits === expected.buttons
+      && (mouse.clickCount ?? 0) === expected.clickCount
+      && modifierBits === expected.modifiers
+    if (matches) this.authorizedAgentMouseInput.delete(webContentsId)
+    return matches
+  }
+
+  private isAuthorizedAgentKeyboardInput(
+    webContentsId: number,
+    input: Electron.Input
+  ): boolean {
+    const expected = this.authorizedAgentKeyboardInput.get(webContentsId)
+    if (!expected) return false
+    const inputModifierBits = this.electronModifierBits(input.modifiers)
+    const compatibleType = input.type === expected.type
+      || (expected.type === 'rawKeyDown' && input.type === 'keyDown')
+    const matches = compatibleType
+      && input.key === expected.key
+      && input.code === expected.code
+      && inputModifierBits === expected.modifiers
+      && input.isAutoRepeat === expected.autoRepeat
+    if (matches) this.authorizedAgentKeyboardInput.delete(webContentsId)
+    return matches
+  }
+
+  private electronModifierBits(modifiers: readonly string[] | undefined): number {
+    const values = new Set(modifiers ?? [])
+    return (values.has('alt') ? 1 : 0)
+      | (values.has('control') || values.has('ctrl') ? 2 : 0)
+      | (values.has('meta') || values.has('command') || values.has('cmd') ? 4 : 0)
+      | (values.has('shift') ? 8 : 0)
+  }
+
+  private electronButtonBits(modifiers: readonly string[] | undefined): number {
+    const values = new Set(modifiers ?? [])
+    return (values.has('leftbuttondown') ? 1 : 0)
+      | (values.has('rightbuttondown') ? 2 : 0)
+      | (values.has('middlebuttondown') ? 4 : 0)
   }
 
   private async syncHumanInteractionInputGuard(tab: BrowserTab): Promise<void> {
@@ -7692,7 +7880,6 @@ export class BrowserTabsManager {
         const trustedSelectionActive = this.screenshotAreaSessions.has(tab.webContents.id)
           || this.elementPickerSessions.has(tab.webContents.id)
         const locked = this.isHumanInteractionLocked(tab)
-          && !this.agentInputWebContents.has(tab.webContents.id)
           && !trustedSelectionActive
         // Chromium's compositor can apply physical wheel/trackpad scrolling
         // before DOM or Electron cancellation runs. This is the authoritative
@@ -8056,14 +8243,6 @@ export class BrowserTabsManager {
     this.agentInputWebContents.set(webContents.id, depth)
     try {
       if (depth === 1 && !webContents.isDestroyed()) {
-        const tabId = this.webContentsToTab.get(webContents.id)
-        const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab && this.isHumanInteractionLocked(tab)) {
-          await this.withDebugger(webContents, () => webContents.debugger.sendCommand(
-            'Input.setIgnoreInputEvents',
-            { ignore: false }
-          ))
-        }
         await webContents.executeJavaScript('window.__hronautAgentInputActive = true', true).catch(() => undefined)
       }
       return await operation()

@@ -10,6 +10,9 @@ All notable changes to Hronaut are documented in this file.
 - Move keyboard focus into a trusted modal when a background-open wallet approval, Settings window, or other Hronaut dialog becomes active, preventing hidden shell fields from retaining input.
 - Restore wallet-provider access after an isolated workspace deletion rolls back, while keeping requests from the closed tab lifecycle cancelled.
 - Keep a submitted address visible while a slow destination is still connecting instead of briefly clearing the address bar.
+- Keep unrelated human mouse and keyboard events blocked while an agent sends an exact authorized input sequence to a locked website tab.
+- Replace an existing application notification in place so rapid sequential failures never expose duplicate live alerts.
+- Reject stale context-menu download actions as soon as their tab closes, even while Electron is still tearing down its page renderer.
 
 ## [1.11.35] - 2026-09-03
 

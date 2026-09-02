@@ -6362,6 +6362,227 @@ test('locks website input without moving focus away from the current page', asyn
   }
 })
 
+test('keeps human input blocked while an agent acts in a locked tab', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  let signalNativeInputWindow!: () => void
+  const nativeInputWindowOpen = new Promise<void>((resolve) => { signalNativeInputWindow = resolve })
+  let releaseNativeInputWindow!: () => void
+  const nativeInputWindowRelease = new Promise<void>((resolve) => { releaseNativeInputWindow = resolve })
+  let nativeInputWindowReleased = false
+  const server = createServer(async (request, response) => {
+    if (request.url === '/agent-input-window') {
+      signalNativeInputWindow()
+      await nativeInputWindowRelease
+      response.writeHead(204)
+      response.end()
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html>
+      <title>Concurrent locked input</title>
+      <style>body { min-height: 4000px; margin: 0; }</style>
+      <button id="agent-target" style="position:fixed;left:20px;top:20px;width:120px;height:60px">Agent</button>
+      <button id="human-target" style="position:fixed;left:220px;top:20px;width:120px;height:60px">Human</button>
+      <input id="agent-input" style="position:fixed;left:20px;top:110px;width:120px;height:40px" aria-label="Agent input">
+      <script>
+        window.agentClicks = 0
+        window.humanClicks = 0
+        window.agentKeys = 0
+        window.humanKeys = 0
+        window.heldButtonMoves = 0
+        window.modifiedMouseDowns = 0
+        window.repeatedKeys = 0
+        document.querySelector('#agent-target').addEventListener('click', () => window.agentClicks += 1)
+        document.querySelector('#human-target').addEventListener('click', () => window.humanClicks += 1)
+        window.addEventListener('mousemove', (event) => {
+          if (event.buttons !== 0) window.heldButtonMoves += 1
+        })
+        window.addEventListener('mousedown', (event) => {
+          if (event.ctrlKey) window.modifiedMouseDowns += 1
+        })
+        window.addEventListener('keydown', (event) => {
+          if (event.key.toLowerCase() === 'a') window.agentKeys += 1
+          if (event.key.toLowerCase() === 'h') window.humanKeys += 1
+          if (event.repeat) window.repeatedKeys += 1
+        })
+      </script>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Concurrent locked input server did not expose a TCP port')
+  const fixtureUrl = `http://127.0.0.1:${address.port}/concurrent-locked-input`
+  const client = new Client({ name: 'hronaut-concurrent-locked-input-test', version: '1.0.0' })
+  const authorization = `Bearer ${mcpToken}`
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Concurrent locked input tests', false)
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: fixtureUrl, active: true }
+    }) as CallToolResult
+    expect(opened.isError, mcpResultText(opened)).not.toBe(true)
+    const tabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
+    const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
+    expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await electronApp.evaluate(({ webContents }, { requestedUrl, signalUrl }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Concurrent locked input fixture was not found')
+      const original = page.debugger.sendCommand.bind(page.debugger)
+      let injectedHeldButtonMove = false
+      let injectedHumanClick = false
+      let injectedHumanKey = false
+      Object.defineProperty(page.debugger, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
+          if (!injectedHeldButtonMove && method === 'Input.dispatchMouseEvent' && commandParams?.type === 'mouseMoved') {
+            injectedHeldButtonMove = true
+            page.sendInputEvent({
+              type: 'mouseMove',
+              modifiers: ['leftbuttondown'],
+              x: Number(commandParams.x),
+              y: Number(commandParams.y)
+            })
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          }
+          if (!injectedHumanClick && method === 'Input.dispatchMouseEvent' && commandParams?.type === 'mousePressed') {
+            injectedHumanClick = true
+            await fetch(signalUrl, { method: 'POST' })
+            page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: 280, y: 50 })
+            page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, x: 280, y: 50 })
+            page.sendInputEvent({
+              type: 'mouseDown',
+              button: 'left',
+              clickCount: 2,
+              modifiers: ['control'],
+              x: Number(commandParams.x),
+              y: Number(commandParams.y)
+            })
+            page.sendInputEvent({
+              type: 'mouseUp',
+              button: 'left',
+              clickCount: 2,
+              modifiers: ['control'],
+              x: Number(commandParams.x),
+              y: Number(commandParams.y)
+            })
+            page.sendInputEvent({ type: 'mouseWheel', deltaY: 240, x: 400, y: 300 })
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          }
+          if (!injectedHumanKey && method === 'Input.dispatchKeyEvent' && commandParams?.type === 'keyDown') {
+            injectedHumanKey = true
+            page.sendInputEvent({ type: 'keyDown', keyCode: 'H' })
+            page.sendInputEvent({ type: 'char', keyCode: 'H' })
+            page.sendInputEvent({ type: 'keyUp', keyCode: 'H' })
+            page.sendInputEvent({ type: 'keyDown', keyCode: 'A', modifiers: ['isautorepeat'] })
+            page.sendInputEvent({ type: 'keyUp', keyCode: 'A' })
+            await new Promise<void>((resolve) => setImmediate(resolve))
+          }
+          return original(method, commandParams, sessionId)
+        }
+      })
+    }, { requestedUrl: fixtureUrl, signalUrl: `http://127.0.0.1:${address.port}/agent-input-window` })
+
+    const nativeWheelPoint = await electronApp.evaluate(({ BrowserWindow }, requestedUrl) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      const view = window?.contentView.children.find((candidate) => (
+        'webContents' in candidate
+        && (candidate as Electron.WebContentsView).webContents.getURL() === requestedUrl
+      ))
+      if (!window || !view) throw new Error('Concurrent locked input view was not found')
+      const windowBounds = window.getBounds()
+      const viewBounds = view.getBounds()
+      return { x: windowBounds.x + viewBounds.x + 400, y: windowBounds.y + viewBounds.y + 300 }
+    }, fixtureUrl)
+    const clickedPromise = client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: 80, y: 50 }
+    }) as Promise<CallToolResult>
+    await nativeInputWindowOpen
+    await execFileAsync('python3', [
+      join(process.cwd(), 'tests/integration/x11-input.py'),
+      String(nativeWheelPoint.x),
+      String(nativeWheelPoint.y),
+      '--wheel'
+    ])
+    nativeInputWindowReleased = true
+    releaseNativeInputWindow()
+    const clicked = await clickedPromise
+    expect(clicked.isError, mcpResultText(clicked)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript(`({
+        agentClicks: window.agentClicks,
+        humanClicks: window.humanClicks,
+        heldButtonMoves: window.heldButtonMoves,
+        modifiedMouseDowns: window.modifiedMouseDowns,
+        scrollY: window.scrollY
+      })`)
+    }, fixtureUrl)).toEqual({
+      agentClicks: 1,
+      humanClicks: 0,
+      heldButtonMoves: 0,
+      modifiedMouseDowns: 0,
+      scrollY: 0
+    })
+
+    const focused = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, x: 80, y: 130 }
+    }) as CallToolResult
+    expect(focused.isError, mcpResultText(focused)).not.toBe(true)
+    const pressed = await client.callTool({
+      name: 'browser_press',
+      arguments: { tabId, key: 'a' }
+    }) as CallToolResult
+    expect(pressed.isError, mcpResultText(pressed)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript(`({
+        agentKeys: window.agentKeys,
+        humanKeys: window.humanKeys,
+        repeatedKeys: window.repeatedKeys
+      })`)
+    }, fixtureUrl)).toEqual({ agentKeys: 1, humanKeys: 0, repeatedKeys: 0 })
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Concurrent locked input fixture was not found')
+      page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, x: 280, y: 50 })
+      page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, x: 280, y: 50 })
+    }, fixtureUrl)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('window.humanClicks')
+    }, fixtureUrl)).toBe(0)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.allHumanInteractionLocked)'))
+      .toBe(true)
+  } finally {
+    if (!nativeInputWindowReleased) releaseNativeInputWindow()
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)')
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
 test('locks website input and tab closing across Hronaut while keeping browser chrome usable', async ({
   appWindow,
   electronApp

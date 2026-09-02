@@ -26,7 +26,7 @@ describe('app toast controller', () => {
     controller.show('success', 'Saved', 'Ready')
 
     expect(controller.toasts.value).toEqual([{
-      id: firstId + 1,
+      id: firstId,
       tone: 'success',
       title: 'Saved',
       message: 'Ready'
