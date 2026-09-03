@@ -2,6 +2,12 @@
 
 All notable changes to Hronaut are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Make **Follow agents** reveal freshly created background tabs even when their short MCP activity starts and finishes back-to-back, without waking completed sleeping-tab work or taking input focus.
+
 ## [1.11.42] - 2026-09-03
 
 ### Fixed

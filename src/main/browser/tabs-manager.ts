@@ -1027,6 +1027,10 @@ export class BrowserTabsManager {
         const tab = this.tabs.get(tabId)
         return Boolean(tab && !tab.webContents.isDestroyed())
       },
+      canSelectWithoutWake: (tabId) => {
+        const tab = this.tabs.get(tabId)
+        return Boolean(tab && !tab.sleeping && !tab.wakePromise && !tab.webContents.isDestroyed())
+      },
       wakeTab: async (tabId) => this.wakeTab(tabId),
       selectTabPassively: (tabId) => {
         if (this.activeTabId !== tabId) this.selectTab(tabId, { focus: false })

@@ -5,6 +5,7 @@ interface McpActivityFollowControllerOptions {
   isOccluded: () => boolean
   getSelectionGeneration: () => number
   tabExists: (tabId: string) => boolean
+  canSelectWithoutWake: (tabId: string) => boolean
   wakeTab: (tabId: string) => Promise<unknown>
   selectTabPassively: (tabId: string) => unknown
   onError: (error: unknown) => void
@@ -76,17 +77,33 @@ export class McpActivityFollowController {
     ) return
 
     const selectionGeneration = this.options.getSelectionGeneration()
+    if (this.options.canSelectWithoutWake(activity.tabId)) {
+      this.selectIfCurrent(activity, generation, selectionGeneration)
+      return
+    }
     void this.options.wakeTab(activity.tabId).then(() => {
-      if (
-        generation !== this.generation
-        || !this.options.isEnabled()
-        || this.options.isOccluded()
-        || !this.options.tabExists(activity.tabId)
-        || this.options.getSelectionGeneration() !== selectionGeneration
-        || this.latestActivity()?.activityId !== activity.activityId
-      ) return
-
-      this.options.selectTabPassively(activity.tabId)
+      this.selectIfCurrent(activity, generation, selectionGeneration)
     }).catch(this.options.onError)
+  }
+
+  private selectIfCurrent(
+    activity: McpTabActivity,
+    generation: number,
+    selectionGeneration: number
+  ): void {
+    if (
+      generation !== this.generation
+      || !this.options.isEnabled()
+      || this.options.isOccluded()
+      || !this.options.tabExists(activity.tabId)
+      || this.options.getSelectionGeneration() !== selectionGeneration
+      || this.latestActivity()?.activityId !== activity.activityId
+    ) return
+
+    try {
+      this.options.selectTabPassively(activity.tabId)
+    } catch (error) {
+      this.options.onError(error)
+    }
   }
 }

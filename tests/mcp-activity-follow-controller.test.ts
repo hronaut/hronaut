@@ -22,6 +22,7 @@ function createHarness() {
   let occluded = false
   let selectionGeneration = 0
   const tabs = new Set(['tab-a', 'tab-b'])
+  const readyTabs = new Set(tabs)
   const wakeTab = vi.fn<(tabId: string) => Promise<void>>(async () => undefined)
   const selectTabPassively = vi.fn((tabId: string) => {
     selectionGeneration += 1
@@ -33,6 +34,7 @@ function createHarness() {
     isOccluded: () => occluded,
     getSelectionGeneration: () => selectionGeneration,
     tabExists: (tabId) => tabs.has(tabId),
+    canSelectWithoutWake: (tabId) => readyTabs.has(tabId),
     wakeTab,
     selectTabPassively,
     onError
@@ -47,6 +49,7 @@ function createHarness() {
     occlude: () => { occluded = true; controller.setOccluded(true) },
     reveal: () => { occluded = false; controller.setOccluded(false) },
     humanSelect: () => { selectionGeneration += 1 },
+    requireWake: (tabId: string) => { readyTabs.delete(tabId) },
     removeTab: (tabId: string) => { tabs.delete(tabId); controller.removeTab(tabId) }
   }
 }
@@ -74,6 +77,18 @@ describe('MCP activity follow controller', () => {
     expect(harness.selectTabPassively).toHaveBeenCalledTimes(2)
   })
 
+  it('does not miss an already-awake tab when activity starts and finishes back-to-back', async () => {
+    const harness = createHarness()
+    harness.enable()
+
+    harness.controller.accept(activity('quick', 'tab-b', 'started', 1))
+    harness.controller.accept(activity('quick', 'tab-b', 'finished', 1))
+    await Promise.resolve()
+
+    expect(harness.selectTabPassively).toHaveBeenCalledOnce()
+    expect(harness.selectTabPassively).toHaveBeenCalledWith('tab-b')
+  })
+
   it('defers under trusted chrome and follows only an activity that is still running when chrome closes', async () => {
     const harness = createHarness()
     harness.enable()
@@ -97,6 +112,7 @@ describe('MCP activity follow controller', () => {
     const harness = createHarness()
     const wake = deferred()
     harness.wakeTab.mockImplementationOnce(() => wake.promise)
+    harness.requireWake('tab-a')
     harness.enable()
 
     harness.controller.accept(activity('slow', 'tab-a'))
@@ -113,6 +129,7 @@ describe('MCP activity follow controller', () => {
       const harness = createHarness()
       const wake = deferred()
       harness.wakeTab.mockImplementationOnce(() => wake.promise)
+      harness.requireWake('tab-a')
       harness.enable()
       harness.controller.accept(activity(cancel, 'tab-a'))
       await vi.waitFor(() => expect(harness.wakeTab).toHaveBeenCalledWith('tab-a'))
@@ -129,6 +146,7 @@ describe('MCP activity follow controller', () => {
     const harness = createHarness()
     const failure = new Error('wake failed')
     harness.wakeTab.mockRejectedValueOnce(failure)
+    harness.requireWake('tab-a')
     harness.enable()
 
     harness.controller.accept(activity('failure', 'tab-a'))

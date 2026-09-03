@@ -134,6 +134,60 @@ test('follows MCP activity only when enabled without changing input lock or nati
   }
 })
 
+test('follows an agent-created background tab whose activity finishes immediately', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const fixture = await startPageServer('Quick activity target', 'Quick activity target ready')
+  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-quick-follow-test')
+  try {
+    const workspaceId = await createWorkspace(client, 'Quick follow activity')
+    const initial = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url: 'about:blank', active: true }
+    }) as CallToolResult
+    expect(initial.isError, text(initial)).not.toBe(true)
+    const initialTabId = (JSON.parse(text(initial)) as { activeTabId: string }).activeTabId
+
+    const followButton = appWindow.getByRole('button', {
+      name: 'Follow agent activity without taking keyboard or mouse focus'
+    })
+    await followButton.click()
+    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url: fixture.url, active: false }
+    }) as CallToolResult
+    expect(opened.isError, text(opened)).not.toBe(true)
+    const workspace = JSON.parse(text(opened)) as {
+      tabs: Array<{ id: string; url: string }>
+    }
+    const targetTabId = workspace.tabs.find((tab) => tab.url === fixture.url)?.id
+    expect(targetTabId).toBeTruthy()
+    expect(targetTabId).not.toBe(initialTabId)
+
+    await expect.poll(() => appWindow.evaluate(
+      'window.hronaut.getState().then((state) => state.activeTabId)'
+    )).toBe(targetTabId)
+    const nativeFocusAfter = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    expect(nativeFocusAfter).toEqual(nativeFocusBefore)
+  } finally {
+    await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(fixture.server)
+  }
+})
+
 test('attributes omitted-tab activity only to the validated workspace target', async ({
   appWindow,
   electronApp,
