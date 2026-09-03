@@ -19,6 +19,7 @@ export const AGENT_GUIDE_URLS = Object.freeze({
   'mistral-vibe': 'https://hronaut.dev/mistral-vibe-browser-mcp',
   warp: 'https://hronaut.dev/warp-browser-mcp',
   windsurf: 'https://hronaut.dev/setup#client-configurations',
+  'grok-build': 'https://hronaut.dev/grok-build-browser-mcp',
   generic: 'https://hronaut.dev/setup#client-configurations'
 } as const satisfies Readonly<Record<AgentGuideId, `https://hronaut.dev/${string}`>>)
 

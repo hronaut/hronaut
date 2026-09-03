@@ -312,6 +312,17 @@ function agentGuides(
       verifyCommand: 'Cascade → MCPs: hronaut is connected'
     },
     {
+      id: 'grok-build',
+      name: 'Grok Build',
+      note: home.connect.guides.grokBuild,
+      location: '~/.grok/config.toml',
+      code: authenticationDisabled
+        ? `grok mcp add --transport http hronaut ${endpoint}`
+        : `grok mcp add --transport http hronaut ${endpoint} --header 'Authorization: Bearer \${HRONAUT_MCP_TOKEN}'`,
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: 'grok mcp doctor hronaut'
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,

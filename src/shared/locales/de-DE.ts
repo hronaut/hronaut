@@ -2606,7 +2606,7 @@ export const deDE = {
     "connect": {
       "heading": "Coding-Agenten verbinden",
       "description": "Wählen Sie einen Client, kopieren Sie die Einrichtung und erstellen Sie vor dem Surfen einen benannten Arbeitsbereich.",
-      "clients": "16 Clients",
+      "clients": "17 Clients",
       "agentsLabel": "Coding-Agenten",
       "instructions": "Einrichtungsanleitung",
       "copy": "Kopieren",
@@ -2635,6 +2635,7 @@ export const deDE = {
         "mistralVibe": "Fügt Hronaut zur gemeinsamen Konfiguration lokaler Vibe-CLI- und VS-Code-Sitzungen hinzu.",
         "warp": "Fügt Hronaut als benutzerweiten URL-Server für den lokalen Warp Agent hinzu.",
         "windsurf": "Fügt Hronaut über die benutzerweite Streamable-HTTP-Konfiguration zu Windsurf Cascade hinzu.",
+        "grokBuild": "Fügt Hronaut über seine native benutzerweite HTTP-MCP-Konfiguration zu Grok Build hinzu.",
         "generic": "Streamable HTTP verwenden und den Client direkt auf Hronaut verweisen.",
         "genericLocation": "MCP-Einstellungen des Clients"
       }

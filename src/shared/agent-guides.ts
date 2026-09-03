@@ -14,6 +14,7 @@ export const AGENT_GUIDE_IDS = [
   'mistral-vibe',
   'warp',
   'windsurf',
+  'grok-build',
   'generic'
 ] as const
 

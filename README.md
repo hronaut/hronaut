@@ -32,7 +32,7 @@ Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.
 
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
 
-- **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
+- **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), [Grok Build](https://hronaut.dev/grok-build-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
 - **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp), [Cline](https://hronaut.dev/cline-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
 - **Other clients:** use the [generic Streamable HTTP setup](https://hronaut.dev/setup).
 
@@ -133,7 +133,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Cursor, Cline, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Grok Build, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
@@ -206,6 +206,19 @@ Hronaut Home generates Zed's user-level `context_servers` entry for the current 
 ### Windsurf
 
 Hronaut Home generates Windsurf Cascade's user-level `~/.codeium/windsurf/mcp_config.json` entry with the current Streamable HTTP endpoint. Protected profiles use Windsurf's file interpolation to read the owner-only token locally instead of embedding it in JSON. Open **Cascade → MCPs** after saving and confirm that `hronaut` is connected. See Windsurf's [official MCP configuration guide](https://docs.devin.ai/desktop/cascade/mcp#mcp_configjson).
+
+### Grok Build
+
+The official Apache-2.0 [Grok Build CLI](https://github.com/xai-org/grok-build) can connect directly to Hronaut's local HTTP MCP endpoint:
+
+```bash
+grok mcp add --transport http hronaut http://127.0.0.1:47812/mcp
+grok mcp doctor hronaut
+```
+
+For a protected profile, copy the authentication-aware command from Hronaut Home. It stores an `Authorization` header that references `HRONAUT_MCP_TOKEN`; Grok expands the environment variable when loading `~/.grok/config.toml`, so the owner token is not copied into the configuration file. See xAI's [official MCP server guide](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md).
+
+This local integration is for Grok Build. Hosted Grok on the web and the X bot cannot reach a loopback-only Hronaut server; Hronaut does not recommend publishing its browser-control endpoint through a public tunnel.
 
 The server listens only on loopback. Authentication is optional for a new profile and can be enabled under **Settings → MCP security**.
 

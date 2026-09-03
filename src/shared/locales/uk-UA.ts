@@ -317,7 +317,7 @@ export const ukUA = {
     connect: {
       heading: 'Під’єднайте агента програмування',
       description: 'Виберіть клієнт, скопіюйте налаштування, а потім створіть іменований робочий простір перед переглядом.',
-      clients: '16 клієнтів',
+      clients: '17 клієнтів',
       agentsLabel: 'Агенти програмування',
       instructions: 'Інструкції з налаштування',
       copy: 'Копіювати',
@@ -346,6 +346,7 @@ export const ukUA = {
         mistralVibe: 'Додає Hronaut до конфігурації, спільної для локальних сеансів Vibe CLI та VS Code.',
         warp: 'Додає Hronaut як користувацький URL-сервер для локального агента Warp.',
         windsurf: 'Додає Hronaut до Windsurf Cascade через користувацьку конфігурацію Streamable HTTP.',
+        grokBuild: 'Додає Hronaut до Grok Build через його нативну користувацьку конфігурацію HTTP MCP.',
         generic: 'Використовуйте потоковий HTTP і спрямуйте клієнт безпосередньо на Hronaut.',
         genericLocation: 'Налаштування MCP клієнта'
       }

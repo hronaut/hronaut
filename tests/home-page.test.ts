@@ -69,7 +69,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('16 clients')
+    expect(html).toContain('17 clients')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -214,6 +214,13 @@ api_key_format = "Bearer {token}"`)
         }
       }
     })
+    const grokBuild = renderedGuides(html).find((guide) => guide.id === 'grok-build')
+    expect(grokBuild?.location).toBe('~/.grok/config.toml')
+    expect(grokBuild?.setupCommand).toBeUndefined()
+    expect(grokBuild?.verifyCommand).toBe('grok mcp doctor hronaut')
+    expect(grokBuild?.code).toBe(
+      `grok mcp add --transport http hronaut ${dashboard.endpoint} --header 'Authorization: Bearer \${HRONAUT_MCP_TOKEN}'`
+    )
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -332,6 +339,7 @@ api_key_format = "Bearer {token}"`)
     const kiro = guides.find((guide) => guide.id === 'kiro')
     const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
     const windsurf = guides.find((guide) => guide.id === 'windsurf')
+    const grokBuild = guides.find((guide) => guide.id === 'grok-build')
 
     expect(codex?.code).toContain(
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
@@ -344,6 +352,9 @@ api_key_format = "Bearer {token}"`)
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
     )
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
+    expect(grokBuild?.setupCommand).toBe(kiro?.setupCommand)
+    expect(grokBuild?.code).toContain("'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'")
+    expect(grokBuild?.code).not.toContain(tokenPath)
     expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
       mcpServers: {
         hronaut: {
@@ -529,7 +540,7 @@ url = "${dashboard.endpoint}"`)
     expect(warp?.code).not.toContain('HRONAUT_MCP_TOKEN')
   })
 
-  it('keeps owner token paths out of environment-backed Kiro and Mistral Vibe configuration', () => {
+  it('keeps owner token paths out of environment-backed Kiro, Mistral Vibe, and Grok Build configuration', () => {
     const tokenPath = '/tmp/private Hronaut token'
     const guides = renderedGuides(renderHomePage({
       endpoint: dashboard.endpoint,
@@ -539,13 +550,17 @@ url = "${dashboard.endpoint}"`)
     }))
     const kiro = guides.find((guide) => guide.id === 'kiro')
     const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
+    const grokBuild = guides.find((guide) => guide.id === 'grok-build')
 
     expect(kiro?.code).toContain('Bearer ${HRONAUT_MCP_TOKEN}')
     expect(mistralVibe?.code).toContain('api_key_env = "HRONAUT_MCP_TOKEN"')
     expect(kiro?.code).not.toContain(tokenPath)
     expect(mistralVibe?.code).not.toContain(tokenPath)
+    expect(grokBuild?.code).toContain("'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'")
+    expect(grokBuild?.code).not.toContain(tokenPath)
     expect(kiro?.setupCommand).toBe(`export HRONAUT_MCP_TOKEN="$(cat '${tokenPath}')"`)
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
+    expect(grokBuild?.setupCommand).toBe(kiro?.setupCommand)
   })
 
   it('keeps the owner token inside Windsurf file interpolation', () => {
@@ -576,6 +591,23 @@ url = "${dashboard.endpoint}"`)
     expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
       mcpServers: { hronaut: { serverUrl: dashboard.endpoint } }
     })
+  })
+
+  it('renders Grok Build native HTTP setup without authentication material when local authentication is disabled', () => {
+    const grokBuild = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })).find((guide) => guide.id === 'grok-build')
+
+    expect(grokBuild).toMatchObject({
+      location: '~/.grok/config.toml',
+      code: `grok mcp add --transport http hronaut ${dashboard.endpoint}`,
+      verifyCommand: 'grok mcp doctor hronaut'
+    })
+    expect(grokBuild?.setupCommand).toBeUndefined()
+    expect(grokBuild?.code).not.toContain('Authorization')
   })
 
   it('keeps Windows token paths literal inside Kilo trusted file references', () => {

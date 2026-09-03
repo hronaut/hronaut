@@ -6171,6 +6171,22 @@ export class BrowserTabsManager {
 
   setBrowserContentOccluded(occluded: boolean): void {
     if (this.destroyed || this.window.isDestroyed()) return
+    if (occluded && !this.browserContentOccluded) {
+      for (const tab of this.tabs.values()) {
+        if (
+          !tab.sleeping
+          && !tab.webContents.isDestroyed()
+          && tab.view.getVisible()
+          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+        ) {
+          // The trusted renderer must hide native page views to paint above
+          // them. Remember only views that were actually visible immediately
+          // before that transition so their first in-flight capture can be
+          // retried with stayHidden after the overview opens.
+          this.tabOverviewPreviewableTabs.add(tab.id)
+        }
+      }
+    }
     this.browserContentOccluded = occluded
     this.layout()
   }

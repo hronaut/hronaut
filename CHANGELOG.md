@@ -4,9 +4,20 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.39] - 2026-09-03
+
+### Added
+
+- Add first-class Grok Build setup to Hronaut Home, using its native local HTTP MCP transport with authentication referenced through the environment instead of copied into configuration.
+
 ### Fixed
 
 - Ignore a delayed native address-suggestion click after the user switches tabs, preventing the stale result from navigating the newly active page and discarding its state.
+- Bootstrap a live Mission Control preview when the active page's first screenshot finishes after the overview opens, without waking sleeping or never-presented background tabs.
+
+### Improved
+
+- Keep the authoritative sharded Docker suite deterministic under CPU contention by allowing first-instance shutdown startup enough time while still detecting an accidentally launched persistent app.
 
 ## [1.11.38] - 2026-09-03
 

@@ -3641,6 +3641,62 @@ test('searches open and recently closed tabs, then restores any selected page', 
   })
 })
 
+test('bootstraps a live tab preview when its first capture finishes after the overview opens', async ({
+  appWindow,
+  electronApp
+}) => {
+  const url = 'data:text/html,<title>Deferred overview preview</title><main style="background:%23006b5b">Deferred preview</main>'
+  const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+  const tabId = state.tabs.find((tab) => tab.url === url)!.id
+
+  await electronApp.evaluate(({ webContents }, requestedUrl) => {
+    const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === requestedUrl)
+    if (!contents) throw new Error('Could not instrument the deferred overview fixture')
+    const capturePage = contents.capturePage.bind(contents)
+    const deferred = {
+      started: false,
+      released: false,
+      release: undefined as (() => void) | undefined
+    }
+    ;(globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: typeof deferred }).__hronautDeferredOverviewCapture = deferred
+    contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
+      if (!deferred.started) {
+        deferred.started = true
+        await new Promise<void>((resolve) => {
+          deferred.release = resolve
+        })
+      }
+      return capturePage(...args)
+    }
+  }, url)
+
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: { started: boolean } }
+  ).__hronautDeferredOverviewCapture?.started ?? false)).toBe(true)
+
+  await appWindow.getByRole('button', { name: 'Search tabs' }).click()
+  const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
+  await expect(overview).toBeVisible()
+  const card = overview.locator('.tab-overview-card', { hasText: 'Deferred overview preview' })
+  await expect(card).toBeVisible()
+  await electronApp.evaluate(() => {
+    const deferred = (
+      globalThis as typeof globalThis & {
+        __hronautDeferredOverviewCapture?: { released: boolean; release?: () => void }
+      }
+    ).__hronautDeferredOverviewCapture
+    if (!deferred?.release) throw new Error('Deferred overview capture was not waiting')
+    deferred.released = true
+    deferred.release()
+  })
+
+  await expect(card.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/, {
+    timeout: 4_000
+  })
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then((previews) => previews.length)`))
+    .toBe(1)
+})
+
 test('keeps the visual tab overview grouped, responsive, lock-safe, and passive for sleeping tabs', async ({
   appWindow,
   electronApp
@@ -8363,7 +8419,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         zedConfig: null,
         zedVerifyCommand: null,
         windsurfConfig: null,
-        windsurfVerifyCommand: null
+        windsurfVerifyCommand: null,
+        grokCommand: null,
+        grokVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
@@ -8382,6 +8440,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       document.querySelector('[data-guide="windsurf"]')?.click();
       result.windsurfConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
       result.windsurfVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="grok-build"]')?.click();
+      result.grokCommand = document.getElementById('guide-code')?.textContent;
+      result.grokVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -8451,9 +8512,11 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       }
     }
     windsurfVerifyCommand: string
+    grokCommand: string
+    grokVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -8487,6 +8550,8 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     serverUrl: `http://127.0.0.1:${mcpPort}/mcp`
   })
   expect(homeContent.windsurfVerifyCommand).toBe('Cascade → MCPs: hronaut is connected')
+  expect(homeContent.grokCommand).toBe(`grok mcp add --transport http hronaut http://127.0.0.1:${mcpPort}/mcp`)
+  expect(homeContent.grokVerifyCommand).toBe('grok mcp doctor hronaut')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

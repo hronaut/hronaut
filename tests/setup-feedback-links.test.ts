@@ -28,6 +28,7 @@ describe('setup feedback links', () => {
     expect(AGENT_GUIDE_URLS.opencode).toBe('https://hronaut.dev/opencode-browser-mcp')
     expect(AGENT_GUIDE_URLS.vscode).toBe('https://hronaut.dev/github-copilot-browser-mcp')
     expect(AGENT_GUIDE_URLS.windsurf).toBe('https://hronaut.dev/setup#client-configurations')
+    expect(AGENT_GUIDE_URLS['grok-build']).toBe('https://hronaut.dev/grok-build-browser-mcp')
     expect(AGENT_GUIDE_URLS.generic).toBe('https://hronaut.dev/setup#client-configurations')
   })
 

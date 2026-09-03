@@ -16,6 +16,10 @@ const electronPath = join(
   'dist',
   process.platform === 'win32' ? 'electron.exe' : 'electron'
 )
+// Six Docker shards can contend while Chromium initializes. A genuine
+// accidental app launch remains alive indefinitely, so this wider deadline
+// removes load sensitivity without weakening the regression.
+const FIRST_INSTANCE_QUIT_TIMEOUT_MS = 8_000
 
 async function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
   if (child.exitCode !== null || child.signalCode !== null) return true
@@ -58,7 +62,7 @@ test('exits when --quit is invoked without an existing instance', async ({
 
   try {
     expect(
-      await waitForChildExit(child, 3_000),
+      await waitForChildExit(child, FIRST_INSTANCE_QUIT_TIMEOUT_MS),
       `A first-instance --quit request launched Hronaut instead of exiting:\n${output}`
     ).toBe(true)
     expect(child.exitCode).toBe(0)

@@ -2606,7 +2606,7 @@ export const ruRU = {
     "connect": {
       "heading": "Подключите агента программирования",
       "description": "Выберите клиент, скопируйте настройку, затем создайте именованную рабочую область перед просмотром.",
-      "clients": "16 клиентов",
+      "clients": "17 клиентов",
       "agentsLabel": "Агенты программирования",
       "instructions": "Инструкции по настройке",
       "copy": "Копировать",
@@ -2635,6 +2635,7 @@ export const ruRU = {
         "mistralVibe": "Добавляет Hronaut в конфигурацию, общую для локальных сеансов Vibe CLI и VS Code.",
         "warp": "Добавляет Hronaut как пользовательский URL-сервер для локального агента Warp.",
         "windsurf": "Добавляет Hronaut в Windsurf Cascade через пользовательскую конфигурацию Streamable HTTP.",
+        "grokBuild": "Добавляет Hronaut в Grok Build через его встроенную пользовательскую конфигурацию HTTP MCP.",
         "generic": "Используйте потоковый HTTP и направьте клиент прямо на Hronaut.",
         "genericLocation": "Настройки MCP клиента"
       }
