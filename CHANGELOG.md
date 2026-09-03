@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.40] - 2026-09-03
+
 ### Fixed
 
 - Dismiss website-owned JavaScript dialogs whenever trusted Hronaut chrome covers the page, preventing a hidden site from blocking or imitating wallet approvals and other modal decisions.
