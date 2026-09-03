@@ -175,6 +175,27 @@ describe('app settings feature controller', () => {
     expect(harness.controller.settings.value.followAgentActivity).toBe(false)
   })
 
+  it('preserves two rapid follow-agent toggles while both settings writes are pending', async () => {
+    const harness = createHarness()
+    const first = deferred<AppSettings>()
+    const second = deferred<AppSettings>()
+    harness.options.settingsStore.setFollowAgentActivity
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise)
+
+    const enable = harness.controller.toggleFollowAgentActivity()
+    const disable = harness.controller.toggleFollowAgentActivity()
+
+    expect(harness.options.settingsStore.setFollowAgentActivity.mock.calls).toEqual([
+      [true],
+      [false]
+    ])
+
+    second.resolve({ ...harness.controller.settings.value, followAgentActivity: false })
+    first.resolve({ ...harness.controller.settings.value, followAgentActivity: true })
+    await Promise.all([enable, disable])
+  })
+
   it('keeps feature identities stable and exposes the exact retryable bootstrap task contract', async () => {
     const harness = createHarness()
     const controller = harness.controller

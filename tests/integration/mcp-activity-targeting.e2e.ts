@@ -51,6 +51,20 @@ async function startPageServer(title: string, body: string): Promise<{
   return { server, url: `http://127.0.0.1:${address.port}/` }
 }
 
+test('preserves rapid follow-agent toggle intent through the real settings boundary', async ({ appWindow }) => {
+  const followButton = appWindow.getByRole('button', {
+    name: 'Follow agent activity without taking keyboard or mouse focus'
+  })
+  await expect(followButton).toHaveAttribute('aria-pressed', 'false')
+
+  await followButton.dblclick()
+
+  await expect.poll(() => appWindow.evaluate(
+    'window.hronautSettings.get().then((value) => value.followAgentActivity)'
+  )).toBe(false)
+  await expect(followButton).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('follows MCP activity only when enabled without changing input lock or native focus', async ({
   appWindow,
   electronApp,

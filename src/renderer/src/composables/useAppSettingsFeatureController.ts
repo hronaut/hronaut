@@ -97,6 +97,8 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   const defaultDownloadDirectory = ref('')
   let generation = 0
   let disposed = false
+  let pendingFollowAgentActivityMutations = 0
+  let followAgentActivityTarget = options.settings.value.followAgentActivity
 
   const sitePermissionsController = useSitePermissionsController({
     api: options.apis.permissions,
@@ -284,7 +286,17 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   }
 
   function toggleFollowAgentActivity(): Promise<AppSettings> {
-    return options.settingsStore.setFollowAgentActivity(!options.settings.value.followAgentActivity)
+    if (pendingFollowAgentActivityMutations === 0) {
+      followAgentActivityTarget = options.settings.value.followAgentActivity
+    }
+    followAgentActivityTarget = !followAgentActivityTarget
+    pendingFollowAgentActivityMutations += 1
+    return options.settingsStore.setFollowAgentActivity(followAgentActivityTarget).finally(() => {
+      pendingFollowAgentActivityMutations -= 1
+      if (pendingFollowAgentActivityMutations === 0) {
+        followAgentActivityTarget = options.settings.value.followAgentActivity
+      }
+    })
   }
 
   const bootstrapTasks: AppBootstrapTask[] = [

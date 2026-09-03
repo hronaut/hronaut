@@ -2,6 +2,12 @@
 
 All notable changes to Hronaut are documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- Preserve every rapid **Follow agents** toggle while earlier settings writes are still pending, so a quick on-then-off gesture cannot leave following enabled.
+
 ## [1.11.41] - 2026-09-03
 
 ### Added
