@@ -189,6 +189,31 @@ describe('address bar controller', () => {
     expect(rendered.overlay.hide).toHaveBeenCalled()
   })
 
+  it('ignores a delayed native suggestion selection after the active tab changes', async () => {
+    const saved: BrowserBookmark = {
+      id: 'saved',
+      title: 'Saved page',
+      url: 'https://saved.example/',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const request = rendered.overlay.show.mock.calls.at(-1)?.[0]
+    expect(request?.suggestions).toHaveLength(1)
+
+    rendered.activeTab.value = tab('second', 'https://second.example/unsaved-form')
+    await nextTick()
+    rendered.selectOverlay(request!.suggestions[0].id)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('https://second.example/unsaved-form')
+  })
+
   it('resumes committed URL updates after a tab change discards an edit', async () => {
     const rendered = createHarness()
     const input = screen.getByRole('textbox', { name: 'Address' })

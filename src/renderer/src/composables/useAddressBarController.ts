@@ -49,6 +49,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const selected = computed(() => selection.value >= 0 ? suggestions.value[selection.value] : undefined)
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
+  let presentedSuggestionOwner: Pick<BrowserTabState, 'id' | 'navigationGeneration'> | null = null
   let cleanupCallbacks: (() => void)[] = []
   let pendingNavigation: {
     tabId: string | undefined
@@ -219,7 +220,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const x = Math.max(viewportMargin, Math.min(formBounds.left - 1, window.innerWidth - width - viewportMargin))
     const y = Math.ceil(formBounds.bottom + 7)
     const maxHeight = Math.max(1, Math.min(440, window.innerHeight - y - viewportMargin))
+    const activeTab = options.activeTab.value
     presentedSuggestions = suggestions.value.map((suggestion) => ({ ...suggestion }))
+    presentedSuggestionOwner = activeTab
+      ? { id: activeTab.id, navigationGeneration: activeTab.navigationGeneration }
+      : null
     overlay.show({
       bounds: { x, y, width, maxHeight },
       suggestions: presentedSuggestions,
@@ -274,6 +279,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     registrations.push(
       () => overlay.onSelected((id) => {
         if (disposed) return
+        const activeTab = options.activeTab.value
+        if (
+          !activeTab
+          || activeTab.id !== presentedSuggestionOwner?.id
+          || activeTab.navigationGeneration !== presentedSuggestionOwner.navigationGeneration
+        ) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
           ?? suggestions.value.find((candidate) => candidate.id === id)
         if (suggestion) void chooseSuggestion(suggestion)
@@ -298,6 +309,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     cancelBlur()
     open.value = false
     presentedSuggestions = []
+    presentedSuggestionOwner = null
     pendingNavigation = null
     const callbacks = cleanupCallbacks
     cleanupCallbacks = []

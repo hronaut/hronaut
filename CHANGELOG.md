@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Ignore a delayed native address-suggestion click after the user switches tabs, preventing the stale result from navigating the newly active page and discarding its state.
+
 ## [1.11.38] - 2026-09-03
 
 ### Improved

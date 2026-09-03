@@ -3435,6 +3435,23 @@ test('floats bookmark and history suggestions above pages while allowing duplica
     await address.fill('Suggestion')
     await expect.poll(addressOverlay).toMatchObject({ attached: true, topmost: true, visible: true })
 
+    // A native-overlay click can arrive after its owning tab has already lost
+    // focus. Never let that delayed selection navigate the newly active tab and
+    // destroy its page state.
+    const suggestionOwnerTabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')
+    const protectedState = await appWindow.evaluate('window.hronaut.newTab({ active: true })') as BrowserState
+    const protectedTabId = protectedState.activeTabId
+    await expect.poll(addressOverlay).toMatchObject({ attached: false, visible: false })
+    await clickOverlayOption(0)
+    await appWindow.waitForTimeout(150)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(protectedTabId)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(protectedTabId)})?.url)`)).toBe('about:blank')
+
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(suggestionOwnerTabId)})`)
+    await address.focus()
+    await address.fill('Suggestion')
+    await expect.poll(addressOverlay).toMatchObject({ attached: true, topmost: true, visible: true })
+
     const duplicateNavigationTabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')
     await clickOverlayOption(0)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Suggestion bookmark')
