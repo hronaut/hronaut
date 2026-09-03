@@ -269,6 +269,7 @@ import type {
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
+import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
   cancelElementPickerScript,
@@ -930,10 +931,10 @@ export interface TabsManagerOptions {
   onPageVisited?: (visit: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
-  onWalletNavigation?: (tabId: string, navigationGeneration: number) => void
-  onWalletTabClosed?: (tabId: string) => void
-  onWalletTabRestored?: (tabId: string, navigationGeneration: number) => Promise<void>
-  onWalletWorkspaceClosed?: (workspaceId: string) => void
+  onWalletNavigation?: (tabId: string, navigationGeneration: number) => void | Promise<void>
+  onWalletTabClosed?: (tabId: string) => void | Promise<void>
+  onWalletTabRestored?: (tabId: string, navigationGeneration: number) => void | Promise<void>
+  onWalletWorkspaceClosed?: (workspaceId: string) => void | Promise<void>
   configureSession?: (browserSession: Session) => void
 }
 
@@ -1651,7 +1652,9 @@ export class BrowserTabsManager {
             allowBusyWorkspace: true
           })
         } catch (error) {
-          this.options.onWalletTabClosed?.(tab.id)
+          this.runWalletLifecycleAction('cancel wallet requests after closing a restored tab', () => (
+            this.options.onWalletTabClosed?.(tab.id)
+          ))
           throw error
         }
       }
@@ -1686,7 +1689,9 @@ export class BrowserTabsManager {
     }
     removeClosedWorkspaceTabs()
     this.mcpTabGroups.delete(groupId)
-    this.options.onWalletWorkspaceClosed?.(groupId)
+    this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
+      this.options.onWalletWorkspaceClosed?.(groupId)
+    ))
     if (!this.tabs.size) {
       await this.createTab({ url: 'about:blank', active: true, mcpGroupId: this.ensureDefaultHumanGroup() })
     }
@@ -3354,7 +3359,9 @@ export class BrowserTabsManager {
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewPendingCaptures.delete(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
-    this.options.onWalletTabClosed?.(tab.id)
+    this.runWalletLifecycleAction('cancel wallet requests after closing a tab', () => (
+      this.options.onWalletTabClosed?.(tab.id)
+    ))
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
     this.mcpActivityFollower.removeTab(tab.id)
@@ -6639,7 +6646,9 @@ export class BrowserTabsManager {
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
-      this.options.onWalletTabClosed?.(tab.id)
+      this.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
+        this.options.onWalletTabClosed?.(tab.id)
+      ))
       tab.loading = false
       tab.pageProblem = {
         kind: 'renderer-gone',
@@ -6983,7 +6992,9 @@ export class BrowserTabsManager {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
       this.invalidateTabOverviewPreview(tab)
-      this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
+      this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
+        this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
+      ))
       if (isSameDocument) return
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
@@ -10010,6 +10021,13 @@ export class BrowserTabsManager {
     if (!group) return
     group.activeTabId = tab.id
     group.lastUsedAt = new Date().toISOString()
+  }
+
+  private runWalletLifecycleAction(action: string, callback: () => unknown): void {
+    void runBackgroundAction(action, callback, (failedAction, error) => {
+      console.error(`[wallet] Could not ${failedAction}:`, error)
+      this.options.onActionFailed?.(failedAction, error)
+    })
   }
 
   private persistedState(): PersistedBrowserState {

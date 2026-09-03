@@ -37,6 +37,7 @@ import type { WalletSafeStorage } from './wallet/key-provider.js'
 import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
 import { WalletService } from './wallet/service.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
+import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
 import {
   WalletChainFamilySchema,
   WalletPolicySchema,
@@ -3484,6 +3485,7 @@ async function createWindow(): Promise<void> {
   })
   mainWindow.webContents.setZoomFactor(settings.interfaceScale)
 
+  const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
   tabsManager = new BrowserTabsManager(mainWindow, {
     partition: PARTITION,
     storePath: join(app.getPath('userData'), 'tabs.json'),
@@ -3511,10 +3513,7 @@ async function createWindow(): Promise<void> {
       sendToPanelWindow('browser:state-changed', state)
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
-    onWalletNavigation: (tabId, generation) => void walletBroker?.cancelForNavigation(tabId, generation),
-    onWalletTabClosed: (tabId) => void walletBroker?.cancelForTab(tabId),
-    onWalletTabRestored: async (tabId, generation) => walletBroker?.resumeTab(tabId, generation),
-    onWalletWorkspaceClosed: (workspaceId) => void walletBroker?.cancelForWorkspace(workspaceId),
+    ...walletLifecycleCallbacks,
     onPageVisited: ({ url, title }) => {
       void historyStore?.record({ url, title })
         .then(() => publishVisitHistory())
