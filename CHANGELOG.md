@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.37] - 2026-09-03
+
 ### Added
 
 - Turn **Search tabs** into a searchable visual overview with workspace-grouped thumbnails, clear current-tab highlighting, keyboard navigation, and responsive layouts for crowded sessions.
