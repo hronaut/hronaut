@@ -5,6 +5,7 @@ export const AGENT_GUIDE_IDS = [
   'vscode',
   'opencode',
   'gemini-cli',
+  'goose',
   'cline',
   'kiro',
   'kilo',

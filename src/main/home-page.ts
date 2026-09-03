@@ -158,6 +158,35 @@ function agentGuides(
       verifyCommand: 'gemini mcp list'
     },
     {
+      id: 'goose',
+      name: 'Goose',
+      note: home.connect.guides.goose,
+      location: windows ? '%APPDATA%\\Block\\goose\\config\\config.yaml' : '~/.config/goose/config.yaml',
+      code: [
+        'extensions:',
+        '  hronaut:',
+        '    type: streamable_http',
+        '    name: hronaut',
+        '    enabled: true',
+        `    uri: ${JSON.stringify(endpoint)}`,
+        ...(authenticationDisabled
+          ? [
+              '    headers: {}',
+              '    env_keys: []'
+            ]
+          : [
+              '    headers:',
+              '      Authorization: "Bearer ${HRONAUT_MCP_TOKEN}"',
+              '    env_keys:',
+              '      - HRONAUT_MCP_TOKEN'
+            ]),
+        '    envs: {}',
+        '    timeout: 300'
+      ].join('\n'),
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: 'goose info -v'
+    },
+    {
       id: 'cline',
       name: 'Cline',
       note: home.connect.guides.cline,
@@ -565,7 +594,7 @@ export function renderHomePage(options: HomePageOptions): string {
       <section class="panel" aria-labelledby="connect-title">
         <header class="panel-heading">
           <div><h2 id="connect-title">${escapeHtml(home.connect.heading)}</h2><p>${escapeHtml(home.connect.description)}</p></div>
-          <span class="count">${escapeHtml(home.connect.clients)}</span>
+          <span class="count">${escapeHtml(home.connect.clients.replace('{count}', new Intl.NumberFormat(options.locale).format(guides.length)))}</span>
         </header>
         <div class="agent-layout">
           <nav id="agent-list" class="agents" aria-label="${escapeHtml(home.connect.agentsLabel)}"></nav>

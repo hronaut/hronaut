@@ -505,7 +505,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '18 clients',
+      clients: '{count} clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -525,6 +525,7 @@ export const enUS = {
         vscode: 'Save in the workspace, or use MCP: Open User Configuration for global access.',
         opencode: 'Adds Hronaut as a remote Streamable HTTP server in OpenCode.',
         geminiCli: 'Adds Hronaut as a user-scoped Streamable HTTP server in Gemini CLI.',
+        goose: 'Adds Hronaut as a persistent Streamable HTTP extension in Goose.',
         cline: 'Adds Hronaut to Cline with its recommended Streamable HTTP transport.',
         kiro: 'Adds Hronaut to Kiro at user scope with tool auto-approval kept disabled.',
         kilo: 'Adds Hronaut as a remote Streamable HTTP server shared by Kilo Code surfaces.',

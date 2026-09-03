@@ -30,6 +30,7 @@ describe('setup feedback links', () => {
     expect(AGENT_GUIDE_URLS.windsurf).toBe('https://hronaut.dev/setup#client-configurations')
     expect(AGENT_GUIDE_URLS['grok-build']).toBe('https://hronaut.dev/grok-build-browser-mcp')
     expect(AGENT_GUIDE_URLS['qwen-code']).toBe('https://hronaut.dev/qwen-code-browser-mcp')
+    expect(AGENT_GUIDE_URLS.goose).toBe('https://hronaut.dev/goose-browser-mcp')
     expect(AGENT_GUIDE_URLS.generic).toBe('https://hronaut.dev/setup#client-configurations')
   })
 

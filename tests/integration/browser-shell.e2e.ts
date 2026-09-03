@@ -8710,6 +8710,8 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         verifyCommand: document.getElementById('guide-verify-command')?.textContent,
         verifyHidden: document.getElementById('guide-verify')?.hidden,
         geminiConfig: null,
+        gooseConfig: null,
+        gooseVerifyCommand: null,
         kiloConfig: null,
         kiloVerifyCommand: null,
         junieConfig: null,
@@ -8727,6 +8729,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      document.querySelector('[data-guide="goose"]')?.click();
+      result.gooseConfig = document.getElementById('guide-code')?.textContent;
+      result.gooseVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       document.querySelector('[data-guide="kilo"]')?.click();
       result.kiloConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
       result.kiloVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
@@ -8768,6 +8773,8 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         }
       }
     }
+    gooseConfig: string
+    gooseVerifyCommand: string
     kiloConfig: {
       mcp?: {
         hronaut?: {
@@ -8823,7 +8830,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     qwenVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Goose', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -8832,6 +8839,10 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(homeContent.geminiConfig.mcpServers?.hronaut).toEqual({
     httpUrl: `http://127.0.0.1:${mcpPort}/mcp`
   })
+  expect(homeContent.gooseConfig).toContain('type: streamable_http')
+  expect(homeContent.gooseConfig).toContain(`uri: "http://127.0.0.1:${mcpPort}/mcp"`)
+  expect(homeContent.gooseConfig).toContain('headers: {}')
+  expect(homeContent.gooseVerifyCommand).toBe('goose info -v')
   expect(homeContent.kiloConfig.mcp?.hronaut).toEqual({
     type: 'remote',
     url: `http://127.0.0.1:${mcpPort}/mcp`,

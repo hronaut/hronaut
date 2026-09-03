@@ -10,6 +10,7 @@ export const AGENT_GUIDE_URLS = Object.freeze({
   vscode: 'https://hronaut.dev/github-copilot-browser-mcp',
   opencode: 'https://hronaut.dev/opencode-browser-mcp',
   'gemini-cli': 'https://hronaut.dev/gemini-cli-browser-mcp',
+  goose: 'https://hronaut.dev/goose-browser-mcp',
   cline: 'https://hronaut.dev/cline-browser-mcp',
   kiro: 'https://hronaut.dev/kiro-browser-mcp',
   kilo: 'https://hronaut.dev/kilo-code-browser-mcp',

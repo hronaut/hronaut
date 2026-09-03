@@ -2610,7 +2610,7 @@ export const esES = {
     "connect": {
       "heading": "Conecta tu agente de programación",
       "description": "Elige un cliente, copia la configuración y crea un espacio de trabajo con nombre antes de navegar.",
-      "clients": "18 clientes",
+      "clients": "{count} clientes",
       "agentsLabel": "Agentes de programación",
       "instructions": "Instrucciones de configuración",
       "copy": "Copiar",
@@ -2630,6 +2630,7 @@ export const esES = {
         "vscode": "Guarda en el espacio de trabajo o usa MCP: Open User Configuration para el acceso global.",
         "opencode": "Añade Hronaut a OpenCode como servidor HTTP transmitible remoto.",
         "geminiCli": "Añade Hronaut a Gemini CLI como servidor HTTP Streamable de ámbito de usuario.",
+        "goose": "Añade Hronaut como una extensión HTTP Streamable persistente en Goose.",
         "cline": "Añade Hronaut a Cline con el transporte HTTP Streamable recomendado.",
         "kiro": "Añade Hronaut a Kiro a nivel de usuario sin aprobar herramientas automáticamente.",
         "kilo": "Añade Hronaut como servidor HTTP Streamable remoto compartido por Kilo Code.",
