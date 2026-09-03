@@ -9,6 +9,7 @@ function tab(id = 'tab-1', overrides: Partial<BrowserTabState> = {}): BrowserTab
     title: `Page ${id}`,
     url: 'https://example.test/page',
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,

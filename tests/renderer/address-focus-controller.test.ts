@@ -10,6 +10,7 @@ function tab(id: string, active = false, url = `https://${id}.test/`): BrowserTa
     title: id,
     active,
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     pinned: false,

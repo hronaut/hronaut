@@ -1775,9 +1775,10 @@ test('keeps Find, Zoom, Tab Search, and the Split view menu mutually exclusive',
     await expect(tabSearch).toBeVisible()
     await expect(splitViewMenu).toBeHidden()
 
+    await appWindow.keyboard.press('Escape')
+    await expect(tabSearch).toBeHidden()
     await appWindow.getByRole('button', { name: 'Split view' }).click()
     await expect(splitViewMenu).toBeVisible()
-    await expect(tabSearch).toBeHidden()
 
     const zoom = appWindow.getByRole('group', { name: 'Page zoom controls' })
     await appWindow.getByRole('button', { name: 'Page zoom controls' }).click()
@@ -3542,6 +3543,7 @@ test('searches open and recently closed tabs, then restores any selected page', 
   ))
   const alphaUrl = 'data:text/html,<title>Tab search alpha</title><main>Alpha</main>'
   const betaUrl = 'data:text/html,<title>Tab search beta</title><main>Beta</main>'
+  const clipboardBefore = await electronApp.evaluate(({ clipboard }) => clipboard.readText())
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search alpha')
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`)
@@ -3559,25 +3561,36 @@ test('searches open and recently closed tabs, then restores any selected page', 
   const panel = appWindow.getByRole('dialog', { name: 'Tabs' })
   const search = panel.getByRole('searchbox', { name: 'Search tabs' })
   await expect(panel).toBeVisible()
-  const panelBounds = await panel.boundingBox()
-  expect(panelBounds).not.toBeNull()
-  await expect.poll(browserViewBounds).toMatchObject({
-    x: 0,
-    y: 105,
-    width: Math.round(panelBounds!.x)
-  })
-  expect((await browserViewBounds())?.height).toBeGreaterThan(500)
+  await expect(panel).toHaveAttribute('aria-modal', 'true')
+  await expect.poll(async () => (await browserViewBounds())?.height).toBe(1)
   await expect(search).toBeFocused()
   await expect(panel).toContainText('2 open')
-  await search.fill('alpha')
-  await expect(panel.locator('.tab-search-item')).toHaveCount(1)
-  await expect(panel).toContainText('Tab search alpha')
+  expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(clipboardBefore)
+  expect(await appWindow.evaluate(`window.hronaut.getState().then((state) => {
+    const visit = (value) => {
+      if (!value || typeof value !== 'object') return []
+      return Object.entries(value).flatMap(([key, nested]) => [key, ...visit(nested)])
+    }
+    return visit(state).filter((key) => /preview|thumbnail|screenshot/i.test(key))
+  })`)).toEqual([])
+
+  await search.fill('Tab search')
+  await expect(panel.locator('.tab-overview-card')).toHaveCount(2)
+  await search.press('Home')
+  await expect(panel.locator('.tab-overview-card.selected')).toContainText('Tab search alpha')
   await search.press('Enter')
   await expect(panel).toBeHidden()
   await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth') })
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search alpha')
 
-  await appWindow.getByRole('button', { name: 'Search tabs' }).click()
+  const searchTabsButton = appWindow.getByRole('button', { name: 'Search tabs' })
+  await searchTabsButton.click()
+  await appWindow.keyboard.press('Escape')
+  await expect(panel).toBeHidden()
+  await expect(searchTabsButton).toBeFocused()
+  await expect.poll(async () => (await browserViewBounds())?.height ?? 0).toBeGreaterThan(1)
+
+  await searchTabsButton.click()
   await panel.getByRole('button', { name: 'Close Tab search beta' }).click()
   await expect(panel).toContainText('1 open · 1 closed')
   await expect(panel.getByRole('list', { name: 'Recently closed tabs' })).toContainText('Tab search beta')
@@ -3609,6 +3622,105 @@ test('searches open and recently closed tabs, then restores any selected page', 
     active: 'Tab search alpha',
     closed: 0
   })
+})
+
+test('keeps the visual tab overview grouped, responsive, lock-safe, and passive for sleeping tabs', async ({
+  appWindow,
+  electronApp
+}, testInfo) => {
+  const titles: Record<string, string> = {
+    '/default': 'Overview default target',
+    '/research': 'Overview sleeping research',
+    '/qa': 'Overview active QA'
+  }
+  const server = createServer((request, response) => {
+    const title = titles[request.url ?? ''] ?? 'Overview fixture'
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.end(`<!doctype html><title>${title}</title><main>${title}</main>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const serverAddress = server.address()
+  if (!serverAddress || typeof serverAddress === 'string') throw new Error('Tab-overview fixture did not expose a port')
+  const baseUrl = `http://127.0.0.1:${serverAddress.port}`
+  const defaultUrl = `${baseUrl}/default`
+  const researchUrl = `${baseUrl}/research`
+  const qaUrl = `${baseUrl}/qa`
+
+  try {
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: false })`)
+    const research = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Overview Research', storage: 'scratch' })`) as BrowserState
+    const researchWorkspaceId = research.mcpTabGroups.find((group) => group.name === 'Overview Research')!.id
+    const researchTabId = research.tabs.find((tab) => tab.mcpGroupId === researchWorkspaceId)!.id
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(researchTabId)}, url: ${JSON.stringify(researchUrl)} })`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.title)`))
+      .toBe('Overview sleeping research')
+
+    const qa = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Overview QA', storage: 'scratch' })`) as BrowserState
+    const qaWorkspaceId = qa.mcpTabGroups.find((group) => group.name === 'Overview QA')!.id
+    const qaTabId = qa.tabs.find((tab) => tab.mcpGroupId === qaWorkspaceId)!.id
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(qaTabId)}, url: ${JSON.stringify(qaUrl)} })`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(qaTabId)})?.title)`))
+      .toBe('Overview active QA')
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(qaTabId)})`)
+    await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(researchTabId)}, true)`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.sleeping)`))
+      .toBe(true)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}]).then((previews) => previews.length)`))
+      .toBe(1)
+
+    await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+    const overviewButton = appWindow.getByRole('button', { name: 'Search tabs' })
+    await overviewButton.click()
+    const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
+    const search = overview.getByRole('searchbox', { name: 'Search tabs' })
+    await expect(overview).toBeVisible()
+    await expect(search).toBeEnabled()
+
+    const researchGroup = overview.getByRole('list', { name: 'Overview Research' })
+    const qaGroup = overview.getByRole('list', { name: 'Overview QA' })
+    const defaultGroup = overview.getByRole('list', { name: 'Default' })
+    await expect(researchGroup).toContainText('Overview sleeping research')
+    await expect(qaGroup).toContainText('Overview active QA')
+    await expect(defaultGroup).toContainText('Overview default target')
+
+    const activeCard = qaGroup.locator('.tab-overview-card', { hasText: 'Overview active QA' })
+    const sleepingCard = researchGroup.locator('.tab-overview-card', { hasText: 'Overview sleeping research' })
+    await expect(activeCard).toContainText('Current tab')
+    await expect(activeCard.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+    await expect(sleepingCard.locator('.tab-overview-preview')).toHaveCount(1)
+    await expect(sleepingCard.locator('.tab-overview-preview')).toContainText(/Sleeping|Preview unavailable/)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.sleeping)`))
+      .toBe(true)
+    await appWindow.screenshot({ path: testInfo.outputPath('tab-overview-desktop.png') })
+
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))
+    const minimumBounds = await overview.boundingBox()
+    expect(minimumBounds).not.toBeNull()
+    expect(minimumBounds!.x).toBeGreaterThanOrEqual(0)
+    expect(minimumBounds!.y).toBeGreaterThanOrEqual(0)
+    expect(minimumBounds!.x + minimumBounds!.width).toBeLessThanOrEqual(760)
+    expect(minimumBounds!.y + minimumBounds!.height).toBeLessThanOrEqual(520)
+    await expect(search).toBeVisible()
+    await appWindow.screenshot({ path: testInfo.outputPath('tab-overview-minimum.png') })
+
+    await search.fill('Overview default target')
+    const defaultCard = overview.locator('.tab-overview-card', { hasText: 'Overview default target' })
+    await expect(defaultCard).toBeVisible()
+    const singleCardBounds = await defaultCard.boundingBox()
+    expect(singleCardBounds).not.toBeNull()
+    expect(singleCardBounds!.width).toBeLessThanOrEqual(420)
+    await expect(defaultCard.getByRole('button', { name: 'Close Overview default target' })).toBeDisabled()
+    await search.press('Enter')
+    await expect(overview).toBeHidden()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+      .toBe('Overview default target')
+    await expect(appWindow.getByRole('button', { name: /Allow human page input/ })).toHaveAttribute('aria-pressed', 'true')
+  } finally {
+    await closeFixtureServer(server)
+  }
 })
 
 test('duplicates navigation history and safely bulk-manages tabs from the native menu', async ({

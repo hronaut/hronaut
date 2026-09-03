@@ -2,8 +2,10 @@ import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import type {
   BrowserClosedTabState,
+  BrowserTabOverviewPreview,
   BrowserSavedTabGroupState,
   BrowserState,
+  BrowserTabGroupColor,
   BrowserTabState,
   HronautApi,
   McpTabActivity
@@ -11,7 +13,7 @@ import type {
 
 type TabSearchBrowserApi = Pick<
   HronautApi,
-  'closeTab' | 'reopenClosedTab' | 'setTabPinned' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup'
+  'closeTab' | 'reopenClosedTab' | 'setTabPinned' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'getTabOverviewPreviews'
 >
 
 type Translate = (
@@ -24,6 +26,13 @@ export type TabSearchResult =
   | { kind: 'open'; tab: BrowserTabState }
   | { kind: 'closed'; tab: BrowserClosedTabState }
   | { kind: 'saved'; tab: BrowserSavedTabGroupState }
+
+export interface TabSearchWorkspaceGroup {
+  id: string
+  name: string
+  color: BrowserTabGroupColor
+  tabs: BrowserTabState[]
+}
 
 export interface TabSearchControllerOptions {
   state: Readonly<Ref<BrowserState>>
@@ -51,7 +60,10 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   const query = ref('')
   const selection = ref(0)
   const actionPending = ref(false)
+  const previewLoading = ref(false)
+  const previewsByTab = ref<Record<string, BrowserTabOverviewPreview>>({})
   let presentationGeneration = 0
+  let previewRequestGeneration = 0
   let actionToken: symbol | null = null
 
   const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
@@ -79,9 +91,31 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
       || group.tabs.some((tab) => tab.title.toLocaleLowerCase().includes(normalized) || tab.url.toLocaleLowerCase().includes(normalized))
     ))
   })
+  const filteredWorkspaceGroups = computed<TabSearchWorkspaceGroup[]>(() => {
+    const matchedTabs = new Map(filteredTabs.value.map((tab) => [tab.id, tab]))
+    const knownWorkspaceIds = new Set(options.state.value.mcpTabGroups.map((group) => group.id))
+    const groups = options.state.value.mcpTabGroups.flatMap((group): TabSearchWorkspaceGroup[] => {
+      const tabs = options.state.value.tabs.filter((tab) => (
+        tab.mcpGroupId === group.id && matchedTabs.has(tab.id) && !tab.url.startsWith('hronaut://home')
+      ))
+      return tabs.length ? [{ id: group.id, name: group.name, color: group.color, tabs }] : []
+    })
+    const ungroupedTabs = filteredTabs.value.filter((tab) => (
+      !tab.mcpGroupId || !knownWorkspaceIds.has(tab.mcpGroupId)
+    ))
+    if (ungroupedTabs.length) {
+      groups.push({
+        id: 'ungrouped',
+        name: options.translate('tabSearch.ungrouped'),
+        color: 'gray',
+        tabs: ungroupedTabs
+      })
+    }
+    return groups
+  })
   const results = computed<TabSearchResult[]>(() => [
+    ...filteredWorkspaceGroups.value.flatMap((group) => group.tabs).map((tab): TabSearchResult => ({ kind: 'open', tab })),
     ...filteredSavedTabGroups.value.map((tab): TabSearchResult => ({ kind: 'saved', tab })),
-    ...filteredTabs.value.map((tab): TabSearchResult => ({ kind: 'open', tab })),
     ...filteredClosedTabs.value.map((tab): TabSearchResult => ({ kind: 'closed', tab }))
   ])
   const resultKeys = computed(() => results.value.map(resultKey))
@@ -99,6 +133,55 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   function resultIndex(kind: TabSearchResult['kind'], id: string): number {
     return results.value.findIndex((result) => result.kind === kind && result.tab.id === id)
+  }
+
+  function previewForTab(tab: BrowserTabState): BrowserTabOverviewPreview | undefined {
+    const preview = previewsByTab.value[tab.id]
+    if (!preview || tab.sleeping) return undefined
+    if (preview.navigationGeneration !== tab.navigationGeneration) return undefined
+    return preview
+  }
+
+  function clearPreviews(): void {
+    previewRequestGeneration += 1
+    previewLoading.value = false
+    previewsByTab.value = {}
+  }
+
+  async function loadPreviews(presentation = presentationGeneration): Promise<void> {
+    const tabs = regularTabs.value.filter((tab) => !tab.sleeping)
+    const request = ++previewRequestGeneration
+    if (!tabs.length) {
+      previewsByTab.value = {}
+      previewLoading.value = false
+      return
+    }
+    previewLoading.value = true
+    try {
+      const previews = await options.browser.getTabOverviewPreviews(tabs.map((tab) => tab.id))
+      if (
+        request !== previewRequestGeneration
+        || !options.open.value
+        || !isPresentationCurrent(presentation)
+      ) return
+      const currentTabs = new Map(regularTabs.value.map((tab) => [tab.id, tab]))
+      const current: Record<string, BrowserTabOverviewPreview> = {}
+      for (const preview of previews) {
+        const tab = currentTabs.get(preview.tabId)
+        if (!tab || tab.sleeping) continue
+        if (preview.navigationGeneration !== tab.navigationGeneration) continue
+        if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+=*$/.test(preview.dataUrl)) continue
+        if (!Number.isInteger(preview.width) || preview.width < 1 || !Number.isInteger(preview.height) || preview.height < 1) continue
+        current[preview.tabId] = preview
+      }
+      previewsByTab.value = current
+    } catch {
+      // Previews are optional presentation data. Keep the overview usable with
+      // deterministic placeholders when capture is unavailable.
+      if (request === previewRequestGeneration && isPresentationCurrent(presentation)) previewsByTab.value = {}
+    } finally {
+      if (request === previewRequestGeneration) previewLoading.value = false
+    }
   }
 
   function revealSelectedResult(): void {
@@ -157,6 +240,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
     selection.value = Math.max(0, activeIndex)
     options.open.value = true
+    void loadPreviews(presentation)
     await focusAndReveal(presentation)
     if (!options.open.value || !isPresentationCurrent(presentation)) return
     input.value?.select()
@@ -164,6 +248,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   function close(): void {
     beginPresentation()
+    clearPreviews()
     options.open.value = false
   }
 
@@ -338,15 +423,32 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     { flush: 'sync' }
   )
   const stopOpenTracking = watch(options.open, (nextOpen, previousOpen) => {
-    if (previousOpen && !nextOpen) beginPresentation()
+    if (previousOpen && !nextOpen) {
+      beginPresentation()
+      clearPreviews()
+    }
   }, { flush: 'sync' })
+  const previewIdentity = computed(() => regularTabs.value.map((tab) => (
+    `${tab.id}:${tab.navigationGeneration}:${tab.sleeping ? 'sleeping' : 'awake'}`
+  )).join('|'))
+  const stopPreviewIdentityTracking = watch(previewIdentity, () => {
+    if (options.open.value) void loadPreviews()
+  }, { flush: 'post' })
+
+  if (options.open.value) {
+    const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
+    selection.value = Math.max(0, activeIndex)
+    void loadPreviews()
+  }
 
   function dispose(): void {
     beginPresentation()
+    clearPreviews()
     actionToken = null
     actionPending.value = false
     stopResultTracking()
     stopOpenTracking()
+    stopPreviewIdentityTracking()
   }
 
   return {
@@ -354,8 +456,11 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     query,
     selection,
     actionPending,
+    previewLoading,
+    previewsByTab,
     regularTabs,
     filteredTabs,
+    filteredWorkspaceGroups,
     filteredClosedTabs,
     filteredSavedTabGroups,
     results,
@@ -363,6 +468,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     resultId,
     resultLabel,
     resultIndex,
+    previewForTab,
     openPanel,
     close,
     moveSelection,

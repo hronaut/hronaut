@@ -199,4 +199,35 @@ describe('useAppShellKeyboardFeatureController', () => {
     expect(actions.closeReleaseHistory).toHaveBeenCalledOnce()
     expect(surfaces.releaseHistory.value).toBe(false)
   })
+
+  it('keeps browser shortcuts behind the modal tab overview and closes it with Escape', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.tabSearch.value = true
+    const shortcut = new KeyboardEvent('keydown', {
+      key: 'l', ctrlKey: true, cancelable: true
+    })
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
+
+    controller.handleKeyDown(shortcut)
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+    expect(surfaces.tabSearch.value).toBe(true)
+
+    controller.handleKeyDown(escape)
+    expect(escape.defaultPrevented).toBe(true)
+    expect(surfaces.tabSearch.value).toBe(false)
+  })
+
+  it('lets the Search tabs shortcut toggle its own modal closed', () => {
+    const { controller, surfaces, actions } = createHarness()
+    surfaces.tabSearch.value = true
+    const shortcut = new KeyboardEvent('keydown', {
+      key: 'a', ctrlKey: true, shiftKey: true, cancelable: true
+    })
+
+    controller.handleKeyDown(shortcut)
+
+    expect(shortcut.defaultPrevented).toBe(true)
+    expect(surfaces.tabSearch.value).toBe(false)
+    expect(actions.runShortcut).not.toHaveBeenCalled()
+  })
 })

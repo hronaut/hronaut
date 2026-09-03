@@ -11,6 +11,7 @@ function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
     title: 'Example',
     url: 'https://example.test/',
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,

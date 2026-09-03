@@ -7,6 +7,7 @@ import { isImeCompositionEvent } from '../keyboard-composition.js'
 export interface ShellKeyboardSurface {
   isOpen: () => boolean
   close: () => void
+  toggleShortcut?: BrowserShortcutAction
 }
 
 export interface ShellKeyboardControllerOptions {
@@ -52,7 +53,13 @@ export function useShellKeyboardController(options: ShellKeyboardControllerOptio
       if (event.key === 'Escape') options.commandPalette.close()
       return
     }
-    if (options.modalSurfaces.some((surface) => surface.isOpen())) {
+    const activeModal = options.modalSurfaces.find((surface) => surface.isOpen())
+    if (activeModal) {
+      if (shortcut && shortcut === activeModal.toggleShortcut) {
+        event.preventDefault()
+        activeModal.close()
+        return
+      }
       if (event.key === 'Escape') {
         event.preventDefault()
         closeFirst(options.modalSurfaces)

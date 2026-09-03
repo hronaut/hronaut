@@ -2238,6 +2238,10 @@ export const plPL = {
   "tabSearch": {
     "kicker": "Obszar roboczy przeglądarki",
     "heading": "Karty",
+    "results": "Wyniki przeglądu kart",
+    "ungrouped": "Inne karty",
+    "previewSleeping": "Uśpiona — otwórz, aby wyświetlić podgląd",
+    "previewUnavailable": "Podgląd niedostępny",
     "countOpen": "Otwarte: {count}",
     "countSaved": "· zapisane: {count}",
     "countClosed": "· zamknięte: {count}",

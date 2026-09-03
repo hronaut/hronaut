@@ -51,6 +51,7 @@ function tab(id: string, overrides: Partial<BrowserTabState> = {}): BrowserTabSt
     title: `Page ${id}`,
     url: `https://example.test/${id}`,
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: false,
@@ -289,6 +290,7 @@ describe('BrowserTabsBar', () => {
       url: 'hronaut://home',
       active: true,
       loading: true,
+      navigationGeneration: 0,
       mcpGroupId: undefined,
       mcpGroupName: undefined
     })

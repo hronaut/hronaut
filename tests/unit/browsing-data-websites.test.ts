@@ -15,7 +15,7 @@ describe('buildBrowsingDataWebsiteInventory', () => {
       bookmarks: [{ id: 'bookmark', url: 'https://docs.example.test/reference', title: 'Reference', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
       credentials: [{ id: 'credential', origin: 'https://example.test', username: 'owner', createdAt: '2026-08-01T00:00:00.000Z', updatedAt: '2026-08-01T00:00:00.000Z' }],
       permissions: [{ origin: 'https://camera.test', permission: 'media', decision: 'deny' }],
-      tabs: [{ id: 'tab', title: 'Open tab', url: 'https://open.test/path', loading: false, canGoBack: false, canGoForward: false, active: true, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false }]
+      tabs: [{ id: 'tab', title: 'Open tab', url: 'https://open.test/path', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false, active: true, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false }]
     })
 
     expect(websites.map((site) => site.origin)).toEqual([
@@ -40,8 +40,8 @@ describe('buildBrowsingDataWebsiteInventory', () => {
       credentials: [],
       permissions: [],
       tabs: [
-        { id: 'http', title: 'HTTP', url: 'http://secure.test/', loading: false, canGoBack: false, canGoForward: false, active: false, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false },
-        { id: 'file', title: 'File', url: 'file:///tmp/test', loading: false, canGoBack: false, canGoForward: false, active: true, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false }
+        { id: 'http', title: 'HTTP', url: 'http://secure.test/', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false, active: false, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false },
+        { id: 'file', title: 'File', url: 'file:///tmp/test', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false, active: true, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: true, zoomPercent: 100, audible: false, muted: false, devToolsOpen: false }
       ]
     })
 

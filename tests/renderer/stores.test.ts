@@ -12,6 +12,7 @@ function browserState(activeTabId: string | null = null): BrowserState {
           title: 'Example',
           url: 'https://example.com/',
           loading: false,
+          navigationGeneration: 0,
           canGoBack: false,
           canGoForward: false,
           active: true,

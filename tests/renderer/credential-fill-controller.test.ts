@@ -9,6 +9,7 @@ function tab(id = 'tab-1'): BrowserTabState {
     title: 'Sign in',
     url: 'https://example.test/login',
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,

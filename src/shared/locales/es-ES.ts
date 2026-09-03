@@ -2238,6 +2238,10 @@ export const esES = {
   "tabSearch": {
     "kicker": "Espacio de trabajo del navegador",
     "heading": "Pestañas",
+    "results": "Resultados de vista general de pestañas",
+    "ungrouped": "Otras pestañas",
+    "previewSleeping": "En reposo: ábrela para ver la vista previa",
+    "previewUnavailable": "Vista previa no disponible",
     "countOpen": "{count} abiertas",
     "countSaved": "· {count} guardadas",
     "countClosed": "· {count} cerradas",

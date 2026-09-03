@@ -191,6 +191,7 @@ export interface BrowserTabState {
   title: string
   url: string
   loading: boolean
+  navigationGeneration: number
   canGoBack: boolean
   canGoForward: boolean
   active: boolean
@@ -354,6 +355,39 @@ export interface BrowserClosedTabState {
   pinned: boolean
   closedAt: string
   mcpGroupId?: string
+}
+
+export const MAX_BROWSER_TABS = 50
+export const MAX_BROWSER_TAB_ID_CHARS = 128
+
+export interface BrowserTabOverviewPreview {
+  tabId: string
+  navigationGeneration: number
+  dataUrl: string
+  width: number
+  height: number
+}
+
+export function validateTabOverviewPreviewIds(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new TypeError('Tab overview preview IDs must be an array')
+  if (value.length > MAX_BROWSER_TABS) {
+    throw new TypeError(`Tab overview preview requests cannot exceed ${MAX_BROWSER_TABS} tabs`)
+  }
+  const tabIds: string[] = []
+  for (let index = 0; index < value.length; index += 1) {
+    const candidate: unknown = value[index]
+    if (
+      typeof candidate !== 'string'
+      || candidate.length < 1
+      || candidate.length > MAX_BROWSER_TAB_ID_CHARS
+      || candidate.trim() !== candidate
+    ) throw new TypeError('Invalid tab overview preview ID')
+    tabIds.push(candidate)
+  }
+  if (new Set(tabIds).size !== tabIds.length) {
+    throw new TypeError('Tab overview preview IDs must be unique')
+  }
+  return tabIds
 }
 
 export interface BrowserState {
@@ -2189,6 +2223,7 @@ export interface BrowserStorageChangesReport {
 
 export interface HronautApi {
   getState(): Promise<BrowserState>
+  getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   copyText(text: string): Promise<void>
   openHome(): Promise<BrowserState>
   newTab(options?: NewTabOptions): Promise<BrowserState>

@@ -74,7 +74,8 @@ export function useAppShellLayoutFeatureController(
     || modals.releaseHistory.value
     || modals.workspaceEditor.value
     || modals.credentialPicker.value
-    || modals.walletApproval.value)
+    || modals.walletApproval.value
+    || overlays.tabSearch.value)
   const panelDockLayout = usePanelDockLayout({
     ...layout,
     fullModalOpen

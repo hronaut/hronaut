@@ -10,6 +10,7 @@ function tab(): BrowserTabState {
     title: 'Active page',
     url: 'https://example.test/path',
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,

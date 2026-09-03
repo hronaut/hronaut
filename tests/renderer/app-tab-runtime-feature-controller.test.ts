@@ -13,6 +13,7 @@ function tab(id: string, preserveDiagnosticLogs = false): BrowserTabState {
     title: `Tab ${id}`,
     url: `https://${id}.example.test`,
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: false,

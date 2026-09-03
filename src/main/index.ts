@@ -105,6 +105,7 @@ import {
   PANEL_DOCKS,
   BROWSER_NETWORK_ABORT_REASONS,
   isAttentionSoundCue,
+  validateTabOverviewPreviewIds,
   type AppSettings,
   type AppUpdateState,
   type BrowserState,
@@ -2220,6 +2221,12 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     await tabsInitializationPromise
     return tabsManager!.getState()
+  })
+  ipcMain.handle('browser:get-tab-overview-previews', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    const tabIds = validateTabOverviewPreviewIds(value)
+    await tabsInitializationPromise
+    return tabsManager!.getTabOverviewPreviews(tabIds)
   })
   ipcMain.handle('browser:copy-text', async (event, value: unknown) => {
     assertTrustedShellSender(event)

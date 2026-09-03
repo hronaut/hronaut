@@ -11,6 +11,7 @@ function tab(id: string): BrowserTabState {
     title: `Page ${id}`,
     url: `https://example.test/${id}`,
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     active: true,

@@ -71,10 +71,11 @@ export interface AppShellKeyboardFeatureControllerOptions {
   runShortcut: (action: BrowserShortcutAction) => void
 }
 
-function refSurface(open: Ref<boolean>): ShellKeyboardSurface {
+function refSurface(open: Ref<boolean>, toggleShortcut?: BrowserShortcutAction): ShellKeyboardSurface {
   return {
     isOpen: () => open.value,
-    close: () => { open.value = false }
+    close: () => { open.value = false },
+    toggleShortcut
   }
 }
 
@@ -98,14 +99,14 @@ export function useAppShellKeyboardFeatureController(
       refSurface(modals.credentialPicker),
       customSurface(modals.releaseHistory),
       customSurface(modals.helpDialog),
-      customSurface(modals.settings)
+      customSurface(modals.settings),
+      refSurface(overlays.tabSearch, 'search-tabs')
     ],
     escapeSurfaces: [
       refSurface(overlays.siteStorage),
       refSurface(overlays.siteControls),
       refSurface(overlays.addressSuggestions),
       customSurface(overlays.find),
-      refSurface(overlays.tabSearch),
       refSurface(overlays.splitMenu),
       refSurface(overlays.zoom),
       refSurface(collections.downloadsOpen),

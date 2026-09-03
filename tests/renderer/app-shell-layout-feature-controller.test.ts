@@ -235,4 +235,26 @@ describe('useAppShellLayoutFeatureController', () => {
       left: 0
     })
   })
+
+  it('treats tab search as an immediately occluding full modal', async () => {
+    const harness = createHarness()
+
+    harness.overlays.addressSuggestions.value = true
+    harness.overlays.tabSearch.value = true
+
+    expect(harness.controller.fullModalOpen.value).toBe(true)
+    expect(harness.closeAddressSuggestions).toHaveBeenCalledOnce()
+
+    await nextTick()
+    await nextTick()
+
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setContentInsets).toHaveBeenLastCalledWith({
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0
+    })
+    expect(harness.setBrowserContentOccluded).toHaveBeenLastCalledWith(true)
+  })
 })

@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Turn **Search tabs** into a searchable visual overview with workspace-grouped thumbnails, clear current-tab highlighting, keyboard navigation, and responsive layouts for crowded sessions.
+
+### Fixed
+
+- Keep focus and unrelated browser shortcuts behind the modal tab overview, preserve search-field caret movement and shortcut toggling, bound sparse layouts, reject malformed preview requests, and retain lock-safe tab selection.
+
 ## [1.11.36] - 2026-09-03
 
 ### Fixed

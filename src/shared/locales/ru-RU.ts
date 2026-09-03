@@ -2238,6 +2238,10 @@ export const ruRU = {
   "tabSearch": {
     "kicker": "Рабочая область браузера",
     "heading": "Вкладки",
+    "results": "Результаты обзора вкладок",
+    "ungrouped": "Другие вкладки",
+    "previewSleeping": "Вкладка спит — откройте для просмотра",
+    "previewUnavailable": "Предпросмотр недоступен",
     "countOpen": "Открыто: {count}",
     "countSaved": "· сохранено: {count}",
     "countClosed": "· закрыто: {count}",

@@ -10,6 +10,7 @@ function tab(id: string, active = false): BrowserTabState {
     title: id,
     active,
     loading: false,
+    navigationGeneration: 0,
     canGoBack: false,
     canGoForward: false,
     pinned: false,

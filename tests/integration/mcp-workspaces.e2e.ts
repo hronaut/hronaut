@@ -1185,7 +1185,7 @@ test('restores workspace identity and tabs after an application restart', async 
     await restoredGroupControl.press('Space')
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'false')
     await instance.window.getByRole('button', { name: 'Search tabs' }).click()
-    await instance.window.getByRole('dialog', { name: 'Tabs' }).locator('.tab-search-open', { hasText: 'Persistent grouped tab' }).click()
+    await instance.window.getByRole('dialog', { name: 'Tabs' }).locator('.tab-overview-open', { hasText: 'Persistent grouped tab' }).click()
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
     const listed = await secondClient.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult

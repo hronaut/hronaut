@@ -2238,6 +2238,10 @@ export const deDE = {
   "tabSearch": {
     "kicker": "Browser-Arbeitsbereich",
     "heading": "Tabs",
+    "results": "Ergebnisse der Tab-Übersicht",
+    "ungrouped": "Weitere Tabs",
+    "previewSleeping": "Im Ruhemodus – zum Anzeigen öffnen",
+    "previewUnavailable": "Vorschau nicht verfügbar",
     "countOpen": "{count} geöffnet",
     "countSaved": "· {count} gespeichert",
     "countClosed": "· {count} geschlossen",

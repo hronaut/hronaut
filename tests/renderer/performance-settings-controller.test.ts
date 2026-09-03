@@ -8,12 +8,12 @@ function browserState(sleeping = false): BrowserState {
   return {
     tabs: [
       {
-        id: 'home', title: 'Home', url: 'hronaut://home', loading: false, canGoBack: false, canGoForward: false,
+        id: 'home', title: 'Home', url: 'hronaut://home', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false,
         active: false, pinned: false, sleeping: false, humanInteractionLocked: false, preserveDiagnosticLogs: false,
         zoomPercent: 100, audible: false, muted: false, devToolsOpen: false
       },
       {
-        id: 'website', title: 'Example', url: 'https://example.test', loading: false, canGoBack: false, canGoForward: false,
+        id: 'website', title: 'Example', url: 'https://example.test', loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false,
         active: true, pinned: false, sleeping, humanInteractionLocked: false, preserveDiagnosticLogs: false,
         zoomPercent: 100, audible: false, muted: false, devToolsOpen: false
       }

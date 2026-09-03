@@ -2238,6 +2238,10 @@ export const frFR = {
   "tabSearch": {
     "kicker": "Espace de travail du navigateur",
     "heading": "Onglets",
+    "results": "Résultats de l’aperçu des onglets",
+    "ungrouped": "Autres onglets",
+    "previewSleeping": "En veille — ouvrir pour afficher l’aperçu",
+    "previewUnavailable": "Aperçu indisponible",
     "countOpen": "{count} ouverts",
     "countSaved": "· {count} enregistrés",
     "countClosed": "· {count} fermés",

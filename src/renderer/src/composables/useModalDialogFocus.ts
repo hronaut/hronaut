@@ -3,6 +3,7 @@ import { nextTick, onBeforeUnmount, watch, type Ref } from 'vue'
 export interface ModalDialogFocusOptions {
   open: Readonly<Ref<boolean>>
   panel: Readonly<Ref<HTMLElement | null>>
+  focusTarget?: Readonly<Ref<HTMLElement | null>>
   focusKey?: Readonly<Ref<unknown>>
   afterLayout?: () => void
   focusOnOpen?: boolean
@@ -164,7 +165,9 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
         if (options.focusOnOpen !== false && applicationWasFocused) {
           const applicationIsFocused = await applicationHasFocus()
           if (operationGeneration !== focusGeneration || !options.open.value) return
-          if (applicationIsFocused) options.panel.value?.focus({ preventScroll: true })
+          if (applicationIsFocused) {
+            ;(options.focusTarget?.value ?? options.panel.value)?.focus({ preventScroll: true })
+          }
         }
         options.afterLayout?.()
         return

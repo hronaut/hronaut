@@ -27,7 +27,7 @@ import {
 } from 'electron'
 import { browserShortcutAction, type BrowserShortcutAction } from '../../shared/browser-shortcuts.js'
 import { parseBrowserKeyPress } from '../../shared/keyboard-input.js'
-import { MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
+import { MAX_BROWSER_TABS, MAX_FIND_QUERY_LENGTH } from '../../shared/types.js'
 import { translate, type MessageKey, type MessageParameters } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
@@ -263,6 +263,7 @@ import type {
   BrowserWorkspaceStorageTransferOptions,
   BrowserWorkspaceStorageTransferResult,
   BrowserTabState,
+  BrowserTabOverviewPreview,
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
@@ -307,7 +308,7 @@ import {
 } from './workspace-storage.js'
 
 export const HRONAUT_HOME_URL = 'hronaut://home/'
-const MAX_TABS = 50
+const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = 50
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
@@ -342,6 +343,11 @@ const MAX_REPRO_STEPS = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
 const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const MAX_VISUAL_COMPARE_SETTLE_MS = 2_000
+const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
+const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
+const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
+const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
+const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
 const MAX_NETWORK_ROUTE_HEADERS = 50
 const MAX_NETWORK_ROUTE_HEADER_BYTES = 32 * 1024
@@ -545,6 +551,7 @@ interface BrowserTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
   pinned: boolean
   sleeping: boolean
@@ -972,6 +979,8 @@ export class BrowserTabsManager {
   private readonly devToolsOpening = new Set<number>()
   private readonly recoveringRenderers = new Set<number>()
   private readonly renderQueues = new Map<number, Promise<void>>()
+  private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
+  private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   private downloadNotifyTimer: NodeJS.Timeout | null = null
   private readonly closedTabs: BrowserClosedTabState[] = []
   private mcpUrl: string
@@ -1087,6 +1096,20 @@ export class BrowserTabsManager {
       mcpTabGroups: this.listMcpTabGroups(),
       savedTabGroups: this.listSavedTabGroups()
     }
+  }
+
+  getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
+    const previews: BrowserTabOverviewPreview[] = []
+    for (const tabId of tabIds) {
+      const tab = this.tabs.get(tabId)
+      const preview = this.tabOverviewPreviews.get(tabId)
+      if (!tab || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
+        if (preview) this.tabOverviewPreviews.delete(tabId)
+        continue
+      }
+      previews.push({ ...preview })
+    }
+    return previews
   }
 
   listMcpTabGroups(): BrowserTabGroupState[] {
@@ -3242,6 +3265,7 @@ export class BrowserTabsManager {
   }
 
   private removeTabRecord(tab: BrowserTab): void {
+    this.invalidateTabOverviewPreview(tab)
     this.options.onWalletTabClosed?.(tab.id)
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
@@ -6122,12 +6146,15 @@ export class BrowserTabsManager {
         secondTab.view.setVisible(browserContentVisible)
         firstTab.view.setBounds(splitBounds.first)
         secondTab.view.setBounds(splitBounds.second)
+        this.scheduleTabOverviewPreview(firstTab)
+        this.scheduleTabOverviewPreview(secondTab)
         return
       }
       this.splitView = null
     }
     tab.view.setVisible(browserContentVisible)
     tab.view.setBounds(viewBounds)
+    this.scheduleTabOverviewPreview(tab)
   }
 
   async flushPersist(): Promise<void> {
@@ -6195,6 +6222,9 @@ export class BrowserTabsManager {
     if (this.persistTimer) clearTimeout(this.persistTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
+    for (const timer of this.tabOverviewPreviewTimers.values()) clearTimeout(timer)
+    this.tabOverviewPreviewTimers.clear()
+    this.tabOverviewPreviews.clear()
     for (const tabId of this.networkWaiters.keys()) {
       this.rejectNetworkWaiters(tabId, 'Hronaut closed while waiting for network activity.')
     }
@@ -6285,6 +6315,7 @@ export class BrowserTabsManager {
       url,
       loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
+      overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
       sleeping: false,
@@ -6485,6 +6516,7 @@ export class BrowserTabsManager {
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
     webContents.once('destroyed', () => {
+      this.invalidateTabOverviewPreview(tab)
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
@@ -6827,6 +6859,7 @@ export class BrowserTabsManager {
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
+      this.invalidateTabOverviewPreview(tab)
       this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
       if (isSameDocument) return
       this.cancelNativeSelectionSessions(tab)
@@ -6848,6 +6881,7 @@ export class BrowserTabsManager {
     webContents.on('did-stop-loading', () => {
       if (tab.sleeping) return
       syncNavigation()
+      this.scheduleTabOverviewPreview(tab)
       if (tab.suppressInitialHistory) {
         tab.suppressInitialHistory = false
         tab.pendingHistoryUrl = null
@@ -6882,6 +6916,7 @@ export class BrowserTabsManager {
       })
       if (!tab.suppressInitialHistory) this.recordVisit(tab)
       tab.pendingHistoryUrl = null
+      this.scheduleTabOverviewPreview(tab)
     })
     webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (tab.sleeping) return
@@ -6901,6 +6936,7 @@ export class BrowserTabsManager {
         kind: 'lifecycle'
       }, 'lifecycle')
       this.changed()
+      this.scheduleTabOverviewPreview(tab)
     })
     webContents.on('dom-ready', () => {
       // A page can remain loading indefinitely because of a slow image,
@@ -6938,6 +6974,7 @@ export class BrowserTabsManager {
       if (message) this.appendConsoleMessage(tab, message, 'preload')
     })
     webContents.on('render-process-gone', (_event, details) => {
+      this.invalidateTabOverviewPreview(tab)
       if (this.recoveringRenderers.delete(webContents.id)) return
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
@@ -7410,6 +7447,7 @@ export class BrowserTabsManager {
       title: tab.title,
       url: tab.url,
       loading: tab.loading,
+      navigationGeneration: tab.navigationGeneration,
       canGoBack: navigation.index > 0,
       canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
       active: tab.id === this.activeTabId,
@@ -9662,6 +9700,79 @@ export class BrowserTabsManager {
 
   private splitViewContains(tabId: string): boolean {
     return this.splitView?.firstTabId === tabId || this.splitView?.secondTabId === tabId
+  }
+
+  private scheduleTabOverviewPreview(tab: BrowserTab): void {
+    if (
+      this.destroyed
+      || this.tabs.get(tab.id) !== tab
+      || tab.webContents.isDestroyed()
+      || tab.sleeping
+      || (tab.id !== this.activeTabId && !this.splitViewContains(tab.id))
+    ) return
+    const sequence = ++tab.overviewPreviewSequence
+    const existing = this.tabOverviewPreviewTimers.get(tab.id)
+    if (existing) clearTimeout(existing)
+    const timer = setTimeout(() => {
+      if (this.tabOverviewPreviewTimers.get(tab.id) === timer) {
+        this.tabOverviewPreviewTimers.delete(tab.id)
+      }
+      void this.captureTabOverviewPreview(tab, sequence).catch((error) => {
+        if (!this.destroyed && this.tabs.get(tab.id) === tab && !tab.webContents.isDestroyed()) {
+          console.warn(`[browser] Could not capture tab overview preview for ${tab.id}:`, error)
+        }
+      })
+    }, TAB_OVERVIEW_PREVIEW_SETTLE_MS)
+    timer.unref()
+    this.tabOverviewPreviewTimers.set(tab.id, timer)
+  }
+
+  private async captureTabOverviewPreview(tab: BrowserTab, sequence: number): Promise<void> {
+    const isEligible = (): boolean => (
+      !this.destroyed
+      && !this.window.isDestroyed()
+      && this.tabs.get(tab.id) === tab
+      && !tab.webContents.isDestroyed()
+      && this.window.isVisible()
+      && !this.browserContentOccluded
+      && tab.view.getVisible()
+      && !tab.sleeping
+      && !tab.loading
+      && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+      && tab.overviewPreviewSequence === sequence
+    )
+    if (!isEligible()) return
+    const navigationGeneration = tab.navigationGeneration
+    const captured = await tab.webContents.capturePage()
+    if (!isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
+    const original = captured.getSize()
+    const bounded = boundedScreenshotSize(
+      original.width,
+      original.height,
+      MAX_TAB_OVERVIEW_PREVIEW_WIDTH,
+      MAX_TAB_OVERVIEW_PREVIEW_HEIGHT
+    )
+    const image = bounded.width === original.width && bounded.height === original.height
+      ? captured
+      : captured.resize({ width: bounded.width, height: bounded.height, quality: 'good' })
+    const size = image.getSize()
+    const jpeg = image.toJPEG(TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
+    if (!isEligible() || tab.navigationGeneration !== navigationGeneration || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES) return
+    this.tabOverviewPreviews.set(tab.id, {
+      tabId: tab.id,
+      navigationGeneration,
+      dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`,
+      width: size.width,
+      height: size.height
+    })
+  }
+
+  private invalidateTabOverviewPreview(tab: BrowserTab): void {
+    const timer = this.tabOverviewPreviewTimers.get(tab.id)
+    if (timer) clearTimeout(timer)
+    this.tabOverviewPreviewTimers.delete(tab.id)
+    this.tabOverviewPreviews.delete(tab.id)
+    tab.overviewPreviewSequence += 1
   }
 
   private markTabActiveInGroup(tab: BrowserTab): void {

@@ -83,6 +83,7 @@ import type { AddressSuggestionOverlayRequest } from '../shared/address-suggesti
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
+  getTabOverviewPreviews: (tabIds: string[]) => ipcRenderer.invoke('browser:get-tab-overview-previews', tabIds),
   copyText: (text: string) => ipcRenderer.invoke('browser:copy-text', text),
   openHome: () => ipcRenderer.invoke('browser:open-home'),
   newTab: (options: NewTabOptions = {}) => ipcRenderer.invoke('browser:new-tab', options),

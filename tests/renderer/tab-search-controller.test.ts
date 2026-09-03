@@ -4,6 +4,7 @@ import { useTabSearchController } from '../../src/renderer/src/composables/useTa
 import type {
   BrowserSavedTabGroupState,
   BrowserState,
+  BrowserTabOverviewPreview,
   BrowserTabState
 } from '../../src/shared/types.js'
 
@@ -20,6 +21,7 @@ function deferred<Value>() {
 function tab(id: string, active = false): BrowserTabState {
   return {
     id,
+    navigationGeneration: 1,
     title: `Tab ${id}`,
     url: `https://${id}.example`,
     loading: false,
@@ -72,7 +74,8 @@ function createController(initialState = browserState()) {
     reopenClosedTab: vi.fn(async () => state.value),
     setTabPinned: vi.fn(async () => state.value),
     restoreSavedTabGroup: vi.fn(async () => state.value),
-    deleteSavedTabGroup: vi.fn(async () => state.value)
+    deleteSavedTabGroup: vi.fn(async () => state.value),
+    getTabOverviewPreviews: vi.fn(async (): Promise<BrowserTabOverviewPreview[]> => [])
   }
   const syncState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => {
     state.value = await Promise.resolve(next)
@@ -157,11 +160,11 @@ describe('tab search controller', () => {
     expect(controller.selectedResult.value).toMatchObject({ kind: 'open', tab: { id: 'beta' } })
 
     state.value = { ...state.value, savedTabGroups: [savedGroup('research')] }
-    expect(controller.selection.value).toBe(2)
+    expect(controller.selection.value).toBe(1)
     expect(controller.selectedResult.value).toMatchObject({ kind: 'open', tab: { id: 'beta' } })
 
     state.value = { ...state.value, tabs: [tab('beta', true), tab('alpha')] }
-    expect(controller.selection.value).toBe(1)
+    expect(controller.selection.value).toBe(0)
     expect(controller.selectedResult.value).toMatchObject({ kind: 'open', tab: { id: 'beta' } })
     controller.dispose()
   })
@@ -202,6 +205,120 @@ describe('tab search controller', () => {
 
     expect(controller.selection.value).toBe(0)
     expect(controller.selectedResult.value).toMatchObject({ kind: 'open', tab: { id: 'alpha' } })
+    controller.dispose()
+  })
+
+  it('groups matching open tabs by workspace order and keeps ungrouped tabs available', () => {
+    const research = { ...tab('research'), mcpGroupId: 'workspace-2', mcpGroupName: 'Research' }
+    const defaultTab = { ...tab('default'), mcpGroupId: 'workspace-1', mcpGroupName: 'Default' }
+    const loose = tab('loose')
+    const initial = browserState([research, loose, defaultTab])
+    initial.mcpTabGroups = [
+      {
+        id: 'workspace-1', name: 'Default', color: 'gray', createdAt: '', lastUsedAt: '', tabCount: 1,
+        activeTabId: defaultTab.id, isDefault: true, storageKind: 'default', storageOriginCount: 0,
+        navigationPolicy: { mode: 'unrestricted', rules: [] }
+      },
+      {
+        id: 'workspace-2', name: 'Research', color: 'purple', createdAt: '', lastUsedAt: '', tabCount: 1,
+        activeTabId: research.id, isDefault: false, storageKind: 'isolated', storageOriginCount: 0,
+        navigationPolicy: { mode: 'unrestricted', rules: [] }
+      }
+    ]
+    const { controller } = createController(initial)
+
+    expect(controller.filteredWorkspaceGroups.value.map((group) => ({
+      id: group.id,
+      tabs: group.tabs.map((candidate) => candidate.id)
+    }))).toEqual([
+      { id: 'workspace-1', tabs: ['default'] },
+      { id: 'workspace-2', tabs: ['research'] },
+      { id: 'ungrouped', tabs: ['loose'] }
+    ])
+    expect(controller.results.value.filter((result) => result.kind === 'open').map((result) => result.tab.id)).toEqual([
+      'default', 'research', 'loose'
+    ])
+
+    controller.query.value = 'Research'
+    expect(controller.filteredWorkspaceGroups.value.map((group) => group.id)).toEqual(['workspace-2'])
+    controller.dispose()
+  })
+
+  it('loads only awake tab previews and rejects a response from an older navigation', async () => {
+    const awake = { ...tab('awake', true), navigationGeneration: 3 }
+    const sleeping = { ...tab('sleeping'), sleeping: true, navigationGeneration: 2 }
+    const { state, browser, controller } = createController(browserState([awake, sleeping]))
+    const pending = deferred<Array<{
+      tabId: string
+      navigationGeneration: number
+      dataUrl: string
+      width: number
+      height: number
+    }>>()
+    browser.getTabOverviewPreviews.mockReturnValueOnce(pending.promise)
+
+    await controller.openPanel()
+    expect(browser.getTabOverviewPreviews).toHaveBeenCalledWith(['awake'])
+    state.value = {
+      ...state.value,
+      tabs: [{ ...awake, navigationGeneration: 4 }, sleeping]
+    }
+    pending.resolve([{
+      tabId: 'awake',
+      navigationGeneration: 3,
+      dataUrl: 'data:image/jpeg;base64,b2xk',
+      width: 360,
+      height: 225
+    }])
+    await vi.waitFor(() => expect(controller.previewLoading.value).toBe(false))
+
+    expect(controller.previewForTab(state.value.tabs[0])).toBeUndefined()
+    expect(controller.previewForTab(sleeping)).toBeUndefined()
+    controller.dispose()
+  })
+
+  it('clears sensitive preview data when the overview closes', async () => {
+    const { open, browser, controller } = createController()
+    browser.getTabOverviewPreviews.mockResolvedValueOnce([{
+      tabId: 'alpha',
+      navigationGeneration: 1,
+      dataUrl: 'data:image/jpeg;base64,cHJldmlldw==',
+      width: 360,
+      height: 225
+    }])
+
+    await controller.openPanel()
+    await vi.waitFor(() => expect(controller.previewForTab(tab('alpha'))).toBeDefined())
+    open.value = false
+
+    expect(controller.previewsByTab.value).toEqual({})
+    controller.dispose()
+  })
+
+  it('supports vertical navigation without stealing search-field caret or IME keys', async () => {
+    const { controller } = createController()
+    await controller.openPanel()
+
+    const right = new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true })
+    const left = new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true })
+    controller.handleKeydown(right)
+    controller.handleKeydown(left)
+    expect(controller.selection.value).toBe(1)
+    expect(right.defaultPrevented).toBe(false)
+    expect(left.defaultPrevented).toBe(false)
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    expect(controller.selection.value).toBe(0)
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowUp' }))
+    expect(controller.selection.value).toBe(1)
+    const home = new KeyboardEvent('keydown', { key: 'Home', cancelable: true })
+    const end = new KeyboardEvent('keydown', { key: 'End', cancelable: true })
+    controller.handleKeydown(home)
+    controller.handleKeydown(end)
+    expect(controller.selection.value).toBe(1)
+    expect(home.defaultPrevented).toBe(false)
+    expect(end.defaultPrevented).toBe(false)
+    controller.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown', isComposing: true }))
+    expect(controller.selection.value).toBe(1)
     controller.dispose()
   })
 

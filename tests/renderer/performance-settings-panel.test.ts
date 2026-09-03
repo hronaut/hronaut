@@ -10,7 +10,7 @@ import type { AppSettings, BrowserState, MemorySaverTimeoutMinutes } from '../..
 
 function browserState(): BrowserState {
   const tab = (id: string, sleeping: boolean) => ({
-    id, title: id, url: `https://${id}.test`, loading: false, canGoBack: false, canGoForward: false,
+    id, title: id, url: `https://${id}.test`, loading: false, navigationGeneration: 0, canGoBack: false, canGoForward: false,
     active: id === 'second', pinned: false, sleeping, humanInteractionLocked: false, preserveDiagnosticLogs: false,
     zoomPercent: 100, audible: false, muted: false, devToolsOpen: false
   })
