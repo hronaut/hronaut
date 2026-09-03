@@ -1,4 +1,4 @@
-import { onBeforeUnmount, ref, type ComputedRef, type Ref } from 'vue'
+import { onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type {
   AddressSuggestionOverlayTheme
 } from '../../../shared/address-suggestions.js'
@@ -51,6 +51,7 @@ export interface AppSiteNavigationFeatureControllerOptions {
     historyOpen: Ref<boolean>
   }
   shell: {
+    setFollowAgentActivitySuspended: (suspended: boolean) => void
     settingsOpen: Ref<boolean>
     settingsSection: Readonly<Ref<SettingsSection>>
     updateNoticeOpen: Ref<boolean>
@@ -140,6 +141,11 @@ export function useAppSiteNavigationFeatureController(
     onNavigate: browserTabActionsController.navigateAddress,
     onFocusLeft: () => (siteControlsOpen.value = false)
   })
+  const stopFollowAgentActivitySuspensionWatch = watch(
+    addressBarController.focused,
+    (focused) => options.shell.setFollowAgentActivitySuspended(focused),
+    { flush: 'sync', immediate: true }
+  )
   const siteManagementController = useAppSiteManagementFeatureController({
     siteDataController,
     siteControlsOpen,
@@ -178,6 +184,10 @@ export function useAppSiteNavigationFeatureController(
     if (disposed) return
     disposed = true
     disposeAll([
+      () => {
+        stopFollowAgentActivitySuspensionWatch()
+        options.shell.setFollowAgentActivitySuspended(false)
+      },
       browserTabActionsController.dispose,
       addressBarController.dispose,
       siteManagementController.dispose,

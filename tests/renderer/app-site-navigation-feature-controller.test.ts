@@ -80,6 +80,7 @@ function createHarness() {
   const loadSiteSummary = vi.fn(async () => siteSummary)
   const closeFind = vi.fn(async () => { findOpen.value = false })
   const onNavigateError = vi.fn()
+  const setFollowAgentActivitySuspended = vi.fn()
   let controller!: ReturnType<typeof useAppSiteNavigationFeatureController>
   const view = render(defineComponent({
     setup() {
@@ -97,6 +98,7 @@ function createHarness() {
           historyOpen
         },
         shell: {
+          setFollowAgentActivitySuspended,
           settingsOpen,
           settingsSection: ref('appearance'),
           updateNoticeOpen,
@@ -150,13 +152,16 @@ function createHarness() {
     findOpen,
     closeFind,
     loadSiteSummary,
-    onNavigateError
+    onNavigateError,
+    setFollowAgentActivitySuspended
   }
 }
 
 describe('app site navigation feature controller', () => {
   it('coordinates address focus and site summary from one active-site context', async () => {
     const harness = createHarness()
+
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
 
     harness.controller.addressBarController.handleFocus()
     await harness.controller.siteDataController.refresh()
@@ -169,11 +174,13 @@ describe('app site navigation feature controller', () => {
     expect(harness.tabSearchOpen.value).toBe(false)
     expect(harness.zoomOpen.value).toBe(false)
     expect(harness.closeFind).toHaveBeenCalledOnce()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(true)
     expect(harness.loadSiteSummary).toHaveBeenCalledWith({
       tabId: 'active',
       url: 'https://example.test/path'
     })
     harness.view.unmount()
+    expect(harness.setFollowAgentActivitySuspended).toHaveBeenLastCalledWith(false)
   })
 
   it('disposes tab actions so late navigation failures cannot escape app teardown', async () => {

@@ -482,6 +482,8 @@ const shellApi: HronautShellApi = {
   setContentInsets: (insets: { top: number; right: number; bottom: number; left: number }) =>
     ipcRenderer.send('browser:content-insets', insets),
   setBrowserContentOccluded: (occluded: boolean) => ipcRenderer.send('browser:content-occluded', occluded),
+  setFollowAgentActivitySuspended: (suspended: boolean) =>
+    ipcRenderer.send('browser:follow-agent-activity-suspended', suspended),
   onHelpRequested: (listener: (action: HelpMenuAction) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, action: HelpMenuAction): void => listener(action)
     ipcRenderer.on('help:open', handler)

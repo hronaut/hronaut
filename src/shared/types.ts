@@ -2444,6 +2444,7 @@ export interface HronautShellApi {
   setToolbarHeight(height: number): void
   setContentInsets(insets: { top: number; right: number; bottom: number; left: number }): void
   setBrowserContentOccluded(occluded: boolean): void
+  setFollowAgentActivitySuspended(suspended: boolean): void
   onHelpRequested(listener: (action: HelpMenuAction) => void): () => void
   onClipboardFailed(listener: (message: string) => void): () => void
   onActionFailed(listener: (failure: BrowserActionFailure) => void): () => void

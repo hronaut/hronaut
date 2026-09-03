@@ -271,6 +271,9 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     historyOpen
   },
   shell: {
+    setFollowAgentActivitySuspended: (suspended) => {
+      if (!isDetachedPanelWindow) window.hronautShell.setFollowAgentActivitySuspended(suspended)
+    },
     settingsOpen,
     settingsSection,
     updateNoticeOpen,

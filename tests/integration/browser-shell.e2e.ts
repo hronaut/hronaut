@@ -130,6 +130,24 @@ test('follows agent activity passively, independently from input lock, and defer
     expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.allHumanInteractionLocked)')).toBe(true)
 
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(humanTabId)})`)
+    const addressField = appWindow.getByRole('combobox', { name: 'Address' })
+    const addressDraft = 'https://draft.example/follow-agent-review'
+    await addressField.fill(addressDraft)
+    const waitingDuringAddressEdit = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: targetTabId, text: 'another intentionally absent phrase', timeoutMs: 2_000 }
+    }) as Promise<CallToolResult>
+    await expect.poll(() => appWindow.locator(`[data-tab-id="${targetTabId}"]`).getAttribute('data-mcp-command'))
+      .toBe('browser_wait')
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
+    await expect(addressField).toHaveValue(addressDraft)
+
+    await appWindow.getByRole('button', { name: 'Settings' }).focus()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
+      .toBe(targetTabId)
+    await waitingDuringAddressEdit
+
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(humanTabId)})`)
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
     await expect(settingsDialog).toBeVisible()
@@ -155,6 +173,7 @@ test('follows agent activity passively, independently from input lock, and defer
     await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
     await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)').catch(() => undefined)
     await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setFollowAgentActivitySuspended(false)').catch(() => undefined)
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
   }

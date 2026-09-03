@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.44] - 2026-09-04
+
+### Fixed
+
+- Keep **Follow agents** from switching tabs while the user is editing the address bar, preserving the draft and resuming passive following after keyboard focus leaves the field.
+
 ## [1.11.43] - 2026-09-04
 
 ### Fixed

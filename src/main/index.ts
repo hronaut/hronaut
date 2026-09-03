@@ -3397,6 +3397,11 @@ function registerIpc(): void {
     if (typeof occluded !== 'boolean') throw new TypeError('Invalid browser content occlusion state')
     tabsManager?.setBrowserContentOccluded(occluded)
   })
+  ipcMain.on('browser:follow-agent-activity-suspended', (event, suspended: unknown) => {
+    assertMainShellSender(event)
+    if (typeof suspended !== 'boolean') throw new TypeError('Invalid follow-agent activity suspension state')
+    tabsManager?.setFollowAgentActivitySuspended(suspended)
+  })
 }
 
 async function loadAuthoritativeSettings(): Promise<void> {

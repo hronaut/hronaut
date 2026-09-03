@@ -979,6 +979,7 @@ export class BrowserTabsManager {
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   private browserContentOccluded = false
+  private followAgentActivitySuspended = false
   private readonly networkHookSessions = new WeakSet<Session>()
   private readonly downloadHookSessions = new WeakSet<Session>()
   private readonly webContentsToTab = new Map<number, string>()
@@ -1021,7 +1022,7 @@ export class BrowserTabsManager {
       : DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
     this.mcpActivityFollower = new McpActivityFollowController({
       isEnabled: () => this.followAgentActivity,
-      isOccluded: () => this.browserContentOccluded,
+      isOccluded: () => this.browserContentOccluded || this.followAgentActivitySuspended,
       getSelectionGeneration: () => this.tabSelectionGeneration,
       tabExists: (tabId) => {
         const tab = this.tabs.get(tabId)
@@ -6315,13 +6316,20 @@ export class BrowserTabsManager {
       }
     }
     this.browserContentOccluded = occluded
-    this.mcpActivityFollower.setOccluded(occluded)
+    this.mcpActivityFollower.setOccluded(occluded || this.followAgentActivitySuspended)
     if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
         if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
       }
     }
     this.layout()
+  }
+
+  setFollowAgentActivitySuspended(suspended: boolean): void {
+    if (this.destroyed || this.window.isDestroyed()) return
+    if (this.followAgentActivitySuspended === suspended) return
+    this.followAgentActivitySuspended = suspended
+    this.mcpActivityFollower.setOccluded(this.browserContentOccluded || suspended)
   }
 
   layout(): void {
