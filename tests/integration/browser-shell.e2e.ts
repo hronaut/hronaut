@@ -3631,7 +3631,8 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
   const titles: Record<string, string> = {
     '/default': 'Overview default target',
     '/research': 'Overview sleeping research',
-    '/qa': 'Overview active QA'
+    '/qa': 'Overview active QA',
+    '/qa-next': 'Overview navigated QA'
   }
   const server = createServer((request, response) => {
     const title = titles[request.url ?? ''] ?? 'Overview fixture'
@@ -3650,7 +3651,8 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
   const qaUrl = `${baseUrl}/qa`
 
   try {
-    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: false })`)
+    const initial = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: false })`) as BrowserState
+    const defaultTabId = initial.tabs.find((tab) => tab.url === defaultUrl)!.id
     const research = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Overview Research', storage: 'scratch' })`) as BrowserState
     const researchWorkspaceId = research.mcpTabGroups.find((group) => group.name === 'Overview Research')!.id
     const researchTabId = research.tabs.find((tab) => tab.mcpGroupId === researchWorkspaceId)!.id
@@ -3664,6 +3666,40 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(qaTabId)}, url: ${JSON.stringify(qaUrl)} })`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(qaTabId)})?.title)`))
       .toBe('Overview active QA')
+    await electronApp.evaluate(({ BrowserWindow, webContents }, url) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      if (!contents) throw new Error('Could not instrument background preview capture')
+      const capturePage = contents.capturePage.bind(contents)
+      ;(globalThis as typeof globalThis & { __hronautBackgroundPreviewCaptures?: number }).__hronautBackgroundPreviewCaptures = 0
+      contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
+        const state = globalThis as typeof globalThis & { __hronautBackgroundPreviewCaptures?: number }
+        state.__hronautBackgroundPreviewCaptures = (state.__hronautBackgroundPreviewCaptures ?? 0) + 1
+        return capturePage(...args)
+      }
+      BrowserWindow.getAllWindows()[0]?.blur()
+    }, qaUrl)
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFocused())).toBe(false)
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      if (!contents) throw new Error('Could not navigate background preview fixture')
+      await contents.executeJavaScript("history.pushState({}, '', '#background')")
+    }, qaUrl)
+    await appWindow.waitForTimeout(500)
+    expect(await electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautBackgroundPreviewCaptures?: number }
+    ).__hronautBackgroundPreviewCaptures ?? 0)).toBe(0)
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus())
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFocused())).toBe(true)
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === `${url}#background`)
+      if (!contents) throw new Error('Could not navigate focused preview fixture')
+      await contents.executeJavaScript("history.pushState({}, '', '#foreground')")
+    }, qaUrl)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}]).then((previews) => previews.length)`))
+      .toBe(1)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(defaultTabId)})`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(defaultTabId)}]).then((previews) => previews.length)`))
+      .toBe(1)
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(qaTabId)})`)
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(researchTabId)}, true)`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.sleeping)`))
@@ -3672,12 +3708,24 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
       .toBe(1)
 
     await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([
+      ${JSON.stringify(defaultTabId)},
+      ${JSON.stringify(qaTabId)}
+    ]).then((previews) => previews.map((preview) => preview.tabId).sort())`))
+      .toEqual([defaultTabId, qaTabId].sort())
     const overviewButton = appWindow.getByRole('button', { name: 'Search tabs' })
     await overviewButton.click()
     const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
     const search = overview.getByRole('searchbox', { name: 'Search tabs' })
     await expect(overview).toBeVisible()
     await expect(search).toBeEnabled()
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus())
+    await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.isFocused())).toBe(true)
+    const desktopBounds = await overview.boundingBox()
+    const desktopViewport = await appWindow.evaluate('({ width: innerWidth, height: innerHeight })') as { width: number; height: number }
+    expect(desktopBounds).not.toBeNull()
+    expect(desktopBounds!.width).toBeGreaterThanOrEqual(desktopViewport.width - 40)
+    expect(desktopBounds!.height).toBeGreaterThanOrEqual(desktopViewport.height - 40)
 
     const researchGroup = overview.getByRole('list', { name: 'Overview Research' })
     const qaGroup = overview.getByRole('list', { name: 'Overview QA' })
@@ -3685,15 +3733,78 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     await expect(researchGroup).toContainText('Overview sleeping research')
     await expect(qaGroup).toContainText('Overview active QA')
     await expect(defaultGroup).toContainText('Overview default target')
+    await expect(overview.locator('.tab-search-live')).toHaveAttribute('data-preview-count', '2')
+    await expect.poll(() => appWindow.evaluate(`Promise.all([
+      window.hronaut.getState(),
+      window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}])
+    ]).then(([state, previews]) => ({
+      matches: state.tabs.find((tab) => tab.id === ${JSON.stringify(qaTabId)})?.navigationGeneration === previews[0]?.navigationGeneration,
+      previews: previews.length
+    }))`)).toEqual({ matches: true, previews: 1 })
 
-    const activeCard = qaGroup.locator('.tab-overview-card', { hasText: 'Overview active QA' })
+    const activeCard = qaGroup.locator('.tab-overview-card').first()
     const sleepingCard = researchGroup.locator('.tab-overview-card', { hasText: 'Overview sleeping research' })
     await expect(activeCard).toContainText('Current tab')
-    await expect(activeCard.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+    const activePreview = activeCard.locator('.tab-overview-preview > img')
+    await expect(activePreview).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+    const firstActivePreview = await activePreview.getAttribute('src')
+    expect(firstActivePreview).toBeTruthy()
+    await electronApp.evaluate(({ webContents }, url) => {
+      const stats = { active: 0, calls: 0, maxActive: 0 }
+      ;(globalThis as typeof globalThis & { __hronautOverviewCaptureStats?: typeof stats }).__hronautOverviewCaptureStats = stats
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      if (!contents) throw new Error(`Could not instrument the live overview fixture ${url}`)
+      const capturePage = contents.capturePage.bind(contents)
+      contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
+        stats.active += 1
+        stats.calls += 1
+        stats.maxActive = Math.max(stats.maxActive, stats.active)
+        // Longer than the one-second UI refresh interval: recurring requests
+        // must coalesce without invalidating every slow-but-valid frame.
+        await new Promise((resolve) => setTimeout(resolve, 1_250))
+        try {
+          return await capturePage(...args)
+        } finally {
+          stats.active -= 1
+        }
+      }
+    }, qaUrl)
+    await appWindow.evaluate(`Promise.all([
+      window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}]),
+      window.hronaut.getTabOverviewPreviews([${JSON.stringify(qaTabId)}])
+    ])`)
+    await expect.poll(() => electronApp.evaluate(() => {
+      const stats = (
+        globalThis as typeof globalThis & {
+          __hronautOverviewCaptureStats?: { active: number; calls: number; maxActive: number }
+        }
+      ).__hronautOverviewCaptureStats
+      return { enoughCalls: (stats?.calls ?? 0) >= 1, maxActive: stats?.maxActive ?? 0 }
+    })).toEqual({ enoughCalls: true, maxActive: 1 })
+    await appWindow.evaluate("window.dispatchEvent(new Event('blur'))")
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & {
+        __hronautOverviewCaptureStats?: { active: number; calls: number; maxActive: number }
+      }
+    ).__hronautOverviewCaptureStats?.active ?? 0)).toBe(0)
+    await appWindow.evaluate("window.dispatchEvent(new Event('focus'))")
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL().startsWith(url))
+      if (!contents) throw new Error('Could not find the live overview fixture')
+      await contents.executeJavaScript(`document.body.style.background = '#006b5b'; document.querySelector('main').textContent = 'Live preview updated'`)
+    }, qaUrl)
+    await expect.poll(() => activePreview.getAttribute('src'), { timeout: 6_000 }).not.toBe(firstActivePreview)
+    const liveActivePreview = await activePreview.getAttribute('src')
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(qaTabId)}, url: ${JSON.stringify(`${baseUrl}/qa-next`)} })`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(qaTabId)})?.title)`))
+      .toBe('Overview navigated QA')
+    await expect.poll(() => activePreview.getAttribute('src'), { timeout: 6_000 }).not.toBe(liveActivePreview)
     await expect(sleepingCard.locator('.tab-overview-preview')).toHaveCount(1)
     await expect(sleepingCard.locator('.tab-overview-preview')).toContainText(/Sleeping|Preview unavailable/)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(researchTabId)})?.sleeping)`))
       .toBe(true)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(researchTabId)}]).then((previews) => previews.length)`))
+      .toBe(0)
     await appWindow.screenshot({ path: testInfo.outputPath('tab-overview-desktop.png') })
 
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 520))

@@ -2242,6 +2242,8 @@ export const ruRU = {
     "ungrouped": "Другие вкладки",
     "previewSleeping": "Вкладка спит — откройте для просмотра",
     "previewUnavailable": "Предпросмотр недоступен",
+    "livePreviews": "Предпросмотр в реальном времени",
+    "previewsPaused": "Приостановлено — переключитесь на Hronaut для обновления",
     "countOpen": "Открыто: {count}",
     "countSaved": "· сохранено: {count}",
     "countClosed": "· закрыто: {count}",

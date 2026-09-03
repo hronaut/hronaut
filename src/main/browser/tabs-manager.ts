@@ -19,6 +19,7 @@ import {
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
+  type NativeImage,
   type PostBody,
   type Rectangle,
   type Referrer,
@@ -348,6 +349,8 @@ const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
 const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
 const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
+const TAB_OVERVIEW_LIVE_CAPTURE_BATCH = 4
+const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
 const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
 const MAX_NETWORK_ROUTE_HEADERS = 50
 const MAX_NETWORK_ROUTE_HEADER_BYTES = 32 * 1024
@@ -612,6 +615,14 @@ interface BrowserTab {
     baseline: BrowserStorageSnapshot
     current?: BrowserStorageSnapshot
   }
+}
+
+type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
+
+interface TabOverviewPreviewCaptureRequest {
+  tab: BrowserTab
+  sequence: number
+  mode: TabOverviewPreviewCaptureMode
 }
 
 interface BrowserCodeCoverageStyleSheet {
@@ -981,6 +992,11 @@ export class BrowserTabsManager {
   private readonly renderQueues = new Map<number, Promise<void>>()
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
+  private readonly tabOverviewPreviewCaptures = new Map<string, Promise<void>>()
+  private readonly tabOverviewPendingCaptures = new Map<string, TabOverviewPreviewCaptureRequest>()
+  private readonly tabOverviewPreviewableTabs = new Set<string>()
+  private tabOverviewCaptureQueue: Promise<void> = Promise.resolve()
+  private tabOverviewLiveCaptureCursor = 0
   private downloadNotifyTimer: NodeJS.Timeout | null = null
   private readonly closedTabs: BrowserClosedTabState[] = []
   private mcpUrl: string
@@ -1099,6 +1115,46 @@ export class BrowserTabsManager {
   }
 
   getTabOverviewPreviews(tabIds: readonly string[]): BrowserTabOverviewPreview[] {
+    if (
+      !this.destroyed
+      && !this.window.isDestroyed()
+      && this.window.isVisible()
+      && this.window.isFocused()
+      && this.browserContentOccluded
+    ) {
+      const candidates = tabIds.flatMap((tabId) => {
+        const tab = this.tabs.get(tabId)
+        return tab
+          && this.tabOverviewPreviewableTabs.has(tabId)
+          && !tab.sleeping
+          && !tab.webContents.isDestroyed()
+          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+          ? [tab]
+          : []
+      })
+      if (candidates.length) {
+        const start = this.tabOverviewLiveCaptureCursor % candidates.length
+        const batchSize = Math.min(TAB_OVERVIEW_LIVE_CAPTURE_BATCH, candidates.length)
+        const batch: BrowserTab[] = []
+        for (let index = 0; index < batchSize; index += 1) {
+          const tab = candidates[(start + index) % candidates.length]
+          if (tab) batch.push(tab)
+        }
+        this.tabOverviewLiveCaptureCursor = (start + batchSize) % candidates.length
+        for (const tab of batch) {
+          // A periodic refresh must not invalidate a capture that is already
+          // painting. Lifecycle events advance this sequence independently,
+          // so navigation can still supersede the old frame and queue a new one.
+          const sequence = this.tabOverviewPreviewCaptures.has(tab.id)
+            ? tab.overviewPreviewSequence
+            : ++tab.overviewPreviewSequence
+          void this.captureTabOverviewPreview(tab, sequence, 'overview').catch(() => {
+            // Live previews are best-effort. One page renderer refusing capture
+            // must not suppress the last-good frames for every other tab.
+          })
+        }
+      }
+    }
     const previews: BrowserTabOverviewPreview[] = []
     for (const tabId of tabIds) {
       const tab = this.tabs.get(tabId)
@@ -3266,6 +3322,8 @@ export class BrowserTabsManager {
 
   private removeTabRecord(tab: BrowserTab): void {
     this.invalidateTabOverviewPreview(tab)
+    this.tabOverviewPendingCaptures.delete(tab.id)
+    this.tabOverviewPreviewableTabs.delete(tab.id)
     this.options.onWalletTabClosed?.(tab.id)
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
@@ -6224,6 +6282,9 @@ export class BrowserTabsManager {
     if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
     for (const timer of this.tabOverviewPreviewTimers.values()) clearTimeout(timer)
     this.tabOverviewPreviewTimers.clear()
+    this.tabOverviewPreviewCaptures.clear()
+    this.tabOverviewPendingCaptures.clear()
+    this.tabOverviewPreviewableTabs.clear()
     this.tabOverviewPreviews.clear()
     for (const tabId of this.networkWaiters.keys()) {
       this.rejectNetworkWaiters(tabId, 'Hronaut closed while waiting for network activity.')
@@ -6517,6 +6578,8 @@ export class BrowserTabsManager {
     const webContents = tab.webContents
     webContents.once('destroyed', () => {
       this.invalidateTabOverviewPreview(tab)
+      this.tabOverviewPendingCaptures.delete(tab.id)
+      this.tabOverviewPreviewableTabs.delete(tab.id)
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
@@ -6975,6 +7038,8 @@ export class BrowserTabsManager {
     })
     webContents.on('render-process-gone', (_event, details) => {
       this.invalidateTabOverviewPreview(tab)
+      this.tabOverviewPendingCaptures.delete(tab.id)
+      this.tabOverviewPreviewableTabs.delete(tab.id)
       if (this.recoveringRenderers.delete(webContents.id)) return
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
@@ -9727,23 +9792,105 @@ export class BrowserTabsManager {
     this.tabOverviewPreviewTimers.set(tab.id, timer)
   }
 
-  private async captureTabOverviewPreview(tab: BrowserTab, sequence: number): Promise<void> {
+  private async captureTabOverviewPreview(
+    tab: BrowserTab,
+    sequence: number,
+    mode: TabOverviewPreviewCaptureMode = 'visible'
+  ): Promise<void> {
+    const existing = this.tabOverviewPreviewCaptures.get(tab.id)
+    if (existing) {
+      const pending = this.tabOverviewPendingCaptures.get(tab.id)
+      if (!pending || sequence >= pending.sequence) {
+        this.tabOverviewPendingCaptures.set(tab.id, { tab, sequence, mode })
+      }
+      return existing
+    }
+    const capture = this.runTabOverviewPreviewCaptures({ tab, sequence, mode })
+    this.tabOverviewPreviewCaptures.set(tab.id, capture)
+    try {
+      await capture
+    } finally {
+      if (this.tabOverviewPreviewCaptures.get(tab.id) === capture) {
+        this.tabOverviewPreviewCaptures.delete(tab.id)
+      }
+    }
+  }
+
+  private async runTabOverviewPreviewCaptures(initial: TabOverviewPreviewCaptureRequest): Promise<void> {
+    let request: TabOverviewPreviewCaptureRequest | undefined = initial
+    while (request) {
+      const current = request
+      let failure: unknown
+      try {
+        await this.enqueueTabOverviewCapture(() => this.performTabOverviewPreviewCapture(
+          current.tab,
+          current.sequence,
+          current.mode
+        ))
+      } catch (error) {
+        failure = error
+      }
+      request = this.tabOverviewPendingCaptures.get(initial.tab.id)
+      this.tabOverviewPendingCaptures.delete(initial.tab.id)
+      if (!request && failure) throw failure
+    }
+  }
+
+  private async enqueueTabOverviewCapture(capture: () => Promise<void>): Promise<void> {
+    const queued = this.tabOverviewCaptureQueue.then(capture)
+    this.tabOverviewCaptureQueue = queued.catch(() => undefined)
+    return queued
+  }
+
+  private async performTabOverviewPreviewCapture(
+    tab: BrowserTab,
+    sequence: number,
+    mode: TabOverviewPreviewCaptureMode
+  ): Promise<void> {
     const isEligible = (): boolean => (
       !this.destroyed
       && !this.window.isDestroyed()
       && this.tabs.get(tab.id) === tab
       && !tab.webContents.isDestroyed()
       && this.window.isVisible()
-      && !this.browserContentOccluded
-      && tab.view.getVisible()
+      && this.window.isFocused()
       && !tab.sleeping
-      && !tab.loading
-      && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+      && (mode === 'overview'
+        ? this.browserContentOccluded
+          && this.tabOverviewPreviewableTabs.has(tab.id)
+        : !this.browserContentOccluded
+          && tab.view.getVisible()
+          && !tab.loading
+          && (tab.id === this.activeTabId || this.splitViewContains(tab.id)))
       && tab.overviewPreviewSequence === sequence
     )
     if (!isEligible()) return
     const navigationGeneration = tab.navigationGeneration
-    const captured = await tab.webContents.capturePage()
+    let captureTimeout: NodeJS.Timeout | undefined
+    let captureTimedOut = false
+    let captured: NativeImage
+    try {
+      const capture = mode === 'overview'
+        ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
+        : tab.webContents.capturePage()
+      captured = await Promise.race([
+        capture,
+        new Promise<never>((_resolve, reject) => {
+          captureTimeout = setTimeout(() => {
+            captureTimedOut = true
+            reject(new Error(`Tab overview capture exceeded ${TAB_OVERVIEW_CAPTURE_TIMEOUT_MS} ms`))
+          }, TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
+          captureTimeout.unref()
+        })
+      ])
+    } catch (error) {
+      // A renderer that cannot paint must not permanently block the
+      // process-wide preview queue or accumulate repeated native captures.
+      if (captureTimedOut) this.tabOverviewPreviewableTabs.delete(tab.id)
+      throw error
+    } finally {
+      if (captureTimeout) clearTimeout(captureTimeout)
+    }
     if (!isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
     const original = captured.getSize()
     const bounded = boundedScreenshotSize(
@@ -9765,6 +9912,7 @@ export class BrowserTabsManager {
       width: size.width,
       height: size.height
     })
+    this.tabOverviewPreviewableTabs.add(tab.id)
   }
 
   private invalidateTabOverviewPreview(tab: BrowserTab): void {

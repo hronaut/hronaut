@@ -2242,6 +2242,8 @@ export const deDE = {
     "ungrouped": "Weitere Tabs",
     "previewSleeping": "Im Ruhemodus – zum Anzeigen öffnen",
     "previewUnavailable": "Vorschau nicht verfügbar",
+    "livePreviews": "Live-Vorschauen",
+    "previewsPaused": "Pausiert – Hronaut fokussieren, um zu aktualisieren",
     "countOpen": "{count} geöffnet",
     "countSaved": "· {count} gespeichert",
     "countClosed": "· {count} geschlossen",

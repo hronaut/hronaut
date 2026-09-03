@@ -80,6 +80,7 @@ describe('TabSearchPanel', () => {
       const search = screen.getByRole('searchbox', { name: 'Search tabs' })
       expect(screen.getByRole('dialog', { name: 'Tabs' })).toBeVisible()
       expect(screen.getByRole('dialog', { name: 'Tabs' })).toHaveAttribute('aria-modal', 'true')
+      expect(screen.getByText('Live previews')).toBeVisible()
       expect(search).toHaveAttribute('role', 'searchbox')
       expect(search).toHaveAttribute('aria-activedescendant', 'tab-search-open-beta')
       expect(screen.getByRole('list', { name: /Other tabs/ })).toBeVisible()

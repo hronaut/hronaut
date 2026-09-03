@@ -2242,6 +2242,8 @@ export const frFR = {
     "ungrouped": "Autres onglets",
     "previewSleeping": "En veille — ouvrir pour afficher l’aperçu",
     "previewUnavailable": "Aperçu indisponible",
+    "livePreviews": "Aperçus en direct",
+    "previewsPaused": "En pause — activez Hronaut pour actualiser",
     "countOpen": "{count} ouverts",
     "countSaved": "· {count} enregistrés",
     "countClosed": "· {count} fermés",

@@ -44,6 +44,8 @@ const {
   selection,
   actionPending,
   previewLoading,
+  previewRefreshPaused,
+  previewsByTab,
   regularTabs,
   filteredWorkspaceGroups,
   filteredClosedTabs,
@@ -136,7 +138,10 @@ onBeforeUnmount(dispose)
           <span class="eyebrow">{{ t('tabSearch.kicker') }}</span>
           <h2 id="tab-search-title">{{ t('tabSearch.heading') }}</h2>
         </div>
-        <span class="tab-search-count">{{ t('tabSearch.countOpen', { count: formatNumber(regularTabs.length) }) }}{{ state.savedTabGroups.length ? ` ${t('tabSearch.countSaved', { count: formatNumber(state.savedTabGroups.length) })}` : '' }}{{ state.closedTabs.length ? ` ${t('tabSearch.countClosed', { count: formatNumber(state.closedTabs.length) })}` : '' }}</span>
+        <div class="tab-search-summary">
+          <span class="tab-search-live" :class="{ paused: previewRefreshPaused }" :data-preview-count="Object.keys(previewsByTab).length"><span aria-hidden="true" />{{ previewRefreshPaused ? t('tabSearch.previewsPaused') : t('tabSearch.livePreviews') }}</span>
+          <span class="tab-search-count">{{ t('tabSearch.countOpen', { count: formatNumber(regularTabs.length) }) }}{{ state.savedTabGroups.length ? ` ${t('tabSearch.countSaved', { count: formatNumber(state.savedTabGroups.length) })}` : '' }}{{ state.closedTabs.length ? ` ${t('tabSearch.countClosed', { count: formatNumber(state.closedTabs.length) })}` : '' }}</span>
+        </div>
         <button class="panel-close" type="button" :aria-label="t('tabSearch.close')" @click="close"><IconClose aria-hidden="true" /></button>
       </header>
       <div v-if="regularTabs.length || state.closedTabs.length || state.savedTabGroups.length" class="tab-search-field">

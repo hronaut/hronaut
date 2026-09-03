@@ -2242,6 +2242,8 @@ export const esES = {
     "ungrouped": "Otras pestañas",
     "previewSleeping": "En reposo: ábrela para ver la vista previa",
     "previewUnavailable": "Vista previa no disponible",
+    "livePreviews": "Vistas previas en vivo",
+    "previewsPaused": "En pausa: enfoca Hronaut para actualizar",
     "countOpen": "{count} abiertas",
     "countSaved": "· {count} guardadas",
     "countClosed": "· {count} cerradas",

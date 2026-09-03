@@ -1,11 +1,12 @@
-.tab-overview-overlay {
+.settings-overlay.tab-overview-overlay {
   align-items: flex-start;
-  padding: max(20px, 4vh) 28px;
+  padding: 16px;
 }
 .tab-search-panel {
   display: flex;
-  width: min(1480px, calc(100vw - 56px));
-  max-height: min(940px, calc(100vh - max(40px, 8vh)));
+  width: calc(100vw - 32px);
+  height: calc(100vh - 32px);
+  max-height: none;
   overflow: hidden;
   flex-direction: column;
   border: 1px solid var(--border);
@@ -27,6 +28,10 @@
   background: var(--surface);
 }
 .tab-search-panel h2 { margin: 3px 0 0; font-size: 18px; line-height: 1.15; }
+.tab-search-summary { display: flex; align-items: center; gap: 7px; }
+.tab-search-live { display: flex; align-items: center; gap: 6px; color: var(--success); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.tab-search-live > span { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent); }
+.tab-search-live.paused { color: var(--muted); }
 .tab-search-count { padding: 5px 8px; border-radius: 999px; color: var(--accent-text); background: var(--accent-soft); font-size: 12px; font-weight: 750; white-space: nowrap; }
 .tab-search-field {
   display: flex;
@@ -172,9 +177,9 @@
 .tab-search-compact-grid .tab-search-item { background: color-mix(in srgb, var(--surface) 78%, transparent); }
 
 @media (max-width: 720px) {
-  .tab-overview-overlay { padding: 14px; }
-  .tab-search-panel { width: calc(100vw - 28px); height: calc(100vh - 28px); max-height: none; }
-  .tab-search-panel > header { grid-template-columns: minmax(0, 1fr) 32px; }
+  .settings-overlay.tab-overview-overlay { padding: 10px; }
+  .tab-search-panel { width: calc(100vw - 20px); height: calc(100vh - 20px); }
+  .tab-search-panel > header { grid-template-columns: minmax(0, 1fr) auto 32px; }
   .tab-search-count { display: none; }
   .tab-overview-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 9px; }
   .tab-search-list { padding-inline: 9px; }

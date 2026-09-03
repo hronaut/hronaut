@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Expand the visual tab overview into a near-full-window Mission Control surface and refresh last-good previews while it remains open, with bounded capture work that pauses outside the focused window and never wakes sleeping tabs.
+
 ## [1.11.37] - 2026-09-03
 
 ### Added

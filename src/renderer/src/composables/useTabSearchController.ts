@@ -51,6 +51,9 @@ export interface TabSearchControllerOptions {
   showError: (title: string, message: string) => void
 }
 
+const TAB_OVERVIEW_LIVE_REFRESH_MS = 1_000
+const TAB_OVERVIEW_LIVE_REFRESH_BATCH = 4
+
 function resultKey(result: TabSearchResult): string {
   return `${result.kind}:${result.tab.id}`
 }
@@ -61,9 +64,16 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   const selection = ref(0)
   const actionPending = ref(false)
   const previewLoading = ref(false)
+  const previewRefreshPaused = ref(document.visibilityState === 'hidden')
   const previewsByTab = ref<Record<string, BrowserTabOverviewPreview>>({})
   let presentationGeneration = 0
   let previewRequestGeneration = 0
+  let previewRequestInFlight = false
+  let previewReloadPending = false
+  let previewRefreshTimer: ReturnType<typeof setInterval> | null = null
+  let previewInitialHydrationComplete = false
+  let previewRefreshCursor = 0
+  let previewWindowFocused = true
   let actionToken: symbol | null = null
 
   const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
@@ -144,21 +154,65 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   function clearPreviews(): void {
     previewRequestGeneration += 1
+    previewReloadPending = false
+    previewInitialHydrationComplete = false
+    previewRefreshCursor = 0
     previewLoading.value = false
     previewsByTab.value = {}
   }
 
+  function canRefreshPreviews(): boolean {
+    return options.open.value && previewWindowFocused && document.visibilityState !== 'hidden'
+  }
+
+  function stopPreviewRefresh(): void {
+    if (previewRefreshTimer) clearInterval(previewRefreshTimer)
+    previewRefreshTimer = null
+  }
+
+  function startPreviewRefresh(): void {
+    stopPreviewRefresh()
+    previewRefreshTimer = setInterval(() => {
+      if (canRefreshPreviews()) void loadPreviews()
+    }, TAB_OVERVIEW_LIVE_REFRESH_MS)
+  }
+
   async function loadPreviews(presentation = presentationGeneration): Promise<void> {
+    if (previewRequestInFlight) {
+      previewReloadPending = true
+      return
+    }
     const tabs = regularTabs.value.filter((tab) => !tab.sleeping)
+    let requestedTabs = tabs
+    if (previewInitialHydrationComplete && tabs.length > TAB_OVERVIEW_LIVE_REFRESH_BATCH) {
+      const visibleTabIds = new Set([
+        options.state.value.activeTabId,
+        options.state.value.splitView?.firstTabId,
+        options.state.value.splitView?.secondTabId
+      ].filter((tabId): tabId is string => Boolean(tabId)))
+      const selected = new Map(tabs
+        .filter((tab) => visibleTabIds.has(tab.id))
+        .slice(0, TAB_OVERVIEW_LIVE_REFRESH_BATCH)
+        .map((tab) => [tab.id, tab]))
+      let scanned = 0
+      while (selected.size < TAB_OVERVIEW_LIVE_REFRESH_BATCH && scanned < tabs.length) {
+        const tab = tabs[(previewRefreshCursor + scanned) % tabs.length]
+        if (tab) selected.set(tab.id, tab)
+        scanned += 1
+      }
+      previewRefreshCursor = (previewRefreshCursor + Math.max(1, scanned)) % tabs.length
+      requestedTabs = [...selected.values()]
+    }
     const request = ++previewRequestGeneration
     if (!tabs.length) {
       previewsByTab.value = {}
       previewLoading.value = false
       return
     }
+    previewRequestInFlight = true
     previewLoading.value = true
     try {
-      const previews = await options.browser.getTabOverviewPreviews(tabs.map((tab) => tab.id))
+      const previews = await options.browser.getTabOverviewPreviews(requestedTabs.map((tab) => tab.id))
       if (
         request !== previewRequestGeneration
         || !options.open.value
@@ -166,6 +220,10 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
       ) return
       const currentTabs = new Map(regularTabs.value.map((tab) => [tab.id, tab]))
       const current: Record<string, BrowserTabOverviewPreview> = {}
+      for (const [tabId, preview] of Object.entries(previewsByTab.value)) {
+        const tab = currentTabs.get(tabId)
+        if (tab && !tab.sleeping) current[tabId] = preview
+      }
       for (const preview of previews) {
         const tab = currentTabs.get(preview.tabId)
         if (!tab || tab.sleeping) continue
@@ -175,13 +233,36 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
         current[preview.tabId] = preview
       }
       previewsByTab.value = current
+      previewInitialHydrationComplete = true
     } catch {
       // Previews are optional presentation data. Keep the overview usable with
-      // deterministic placeholders when capture is unavailable.
-      if (request === previewRequestGeneration && isPresentationCurrent(presentation)) previewsByTab.value = {}
+      // deterministic placeholders when capture is unavailable, without
+      // flashing away a last-good frame during a transient live refresh.
     } finally {
+      previewRequestInFlight = false
       if (request === previewRequestGeneration) previewLoading.value = false
+      if (previewReloadPending) {
+        previewReloadPending = false
+        if (canRefreshPreviews()) void loadPreviews()
+      }
     }
+  }
+
+  function handlePreviewWindowBlur(): void {
+    previewWindowFocused = false
+    previewRefreshPaused.value = true
+  }
+
+  function handlePreviewWindowFocus(): void {
+    previewWindowFocused = true
+    previewRefreshPaused.value = document.visibilityState === 'hidden'
+    if (canRefreshPreviews()) void loadPreviews()
+  }
+
+  function handlePreviewVisibilityChange(): void {
+    previewRefreshPaused.value = document.visibilityState === 'hidden' || !previewWindowFocused
+    if (previewRefreshPaused.value) return
+    if (canRefreshPreviews()) void loadPreviews()
   }
 
   function revealSelectedResult(): void {
@@ -240,7 +321,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
     selection.value = Math.max(0, activeIndex)
     options.open.value = true
-    void loadPreviews(presentation)
+    if (canRefreshPreviews()) void loadPreviews(presentation)
     await focusAndReveal(presentation)
     if (!options.open.value || !isPresentationCurrent(presentation)) return
     input.value?.select()
@@ -248,6 +329,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   function close(): void {
     beginPresentation()
+    stopPreviewRefresh()
     clearPreviews()
     options.open.value = false
   }
@@ -425,7 +507,10 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   const stopOpenTracking = watch(options.open, (nextOpen, previousOpen) => {
     if (previousOpen && !nextOpen) {
       beginPresentation()
+      stopPreviewRefresh()
       clearPreviews()
+    } else if (!previousOpen && nextOpen) {
+      startPreviewRefresh()
     }
   }, { flush: 'sync' })
   const previewIdentity = computed(() => regularTabs.value.map((tab) => (
@@ -438,17 +523,26 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   if (options.open.value) {
     const activeIndex = results.value.findIndex((result) => result.kind === 'open' && result.tab.active)
     selection.value = Math.max(0, activeIndex)
+    startPreviewRefresh()
     void loadPreviews()
   }
 
+  window.addEventListener('blur', handlePreviewWindowBlur)
+  window.addEventListener('focus', handlePreviewWindowFocus)
+  document.addEventListener('visibilitychange', handlePreviewVisibilityChange)
+
   function dispose(): void {
     beginPresentation()
+    stopPreviewRefresh()
     clearPreviews()
     actionToken = null
     actionPending.value = false
     stopResultTracking()
     stopOpenTracking()
     stopPreviewIdentityTracking()
+    window.removeEventListener('blur', handlePreviewWindowBlur)
+    window.removeEventListener('focus', handlePreviewWindowFocus)
+    document.removeEventListener('visibilitychange', handlePreviewVisibilityChange)
   }
 
   return {
@@ -457,6 +551,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     selection,
     actionPending,
     previewLoading,
+    previewRefreshPaused,
     previewsByTab,
     regularTabs,
     filteredTabs,

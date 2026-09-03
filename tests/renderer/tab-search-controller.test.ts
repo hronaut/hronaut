@@ -75,7 +75,7 @@ function createController(initialState = browserState()) {
     setTabPinned: vi.fn(async () => state.value),
     restoreSavedTabGroup: vi.fn(async () => state.value),
     deleteSavedTabGroup: vi.fn(async () => state.value),
-    getTabOverviewPreviews: vi.fn(async (): Promise<BrowserTabOverviewPreview[]> => [])
+    getTabOverviewPreviews: vi.fn(async (_tabIds: string[]): Promise<BrowserTabOverviewPreview[]> => [])
   }
   const syncState = vi.fn(async (next: Promise<BrowserState> | BrowserState) => {
     state.value = await Promise.resolve(next)
@@ -292,6 +292,72 @@ describe('tab search controller', () => {
     open.value = false
 
     expect(controller.previewsByTab.value).toEqual({})
+    controller.dispose()
+  })
+
+  it('refreshes previews while open and pauses when the window is not focused', async () => {
+    vi.useFakeTimers()
+    try {
+      const { browser, controller } = createController()
+      browser.getTabOverviewPreviews.mockResolvedValue([])
+
+      await controller.openPanel()
+      await vi.waitFor(() => expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1))
+      expect(controller.previewRefreshPaused.value).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2)
+
+      window.dispatchEvent(new Event('blur'))
+      expect(controller.previewRefreshPaused.value).toBe(true)
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2)
+
+      window.dispatchEvent(new Event('focus'))
+      expect(controller.previewRefreshPaused.value).toBe(false)
+      await vi.waitFor(() => expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(3))
+      controller.close()
+      await vi.advanceTimersByTimeAsync(2_000)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(3)
+      controller.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the last valid preview while a later live refresh is unavailable', async () => {
+    const { browser, controller } = createController()
+    browser.getTabOverviewPreviews
+      .mockResolvedValueOnce([{
+        tabId: 'alpha',
+        navigationGeneration: 1,
+        dataUrl: 'data:image/jpeg;base64,cHJldmlldw==',
+        width: 360,
+        height: 225
+      }])
+      .mockResolvedValueOnce([])
+
+    await controller.openPanel()
+    await vi.waitFor(() => expect(controller.previewForTab(tab('alpha'))).toBeDefined())
+    window.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2))
+
+    expect(controller.previewForTab(tab('alpha'))).toBeDefined()
+    controller.dispose()
+  })
+
+  it('bounds recurring preview requests after the initial overview hydration', async () => {
+    const tabs = Array.from({ length: 12 }, (_, index) => tab(`tab-${index}`, index === 11))
+    const { browser, controller } = createController(browserState(tabs))
+
+    await controller.openPanel()
+    await vi.waitFor(() => expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1))
+    expect(browser.getTabOverviewPreviews.mock.calls[0]?.[0]).toHaveLength(12)
+
+    window.dispatchEvent(new Event('focus'))
+    await vi.waitFor(() => expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2))
+    expect(browser.getTabOverviewPreviews.mock.calls[1]?.[0]).toHaveLength(4)
+    expect(browser.getTabOverviewPreviews.mock.calls[1]?.[0]).toContain('tab-11')
     controller.dispose()
   })
 

@@ -2242,6 +2242,8 @@ export const plPL = {
     "ungrouped": "Inne karty",
     "previewSleeping": "Uśpiona — otwórz, aby wyświetlić podgląd",
     "previewUnavailable": "Podgląd niedostępny",
+    "livePreviews": "Podglądy na żywo",
+    "previewsPaused": "Wstrzymano — aktywuj Hronaut, aby odświeżyć",
     "countOpen": "Otwarte: {count}",
     "countSaved": "· zapisane: {count}",
     "countClosed": "· zamknięte: {count}",
