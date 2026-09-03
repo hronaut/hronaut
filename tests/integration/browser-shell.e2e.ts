@@ -3645,56 +3645,76 @@ test('bootstraps a live tab preview when its first capture finishes after the ov
   appWindow,
   electronApp
 }) => {
-  const url = 'data:text/html,<title>Deferred overview preview</title><main style="background:%23006b5b">Deferred preview</main>'
-  const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
-  const tabId = state.tabs.find((tab) => tab.url === url)!.id
-
-  await electronApp.evaluate(({ webContents }, requestedUrl) => {
-    const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === requestedUrl)
-    if (!contents) throw new Error('Could not instrument the deferred overview fixture')
-    const capturePage = contents.capturePage.bind(contents)
-    const deferred = {
-      started: false,
-      released: false,
-      release: undefined as (() => void) | undefined
-    }
-    ;(globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: typeof deferred }).__hronautDeferredOverviewCapture = deferred
-    contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
-      if (!deferred.started) {
-        deferred.started = true
-        await new Promise<void>((resolve) => {
-          deferred.release = resolve
-        })
-      }
-      return capturePage(...args)
-    }
-  }, url)
-
-  await expect.poll(() => electronApp.evaluate(() => (
-    globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: { started: boolean } }
-  ).__hronautDeferredOverviewCapture?.started ?? false)).toBe(true)
-
-  await appWindow.getByRole('button', { name: 'Search tabs' }).click()
-  const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
-  await expect(overview).toBeVisible()
-  const card = overview.locator('.tab-overview-card', { hasText: 'Deferred overview preview' })
-  await expect(card).toBeVisible()
-  await electronApp.evaluate(() => {
-    const deferred = (
-      globalThis as typeof globalThis & {
-        __hronautDeferredOverviewCapture?: { released: boolean; release?: () => void }
-      }
-    ).__hronautDeferredOverviewCapture
-    if (!deferred?.release) throw new Error('Deferred overview capture was not waiting')
-    deferred.released = true
-    deferred.release()
+  let finishPage: (() => void) | undefined
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+    response.write('<!doctype html><title>Deferred overview preview</title>')
+    finishPage = () => response.end('<main style="background:#006b5b">Deferred preview</main>')
   })
-
-  await expect(card.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/, {
-    timeout: 4_000
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
   })
-  await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then((previews) => previews.length)`))
-    .toBe(1)
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Deferred overview fixture did not expose a port')
+  const url = `http://127.0.0.1:${address.port}/deferred`
+
+  try {
+    const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+    const tabId = state.tabs.find((tab) => tab.url === url)!.id
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().some((candidate) => candidate.getURL() === requestedUrl)
+    ), url)).toBe(true)
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === requestedUrl)
+      if (!contents) throw new Error('Could not instrument the deferred overview fixture')
+      const capturePage = contents.capturePage.bind(contents)
+      const deferred = {
+        started: false,
+        release: undefined as (() => void) | undefined
+      }
+      ;(globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: typeof deferred }).__hronautDeferredOverviewCapture = deferred
+      contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
+        if (!deferred.started) {
+          deferred.started = true
+          await new Promise<void>((resolve) => {
+            deferred.release = resolve
+          })
+        }
+        return capturePage(...args)
+      }
+    }, url)
+    if (!finishPage) throw new Error('Deferred overview fixture was not requested')
+    finishPage()
+    finishPage = undefined
+
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: { started: boolean } }
+    ).__hronautDeferredOverviewCapture?.started ?? false)).toBe(true)
+
+    await appWindow.getByRole('button', { name: 'Search tabs' }).click()
+    const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
+    await expect(overview).toBeVisible()
+    const card = overview.locator('.tab-overview-card', { hasText: 'Deferred overview preview' })
+    await expect(card).toBeVisible()
+    await electronApp.evaluate(() => {
+      const deferred = (
+        globalThis as typeof globalThis & { __hronautDeferredOverviewCapture?: { release?: () => void } }
+      ).__hronautDeferredOverviewCapture
+      if (!deferred?.release) throw new Error('Deferred overview capture was not waiting')
+      deferred.release()
+    })
+
+    await expect(card.locator('.tab-overview-preview > img')).toHaveAttribute('src', /^data:image\/jpeg;base64,/, {
+      timeout: 4_000
+    })
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then((previews) => previews.length)`))
+      .toBe(1)
+  } finally {
+    finishPage?.()
+    await closeFixtureServer(server)
+  }
 })
 
 test('keeps the visual tab overview grouped, responsive, lock-safe, and passive for sleeping tabs', async ({
