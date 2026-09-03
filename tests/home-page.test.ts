@@ -69,7 +69,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('17 clients')
+    expect(html).toContain('18 clients')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -221,6 +221,19 @@ api_key_format = "Bearer {token}"`)
     expect(grokBuild?.code).toBe(
       `grok mcp add --transport http hronaut ${dashboard.endpoint} --header 'Authorization: Bearer \${HRONAUT_MCP_TOKEN}'`
     )
+    const qwenCode = renderedGuides(html).find((guide) => guide.id === 'qwen-code')
+    expect(qwenCode?.location).toBe('~/.qwen/settings.json')
+    expect(qwenCode?.setupCommand).toBeUndefined()
+    expect(qwenCode?.verifyCommand).toBe('qwen mcp list')
+    expect(JSON.parse(qwenCode?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          httpUrl: dashboard.endpoint,
+          headers: { Authorization: 'Bearer ${HRONAUT_MCP_TOKEN}' },
+          trust: false
+        }
+      }
+    })
   })
 
   it('renders Ukrainian UI while preserving technical MCP content', () => {
@@ -608,6 +621,23 @@ url = "${dashboard.endpoint}"`)
     })
     expect(grokBuild?.setupCommand).toBeUndefined()
     expect(grokBuild?.code).not.toContain('Authorization')
+  })
+
+  it('renders Qwen Code native HTTP setup without authentication material when local authentication is disabled', () => {
+    const qwenCode = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })).find((guide) => guide.id === 'qwen-code')
+
+    expect(qwenCode).toMatchObject({
+      location: '~/.qwen/settings.json',
+      code: `qwen mcp add --scope user --transport http hronaut ${dashboard.endpoint}`,
+      verifyCommand: 'qwen mcp list'
+    })
+    expect(qwenCode?.setupCommand).toBeUndefined()
+    expect(qwenCode?.code).not.toContain('Authorization')
   })
 
   it('keeps Windows token paths literal inside Kilo trusted file references', () => {

@@ -300,6 +300,10 @@ export class WalletApprovalStore {
     return this.cancelMatching((record) => record.request.requester.id === requesterId)
   }
 
+  cancelAll(): Promise<number> {
+    return this.cancelMatching(() => true)
+  }
+
   cancel(id: string, now = new Date()): Promise<WalletApprovalRecord> {
     return this.queueMutation(async () => {
       const record = this.require(id)

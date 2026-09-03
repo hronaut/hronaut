@@ -52,6 +52,7 @@ function renderActions(overrides: Record<string, unknown> = {}) {
       downloadButtonLabel: '1 download in progress',
       allInteractionLocked: false,
       allInteractionLockLabel: 'Lock all tabs',
+      followAgentActivity: false,
       showUpdateStatus: true,
       updateState,
       mcpStatusController,
@@ -75,6 +76,7 @@ describe('AppTopbarActions', () => {
     await user.click(downloads)
     await user.click(screen.getByRole('button', { name: 'Browsing history' }))
     await user.click(screen.getByRole('button', { name: 'Lock all tabs' }))
+    await user.click(screen.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' }))
     await user.click(screen.getByTitle('Open Software updates'))
     await user.click(screen.getByRole('button', { name: 'Settings' }))
 
@@ -84,9 +86,20 @@ describe('AppTopbarActions', () => {
       toggleDownloads: [[]],
       toggleHistory: [[]],
       toggleAllInteraction: [[]],
+      toggleFollowAgentActivity: [[]],
       openUpdateSettings: [[]],
       toggleSettings: [[]]
     })
+    rendered.mcpStatusController.dispose()
+  })
+
+  it('exposes follow activity as an independent pressed toggle', async () => {
+    const rendered = renderActions({ followAgentActivity: true })
+
+    const follow = screen.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
+    expect(follow).toHaveAttribute('aria-pressed', 'true')
+    expect(follow).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Lock all tabs' })).toHaveAttribute('aria-pressed', 'false')
     rendered.mcpStatusController.dispose()
   })
 

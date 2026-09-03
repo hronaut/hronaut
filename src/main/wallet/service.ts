@@ -69,6 +69,7 @@ interface SigningAuthorizationRecord {
   requestId: string
   approvalHash: string
   expiresAt: number
+  vaultEpoch: number
 }
 
 export interface WalletServiceOptions {
@@ -106,6 +107,7 @@ export class WalletService {
   private readonly imports = new Map<string, PendingImport>()
   private readonly importExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private signingAuthorizations = new WeakMap<object, SigningAuthorizationRecord>()
+  private vaultEpoch = 0
 
   constructor(private readonly options: WalletServiceOptions) {
     this.vaultPath = join(options.directory, 'vault.json')
@@ -216,6 +218,7 @@ export class WalletService {
   }
 
   lock(): void {
+    this.vaultEpoch += 1
     this.vault?.lock()
     this.signingAuthorizations = new WeakMap()
     this.clearAuthorityStores()
@@ -531,7 +534,8 @@ export class WalletService {
       walletId: wallet.id,
       requestId: record.id,
       approvalHash: record.approvalHash,
-      expiresAt: Date.parse(record.request.expiresAt)
+      expiresAt: Date.parse(record.request.expiresAt),
+      vaultEpoch: this.vaultEpoch
     })
     return token
   }
@@ -558,7 +562,11 @@ export class WalletService {
     if (!wallet.recoveryConfirmed) throw new Error('Wallet recovery material must be confirmed before signing')
     const secret = await this.readyVault().secret(walletId)
     try {
-      return await operation(wallet, secret)
+      const result = await operation(wallet, secret)
+      if (authority.vaultEpoch !== this.vaultEpoch || this.statusValue.managedWallets !== 'ready') {
+        throw new Error('Wallet signing was cancelled because the vault was locked')
+      }
+      return result
     } finally {
       secret.material.fill(0)
     }

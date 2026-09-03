@@ -57,11 +57,7 @@ const AUTOMATION_ALLOWED_EVM_TESTNET_IDS: ReadonlySet<string> = new Set([
   '560048' // Hoodi
 ])
 
-const AUTOMATION_LOCAL_IDS: Readonly<Record<WalletDescriptor['chainFamily'], ReadonlySet<string>>> = {
-  evm: new Set(['1337', '31337']),
-  solana: new Set(['local', 'localnet']),
-  tron: new Set(['local', 'private', 'private-net'])
-}
+const AUTOMATION_LOCAL_EVM_IDS: ReadonlySet<string> = new Set(['1337', '31337'])
 
 export const MAINNET_AGENT_AUTOMATION_MAX_OPERATIONS = 100
 export const MAINNET_AGENT_AUTOMATION_MAX_DURATION_MS = 7 * 24 * 60 * 60_000
@@ -104,7 +100,11 @@ export function isWalletNetworkEligibleForAutomation(wallet: WalletDescriptor): 
     return wallet.chainFamily === 'evm' && AUTOMATION_ALLOWED_EVM_TESTNET_IDS.has(networkId)
   }
   if (wallet.network.environment === 'local') {
-    return AUTOMATION_LOCAL_IDS[wallet.chainFamily].has(networkId) && isLoopbackRpc(wallet.network.rpcUrl)
+    // Solana and TRON RPC endpoints do not yet attest an independently trusted
+    // network identity, including when the endpoint itself is loopback-only.
+    return wallet.chainFamily === 'evm'
+      && AUTOMATION_LOCAL_EVM_IDS.has(networkId)
+      && isLoopbackRpc(wallet.network.rpcUrl)
   }
   return false
 }
@@ -139,6 +139,17 @@ function includesNormalized(values: readonly string[], target: string | undefine
   return Boolean(target && values.some((value) => value.toLowerCase() === target.toLowerCase()))
 }
 
+export function walletPolicyDestinationMatches(
+  chainFamily: WalletDescriptor['chainFamily'],
+  values: readonly string[],
+  target: string | undefined
+): boolean {
+  if (!target) return false
+  return chainFamily === 'evm'
+    ? includesNormalized(values, target)
+    : values.includes(target)
+}
+
 export class WalletPolicyEngine {
   evaluate(input: WalletPolicyEvaluation): WalletPolicyDecision {
     const { request, wallet, decoded, simulation } = input
@@ -171,7 +182,8 @@ export class WalletPolicyEngine {
       if (wallet.network.environment === 'mainnet' && !isMainnetAgentAutomationPolicy(policy, input.now)) continue
       if (Date.parse(policy.expiresAt) <= input.now.getTime() || usage.operationCount >= policy.maximumOperationCount) continue
       if (!policy.networkIds.includes(request.networkId) || !policy.origins.includes(request.topLevelOrigin)) continue
-      if (!includesNormalized(policy.destinations, decoded.destination) || !includesNormalized(policy.methods, decoded.method)) continue
+      if (!walletPolicyDestinationMatches(wallet.chainFamily, policy.destinations, decoded.destination)
+        || !includesNormalized(policy.methods, decoded.method)) continue
       if (request.operation === 'sign-message' && !policy.allowMessageSigning) continue
       if (policy.maxNativeAmount && walletDecimalCompare(decoded.nativeAmount, policy.maxNativeAmount) > 0) continue
       if (policy.maxTokenAmount && walletDecimalCompare(decoded.tokenAmount, policy.maxTokenAmount) > 0) continue

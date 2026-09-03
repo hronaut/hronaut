@@ -330,6 +330,7 @@ const settingsApi: HronautSettingsApi = {
   setHideInTray: (enabled: boolean) => ipcRenderer.invoke('settings:set-hide-in-tray', enabled),
   setAttentionSound: (enabled: boolean) => ipcRenderer.invoke('settings:set-attention-sound', enabled),
   setAttentionSoundCue: (cue: AttentionSoundCue) => ipcRenderer.invoke('settings:set-attention-sound-cue', cue),
+  setFollowAgentActivity: (enabled: boolean) => ipcRenderer.invoke('settings:set-follow-agent-activity', enabled),
   setMcpAuthentication: (enabled: boolean) => ipcRenderer.invoke('settings:set-mcp-authentication', enabled),
   setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),
   setMcpToolSet: (toolSet) => ipcRenderer.invoke('settings:set-mcp-tool-set', toolSet),

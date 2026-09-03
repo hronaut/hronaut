@@ -20,6 +20,7 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       hideInTray: true,
       attentionSound: true,
       attentionSoundCue: 'warning',
+      followAgentActivity: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
       mcpToolSet: 'essentials',

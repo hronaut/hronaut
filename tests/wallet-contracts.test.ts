@@ -195,6 +195,16 @@ describe('wallet public contracts', () => {
     expect(() => WalletPublicRequestPayloadSchema.parse(nestedPayload('safe leaf', 34))).toThrow()
   })
 
+  it.each([
+    ['function', { transaction: { transform: () => 'silently dropped' } }],
+    ['symbol', { transaction: { marker: Symbol('silently dropped') } }],
+    ['undefined', { transaction: { destination: undefined } }],
+    ['non-finite number', { transaction: { amount: Number.POSITIVE_INFINITY } }],
+    ['non-plain object', { transaction: new Map([['destination', 'silently dropped']]) }]
+  ])('rejects %s values instead of letting JSON serialization change the signed request', (_kind, payload) => {
+    expect(() => WalletPublicRequestPayloadSchema.parse(payload)).toThrow(/serializable/i)
+  })
+
   it('recognizes only the explicit approval state machine statuses', () => {
     expect(WalletRequestStatusSchema.options).toEqual([
       'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved',

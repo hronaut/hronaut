@@ -2126,11 +2126,9 @@ function registerIpc(): void {
     if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
     return requireWalletService().unlock(passphrase)
   })
-  ipcMain.handle('wallets:lock', (event) => {
+  ipcMain.handle('wallets:lock', async (event) => {
     assertMainShellSender(event)
-    const service = requireWalletService()
-    service.lock()
-    return service.status()
+    return requireWalletBroker().lock()
   })
   ipcMain.handle('wallets:generate', async (event, input: WalletCreateInput) => {
     assertMainShellSender(event)
@@ -3219,6 +3217,14 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
+  ipcMain.handle('settings:set-follow-agent-activity', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Follow agent activity must be a boolean')
+    await updateSettings({ followAgentActivity: enabled })
+    tabsManager?.setFollowAgentActivity(enabled)
+    publishSettings()
+    return { ...settings }
+  })
   ipcMain.handle('settings:set-mcp-authentication', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('MCP authentication must be a boolean')
@@ -3487,6 +3493,7 @@ async function createWindow(): Promise<void> {
     askWhereToSaveDownloads: settings.askWhereToSaveDownloads,
     memorySaverEnabled: settings.memorySaverEnabled,
     memorySaverTimeoutMinutes: settings.memorySaverTimeoutMinutes,
+    followAgentActivity: settings.followAgentActivity,
     getSearchEngine: () => settings.searchEngine,
     getLocale: () => resolvedLocale,
     getTabPosition: () => settings.tabPosition,

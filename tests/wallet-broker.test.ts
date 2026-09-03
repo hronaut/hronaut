@@ -114,6 +114,29 @@ async function connect(broker: WalletBroker): Promise<void> {
 }
 
 describe('WalletBroker', () => {
+  it('rejects public human approval while a request is still in policy-decision', async () => {
+    const { service, wallet } = await setup('testnet')
+    const now = new Date()
+    const request = {
+      requestId: 'policy-decision-request', walletId: wallet.id, workspaceId: 'workspace-1', tabId: 'tab-1',
+      navigationGeneration: 1, topLevelOrigin: 'https://dapp.example',
+      requester: { type: 'website' as const, id: 'https://dapp.example' }, capability: 'read' as const,
+      chainFamily: 'evm' as const, networkId: wallet.network.id, operation: 'connect-account' as const,
+      payload: { account: wallet.publicAddress }, expiresAt: new Date(now.getTime() + 60_000).toISOString()
+    }
+    const created = await service.approvals.create(request, 'policy-decision-key', now)
+    await service.approvals.transition(created.id, 'validated', now)
+    await service.approvals.recordSimulation(created.id, { attempted: false, success: false }, now)
+    await service.approvals.transition(created.id, 'simulated', now)
+    await service.approvals.transition(created.id, 'policy-decision', now)
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.approve(created.id)).rejects.toThrow('Wallet request is not awaiting human approval')
+
+    expect(service.approvals.get(created.id)?.status).toBe('policy-decision')
+    expect(service.permissions.list()).toEqual([])
+  })
+
   it('keeps wallet RPC endpoints and embedded credentials out of agent descriptors', async () => {
     const { service } = await setup()
     await service.addWatchOnly({
@@ -751,6 +774,94 @@ describe('WalletBroker', () => {
     expect(providerEvents).toHaveBeenCalledWith('tab-1', {
       family: 'evm', event: 'accountsChanged', payload: [wallet.publicAddress]
     })
+  })
+
+  it('locks signing keys and cancels requests that are still awaiting approval', async () => {
+    const { service } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    const requestId = broker.listPending().find((request) => request.status === 'awaiting-human')!.id
+
+    await expect(broker.lock()).resolves.toMatchObject({ managedWallets: 'locked' })
+
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'cancelled' })
+  })
+
+  it('cancels an approval queued immediately before signing keys are locked', async () => {
+    const { service, wallet } = await setup()
+    const providerEvents = vi.fn()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      onProviderEvent: providerEvents
+    })
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    const requestId = broker.listPending().find((request) => request.status === 'awaiting-human')!.id
+
+    const approval = settle(broker.approve(requestId))
+    const locking = broker.lock()
+
+    await expect(approval).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    await expect(result).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    await expect(locking).resolves.toMatchObject({ managedWallets: 'locked' })
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'cancelled' })
+    expect(service.permissions.allows({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: wallet.chainFamily,
+      networkId: wallet.network.id,
+      requester: { type: 'website', id: 'https://dapp.example' },
+      capability: 'read'
+    })).toBe(false)
+    expect(providerEvents).not.toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: [wallet.publicAddress]
+    })
+  })
+
+  it('never broadcasts a transaction when signing-key lock overtakes the signer', async () => {
+    const { service } = await setup()
+    const chain = adapter()
+    const signingEntered = deferred()
+    const releaseSigning = deferred()
+    chain.sign.mockImplementationOnce(async () => {
+      signingEntered.resolve()
+      await releaseSigning.promise
+      return 'signed-after-lock'
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    await connect(broker)
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_sendTransaction',
+      params: [{ to: '0x0000000000000000000000000000000000000002' }]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => (
+      request.operation === 'sign-and-send-transaction' && request.status === 'awaiting-human'
+    ))).toBe(true))
+    const requestId = broker.listPending().find((request) => request.operation === 'sign-and-send-transaction')!.id
+    const approval = settle(broker.approve(requestId))
+    await signingEntered.promise
+
+    const locking = broker.lock()
+    expect(service.status()).toMatchObject({ managedWallets: 'locked' })
+    releaseSigning.resolve()
+
+    await expect(approval).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringMatching(/locked|cancelled/i) })
+    })
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+    await expect(locking).resolves.toMatchObject({ managedWallets: 'locked' })
+    expect(chain.broadcast).not.toHaveBeenCalled()
+    expect(broker.listPending().find((request) => request.id === requestId)).toMatchObject({ status: 'failed' })
   })
 
   it('marks address-permission preparation failed instead of leaving it actionable', async () => {

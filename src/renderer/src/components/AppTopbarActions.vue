@@ -9,6 +9,7 @@ import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconSettings from '~icons/material-symbols/settings-rounded'
 import IconTabSearch from '~icons/material-symbols/tab-search-rounded'
+import IconVisibility from '~icons/material-symbols/visibility-rounded'
 import type { AppUpdateState, BrowserDownloadState } from '../../../shared/types.js'
 import type { McpStatusController } from '../composables/useMcpStatusController.js'
 import McpStatusControls from './McpStatusControls.vue'
@@ -25,6 +26,7 @@ defineProps<{
   downloadButtonLabel: string
   allInteractionLocked: boolean
   allInteractionLockLabel: string
+  followAgentActivity: boolean
   showUpdateStatus: boolean
   updateState: AppUpdateState
   mcpStatusController: McpStatusController
@@ -36,6 +38,7 @@ const emit = defineEmits<{
   toggleDownloads: []
   toggleHistory: []
   toggleAllInteraction: []
+  toggleFollowAgentActivity: []
   openUpdateSettings: []
   toggleSettings: []
 }>()
@@ -105,6 +108,18 @@ const { t } = useI18n({ useScope: 'global' })
       <IconLock v-if="allInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
       {{ allInteractionLocked ? t('shell.tabs.locked') : t('shell.tabs.lock') }}
+    </button>
+    <button
+      class="browser-lock-button follow-agent-button"
+      :class="{ active: followAgentActivity }"
+      type="button"
+      :title="t('shell.actions.followAgentActivityDescription')"
+      :aria-label="t('shell.actions.followAgentActivityDescription')"
+      :aria-pressed="followAgentActivity"
+      @click="emit('toggleFollowAgentActivity')"
+    >
+      <IconVisibility aria-hidden="true" />
+      {{ t('shell.actions.followAgents') }}
     </button>
     <UpdateNotification
       v-if="showUpdateStatus"

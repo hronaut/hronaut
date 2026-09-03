@@ -68,7 +68,6 @@ const zoomOpen = defineModel<boolean>('zoomOpen', { required: true })
 const siteControlsOpen = defineModel<boolean>('siteControlsOpen', { required: true })
 const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
 const pageToolsOpen = defineModel<boolean>('pageToolsOpen', { required: true })
-
 interface BrowserTabsBarHandle {
   expandTabGroup: (groupId: string) => void
   expandTabGroupForTab: (tab: BrowserTabState) => void
@@ -107,7 +106,9 @@ const {
   updateSettingsController,
   mcpStatusController,
   sitePermissionsController,
-  showUpdateStatusPill
+  showUpdateStatusPill,
+  settings,
+  toggleFollowAgentActivity
 } = props.settingsController
 const { state: updateState } = updateSettingsController
 const { open: settingsOpen, toggle: toggleSettings } = settingsDialogController
@@ -230,6 +231,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :download-button-label="downloadButtonLabel"
       :all-interaction-locked="state.allHumanInteractionLocked"
       :all-interaction-lock-label="allInteractionLockLabel"
+      :follow-agent-activity="settings.followAgentActivity"
       :show-update-status="showUpdateStatusPill"
       :update-state="updateState"
       :mcp-status-controller="mcpStatusController"
@@ -238,6 +240,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @toggle-downloads="runAction(toggleDownloads)"
       @toggle-history="runAction(toggleVisitHistory)"
       @toggle-all-interaction="runAction(toggleAllHumanInteraction)"
+      @toggle-follow-agent-activity="runAction(toggleFollowAgentActivity)"
       @open-update-settings="runAction(openUpdateSettings)"
       @toggle-settings="runAction(toggleSettings)"
     />

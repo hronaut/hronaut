@@ -1022,6 +1022,8 @@ export const plPL = {
       "searchTabs": "Szukaj kart",
       "historyTitle": "Historia przeglądania (Ctrl+H / Cmd+Y)",
       "history": "Historia przeglądania",
+      "followAgents": "Śledź agentów",
+      "followAgentActivityDescription": "Pokazuj kartę używaną przez agenta bez przejmowania fokusu klawiatury lub myszy",
       "settings": "Ustawienia"
     },
     "toolbar": {
@@ -2606,7 +2608,7 @@ export const plPL = {
     "connect": {
       "heading": "Połącz agenta programistycznego",
       "description": "Wybierz klienta, skopiuj konfigurację, a następnie utwórz nazwany obszar roboczy przed przeglądaniem.",
-      "clients": "17 klientów",
+      "clients": "18 klientów",
       "agentsLabel": "Agenci programistyczni",
       "instructions": "Instrukcje konfiguracji",
       "copy": "Kopiuj",
@@ -2636,6 +2638,7 @@ export const plPL = {
         "warp": "Dodaje Hronaut jako serwer URL użytkownika dla lokalnego agenta Warp.",
         "windsurf": "Dodaje Hronaut do Windsurf Cascade przez konfigurację Streamable HTTP użytkownika.",
         "grokBuild": "Dodaje Hronaut do Grok Build przez natywną konfigurację HTTP MCP użytkownika.",
+        "qwenCode": "Dodaje Hronaut do Qwen Code przez natywną konfigurację HTTP MCP użytkownika.",
         "generic": "Użyj strumieniowego HTTP i skieruj klienta bezpośrednio do Hronaut.",
         "genericLocation": "Ustawienia MCP klienta"
       }

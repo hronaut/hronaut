@@ -323,6 +323,25 @@ function agentGuides(
       verifyCommand: 'grok mcp doctor hronaut'
     },
     {
+      id: 'qwen-code',
+      name: 'Qwen Code',
+      note: home.connect.guides.qwenCode,
+      location: '~/.qwen/settings.json',
+      code: authenticationDisabled
+        ? `qwen mcp add --scope user --transport http hronaut ${endpoint}`
+        : JSON.stringify({
+            mcpServers: {
+              hronaut: {
+                httpUrl: endpoint,
+                headers: { Authorization: 'Bearer ${HRONAUT_MCP_TOKEN}' },
+                trust: false
+              }
+            }
+          }, null, 2),
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: 'qwen mcp list'
+    },
+    {
       id: 'generic',
       name: 'Generic MCP client',
       note: home.connect.guides.generic,

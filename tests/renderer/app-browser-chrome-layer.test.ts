@@ -87,6 +87,7 @@ const AppTopbarActionsStub = defineComponent({
     downloadButtonLabel: String,
     allInteractionLocked: Boolean,
     allInteractionLockLabel: String,
+    followAgentActivity: Boolean,
     showUpdateStatus: Boolean,
     updateState: Object,
     mcpStatusController: Object
@@ -97,6 +98,7 @@ const AppTopbarActionsStub = defineComponent({
     'toggleDownloads',
     'toggleHistory',
     'toggleAllInteraction',
+    'toggleFollowAgentActivity',
     'openUpdateSettings',
     'toggleSettings'
   ],
@@ -245,7 +247,7 @@ function createHarness(home = false) {
     toggleTabHumanInteraction: vi.fn(),
     toggleAllHumanInteraction: vi.fn()
   }
-  const settingsActions = { toggle: vi.fn() }
+  const settingsActions = { toggle: vi.fn(), toggleFollowAgentActivity: vi.fn() }
   const addressActions = {
     resetActiveTabEmulation: vi.fn(),
     openRequestConditions: vi.fn(),
@@ -285,6 +287,7 @@ function createHarness(home = false) {
       describeTabEmulation: vi.fn()
     } as never,
     settingsController: {
+      settings: ref({ followAgentActivity: false }),
       settingsDialogController: { open: ref(false), ...settingsActions },
       updateSettingsController: { state: ref({ status: 'idle', currentVersion: '1.9.9' }) },
       mcpStatusController: {},
@@ -292,7 +295,8 @@ function createHarness(home = false) {
         setDecision: addressActions.setSitePermissionDecision,
         remove: addressActions.removeSitePermission
       },
-      showUpdateStatusPill: ref(false)
+      showUpdateStatusPill: ref(false),
+      toggleFollowAgentActivity: settingsActions.toggleFollowAgentActivity
     } as never,
     collectionsController: {
       downloads: ref([]),
@@ -483,6 +487,7 @@ describe('AppBrowserChromeLayer', () => {
     topbar.vm.$emit('toggleDownloads')
     topbar.vm.$emit('toggleHistory')
     topbar.vm.$emit('toggleAllInteraction')
+    topbar.vm.$emit('toggleFollowAgentActivity')
     topbar.vm.$emit('openUpdateSettings')
     topbar.vm.$emit('toggleSettings')
 
@@ -512,6 +517,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.collectionActions.toggleDownloads).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleVisitHistory).toHaveBeenCalledOnce()
     expect(harness.tabActions.toggleAllHumanInteraction).toHaveBeenCalledOnce()
+    expect(harness.settingsActions.toggleFollowAgentActivity).toHaveBeenCalledOnce()
     expect(harness.siteActions.openUpdateSettings).toHaveBeenCalledOnce()
     expect(harness.settingsActions.toggle).toHaveBeenCalledOnce()
     expect(harness.browser.back).toHaveBeenCalledOnce()

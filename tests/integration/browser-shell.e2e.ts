@@ -55,6 +55,110 @@ test('launches a visible browser shell with a loopback MCP endpoint', async ({
     .toBe(true)
 })
 
+test('follows agent activity passively, independently from input lock, and defers behind trusted chrome', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const server = createServer((request, response) => {
+    const title = request.url?.includes('agent-target') ? 'Follow agent target' : 'Follow human tab'
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>${title}</title><main>${title}</main>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const client = new Client({ name: 'hronaut-follow-agent-test', version: '1.0.0' })
+  const authorization = `Bearer ${mcpToken}`
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Follow agent fixture did not expose a port')
+    const targetUrl = `http://127.0.0.1:${address.port}/agent-target`
+    const humanUrl = `http://127.0.0.1:${address.port}/human-tab`
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Follow agent activity tests', false)
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: targetUrl, active: true }
+    }) as CallToolResult
+    expect(opened.isError, mcpResultText(opened)).not.toBe(true)
+    const targetTabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
+    const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId: targetTabId } }) as CallToolResult
+    expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+    const humanState = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(humanUrl)}, active: true })`) as BrowserState
+    const humanTabId = humanState.activeTabId
+    if (!humanTabId) throw new Error('Human follow-activity fixture tab was not selected')
+
+    const followButton = appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
+    await followButton.click()
+    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then((value) => value.followAgentActivity)'))
+      .toBe(true)
+    await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+    const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    const targetWebContentsId = await electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.id ?? null
+    ), targetUrl)
+
+    const snapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId: targetTabId } }) as CallToolResult
+    expect(snapshot.isError, mcpResultText(snapshot)).not.toBe(true)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
+      .toBe(targetTabId)
+    const nativeFocusAfterFirstFollow = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    expect(nativeFocusAfterFirstFollow.windowFocused).toBe(nativeFocusBefore.windowFocused)
+    expect(nativeFocusAfterFirstFollow.focusedWebContentsId).not.toBe(targetWebContentsId)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.allHumanInteractionLocked)')).toBe(true)
+
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(humanTabId)})`)
+    await appWindow.getByRole('button', { name: 'Settings' }).click()
+    const settingsDialog = appWindow.getByRole('dialog', { name: 'Settings' })
+    await expect(settingsDialog).toBeVisible()
+    const waiting = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: targetTabId, text: 'text that is intentionally absent', timeoutMs: 2_000 }
+    }) as Promise<CallToolResult>
+    await expect.poll(() => appWindow.locator(`[data-tab-id="${targetTabId}"]`).getAttribute('data-mcp-command'))
+      .toBe('browser_wait')
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
+
+    await settingsDialog.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
+      .toBe(targetTabId)
+    const nativeFocusAfterModalFollow = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    expect(nativeFocusAfterModalFollow.windowFocused).toBe(nativeFocusBefore.windowFocused)
+    expect(nativeFocusAfterModalFollow.focusedWebContentsId).not.toBe(targetWebContentsId)
+    await waiting
+  } finally {
+    await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
 test('traps keyboard focus inside Settings at minimum scaled window', async ({
   appWindow,
   electronApp
@@ -3721,6 +3825,80 @@ test('searches open and recently closed tabs, then restores any selected page', 
     active: 'Tab search alpha',
     closed: 0
   })
+})
+
+test('focuses the selected website after direct and visual-overview tab selection', async ({
+  appWindow,
+  electronApp
+}) => {
+  const fixtureUrl = (title: string): string => `data:text/html,${encodeURIComponent(`<!doctype html><title>${title}</title><input id="editor" autofocus>`)} `
+    .trim()
+  const alphaUrl = fixtureUrl('Tab focus alpha')
+  const betaUrl = fixtureUrl('Tab focus beta')
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
+  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`)
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
+    .toBe('Tab focus beta')
+
+  const pageId = (url: string): Promise<number> => electronApp.evaluate(({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error(`Tab focus fixture was not found: ${requestedUrl}`)
+    return page.id
+  }, url)
+  const focusedPageId = (): Promise<number | undefined> => electronApp.evaluate(({ webContents }) => (
+    webContents.getFocusedWebContents()?.id
+  ))
+  const typeIntoFocusedPage = (value: string): Promise<number | undefined> => electronApp.evaluate(
+    ({ webContents }, text) => {
+      const focused = webContents.getFocusedWebContents()
+      focused?.sendInputEvent({ type: 'char', keyCode: text })
+      return focused?.id
+    },
+    value
+  )
+  const inputValue = (url: string): Promise<string> => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error(`Tab focus fixture was not found: ${requestedUrl}`)
+    return String(await page.executeJavaScript('document.querySelector("#editor").value'))
+  }, url)
+  const alphaPageId = await pageId(alphaUrl)
+  const betaPageId = await pageId(betaUrl)
+
+  await electronApp.evaluate(({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error('Initial tab focus fixture was not found')
+    page.focus()
+  }, betaUrl)
+  await expect.poll(focusedPageId).toBe(betaPageId)
+
+  await appWindow.getByRole('tab', { name: /^Tab focus alpha/ }).click()
+  await expect.poll(focusedPageId).toBe(alphaPageId)
+  expect(await typeIntoFocusedPage('a')).toBe(alphaPageId)
+  await expect.poll(() => inputValue(alphaUrl)).toBe('a')
+
+  await appWindow.getByRole('button', { name: 'Search tabs' }).click()
+  const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
+  await expect(overview).toBeVisible()
+  await overview.locator('.tab-overview-card', { hasText: 'Tab focus beta' }).locator('.tab-overview-open').click()
+  await expect(overview).toBeHidden()
+  await expect.poll(focusedPageId).toBe(betaPageId)
+  expect(await typeIntoFocusedPage('b')).toBe(betaPageId)
+  await expect.poll(() => inputValue(betaUrl)).toBe('b')
+
+  const shellPageId = await electronApp.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]
+    if (!window) throw new Error('Hronaut shell window was not found')
+    return window.webContents.id
+  })
+  try {
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+    await appWindow.getByRole('tab', { name: /^Tab focus alpha/ }).click()
+    await expect.poll(focusedPageId).toBe(shellPageId)
+    expect(await typeIntoFocusedPage('x')).toBe(shellPageId)
+    await expect.poll(() => inputValue(alphaUrl)).toBe('a')
+  } finally {
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)')
+  }
 })
 
 test('bootstraps a live tab preview when its first capture finishes after the overview opens', async ({
@@ -8523,7 +8701,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         windsurfConfig: null,
         windsurfVerifyCommand: null,
         grokCommand: null,
-        grokVerifyCommand: null
+        grokVerifyCommand: null,
+        qwenCommand: null,
+        qwenVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
@@ -8545,6 +8725,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       document.querySelector('[data-guide="grok-build"]')?.click();
       result.grokCommand = document.getElementById('guide-code')?.textContent;
       result.grokVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="qwen-code"]')?.click();
+      result.qwenCommand = document.getElementById('guide-code')?.textContent;
+      result.qwenVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -8616,9 +8799,11 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     windsurfVerifyCommand: string
     grokCommand: string
     grokVerifyCommand: string
+    qwenCommand: string
+    qwenVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -8654,6 +8839,8 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(homeContent.windsurfVerifyCommand).toBe('Cascade → MCPs: hronaut is connected')
   expect(homeContent.grokCommand).toBe(`grok mcp add --transport http hronaut http://127.0.0.1:${mcpPort}/mcp`)
   expect(homeContent.grokVerifyCommand).toBe('grok mcp doctor hronaut')
+  expect(homeContent.qwenCommand).toBe(`qwen mcp add --scope user --transport http hronaut http://127.0.0.1:${mcpPort}/mcp`)
+  expect(homeContent.qwenVerifyCommand).toBe('qwen mcp list')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

@@ -146,7 +146,7 @@ export const ukUA = {
       createWorkspaceTitle: 'Створити новий ізольований робочий простір', createWorkspace: 'Створити робочий простір', workspace: 'Робочий простір', collapseRail: 'Згортати панель вкладок, коли вона не використовується', keepRailExpanded: 'Залишати панель вкладок розгорнутою', locked: 'Введення заблоковано', lock: 'Блокувати введення'
     },
     actions: {
-      commandsTitle: 'Команди (Ctrl/Cmd+Shift+P)', commands: 'Відкрити палітру команд', searchTabsTitle: 'Пошук вкладок (Ctrl/Cmd+Shift+A)', searchTabs: 'Шукати вкладки', historyTitle: 'Історія перегляду (Ctrl+H / Cmd+Y)', history: 'Історія перегляду', settings: 'Налаштування'
+      commandsTitle: 'Команди (Ctrl/Cmd+Shift+P)', commands: 'Відкрити палітру команд', searchTabsTitle: 'Пошук вкладок (Ctrl/Cmd+Shift+A)', searchTabs: 'Шукати вкладки', historyTitle: 'Історія перегляду (Ctrl+H / Cmd+Y)', history: 'Історія перегляду', followAgents: 'Стежити за агентами', followAgentActivityDescription: 'Показувати вкладку, яку використовує агент, не забираючи фокус клавіатури чи миші', settings: 'Налаштування'
     },
     toolbar: { back: 'Назад', forward: 'Уперед', address: 'Адреса', addressPlaceholder: 'Пошук або введення адреси', findTitle: 'Пошук на сторінці (Ctrl/Cmd+F)', find: 'Пошук на сторінці', zoom: 'Керування масштабом сторінки', bookmarks: 'Закладки' },
     siteControls: {
@@ -317,7 +317,7 @@ export const ukUA = {
     connect: {
       heading: 'Під’єднайте агента програмування',
       description: 'Виберіть клієнт, скопіюйте налаштування, а потім створіть іменований робочий простір перед переглядом.',
-      clients: '17 клієнтів',
+      clients: '18 клієнтів',
       agentsLabel: 'Агенти програмування',
       instructions: 'Інструкції з налаштування',
       copy: 'Копіювати',
@@ -347,6 +347,7 @@ export const ukUA = {
         warp: 'Додає Hronaut як користувацький URL-сервер для локального агента Warp.',
         windsurf: 'Додає Hronaut до Windsurf Cascade через користувацьку конфігурацію Streamable HTTP.',
         grokBuild: 'Додає Hronaut до Grok Build через його нативну користувацьку конфігурацію HTTP MCP.',
+        qwenCode: 'Додає Hronaut до Qwen Code через його нативну користувацьку конфігурацію HTTP MCP.',
         generic: 'Використовуйте потоковий HTTP і спрямуйте клієнт безпосередньо на Hronaut.',
         genericLocation: 'Налаштування MCP клієнта'
       }

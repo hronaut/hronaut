@@ -1022,6 +1022,8 @@ export const ruRU = {
       "searchTabs": "Искать вкладки",
       "historyTitle": "История просмотра (Ctrl+H / Cmd+Y)",
       "history": "История просмотра",
+      "followAgents": "Следить за агентами",
+      "followAgentActivityDescription": "Показывать вкладку, которую использует агент, не забирая фокус клавиатуры или мыши",
       "settings": "Настройки"
     },
     "toolbar": {
@@ -2606,7 +2608,7 @@ export const ruRU = {
     "connect": {
       "heading": "Подключите агента программирования",
       "description": "Выберите клиент, скопируйте настройку, затем создайте именованную рабочую область перед просмотром.",
-      "clients": "17 клиентов",
+      "clients": "18 клиентов",
       "agentsLabel": "Агенты программирования",
       "instructions": "Инструкции по настройке",
       "copy": "Копировать",
@@ -2636,6 +2638,7 @@ export const ruRU = {
         "warp": "Добавляет Hronaut как пользовательский URL-сервер для локального агента Warp.",
         "windsurf": "Добавляет Hronaut в Windsurf Cascade через пользовательскую конфигурацию Streamable HTTP.",
         "grokBuild": "Добавляет Hronaut в Grok Build через его встроенную пользовательскую конфигурацию HTTP MCP.",
+        "qwenCode": "Добавляет Hronaut в Qwen Code через его встроенную пользовательскую конфигурацию HTTP MCP.",
         "generic": "Используйте потоковый HTTP и направьте клиент прямо на Hronaut.",
         "genericLocation": "Настройки MCP клиента"
       }

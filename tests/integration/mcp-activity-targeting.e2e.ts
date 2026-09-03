@@ -51,6 +51,75 @@ async function startPageServer(title: string, body: string): Promise<{
   return { server, url: `http://127.0.0.1:${address.port}/` }
 }
 
+test('follows MCP activity only when enabled without changing input lock or native focus', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  const fixture = await startPageServer('Follow activity target', 'Follow activity target ready')
+  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-follow-activity-test')
+  try {
+    const workspaceId = await createWorkspace(client, 'Follow activity')
+    const openedTarget = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url: fixture.url, active: true }
+    }) as CallToolResult
+    expect(openedTarget.isError, text(openedTarget)).not.toBe(true)
+    const targetTabId = (JSON.parse(text(openedTarget)) as { activeTabId: string }).activeTabId
+    const ready = await client.callTool({
+      name: 'browser_wait',
+      arguments: { workspaceId, tabId: targetTabId, text: 'Follow activity target ready' }
+    }) as CallToolResult
+    expect(ready.isError, text(ready)).not.toBe(true)
+    const fallbackTabId = await appWindow.evaluate(`window.hronaut.newTab({
+      url: 'data:text/html,<title>Follow activity fallback</title><main>Fallback ready</main>',
+      active: true,
+      mcpGroupId: ${JSON.stringify(workspaceId)}
+    }).then((state) => state.activeTabId)`) as string
+
+    expect(await appWindow.evaluate('window.hronautSettings.get().then((value) => value.followAgentActivity)')).toBe(false)
+    const whileDisabled = await client.callTool({
+      name: 'browser_snapshot',
+      arguments: { workspaceId, tabId: targetTabId }
+    }) as CallToolResult
+    expect(whileDisabled.isError, text(whileDisabled)).not.toBe(true)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(fallbackTabId)
+
+    await appWindow.getByRole('button', { name: /Block human page input/ }).click()
+    const followButton = appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
+    await followButton.click()
+    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    const targetWebContentsId = await electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.id ?? null
+    ), fixture.url)
+
+    const whileEnabled = await client.callTool({
+      name: 'browser_snapshot',
+      arguments: { workspaceId, tabId: targetTabId }
+    }) as CallToolResult
+    expect(whileEnabled.isError, text(whileEnabled)).not.toBe(true)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)'))
+      .toBe(targetTabId)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.allHumanInteractionLocked)')).toBe(true)
+    const nativeFocusAfter = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
+      windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
+      focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
+    }))
+    expect(nativeFocusAfter.windowFocused).toBe(nativeFocusBefore.windowFocused)
+    expect(nativeFocusAfter.focusedWebContentsId).not.toBe(targetWebContentsId)
+  } finally {
+    await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
+    await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)').catch(() => undefined)
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(fixture.server)
+  }
+})
+
 test('attributes omitted-tab activity only to the validated workspace target', async ({
   appWindow,
   electronApp,

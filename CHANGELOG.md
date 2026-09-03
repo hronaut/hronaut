@@ -2,7 +2,21 @@
 
 All notable changes to Hronaut are documented in this file.
 
-## [Unreleased]
+## [1.11.41] - 2026-09-03
+
+### Added
+
+- Add first-class Qwen Code setup to Hronaut Home with safe authenticated and authentication-disabled HTTP MCP configurations.
+- Add an independent, persisted **Follow agents** mode that passively shows the tab an agent is using, defers behind trusted Hronaut dialogs, and never takes keyboard or mouse focus.
+
+### Fixed
+
+- Keep local Solana and TRON transaction policies behind human approval until their RPC networks can be independently authenticated.
+- Restrict public wallet approvals to requests that have reached the human-review state.
+- Match Solana and TRON policy destinations case-sensitively while preserving normalized EVM address matching.
+- Cancel pending wallet requests when signing keys are locked, and invalidate an in-flight signature before it can be returned or broadcast.
+- Reject lossy wallet-provider payload types instead of allowing serialization to silently change an approved request.
+- Focus the selected website after direct tab or Mission Control selection so immediate keyboard input reaches the page, while locked tabs keep focus in trusted chrome and agent-created tabs never steal native window focus.
 
 ## [1.11.40] - 2026-09-03
 

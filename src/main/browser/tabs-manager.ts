@@ -34,6 +34,7 @@ import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
+import { McpActivityFollowController } from './mcp-activity-follow-controller.js'
 import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
 import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
@@ -914,6 +915,7 @@ export interface TabsManagerOptions {
   askWhereToSaveDownloads: boolean
   memorySaverEnabled?: boolean
   memorySaverTimeoutMinutes?: MemorySaverTimeoutMinutes
+  followAgentActivity?: boolean
   getSearchEngine?: () => SearchEngineName
   getLocale: () => SupportedLocale
   getTabPosition: () => TabPosition
@@ -971,6 +973,8 @@ export class BrowserTabsManager {
   private memorySaverEnabled: boolean
   private memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
   private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
+  private readonly mcpActivityFollower: McpActivityFollowController
+  private followAgentActivity: boolean
   private toolbarHeight: number
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   private browserContentOccluded = false
@@ -1010,9 +1014,24 @@ export class BrowserTabsManager {
     this.toolbarHeight = options.toolbarHeight ?? 104
     this.mcpUrl = options.mcpUrl
     this.memorySaverEnabled = options.memorySaverEnabled !== false
+    this.followAgentActivity = options.followAgentActivity === true
     this.memorySaverTimeoutMinutes = isMemorySaverTimeoutMinutes(options.memorySaverTimeoutMinutes)
       ? options.memorySaverTimeoutMinutes
       : DEFAULT_MEMORY_SAVER_TIMEOUT_MINUTES
+    this.mcpActivityFollower = new McpActivityFollowController({
+      isEnabled: () => this.followAgentActivity,
+      isOccluded: () => this.browserContentOccluded,
+      getSelectionGeneration: () => this.tabSelectionGeneration,
+      tabExists: (tabId) => {
+        const tab = this.tabs.get(tabId)
+        return Boolean(tab && !tab.webContents.isDestroyed())
+      },
+      wakeTab: async (tabId) => this.wakeTab(tabId),
+      selectTabPassively: (tabId) => {
+        if (this.activeTabId !== tabId) this.selectTab(tabId, { focus: false })
+      },
+      onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
+    })
   }
 
   private text(key: MessageKey, parameters?: MessageParameters): string {
@@ -2499,7 +2518,12 @@ export class BrowserTabsManager {
     const groupId = options.mcpGroupId ?? this.ensureDefaultHumanGroup()
     this.requireMcpTabGroup(groupId)
     if (groupId !== this.defaultHumanGroupId) this.assertWorkspaceNavigationAllowed(groupId, url, 'direct')
-    await this.createTab({ url, active: options.active ?? true, mcpGroupId: groupId })
+    await this.createTab({
+      url,
+      active: options.active ?? true,
+      mcpGroupId: groupId,
+      focus: options.focus
+    })
     return this.getState()
   }
 
@@ -2570,6 +2594,11 @@ export class BrowserTabsManager {
     }
   }
 
+  setFollowAgentActivity(enabled: boolean): void {
+    this.followAgentActivity = enabled
+    this.mcpActivityFollower.refresh()
+  }
+
   handleMcpTabActivity(activity: McpTabActivity): void {
     const tab = this.tabs.get(activity.tabId)
     if (!tab) return
@@ -2577,13 +2606,13 @@ export class BrowserTabsManager {
     if (activity.phase === 'started') {
       activities.add(activity.activityId)
       this.mcpActivitiesByTab.set(tab.id, activities)
-      void this.wakeTab(tab.id).catch((error) => console.error('[browser] Could not wake tab for MCP activity:', error))
     } else {
       activities.delete(activity.activityId)
       if (activities.size) this.mcpActivitiesByTab.set(tab.id, activities)
       else this.mcpActivitiesByTab.delete(tab.id)
       tab.lastActiveAt = activity.occurredAt
     }
+    this.mcpActivityFollower.accept(activity)
   }
 
   async wakeTab(tabId: string): Promise<BrowserState> {
@@ -3049,6 +3078,7 @@ export class BrowserTabsManager {
     this.activeTabId = next.id
     this.markTabActiveInGroup(next)
     this.layout()
+    if (options.focus !== false) this.focusTabOrTrustedChrome(next)
     this.changed()
     return this.getState()
   }
@@ -3327,6 +3357,7 @@ export class BrowserTabsManager {
     this.options.onWalletTabClosed?.(tab.id)
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
+    this.mcpActivityFollower.removeTab(tab.id)
     this.webContentsToTab.delete(tab.webContents.id)
     if (!tab.mcpGroupId) return
     const group = this.mcpTabGroups.get(tab.mcpGroupId)
@@ -6189,6 +6220,7 @@ export class BrowserTabsManager {
       }
     }
     this.browserContentOccluded = occluded
+    this.mcpActivityFollower.setOccluded(occluded)
     if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
         if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
@@ -6299,6 +6331,7 @@ export class BrowserTabsManager {
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
+    this.mcpActivityFollower.dispose()
     if (this.persistTimer) clearTimeout(this.persistTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
@@ -6358,6 +6391,7 @@ export class BrowserTabsManager {
     url: string
     pinned?: boolean
     humanInteractionLocked?: boolean
+    focus?: boolean
     navigationGeneration?: number
     suppressInitialHistory?: boolean
     navigationHistory?: { entries: NavigationEntry[]; index: number }
@@ -6435,7 +6469,7 @@ export class BrowserTabsManager {
     this.options.configureSession?.(view.webContents.session)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
-    if (options.active || !this.activeTabId) this.selectTab(id)
+    if (options.active || !this.activeTabId) this.selectTab(id, { focus: options.focus })
     const loading = options.navigationHistory
       ? view.webContents.navigationHistory.restore(options.navigationHistory)
       : view.webContents.loadURL(url, options.loadOptions)

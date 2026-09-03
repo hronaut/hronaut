@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideInTray: true,
   attentionSound: true,
   attentionSoundCue: 'warning',
+  followAgentActivity: false,
   mcpAuthentication: false,
   mcpPort: DEFAULT_MCP_PORT,
   mcpToolSet: DEFAULT_MCP_TOOL_SET,
@@ -78,6 +79,10 @@ export class SettingsStore {
         attentionSoundCue: isAttentionSoundCue(value.attentionSoundCue)
           ? value.attentionSoundCue
           : DEFAULT_SETTINGS.attentionSoundCue,
+        followAgentActivity:
+          typeof value.followAgentActivity === 'boolean'
+            ? value.followAgentActivity
+            : DEFAULT_SETTINGS.followAgentActivity,
         mcpAuthentication:
           typeof value.mcpAuthentication === 'boolean'
             ? value.mcpAuthentication

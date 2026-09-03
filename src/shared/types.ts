@@ -457,6 +457,7 @@ export interface AppSettings {
   hideInTray: boolean
   attentionSound: boolean
   attentionSoundCue: AttentionSoundCue
+  followAgentActivity: boolean
   mcpAuthentication: boolean
   mcpPort: number
   mcpToolSet: import('./mcp-tool-sets.js').McpToolSet
@@ -548,6 +549,8 @@ export interface NewTabOptions {
   url?: string
   active?: boolean
   mcpGroupId?: string
+  /** Select the new tab without claiming keyboard or native window focus. */
+  focus?: boolean
 }
 
 export interface NavigateOptions {
@@ -2409,6 +2412,7 @@ export interface HronautSettingsApi {
   setHideInTray(enabled: boolean): Promise<AppSettings>
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
+  setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
   setMcpToolSet(toolSet: import('./mcp-tool-sets.js').McpToolSet): Promise<AppSettings>

@@ -48,6 +48,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
     browserState,
     settingsStore: {
       resetAppearance: vi.fn(async () => rendererState()),
+      setFollowAgentActivity: vi.fn(async (followAgentActivity: boolean) => applySettings({ ...settings.value, followAgentActivity })),
       setSearchEngine: vi.fn(async (searchEngine: SearchEngineName) => applySettings({ ...settings.value, searchEngine })),
       setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
       setMcpPort: vi.fn(async (mcpPort: number) => applySettings({ ...settings.value, mcpPort })),
@@ -162,6 +163,18 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
 }
 
 describe('app settings feature controller', () => {
+  it('toggles persisted agent following independently from browser interaction lock state', async () => {
+    const harness = createHarness()
+
+    await harness.controller.toggleFollowAgentActivity()
+    expect(harness.options.settingsStore.setFollowAgentActivity).toHaveBeenLastCalledWith(true)
+    expect(harness.controller.settings.value.followAgentActivity).toBe(true)
+
+    await harness.controller.toggleFollowAgentActivity()
+    expect(harness.options.settingsStore.setFollowAgentActivity).toHaveBeenLastCalledWith(false)
+    expect(harness.controller.settings.value.followAgentActivity).toBe(false)
+  })
+
   it('keeps feature identities stable and exposes the exact retryable bootstrap task contract', async () => {
     const harness = createHarness()
     const controller = harness.controller

@@ -37,6 +37,7 @@ import { disposeAll } from './dispose-all.js'
 
 interface AppSettingsFeatureStore {
   resetAppearance(): Promise<RendererSettingsState>
+  setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
@@ -282,6 +283,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     if (!disposed && currentGeneration === generation) defaultDownloadDirectory.value = directory
   }
 
+  function toggleFollowAgentActivity(): Promise<AppSettings> {
+    return options.settingsStore.setFollowAgentActivity(!options.settings.value.followAgentActivity)
+  }
+
   const bootstrapTasks: AppBootstrapTask[] = [
     { id: 'updates', run: updateSettingsController.initialize },
     { id: 'license', run: commercialLicenseController.initialize },
@@ -324,6 +329,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
   }
 
   return {
+    settings: options.settings,
     updateNoticeOpen,
     defaultDownloadDirectory,
     sitePermissionsController,
@@ -340,6 +346,7 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     settingsDialogController,
     walletsController,
     showUpdateStatusPill: updateNoticePresentationController.showStatusPill,
+    toggleFollowAgentActivity,
     bootstrapTasks,
     dispose
   }

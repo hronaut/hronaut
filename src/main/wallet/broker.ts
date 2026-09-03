@@ -12,6 +12,7 @@ import type {
   WalletProviderRequest,
   WalletRequester,
   WalletRequestSummary,
+  WalletServiceStatus,
   WalletUpdateInput
 } from '../../shared/wallet.js'
 import { WalletProviderRequestSchema, WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
@@ -207,6 +208,7 @@ export class WalletBroker {
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
   private lifecycleQueue: Promise<void> = Promise.resolve()
+  private lockGeneration = 0
   private shutdownPromise: Promise<void> | null = null
   private shuttingDown = false
 
@@ -254,6 +256,20 @@ export class WalletBroker {
         result.details.method = pendingMessage.kind === 'typed-data' ? 'typed-data-signing' : 'message-signing'
       }
       return result
+    })
+  }
+
+  lock(): Promise<WalletServiceStatus> {
+    this.lockGeneration += 1
+    this.service.lock()
+    this.reconcileEvmProviderSessions()
+    return this.queueLifecycle(async () => {
+      try {
+        await this.service.approvals.cancelAll()
+      } finally {
+        this.rejectCancelled()
+      }
+      return this.service.status()
     })
   }
 
@@ -471,12 +487,19 @@ export class WalletBroker {
   }
 
   approve(requestId: string): Promise<WalletRequestSummary> {
-    return this.queueLifecycle(() => this.approveRequest(requestId))
+    const lockGeneration = this.lockGeneration
+    return this.queueLifecycle(() => {
+      if (lockGeneration !== this.lockGeneration) {
+        throw new Error('Wallet request was cancelled because signing keys were locked')
+      }
+      return this.approveRequest(requestId)
+    })
   }
 
   private async approveRequest(requestId: string): Promise<WalletRequestSummary> {
     const record = this.service.approvals.get(requestId)
     if (!record) throw new Error('Wallet request not found')
+    if (record.status !== 'awaiting-human') throw new Error('Wallet request is not awaiting human approval')
     try {
       await this.service.approvals.approve(record.id, record.request, this.now())
     } catch (error) {
@@ -484,14 +507,12 @@ export class WalletBroker {
       if (current?.status === 'expired') {
         const expired = new Error('Wallet request expired before approval')
         try {
-          if (record.status !== 'expired') {
-            await this.service.audit.append('request-expired', {
-              requestId: record.id,
-              walletId: record.request.walletId,
-              requester: record.request.requester,
-              origin: record.request.topLevelOrigin
-            }, this.now().toISOString())
-          }
+          await this.service.audit.append('request-expired', {
+            requestId: record.id,
+            walletId: record.request.walletId,
+            requester: record.request.requester,
+            origin: record.request.topLevelOrigin
+          }, this.now().toISOString())
         } finally {
           this.rejectPending(record.id, expired)
           this.publish()

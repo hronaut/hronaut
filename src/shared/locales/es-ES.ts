@@ -1022,6 +1022,8 @@ export const esES = {
       "searchTabs": "Buscar pestañas",
       "historyTitle": "Historial de navegación (Ctrl+H / Cmd+Y)",
       "history": "Historial de navegación",
+      "followAgents": "Seguir agentes",
+      "followAgentActivityDescription": "Mostrar la pestaña que usa el agente sin tomar el foco del teclado ni del ratón",
       "settings": "Configuración"
     },
     "toolbar": {
@@ -2606,7 +2608,7 @@ export const esES = {
     "connect": {
       "heading": "Conecta tu agente de programación",
       "description": "Elige un cliente, copia la configuración y crea un espacio de trabajo con nombre antes de navegar.",
-      "clients": "17 clientes",
+      "clients": "18 clientes",
       "agentsLabel": "Agentes de programación",
       "instructions": "Instrucciones de configuración",
       "copy": "Copiar",
@@ -2636,6 +2638,7 @@ export const esES = {
         "warp": "Añade Hronaut como servidor URL de usuario para el agente local de Warp.",
         "windsurf": "Añade Hronaut a Windsurf Cascade mediante su configuración HTTP Streamable de usuario.",
         "grokBuild": "Añade Hronaut a Grok Build mediante su configuración HTTP MCP nativa de usuario.",
+        "qwenCode": "Añade Hronaut a Qwen Code mediante su configuración HTTP MCP nativa de usuario.",
         "generic": "Usa HTTP transmitible y dirige el cliente directamente a Hronaut.",
         "genericLocation": "Ajustes MCP del cliente"
       }

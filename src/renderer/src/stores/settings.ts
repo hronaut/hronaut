@@ -23,6 +23,7 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   hideInTray: true,
   attentionSound: true,
   attentionSoundCue: 'warning',
+  followAgentActivity: false,
   mcpAuthentication: false,
   mcpPort: 47_812,
   mcpToolSet: 'essentials',
@@ -161,6 +162,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
   const setAttentionSound = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSound(enabled))
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
+  const setFollowAgentActivity = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setFollowAgentActivity(enabled))
   const setMcpAuthentication = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpAuthentication(enabled))
   const setMcpPort = (port: number): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpPort(port))
   const setMcpToolSet = (toolSet: AppSettings['mcpToolSet']): Promise<AppSettings> => applySettings(window.hronautSettings.setMcpToolSet(toolSet))
@@ -215,6 +217,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setHideInTray,
     setAttentionSound,
     setAttentionSoundCue,
+    setFollowAgentActivity,
     setMcpAuthentication,
     setMcpPort,
     setMcpToolSet,

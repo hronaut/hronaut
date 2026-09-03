@@ -334,7 +334,7 @@ export const enUS = {
       createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', collapseRail: 'Collapse tab rail when not in use', keepRailExpanded: 'Keep tab rail expanded', locked: 'Input blocked', lock: 'Block input'
     },
     actions: {
-      commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', settings: 'Settings'
+      commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', followAgents: 'Follow agents', followAgentActivityDescription: 'Follow agent activity without taking keyboard or mouse focus', settings: 'Settings'
     },
     toolbar: { back: 'Back', forward: 'Forward', address: 'Address', addressPlaceholder: 'Search or enter address', findTitle: 'Find in page (Ctrl/Cmd+F)', find: 'Find in page', zoom: 'Page zoom controls', bookmarks: 'Bookmarks' },
     siteControls: {
@@ -505,7 +505,7 @@ export const enUS = {
     connect: {
       heading: 'Connect your coding agent',
       description: 'Choose a client, copy the setup, then create a named workspace before browsing.',
-      clients: '17 clients',
+      clients: '18 clients',
       agentsLabel: 'Coding agents',
       instructions: 'Setup instructions',
       copy: 'Copy',
@@ -535,6 +535,7 @@ export const enUS = {
         warp: 'Adds Hronaut as a user-level URL server for Warp\'s local Agent.',
         windsurf: 'Adds Hronaut to Windsurf Cascade through its user-level Streamable HTTP configuration.',
         grokBuild: 'Adds Hronaut to Grok Build through its native user-level HTTP MCP configuration.',
+        qwenCode: 'Adds Hronaut to Qwen Code through its native user-level HTTP MCP configuration.',
         generic: 'Use Streamable HTTP and point the client directly at Hronaut.',
         genericLocation: 'Client MCP settings'
       }

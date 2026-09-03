@@ -169,6 +169,20 @@ describe('WalletPolicyEngine', () => {
     expect(decision).toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
   })
 
+  it('preserves narrowly bounded automatic approval on a matching local EVM request', () => {
+    const localWallet: WalletDescriptor = {
+      ...wallet,
+      network: { id: '31337', name: 'Anvil', environment: 'local', rpcUrl: 'http://127.0.0.1:8545' }
+    }
+    const decision = new WalletPolicyEngine().evaluate({
+      request: request({ networkId: '31337' }),
+      wallet: localWallet,
+      policies: [{ ...policy, networkIds: ['31337'] }], decoded, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })
+    expect(decision).toEqual({ outcome: 'approved', reason: 'bounded-policy', policyId: 'policy-1' })
+  })
+
   it('does not trust a user-selected testnet label for known mainnet or unknown networks', () => {
     const engine = new WalletPolicyEngine()
     for (const networkId of ['1', '123456789']) {
@@ -192,6 +206,30 @@ describe('WalletPolicyEngine', () => {
         ...wallet,
         chainFamily,
         network: { ...wallet.network, id: networkId, name: networkId, environment: 'testnet' }
+      },
+      policies: [{ ...policy, networkIds: [networkId] }], decoded, simulation,
+      now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0
+    })
+    expect(decision).toEqual({ outcome: 'awaiting-human', reason: 'network-not-eligible-for-automation' })
+  })
+
+  it.each([
+    ['solana', 'local', 'http://127.0.0.1:8899'],
+    ['solana', 'localnet', 'http://localhost:8899'],
+    ['tron', 'local', 'http://localhost:8090'],
+    ['tron', 'private', 'http://127.0.0.1:8090'],
+    ['tron', 'private-net', 'http://127.0.0.2:8090']
+  ] as const)('requires human approval for local %s until the RPC network is independently attested', (
+    chainFamily,
+    networkId,
+    rpcUrl
+  ) => {
+    const decision = new WalletPolicyEngine().evaluate({
+      request: request({ chainFamily, networkId }),
+      wallet: {
+        ...wallet,
+        chainFamily,
+        network: { id: networkId, name: networkId, environment: 'local', rpcUrl }
       },
       policies: [{ ...policy, networkIds: [networkId] }], decoded, simulation,
       now: new Date('2026-08-28T12:10:00.000Z'), sessionSpend: '0', dailySpend: '0', operationCount: 0

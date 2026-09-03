@@ -1067,7 +1067,7 @@ function createBrowserMcpServer(
     },
     tool(async ({ workspaceId, url, active }: { workspaceId?: string; url?: string; active?: boolean }) => {
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newTab({ url, active, mcpGroupId: workspaceId! })
+      const next = await manager.newTab({ url, active, mcpGroupId: workspaceId!, focus: false })
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
       if (createdTab) {
         const activityId = randomUUID()
