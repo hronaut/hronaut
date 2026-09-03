@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep disabled or temporarily deferred **Follow agents** activity from redundantly waking sleeping tabs; the MCP operation remains the sole owner of its required page wake-up.
 - Preserve every rapid **Follow agents** toggle while earlier settings writes are still pending, so a quick on-then-off gesture cannot leave following enabled.
 
 ## [1.11.41] - 2026-09-03

@@ -68,7 +68,12 @@ export class McpActivityFollowController {
 
   private schedule(activity: McpTabActivity | undefined): void {
     const generation = ++this.generation
-    if (!activity) return
+    if (
+      !activity
+      || !this.options.isEnabled()
+      || this.options.isOccluded()
+      || !this.options.tabExists(activity.tabId)
+    ) return
 
     const selectionGeneration = this.options.getSelectionGeneration()
     void this.options.wakeTab(activity.tabId).then(() => {

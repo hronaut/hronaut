@@ -52,12 +52,13 @@ function createHarness() {
 }
 
 describe('MCP activity follow controller', () => {
-  it('wakes activity targets while following is disabled without changing the visible tab', async () => {
+  it('does not wake or select activity targets while following is disabled', async () => {
     const harness = createHarness()
 
     harness.controller.accept(activity('one', 'tab-a'))
-    await vi.waitFor(() => expect(harness.wakeTab).toHaveBeenCalledWith('tab-a'))
+    await Promise.resolve()
 
+    expect(harness.wakeTab).not.toHaveBeenCalled()
     expect(harness.selectTabPassively).not.toHaveBeenCalled()
   })
 
@@ -79,6 +80,8 @@ describe('MCP activity follow controller', () => {
     harness.occlude()
 
     harness.controller.accept(activity('finished-under-modal', 'tab-a'))
+    await Promise.resolve()
+    expect(harness.wakeTab).not.toHaveBeenCalled()
     harness.controller.accept(activity('finished-under-modal', 'tab-a', 'finished'))
     harness.reveal()
     await Promise.resolve()
