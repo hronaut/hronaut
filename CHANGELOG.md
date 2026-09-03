@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Roll back in-memory wallet request creation, transitions, approvals, and cancellations when their durable atomic write fails, preventing ghost requests or unpersisted signing authority from surviving in the live process.
 - Contain and visibly report wallet-request cancellation persistence failures during navigation, tab closure, and workspace closure instead of leaking an unhandled main-process rejection.
 - Keep disabled or temporarily deferred **Follow agents** activity from redundantly waking sleeping tabs; the MCP operation remains the sole owner of its required page wake-up.
 - Preserve every rapid **Follow agents** toggle while earlier settings writes are still pending, so a quick on-then-off gesture cannot leave following enabled.

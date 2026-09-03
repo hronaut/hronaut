@@ -1,6 +1,6 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { WalletApprovalStore } from '../src/main/wallet/approvals.js'
 import { WalletAuditStore } from '../src/main/wallet/audit.js'
@@ -18,6 +18,12 @@ async function temporaryPath(name: string): Promise<string> {
   return join(directory, name)
 }
 
+async function blockApprovalStoreWrites(path: string): Promise<void> {
+  const directory = dirname(path)
+  await rm(directory, { recursive: true, force: true })
+  await writeFile(directory, 'not a directory', 'utf8')
+}
+
 function request(overrides: Partial<WalletOperationRequest> = {}): WalletOperationRequest {
   return {
     requestId: 'request-1', walletId: 'wallet-1', workspaceId: 'workspace-1', tabId: 'tab-1',
@@ -30,6 +36,55 @@ function request(overrides: Partial<WalletOperationRequest> = {}): WalletOperati
 }
 
 describe('WalletApprovalStore', () => {
+  it('rolls back a request that cannot be persisted instead of retaining a ghost idempotency entry', async () => {
+    const path = await temporaryPath('requests.json')
+    const store = new WalletApprovalStore(path)
+    await store.load(new Date('2026-08-28T12:00:00.000Z'))
+    await blockApprovalStoreWrites(path)
+
+    await expect(store.create(request(), 'unpersisted-key', new Date('2026-08-28T12:00:00.000Z')))
+      .rejects.toThrow()
+    expect(store.list()).toEqual([])
+    await rm(dirname(path), { force: true })
+    await mkdir(dirname(path), { recursive: true })
+    await expect(store.create(request(), 'unpersisted-key', new Date('2026-08-28T12:00:01.000Z')))
+      .resolves.toMatchObject({ status: 'draft', idempotencyKey: 'unpersisted-key' })
+  })
+
+  it.each(['transition', 'cancellation'] as const)(
+    'rolls back an in-memory %s when the durable approval write fails',
+    async (operation) => {
+      const path = await temporaryPath('requests.json')
+      const store = new WalletApprovalStore(path)
+      await store.load(new Date('2026-08-28T12:00:00.000Z'))
+      const created = await store.create(request(), `${operation}-key`, new Date('2026-08-28T12:00:00.000Z'))
+      await blockApprovalStoreWrites(path)
+
+      const mutation = operation === 'transition'
+        ? store.transition(created.id, 'validated')
+        : store.cancelForTab(created.request.tabId)
+      await expect(mutation).rejects.toThrow()
+      expect(store.get(created.id)?.status).toBe('draft')
+    }
+  )
+
+  it('does not retain approval authority when persisting human approval fails', async () => {
+    const path = await temporaryPath('requests.json')
+    const store = new WalletApprovalStore(path)
+    await store.load(new Date('2026-08-28T12:00:00.000Z'))
+    const created = await store.create(request(), 'approval-key', new Date('2026-08-28T12:00:00.000Z'))
+    await store.transition(created.id, 'validated')
+    await store.transition(created.id, 'simulated')
+    await store.transition(created.id, 'policy-decision')
+    await store.transition(created.id, 'awaiting-human')
+    await blockApprovalStoreWrites(path)
+
+    await expect(store.approve(created.id, request(), new Date('2026-08-28T12:01:00.000Z')))
+      .rejects.toThrow()
+    expect(store.get(created.id)?.status).toBe('awaiting-human')
+    expect(store.get(created.id)?.approvalHash).toBeUndefined()
+  })
+
   it('binds approval to the exact normalized request and rejects mutation', async () => {
     const store = new WalletApprovalStore(await temporaryPath('requests.json'))
     await store.load(new Date('2026-08-28T12:00:00.000Z'))

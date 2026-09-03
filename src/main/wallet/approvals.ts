@@ -117,6 +117,7 @@ export class WalletApprovalStore {
       throw new Error('Wallet approval store is invalid')
     }
     let changed = false
+    const previousRequests = new Map(this.requests)
     for (const [id, record] of this.requests) {
       if (TERMINAL.has(record.status)) continue
       if (record.status === 'submitted') continue
@@ -129,7 +130,9 @@ export class WalletApprovalStore {
       this.requests.set(id, { ...record, status, updatedAt: now.toISOString() })
       changed = true
     }
-    if (changed) await this.persist()
+    if (changed) {
+      await this.persistWithRollback(() => this.restoreRequests(previousRequests))
+    }
     return this.list()
   }
 
@@ -173,7 +176,10 @@ export class WalletApprovalStore {
       }
       this.requests.set(record.id, record)
       this.idempotency.set(idempotencyKey, record.id)
-      await this.persist()
+      await this.persistWithRollback(() => {
+        this.requests.delete(record.id)
+        this.idempotency.delete(idempotencyKey)
+      })
       return clone(record)
     })
   }
@@ -189,7 +195,7 @@ export class WalletApprovalStore {
       const parsed = ApprovalRecordSchema.shape.simulation.unwrap().parse(simulation)
       const updated = { ...record, simulation: structuredClone(parsed), updatedAt: now.toISOString() }
       this.requests.set(id, updated)
-      await this.persist()
+      await this.persistWithRollback(() => this.requests.set(id, record))
       return clone(updated)
     })
   }
@@ -201,7 +207,7 @@ export class WalletApprovalStore {
       if (Date.parse(record.request.expiresAt) <= now.getTime()) {
         const expired = { ...record, status: 'expired' as const, updatedAt: now.toISOString() }
         this.requests.set(id, expired)
-        await this.persist()
+        await this.persistWithRollback(() => this.requests.set(id, record))
         throw new Error('Wallet request expired before approval')
       }
       if (record.status !== 'awaiting-human' && record.status !== 'policy-decision') {
@@ -210,7 +216,7 @@ export class WalletApprovalStore {
       const approvalHash = walletApprovalHash(exactRequest)
       const updated = { ...record, status: 'approved' as const, approvalHash, updatedAt: now.toISOString() }
       this.requests.set(id, updated)
-      await this.persist()
+      await this.persistWithRollback(() => this.requests.set(id, record))
       return clone(updated)
     })
   }
@@ -230,7 +236,7 @@ export class WalletApprovalStore {
       if (Date.parse(record.request.expiresAt) <= now.getTime()) {
         const expired = { ...record, status: 'expired' as const, updatedAt: now.toISOString() }
         this.requests.set(id, expired)
-        await this.persist()
+        await this.persistWithRollback(() => this.requests.set(id, record))
         throw new Error('Wallet request expired before signing')
       }
       if (record.status !== 'approved' || !record.approvalHash) throw new Error('Wallet request is not approved')
@@ -251,7 +257,7 @@ export class WalletApprovalStore {
       }
       const updated = { ...record, status: 'submitted' as const, transactionHash, updatedAt: now.toISOString() }
       this.requests.set(id, updated)
-      await this.persist()
+      await this.persistWithRollback(() => this.requests.set(id, record))
       return clone(updated)
     })
   }
@@ -310,7 +316,7 @@ export class WalletApprovalStore {
       if (!CANCELLABLE.has(record.status)) throw new Error(`Wallet request cannot be cancelled from ${record.status}`)
       const updated = { ...record, status: 'cancelled' as const, updatedAt: now.toISOString() }
       this.requests.set(id, updated)
-      await this.persist()
+      await this.persistWithRollback(() => this.requests.set(id, record))
       return clone(updated)
     })
   }
@@ -322,7 +328,7 @@ export class WalletApprovalStore {
     }
     const updated = { ...record, status: nextStatus, updatedAt: now.toISOString() }
     this.requests.set(id, updated)
-    await this.persist()
+    await this.persistWithRollback(() => this.requests.set(id, record))
     return clone(updated)
   }
 
@@ -330,13 +336,19 @@ export class WalletApprovalStore {
     return this.queueMutation(async () => {
       let cancelled = 0
       const now = new Date().toISOString()
+      const previousRecords = new Map<string, WalletApprovalRecord>()
       for (const [id, record] of this.requests) {
         if (CANCELLABLE.has(record.status) && predicate(record)) {
+          previousRecords.set(id, record)
           this.requests.set(id, { ...record, status: 'cancelled', updatedAt: now })
           cancelled += 1
         }
       }
-      if (cancelled) await this.persist()
+      if (cancelled) {
+        await this.persistWithRollback(() => {
+          for (const [id, record] of previousRecords) this.requests.set(id, record)
+        })
+      }
       return cancelled
     })
   }
@@ -356,6 +368,20 @@ export class WalletApprovalStore {
   private persist(): Promise<void> {
     const document: PersistedApprovalStore = { version: 1, requests: this.list() }
     return writeTextFileAtomically(this.path, `${JSON.stringify(document, null, 2)}\n`)
+  }
+
+  private async persistWithRollback(rollback: () => void): Promise<void> {
+    try {
+      await this.persist()
+    } catch (error) {
+      rollback()
+      throw error
+    }
+  }
+
+  private restoreRequests(previousRequests: ReadonlyMap<string, WalletApprovalRecord>): void {
+    this.requests.clear()
+    for (const [id, record] of previousRequests) this.requests.set(id, record)
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {
