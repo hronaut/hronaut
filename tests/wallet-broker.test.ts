@@ -499,9 +499,9 @@ describe('WalletBroker', () => {
       return record
     })
 
-    const request = broker.requestAgentTransaction(agent, wallet.id, {
+    const request = settle(broker.requestAgentTransaction(agent, wallet.id, {
       to: '0x0000000000000000000000000000000000000002'
-    }, true)
+    }, true))
     await created
     const cancellation = broker.cancelForRequester(agent.requester.id)
     await vi.waitFor(() => expect(broker.listPending().some((entry) => (
@@ -510,7 +510,10 @@ describe('WalletBroker', () => {
     releaseCreate()
 
     await cancellation
-    await expect(request).rejects.toThrow(/session is no longer active/i)
+    await expect(request).resolves.toMatchObject({
+      status: 'rejected',
+      reason: expect.objectContaining({ message: expect.stringMatching(/session is no longer active/i) })
+    })
     expect(chain.sign).not.toHaveBeenCalled()
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
