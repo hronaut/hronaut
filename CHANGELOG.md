@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Dismiss website-owned JavaScript dialogs whenever trusted Hronaut chrome covers the page, preventing a hidden site from blocking or imitating wallet approvals and other modal decisions.
+
+### Improved
+
+- Move active-tab cleanup and detached-panel presentation ownership out of `App.vue` into the focused active-tab feature controller.
+
 ## [1.11.39] - 2026-09-03
 
 ### Added

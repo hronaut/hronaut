@@ -2407,6 +2407,88 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
   }
 })
 
+test('dismisses website dialogs before and during trusted chrome occlusion', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Trusted chrome dialog fixture</title><main>Trusted chrome dialog fixture</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Trusted chrome dialog fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/trusted-chrome-dialog`
+    const created = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+    const tab = created.tabs.find((entry) => entry.url === url)
+    if (!tab) throw new Error('Trusted chrome dialog tab was not found')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((entry) => entry.active)?.title)'))
+      .toBe('Trusted chrome dialog fixture')
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.debugger.isAttached() ?? false
+    }, url)).toBe(true)
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Trusted chrome dialog WebContents was not found')
+      const original = page.debugger.sendCommand.bind(page.debugger)
+      Object.defineProperty(page.debugger, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
+          if (method === 'Page.handleJavaScriptDialog') {
+            const testPage = page as typeof page & { __handledTrustedChromeDialogs?: number }
+            testPage.__handledTrustedChromeDialogs = (testPage.__handledTrustedChromeDialogs ?? 0) + 1
+            return {}
+          }
+          return original(method, commandParams, sessionId)
+        }
+      })
+      page.debugger.emit('message', {} as Electron.Event, 'Page.javascriptDialogOpening', {
+        type: 'confirm',
+        message: 'Imitate trusted approval',
+        url: requestedUrl
+      })
+    }, url)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog?.message
+    ))`)).toBe('Imitate trusted approval')
+
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(true)')
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog ?? null
+    ))`)).toBeNull()
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return (page as typeof page & { __handledTrustedChromeDialogs?: number } | undefined)?.__handledTrustedChromeDialogs ?? 0
+    }, url)).toBe(1)
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Trusted chrome dialog WebContents was not found')
+      page.debugger.emit('message', {} as Electron.Event, 'Page.javascriptDialogOpening', {
+        type: 'confirm',
+        message: 'Cover trusted approval',
+        url: requestedUrl
+      })
+    }, url)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return (page as typeof page & { __handledTrustedChromeDialogs?: number } | undefined)?.__handledTrustedChromeDialogs ?? 0
+    }, url)).toBe(2)
+    expect(await appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((entry) => entry.id === ${JSON.stringify(tab.id)})?.dialog ?? null
+    ))`)).toBeNull()
+  } finally {
+    await appWindow.evaluate('window.hronautShell.setBrowserContentOccluded(false)').catch(() => undefined)
+    await closeFixtureServer(server)
+  }
+})
+
 test('keeps silent Solana reconnect quiet and supports adapter-compatible disconnect cleanup', async ({
   appWindow,
   electronApp

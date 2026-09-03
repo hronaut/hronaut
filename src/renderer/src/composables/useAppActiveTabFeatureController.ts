@@ -1,5 +1,6 @@
 import { computed, type Ref } from 'vue'
 import type {
+  BrowserEmulationState,
   BrowserTabState,
   CredentialSummary,
   DetachablePanelId
@@ -8,7 +9,9 @@ import {
   useActiveTabPresentationController,
   type ActiveTabPresentationControllerOptions
 } from './useActiveTabPresentationController.js'
+import { useActiveTabContextController } from './useActiveTabContextController.js'
 import { useCredentialFillController } from './useCredentialFillController.js'
+import type { EnvironmentPanelAction } from './useEnvironmentPanelController.js'
 
 export interface AppActiveTabFeatureControllerOptions {
   presentation: ActiveTabPresentationControllerOptions
@@ -25,6 +28,30 @@ export interface AppActiveTabFeatureControllerOptions {
     activePanelId: Readonly<Ref<DetachablePanelId | null>>
     label: (panelId: DetachablePanelId) => string
     fallbackLabel: () => string
+  }
+  context: {
+    keepsSeparatePanelOpen: () => boolean
+    siteControlsOpen: Ref<boolean>
+    pageToolsOpen: Ref<boolean>
+    responsivePanelOpen: Ref<boolean>
+    environmentPanelOpen: Ref<boolean>
+    emulation: {
+      invalidateEmulationMutation: () => void
+      loadResponsiveDraft: (viewport?: BrowserEmulationState['viewport']) => void
+      resetResponsiveFeedback: () => void
+      loadEnvironmentDraft: (emulation?: BrowserEmulationState) => void
+      environmentController: {
+        pendingAction: Readonly<Ref<EnvironmentPanelAction | null>>
+        resetFeedback: () => void
+      }
+    }
+    siteData: { reset: () => void }
+    resetSiteStorage: (closePanel: boolean) => void
+    panels: {
+      resetConsoleView: (closePanel: boolean) => void
+      resetNetworkMonitorView: (closePanel: boolean) => void
+    }
+    rememberWebsiteTab: (tab: BrowserTabState | undefined) => void
   }
 }
 
@@ -48,6 +75,30 @@ export function useAppActiveTabFeatureController(
       ? options.detachedPanel.label(panelId)
       : options.detachedPanel.fallbackLabel()
   })
+  const activeTabContext = useActiveTabContextController({
+    activeTab: options.presentation.activeTab,
+    keepsSeparatePanelOpen: options.context.keepsSeparatePanelOpen,
+    siteControlsOpen: options.context.siteControlsOpen,
+    pageToolsOpen: options.context.pageToolsOpen,
+    responsivePanelOpen: options.context.responsivePanelOpen,
+    environmentPanelOpen: options.context.environmentPanelOpen,
+    invalidateEmulationMutation: options.context.emulation.invalidateEmulationMutation,
+    resetSiteData: options.context.siteData.reset,
+    resetSiteStorage: options.context.resetSiteStorage,
+    resetConsole: options.context.panels.resetConsoleView,
+    resetNetwork: options.context.panels.resetNetworkMonitorView,
+    loadResponsiveDraft: options.context.emulation.loadResponsiveDraft,
+    resetResponsiveFeedback: options.context.emulation.resetResponsiveFeedback,
+    loadEnvironmentDraft: options.context.emulation.loadEnvironmentDraft,
+    resetEnvironmentFeedback: options.context.emulation.environmentController.resetFeedback,
+    preserveEnvironmentReload: () => (
+      options.context.emulation.environmentController.pendingAction.value === 'apply-reload'
+    ),
+    onTabChanged: (tab) => {
+      options.credentialFill.pickerOpen.value = false
+      options.context.rememberWebsiteTab(tab)
+    }
+  })
 
   function describeTabEmulation(tab: BrowserTabState): string {
     return tab.emulation ? options.presentation.describeEmulation(tab.emulation) : ''
@@ -61,7 +112,8 @@ export function useAppActiveTabFeatureController(
     fillSelectedCredential: credentialFill.fillSelectedCredential,
     detachedPanelUnavailable,
     detachedPanelLabelText,
-    describeTabEmulation
+    describeTabEmulation,
+    dispose: activeTabContext.dispose
   }
 }
 

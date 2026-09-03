@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { browserEnvironmentFromEmulation } from '../../src/shared/browser-environment.js'
 import type {
@@ -68,6 +68,30 @@ function createHarness() {
   const fillCredential = vi.fn(async () => true)
   const onFilled = vi.fn()
   const onError = vi.fn()
+  const context = {
+    keepsSeparatePanelOpen: vi.fn(() => false),
+    siteControlsOpen: ref(true),
+    pageToolsOpen: ref(true),
+    responsivePanelOpen: ref(true),
+    environmentPanelOpen: ref(true),
+    emulation: {
+      invalidateEmulationMutation: vi.fn(),
+      loadResponsiveDraft: vi.fn(),
+      resetResponsiveFeedback: vi.fn(),
+      loadEnvironmentDraft: vi.fn(),
+      environmentController: {
+        pendingAction: ref<null | 'apply-reload'>(null),
+        resetFeedback: vi.fn()
+      }
+    },
+    siteData: { reset: vi.fn() },
+    resetSiteStorage: vi.fn(),
+    panels: {
+      resetConsoleView: vi.fn(),
+      resetNetworkMonitorView: vi.fn()
+    },
+    rememberWebsiteTab: vi.fn()
+  }
   const controller = useAppActiveTabFeatureController({
     presentation: {
       state,
@@ -93,7 +117,8 @@ function createHarness() {
       activePanelId,
       label: (panelId) => `Panel: ${panelId}`,
       fallbackLabel: () => 'Page tools'
-    }
+    },
+    context
   })
   return {
     controller,
@@ -104,7 +129,8 @@ function createHarness() {
     openPicker,
     fillCredential,
     onFilled,
-    onError
+    onError,
+    context
   }
 }
 
@@ -127,6 +153,7 @@ describe('useAppActiveTabFeatureController', () => {
     expect(harness.openPicker).toHaveBeenCalledOnce()
     expect(harness.pickerOpen.value).toBe(true)
     expect(harness.fillCredential).toHaveBeenCalledOnce()
+    harness.controller.dispose()
   })
 
   it('derives detached-panel availability, labels, and emulation text from current state', () => {
@@ -159,5 +186,45 @@ describe('useAppActiveTabFeatureController', () => {
     harness.activePanelId.value = 'network'
     expect(harness.controller.detachedPanelUnavailable.value).toBe(true)
     expect(harness.controller.detachedPanelLabelText.value).toBe('Panel: network')
+    harness.controller.dispose()
+  })
+
+  it('owns active-tab context cleanup and stops it when the feature is disposed', async () => {
+    const harness = createHarness()
+    vi.clearAllMocks()
+    harness.pickerOpen.value = true
+
+    harness.state.value = {
+      ...harness.state.value,
+      activeTabId: 'home',
+      tabs: harness.state.value.tabs.map((entry) => ({
+        ...entry,
+        active: entry.id === 'home'
+      }))
+    }
+    await nextTick()
+
+    expect(harness.pickerOpen.value).toBe(false)
+    expect(harness.context.rememberWebsiteTab).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'home' })
+    )
+    expect(harness.context.siteData.reset).toHaveBeenCalledOnce()
+    expect(harness.context.panels.resetConsoleView).toHaveBeenCalledWith(true)
+    expect(harness.context.panels.resetNetworkMonitorView).toHaveBeenCalledWith(true)
+
+    harness.controller.dispose()
+    vi.clearAllMocks()
+    harness.state.value = {
+      ...harness.state.value,
+      activeTabId: 'tab-1',
+      tabs: harness.state.value.tabs.map((entry) => ({
+        ...entry,
+        active: entry.id === 'tab-1'
+      }))
+    }
+    await nextTick()
+
+    expect(harness.context.rememberWebsiteTab).not.toHaveBeenCalled()
+    expect(harness.context.siteData.reset).not.toHaveBeenCalled()
   })
 })

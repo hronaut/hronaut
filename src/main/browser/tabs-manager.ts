@@ -6171,7 +6171,8 @@ export class BrowserTabsManager {
 
   setBrowserContentOccluded(occluded: boolean): void {
     if (this.destroyed || this.window.isDestroyed()) return
-    if (occluded && !this.browserContentOccluded) {
+    const enteringTrustedChrome = occluded && !this.browserContentOccluded
+    if (enteringTrustedChrome) {
       for (const tab of this.tabs.values()) {
         if (
           !tab.sleeping
@@ -6188,6 +6189,11 @@ export class BrowserTabsManager {
       }
     }
     this.browserContentOccluded = occluded
+    if (enteringTrustedChrome) {
+      for (const tab of this.tabs.values()) {
+        if (tab.dialog) void this.dismissWebsiteDialogForTrustedChrome(tab)
+      }
+    }
     this.layout()
   }
 
@@ -6843,6 +6849,10 @@ export class BrowserTabsManager {
           defaultPrompt?: string
         }
         if (!['alert', 'confirm', 'prompt'].includes(details.type ?? '')) return
+        if (this.browserContentOccluded) {
+          void this.dismissWebsiteDialogForTrustedChrome(tab)
+          return
+        }
         tab.dialog = {
           type: details.type as BrowserJavaScriptDialog['type'],
           message: String(details.message ?? '').slice(0, 4096),
@@ -9013,6 +9023,27 @@ export class BrowserTabsManager {
     this.dialogMonitorAttachPromises.delete(webContents.id)
     this.defaultExecutionContexts.delete(webContents.id)
     if (webContents.debugger.isAttached()) webContents.debugger.detach()
+  }
+
+  private async dismissWebsiteDialogForTrustedChrome(tab: BrowserTab): Promise<void> {
+    const webContents = tab.webContents
+    if (tab.dialog) {
+      tab.dialog = undefined
+      this.changed(false)
+    }
+    if (this.destroyed || webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
+    await this.ensureDialogMonitoring(tab)
+    if (
+      this.destroyed
+      || webContents.isDestroyed()
+      || this.tabs.get(tab.id) !== tab
+      || !webContents.debugger.isAttached()
+    ) return
+    // Website dialogs are native Chromium surfaces and can otherwise appear
+    // above renderer-owned trusted chrome. Reject them while a trusted modal
+    // owns the window; the page must never get to cover or impersonate the
+    // approval surface.
+    await webContents.debugger.sendCommand('Page.handleJavaScriptDialog', { accept: false }).catch(() => undefined)
   }
 
   private ensureDialogMonitoring(tab: BrowserTab): Promise<void> {

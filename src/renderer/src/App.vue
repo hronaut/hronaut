@@ -23,7 +23,6 @@ import { useAppPageToolsPanelFeatureController } from './composables/useAppPageT
 import { useAppSettingsFeatureController } from './composables/useAppSettingsFeatureController'
 import { useAppShellPresentationFeatureController } from './composables/useAppShellPresentationFeatureController'
 import { useHelpDialogController } from './composables/useHelpDialogController'
-import { useActiveTabContextController } from './composables/useActiveTabContextController'
 import { useAppEventsController } from './composables/useAppEventsController'
 import { useAppBrowserCollectionsFeatureController } from './composables/useAppBrowserCollectionsFeatureController'
 import { useAppShellInteractionFeatureController } from './composables/useAppShellInteractionFeatureController'
@@ -156,13 +155,10 @@ const appEmulationFeatureController = useAppEmulationFeatureController({
 })
 const {
   emulationController,
-  environmentController,
   emulationDescription,
-  invalidateEmulationMutation,
   environmentState,
   activeEnvironmentOverrideCount,
   loadResponsiveDraft,
-  resetResponsiveFeedback,
   loadEnvironmentDraft,
   dispose: disposeAppEmulationFeatureController
 } = appEmulationFeatureController
@@ -420,9 +416,7 @@ const {
   activePanelId,
   dockedPanelOpen,
   closeDockedPanels,
-  closeDockedPanelsExcept,
-  resetConsoleView,
-  resetNetworkMonitorView
+  closeDockedPanelsExcept
 } = appPanelFeatureController
 const {
   splitMenuOpen,
@@ -509,28 +503,6 @@ const {
     reportSplitViewError,
     reportWorkspaceError,
     reportShortcutError
-  }
-})
-const { dispose: disposeActiveTabContextController } = useActiveTabContextController({
-  activeTab,
-  keepsSeparatePanelOpen,
-  siteControlsOpen,
-  pageToolsOpen,
-  responsivePanelOpen,
-  environmentPanelOpen,
-  invalidateEmulationMutation,
-  resetSiteData: siteDataController.reset,
-  resetSiteStorage: resetSiteStorageView,
-  resetConsole: resetConsoleView,
-  resetNetwork: resetNetworkMonitorView,
-  loadResponsiveDraft,
-  resetResponsiveFeedback,
-  loadEnvironmentDraft,
-  resetEnvironmentFeedback: environmentController.resetFeedback,
-  preserveEnvironmentReload: () => environmentController.pendingAction.value === 'apply-reload',
-  onTabChanged: (tab) => {
-    credentialPickerOpen.value = false
-    rememberWebsiteTab(tab)
   }
 })
 const {
@@ -654,6 +626,18 @@ const appActiveTabFeatureController = useAppActiveTabFeatureController({
     activePanelId,
     label: detachedPanelLabel,
     fallbackLabel: () => t('shell.pageTools.heading')
+  },
+  context: {
+    keepsSeparatePanelOpen,
+    siteControlsOpen,
+    pageToolsOpen,
+    responsivePanelOpen,
+    environmentPanelOpen,
+    emulation: appEmulationFeatureController,
+    siteData: siteDataController,
+    resetSiteStorage: resetSiteStorageView,
+    panels: appPanelFeatureController,
+    rememberWebsiteTab
   }
 })
 const {
@@ -666,7 +650,8 @@ const {
   fillSelectedCredential,
   detachedPanelUnavailable,
   detachedPanelLabelText,
-  describeTabEmulation
+  describeTabEmulation,
+  dispose: disposeAppActiveTabFeatureController
 } = appActiveTabFeatureController
 const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
   browserChromeLayer,
@@ -724,7 +709,7 @@ useAppLifecycleController({
     disposeAppStartupFeatureController,
     disposeAppTabRuntimeFeatureController,
     disposeAppShellLayoutFeatureController,
-    disposeActiveTabContextController,
+    disposeAppActiveTabFeatureController,
     disposeAppEmulationFeatureController,
     disposeAppShellInteractionFeatureController,
     browserStore.dispose,
