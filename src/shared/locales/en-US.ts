@@ -334,7 +334,7 @@ export const enUS = {
       createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', collapseRail: 'Collapse tab rail when not in use', keepRailExpanded: 'Keep tab rail expanded', locked: 'Input blocked', lock: 'Block input'
     },
     actions: {
-      commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', followAgents: 'Follow agents', followAgentActivityDescription: 'Follow agent activity without taking keyboard or mouse focus', settings: 'Settings'
+      commandsTitle: 'Commands (Ctrl/Cmd+Shift+P)', commands: 'Open command palette', searchTabsTitle: 'Search tabs (Ctrl/Cmd+Shift+A)', searchTabs: 'Search tabs', historyTitle: 'Browsing history (Ctrl+H / Cmd+Y)', history: 'Browsing history', followAgents: 'Follow agents', followingAgents: 'Following agents', followAgentActivityDescription: 'Follow agent activity without taking keyboard or mouse focus', stopFollowingAgentActivityDescription: 'Stop following agent activity', settings: 'Settings'
     },
     toolbar: { back: 'Back', forward: 'Forward', address: 'Address', addressPlaceholder: 'Search or enter address', findTitle: 'Find in page (Ctrl/Cmd+F)', find: 'Find in page', zoom: 'Page zoom controls', bookmarks: 'Bookmarks' },
     siteControls: {

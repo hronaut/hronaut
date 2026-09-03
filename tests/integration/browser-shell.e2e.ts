@@ -104,7 +104,8 @@ test('follows agent activity passively, independently from input lock, and defer
 
     const followButton = appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
     await followButton.click()
-    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(appWindow.getByRole('button', { name: 'Stop following agent activity' }))
+      .toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then((value) => value.followAgentActivity)'))
       .toBe(true)
     await appWindow.getByRole('button', { name: /Block human page input/ }).click()

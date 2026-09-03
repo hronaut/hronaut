@@ -1023,7 +1023,9 @@ export const frFR = {
       "historyTitle": "Historique de navigation (Ctrl+H / Cmd+Y)",
       "history": "Historique de navigation",
       "followAgents": "Suivre les agents",
+      "followingAgents": "Suivi des agents",
       "followAgentActivityDescription": "Afficher l’onglet utilisé par l’agent sans prendre le focus du clavier ni de la souris",
+      "stopFollowingAgentActivityDescription": "Arrêter de suivre l’activité des agents",
       "settings": "Paramètres"
     },
     "toolbar": {

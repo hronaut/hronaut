@@ -113,13 +113,13 @@ const { t } = useI18n({ useScope: 'global' })
       class="browser-lock-button follow-agent-button"
       :class="{ active: followAgentActivity }"
       type="button"
-      :title="t('shell.actions.followAgentActivityDescription')"
-      :aria-label="t('shell.actions.followAgentActivityDescription')"
+      :title="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
+      :aria-label="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
       :aria-pressed="followAgentActivity"
       @click="emit('toggleFollowAgentActivity')"
     >
       <IconVisibility aria-hidden="true" />
-      {{ t('shell.actions.followAgents') }}
+      {{ t(followAgentActivity ? 'shell.actions.followingAgents' : 'shell.actions.followAgents') }}
     </button>
     <UpdateNotification
       v-if="showUpdateStatus"

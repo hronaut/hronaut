@@ -1023,7 +1023,9 @@ export const plPL = {
       "historyTitle": "Historia przeglądania (Ctrl+H / Cmd+Y)",
       "history": "Historia przeglądania",
       "followAgents": "Śledź agentów",
+      "followingAgents": "Śledzenie agentów",
       "followAgentActivityDescription": "Pokazuj kartę używaną przez agenta bez przejmowania fokusu klawiatury lub myszy",
+      "stopFollowingAgentActivityDescription": "Przestań śledzić aktywność agentów",
       "settings": "Ustawienia"
     },
     "toolbar": {

@@ -96,9 +96,10 @@ describe('AppTopbarActions', () => {
   it('exposes follow activity as an independent pressed toggle', async () => {
     const rendered = renderActions({ followAgentActivity: true })
 
-    const follow = screen.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
+    const follow = screen.getByRole('button', { name: 'Stop following agent activity' })
     expect(follow).toHaveAttribute('aria-pressed', 'true')
     expect(follow).toHaveClass('active')
+    expect(follow).toHaveTextContent('Following agents')
     expect(screen.getByRole('button', { name: 'Lock all tabs' })).toHaveAttribute('aria-pressed', 'false')
     rendered.mcpStatusController.dispose()
   })

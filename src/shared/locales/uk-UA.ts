@@ -146,7 +146,7 @@ export const ukUA = {
       createWorkspaceTitle: 'Створити новий ізольований робочий простір', createWorkspace: 'Створити робочий простір', workspace: 'Робочий простір', collapseRail: 'Згортати панель вкладок, коли вона не використовується', keepRailExpanded: 'Залишати панель вкладок розгорнутою', locked: 'Введення заблоковано', lock: 'Блокувати введення'
     },
     actions: {
-      commandsTitle: 'Команди (Ctrl/Cmd+Shift+P)', commands: 'Відкрити палітру команд', searchTabsTitle: 'Пошук вкладок (Ctrl/Cmd+Shift+A)', searchTabs: 'Шукати вкладки', historyTitle: 'Історія перегляду (Ctrl+H / Cmd+Y)', history: 'Історія перегляду', followAgents: 'Стежити за агентами', followAgentActivityDescription: 'Показувати вкладку, яку використовує агент, не забираючи фокус клавіатури чи миші', settings: 'Налаштування'
+      commandsTitle: 'Команди (Ctrl/Cmd+Shift+P)', commands: 'Відкрити палітру команд', searchTabsTitle: 'Пошук вкладок (Ctrl/Cmd+Shift+A)', searchTabs: 'Шукати вкладки', historyTitle: 'Історія перегляду (Ctrl+H / Cmd+Y)', history: 'Історія перегляду', followAgents: 'Стежити за агентами', followingAgents: 'Стеження за агентами', followAgentActivityDescription: 'Показувати вкладку, яку використовує агент, не забираючи фокус клавіатури чи миші', stopFollowingAgentActivityDescription: 'Припинити стеження за активністю агентів', settings: 'Налаштування'
     },
     toolbar: { back: 'Назад', forward: 'Уперед', address: 'Адреса', addressPlaceholder: 'Пошук або введення адреси', findTitle: 'Пошук на сторінці (Ctrl/Cmd+F)', find: 'Пошук на сторінці', zoom: 'Керування масштабом сторінки', bookmarks: 'Закладки' },
     siteControls: {

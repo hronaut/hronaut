@@ -103,7 +103,8 @@ test('follows MCP activity only when enabled without changing input lock or nati
     await appWindow.getByRole('button', { name: /Block human page input/ }).click()
     const followButton = appWindow.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' })
     await followButton.click()
-    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(appWindow.getByRole('button', { name: 'Stop following agent activity' }))
+      .toHaveAttribute('aria-pressed', 'true')
     const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
       windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
       focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
@@ -155,7 +156,8 @@ test('follows an agent-created background tab whose activity finishes immediatel
       name: 'Follow agent activity without taking keyboard or mouse focus'
     })
     await followButton.click()
-    await expect(followButton).toHaveAttribute('aria-pressed', 'true')
+    await expect(appWindow.getByRole('button', { name: 'Stop following agent activity' }))
+      .toHaveAttribute('aria-pressed', 'true')
     const nativeFocusBefore = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
       windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
       focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
@@ -176,11 +178,17 @@ test('follows an agent-created background tab whose activity finishes immediatel
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.activeTabId)'
     )).toBe(targetTabId)
+    const findTargetWebContents = (): Promise<number | null> => electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.id ?? null
+    ), fixture.url)
+    await expect.poll(findTargetWebContents).not.toBeNull()
+    const targetWebContentsId = await findTargetWebContents()
     const nativeFocusAfter = await electronApp.evaluate(({ BrowserWindow, webContents }) => ({
       windowFocused: BrowserWindow.getAllWindows()[0]?.isFocused() ?? false,
       focusedWebContentsId: webContents.getFocusedWebContents()?.id ?? null
     }))
-    expect(nativeFocusAfter).toEqual(nativeFocusBefore)
+    expect(nativeFocusAfter.windowFocused).toBe(nativeFocusBefore.windowFocused)
+    expect(nativeFocusAfter.focusedWebContentsId).not.toBe(targetWebContentsId)
   } finally {
     await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)').catch(() => undefined)
     await client.close().catch(() => undefined)

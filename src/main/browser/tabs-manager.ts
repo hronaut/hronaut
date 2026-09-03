@@ -1033,7 +1033,7 @@ export class BrowserTabsManager {
       },
       wakeTab: async (tabId) => this.wakeTab(tabId),
       selectTabPassively: (tabId) => {
-        if (this.activeTabId !== tabId) this.selectTab(tabId, { focus: false })
+        if (this.activeTabId !== tabId) this.selectTabPassively(tabId)
       },
       onError: (error) => console.error('[browser] Could not follow MCP activity:', error)
     })
@@ -3092,6 +3092,62 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  private selectTabPassively(tabId: string): void {
+    const windowWasFocused = this.window.isFocused()
+    const target = this.getTab(tabId)
+    let focusGuardActive = windowWasFocused
+    let focusGuardTimer: NodeJS.Timeout | undefined
+    const releaseFocusGuard = (): void => {
+      if (!focusGuardActive) return
+      focusGuardActive = false
+      if (focusGuardTimer) clearTimeout(focusGuardTimer)
+      target.webContents.removeListener('focus', redirectWebsiteFocus)
+    }
+    const redirectWebsiteFocus = (): void => {
+      releaseFocusGuard()
+      // Chromium ignores a re-entrant focus transfer from the WebContents
+      // focus callback on some Linux compositors. Restore trusted chrome on
+      // the next main-process turn, after the native attachment settles.
+      setImmediate(() => {
+        if (
+          this.window.isDestroyed()
+          || !this.window.isFocused()
+          || target.webContents.isDestroyed()
+          || electronWebContents.getFocusedWebContents()?.id !== target.webContents.id
+        ) return
+        this.window.webContents.focus()
+      })
+    }
+    if (focusGuardActive) {
+      target.webContents.on('focus', redirectWebsiteFocus)
+      focusGuardTimer = setTimeout(releaseFocusGuard, 1_000)
+      focusGuardTimer.unref()
+    }
+
+    // A focused page cannot retain keyboard focus once its view is detached.
+    // Move focus into trusted chrome before attaching the agent's page so
+    // Electron cannot implicitly hand the page keyboard input during the swap.
+    if (windowWasFocused) this.window.webContents.focus()
+    try {
+      this.selectTab(tabId, { focus: false })
+    } catch (error) {
+      releaseFocusGuard()
+      throw error
+    }
+    if (this.window.isDestroyed()) return
+
+    // Attaching a WebContentsView can focus it even when selectTab deliberately
+    // omits an explicit focus call. Following agent activity is visual-only: it
+    // must not activate Hronaut or redirect keyboard input into the agent's page.
+    if (!windowWasFocused) {
+      if (this.window.isFocused()) this.window.blur()
+      return
+    }
+    if (!this.window.isFocused()) return
+
+    if (electronWebContents.getFocusedWebContents()?.id === target.webContents.id) redirectWebsiteFocus()
+  }
+
   async openSplitViewAndWait(tabId: string): Promise<BrowserState> {
     const current = this.getActiveTab()
     const target = this.getTab(tabId)
@@ -3388,14 +3444,42 @@ export class BrowserTabsManager {
     }
     const navigationPolicyDenialSequence = tab.navigationPolicyDenialSequence
     this.prepareDiagnosticNavigation(tab)
+    type NavigationOutcome =
+      | { kind: 'loaded' }
+      | { kind: 'failed'; error: unknown }
+      | { kind: 'policy-denied' }
+    let resolvePolicyDenial!: (outcome: NavigationOutcome) => void
+    const policyDenial = new Promise<NavigationOutcome>((resolve) => {
+      resolvePolicyDenial = resolve
+    })
+    const detectPolicyDenial = (): void => {
+      if (tab.navigationPolicyDenialSequence !== navigationPolicyDenialSequence) {
+        resolvePolicyDenial({ kind: 'policy-denied' })
+      }
+    }
+    tab.webContents.on('will-frame-navigate', detectPolicyDenial)
+    tab.webContents.on('will-redirect', detectPolicyDenial)
+    const load = tab.webContents.loadURL(normalized).then<NavigationOutcome, NavigationOutcome>(
+      () => ({ kind: 'loaded' }),
+      (error: unknown) => ({ kind: 'failed', error })
+    )
+    let outcome: NavigationOutcome
     try {
-      await tab.webContents.loadURL(normalized)
-    } catch (error) {
+      // Electron can leave loadURL pending after preventDefault() rejects a
+      // redirect. A policy decision is already terminal for this navigation,
+      // so do not strand renderer IPC waiting for a load event that may never
+      // arrive under compositor pressure.
+      outcome = await Promise.race([load, policyDenial])
+    } finally {
+      tab.webContents.removeListener('will-frame-navigate', detectPolicyDenial)
+      tab.webContents.removeListener('will-redirect', detectPolicyDenial)
+    }
+    if (outcome.kind === 'failed') {
       if (
         this.tabs.get(tab.id) === tab
-        && !isAbortedLoad(error)
+        && !isAbortedLoad(outcome.error)
         && tab.navigationPolicyDenialSequence === navigationPolicyDenialSequence
-      ) throw error
+      ) throw outcome.error
     }
     return this.getState()
   }

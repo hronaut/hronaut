@@ -1023,7 +1023,9 @@ export const deDE = {
       "historyTitle": "Browserverlauf (Ctrl+H / Cmd+Y)",
       "history": "Browserverlauf",
       "followAgents": "Agenten folgen",
+      "followingAgents": "Agenten werden verfolgt",
       "followAgentActivityDescription": "Den von Agenten verwendeten Tab anzeigen, ohne Tastatur- oder Mausfokus zu übernehmen",
+      "stopFollowingAgentActivityDescription": "Agentenaktivität nicht mehr verfolgen",
       "settings": "Einstellungen"
     },
     "toolbar": {

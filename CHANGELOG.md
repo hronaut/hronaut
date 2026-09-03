@@ -4,9 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.43] - 2026-09-04
+
 ### Fixed
 
 - Make **Follow agents** reveal freshly created background tabs even when their short MCP activity starts and finishes back-to-back, without waking completed sleeping-tab work or taking input focus.
+- Return promptly when a workspace site-access policy blocks a redirect instead of occasionally leaving the navigation request waiting indefinitely under load.
+- Refresh the packaging-only XML parser to its patched MIT-licensed release, removing the known fragment-injection advisory from the release toolchain.
+
+### Improved
+
+- Show **Following agents** with an explicit stop action while the mode is active, so its current state and next click are clear without relying on color alone.
 
 ## [1.11.42] - 2026-09-03
 

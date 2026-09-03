@@ -1023,7 +1023,9 @@ export const ruRU = {
       "historyTitle": "История просмотра (Ctrl+H / Cmd+Y)",
       "history": "История просмотра",
       "followAgents": "Следить за агентами",
+      "followingAgents": "Слежение за агентами",
       "followAgentActivityDescription": "Показывать вкладку, которую использует агент, не забирая фокус клавиатуры или мыши",
+      "stopFollowingAgentActivityDescription": "Перестать следить за активностью агентов",
       "settings": "Настройки"
     },
     "toolbar": {

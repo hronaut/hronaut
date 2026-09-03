@@ -1023,7 +1023,9 @@ export const esES = {
       "historyTitle": "Historial de navegación (Ctrl+H / Cmd+Y)",
       "history": "Historial de navegación",
       "followAgents": "Seguir agentes",
+      "followingAgents": "Siguiendo agentes",
       "followAgentActivityDescription": "Mostrar la pestaña que usa el agente sin tomar el foco del teclado ni del ratón",
+      "stopFollowingAgentActivityDescription": "Dejar de seguir la actividad de los agentes",
       "settings": "Configuración"
     },
     "toolbar": {
