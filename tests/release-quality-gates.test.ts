@@ -1,4 +1,8 @@
-import { readFile } from 'node:fs/promises'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 function job(source: string, name: string): string {
@@ -10,7 +14,118 @@ function job(source: string, name: string): string {
   return nextJob < 0 ? contents : contents.slice(0, nextJob)
 }
 
+const gitEnvironment = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' }
+
+function git(directory: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd: directory, encoding: 'utf8', env: gitEnvironment, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+}
+
+async function withVersionHistory(versions: string[], check: (directory: string, commits: string[]) => Promise<void>): Promise<void> {
+  const directory = await mkdtemp(join(tmpdir(), 'hronaut-auto-tag-'))
+  try {
+    git(directory, 'init', '--initial-branch=main')
+    const commits: string[] = []
+    for (const [index, version] of versions.entries()) {
+      await writeFile(join(directory, 'package.json'), JSON.stringify({ version }))
+      await writeFile(join(directory, 'notes.txt'), `Change ${index}`)
+      git(directory, 'add', '.')
+      git(directory, '-c', 'user.name=Release test', '-c', 'user.email=release@example.invalid', 'commit', '--no-gpg-sign', '-m', `Change ${index}`)
+      commits.push(git(directory, 'rev-parse', 'HEAD'))
+    }
+    await check(directory, commits)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+}
+
+async function detectVersion(directory: string, environment: Record<string, string>) {
+  const workflow = await readFile('.github/workflows/auto-tag.yml', 'utf8')
+  const step = workflow.split('      - name: Detect a version bump\n')[1]?.split('\n      - name:')[0]
+  const run = step?.split('        run: |\n')[1]
+  if (!run) throw new Error('Version detection shell was not found')
+  const script = run.split('\n').map(line => line.replace(/^ {10}/, '')).join('\n')
+  const output = join(directory, 'detection-output')
+  const result = spawnSync('bash', ['-c', script], {
+    cwd: directory,
+    encoding: 'utf8',
+    env: { ...gitEnvironment, EVENT_NAME: 'push', PUSH_BEFORE: '', GITHUB_OUTPUT: output, RUNNER_TEMP: directory, ...environment }
+  })
+  return { status: result.status, stderr: result.stderr, stdout: result.stdout, output: await readFile(output, 'utf8').catch(() => '') }
+}
+
+// The production workflow runs Bash on Ubuntu; native Windows need not provide it.
+describe.skipIf(process.platform === 'win32')('auto-tag push range', () => {
+  it('detects a version bump before the final commit of a multiple-commit push', async () => {
+    await withVersionHistory(['1.0.0', '1.1.0', '1.1.0'], async (directory, commits) => {
+      const result = await detectVersion(directory, { PUSH_BEFORE: commits[0]! })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=true')
+      expect(result.output).toContain('tag=v1.1.0')
+    })
+  })
+
+  it('skips a push whose baseline already has the current version', async () => {
+    await withVersionHistory(['1.0.0', '1.1.0', '1.1.0'], async (directory, commits) => {
+      const result = await detectVersion(directory, { PUSH_BEFORE: commits[1]! })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=false')
+    })
+  })
+
+  it('detects a single-commit version bump', async () => {
+    await withVersionHistory(['1.0.0', '1.1.0'], async (directory, commits) => {
+      const result = await detectVersion(directory, { PUSH_BEFORE: commits[0]! })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=true')
+    })
+  })
+
+  it('fetches the exact baseline outside a shallow checkout', async () => {
+    await withVersionHistory(['1.0.0', '1.1.0', '1.1.0', '1.1.0'], async (directory, commits) => {
+      const checkout = join(directory, 'shallow')
+      git(directory, 'clone', '--depth=2', pathToFileURL(directory).href, checkout)
+      expect(spawnSync('git', ['cat-file', '-e', `${commits[0]}^{commit}`], { cwd: checkout }).status).not.toBe(0)
+      const result = await detectVersion(checkout, { PUSH_BEFORE: commits[0]! })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=true')
+      expect(git(checkout, 'rev-parse', 'HEAD')).toBe(commits.at(-1))
+    })
+  })
+
+  it('allows explicit dispatch without a push baseline', async () => {
+    await withVersionHistory(['1.1.0'], async directory => {
+      const result = await detectVersion(directory, { EVENT_NAME: 'workflow_dispatch' })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=true')
+    })
+  })
+
+  it('skips a new branch without inferring a bump from its last commit', async () => {
+    await withVersionHistory(['1.0.0', '1.1.0'], async directory => {
+      const result = await detectVersion(directory, { PUSH_BEFORE: '0'.repeat(40) })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.output).toContain('should_tag=false')
+      expect(result.stdout).toMatch(/new branch/i)
+    })
+  })
+
+  it.each(['', 'not-a-sha', 'f'.repeat(40)])('fails clearly for missing, invalid or unavailable baseline %j', async before => {
+    await withVersionHistory(['1.0.0', '1.1.0'], async directory => {
+      const result = await detectVersion(directory, { PUSH_BEFORE: before })
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toMatch(/push baseline/i)
+      expect(result.output).not.toContain('should_tag=true')
+    })
+  })
+})
+
 describe('release quality gates', () => {
+  it('binds the checkout and baseline to the triggering event', async () => {
+    const workflow = await readFile('.github/workflows/auto-tag.yml', 'utf8')
+    expect(workflow).toContain('ref: ${{ github.sha }}')
+    expect(workflow).toContain('PUSH_BEFORE: ${{ github.event.before }}')
+  })
+
   it('treats a concurrently published version tag as an idempotent auto-tag success', async () => {
     const workflow = await readFile('.github/workflows/auto-tag.yml', 'utf8')
     const remoteCheck = workflow.indexOf('git ls-remote --exit-code --tags origin "refs/tags/$TAG"')

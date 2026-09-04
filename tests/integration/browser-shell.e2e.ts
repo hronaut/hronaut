@@ -7569,6 +7569,9 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     ) as string[]
     expect(lockedCreatedTabIds).toHaveLength(2)
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
+    // Direct cleanup calls must wait until the asynchronous native unlock has
+    // completed, just as a person waits for the unlocked browser controls.
+    await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toHaveAttribute('aria-pressed', 'false')
     for (const tabId of lockedCreatedTabIds.reverse()) {
       await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
     }

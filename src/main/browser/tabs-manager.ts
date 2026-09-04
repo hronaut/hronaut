@@ -148,7 +148,7 @@ import {
   storageManagerUsageBreakdown
 } from '../../shared/storage-usage.js'
 import { networkRoutePatternMatches, validateNetworkRoutePattern } from '../../shared/network-routes.js'
-import { boundedScreenshotSize, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
+import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { compareBgraBitmaps, normalizeVisualCompareThreshold } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
 import {
@@ -351,6 +351,8 @@ const MAX_VISUAL_COMPARE_HEIGHT = 1_080
 const MAX_VISUAL_COMPARE_SETTLE_MS = 2_000
 const MAX_TAB_OVERVIEW_PREVIEW_WIDTH = 480
 const MAX_TAB_OVERVIEW_PREVIEW_HEIGHT = 300
+const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH = 960
+const MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_HEIGHT = 600
 const MAX_TAB_OVERVIEW_PREVIEW_BYTES = 256 * 1024
 const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
@@ -6301,18 +6303,16 @@ export class BrowserTabsManager {
           throw new Error('Could not determine a finite screenshot area')
         }
         if (requestedClip.width <= 0 || requestedClip.height <= 0) throw new Error('Screenshot area is outside the page')
-        const bounded = boundedScreenshotSize(
-          requestedClip.width,
-          requestedClip.height,
-          options.maxWidth,
-          options.maxHeight
-        )
         let data = ''
         await this.withDebugger(webContents, async () => {
+          const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
+          const bounds = cssScreenshotBounds(requestedClip, metrics.cssVisualViewport?.zoom ?? webContents.getZoomFactor())
+          const pixelRatio = this.screenshotPixelRatio(tab)
+          const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
           const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
             format,
             ...(format === 'jpeg' ? { quality } : {}),
-            clip: { ...requestedClip, scale: bounded.scale },
+            clip: { ...bounds, scale: bounded.scale },
             captureBeyondViewport: true,
             fromSurface: true
           }) as { data: string }
@@ -10401,17 +10401,27 @@ export class BrowserTabsManager {
     }
     if (!isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
     const original = captured.getSize()
-    const bounded = boundedScreenshotSize(
-      original.width,
-      original.height,
-      MAX_TAB_OVERVIEW_PREVIEW_WIDTH,
-      MAX_TAB_OVERVIEW_PREVIEW_HEIGHT
-    )
-    const image = bounded.width === original.width && bounded.height === original.height
-      ? captured
-      : captured.resize({ width: bounded.width, height: bounded.height, quality: 'good' })
+    // Only the single website card is enlarged. Keep normal cached captures
+    // compact and promote the active frame during its existing overview refresh.
+    const enlarged = mode === 'overview'
+      && !isHronautHomeUrl(tab.url)
+      && [...this.tabs.values()].filter(candidate => !isHronautHomeUrl(candidate.url)).length === 1
+    const encodePreview = (maxWidth: number, maxHeight: number, quality: number) => {
+      const bounded = boundedScreenshotSize(original.width, original.height, maxWidth, maxHeight)
+      const image = bounded.width === original.width && bounded.height === original.height
+        ? captured
+        : captured.resize({ width: bounded.width, height: bounded.height, quality: enlarged ? 'best' : 'good' })
+      return { image, jpeg: image.toJPEG(quality) }
+    }
+    let preview = enlarged
+      ? encodePreview(MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_ENLARGED_PREVIEW_HEIGHT, 75)
+      : encodePreview(MAX_TAB_OVERVIEW_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_PREVIEW_HEIGHT, TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
+    if (enlarged && preview.jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES) {
+      // Noisy pages still get a fresh frame without raising the cache byte cap.
+      preview = encodePreview(MAX_TAB_OVERVIEW_PREVIEW_WIDTH, MAX_TAB_OVERVIEW_PREVIEW_HEIGHT, TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
+    }
+    const { image, jpeg } = preview
     const size = image.getSize()
-    const jpeg = image.toJPEG(TAB_OVERVIEW_PREVIEW_JPEG_QUALITY)
     if (!isEligible() || tab.navigationGeneration !== navigationGeneration || jpeg.length > MAX_TAB_OVERVIEW_PREVIEW_BYTES) return
     this.tabOverviewPreviews.set(tab.id, {
       tabId: tab.id,

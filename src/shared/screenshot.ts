@@ -30,6 +30,23 @@ export interface ScreenshotLayoutMetrics {
   cssVisualViewport?: { zoom?: number }
 }
 
+/** Convert a page CSS rectangle to the DIP units expected by CDP capture. */
+export function cssScreenshotBounds(
+  rectangle: { x?: number; y?: number; width: number; height: number },
+  zoom = 1
+): { x: number; y: number; width: number; height: number } {
+  const bounds = {
+    x: (rectangle.x ?? 0) * zoom,
+    y: (rectangle.y ?? 0) * zoom,
+    width: rectangle.width * zoom,
+    height: rectangle.height * zoom
+  }
+  if (!Number.isFinite(zoom) || zoom <= 0 || !Object.values(bounds).every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
+    throw new Error('Could not determine a finite screenshot area')
+  }
+  return bounds
+}
+
 /** Page.captureScreenshot clips use DIP, not the CSS units of cssContentSize. */
 export function fullPageScreenshotBounds(metrics: ScreenshotLayoutMetrics, nativeZoom = 1): {
   x: number; y: number; width: number; height: number
@@ -37,14 +54,5 @@ export function fullPageScreenshotBounds(metrics: ScreenshotLayoutMetrics, nativ
   const content = metrics.cssContentSize ?? metrics.contentSize
   if (!content) throw new Error('Could not determine the full-page screenshot size')
   const zoom = metrics.cssContentSize ? metrics.cssVisualViewport?.zoom ?? nativeZoom : 1
-  const bounds = {
-    x: (content.x ?? 0) * zoom,
-    y: (content.y ?? 0) * zoom,
-    width: content.width * zoom,
-    height: content.height * zoom
-  }
-  if (!Number.isFinite(zoom) || zoom <= 0 || !Object.values(bounds).every(Number.isFinite) || bounds.width <= 0 || bounds.height <= 0) {
-    throw new Error('Could not determine a finite full-page screenshot area')
-  }
-  return bounds
+  return cssScreenshotBounds(content, zoom)
 }

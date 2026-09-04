@@ -4,7 +4,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
-import type { Locator, Page } from '@playwright/test'
+import type { Locator, Page, TestInfo } from '@playwright/test'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 async function startDesignFixture(): Promise<{ url: string; close: () => Promise<void> }> {
@@ -17,9 +17,19 @@ async function startDesignFixture(): Promise<{ url: string; close: () => Promise
       </style></head><body><main><div class="hero"><div><small>Launch desk · synthetic workspace</small><h1>Release readiness</h1><p>One place to review what works, what changed, and what needs attention.</p></div><span class="badge">Review in progress</span></div><div class="stats"><div class="stat"><strong>24</strong><span>Checks passed</span></div><div class="stat"><strong>2</strong><span>Ready for review</span></div><div class="stat"><strong>0</strong><span>Blocking issues</span></div></div><section class="section"><h2>Today's verification</h2><table><thead><tr><th>Workflow</th><th>Last check</th><th>Status</th></tr></thead><tbody><tr><td>Workspace handoff</td><td>Independent QA</td><td><span class="pill">Passed</span></td></tr><tr><td>Keyboard navigation</td><td>Desktop and compact</td><td><span class="pill">Passed</span></td></tr><tr><td>Full-page inspection</td><td>Review screenshots</td><td><span class="pill review">Review</span></td></tr><tr><td>Recovery after reload</td><td>Edge-case checks</td><td><span class="pill">Passed</span></td></tr></tbody></table></section><div class="grid"><section class="section"><h2>Quality checklist</h2><div class="step"><strong>Reproduce the behavior</strong><span>Keep a small, repeatable set of steps.</span></div><div class="step"><strong>Protect the fix</strong><span>Add a regression assertion for the expected result.</span></div><div class="step"><strong>Verify visually</strong><span>Check the same page at different window sizes.</span></div></section><section class="section"><h2>Next up</h2><div class="step"><strong>Review the final changes</strong><span>Confirm the complete workflow, including recovery.</span></div><div class="step"><strong>Share the evidence</strong><span>Keep reproduction steps and results together.</span></div><div class="step"><strong>Prepare a release</strong><span>Publish after the release checks are complete.</span></div></section></div><section class="section"><h2>Review notes</h2><p>This is a local demonstration page with synthetic information. It illustrates how a full-page preview preserves context beyond the first screen.</p><p>All values, status labels, and workflow descriptions are fixtures. They do not describe a real project or release.</p></section><footer>Local design fixture · no accounts · no external requests</footer></main></body></html>`)
       return
     }
+    if (path === '/region') {
+      response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
+      response.end(`<!doctype html><html><head><title>Screenshot target corners</title><style>
+        *{box-sizing:border-box}body{margin:0;background:#fafafa;width:1000px;height:900px}
+        #target{position:absolute;left:160px;top:140px;width:600px;height:300px;background:#182238;color:white;font:24px system-ui;padding:95px 90px}
+        i{position:absolute;width:60px;height:60px}.tl{top:0;left:0;background:#ed2639}.tr{top:0;right:0;background:#26d65b}.bl{bottom:0;left:0;background:#2663ed}.br{bottom:0;right:0;background:#edc926}
+      </style></head><body><section id="target"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>Selected screenshot region</section></body></html>`)
+      return
+    }
     const tall = path === '/tall'
-    const wide = path === '/wide'
-    const title = tall ? 'Complete project plan' : wide ? 'Wide project board' : path.startsWith('/task-') ? `Project task ${path.slice(6)}` : 'Viewport corner markers'
+    const responsive = path === '/responsive'
+    const wide = path === '/wide' || responsive
+    const title = tall ? 'Complete project plan' : wide ? responsive ? 'Responsive project board' : 'Wide project board' : path.startsWith('/task-') ? `Project task ${path.slice(6)}` : 'Viewport corner markers'
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
     response.end(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
       *{box-sizing:border-box}html,body{margin:0;font:20px system-ui;background:#182238;color:white}
@@ -27,7 +37,7 @@ async function startDesignFixture(): Promise<{ url: string; close: () => Promise
       .marker{position:fixed;width:110px;height:110px}.tl{left:0;top:0;background:#ed2639}.tr{right:0;top:0;background:#26d65b}
       .bl{left:0;bottom:0;background:#2663ed}.br{right:0;bottom:0;background:#edc926}
       .band{height:180px;display:grid;place-items:center;font-size:36px;font-weight:bold;color:#101820}
-      .wide{position:relative;width:2400px;height:1200px}.wide .marker{position:absolute}.top{background:#ed26cf}.bottom{background:#26d6cf}.plan{height:2400px;padding:48px 120px;background:linear-gradient(#182238,#32486a)}
+      .wide{position:relative;${responsive ? 'width:100vw;height:200vw' : 'width:2400px;height:1200px'}}.wide .marker{position:absolute}.top{background:#ed26cf}.bottom{background:#26d6cf}.plan{height:2400px;padding:48px 120px;background:linear-gradient(#182238,#32486a)}
       </style></head><body>${tall
         ? '<header class="band top">PROJECT START — TOP OF PAGE</header><main class="plan"><h1>Release plan</h1><p>All content is synthetic. The final milestone is at the bottom of this long page.</p><h2 style="margin-top:900px">Implementation and review</h2><p>Design review, regression checks, and independent verification.</p></main><footer class="band bottom">FINAL MILESTONE — BOTTOM OF PAGE</footer>'
         : wide ? '<div class="wide"><div class="marker tl"></div><div class="marker tr"></div><div class="marker bl"></div><div class="marker br"></div><main><h1>Wide project board</h1><p>The right edge and bottom extend beyond the current viewport.</p></main></div>'
@@ -346,6 +356,10 @@ test('preserves zoomed document corners within bounded MCP full-page screenshots
       await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, ${JSON.stringify(scenario.viewport)})`)
       const zoomed = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent: scenario.zoom } }) as CallToolResult
       expect(zoomed.isError, text(zoomed)).not.toBe(true)
+      await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+        .find(candidate => candidate.getURL() === url)!.executeJavaScript('devicePixelRatio'), `${fixture.url}/wide`), {
+        message: 'Wait for the requested zoom to reach the page renderer',
+      }).toBe(scenario.pixelRatio)
       const before = await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
         .find(candidate => candidate.getURL() === url)!.executeJavaScript('({ width: innerWidth, height: innerHeight, scrollX, scrollY, pixelRatio: devicePixelRatio })'), `${fixture.url}/wide`)
       expect(before).toMatchObject({ pixelRatio: scenario.pixelRatio })
@@ -367,6 +381,107 @@ test('preserves zoomed document corners within bounded MCP full-page screenshots
     }
   } finally {
     await client.close()
+    await fixture.close()
+  }
+})
+
+
+async function connectScreenshotFixture(mcpPort: number, mcpToken: string): Promise<Client> {
+  await expect.poll(async () => {
+    try {
+      return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok
+    } catch { return false }
+  }).toBe(true)
+  const client = new Client({ name: 'hronaut-screenshot-geometry-test', version: '1.0.0' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization: `Bearer ${mcpToken}` } },
+  }))
+  await useMcpWorkspace(client, 'Synthetic screenshot geometry QA', false)
+  return client
+}
+
+async function openMcpScreenshotFixture(client: Client, page: Page, url: string, title: string): Promise<string> {
+  const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url, active: true } }) as CallToolResult
+  expect(opened.isError).not.toBe(true)
+  const content = opened.content.find(item => item.type === 'text')
+  if (content?.type !== 'text') throw new Error('New tab returned no state')
+  const tabId = (JSON.parse(content.text) as { activeTabId: string }).activeTabId
+  await expect.poll(() => page.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe(title)
+  await expect.poll(() => page.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
+  return tabId
+}
+
+async function expectScreenshotCorners(page: Page, result: CallToolResult, testInfo: TestInfo, name: string, maxWidth: number, maxHeight: number, aspectRatio = 2, minimumCornerPixels = 20): Promise<void> {
+  expect(result.isError, JSON.stringify(result.content.filter(item => item.type === 'text'))).not.toBe(true)
+  const image = result.content.find(item => item.type === 'image')
+  if (image?.type !== 'image') throw new Error('Screenshot returned no image')
+  const png = Buffer.from(image.data, 'base64')
+  await writeFile(testInfo.outputPath(`${name}.png`), png)
+  const width = png.readUInt32BE(16)
+  const height = png.readUInt32BE(20)
+  expect.soft(width, `${name} respects maximum width`).toBeLessThanOrEqual(maxWidth)
+  expect.soft(height, `${name} respects maximum height`).toBeLessThanOrEqual(maxHeight)
+  expect.soft(width / height, `${name} preserves document or target proportions`).toBeCloseTo(aspectRatio, 1)
+  const colors = await imageColorCounts(page, image.data)
+  console.log('Screenshot corner proof', name, { width, height, colors })
+  for (const color of ['red', 'green', 'blue', 'yellow']) {
+    expect.soft(colors[color], `${color} corner is present in ${name}`).toBeGreaterThan(minimumCornerPixels)
+  }
+}
+
+test('captures every document corner immediately after alternating MCP zoom changes', async ({ appWindow, mcpPort, mcpToken }, testInfo) => {
+  const fixture = await startDesignFixture()
+  let client: Client | undefined
+  try {
+    client = await connectScreenshotFixture(mcpPort, mcpToken)
+    for (const [path, title, aspectRatio] of [['wide', 'Wide project board', 2], ['responsive', 'Responsive project board', 0.5]] as const) {
+      const tabId = await openMcpScreenshotFixture(client, appWindow, `${fixture.url}/${path}`, title)
+      for (const [index, percent] of [125, 100, 150, 75, 125, 100, 150, 75].entries()) {
+        const zoomed = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
+        expect(zoomed.isError).not.toBe(true)
+        // No renderer evaluation, frame wait, or DPR polling between these two public tool calls.
+        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, fullPage: true, maxWidth: 1200, maxHeight: 1200 } }) as CallToolResult
+        await expectScreenshotCorners(appWindow, screenshot, testInfo, `immediate-${path}-zoom-${index}-${percent}`, 1200, 1200, aspectRatio)
+      }
+    }
+  } finally {
+    await client?.close()
+    await fixture.close()
+  }
+})
+
+test('captures all selected element and rectangle corners at native page zoom', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
+  const fixture = await startDesignFixture()
+  let client: Client | undefined
+  try {
+    client = await connectScreenshotFixture(mcpPort, mcpToken)
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1900, 1100))
+    const tabId = await openMcpScreenshotFixture(client, appWindow, `${fixture.url}/region`, 'Screenshot target corners')
+    for (const scenario of [
+      { name: '100', percent: 100, pixelRatio: 1, viewport: null },
+      { name: '125', percent: 125, pixelRatio: 1.25, viewport: null },
+      { name: '150', percent: 150, pixelRatio: 1.5, viewport: null },
+      { name: 'dpr2', percent: 100, pixelRatio: 2, viewport: { width: 900, height: 640, deviceScaleFactor: 2, mobile: false, touch: false, orientation: 'landscape' } },
+    ]) {
+      await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, ${JSON.stringify(scenario.viewport)})`)
+      const percent = scenario.percent
+      const zoomed = await client.callTool({ name: 'browser_zoom', arguments: { tabId, action: 'set', percent } }) as CallToolResult
+      expect(zoomed.isError).not.toBe(true)
+      await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+        .find(candidate => candidate.getURL() === url)!.executeJavaScript('devicePixelRatio'), `${fixture.url}/region`)).toBe(scenario.pixelRatio)
+      for (const [kind, target] of [
+        ['selector', { selector: '#target' }],
+        ['rectangle', { clip: { x: 160, y: 140, width: 600, height: 300 } }],
+      ] as const) {
+        // Element capture may center the page. Rectangle coordinates below refer to the unscrolled viewport.
+        await electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents()
+          .find(candidate => candidate.getURL() === url)!.executeJavaScript('scrollTo(0, 0)'), `${fixture.url}/region`)
+        const screenshot = await client.callTool({ name: 'browser_screenshot', arguments: { tabId, ...target, maxWidth: 600, maxHeight: 300 } }) as CallToolResult
+        await expectScreenshotCorners(appWindow, screenshot, testInfo, `${kind}-zoom-${scenario.name}`, 600, 300, 2, 3000)
+      }
+    }
+  } finally {
+    await client?.close()
     await fixture.close()
   }
 })

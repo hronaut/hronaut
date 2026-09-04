@@ -19,23 +19,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 2
 
       - name: Detect a version bump
         id: version
         env:
           EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
-          previous_version=""
-          if git show HEAD^:package.json >/tmp/previous-package.json 2>/dev/null; then
-            previous_version="$(node -p "require('/tmp/previous-package.json').version")"
-          fi
-
           should_tag=false
-          if [[ "$EVENT_NAME" == "workflow_dispatch" || ( -n "$previous_version" && "$version" != "$previous_version" ) ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             should_tag=true
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            if [[ ! "$PUSH_BEFORE" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "Push baseline is missing or invalid; cannot detect a version bump." >&2
+              exit 1
+            elif [[ "$PUSH_BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+              echo "New branch has no push baseline; use workflow_dispatch for an initial release."
+            else
+              # A push may contain the bump followed by other commits. Fetch its
+              # actual baseline when it is outside the shallow checkout.
+              if ! git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+                if ! git fetch --no-tags --depth=1 origin "$PUSH_BEFORE"; then
+                  echo "Push baseline could not be fetched; cannot detect a version bump." >&2
+                  exit 1
+                fi
+              fi
+              if ! git show "$PUSH_BEFORE:package.json" > "$RUNNER_TEMP/previous-package.json"; then
+                echo "Push baseline package.json could not be read; cannot detect a version bump." >&2
+                exit 1
+              fi
+              previous_version="$(node -p "require(process.env.RUNNER_TEMP + '/previous-package.json').version")"
+              if [[ -n "$previous_version" && "$version" != "$previous_version" ]]; then
+                should_tag=true
+              fi
+            fi
+          else
+            echo "Unsupported auto-tag event: $EVENT_NAME" >&2
+            exit 1
           fi
 
           echo "version=$version" >> "$GITHUB_OUTPUT"

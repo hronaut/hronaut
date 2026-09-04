@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve the full selected element or rectangle in screenshots at non-default page zoom, and honor image size limits on high-DPI displays and emulated viewports.
+- Detect version bumps across the complete Git push so a later commit in the same push cannot silently skip the release.
+
+### Improved
+
+- Sharpen the enlarged single-tab overview preview while keeping normal thumbnails compact and retaining the existing image-size limit for visually complex pages.
+
 ## [1.11.51] - 2026-09-05
 
 ### Fixed
