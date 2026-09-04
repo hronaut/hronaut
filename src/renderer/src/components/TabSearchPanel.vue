@@ -198,7 +198,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
 
 <template>
   <div v-if="open" class="settings-overlay tab-overview-overlay" @click.self="close">
-    <section ref="panel" class="tab-search-panel" :class="{ 'tab-search-sparse': sparseCount <= 2, 'tab-search-single': sparseCount <= 1, 'tab-search-detail': previewTabId }" @keydown="handlePanelKeydown" role="dialog" aria-modal="true" aria-labelledby="tab-search-title" tabindex="-1">
+    <section ref="panel" class="tab-search-panel" :class="{ 'tab-search-sparse': sparseCount <= 2, 'tab-search-single': sparseCount <= 1, 'tab-search-single-preview': regularTabs.length === 1, 'tab-search-detail': previewTabId }" @keydown="handlePanelKeydown" role="dialog" aria-modal="true" aria-labelledby="tab-search-title" tabindex="-1">
       <header>
         <div>
           <span class="eyebrow">{{ t('tabSearch.kicker') }}</span>

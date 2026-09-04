@@ -310,3 +310,63 @@ test('captures every edge of a real document at the twelve megapixel bound', asy
   }, preview.dataUrl)
   expect(corners).toEqual([[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0]])
 })
+
+test('captures all corners of a previously selected warm background tab without changing visible views', async ({ appWindow, electronApp }) => {
+  const selected = await openFixture(appWindow, 'Keep this page selected')
+  const html = '<!doctype html><title>Never selected preview</title><style>html,body{margin:0}main{width:2400px;height:2600px;background:#334155}header,footer{height:100px;background:#ef00ff}footer{background:#00eaff}section{height:2400px}</style><main><header>Top marker</header><section>Complete background page</section><footer>Bottom marker</footer></main>'
+  const url = `data:text/html,${encodeURIComponent(html)}`
+  const state = await appWindow.evaluate(`window.hronaut.newTab({url:${JSON.stringify(url)},active:false})`) as BrowserState
+  const target = state.tabs.find(tab => tab.url === url)!
+  expect(state.activeTabId).toBe(selected.id)
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => { const tab = state.tabs.find(tab => tab.id === ${JSON.stringify(target.id)}); return { title: tab?.title, loading: tab?.loading }; })`)).toEqual({ title: 'Never selected preview', loading: false })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(target.id)})`)
+  await electronApp.evaluate(async ({ webContents }, url) => {
+    const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+    await page.executeJavaScript('scrollTo(250, 450)')
+  }, url)
+  await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(target.id)}]).then(previews => previews.length)`)).toBe(1)
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(selected.id)})`)
+  const readState = async () => ({
+    active: await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)'),
+    native: await electronApp.evaluate(async ({ BrowserWindow, webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
+      return {
+        windows: BrowserWindow.getAllWindows().map(window => ({
+          id: window.id, visible: window.isVisible(), focused: window.isFocused(),
+          children: window.contentView.children.map(child => ({ bounds: child.getBounds(), visible: child.getVisible() }))
+        })),
+        focused: webContents.getFocusedWebContents()?.id,
+        page: await page.executeJavaScript('({width:innerWidth,height:innerHeight,x:scrollX,y:scrollY,visibility:document.visibilityState,documentWidth:document.documentElement.scrollWidth,documentHeight:document.documentElement.scrollHeight})')
+      }
+    }, url)
+  })
+  const before = await readState()
+  const preview = await appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`) as {
+    width: number; height: number; dataUrl: string; navigationGeneration: number
+  }
+  expect(before.native.page.width).toBeGreaterThan(0)
+  expect(before.native.page.height).toBeGreaterThan(0)
+  expect(preview.height / preview.width).toBeCloseTo(before.native.page.documentHeight / before.native.page.documentWidth, 1)
+  const pixels = await appWindow.evaluate(async dataUrl => {
+    const image = new Image()
+    image.src = dataUrl
+    await image.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d')!
+    context.drawImage(image, 0, 0)
+    const sample = (y: number) => Array.from(context.getImageData(Math.floor(canvas.width / 2), y, 1, 1).data).slice(0, 3)
+    return { top: sample(8), bottom: sample(canvas.height - 8), corners: [[8, 8], [canvas.width - 8, 8], [8, canvas.height - 8], [canvas.width - 8, canvas.height - 8]].map(([x, y]) => Array.from(context.getImageData(x!, y!, 1, 1).data).slice(0, 3).map(channel => channel > 128 ? 255 : 0)) }
+  }, preview.dataUrl)
+  expect(pixels.top[0]).toBeGreaterThan(200)
+  expect(pixels.top[1]).toBeLessThan(40)
+  expect(pixels.top[2]).toBeGreaterThan(200)
+  expect(pixels.bottom[0]).toBeLessThan(40)
+  expect(pixels.bottom[1]).toBeGreaterThan(180)
+  expect(pixels.bottom[2]).toBeGreaterThan(200)
+  expect(pixels.corners).toEqual([[255, 0, 255], [255, 0, 255], [0, 255, 255], [0, 255, 255]])
+  expect(before.native.page.x).toBe(250)
+  expect(before.native.page.y).toBe(450)
+  expect(await readState()).toEqual(before)
+})

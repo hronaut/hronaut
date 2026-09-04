@@ -1246,8 +1246,8 @@ export class BrowserTabsManager {
 
     viewportIdentity = currentViewportIdentity()
 
-    // Warm views can capture directly. A never-presented view needs the existing
-    // offscreen host; neither path selects, scrolls, focuses, or wakes its tab.
+    // Visible tabs capture directly; detached tabs need the existing offscreen
+    // host even if previously viewed. Neither path selects, scrolls, or wakes a tab.
     const runCapture = () => this.withDebugger(webContents, async () => {
       assertCurrent()
       const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
@@ -1311,9 +1311,7 @@ export class BrowserTabsManager {
       nativeCapture = runCapture()
       return Promise.race([nativeCapture, deadline])
     }
-    const capture = this.tabOverviewPreviewableTabs.has(tabId)
-      ? captureOperation()
-      : this.withRenderableTab(tab, captureOperation, false)
+    const capture = this.withRenderableTab(tab, captureOperation, false)
     const request = Promise.race([capture, deadline])
     this.tabOverviewPageCaptures.set(tabId, request)
     // The deadline releases an offscreen host promptly, but cannot cancel CDP.
@@ -6830,10 +6828,17 @@ export class BrowserTabsManager {
         allowRunningInsecureContent: false
       }
     })
-    view.setBackgroundColor('#ffffff')
-    // Background tabs need a real initial layout even before their first selection.
-    // A zero-sized viewport cannot paint a meaningful explicit page preview.
-    view.setBounds(this.browserViewBounds())
+    try {
+      view.setBackgroundColor('#ffffff')
+      // Background tabs need a real initial layout even before their first selection.
+      // A zero-sized viewport cannot paint a meaningful explicit page preview.
+      view.setBounds(this.browserViewBounds())
+    } catch (error) {
+      // This view has no registered tab or owner yet, so normal tab rollback
+      // cannot find and close its WebContents after initialization fails.
+      if (!view.webContents.isDestroyed()) view.webContents.close()
+      throw error
+    }
     const tab: BrowserTab = {
       id,
       title: normalizeTabTitle(

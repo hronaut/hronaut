@@ -1043,7 +1043,8 @@ test('keeps a failed archive restore under one active owner when rollback also f
         return originalRemoveChildView.call(this, view)
       }
       viewPrototype.setBounds = function (this: Electron.WebContentsView, bounds): void {
-        if (!layoutFailed && !existingViews.has(this)) {
+        // Fail restored layout after attachment, not pre-registration sizing.
+        if (!layoutFailed && !existingViews.has(this) && mainWindow.contentView.children.includes(this)) {
           restoredView = this
           layoutFailed = true
           throw new Error('Injected archive restore layout failure')
@@ -1299,4 +1300,35 @@ test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', a
   } finally {
     await closeHronaut(instance.app)
   }
+})
+
+test('closes an unregistered tab when its initial native layout fails and permits a retry', async ({ appWindow, electronApp }) => {
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.every(tab => !tab.loading))')).toBe(true)
+  const before = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+  const contentsBefore = await electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.id).sort((a, b) => a - b))
+  await electronApp.evaluate(({ WebContentsView, webContents }) => {
+    const existingIds = new Set(webContents.getAllWebContents().map(contents => contents.id))
+    const original = WebContentsView.prototype.setBounds
+    ;(globalThis as typeof globalThis & { __initialBoundsRestore?: () => void }).__initialBoundsRestore = () => {
+      WebContentsView.prototype.setBounds = original
+    }
+    WebContentsView.prototype.setBounds = function (bounds): void {
+      if (!existingIds.has(this.webContents.id)) throw new Error('Injected initial native layout failure')
+      return original.call(this, bounds)
+    }
+  })
+  try {
+    await expect(appWindow.evaluate('window.hronaut.newTab({url:"about:blank",active:false})')).rejects.toThrow('Injected initial native layout failure')
+    expect(await appWindow.evaluate('window.hronaut.getState()')).toEqual(before)
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.id).sort((a, b) => a - b))).toEqual(contentsBefore)
+  } finally {
+    await electronApp.evaluate(() => {
+      const state = globalThis as typeof globalThis & { __initialBoundsRestore?: () => void }
+      state.__initialBoundsRestore?.()
+      delete state.__initialBoundsRestore
+    })
+  }
+  const retried = await appWindow.evaluate('window.hronaut.newTab({url:"about:blank",active:false})') as BrowserState
+  expect(retried.tabs).toHaveLength(before.tabs.length + 1)
+  expect(retried.activeTabId).toBe(before.activeTabId)
 })

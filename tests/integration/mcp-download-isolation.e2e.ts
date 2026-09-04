@@ -172,7 +172,8 @@ test('keeps MCP download history isolated across workspace archive and restore',
         return originalRemoveChildView.call(this, view)
       }
       viewPrototype.setBounds = function (this: Electron.WebContentsView, bounds): void {
-        if (!layoutFailed && !existingViews.has(this)) {
+        // Fail restored layout after attachment, not pre-registration sizing.
+        if (!layoutFailed && !existingViews.has(this) && mainWindow.contentView.children.includes(this)) {
           restoredView = this
           layoutFailed = true
           throw new Error('Injected download ownership restore layout failure')

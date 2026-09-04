@@ -115,12 +115,30 @@ test('keeps sparse overview controls at the bottom and all viewport corners visi
   const fixture = await startDesignFixture()
   try {
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(1900, 1100))
-    await openFixture(appWindow, fixture.url, 'Viewport corner markers')
+    const tabId = await openFixture(appWindow, fixture.url, 'Viewport corner markers')
+    const closedTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${fixture.url}/task-closed`)}, active: false }).then(state => state.tabs.find(tab => tab.url === ${JSON.stringify(`${fixture.url}/task-closed`)})?.id)`) as string
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(closedTabId)})?.title)`)).toBe('Project task closed')
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(closedTabId)})`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
     await appWindow.getByRole('button', { name: 'Search tabs', exact: true }).click()
     const overview = appWindow.getByRole('dialog', { name: 'Tabs', exact: true })
     const preview = overview.locator('.tab-overview-preview').first()
     await expect(preview.locator('img')).toHaveAttribute('src', /^data:image/)
+    await expect(overview.locator('.tab-search-count')).toContainText('1 open')
+    await expect(overview.locator('.tab-search-count')).toContainText('1 closed')
+    await expect(overview.locator('.recently-closed')).toContainText('Project task closed')
     await appWindow.screenshot({ path: testInfo.outputPath('single-tab-wide.png') })
+    const list = overview.locator('.tab-search-list')
+    expect(await list.evaluate(element => element.scrollTop), 'Sparse overview starts without scrolling').toBe(0)
+    const listBounds = (await list.boundingBox())!
+    for (const [description, item] of [
+      ['Entire open-tab card', overview.locator('.tab-overview-card')],
+      ['Recently closed entry', overview.locator('.recently-closed')],
+    ] as const) {
+      const bounds = (await item.boundingBox())!
+      expect.soft(bounds.y, `${description} starts inside the results viewport without scrolling`).toBeGreaterThanOrEqual(listBounds.y)
+      expect.soft(bounds.y + bounds.height, `${description} ends inside the results viewport without scrolling`).toBeLessThanOrEqual(listBounds.y + listBounds.height)
+    }
     const panel = await overview.boundingBox()
     const footer = await overview.locator(':scope > footer').boundingBox()
     expect(panel).not.toBeNull()
