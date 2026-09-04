@@ -204,6 +204,19 @@
   .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
 }
+@media (max-width: 720px) {
+  .shell:not(.vertical-tabs-shell) .topbar,
+  .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
+    @apply flex-wrap [height:auto] [row-gap:3px];
+  }
+  .browser-tabs-bar.horizontal .tabs-strip-shell { @apply [flex-basis:0]; }
+  .shell:not(.vertical-tabs-shell) .topbar-actions {
+    @apply [flex:0_0_100%] justify-end [margin-left:0];
+  }
+  .shell .toolbar { @apply [gap:2px]; }
+  .shell:not(.vertical-tabs-shell) .toolbar { @apply [padding-inline:8px]; }
+  .shell .address-form { @apply [min-width:100px] [margin-inline:2px]; }
+}
 .tabs-scroll-button {
   @apply absolute [z-index:3] [bottom:5px] grid [width:28px] [height:28px] p-0 place-items-center [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy [background:color-mix(in_srgb,_var(--toolbar)_94%,_transparent)] [box-shadow:0_2px_9px_color-mix(in_srgb,_black_24%,_transparent)] cursor-pointer;
 }
