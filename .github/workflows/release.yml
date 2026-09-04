@@ -6,10 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing version tag to release, for example v1.0.0
-        required: true
-        type: string
       notes_ref:
         description: Optional descendant commit containing a corrected matching changelog section
         required: false
@@ -24,7 +20,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -33,28 +29,26 @@ jobs:
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       version: ${{ steps.release.outputs.version }}
-      sha: ${{ steps.release.outputs.sha }}
       notes_sha: ${{ steps.release.outputs.notes_sha }}
     steps:
-      - name: Checkout requested tag
+      - name: Checkout selected tag
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Resolve and validate the immutable release source
         id: release
         env:
-          REQUESTED_TAG: ${{ github.event.inputs.tag }}
           REQUESTED_NOTES_REF: ${{ github.event.inputs.notes_ref }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            tag="$GITHUB_REF_NAME"
-          else
-            tag="$REQUESTED_TAG"
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "Release workflows must run from a selected v* tag ref." >&2
+            exit 1
           fi
+          tag="$GITHUB_REF_NAME"
           if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release tag: $tag" >&2
             exit 1
@@ -64,8 +58,13 @@ jobs:
             echo "Tag $tag does not exist. Push it before dispatching this workflow." >&2
             exit 1
           }
-          if [[ "$(git rev-parse HEAD)" != "$tag_sha" ]]; then
+          if [[ "$GITHUB_SHA" != "$tag_sha" || "$(git rev-parse HEAD)" != "$tag_sha" ]]; then
             echo "Checkout does not match immutable tag commit $tag_sha." >&2
+            exit 1
+          fi
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$tag_sha" origin/main; then
+            echo "Release tag must point to a commit on origin/main." >&2
             exit 1
           fi
 
@@ -85,11 +84,23 @@ jobs:
               echo "Release-notes commit must descend from immutable tag commit $tag_sha." >&2
               exit 1
             fi
+            if ! git merge-base --is-ancestor "$notes_sha" origin/main; then
+              echo "Release-notes commit must already belong to origin/main." >&2
+              exit 1
+            fi
+          fi
+          notes_object="$notes_sha:CHANGELOG.md"
+          if [[ "$(git cat-file -t "$notes_object" 2>/dev/null)" != blob ]]; then
+            echo "Release-notes commit does not contain a CHANGELOG.md blob." >&2
+            exit 1
+          fi
+          if (( $(git cat-file -s "$notes_object") > 1048576 )); then
+            echo "Release-notes CHANGELOG.md exceeds the 1 MiB safety limit." >&2
+            exit 1
           fi
 
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "sha=$tag_sha" >> "$GITHUB_OUTPUT"
           echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
 
   test-integration:
@@ -99,7 +110,7 @@ jobs:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Run Electron integration tests in Docker
@@ -123,14 +134,13 @@ jobs:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Install Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -167,12 +177,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
       - name: Install RPM packaging tools
         if: matrix.target == 'rpm'
         run: |
@@ -217,12 +226,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
       - name: Build unsigned macOS ${{ matrix.target }} packages
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -262,12 +270,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
       - name: Build unsigned Windows ${{ matrix.target }} packages
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
@@ -299,16 +306,28 @@ jobs:
       attestations: write
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout immutable release notes source
+      - name: Checkout immutable release source
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.notes_sha }}
+          fetch-depth: 0
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Set up release notes runtime
         uses: actions/setup-node@v7
         with:
           node-version: 24
+
+      - name: Extract validated release changelog as data
+        env:
+          NOTES_SHA: ${{ needs.prepare-release.outputs.notes_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$NOTES_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Validated release-notes SHA is malformed." >&2
+            exit 1
+          fi
+          git show "$NOTES_SHA:CHANGELOG.md" > "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"
 
       - name: Download immutable build artifacts
         uses: actions/download-artifact@v8
@@ -362,7 +381,7 @@ jobs:
 
           current_notes="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body')"
           printf '%s\n' "$current_notes" > current-release-notes.md
-          node scripts/release-notes.ts "$VERSION" CHANGELOG.md current-release-notes.md > release-notes.md
+          node scripts/release-notes.ts "$VERSION" "$RUNNER_TEMP/hronaut-release-CHANGELOG.md" current-release-notes.md > release-notes.md
           gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
           gh release edit "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -401,7 +420,7 @@ jobs:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
         with:
-          ref: ${{ needs.prepare-release.outputs.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Set up release verification runtime
@@ -436,7 +455,6 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
 
       - name: Guard against a newer release on main
         id: current

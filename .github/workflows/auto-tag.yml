@@ -71,4 +71,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
-        run: gh workflow run release.yml --ref "$TAG" -f tag="$TAG"
+        run: gh workflow run release.yml --ref "$TAG"

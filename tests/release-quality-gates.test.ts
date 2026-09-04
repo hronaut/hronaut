@@ -73,7 +73,7 @@ describe('release quality gates', () => {
     const validate = job(workflow, 'validate')
 
     expect(validate).toContain('needs: prepare-release')
-    expect(validate).toContain('ref: ${{ needs.prepare-release.outputs.sha }}')
+    expect(validate).toContain('ref: ${{ github.sha }}')
     expect(validate).toContain('run: npm run validate')
     expect(validate).not.toContain('run: npm run lint')
     expect(validate).not.toContain('run: npm test')
@@ -88,6 +88,46 @@ describe('release quality gates', () => {
     }
   })
 
+  it('does not restore dependency caches across untrusted and privileged release jobs', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+
+    expect(workflow).not.toContain('cache: npm')
+    expect(workflow).not.toContain('uses: actions/cache')
+  })
+
+  it('binds release execution to the selected mainline tag and treats corrected notes as data', async () => {
+    const [workflow, autoTag] = await Promise.all([
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('.github/workflows/auto-tag.yml', 'utf8')
+    ])
+    const prepare = job(workflow, 'prepare-release')
+    const publish = job(workflow, 'publish-release')
+
+    expect(workflow).not.toContain('inputs.tag')
+    expect(workflow).not.toContain('REQUESTED_TAG')
+    expect(workflow).not.toContain('needs.prepare-release.outputs.sha')
+    expect(prepare).toContain('if [[ "$GITHUB_REF" != refs/tags/* ]]')
+    expect(prepare).toContain('if [[ "$GITHUB_SHA" != "$tag_sha"')
+    expect(prepare).toContain('git merge-base --is-ancestor "$tag_sha" origin/main')
+    expect(prepare).toContain('git merge-base --is-ancestor "$notes_sha" origin/main')
+    expect(prepare).toContain('git cat-file -t "$notes_object"')
+    expect(prepare).toContain('git cat-file -s "$notes_object"')
+    for (const name of [
+      'prepare-release',
+      'test-integration',
+      'validate',
+      'build-linux',
+      'build-macos',
+      'build-windows',
+      'publish-release',
+      'verify-public-release'
+    ]) expect(job(workflow, name)).toContain('ref: ${{ github.sha }}')
+    expect(publish).not.toContain('ref: ${{ needs.prepare-release.outputs.notes_sha }}')
+    expect(publish).toContain('git show "$NOTES_SHA:CHANGELOG.md" > "$RUNNER_TEMP/hronaut-release-CHANGELOG.md"')
+    expect(autoTag).toContain('gh workflow run release.yml --ref "$TAG"')
+    expect(autoTag).not.toContain('-f tag="$TAG"')
+  })
+
   it('keeps published release notes focused on changes and the artifact warning', async () => {
     const [workflow, generator] = await Promise.all([
       readFile('.github/workflows/release.yml', 'utf8'),
@@ -97,7 +137,7 @@ describe('release quality gates', () => {
     const changesStart = generator.indexOf("## What's changed")
     const unsignedWarning = generator.slice(warningStart, changesStart)
 
-    expect(workflow).toContain('node scripts/release-notes.ts "$VERSION" CHANGELOG.md current-release-notes.md')
+    expect(workflow).toContain('node scripts/release-notes.ts "$VERSION" "$RUNNER_TEMP/hronaut-release-CHANGELOG.md" current-release-notes.md')
     for (const source of [workflow, generator]) {
       expect(source).not.toContain("echo '## Start here'")
       expect(source).not.toContain('Watch the 35-second product demo')
@@ -115,7 +155,7 @@ describe('release quality gates', () => {
     const verification = job(workflow, 'verify-public-release')
 
     expect(verification).toContain('- publish-release')
-    expect(verification).toContain('ref: ${{ needs.prepare-release.outputs.sha }}')
+    expect(verification).toContain('ref: ${{ github.sha }}')
     expect(verification).toContain('VERSION: ${{ needs.prepare-release.outputs.version }}')
     expect(verification).toContain('run: node scripts/verify-public-release.ts "$VERSION"')
   })
