@@ -155,6 +155,13 @@ export const ukUA = {
     suggestions: 'Локальні підказки адрес',
     split: { tab: 'Вкладка', heading: 'Розділений перегляд', workspace: 'Робочий простір', closeMenu: 'Закрити меню розділеного перегляду', with: 'з', layout: 'Компонування розділеного перегляду', side: 'Поруч', stacked: 'Один над одним', first: 'Перша область', swap: 'Поміняти області', exit: 'Вийти з розділеного перегляду', choose: 'Виберіть вкладку для відображення праворуч від «{page}».', thisPage: 'цієї сторінки', newTab: 'Нова вкладка', noWorkspace: 'Без робочого простору' },
     pageTools: {
+      "search": "Пошук інструментів сторінки",
+      "searchPlaceholder": "Пошук інструментів…",
+      "clearSearch": "Очистити пошук",
+      "matchCount": "{count} із {total} інструментів",
+      "noMatches": "Інструментів не знайдено",
+      "noMatchesDescription": "Спробуйте іншу назву інструмента або завдання.",
+
       heading: 'Інструменти сторінки', current: 'Поточний сайт', close: 'Закрити інструменти сторінки', inspect: 'Перевірка й імітація', storageDescription: 'Файли cookie та сховище браузера', responsive: 'Адаптивний перегляд', environment: 'Середовище', openConsole: 'Відкрити консоль', consoleDescription: 'Помилки, стеки викликів і згруповані повідомлення', openNetwork: 'Відкрити монітор мережі', networkDescription: 'HTTP, WebSocket, час і очищений HAR', conditions: 'Умови запитів', conditionsDescription: 'Блокуйте, імітуйте або сповільнюйте запити', routeCount: '{count} умова | {count} умови | {count} умов', openRoutes: 'Відкрити {count} тимчасову умову запиту | Відкрити {count} тимчасові умови запитів | Відкрити {count} тимчасових умов запитів', diagnose: 'Діагностика й відтворення', pickElement: 'Вибрати елемент', pickDescription: 'Копіювати DOM, блокову модель, стилі й доступність', elementScreenshot: 'Знімок елемента', screenshotDescription: 'Вибрати один компонент і скопіювати його повний PNG', audit: 'Аудит і оптимізація', javascriptCpu: 'CPU JavaScript', exportAccount: 'Експорт і обліковий запис', copySnapshot: 'Копіювати знімок сторінки', copySnapshotAria: 'Копіювати знімок сторінки для агента', copySnapshotDescription: 'Заголовки, елементи керування й видимий текст', savePdf: 'Зберегти як PDF', savedPassword: 'Збережений пароль', fillPassword: 'Заповнити збережений пароль і призупинити агентів', noPassword: 'Для цього сайту немає збереженого пароля', accountsAvailable: 'Доступно: {count} · призупиняє агентів', noAccount: 'Для цього сайту немає збереженого облікового запису', pageActions: 'Дії для цієї сторінки'
     }
   },

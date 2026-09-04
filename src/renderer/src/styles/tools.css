@@ -1,4 +1,5 @@
 .page-tools-panel {
+  container: page-tools / inline-size;
   @apply absolute [z-index:49] [top:calc(100%_+_8px)] [right:12px] flex [width:min(620px,_calc(100vw_-_24px))] [max-height:min(680px,_calc(100vh_-_130px))] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:12px] text-copy bg-surface-raised [box-shadow:0_18px_54px_rgba(16,_13,_36,_.24)] [user-select:text];
 }
 .page-tools-panel > header {
@@ -7,9 +8,9 @@
 .page-tools-panel h2 { @apply [margin:3px_0_0] [font-size:18px] [line-height:1.15]; }
 .page-tools-content { @apply min-h-0 overflow-y-auto [padding:14px]; }
 .page-tools-content > section + section { @apply [margin-top:16px] [padding-top:16px] [border-top:1px_solid_var(--border-soft)]; }
-.page-tools-content h3 { @apply flex items-center [gap:7px] [margin:0_0_9px] text-muted [font-size:12px] [font-weight:850] [letter-spacing:.06em] uppercase; }
-.page-tools-content h3::before { @apply [width:3px] [height:13px] [border-radius:999px] bg-accent; content: ''; }
-.page-tools-grid { @apply grid [grid-template-columns:repeat(2,_minmax(0,_1fr))] [gap:8px]; }
+.page-tools-content > section:not(.ui-empty-state) > h3 { @apply flex items-center [gap:7px] [margin:0_0_9px] text-muted [font-size:12px] [font-weight:850] [letter-spacing:.06em] uppercase; }
+.page-tools-content > section:not(.ui-empty-state) > h3::before { @apply [width:3px] [height:13px] [border-radius:999px] bg-accent; content: ''; }
+.page-tools-grid { @apply grid [grid-template-columns:repeat(auto-fit,_minmax(min(100%,_240px),_1fr))] [gap:8px]; }
 .page-tools-grid > button {
   @apply grid min-w-0 [min-height:68px] [grid-template-columns:34px_minmax(0,_1fr)] items-center [gap:10px] [padding:10px_11px] [border:1px_solid_var(--border-soft)] [border-radius:9px] text-copy bg-surface [font:inherit] text-left cursor-pointer;
 }
@@ -25,11 +26,35 @@
 .page-tools-grid > button.running > svg { @apply [animation:spin_.9s_linear_infinite]; }
 .page-tools-grid > button > span { @apply grid min-w-0 [gap:4px]; }
 .page-tools-grid strong,
-.page-tools-grid small { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+.page-tools-grid small { @apply whitespace-normal [overflow-wrap:anywhere] [line-height:1.45]; }
 .page-tools-grid strong { @apply [font-size:13px]; }
 .page-tools-grid small { @apply text-muted [font-size:12px]; }
 .page-tools-panel > footer { @apply flex [min-height:42px] flex-none items-center justify-between [gap:12px] [padding:9px_14px] [border-top:1px_solid_var(--border-soft)] text-muted bg-surface [font-size:12px]; }
 .page-tools-panel > footer span:first-child { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+
+.page-tools-content > .ui-empty-state { @apply [padding:14px]; }
+.page-tools-search { @apply flex-none [padding:12px_14px] [border-bottom:1px_solid_var(--border-soft)] bg-surface; }
+.page-tools-search-field { @apply flex items-center [gap:8px] [padding:0_10px] [border:1px_solid_var(--border)] [border-radius:8px] bg-surface-muted; }
+.page-tools-search-field:focus-within { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
+.page-tools-search-field > svg { @apply flex-none [width:18px] [height:18px] text-muted; }
+.page-tools-search-field input { @apply min-w-0 w-full [height:36px] border-0 [outline:0] bg-transparent text-copy [font:inherit] [font-size:13px]; }
+.page-tools-search-field input::-webkit-search-cancel-button { @apply hidden; }
+.page-tools-search-field > button { @apply grid flex-none [width:26px] [height:26px] place-items-center border-0 [border-radius:5px] bg-transparent text-muted cursor-pointer; }
+.page-tools-search-field > button:hover { @apply bg-hover text-copy; }
+.page-tools-search-field > button svg { @apply [width:16px] [height:16px]; }
+.page-tools-search > span { @apply block [margin-top:7px] text-muted [font-size:12px]; }
+
+@container page-tools (max-width: 420px) {
+  .page-tools-panel > header { @apply grid [grid-template-columns:minmax(0,_1fr)_auto] [gap:10px]; }
+  .page-tools-panel > header > div:first-child { @apply min-w-0; }
+  .page-tools-panel > header h2,
+  .page-tools-panel > header .eyebrow { @apply whitespace-nowrap; }
+  .page-tools-panel .panel-header-actions { @apply contents; }
+  .page-tools-panel .panel-header-actions > .panel-close { @apply [grid-column:2] [grid-row:1]; }
+  .page-tools-panel .panel-dock-picker { @apply [grid-column:1_/_-1] [grid-row:2]; }
+  .page-tools-panel .panel-dock-picker select { @apply min-w-0 flex-1; }
+}
+
 .site-controls-panel {
   @apply absolute [z-index:46] [top:calc(100%_+_7px)] [left:-1px] [width:min(420px,_calc(100vw_-_24px))] [max-height:min(590px,_calc(100vh_-_130px))] overflow-x-hidden overflow-y-auto [border:1px_solid_var(--border)] [border-radius:13px] text-copy bg-surface-raised [box-shadow:0_18px_54px_rgba(16,_13,_36,_.26)] text-left [user-select:text];
 }

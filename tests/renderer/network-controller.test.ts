@@ -65,6 +65,33 @@ function route(id: string): BrowserNetworkRouteSummary {
   }
 }
 
+function searchResult(): BrowserNetworkSearchResult {
+  return {
+    tabId: 'tab-1',
+    query: 'example',
+    caseSensitive: false,
+    searchedAt: '2026-08-21T12:00:00.000Z',
+    availableRequestCount: 1,
+    searchedRequestCount: 1,
+    matchingRequestCount: 1,
+    resultCount: 1,
+    occurrenceCount: 1,
+    unavailableResponseBodyCount: 0,
+    truncated: false,
+    matches: [{
+      requestId: 'original',
+      url: 'https://example.test/api/original',
+      method: 'GET',
+      resourceType: 'xhr',
+      field: 'response-body',
+      label: 'Response body',
+      snippet: 'example response',
+      occurrenceCount: 1
+    }],
+    caveats: []
+  }
+}
+
 function state(activeTab: BrowserTabState): BrowserState {
   return {
     tabs: [activeTab],
@@ -80,8 +107,12 @@ function state(activeTab: BrowserTabState): BrowserState {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => (resolve = next))
-  return { promise, resolve }
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<Value>((next, fail) => {
+    resolve = next
+    reject = fail
+  })
+  return { promise, resolve, reject }
 }
 
 function createController() {
@@ -169,6 +200,46 @@ describe('network controller', () => {
     expect(controller.monitorState.value).toBe('idle')
   })
 
+  it.each(['success', 'failure'] as const)('ignores a pending content search %s after clearing the network log', async (outcome) => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkSearchResult>()
+    browser.searchNetwork.mockImplementationOnce(() => pending.promise)
+    controller.contentSearchOpen.value = true
+    controller.contentSearchQuery.value = 'example'
+
+    const searching = controller.runContentSearch()
+    await controller.refresh(true)
+    if (outcome === 'success') pending.resolve(searchResult())
+    else pending.reject(new Error('Search of the old log failed'))
+    await searching
+
+    expect(controller.requests.value).toEqual([])
+    expect(controller.contentSearchResult.value).toBeNull()
+    expect(controller.contentSearchState.value).toBe('idle')
+    expect(controller.contentSearchError.value).toBe('')
+    expect(controller.contentSearchOpen.value).toBe(true)
+    expect(controller.contentSearchQuery.value).toBe('example')
+    controller.dispose()
+  })
+
+  it('clears previous content search errors when clearing the network log and allows a new search', async () => {
+    const { browser, controller } = createController()
+    controller.contentSearchQuery.value = 'example'
+    browser.searchNetwork.mockRejectedValueOnce(new Error('Search of the old log failed'))
+    await controller.runContentSearch()
+
+    await controller.refresh(true)
+
+    expect(controller.contentSearchError.value).toBe('')
+    expect(controller.contentSearchState.value).toBe('idle')
+    const next = searchResult()
+    browser.searchNetwork.mockResolvedValueOnce(next)
+    await controller.runContentSearch()
+    expect(controller.contentSearchResult.value).toEqual(next)
+    expect(controller.contentSearchState.value).toBe('complete')
+    controller.dispose()
+  })
+
   it('keeps only the latest selected request details', async () => {
     const first = deferred<BrowserNetworkRequestDetails>()
     const second = deferred<BrowserNetworkRequestDetails>()
@@ -189,6 +260,26 @@ describe('network controller', () => {
     expect(controller.requestDetailsLoading.value).toBe(false)
   })
 
+  it.each(['success', 'failure'] as const)('discards pending request details %s and loading state when clearing the log', async (outcome) => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRequestDetails>()
+    browser.getNetworkRequestDetails.mockImplementationOnce(() => pending.promise)
+
+    const selecting = controller.selectRequest(request('original'))
+    expect(controller.requestDetailsLoading.value).toBe(true)
+    await controller.refresh(true)
+    expect.soft(controller.requestDetailsLoading.value).toBe(false)
+    if (outcome === 'success') pending.resolve(details('original'))
+    else pending.reject(new Error('Details from the old log failed'))
+    await selecting
+
+    expect(controller.selectedRequestId.value).toBeNull()
+    expect(controller.requestDetails.value).toBeNull()
+    expect(controller.requestDetailsLoading.value).toBe(false)
+    expect(controller.monitorError.value).toBe('')
+    controller.dispose()
+  })
+
   it('requires a second action before replaying a side-effecting XHR', async () => {
     const { browser, controller } = createController()
     controller.requestDetails.value = details('original', 'POST')
@@ -201,6 +292,84 @@ describe('network controller', () => {
     await controller.replaySelectedRequest()
     expect(browser.replayNetworkRequest).toHaveBeenCalledWith('tab-1', 'original', true)
     expect(controller.replayState.value).toBe('replayed')
+    controller.dispose()
+  })
+
+  it.each(['success', 'failure'] as const)('preserves a newer request selection after a late replay %s', async (outcome) => {
+    const { browser, controller } = createController()
+    const result = await browser.replayNetworkRequest('tab-1', 'original')
+    const pending = deferred<typeof result>()
+    browser.replayNetworkRequest.mockImplementationOnce(() => pending.promise)
+    browser.listNetworkRequests.mockResolvedValue([request('newer'), result.replayedRequest])
+    await controller.selectRequest(request('original'))
+
+    const replaying = controller.replaySelectedRequest()
+    await controller.selectRequest(request('newer'))
+    if (outcome === 'success') pending.resolve(result)
+    else pending.reject(new Error('Older replay failed'))
+    await replaying
+
+    expect(controller.selectedRequestId.value).toBe('newer')
+    expect(controller.requestDetails.value?.id).toBe('newer')
+    expect(controller.replayState.value).toBe('idle')
+    expect(controller.replayMessage.value).toBe('')
+    controller.dispose()
+  })
+
+  it('preserves a newer selection while the replay refresh is pending', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRequest[]>()
+    browser.listNetworkRequests.mockImplementationOnce(() => pending.promise)
+    await controller.selectRequest(request('original'))
+
+    const replaying = controller.replaySelectedRequest()
+    await vi.waitFor(() => expect(browser.listNetworkRequests).toHaveBeenCalled())
+    await controller.selectRequest(request('newer'))
+    pending.resolve([request('newer'), request('replayed')])
+    await replaying
+
+    expect(controller.selectedRequestId.value).toBe('newer')
+    expect(controller.requestDetails.value?.id).toBe('newer')
+    expect(controller.replayState.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('does not attach replay success to a request selected while replay details load', async () => {
+    const { browser, controller } = createController()
+    const pending = deferred<BrowserNetworkRequestDetails>()
+    browser.listNetworkRequests.mockResolvedValue([request('newer'), request('replayed')])
+    await controller.selectRequest(request('original'))
+    browser.getNetworkRequestDetails.mockImplementationOnce(() => pending.promise)
+
+    const replaying = controller.replaySelectedRequest()
+    await vi.waitFor(() => expect(controller.selectedRequestId.value).toBe('replayed'))
+    await controller.selectRequest(request('newer'))
+    pending.resolve(details('replayed'))
+    await replaying
+
+    expect(controller.selectedRequestId.value).toBe('newer')
+    expect(controller.requestDetails.value?.id).toBe('newer')
+    expect(controller.replayState.value).toBe('idle')
+    expect(controller.replayMessage.value).toBe('')
+    controller.dispose()
+  })
+
+  it('does not restore replay feedback after the network log is cleared', async () => {
+    const { browser, controller } = createController()
+    const result = await browser.replayNetworkRequest('tab-1', 'original')
+    const pending = deferred<typeof result>()
+    browser.replayNetworkRequest.mockImplementationOnce(() => pending.promise)
+    await controller.selectRequest(request('original'))
+
+    const replaying = controller.replaySelectedRequest()
+    await controller.refresh(true)
+    pending.resolve(result)
+    await replaying
+
+    expect(controller.selectedRequestId.value).toBeNull()
+    expect(controller.requestDetails.value).toBeNull()
+    expect(controller.replayState.value).toBe('idle')
+    expect(controller.replayMessage.value).toBe('')
     controller.dispose()
   })
 

@@ -165,7 +165,6 @@
   .environment-content > footer { @apply items-stretch flex-col; }
   .environment-content > footer > div { @apply [justify-content:stretch]; }
   .environment-content > footer button { @apply justify-center [flex:1]; }
-  .page-tools-grid { @apply [grid-template-columns:1fr]; }
 }
 
 @media (prefers-reduced-motion: reduce) {

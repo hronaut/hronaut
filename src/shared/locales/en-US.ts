@@ -343,6 +343,13 @@ export const enUS = {
     suggestions: 'Local address suggestions',
     split: { tab: 'Tab', heading: 'Split view', workspace: 'Workspace', closeMenu: 'Close split view menu', with: 'with', layout: 'Split layout', side: 'Side by side', stacked: 'Stacked', first: 'First pane', swap: 'Swap panes', exit: 'Exit split view', choose: 'Choose a tab to show on the right of {page}.', thisPage: 'this page', newTab: 'New tab', noWorkspace: 'No workspace' },
     pageTools: {
+      "search": "Search page tools",
+      "searchPlaceholder": "Search tools…",
+      "clearSearch": "Clear search",
+      "matchCount": "{count} of {total} tools",
+      "noMatches": "No matching tools",
+      "noMatchesDescription": "Try a different tool name or task.",
+
       heading: 'Page tools', current: 'Current website', close: 'Close page tools', inspect: 'Inspect & simulate', storageDescription: 'Cookies and browser storage', responsive: 'Responsive preview', environment: 'Environment', openConsole: 'Open Console', consoleDescription: 'Errors, call stacks, and grouped messages', openNetwork: 'Open network monitor', networkDescription: 'HTTP, WebSocket, timing, and sanitized HAR', conditions: 'Request conditions', conditionsDescription: 'Block, mock, or throttle requests', routeCount: '{count} condition | {count} conditions', openRoutes: 'Open {count} temporary request condition | Open {count} temporary request conditions', diagnose: 'Diagnose & reproduce', pickElement: 'Pick element', pickDescription: 'Copy DOM, box model, styles, and a11y', elementScreenshot: 'Element screenshot', screenshotDescription: 'Pick one component and copy its complete PNG', audit: 'Audit & optimize', javascriptCpu: 'JavaScript CPU', exportAccount: 'Export & account', copySnapshot: 'Copy page snapshot', copySnapshotAria: 'Copy page snapshot for agent', copySnapshotDescription: 'Headings, controls, and visible text', savePdf: 'Save as PDF', savedPassword: 'Saved password', fillPassword: 'Fill saved password and pause agents', noPassword: 'No saved password for this site', accountsAvailable: '{count} available · pauses agents', noAccount: 'No saved account for this site', pageActions: 'Page-specific actions'
     }
   },

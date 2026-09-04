@@ -272,7 +272,7 @@ Optional environment variables:
 
 ## Page tools
 
-Page tools keeps every action directly visible while grouping the growing surface by task: **Inspect & simulate**, **Diagnose & reproduce**, **Audit & optimize**, and **Export & account**. The groups use real section headings for keyboard and assistive-technology orientation; the Command Palette remains the fastest route when the action name is already known.
+Page tools groups actions by task: **Inspect & simulate**, **Diagnose & reproduce**, **Audit & optimize**, and **Export & account**. Search within the panel by tool name, description, category, or familiar terms such as `cookies` and `screenshot`. The result count updates as you type, and empty groups disappear. Press Down Arrow in search to focus the first available action, or Escape to clear the query. Reopening the panel shows every tool again. Cards wrap their descriptions and adapt to the panel width, including narrow side docks. The groups use real section headings for keyboard and assistive-technology orientation; the Command Palette also provides direct access from anywhere in the application.
 
 For screenshots, humans can drag an area from the toolbar, pick one complete element from Page tools, or use the Command Palette to copy the visible viewport or complete scrollable page. All four modes write a PNG directly to the system clipboard for pasting into an agent chat; application toasts report success and actionable clipboard errors without covering or changing the address field.
 

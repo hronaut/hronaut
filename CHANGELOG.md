@@ -4,13 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.50] - 2026-09-04
+
 ### Fixed
 
+- Preserve the newly selected page when a delayed tab-close request finishes or is canceled by unsaved-change protection.
+- Keep newly selected network requests visible when older replays finish, and discard stale replay or content-search feedback after selection changes or clearing the log.
 - Honor page beforeunload protection for human tab-close actions with a trusted, cancel-safe confirmation while keeping agent closes non-blocking.
 - Redact token-like query values from IndexedDB, storage-change, cookie, code-coverage, CPU-profile, and memory diagnostic report URLs.
 
 ### Improved
 
+- Find Page tools by name, task, or category with keyboard-friendly search, readable descriptions, and cards that adapt to the available panel width.
 - Keep the public setup directory, reference, and setup-feedback client list aligned with every built-in coding-agent guide.
 
 ## [1.11.49] - 2026-09-04

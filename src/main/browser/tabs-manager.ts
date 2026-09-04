@@ -3242,6 +3242,7 @@ export class BrowserTabsManager {
 
   private stageBeforeUnloadClose(tab: BrowserTab): {
     targetDetached: boolean
+    cleanup: () => void
     rollback: () => void
   } {
     const wasActive = tab.id === this.activeTabId
@@ -3249,7 +3250,7 @@ export class BrowserTabsManager {
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
       : null
     if (!wasActive && !splitPartnerId) {
-      return { targetDetached: false, rollback: () => undefined }
+      return { targetDetached: false, cleanup: () => undefined, rollback: () => undefined }
     }
 
     const bounds = tab.view.getBounds()
@@ -3279,15 +3280,27 @@ export class BrowserTabsManager {
       throw error
     }
 
+    const cleanup = (): void => {
+      // A user can select another page while Chromium runs beforeunload.
+      // Restore only the views owned by the current selection, not the
+      // selection that existed when the close probe started.
+      if (
+        replacementWasAttached && replacement && !replacement.webContents.isDestroyed()
+        && this.activeTabId !== replacement.id && !this.splitViewContains(replacement.id)
+      ) {
+        this.window.contentView.removeChildView(replacement.view)
+        replacementWasAttached = false
+      }
+    }
     return {
       targetDetached: true,
+      cleanup,
       rollback: () => {
-        if (replacementWasAttached && replacement && !replacement.webContents.isDestroyed()) {
-          this.window.contentView.removeChildView(replacement.view)
-          replacementWasAttached = false
-        }
+        cleanup()
         if (tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
-        this.window.contentView.addChildView(tab.view)
+        if (this.activeTabId === tab.id || this.splitViewContains(tab.id)) {
+          this.window.contentView.addChildView(tab.view)
+        }
         this.layout()
         if (this.activeTabId === tab.id) this.focusTabOrTrustedChrome(tab)
       }
@@ -3462,6 +3475,7 @@ export class BrowserTabsManager {
         return this.performCloseTab(tabId, ensureReplacement, true, true)
       }
       if (this.tabs.get(tab.id) !== tab) {
+        stagedClose.cleanup()
         return this.getState()
       }
     }
@@ -3486,6 +3500,10 @@ export class BrowserTabsManager {
       if (stagedClose) {
         const replacement = this.tabs.get(nextId)
         if (replacement && !replacement.webContents.isDestroyed()) {
+          // Ordering can change during beforeunload without changing the
+          // active tab. Attach the current successor, even if staging picked
+          // a different view before the asynchronous close probe.
+          this.window.contentView.addChildView(replacement.view)
           this.tabSelectionGeneration += 1
           replacement.lastActiveAt = Date.now()
           this.activeTabId = replacement.id
@@ -3498,6 +3516,7 @@ export class BrowserTabsManager {
       this.window.contentView.removeChildView(tab.view)
     }
 
+    stagedClose?.cleanup()
     this.removeTabRecord(tab)
     if (!webContents.isDestroyed()) {
       this.detachDialogMonitoring(webContents)

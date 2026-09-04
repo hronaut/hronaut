@@ -1074,6 +1074,13 @@ export const deDE = {
       "noWorkspace": "Kein Arbeitsbereich"
     },
     "pageTools": {
+      "search": "Seitenwerkzeuge suchen",
+      "searchPlaceholder": "Werkzeuge suchen…",
+      "clearSearch": "Suche löschen",
+      "matchCount": "{count} von {total} Werkzeugen",
+      "noMatches": "Keine passenden Werkzeuge",
+      "noMatchesDescription": "Versuchen Sie einen anderen Werkzeugnamen oder eine andere Aufgabe.",
+
       "heading": "Seitenwerkzeuge",
       "current": "Aktuelle Website",
       "close": "Seitenwerkzeuge schließen",

@@ -1074,6 +1074,13 @@ export const plPL = {
       "noWorkspace": "Brak obszaru roboczego"
     },
     "pageTools": {
+      "search": "Szukaj narzędzi strony",
+      "searchPlaceholder": "Szukaj narzędzi…",
+      "clearSearch": "Wyczyść wyszukiwanie",
+      "matchCount": "{count} z {total} narzędzi",
+      "noMatches": "Brak pasujących narzędzi",
+      "noMatchesDescription": "Spróbuj innej nazwy narzędzia lub zadania.",
+
       "heading": "Narzędzia strony",
       "current": "Bieżąca witryna",
       "close": "Zamknij narzędzia strony",

@@ -1074,6 +1074,13 @@ export const frFR = {
       "noWorkspace": "Aucun espace de travail"
     },
     "pageTools": {
+      "search": "Rechercher des outils de page",
+      "searchPlaceholder": "Rechercher un outil…",
+      "clearSearch": "Effacer la recherche",
+      "matchCount": "{count} outils sur {total}",
+      "noMatches": "Aucun outil correspondant",
+      "noMatchesDescription": "Essayez un autre nom d’outil ou une autre tâche.",
+
       "heading": "Outils de la page",
       "current": "Site web actuel",
       "close": "Fermer les outils de la page",

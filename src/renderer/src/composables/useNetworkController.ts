@@ -111,6 +111,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   let routeMutationSequence = 0
   let requestDetailsSequence = 0
   let detailsCopySequence = 0
+  let replaySequence = 0
   let replayConfirmTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'details' | 'har' | 'har-save'>()
 
@@ -178,6 +179,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   function resetReplayFeedback(): void {
+    replaySequence += 1
     if (replayConfirmTimer !== undefined) {
       window.clearTimeout(replayConfirmTimer)
       replayConfirmTimer = undefined
@@ -233,12 +235,16 @@ export function useNetworkController(options: NetworkControllerOptions) {
     harSaveState.value = 'idle'
     harExport.value = null
     if (clear) {
+      contentSearchSequence += 1
+      requestDetailsSequence += 1
       requestDetails.value = null
+      requestDetailsLoading.value = false
       selectedRequestId.value = null
       detailsCopied.value = null
       resetReplayFeedback()
       contentSearchResult.value = null
       contentSearchState.value = 'idle'
+      contentSearchError.value = ''
     }
     try {
       const nextRequests = await options.browser.listNetworkRequests(tab.id, clear)
@@ -396,7 +402,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
   }
 
-  async function selectRequest(request: BrowserNetworkRequest): Promise<void> {
+  async function loadRequestDetails(request: BrowserNetworkRequest): Promise<void> {
     const tab = options.activeTab.value
     if (!tab) return
     const expectedGeneration = generation
@@ -406,7 +412,6 @@ export function useNetworkController(options: NetworkControllerOptions) {
     selectedRequestId.value = request.id
     requestDetails.value = null
     detailsCopied.value = null
-    resetReplayFeedback()
     requestDetailsLoading.value = true
     monitorError.value = ''
     try {
@@ -426,6 +431,12 @@ export function useNetworkController(options: NetworkControllerOptions) {
     }
   }
 
+  async function selectRequest(request: BrowserNetworkRequest): Promise<void> {
+    if (!options.activeTab.value) return
+    resetReplayFeedback()
+    await loadRequestDetails(request)
+  }
+
   async function replaySelectedRequest(): Promise<void> {
     const tab = options.activeTab.value
     const request = requestDetails.value
@@ -441,20 +452,24 @@ export function useNetworkController(options: NetworkControllerOptions) {
       return
     }
     resetReplayFeedback()
+    const sequence = replaySequence
+    const isReplayCurrent = () => sequence === replaySequence && isCurrent(tab.id, expectedGeneration)
     replayState.value = 'replaying'
     replayMessage.value = options.translate('networkReplayStatus.replaying', { method })
     try {
       const result = await options.browser.replayNetworkRequest(tab.id, request.id, confirmationRequired)
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (!isReplayCurrent()) return
       await refresh()
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (!isReplayCurrent()) return
       const replayed = requests.value.find((candidate) => candidate.id === result.replayedRequest.id)
-      if (replayed) await selectRequest(replayed)
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      // Showing this operation's result preserves its feedback ownership;
+      // a later user selection invalidates it through selectRequest instead.
+      if (replayed) await loadRequestDetails(replayed)
+      if (!isReplayCurrent()) return
       replayState.value = 'replayed'
       replayMessage.value = options.translate('networkReplayStatus.replayed', { method })
     } catch (cause) {
-      if (!isCurrent(tab.id, expectedGeneration)) return
+      if (!isReplayCurrent()) return
       replayState.value = 'error'
       replayMessage.value = cause instanceof Error ? cause.message : String(cause)
     }

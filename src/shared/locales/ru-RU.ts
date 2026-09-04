@@ -1074,6 +1074,13 @@ export const ruRU = {
       "noWorkspace": "Нет рабочей области"
     },
     "pageTools": {
+      "search": "Поиск инструментов страницы",
+      "searchPlaceholder": "Поиск инструментов…",
+      "clearSearch": "Очистить поиск",
+      "matchCount": "{count} из {total} инструментов",
+      "noMatches": "Инструменты не найдены",
+      "noMatchesDescription": "Попробуйте другое название инструмента или задачи.",
+
       "heading": "Инструменты страницы",
       "current": "Текущий сайт",
       "close": "Закрыть инструменты страницы",

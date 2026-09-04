@@ -1074,6 +1074,13 @@ export const esES = {
       "noWorkspace": "Sin espacio de trabajo"
     },
     "pageTools": {
+      "search": "Buscar herramientas de página",
+      "searchPlaceholder": "Buscar herramientas…",
+      "clearSearch": "Borrar búsqueda",
+      "matchCount": "{count} de {total} herramientas",
+      "noMatches": "No hay herramientas coincidentes",
+      "noMatchesDescription": "Prueba otro nombre de herramienta o tarea.",
+
       "heading": "Herramientas de la página",
       "current": "Sitio web actual",
       "close": "Cerrar las herramientas de la página",

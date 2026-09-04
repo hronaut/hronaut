@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
@@ -28,7 +28,7 @@ function tab(): BrowserTabState {
   }
 }
 
-function renderPanel(captureBusy = false) {
+function renderPanel(captureBusy = false, locale: 'en-US' | 'uk-UA' = 'en-US') {
   const activeTab = ref<BrowserTabState | undefined>(tab())
   const diagnostics = useDiagnosticsController({
     activeTab,
@@ -72,14 +72,14 @@ function renderPanel(captureBusy = false) {
     pdfExport: 'Save page as PDF'
   }
   const view = render(PageToolsPanel, {
-    global: { plugins: [createHronautI18n('en-US')] },
+    global: { plugins: [createHronautI18n(locale)] },
     props: {
       open: true,
       dock: 'right',
       activeTab: activeTab.value,
       activeWebUrl: activeTab.value!.url,
       hostname: 'example.test',
-      locale: 'en-US',
+      locale,
       environmentState: 'idle',
       environmentOverrideCount: 0,
       networkRouteCount: 2,
@@ -101,6 +101,79 @@ function renderPanel(captureBusy = false) {
 }
 
 describe('PageToolsPanel', () => {
+  it('filters translated labels and existing tool keywords while hiding empty groups', async () => {
+    const { diagnostics } = renderPanel()
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox', { name: 'Search page tools' })
+
+    expect(screen.getByRole('status')).toHaveTextContent('25 of 25 tools')
+    const content = document.getElementById('page-tools-content')!
+    content.scrollTop = 400
+    await user.type(search, '  INDEXEDdb  ')
+    expect(content.scrollTop).toBe(0)
+    expect(screen.getByRole('button', { name: 'Site storage for example.test' })).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 25 tools')
+    expect(screen.queryByRole('heading', { name: 'Audit & optimize' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open Console' })).not.toBeInTheDocument()
+    await user.clear(search)
+    await user.type(search, 'export account')
+    expect(screen.getByRole('status')).toHaveTextContent('3 of 25 tools')
+    diagnostics.dispose()
+  })
+
+  it('supports keyboard entry to results, skips disabled tools, and clears without closing', async () => {
+    const { view, actions, diagnostics } = renderPanel()
+    const user = userEvent.setup()
+    await view.rerender({ activeWebUrl: null })
+    const search = screen.getByRole('searchbox', { name: 'Search page tools' })
+    await user.click(search)
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('button', { name: 'Responsive preview: No viewport override' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(actions.toggleResponsivePreview).toHaveBeenCalledOnce()
+    await user.click(search)
+    await user.type(search, 'does-not-exist')
+    expect(screen.getByText('No matching tools')).toBeVisible()
+    expect(screen.getByRole('status')).toHaveTextContent('0 of 25 tools')
+    await user.keyboard('{ArrowDown}')
+    expect(search).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(search).toHaveValue('')
+    expect(screen.getByRole('status')).toHaveTextContent('25 of 25 tools')
+    expect(view.emitted()['update:open']).toBeUndefined()
+    diagnostics.dispose()
+  })
+
+  it('keeps composition keys intact and restores all tools after closing and reopening', async () => {
+    const { view, diagnostics } = renderPanel()
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox', { name: 'Search page tools' })
+    await user.type(search, 'pdf')
+    await fireEvent.keyDown(search, { key: 'Escape', isComposing: true })
+    expect(search).toHaveValue('pdf')
+    await fireEvent.keyDown(search, { key: 'ArrowDown', keyCode: 229 })
+    expect(search).toHaveFocus()
+    await view.rerender({ open: false })
+    await view.rerender({ open: true })
+    expect(screen.getByRole('searchbox', { name: 'Search page tools' })).toHaveValue('')
+    expect(screen.getByRole('status')).toHaveTextContent('25 of 25 tools')
+    diagnostics.dispose()
+  })
+
+  it('searches Ukrainian names and offers an explicit empty-state recovery action', async () => {
+    const { diagnostics } = renderPanel(false, 'uk-UA')
+    const user = userEvent.setup()
+    const search = screen.getByRole('searchbox', { name: 'Пошук інструментів сторінки' })
+    await user.type(search, 'Зберегти')
+    expect(screen.getByRole('status')).toHaveTextContent('1 із 25 інструментів')
+    await user.clear(search)
+    await user.type(search, 'немає-такого-інструмента')
+    await user.click(screen.getAllByRole('button', { name: 'Очистити пошук' })[1])
+    expect(search).toHaveFocus()
+    expect(search).toHaveValue('')
+    diagnostics.dispose()
+  })
+
   it('owns page-tool rendering and dispatches export and picker actions', async () => {
     const { view, actions, diagnostics } = renderPanel()
     const user = userEvent.setup()
