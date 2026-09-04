@@ -2594,6 +2594,23 @@ export const plPL = {
     "recentlyClosedTabs": "Ostatnio zamknięte karty"
   },
   "home": {
+    journey: {
+      heading: 'Zacznij od swojego agenta',
+      connect: 'Połącz',
+      verify: 'Sprawdź',
+      tryTask: 'Wypróbuj zadanie',
+      searchAgents: 'Szukaj agentów',
+      noAgents: 'Brak pasujących agentów. Spróbuj innej nazwy.',
+      retry: 'Spróbuj ponownie',
+      setup: 'Konfiguracja i połączenie',
+      toggleSetup: 'Pokaż lub ukryj konfigurację',
+      waiting: 'Oczekiwanie na agenta',
+      observed: 'Wykryto klienta. Wypróbuj poniższe zadanie, aby sprawdzić dostęp do przeglądarki.',
+      unavailable: 'Status niedostępny. Poniżej ostatnia znana aktywność.',
+      browseTools: 'Przeglądaj dostępne narzędzia',
+      searchTools: 'Szukaj narzędzi',
+      noTools: 'Brak pasujących narzędzi. Spróbuj innej nazwy.',
+    },
     "title": "Strona główna Hronaut",
     "brand": "Strona główna Hronaut",
     "hero": "Twoja przeglądarka jest gotowa na agentów programistycznych.",

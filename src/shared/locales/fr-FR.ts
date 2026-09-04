@@ -2594,6 +2594,23 @@ export const frFR = {
     "recentlyClosedTabs": "Onglets fermés récemment"
   },
   "home": {
+    journey: {
+      heading: 'Commencez avec votre agent de code',
+      connect: 'Connecter',
+      verify: 'Vérifier',
+      tryTask: 'Essayer une tâche',
+      searchAgents: 'Rechercher un agent',
+      noAgents: 'Aucun agent trouvé. Essayez un autre nom.',
+      retry: 'Réessayer',
+      setup: 'Configuration et connexion',
+      toggleSetup: 'Afficher ou masquer la configuration',
+      waiting: 'En attente de votre agent',
+      observed: 'Un client a été détecté. Essayez la tâche ci-dessous pour vérifier l’accès au navigateur.',
+      unavailable: 'État indisponible. La dernière activité connue apparaît ci-dessous.',
+      browseTools: 'Parcourir les outils disponibles',
+      searchTools: 'Rechercher des outils',
+      noTools: 'Aucun outil trouvé. Essayez un autre nom.',
+    },
     "title": "Accueil Hronaut",
     "brand": "Accueil Hronaut",
     "hero": "Votre navigateur est prêt pour les agents de programmation.",

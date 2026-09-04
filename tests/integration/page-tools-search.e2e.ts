@@ -58,8 +58,10 @@ test('finds page tools with keyboard search and readable cards in narrow and wid
   }
   await search.fill('does-not-exist')
   await expect(panel.getByRole('heading', { name: 'No matching tools' })).toBeVisible()
+  const clearEmptySearch = panel.getByRole('button', { name: 'Clear search', exact: true }).last()
+  expect((await clearEmptySearch.boundingBox())!.height).toBeGreaterThanOrEqual(32)
   await appWindow.screenshot({ path: testInfo.outputPath('page-tools-empty.png') })
-  await panel.getByRole('button', { name: 'Clear search', exact: true }).last().click()
+  await clearEmptySearch.click()
   await expect(search).toBeFocused()
   await expect(panel.getByRole('status')).toHaveText('25 of 25 tools')
 })

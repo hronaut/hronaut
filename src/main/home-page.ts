@@ -460,12 +460,12 @@ export function renderHomePage(options: HomePageOptions): string {
     html { min-width: 320px; min-height: 100%; background: var(--bg); }
     body { min-height: 100vh; margin: 0; color: var(--text); background: radial-gradient(circle at 75% -15%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 35%), var(--bg); }
     button { color: inherit; font: inherit; }
-    .page { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 56px; }
+    .page { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 24px 0 40px; }
     .hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 28px; align-items: end; padding: 8px 2px 30px; }
-    .brand { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 20px; color: var(--muted); font-size: 14px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 12px; color: var(--muted); font-size: 14px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
     .mark { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; color: white; background: linear-gradient(135deg, var(--accent), #4f8cff); box-shadow: 0 7px 18px color-mix(in srgb, var(--accent) 30%, transparent); font-size: 15px; letter-spacing: 0; }
-    h1 { max-width: 760px; margin: 0; font-size: clamp(36px, 5vw, 64px); line-height: .99; letter-spacing: -.055em; }
-    .lead { max-width: 720px; margin: 18px 0 0; color: var(--muted); font-size: 18px; line-height: 1.65; }
+    h1 { max-width: 760px; margin: 0; font-size: clamp(26px, 3.5vw, 40px); line-height: .99; letter-spacing: -.055em; }
+    .lead { max-width: 720px; margin: 18px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .hero-status { min-width: 220px; padding: 17px 18px; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
     .status-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-2) 14%, transparent); }
@@ -479,14 +479,14 @@ export function renderHomePage(options: HomePageOptions): string {
     .endpoint code { min-width: 0; flex: 1; overflow: hidden; color: var(--text); font-family: "SFMono-Regular", Consolas, monospace; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
     .copy-button { flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-solid); cursor: pointer; font-size: 13px; font-weight: 700; }
     .copy-button:hover { border-color: var(--accent); color: var(--accent); }
-    .grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(290px, .7fr); gap: 20px; }
+    .grid { display: grid; align-items: start; grid-template-columns: minmax(0, 1.5fr) minmax(290px, .7fr); gap: 20px; }
     .panel { overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
     .panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 18px; padding: 22px 24px 18px; border-bottom: 1px solid var(--border); }
     h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
     .panel-heading p { margin: 5px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
     .count { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 12px; font-weight: 800; }
     .agent-layout { display: grid; min-height: 360px; grid-template-columns: 180px minmax(0,1fr); }
-    .agents { padding: 12px; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--soft) 55%, transparent); }
+    .agents { padding: 12px; max-height: 290px; overflow-y: auto; overscroll-behavior: contain; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--soft) 55%, transparent); }
     .agent-button { display: block; width: 100%; padding: 11px 12px; border: 1px solid transparent; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; font-size: 14px; font-weight: 680; }
     .agent-button + .agent-button { margin-top: 3px; }
     .agent-button:hover { background: var(--panel-solid); }
@@ -515,14 +515,15 @@ export function renderHomePage(options: HomePageOptions): string {
     .guide-primary-action button:hover { filter: brightness(1.08); }
     .guide-primary-action button:disabled { cursor: wait; opacity: .72; }
     .guide-primary-status { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-    .connections-body { min-height: 360px; padding: 10px 14px 14px; }
+    .connections-body { min-height: 120px; padding: 10px 14px 14px; }
     .first-run { display: grid; grid-template-columns: minmax(230px,.62fr) minmax(0,1.38fr); gap: 22px; align-items: center; margin-top: 20px; padding: 22px 24px; }
     .first-run-kicker { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
     .first-run h2 { margin-top: 7px; }
     .first-run p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
     .first-run .code-wrap { min-width: 0; }
-    .first-run pre { min-height: 0; padding-right: 130px; }
-    .empty { display: grid; min-height: 250px; place-items: center; padding: 30px; color: var(--muted); text-align: center; }
+    .first-run pre { min-height: 0; padding: 16px; }
+    .first-run .code-copy { position: static; margin-top: 10px; color: var(--text); background: var(--panel-solid); border-color: var(--border); }
+    .empty { display: grid; min-height: 120px; place-items: center; padding: 30px; color: var(--muted); text-align: center; }
     .empty strong { display: block; color: var(--text); font-size: 15px; }
     .empty span { display: block; max-width: 280px; margin-top: 6px; font-size: 13px; line-height: 1.55; }
     .connection { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 11px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--border); }
@@ -568,9 +569,35 @@ export function renderHomePage(options: HomePageOptions): string {
     .category { flex: 0 0 auto; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
     .tool p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
     .footer { display: flex; justify-content: space-between; gap: 16px; padding: 24px 3px 0; color: var(--muted); font-size: 12px; }
+    [hidden] { display: none !important; }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    .journey { margin-bottom: 20px; }
+    .journey h2 { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+    .journey-links { display: flex; flex-wrap: wrap; gap: 10px; }
+    .journey a { display: flex; align-items: center; gap: 9px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; color: var(--text); background: var(--panel); text-decoration: none; font-size: 14px; }
+    .step-number { color: var(--accent); font-weight: 800; }
+    summary { cursor: pointer; }
+    .setup-summary { padding: 17px 24px; font-weight: 750; }
+    details[open] > .setup-summary { border-bottom: 1px solid var(--border); }
+    .setup-summary small { margin-left: 8px; font-weight: 400; color: var(--muted); font-size: 12px; }
+    .guide-picker { min-width: 0; border-right: 1px solid var(--border); background: var(--soft); }
+    .guide-picker .agents { border-right: 0; }
+    .search-field { display: block; padding: 12px; }
+    .search-field span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    input[type=search] { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--panel-solid); font: inherit; font-size: 13px; }
+    .filter-empty { margin: 0; padding: 12px; color: var(--muted); font-size: 13px; }
+    .action-status { display: block; margin-top: 8px; color: var(--text); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+    .action-status:empty { margin-top: 0; }
+    .connection-note { margin: 0; padding: 14px 20px 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .tools .tool-grid { max-height: 480px; overflow-y: auto; }
+    .tools .search-field { padding: 16px 18px 0; }
+    .tools > summary { padding: 20px 24px; font-weight: 750; }
+    .tools > summary .count { margin-left: 10px; }
+    .next-steps { min-width: 0; }
+    .next-steps .first-run { grid-template-columns: 1fr; gap: 16px; }
     @media (max-width: 880px) {
       .page { width: min(100% - 28px, 720px); padding-top: 24px; }
-      .hero { grid-template-columns: 1fr; }
+      .hero { grid-template-columns: minmax(0,1fr) minmax(170px,.65fr); gap: 18px; }
       .hero-status { min-width: 0; }
       .grid { grid-template-columns: 1fr; }
       .first-run { grid-template-columns: 1fr; }
@@ -578,7 +605,14 @@ export function renderHomePage(options: HomePageOptions): string {
       .tool-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
     }
     @media (max-width: 560px) {
+      .hero { grid-template-columns: 1fr; }
       .agent-layout { display: block; }
+      .guide-picker { border-right: 0; }
+      .agents { max-height: 160px; flex-wrap: wrap; }
+      .guide { padding: 18px; }
+      .panel-heading { flex-wrap: wrap; }
+      .verify { flex-wrap: wrap; }
+      .verify code { flex-basis: 60%; }
       .agents { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
       .agent-button { width: auto; flex: 0 0 auto; }
       .agent-button + .agent-button { margin: 0 0 0 3px; }
@@ -611,14 +645,28 @@ export function renderHomePage(options: HomePageOptions): string {
       <button class="copy-button" type="button" data-copy-target="endpoint">${escapeHtml(home.copyUrl)}</button>
     </div>
 
+    <nav class="journey" aria-labelledby="journey-title">
+      <h2 id="journey-title">${escapeHtml(home.journey.heading)}</h2>
+      <div class="journey-links">
+        <a href="#setup" data-open-setup><span class="step-number">1</span>${escapeHtml(home.journey.connect)}</a>
+        <a href="#connections-title"><span class="step-number">2</span>${escapeHtml(home.journey.verify)}</a>
+        <a href="#first-run-title"><span class="step-number">3</span>${escapeHtml(home.journey.tryTask)}</a>
+      </div>
+    </nav>
+
     <div class="grid">
-      <section class="panel" aria-labelledby="connect-title">
+      <details id="setup" class="panel" open>
+        <summary class="setup-summary">${escapeHtml(home.journey.setup)}<small>${escapeHtml(home.journey.toggleSetup)}</small></summary>
         <header class="panel-heading">
           <div><h2 id="connect-title">${escapeHtml(home.connect.heading)}</h2><p>${escapeHtml(home.connect.description)}</p></div>
           <span class="count">${escapeHtml(home.connect.clients.replace('{count}', new Intl.NumberFormat(options.locale).format(guides.length)))}</span>
         </header>
         <div class="agent-layout">
-          <nav id="agent-list" class="agents" aria-label="${escapeHtml(home.connect.agentsLabel)}"></nav>
+          <div class="guide-picker">
+            <label class="search-field"><span>${escapeHtml(home.journey.searchAgents)}</span><input id="agent-search" type="search" autocomplete="off" aria-controls="agent-list"></label>
+            <nav id="agent-list" class="agents" aria-label="${escapeHtml(home.connect.agentsLabel)}"></nav>
+            <p id="agent-empty" class="filter-empty" role="status" hidden>${escapeHtml(home.journey.noAgents)}</p>
+          </div>
           <div class="guide">
             <span class="guide-kicker">${escapeHtml(home.connect.instructions)}</span>
             <h3 id="guide-name"></h3>
@@ -639,7 +687,8 @@ export function renderHomePage(options: HomePageOptions): string {
               <button class="copy-button" type="button" data-copy-target="guide-verify-command">${escapeHtml(home.connect.copy)}</button>
             </div>
             <div class="guide-doc-action">
-              <button type="button" data-agent-guide></button>
+              <button type="button" data-agent-guide aria-describedby="guide-open-status"></button>
+              <span id="guide-open-status" class="action-status" role="status" aria-live="polite"></span>
             </div>
             ${options.authenticationDisabled ? `<div id="guide-primary-action" class="guide-primary-action" hidden>
               <button type="button" data-vscode-install>${escapeHtml(home.connect.openVsCode)}</button>
@@ -648,20 +697,21 @@ export function renderHomePage(options: HomePageOptions): string {
             <p class="security">${escapeHtml(securityNote)}</p>
           </div>
         </div>
-      </section>
+      </details>
 
+      <div class="next-steps">
       <section class="panel" aria-labelledby="connections-title">
         <header class="panel-heading">
-          <div><h2 id="connections-title">${escapeHtml(home.connections.heading)}</h2><p>${escapeHtml(home.connections.description)}</p></div>
+          <div><h2 id="connections-title">2 · ${escapeHtml(home.journey.verify)}</h2><p>${escapeHtml(home.connections.description)}</p></div>
           <span id="client-count" class="count">${escapeHtml(home.counts.clientsOther.replace('{count}', '0'))}</span>
         </header>
+        <p id="connection-note" class="connection-note" role="status">${escapeHtml(home.journey.waiting)}</p>
         <div id="connections" class="connections-body"></div>
       </section>
-    </div>
 
     <section class="panel first-run" aria-labelledby="first-run-title">
       <div>
-        <span class="first-run-kicker">${escapeHtml(home.firstRun.kicker)}</span>
+        <span class="first-run-kicker">3 · ${escapeHtml(home.journey.tryTask)}</span>
         <h2 id="first-run-title">${escapeHtml(home.firstRun.heading)}</h2>
         <p>${escapeHtml(home.firstRun.description)}</p>
       </div>
@@ -670,6 +720,9 @@ export function renderHomePage(options: HomePageOptions): string {
         <button class="copy-button code-copy" type="button" data-copy-target="first-run-prompt">${escapeHtml(home.firstRun.copy)}</button>
       </div>
     </section>
+
+      </div>
+    </div>
 
     <section class="panel activity" aria-labelledby="activity-title">
       <header class="panel-heading">
@@ -691,8 +744,10 @@ export function renderHomePage(options: HomePageOptions): string {
           <span id="support-kicker">${escapeHtml(home.support.kicker)}</span>
           <h3 id="support-heading">${escapeHtml(home.support.heading)}</h3>
           <p id="support-message">${escapeHtml(home.support.message)}</p>
-          <button id="support-troubleshoot" type="button" data-setup-help>${escapeHtml(home.support.troubleshoot)}</button>
-          <button id="support-feedback" class="secondary" type="button" data-setup-feedback>${escapeHtml(home.support.reportTrouble)}</button>
+          <button id="support-troubleshoot" type="button" data-setup-help aria-describedby="support-help-status">${escapeHtml(home.support.troubleshoot)}</button>
+          <div id="support-help-status" class="action-status" role="status" aria-live="polite"></div>
+          <button id="support-feedback" class="secondary" type="button" data-setup-feedback aria-describedby="support-feedback-status">${escapeHtml(home.support.reportTrouble)}</button>
+          <div id="support-feedback-status" class="action-status" role="status" aria-live="polite"></div>
           <button id="support-recommend" class="secondary" type="button" data-copy-target="support-recommend-message" hidden>${escapeHtml(home.support.recommend)}</button>
           <span id="support-recommend-message" hidden>${escapeHtml(home.support.recommendMessage)}</span>
           <small id="support-welcome">${escapeHtml(home.support.helpPrivacy)}</small>
@@ -702,13 +757,13 @@ export function renderHomePage(options: HomePageOptions): string {
       </div>
     </section>
 
-    <section class="panel tools" aria-labelledby="tools-title">
-      <header class="panel-heading">
-        <div><h2 id="tools-title">${escapeHtml(home.tools.heading)}</h2><p>${escapeHtml(home.tools.description)}</p></div>
-        <span id="tool-count" class="count">${escapeHtml(home.counts.tools.replace('{count}', '0'))}</span>
-      </header>
+    <details class="panel tools">
+      <summary>${escapeHtml(home.journey.browseTools)}<span id="tool-count" class="count">${escapeHtml(home.counts.tools.replace('{count}', '0'))}</span></summary>
+      <p class="connection-note">${escapeHtml(home.tools.description)}</p>
+      <label class="search-field"><span>${escapeHtml(home.journey.searchTools)}</span><input id="tool-search" type="search" autocomplete="off" aria-controls="tool-grid"></label>
+      <p id="tool-empty" class="filter-empty" role="status" hidden>${escapeHtml(home.journey.noTools)}</p>
       <div id="tool-grid" class="tool-grid"></div>
-    </section>
+    </details>
 
     <footer class="footer"><span>${escapeHtml(home.footer)}</span><span id="server-version">Hronaut ${escapeHtml(options.initialState.version)}</span></footer>
   </main>
@@ -719,6 +774,10 @@ export function renderHomePage(options: HomePageOptions): string {
     let dashboard = ${serialized(options.initialState)};
     const renderedPresentationRevision = dashboard.presentationRevision;
     let selectedGuide = guides[0].id;
+    try {
+      const remembered = window.localStorage.getItem('hronaut.home.guide');
+      if (guides.some((guide) => guide.id === remembered)) selectedGuide = remembered;
+    } catch { /* Setup remains usable when profile storage is unavailable. */ }
     const copyButtonStates = new WeakMap();
     let agentGuideSequence = 0;
     let vscodeInstallSequence = 0;
@@ -774,6 +833,7 @@ export function renderHomePage(options: HomePageOptions): string {
         ).join('');
         agentList.querySelectorAll('[data-guide]').forEach((button) => button.addEventListener('click', () => {
           selectedGuide = button.dataset.guide;
+          try { window.localStorage.setItem('hronaut.home.guide', selectedGuide); } catch { /* Optional preference. */ }
           renderGuide();
         }));
       }
@@ -798,6 +858,7 @@ export function renderHomePage(options: HomePageOptions): string {
       const agentGuideButton = document.querySelector('[data-agent-guide]');
       agentGuideButton.disabled = false;
       agentGuideButton.title = '';
+      document.getElementById('guide-open-status').textContent = '';
       agentGuideButton.textContent = interpolate(messages.connect.openGuide, { name: guide.name });
       const primaryAction = document.getElementById('guide-primary-action');
       if (primaryAction) {
@@ -821,12 +882,16 @@ export function renderHomePage(options: HomePageOptions): string {
       const sequence = ++agentGuideSequence;
       agentGuideButton.disabled = true;
       agentGuideButton.title = '';
+      document.getElementById('guide-open-status').textContent = '';
+      agentGuideButton.textContent = interpolate(messages.connect.openGuide, { name: guides.find((guide) => guide.id === requestedGuide).name });
       try {
         if (!window.hronautHome?.openAgentGuide) throw new Error(messages.connect.guideUnavailable);
         await window.hronautHome.openAgentGuide(requestedGuide);
       } catch (error) {
         if (sequence !== agentGuideSequence || selectedGuide !== requestedGuide) return;
         agentGuideButton.title = error instanceof Error ? error.message : messages.connect.guideUnavailable;
+        document.getElementById('guide-open-status').textContent = agentGuideButton.title;
+        agentGuideButton.textContent = messages.journey.retry + ' · ' + interpolate(messages.connect.openGuide, { name: guides.find((guide) => guide.id === requestedGuide).name });
       } finally {
         if (sequence === agentGuideSequence) agentGuideButton.disabled = false;
       }
@@ -862,11 +927,15 @@ export function renderHomePage(options: HomePageOptions): string {
         if (setupFeedbackButton.disabled) return;
         setupFeedbackButton.disabled = true;
         setupFeedbackButton.title = '';
+        document.getElementById('support-feedback-status').textContent = '';
+        setupFeedbackButton.textContent = (dashboard.completedToolCalls || 0) > (dashboard.toolMetrics || []).reduce((total, metric) => total + metric.failures, 0) ? messages.support.feedback : messages.support.reportTrouble;
         try {
           if (!window.hronautHome?.openSetupFeedback) throw new Error(messages.support.feedbackUnavailable);
           await window.hronautHome.openSetupFeedback();
         } catch (error) {
           setupFeedbackButton.title = error instanceof Error ? error.message : messages.support.feedbackUnavailable;
+          document.getElementById('support-feedback-status').textContent = setupFeedbackButton.title;
+          setupFeedbackButton.textContent = messages.journey.retry + ' · ' + setupFeedbackButton.textContent;
         } finally {
           setupFeedbackButton.disabled = false;
         }
@@ -879,11 +948,16 @@ export function renderHomePage(options: HomePageOptions): string {
         if (setupHelpButton.disabled) return;
         setupHelpButton.disabled = true;
         setupHelpButton.title = '';
+        document.getElementById('support-help-status').textContent = '';
+        setupHelpButton.textContent = messages.support.troubleshoot;
         try {
           if (!window.hronautHome?.openSetupHelp) throw new Error(messages.support.troubleshootUnavailable);
           await window.hronautHome.openSetupHelp();
         } catch (error) {
           setupHelpButton.title = error instanceof Error ? error.message : messages.support.troubleshootUnavailable;
+          document.getElementById('support-help-status').textContent = setupHelpButton.title;
+          setupHelpButton.hidden = false;
+          setupHelpButton.textContent = messages.journey.retry + ' · ' + setupHelpButton.textContent;
         } finally {
           setupHelpButton.disabled = false;
         }
@@ -927,9 +1001,11 @@ export function renderHomePage(options: HomePageOptions): string {
       const supportWelcome = document.getElementById('support-welcome');
       const supportFeedbackPrivacy = document.getElementById('support-feedback-privacy');
       const supportRecommendPrivacy = document.getElementById('support-recommend-privacy');
-      supportTroubleshoot.hidden = successful > 0;
+      supportTroubleshoot.hidden = successful > 0 && document.activeElement !== supportTroubleshoot && !document.getElementById('support-help-status').textContent;
       supportFeedback.hidden = false;
-      supportFeedback.textContent = successful > 0 ? messages.support.feedback : messages.support.reportTrouble;
+      if (!document.getElementById('support-feedback-status').textContent) {
+        supportFeedback.textContent = successful > 0 ? messages.support.feedback : messages.support.reportTrouble;
+      }
       supportRecommend.hidden = successful === 0;
       supportWelcome.hidden = successful > 0;
       supportFeedbackPrivacy.hidden = false;
@@ -944,6 +1020,7 @@ export function renderHomePage(options: HomePageOptions): string {
         ).join('');
       }
 
+      document.getElementById('connection-note').textContent = dashboard.clients.length ? messages.journey.observed : messages.journey.waiting;
       const connections = document.getElementById('connections');
       if (!dashboard.clients.length) {
         connections.innerHTML = '<div class="empty"><div><strong>' + escapeText(messages.connections.emptyHeading) + '</strong><span>' + escapeText(messages.connections.emptyDescription) + '</span></div></div>';
@@ -955,7 +1032,14 @@ export function renderHomePage(options: HomePageOptions): string {
         }).join('');
       }
 
-      document.getElementById('tool-grid').innerHTML = dashboard.tools.map((tool) =>
+      renderTools();
+    }
+
+    function renderTools() {
+      const query = document.getElementById('tool-search').value.trim().toLocaleLowerCase(locale);
+      const tools = dashboard.tools.filter((tool) => (tool.name + ' ' + tool.category + ' ' + tool.description).toLocaleLowerCase(locale).includes(query));
+      document.getElementById('tool-empty').hidden = !query || tools.length > 0;
+      document.getElementById('tool-grid').innerHTML = tools.map((tool) =>
         '<article class="tool"><div class="tool-top"><code>' + escapeText(tool.name) + '</code><span class="category">' + escapeText(tool.category) + '</span></div><p>' + escapeText(tool.description) + '</p></article>'
       ).join('');
     }
@@ -992,6 +1076,7 @@ export function renderHomePage(options: HomePageOptions): string {
         serverState.title = '';
         document.getElementById('active-count').textContent = messages.status.unavailable;
         document.getElementById('request-count').textContent = messages.status.reconnecting;
+        document.getElementById('connection-note').textContent = messages.journey.unavailable;
       }
     }
 
@@ -1034,7 +1119,32 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     });
 
+    const setupDetails = document.getElementById('setup');
+    try { setupDetails.open = window.localStorage.getItem('hronaut.home.setup') !== 'collapsed'; } catch { /* Default to visible setup. */ }
+    function revealSelectedGuide() {
+      const selected = document.querySelector('[data-guide="' + selectedGuide + '"]');
+      const list = document.getElementById('agent-list');
+      if (setupDetails.open && selected && !selected.hidden) list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top;
+    }
+    setupDetails.addEventListener('toggle', () => {
+      if (setupDetails.open) revealSelectedGuide();
+      try { window.localStorage.setItem('hronaut.home.setup', setupDetails.open ? 'open' : 'collapsed'); } catch { /* Optional preference. */ }
+    });
+    document.querySelector('[data-open-setup]').addEventListener('click', () => {
+      document.getElementById('setup').open = true;
+    });
+    document.getElementById('agent-search').addEventListener('input', (event) => {
+      const query = event.target.value.trim().toLocaleLowerCase(locale);
+      let visible = 0;
+      document.querySelectorAll('[data-guide]').forEach((button) => {
+        button.hidden = !button.textContent.toLocaleLowerCase(locale).includes(query);
+        if (!button.hidden) visible += 1;
+      });
+      document.getElementById('agent-empty').hidden = visible > 0;
+    });
+    document.getElementById('tool-search').addEventListener('input', renderTools);
     renderGuide();
+    revealSelectedGuide();
     renderDashboard();
     pollDashboard();
   </script>

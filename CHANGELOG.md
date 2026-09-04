@@ -7,6 +7,12 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Show unavailable status on Home when local status requests fail, and restore the current MCP status automatically after a successful refresh.
+- Restore the standard button size and styling for clearing an empty Page tools search.
+- Show visible, accessible retry feedback when Home cannot open an agent guide, troubleshooting, or setup feedback.
+
+### Improved
+
+- Guide Home setup through connecting an agent, verifying observed activity, and trying a first task, with searchable client guides, remembered guide selection, and collapsible setup and tool reference sections.
 
 ## [1.11.50] - 2026-09-04
 

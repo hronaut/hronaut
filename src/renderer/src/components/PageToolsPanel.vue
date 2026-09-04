@@ -237,7 +237,7 @@ function closeAndRun(action: () => void | Promise<void>): void {
         :description="t('shell.pageTools.noMatchesDescription')"
       >
         <template #actions>
-          <UiButton appearance="application" class="secondary-button" type="button" @click="clearSearch">{{ t('shell.pageTools.clearSearch') }}</UiButton>
+          <UiButton type="button" @click="clearSearch">{{ t('shell.pageTools.clearSearch') }}</UiButton>
         </template>
       </UiEmptyState>
       <section v-if="visibleGroups.has('inspect')" aria-labelledby="page-tools-inspect-title">

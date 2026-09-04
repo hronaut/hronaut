@@ -2594,6 +2594,23 @@ export const deDE = {
     "recentlyClosedTabs": "Kürzlich geschlossene Tabs"
   },
   "home": {
+    journey: {
+      heading: 'Mit deinem Coding-Agent starten',
+      connect: 'Verbinden',
+      verify: 'Prüfen',
+      tryTask: 'Aufgabe testen',
+      searchAgents: 'Coding-Agents suchen',
+      noAgents: 'Keine passenden Agents. Versuche einen anderen Namen.',
+      retry: 'Erneut versuchen',
+      setup: 'Einrichtung & Verbindung',
+      toggleSetup: 'Einrichtung ein- oder ausblenden',
+      waiting: 'Warten auf deinen Agent',
+      observed: 'Ein Client wurde erkannt. Prüfe den Browserzugriff mit der Aufgabe unten.',
+      unavailable: 'Status nicht verfügbar. Unten steht die zuletzt bekannte Aktivität.',
+      browseTools: 'Verfügbare Tools ansehen',
+      searchTools: 'Tools suchen',
+      noTools: 'Keine passenden Tools. Versuche einen anderen Namen.',
+    },
     "title": "Hronaut-Startseite",
     "brand": "Hronaut-Startseite",
     "hero": "Ihr Browser ist bereit für Coding-Agenten.",

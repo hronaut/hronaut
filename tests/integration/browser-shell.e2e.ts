@@ -7624,15 +7624,21 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await electronApp.evaluate(async ({ webContents }) => {
       const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
       if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
-      const guidePoint = await home.executeJavaScript(`(() => {
-        const bounds = document.querySelector('[data-guide="opencode"]').getBoundingClientRect()
+      const guidePoint = await home.executeJavaScript(`(async () => {
+        const guide = document.querySelector('[data-guide="opencode"]')
+        guide.scrollIntoView({ block: 'center', behavior: 'instant' })
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const bounds = guide.getBoundingClientRect()
         return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
       })()`)
       home.focus()
       home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...guidePoint })
       home.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...guidePoint })
-      const point = await home.executeJavaScript(`(() => {
-        const bounds = document.querySelector('[data-copy-target="guide-code"]').getBoundingClientRect()
+      const point = await home.executeJavaScript(`(async () => {
+        const copy = document.querySelector('[data-copy-target="guide-code"]')
+        copy.scrollIntoView({ block: 'center', behavior: 'instant' })
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const bounds = copy.getBoundingClientRect()
         return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
       })()`)
       home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })

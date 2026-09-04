@@ -2594,6 +2594,23 @@ export const esES = {
     "recentlyClosedTabs": "Pestañas cerradas recientemente"
   },
   "home": {
+    journey: {
+      heading: 'Empieza con tu agente de código',
+      connect: 'Conectar',
+      verify: 'Verificar',
+      tryTask: 'Probar una tarea',
+      searchAgents: 'Buscar agentes',
+      noAgents: 'No hay agentes coincidentes. Prueba otro nombre.',
+      retry: 'Reintentar',
+      setup: 'Configuración y conexión',
+      toggleSetup: 'Mostrar u ocultar la configuración',
+      waiting: 'Esperando a tu agente',
+      observed: 'Se ha detectado un cliente. Prueba la tarea de abajo para verificar el acceso al navegador.',
+      unavailable: 'Estado no disponible. Abajo se muestra la última actividad conocida.',
+      browseTools: 'Explorar herramientas disponibles',
+      searchTools: 'Buscar herramientas',
+      noTools: 'No hay herramientas coincidentes. Prueba otro nombre.',
+    },
     "title": "Inicio de Hronaut",
     "brand": "Inicio de Hronaut",
     "hero": "Tu navegador, listo para agentes de programación.",
