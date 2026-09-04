@@ -1,0 +1,4 @@
+name: Hronaut product code
+
+paths-ignore:
+  - tests/**

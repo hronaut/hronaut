@@ -95,6 +95,7 @@
     "axe-core": "4.13.0",
     "electron-updater": "^6.8.9",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "micro-key-producer": "^0.10.0",
     "pinia": "^4.0.3",
     "tronweb": "^6.5.0",

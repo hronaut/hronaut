@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { assertMcpToolRegistrationContract, McpHttpServer, mcpRequestAuthorized } from '../src/main/mcp/server.js'
+import {
+  assertMcpToolRegistrationContract,
+  MCP_FAILED_AUTH_LIMIT,
+  McpHttpServer,
+  mcpRequestAuthorized
+} from '../src/main/mcp/server.js'
 
 const TOKEN = 'abcdefghijklmnopqrstuvwxyz_ABCDEFG-1234567890'
 
@@ -53,6 +58,37 @@ describe('MCP HTTP authentication middleware order', () => {
 
     expect(response.status).toBe(401)
     await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' })
+  })
+
+  it('rate-limits failed authentication without throttling a valid local client', async () => {
+    server = new McpHttpServer({} as never, {
+      host: '127.0.0.1',
+      port: 0,
+      version: 'test',
+      token: TOKEN,
+      showWindowInactive: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never,
+      history: {} as never,
+      siteData: {} as never
+    })
+    const endpoint = await server.start()
+    const unauthorizedStatuses = await Promise.all(Array.from(
+      { length: MCP_FAILED_AUTH_LIMIT },
+      () => fetch(endpoint).then((response) => response.status)
+    ))
+
+    expect(new Set(unauthorizedStatuses)).toEqual(new Set([401]))
+    const limited = await fetch(endpoint)
+    expect(limited.status).toBe(429)
+    await expect(limited.json()).resolves.toEqual({ error: 'Too many unauthorized requests' })
+
+    const authorized = await fetch(endpoint.replace('/mcp', '/healthz'), {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    expect(authorized.status).toBe(200)
+    await expect(authorized.json()).resolves.toMatchObject({ ok: true, name: 'hronaut' })
   })
 })
 

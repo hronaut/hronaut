@@ -5,6 +5,7 @@ import { parse } from 'yaml'
 describe('CodeQL workflow', () => {
   it('analyzes application and workflow code with bounded permissions', async () => {
     const source = await readFile('.github/workflows/codeql.yml', 'utf8')
+    const configSource = await readFile('.github/codeql/codeql-config.yml', 'utf8')
     const workflow = parse(source) as {
       on: Record<string, unknown>
       permissions: Record<string, string>
@@ -34,7 +35,14 @@ describe('CodeQL workflow', () => {
       'github/codeql-action/analyze@v4'
     ])
     expect(analyze.steps.find((step) => step.uses === 'github/codeql-action/init@v4')?.with)
-      .toEqual({ languages: '${{ matrix.language }}' })
+      .toEqual({
+        'config-file': './.github/codeql/codeql-config.yml',
+        languages: '${{ matrix.language }}'
+      })
+    expect(parse(configSource)).toEqual({
+      name: 'Hronaut product code',
+      'paths-ignore': ['tests/**']
+    })
   })
 
   it('publishes the CodeQL status beside the primary CI badge', async () => {

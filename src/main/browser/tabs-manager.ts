@@ -173,6 +173,7 @@ import {
   type CredentialFillContext
 } from './credential-fill-context.js'
 import { credentialFillPageScript } from './credential-fill-page.js'
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -6118,7 +6119,7 @@ export class BrowserTabsManager {
       let evaluationTimer: NodeJS.Timeout | undefined
       try {
         const evaluation = webContents.executeJavaScript(
-          `(() => { const pageText = document.body?.innerText ?? ''; return ${JSON.stringify(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
+          `(() => { const pageText = document.body?.innerText ?? ''; return ${javascriptLiteral(candidates)}.find((candidate) => pageText.includes(candidate)) ?? null })()`,
           true
         )
         const closed = new Promise<never>((_resolve, reject) => {

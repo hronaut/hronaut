@@ -1,7 +1,8 @@
 import type { BrowserReproRecording, BrowserReproStep } from './types.js'
+import { javascriptLiteral } from './javascript-literal.js'
 
 function quoted(value: string): string {
-  return JSON.stringify(value)
+  return javascriptLiteral(value)
 }
 
 function playwrightKey(key: string): string {
@@ -46,7 +47,7 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
       const action = `${target ?? 'page.keyboard'}.press(${quoted(playwrightKey(step.key))})`
       lines.push(`  await ${action}`)
     } else if (step.kind === 'scroll' && step.scroll) {
-      lines.push(`  await page.evaluate(({ x, y }) => window.scrollTo(x, y), ${JSON.stringify(step.scroll)})`)
+      lines.push(`  await page.evaluate(({ x, y }) => window.scrollTo(x, y), ${javascriptLiteral(step.scroll)})`)
     } else {
       lines.push(`  // TODO: Recreate step ${step.index}: ${step.kind}`)
     }

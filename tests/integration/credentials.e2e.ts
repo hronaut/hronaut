@@ -147,12 +147,14 @@ test('fills the visible login form instead of hidden or unrelated fields', async
     const url = `http://127.0.0.1:${address.port}/login`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Credential fill fixture')
+    const username = 'person</script>";globalThis.__hronautCredentialFillPwned=true;//\u2028@example.test'
+    const password = 'private</script>\u2029password'
     const script = credentialFillPageScript({
       origin: new URL(url).origin,
       url,
       navigationGeneration: 0,
       tabSelectionGeneration: 0
-    }, 'person@example.test', 'private-password')
+    }, username, password)
 
     expect(await electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
@@ -174,7 +176,8 @@ test('fills the visible login form instead of hidden or unrelated fields', async
         unrelatedUsername: document.querySelector('#unrelated-username').value,
         username: document.querySelector('#login-username').value,
         password: document.querySelector('#login-password').value,
-        focused: document.activeElement?.id
+        focused: document.activeElement?.id,
+        injectedSideEffect: globalThis.__hronautCredentialFillPwned
       })`)
     }, url)).toEqual({
       hiddenPassword: '',
@@ -186,9 +189,10 @@ test('fills the visible login form instead of hidden or unrelated fields', async
       zeroSizePassword: '',
       offscreenPassword: '',
       unrelatedUsername: '',
-      username: 'person@example.test',
-      password: 'private-password',
-      focused: 'login-password'
+      username,
+      password,
+      focused: 'login-password',
+      injectedSideEffect: undefined
     })
   } finally {
     await closeFixtureServer(server)

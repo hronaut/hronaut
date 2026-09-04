@@ -1,4 +1,5 @@
 import type { CredentialFillContext } from './credential-fill-context.js'
+import { javascriptLiteral } from '../../shared/javascript-literal.js'
 
 export function credentialFillPageScript(
   expectedContext: CredentialFillContext,
@@ -6,8 +7,8 @@ export function credentialFillPageScript(
   password: string
 ): string {
   return `(() => {
-    if (location.origin !== ${JSON.stringify(expectedContext.origin)}
-      || location.href !== ${JSON.stringify(expectedContext.url)}) return false;
+    if (location.origin !== ${javascriptLiteral(expectedContext.origin)}
+      || location.href !== ${javascriptLiteral(expectedContext.url)}) return false;
     const autocompleteInfo = (input) => {
       const tokens = (input.getAttribute('autocomplete') || '').trim().toLowerCase().split(/[\\t\\n\\f\\r ]+/).filter(Boolean);
       const purposeTokens = new Set(['username', 'current-password', 'new-password', 'one-time-code']);
@@ -86,9 +87,9 @@ export function credentialFillPageScript(
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     };
-    if (usernameField) assign(usernameField, ${JSON.stringify(username)});
+    if (usernameField) assign(usernameField, ${javascriptLiteral(username)});
     if (!isUsable(passwordField) || passwordField.type !== 'password') return false;
-    assign(passwordField, ${JSON.stringify(password)});
+    assign(passwordField, ${javascriptLiteral(password)});
     passwordField.focus({ preventScroll: true });
     return true;
   })()`

@@ -2,6 +2,7 @@ import { createServer, type Server } from 'node:http'
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
+import { rateLimit } from 'express-rate-limit'
 import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
@@ -39,6 +40,8 @@ import {
 
 const workspaceIdSchema = z.string().refine(isUuidV7, 'Workspace ID must be a UUIDv7.')
 const tabIdSchema = z.string().refine(isUuidV7, 'Tab ID must be a UUIDv7.')
+export const MCP_FAILED_AUTH_LIMIT = 120
+const MCP_FAILED_AUTH_WINDOW_MS = 60_000
 const workspaceResumeKeySchema = z.string().regex(
   /^hrw1_[A-Za-z0-9_-]{43}$/,
   'Workspace resume key is malformed.'
@@ -2567,6 +2570,14 @@ export class McpHttpServer {
   async start(): Promise<string> {
     const app = express()
     app.disable('x-powered-by')
+    app.use(rateLimit({
+      windowMs: MCP_FAILED_AUTH_WINDOW_MS,
+      limit: MCP_FAILED_AUTH_LIMIT,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false,
+      skip: (request) => mcpRequestAuthorized(this.token, request.headers.authorization),
+      message: { error: 'Too many unauthorized requests' }
+    }))
     app.use((request, response, next) => {
       if (!mcpRequestAuthorized(this.token, request.headers.authorization)) {
         response.status(401).json({ error: 'Unauthorized' })

@@ -1,5 +1,8 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   LINUX_UPDATE_RELAUNCH_SCRIPT,
@@ -63,6 +66,32 @@ describe('Linux update relaunch handoff', () => {
     const [exitCode] = await once(helper, 'exit')
     expect(exitCode).toBe(0)
     expect(Date.now() - startedAt).toBeGreaterThanOrEqual(180)
+  })
+
+  it('passes shell metacharacters in the executable path as literal filename characters', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-relaunch-'))
+    const executable = join(directory, 'Hronaut ; touch injected $(bad) $.sh')
+    const marker = join(directory, 'launched')
+    const injected = join(directory, 'injected')
+    try {
+      await writeFile(executable, `#!/bin/sh\nprintf launched > '${marker}'\n`, { mode: 0o755 })
+      await chmod(executable, 0o755)
+      const helper = spawn('/bin/sh', [
+        '-c',
+        LINUX_UPDATE_RELAUNCH_SCRIPT,
+        'hronaut-update-relaunch-metacharacter-test',
+        '2147483647',
+        executable,
+        join(directory, 'missing.desktop')
+      ], { stdio: 'ignore' })
+
+      const [exitCode] = await once(helper, 'exit')
+      expect(exitCode).toBe(0)
+      await expect(readFile(marker, 'utf8')).resolves.toBe('launched')
+      await expect(readFile(injected, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('rejects unsafe relaunch targets', () => {
