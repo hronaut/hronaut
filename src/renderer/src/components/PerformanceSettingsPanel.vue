@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -87,9 +88,9 @@ async function changeTimeout(event: Event): Promise<void> {
       </label>
     </div>
     <div class="memory-saver-actions">
-      <button class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="sleepNow">
+      <UiButton native class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="sleepNow">
         <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
-      </button>
+      </UiButton>
     </div>
     <output v-if="errorMessage" class="site-controls-error" role="alert">{{ errorMessage }}</output>
     <div class="settings-info">

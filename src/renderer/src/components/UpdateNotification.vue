@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -71,7 +72,7 @@ const pillLabel = computed(() => {
 </script>
 
 <template>
-  <button
+  <UiButton native
     v-if="mode === 'pill'"
     class="update-status-pill"
     :class="state.status"
@@ -90,7 +91,7 @@ const pillLabel = computed(() => {
     </span>
     <span class="update-status-label">{{ pillLabel }}</span>
     <IconChevronRight class="update-status-chevron" aria-hidden="true" />
-  </button>
+  </UiButton>
 
   <section v-else class="update-status-card" :class="state.status" aria-live="polite" :aria-label="t('updates.cardLabel')">
     <div class="update-status-card-heading">
@@ -116,7 +117,7 @@ const pillLabel = computed(() => {
       v-html="formattedReleaseNotes"
     />
     <div class="update-status-card-actions">
-      <button
+      <UiButton native
         v-if="state.status === 'up-to-date' || state.status === 'disabled' || state.status === 'error'"
         class="secondary-button"
         type="button"
@@ -124,16 +125,16 @@ const pillLabel = computed(() => {
         @click="emit('check')"
       >
         {{ state.status === 'error' ? t('common.tryAgain') : t('common.checkAgain') }}
-      </button>
-      <button v-if="state.status === 'available'" class="primary-button" type="button" :disabled="disabled" @click="emit('download')">
+      </UiButton>
+      <UiButton native v-if="state.status === 'available'" class="primary-button" type="button" :disabled="disabled" @click="emit('download')">
         {{ t('updates.download') }}
-      </button>
-      <button v-if="state.status === 'downloaded'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
+      </UiButton>
+      <UiButton native v-if="state.status === 'downloaded'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
         {{ t('updates.install') }}
-      </button>
-      <button v-if="state.status === 'install-error'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
+      </UiButton>
+      <UiButton native v-if="state.status === 'install-error'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
         {{ t('updates.retryInstall') }}
-      </button>
+      </UiButton>
     </div>
   </section>
 </template>

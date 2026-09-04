@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconHistory from '~icons/material-symbols/history-rounded'
@@ -62,7 +63,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
       </span>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('runtime.tabs.dockSiteControls')" />
-        <button class="panel-close" type="button" :aria-label="t('shell.siteControls.close')" @click="open = false"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('shell.siteControls.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div class="site-data-summary" :aria-busy="state === 'loading'">
@@ -94,14 +95,14 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('shell.siteControls.allow') }}</option>
             <option value="deny">{{ t('shell.siteControls.block') }}</option>
           </select>
-          <button type="button" :aria-label="t('runtimeActions.permission.resetAria', { permission: permissionLabel(permission.permission), origin: permission.origin })" :title="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></button>
+          <UiButton native type="button" :aria-label="t('runtimeActions.permission.resetAria', { permission: permissionLabel(permission.permission), origin: permission.origin })" :title="t('shell.siteControls.reset')" :disabled="permissionPending(permission)" @click="resetPermission(permission)"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </div>
       <p v-else>{{ t('shell.siteControls.empty') }}</p>
     </section>
     <footer>
-      <button class="site-controls-secondary" type="button" @click="openPermissionSettings">{{ t('shell.siteControls.allSettings') }}</button>
-      <button class="site-controls-primary" type="button" @click="openPrivacySettings">{{ usesDefaultProfile ? t('shell.siteControls.clearData') : t('panels.siteStorage') }}</button>
+      <UiButton native class="site-controls-secondary" type="button" @click="openPermissionSettings">{{ t('shell.siteControls.allSettings') }}</UiButton>
+      <UiButton native class="site-controls-primary" type="button" @click="openPrivacySettings">{{ usesDefaultProfile ? t('shell.siteControls.clearData') : t('panels.siteStorage') }}</UiButton>
     </footer>
   </section>
 </template>

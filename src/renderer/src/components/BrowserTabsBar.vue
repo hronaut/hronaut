@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdd from '~icons/material-symbols/add-rounded'
@@ -475,7 +476,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     @focusin="setRailFocusWithin(true)"
     @focusout="handleRailFocusOut"
   >
-  <button
+  <UiButton native
     class="app-home-button"
     :class="{ active: homeTab?.active }"
     type="button"
@@ -487,10 +488,10 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span v-if="homeTab?.loading" class="spinner" :aria-label="t('shell.loading')" />
     <IconDashboard v-else aria-hidden="true" />
     <span class="app-home-label">{{ t('shell.home.label') }}</span>
-  </button>
+  </UiButton>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
-    <button
+    <UiButton native
       v-if="hasTabOverflow"
       class="tabs-scroll-button previous"
       type="button"
@@ -498,7 +499,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :title="t('shell.tabs.scrollBack')"
       :aria-label="t('shell.tabs.scrollBack')"
       @click="scrollTabs(-1)"
-    ><IconKeyboardArrowUp v-if="vertical" aria-hidden="true" /><IconKeyboardArrowLeft v-else aria-hidden="true" /></button>
+    ><IconKeyboardArrowUp v-if="vertical" aria-hidden="true" /><IconKeyboardArrowLeft v-else aria-hidden="true" /></UiButton>
     <div
       ref="tabsStrip"
       class="tabs-strip"
@@ -514,7 +515,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       role="group"
       :aria-label="workspace.name"
     >
-      <button
+      <UiButton native
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
         :style="tabGroupColorStyle(workspace.color)"
@@ -534,22 +535,22 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         />
         <span>{{ workspace.name }}</span>
         <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
-      </button>
-      <button
+      </UiButton>
+      <UiButton native
         class="new-tab workspace-new-tab"
         type="button"
         :style="tabGroupColorStyle(workspace.color)"
         :title="t('runtime.tabs.newTab', { name: workspace.name })"
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
-      ><IconAdd aria-hidden="true" /></button>
+      ><IconAdd aria-hidden="true" /></UiButton>
       <div
         class="workspace-tab-list"
         role="tablist"
         :aria-label="workspace.name"
         :aria-orientation="orientation"
       >
-        <button
+        <UiButton native
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
           :key="tab.id"
           class="tab"
@@ -626,11 +627,11 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             data-lock-protected-tab-close
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
-        </button>
+        </UiButton>
       </div>
     </div>
     <span class="workspace-action-divider" aria-hidden="true" />
-    <button
+    <UiButton native
       class="new-workspace"
       type="button"
       :title="t('shell.tabs.createWorkspaceTitle')"
@@ -639,9 +640,9 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     >
       <IconAddBox aria-hidden="true" />
       <span>{{ t('shell.tabs.workspace') }}</span>
-    </button>
+    </UiButton>
     </div>
-    <button
+    <UiButton native
       v-if="hasTabOverflow"
       class="tabs-scroll-button next"
       type="button"
@@ -649,9 +650,9 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :title="t('shell.tabs.scrollForward')"
       :aria-label="t('shell.tabs.scrollForward')"
       @click="scrollTabs(1)"
-    ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></button>
+    ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>
   </div>
-  <button
+  <UiButton native
     v-if="vertical"
     class="tab-rail-pin"
     type="button"
@@ -663,6 +664,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <IconKeep v-if="railPinned" aria-hidden="true" />
     <IconKeepOff v-else aria-hidden="true" />
     <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
-  </button>
+  </UiButton>
   </nav>
 </template>

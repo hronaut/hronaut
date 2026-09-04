@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -92,7 +93,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
 
 <template>
   <form ref="form" class="address-form" @submit.prevent="run(submit)" @focusout="handleFocusOut">
-    <button
+    <UiButton native
       ref="siteControlsButton"
       class="site-controls-button"
       :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
@@ -106,7 +107,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
     >
       <IconTune aria-hidden="true" />
       <span v-if="activeSitePermissions.length" class="site-controls-indicator" aria-hidden="true" />
-    </button>
+    </UiButton>
     <input
       ref="input"
       v-model="address"
@@ -125,7 +126,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       @input="handleInput"
       @keydown="handleKeydown"
     />
-    <button
+    <UiButton native
       v-if="activeEmulation"
       class="emulation-pill"
       :class="{ offline: activeEmulation.network === 'offline' }"
@@ -138,8 +139,8 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       <IconSpeed aria-hidden="true" />
       <span>{{ emulationLabel(activeEmulation) }}</span>
       <IconClose aria-hidden="true" />
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       v-if="activeNetworkRouteCount"
       class="network-routes-pill"
       type="button"
@@ -150,7 +151,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       <IconRoute aria-hidden="true" />
       <span>{{ t('shell.pageTools.routeCount', { count: formatNumber(activeNetworkRouteCount) }, activeNetworkRouteCount) }}</span>
       <IconKeyboardArrowRight aria-hidden="true" />
-    </button>
+    </UiButton>
     <SiteControlsPanel
       v-model:open="siteControlsOpen"
       v-model:dock="panelDock"

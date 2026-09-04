@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCleaning from '~icons/material-symbols/cleaning-services-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -59,9 +60,9 @@ const {
       </label>
     </fieldset>
     <div class="privacy-data-actions">
-      <button class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
+      <UiButton native class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll', { count: formatNumber(selectedCount) }) }}
-      </button>
+      </UiButton>
       <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totalsDetail', { history: t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries), cookies: t(summary.cookieCount === 1 ? 'shell.siteControls.cookie' : 'shell.siteControls.cookies', { count: formatNumber(summary.cookieCount) }), cache: formatBytes(summary.cacheBytes) }) : t('settings.privacy.loadingTotals')) }}</output>
     </div>
     <div class="privacy-websites-heading">
@@ -69,10 +70,10 @@ const {
         <h4>{{ t('settings.privacy.websites') }}</h4>
         <p>{{ t('settings.privacy.websitesDescription') }}</p>
       </div>
-      <button class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
+      <UiButton native class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
         <IconRefresh aria-hidden="true" />
         {{ t('settings.privacy.refresh') }}
-      </button>
+      </UiButton>
     </div>
     <div class="janitor-search-field">
       <IconSearch aria-hidden="true" />
@@ -105,7 +106,7 @@ const {
           </span>
           <span v-else class="janitor-site-meta"><span>{{ t('settings.privacy.known') }}</span></span>
         </span>
-        <button
+        <UiButton native
           class="janitor-clear-button"
           type="button"
           :aria-label="t('settings.privacy.clearSiteAria', { origin: site.origin })"
@@ -115,7 +116,7 @@ const {
           <IconProgress v-if="clearingOrigin === site.origin" class="state-spinner" aria-hidden="true" />
           <IconDelete v-else aria-hidden="true" />
           {{ clearingOrigin === site.origin ? t('settings.privacy.clearing') : t('settings.privacy.clear') }}
-        </button>
+        </UiButton>
       </article>
     </div>
     <output class="privacy-data-status janitor-status" :class="websiteState" aria-live="polite">{{ websiteMessage }}</output>

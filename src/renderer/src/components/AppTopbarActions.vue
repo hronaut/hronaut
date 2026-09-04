@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
@@ -48,7 +49,7 @@ const { t } = useI18n({ useScope: 'global' })
 
 <template>
   <div class="topbar-actions">
-    <button
+    <UiButton native
       class="topbar-icon-button command-palette-button"
       type="button"
       :title="t('shell.actions.commandsTitle')"
@@ -58,8 +59,8 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleCommandPalette')"
     >
       <IconKeyboardCommandKey aria-hidden="true" />
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="topbar-icon-button tab-search-button"
       type="button"
       :title="t('shell.actions.searchTabsTitle')"
@@ -69,8 +70,8 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleTabSearch')"
     >
       <IconTabSearch aria-hidden="true" />
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="topbar-icon-button downloads-button"
       :class="{ active: activeDownloads.length, complete: !activeDownloads.length && downloads[0]?.state === 'completed' }"
       type="button"
@@ -83,8 +84,8 @@ const { t } = useI18n({ useScope: 'global' })
       <IconDownloadDone v-else-if="downloads[0]?.state === 'completed'" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
       <span v-if="downloads.length" class="downloads-badge" aria-hidden="true">{{ Math.min(downloads.length, 99) }}</span>
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="topbar-icon-button history-button"
       type="button"
       :title="t('shell.actions.historyTitle')"
@@ -94,9 +95,9 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleHistory')"
     >
       <IconHistory aria-hidden="true" />
-    </button>
+    </UiButton>
     <span class="topbar-actions-divider" aria-hidden="true" />
-    <button
+    <UiButton native
       class="browser-lock-button all-lock-button"
       :class="{ locked: allInteractionLocked }"
       type="button"
@@ -108,8 +109,8 @@ const { t } = useI18n({ useScope: 'global' })
       <IconLock v-if="allInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
       {{ allInteractionLocked ? t('shell.tabs.locked') : t('shell.tabs.lock') }}
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="browser-lock-button follow-agent-button"
       :class="{ active: followAgentActivity }"
       type="button"
@@ -120,7 +121,7 @@ const { t } = useI18n({ useScope: 'global' })
     >
       <IconVisibility aria-hidden="true" />
       {{ t(followAgentActivity ? 'shell.actions.followingAgents' : 'shell.actions.followAgents') }}
-    </button>
+    </UiButton>
     <UpdateNotification
       v-if="showUpdateStatus"
       mode="pill"
@@ -128,7 +129,7 @@ const { t } = useI18n({ useScope: 'global' })
       @open="emit('openUpdateSettings')"
     />
     <McpStatusControls :controller="mcpStatusController" />
-    <button
+    <UiButton native
       class="topbar-icon-button settings-button"
       type="button"
       :title="t('shell.actions.settings')"
@@ -137,6 +138,6 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleSettings')"
     >
       <IconSettings aria-hidden="true" />
-    </button>
+    </UiButton>
   </div>
 </template>

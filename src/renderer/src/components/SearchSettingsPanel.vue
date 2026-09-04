@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -20,7 +21,7 @@ const { settings, busy, select } = props.controller
       <p>{{ t('settings.search.description') }}</p>
     </div>
     <div class="search-engine-options" role="radiogroup" :aria-label="t('settings.search.heading')">
-      <button
+      <UiButton native
         v-for="engine in SEARCH_ENGINE_OPTIONS"
         :key="engine.id"
         class="search-engine-option"
@@ -39,7 +40,7 @@ const { settings, busy, select } = props.controller
           <code>{{ engine.hostname }}</code>
         </span>
         <span class="search-engine-check" aria-hidden="true"><IconCheck /></span>
-      </button>
+      </UiButton>
     </div>
     <div class="settings-info">
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>

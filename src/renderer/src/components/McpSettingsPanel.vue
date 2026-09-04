@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
@@ -108,14 +109,14 @@ function handlePortKeydown(event: KeyboardEvent): void {
               @input="changePort"
               @keydown="handlePortKeydown"
             />
-            <button
+            <UiButton native
               class="secondary-button"
               type="button"
               :disabled="!canApplyPort"
               @click="applyPort"
             >
               {{ portState === 'saving' ? t('settings.mcp.moving') : t('settings.mcp.applyPort') }}
-            </button>
+            </UiButton>
           </div>
           <output
             class="mcp-port-status"

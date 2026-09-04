@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -92,7 +93,7 @@ onBeforeUnmount(disposeComponent)
           <span class="eyebrow">{{ t('commandPalette.kicker') }}</span>
           <h2 id="command-palette-title">{{ t('commandPalette.heading') }}</h2>
         </div>
-        <button class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div class="command-palette-field">
         <IconSearch aria-hidden="true" />
@@ -117,7 +118,7 @@ onBeforeUnmount(disposeComponent)
         {{ t('commandPalette.matches', { count: formatNumber(commands.length) }, commands.length) }}<template v-if="selectedCommand"> {{ t('commandPalette.selected', { label: selectedCommand.label }) }}</template>
       </span>
       <div v-if="commands.length" id="command-palette-results" class="command-palette-results" role="listbox" :aria-label="t('commandPalette.available')">
-        <button
+        <UiButton native
           v-for="(command, index) in commands"
           :id="commandElementId(command)"
           :key="command.id"
@@ -138,7 +139,7 @@ onBeforeUnmount(disposeComponent)
             <kbd v-if="command.shortcut">{{ command.shortcut }}</kbd>
             <small>{{ command.category }}</small>
           </span>
-        </button>
+        </UiButton>
       </div>
       <div v-else class="command-palette-empty">
         <IconSearch aria-hidden="true" />

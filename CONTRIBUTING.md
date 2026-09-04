@@ -47,6 +47,13 @@ npm run test:unit:docker:focused -- tests/renderer/modal-dialog-focus.test.ts
 npm run test:unit:docker:focused -- tests/renderer/modal-dialog-focus.test.ts -t "wraps keyboard focus"
 ```
 
+Renderer action buttons must use the primitives exported from
+`src/renderer/src/ui/`. Use the standard `UiButton` variants for new product UI;
+use its `native` mode only when migrating an established specialized control
+whose existing selector remains responsible for its appearance. Develop and
+review primitives with `npm run storybook`, and verify the production workbench
+with `npm run build:storybook`.
+
 You can also target a source line, list matching tests without launching
 Electron, or stop after the first failure:
 

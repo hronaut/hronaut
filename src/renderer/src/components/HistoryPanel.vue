@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -68,8 +69,8 @@ onBeforeUnmount(dispose)
         <h2 id="history-title">{{ t('history.heading') }}</h2>
       </div>
       <div class="history-header-actions">
-        <button type="button" :disabled="!entries.length || pendingAction !== null" @click="clear">{{ t('history.clearAll') }}</button>
-        <button class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></button>
+        <UiButton native type="button" :disabled="!entries.length || pendingAction !== null" @click="clear">{{ t('history.clearAll') }}</UiButton>
+        <UiButton native class="panel-close" type="button" :aria-label="t('history.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="entries.length" class="history-search-field">
@@ -88,15 +89,15 @@ onBeforeUnmount(dispose)
     </div>
     <div v-else class="history-list">
       <article v-for="entry in filteredEntries" :key="entry.id" class="history-item">
-        <button class="history-open" type="button" :title="entry.url" :disabled="pendingAction !== null" @click="openEntry(entry)">
+        <UiButton native class="history-open" type="button" :title="entry.url" :disabled="pendingAction !== null" @click="openEntry(entry)">
           <span class="history-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="history-copy">
             <strong>{{ entry.title }}</strong>
             <span>{{ entry.url }}</span>
             <small>{{ entryMeta(entry) }}</small>
           </span>
-        </button>
-        <button class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id)"><IconDelete aria-hidden="true" /></button>
+        </UiButton>
+        <UiButton native class="history-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('history.removeAria', { title: entry.title })" :title="t('history.remove')" @click="remove(entry.id)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p class="history-retention"><IconPrivacy aria-hidden="true" /> {{ t('history.retention') }}</p>

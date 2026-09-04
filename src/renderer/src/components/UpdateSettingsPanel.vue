@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import UpdateNotification from './UpdateNotification.vue'
@@ -62,8 +63,8 @@ async function changeStartupCheck(event: Event): Promise<void> {
           <small>{{ state.currentVersion || t('help.developmentBuild') }}</small>
         </span>
         <div class="update-settings-actions">
-          <button class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</button>
-          <button class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</button>
+          <UiButton native class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
+          <UiButton native class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</UiButton>
         </div>
       </div>
     </div>

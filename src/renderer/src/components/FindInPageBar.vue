@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -129,7 +130,7 @@ defineExpose({ close, openForTab })
     <output class="find-count" aria-live="polite">
       {{ query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
-    <button
+    <UiButton native
       class="find-action"
       type="button"
       :title="t('find.previousTitle')"
@@ -138,8 +139,8 @@ defineExpose({ close, openForTab })
       @click="search(false, false)"
     >
       <IconKeyboardArrowUp aria-hidden="true" />
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="find-action"
       type="button"
       :title="t('find.nextTitle')"
@@ -148,9 +149,9 @@ defineExpose({ close, openForTab })
       @click="search(true, false)"
     >
       <IconKeyboardArrowDown aria-hidden="true" />
-    </button>
-    <button class="find-action" type="button" :title="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
+    </UiButton>
+    <UiButton native class="find-action" type="button" :title="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
       <IconClose aria-hidden="true" />
-    </button>
+    </UiButton>
   </div>
 </template>

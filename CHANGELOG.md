@@ -4,10 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.45] - 2026-09-04
+
 ### Added
 
+- Add a renderer UI component library with shared buttons, icon buttons, fields, notices, and settings rows, backed by Storybook theme/a11y coverage, CSS-token validation, and light/dark visual regression tests.
 - Add first-class Zoo Code setup to Hronaut Home with global Streamable HTTP configuration, conservative approval defaults, and environment-backed authentication that keeps the owner token out of JSON.
 - Add first-class Goose setup to Hronaut Home with persistent Streamable HTTP configuration, cross-platform config locations, and environment-backed authentication that keeps the owner token out of YAML.
+
+### Improved
+
+- Route every renderer action button through the shared UI component boundary while retaining the established behavior and styling of specialized browser controls.
+- Organize the commercial-license settings slice by feature and enforce layered renderer CSS tokens with Stylelint.
 
 ## [1.11.44] - 2026-09-04
 

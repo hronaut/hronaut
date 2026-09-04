@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -50,7 +51,7 @@ function timestamp(value: string): string {
       <div class="pwa-summary">
         <IconOffline aria-hidden="true" />
         <div><strong>{{ report.controlled ? t('siteStorage.pwa.controlled') : t('siteStorage.pwa.uncontrolled') }}</strong><span>{{ t('siteStorage.pwa.registrations', { count: localNumber(report.registrations.length) }, report.registrations.length) }} · {{ t('siteStorage.pwa.caches', { count: localNumber(report.caches.length) }, report.caches.length) }}</span></div>
-        <button type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</button>
+        <UiButton native type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</UiButton>
       </div>
       <div v-if="report.manifestInspectionError" class="pwa-cache-warning" role="status"><IconWarning aria-hidden="true" /><span>{{ t('siteStorage.pwa.manifestUnavailable', { error: report.manifestInspectionError }) }}</span></div>
       <article v-if="report.manifest" class="pwa-manifest">
@@ -75,14 +76,14 @@ function timestamp(value: string): string {
       <template v-else-if="report.caches.length">
         <div class="pwa-cache-tools">
           <label><span>{{ t('siteStorage.pwa.cache') }}</span><select v-model="cache" :aria-label="t('siteStorage.pwa.cacheAria')" @change="emit('cacheChange')"><option v-for="item in report.caches" :key="item.name" :value="item.name">{{ item.name }}</option></select></label>
-          <form @submit.prevent="emit('filter')"><label class="site-storage-search"><IconSearch aria-hidden="true" /><input v-model="query" type="search" :aria-label="t('siteStorage.pwa.filter')" :placeholder="t('siteStorage.pwa.filterPlaceholder')" autocomplete="off" /></label><button type="submit">{{ t('siteStorage.pwa.apply') }}</button></form>
+          <form @submit.prevent="emit('filter')"><label class="site-storage-search"><IconSearch aria-hidden="true" /><input v-model="query" type="search" :aria-label="t('siteStorage.pwa.filter')" :placeholder="t('siteStorage.pwa.filterPlaceholder')" autocomplete="off" /></label><UiButton native type="submit">{{ t('siteStorage.pwa.apply') }}</UiButton></form>
         </div>
         <div v-if="report.selectedCache && !report.selectedCache.entries.length" class="site-storage-empty compact"><IconOffline aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noMatching') }}</strong></div>
         <div v-else-if="report.selectedCache" class="pwa-cache-entries"><article v-for="entry in report.selectedCache.entries" :key="`${entry.requestMethod}-${entry.requestUrl}`"><header><strong>{{ entry.requestMethod }}</strong><span>{{ entry.responseStatus }} {{ entry.responseStatusText }}</span></header><code>{{ entry.requestUrl }}</code><small>{{ entry.responseType }}<template v-if="entry.responseTime"> · {{ timestamp(entry.responseTime) }}</template></small></article></div>
       </template>
       <div v-else-if="report.cacheInspectionAvailable" class="site-storage-empty compact"><IconOffline aria-hidden="true" /><strong>{{ t('siteStorage.pwa.noCaches') }}</strong></div>
       <details class="storage-changes-caveats pwa-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
-      <footer v-if="report.selectedCache" class="indexeddb-footer"><span>{{ t('siteStorage.pwa.matching', { count: localNumber(report.selectedCache.totalEntries) }, report.selectedCache.totalEntries) }}</span><div><button type="button" :disabled="offset === 0 || state === 'loading'" @click="emit('move', -1)"><IconArrowBack aria-hidden="true" /> {{ t('siteStorage.indexed.previous') }}</button><button type="button" :disabled="!report.selectedCache.hasMore || state === 'loading'" @click="emit('move', 1)">{{ t('siteStorage.indexed.next') }} <IconArrowForward aria-hidden="true" /></button></div></footer>
+      <footer v-if="report.selectedCache" class="indexeddb-footer"><span>{{ t('siteStorage.pwa.matching', { count: localNumber(report.selectedCache.totalEntries) }, report.selectedCache.totalEntries) }}</span><div><UiButton native type="button" :disabled="offset === 0 || state === 'loading'" @click="emit('move', -1)"><IconArrowBack aria-hidden="true" /> {{ t('siteStorage.indexed.previous') }}</UiButton><UiButton native type="button" :disabled="!report.selectedCache.hasMore || state === 'loading'" @click="emit('move', 1)">{{ t('siteStorage.indexed.next') }} <IconArrowForward aria-hidden="true" /></UiButton></div></footer>
     </template>
   </section>
 </template>

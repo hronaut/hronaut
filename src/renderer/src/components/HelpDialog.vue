@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -43,7 +44,7 @@ useModalDialogFocus({
           <h2 v-if="dialog === 'shortcuts'" id="shortcuts-title">{{ t('help.shortcuts') }}</h2>
           <h2 v-else id="about-title">{{ t('help.about') }}</h2>
         </div>
-        <button class="panel-close" type="button" :aria-label="t('help.close')" @click="close"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('help.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div v-if="dialog === 'shortcuts'" class="shortcuts-content">
         <p>{{ t('help.shortcutsDescription') }}</p>
@@ -63,11 +64,11 @@ useModalDialogFocus({
           <p>{{ t('help.description') }}</p>
         </div>
         <div class="about-actions">
-          <button class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</button>
-          <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut')">{{ t('help.repository') }}</button>
-          <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('help.license') }}</button>
-          <button class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('help.contribute') }}</button>
-          <button class="primary-button" type="button" @click="openSupportSettings">{{ t('help.support') }}</button>
+          <UiButton native class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
+          <UiButton native class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut')">{{ t('help.repository') }}</UiButton>
+          <UiButton native class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('help.license') }}</UiButton>
+          <UiButton native class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('help.contribute') }}</UiButton>
+          <UiButton native class="primary-button" type="button" @click="openSupportSettings">{{ t('help.support') }}</UiButton>
         </div>
       </div>
     </section>

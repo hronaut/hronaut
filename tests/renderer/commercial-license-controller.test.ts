@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { useCommercialLicenseController } from '../../src/renderer/src/composables/useCommercialLicenseController.js'
+import { useCommercialLicenseController } from '../../src/renderer/src/features/settings/support/useCommercialLicenseController.js'
 import type { HronautLicenseApi, CommercialLicenseState } from '../../src/shared/types.js'
 
 function deferred<Value>() {

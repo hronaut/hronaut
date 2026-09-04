@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import IconArrowForward from '~icons/material-symbols/arrow-forward-rounded'
@@ -36,14 +37,14 @@ function refreshOrStop(): void {
 </script>
 
 <template>
-  <button class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></button>
-  <button class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></button>
-  <button class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton native class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
+  <UiButton native class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
+  <UiButton native class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
-  </button>
+  </UiButton>
   <slot />
-  <button
+  <UiButton native
     class="icon-button find-button"
     type="button"
     :title="t('shell.toolbar.findTitle')"
@@ -53,8 +54,8 @@ function refreshOrStop(): void {
     @click="emit('find')"
   >
     <IconSearch aria-hidden="true" />
-  </button>
-  <button
+  </UiButton>
+  <UiButton native
     class="zoom-button"
     type="button"
     :title="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
@@ -64,8 +65,8 @@ function refreshOrStop(): void {
     @click="emit('toggleZoom')"
   >
     {{ activeTab?.zoomPercent ?? 100 }}%
-  </button>
-  <button
+  </UiButton>
+  <UiButton native
     class="icon-button bookmarks-button"
     :class="{ bookmarked: currentBookmark }"
     type="button"
@@ -78,5 +79,5 @@ function refreshOrStop(): void {
   >
     <IconStar v-if="currentBookmark" aria-hidden="true" />
     <IconStarOutline v-else aria-hidden="true" />
-  </button>
+  </UiButton>
 </template>

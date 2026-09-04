@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -88,7 +89,7 @@ onBeforeUnmount(disposeComponent)
           <span class="eyebrow">{{ t('credentialPicker.kicker') }}</span>
           <h2 id="credential-picker-title">{{ t('credentialPicker.heading') }}</h2>
         </div>
-        <button class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div class="credential-picker-field">
         <IconSearch aria-hidden="true" />
@@ -109,7 +110,7 @@ onBeforeUnmount(disposeComponent)
         />
       </div>
       <div v-if="credentials.length" id="credential-picker-results" class="credential-picker-results" role="listbox" :aria-label="t('credentialPicker.results')">
-        <button
+        <UiButton native
           v-for="(credential, index) in credentials"
           :id="credentialOptionId(credential)"
           :key="credential.id"
@@ -124,7 +125,7 @@ onBeforeUnmount(disposeComponent)
           <span class="credential-picker-mark" aria-hidden="true"><IconKey /></span>
           <span><strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong><small>{{ credential.origin }}</small></span>
           <IconKeyboardArrowRight aria-hidden="true" />
-        </button>
+        </UiButton>
       </div>
       <div v-else class="credential-picker-empty"><IconSearch aria-hidden="true" /><strong>{{ t('credentialPicker.empty') }}</strong><span>{{ t('credentialPicker.tryAnother') }}</span></div>
       <footer><span><IconShieldLock aria-hidden="true" /> {{ t('credentialPicker.paused') }}</span><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('credentialPicker.select') }} · <kbd>Enter</kbd> {{ t('credentialPicker.fill') }}</span></footer>

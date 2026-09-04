@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -59,8 +60,8 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
       <header class="whats-new-header">
         <h2 id="whats-new-title">{{ t('updates.history.title') }}</h2>
         <div class="whats-new-header-actions">
-          <button type="button" :disabled="busy" :title="t('updates.history.refresh')" :aria-label="t('updates.history.refresh')" @click="refresh"><IconRefresh aria-hidden="true" /></button>
-          <button class="panel-close" type="button" :aria-label="t('updates.history.close')" @click="close"><IconClose aria-hidden="true" /></button>
+          <UiButton native type="button" :disabled="busy" :title="t('updates.history.refresh')" :aria-label="t('updates.history.refresh')" @click="refresh"><IconRefresh aria-hidden="true" /></UiButton>
+          <UiButton native class="panel-close" type="button" :aria-label="t('updates.history.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
 
@@ -74,7 +75,7 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
           <IconHistory aria-hidden="true" />
           <strong>{{ t('updates.history.unavailable') }}</strong>
           <span>{{ error }}</span>
-          <button class="primary-button" type="button" :disabled="busy" @click="refresh">{{ t('common.tryAgain') }}</button>
+          <UiButton native class="primary-button" type="button" :disabled="busy" @click="refresh">{{ t('common.tryAgain') }}</UiButton>
         </div>
         <div v-else-if="state === 'ready' && releases.length === 0" class="whats-new-state">
           <IconHistory aria-hidden="true" />
@@ -93,9 +94,9 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
                 <time :datetime="release.publishedAt">{{ formatDate(release.publishedAt) }}</time>
                 <h3 v-if="release.displayTitle" class="whats-new-release-title">{{ release.displayTitle }}</h3>
               </div>
-              <button type="button" :aria-label="t('updates.history.openRelease', { version: release.version })" @click="openExternal(release.url)">
+              <UiButton native type="button" :aria-label="t('updates.history.openRelease', { version: release.version })" @click="openExternal(release.url)">
                 <code>v{{ release.version }}</code><IconLaunch aria-hidden="true" />
-              </button>
+              </UiButton>
             </header>
             <div
               v-if="release.formattedNotes"
@@ -111,13 +112,13 @@ useModalDialogFocus({ open, panel, afterLayout: props.reportLayout })
       <footer class="whats-new-footer">
         <span v-if="error && releases.length > 0" role="alert">{{ error }}</span>
         <span v-else>{{ t('updates.history.source') }}</span>
-        <button v-if="hasMore" class="secondary-button" type="button" :disabled="busy" @click="loadMore">
+        <UiButton native v-if="hasMore" class="secondary-button" type="button" :disabled="busy" @click="loadMore">
           <IconProgress v-if="operation === 'more'" class="state-spinner" aria-hidden="true" />
           {{ operation === 'more' ? t('updates.history.loadingMore') : t('updates.history.loadMore') }}
-        </button>
-        <button v-else class="secondary-button" type="button" @click="openExternal('https://github.com/hronaut/hronaut/releases')">
+        </UiButton>
+        <UiButton native v-else class="secondary-button" type="button" @click="openExternal('https://github.com/hronaut/hronaut/releases')">
           {{ t('updates.history.openAll') }}<IconLaunch aria-hidden="true" />
-        </button>
+        </UiButton>
       </footer>
     </section>
   </div>

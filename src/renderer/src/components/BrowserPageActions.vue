@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdsClick from '~icons/material-symbols/ads-click-rounded'
@@ -58,7 +59,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     role="group"
     :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
   >
-    <button
+    <UiButton native
       class="interaction-lock-button"
       :class="{ locked: tabHumanInteractionLocked }"
       type="button"
@@ -71,7 +72,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
       {{ t('shell.split.tab') }}
-    </button>
+    </UiButton>
   </div>
   <SplitViewControl
     v-model:open="splitMenuOpen"
@@ -82,7 +83,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     :close-other-menus="closeOtherMenus"
     @error="reportSplitError"
   />
-  <button
+  <UiButton native
     class="icon-button area-capture-button"
     :class="{ active: areaCaptureState === 'picking' || areaCaptureState === 'capturing', copied: areaCaptureState === 'copied', error: areaCaptureState === 'error' }"
     type="button"
@@ -96,8 +97,8 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <IconClose v-else-if="areaCaptureState === 'picking'" aria-hidden="true" />
     <IconProgress v-else-if="areaCaptureState === 'capturing'" class="state-spinner" aria-hidden="true" />
     <IconScreenshotRegion v-else aria-hidden="true" />
-  </button>
-  <button
+  </UiButton>
+  <UiButton native
     class="icon-button element-picker-button"
     :class="{ active: elementPickerState === 'picking', copied: elementPickerState === 'copied', error: elementPickerState === 'error' }"
     type="button"
@@ -111,8 +112,8 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <IconCheck v-if="elementPickerState === 'copied'" aria-hidden="true" />
     <IconClose v-else-if="elementPickerState === 'picking'" aria-hidden="true" />
     <IconAdsClick v-else aria-hidden="true" />
-  </button>
-  <button
+  </UiButton>
+  <UiButton native
     class="icon-button page-tools-button"
     :class="{ active: pageToolsOpen }"
     type="button"
@@ -125,5 +126,5 @@ function reportSplitError(cause: unknown, fallback: string): void {
     @click="emit('togglePageTools')"
   >
     <IconHandyman aria-hidden="true" />
-  </button>
+  </UiButton>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconCopy from '~icons/material-symbols/content-copy-rounded'
@@ -49,7 +50,7 @@ function kindLabel(kind: BrowserStorageKind): string {
     <template v-else-if="report">
       <div v-if="report.status === 'empty'" class="site-storage-empty storage-changes-empty">
         <IconDifference aria-hidden="true" /><strong>{{ t('siteStorage.trackedChanges.empty') }}</strong><span>{{ t('siteStorage.trackedChanges.emptyDescription') }}</span>
-        <button class="primary" type="button" @click="emit('manage', 'baseline')"><IconDifference aria-hidden="true" /> {{ t('siteStorage.trackedChanges.setBaseline') }}</button>
+        <UiButton native class="primary" type="button" @click="emit('manage', 'baseline')"><IconDifference aria-hidden="true" /> {{ t('siteStorage.trackedChanges.setBaseline') }}</UiButton>
       </div>
       <template v-else>
         <div class="storage-changes-summary" :class="{ changed: report.status === 'compared' && report.changeCount, identical: report.status === 'compared' && !report.changeCount }">
@@ -57,15 +58,15 @@ function kindLabel(kind: BrowserStorageKind): string {
           <div><strong v-if="report.status === 'baseline'">{{ t('siteStorage.trackedChanges.baselineReady') }}</strong><strong v-else-if="!report.changeCount">{{ t('siteStorage.trackedChanges.noChanges') }}</strong><strong v-else>{{ t('siteStorage.trackedChanges.changeCount', { count: localNumber(report.changeCount) }, report.changeCount) }}</strong><span>{{ report.status === 'baseline' ? t('siteStorage.trackedChanges.useThenCompare') : t('siteStorage.trackedChanges.counts', { added: localNumber(report.counts.added), updated: localNumber(report.counts.updated), removed: localNumber(report.counts.removed) }) }}</span></div>
         </div>
         <div v-if="report.status === 'compared' && report.changes.length" class="storage-changes-list">
-          <button v-for="(change, index) in report.changes" :key="`${change.kind}-${change.key}-${change.domain ?? ''}-${change.path ?? ''}-${index}`" type="button" class="storage-change" :class="change.type" @click="emit('inspect', change)">
+          <UiButton native v-for="(change, index) in report.changes" :key="`${change.kind}-${change.key}-${change.domain ?? ''}-${change.path ?? ''}-${index}`" type="button" class="storage-change" :class="change.type" @click="emit('inspect', change)">
             <span class="storage-change-type">{{ change.type }}</span><span class="storage-change-copy"><strong>{{ change.key }}</strong><small>{{ kindLabel(change.kind) }}<template v-if="change.domain"> · {{ change.domain }}{{ change.path }}</template><template v-if="change.protected"> {{ t('siteStorage.trackedChanges.httpOnly') }}</template><template v-if="change.attributesChanged"> {{ t('siteStorage.trackedChanges.attributesChanged') }}</template></small></span><span class="storage-change-bytes">{{ change.beforeValueBytes === undefined ? '—' : bytes(change.beforeValueBytes) }} → {{ change.afterValueBytes === undefined ? '—' : bytes(change.afterValueBytes) }}</span>
-          </button>
+          </UiButton>
         </div>
         <p v-if="report.truncated" class="storage-changes-note"><IconInfo aria-hidden="true" /> {{ t('siteStorage.trackedChanges.truncated') }}</p>
         <details class="storage-changes-caveats"><summary>{{ t('siteStorage.scopePrivacy') }}</summary><ul><li v-for="caveat in report.caveats" :key="caveat">{{ caveat }}</li></ul></details>
         <footer class="storage-changes-footer">
           <span>{{ t('siteStorage.trackedChanges.baseline', { time: report.baselineAt ? timestamp(report.baselineAt) : t('siteStorage.trackedChanges.notSet') }) }}</span>
-          <div><button type="button" @click="emit('manage', 'clear')"><IconDelete aria-hidden="true" /> {{ t('siteStorage.trackedChanges.clear') }}</button><button type="button" @click="emit('manage', 'baseline')"><IconRefresh aria-hidden="true" /> {{ t('siteStorage.trackedChanges.newBaseline') }}</button><button v-if="report.status === 'compared'" type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.trackedChanges.copy') }}</button><button class="primary" type="button" :disabled="state === 'loading'" @click="emit('manage', 'compare')"><IconDifference aria-hidden="true" /> {{ t('siteStorage.trackedChanges.compare') }}</button></div>
+          <div><UiButton native type="button" @click="emit('manage', 'clear')"><IconDelete aria-hidden="true" /> {{ t('siteStorage.trackedChanges.clear') }}</UiButton><UiButton native type="button" @click="emit('manage', 'baseline')"><IconRefresh aria-hidden="true" /> {{ t('siteStorage.trackedChanges.newBaseline') }}</UiButton><UiButton native v-if="report.status === 'compared'" type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.trackedChanges.copy') }}</UiButton><UiButton native class="primary" type="button" :disabled="state === 'loading'" @click="emit('manage', 'compare')"><IconDifference aria-hidden="true" /> {{ t('siteStorage.trackedChanges.compare') }}</UiButton></div>
         </footer>
       </template>
     </template>

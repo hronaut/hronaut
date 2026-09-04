@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -95,7 +96,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       </div>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('console.heading') })" />
-        <button class="panel-close" type="button" :aria-label="t('console.close')" @click="open = false"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('console.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div class="console-tools">
@@ -140,11 +141,11 @@ function entryKey(message: BrowserConsoleMessage): string {
           >×{{ message.repeatCount }}</small>
           <small v-if="message.handled" class="console-handled">{{ t('console.handledLater') }}</small>
           <time :datetime="message.timestamp">{{ debugTimestamp(message.timestamp) }}</time>
-          <button type="button" class="console-message-copy" :aria-label="t('console.copyEntry')" @click="emit('copyEntry', message)">
+          <UiButton native type="button" class="console-message-copy" :aria-label="t('console.copyEntry')" @click="emit('copyEntry', message)">
             <IconCheck v-if="copiedEntryKey === entryKey(message)" aria-hidden="true" />
             <IconCopy v-else aria-hidden="true" />
             {{ copiedEntryKey === entryKey(message) ? t('console.copied') : t('console.copy') }}
-          </button>
+          </UiButton>
         </header>
         <code>{{ message.message }}</code>
         <small v-if="message.sourceId">{{ sourceLocation(message.sourceId, message.lineNumber, message.columnNumber) }}</small>
@@ -169,18 +170,18 @@ function entryKey(message: BrowserConsoleMessage): string {
     <footer>
       <span>{{ t('console.summary', { visible: localNumber(filteredMessages.length), total: localNumber(messages.length), visibleEvents: localNumber(filteredEventCount), totalEvents: localNumber(eventCount) }) }}</span>
       <div class="console-actions">
-        <button type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</button>
-        <button type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</button>
-        <button type="button" :disabled="!messages.length" @click="emit('copyAll')">
+        <UiButton native type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</UiButton>
+        <UiButton native type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</UiButton>
+        <UiButton native type="button" :disabled="!messages.length" @click="emit('copyAll')">
           <IconCheck v-if="copied === 'all'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />
           {{ copied === 'all' ? t('console.copiedAll') : t('console.copyAll') }}
-        </button>
-        <button type="button" class="primary" :disabled="!filteredMessages.length" @click="emit('copyFiltered')">
+        </UiButton>
+        <UiButton native type="button" class="primary" :disabled="!filteredMessages.length" @click="emit('copyFiltered')">
           <IconCheck v-if="copied === 'filtered'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />
           {{ copied === 'filtered' ? t('console.copiedFiltered') : t('console.copyFiltered') }}
-        </button>
+        </UiButton>
       </div>
     </footer>
   </section>

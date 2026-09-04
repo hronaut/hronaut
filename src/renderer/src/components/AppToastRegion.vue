@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -41,7 +42,7 @@ const { t } = useI18n({ useScope: 'global' })
         <IconInfo v-else />
       </span>
       <span class="app-toast-copy"><strong>{{ toast.title }}</strong><span>{{ toast.message }}</span></span>
-      <button type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></button>
+      <UiButton native type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
     </article>
   </TransitionGroup>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WalletsController } from '../composables/useWalletsController.js'
@@ -59,8 +60,8 @@ function rawDetails(): string {
       <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code>{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
       <output v-if="controller.errorMessage.value" class="site-controls-error" role="alert">{{ controller.errorMessage.value }}</output>
       <footer>
-        <button class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</button>
-        <button class="primary-button" type="button" :disabled="controller.busy.value" @click="controller.approve(request.id)">{{ t('wallets.approval.approve') }}</button>
+        <UiButton native class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>
+        <UiButton native class="primary-button" type="button" :disabled="controller.busy.value" @click="controller.approve(request.id)">{{ t('wallets.approval.approve') }}</UiButton>
       </footer>
     </section>
   </div>

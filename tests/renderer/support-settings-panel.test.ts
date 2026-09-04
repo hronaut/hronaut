@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import SupportSettingsPanel from '../../src/renderer/src/components/SupportSettingsPanel.vue'
-import { useCommercialLicenseController } from '../../src/renderer/src/composables/useCommercialLicenseController.js'
+import SupportSettingsPanel from '../../src/renderer/src/features/settings/support/SupportSettingsPanel.vue'
+import { useCommercialLicenseController } from '../../src/renderer/src/features/settings/support/useCommercialLicenseController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { HronautLicenseApi, CommercialLicenseState } from '../../src/shared/types.js'
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -45,7 +46,7 @@ const {
             <strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong>
             <small>{{ credential.origin }}</small>
           </span>
-          <button
+          <UiButton native
             class="permission-remove credential-remove"
             type="button"
             :aria-label="t('settings.passwords.removeAria', { username: credential.username || t('settings.passwords.unnamed'), origin: credential.origin })"
@@ -54,7 +55,7 @@ const {
             @click="remove(credential.id)"
           >
             <IconDelete aria-hidden="true" />
-          </button>
+          </UiButton>
         </div>
       </section>
     </div>

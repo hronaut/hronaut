@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconPause from '~icons/material-symbols/pause-rounded'
@@ -35,11 +36,11 @@ const statusTitle = computed(() => {
 
 <template>
   <div class="mcp-controls" :class="state.status">
-    <button class="mcp-pill" type="button" :title="statusTitle" @click="copyEndpoint">
+    <UiButton native class="mcp-pill" type="button" :title="statusTitle" @click="copyEndpoint">
       <span class="status-dot" />
       {{ statusLabel }}
-    </button>
-    <button
+    </UiButton>
+    <UiButton native
       class="mcp-pause-button"
       type="button"
       :title="canTogglePaused ? t(state.paused ? 'runtime.mcp.resumeCommands' : 'runtime.mcp.pauseCommands') : t('runtime.mcp.unavailable')"
@@ -50,6 +51,6 @@ const statusTitle = computed(() => {
     >
       <IconPlay v-if="state.paused" aria-hidden="true" />
       <IconPause v-else aria-hidden="true" />
-    </button>
+    </UiButton>
   </div>
 </template>

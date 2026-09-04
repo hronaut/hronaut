@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
@@ -55,7 +56,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
 
 <template>
   <section class="request-conditions" aria-labelledby="request-conditions-title">
-    <button
+    <UiButton native
       class="request-conditions-toggle"
       type="button"
       :aria-expanded="expanded"
@@ -71,7 +72,7 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         <IconKeyboardArrowDown v-if="expanded" aria-hidden="true" />
         <IconKeyboardArrowRight v-else aria-hidden="true" />
       </span>
-    </button>
+    </UiButton>
     <div v-if="expanded" id="request-conditions-content" class="request-conditions-content">
       <p v-if="error" class="network-monitor-error" role="alert">{{ error }}</p>
       <div v-if="state === 'loading' && !routes.length" class="request-conditions-empty" role="status">
@@ -93,9 +94,9 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
             </small>
           </span>
           <span class="request-condition-controls">
-            <button type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></button>
-            <button type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></button>
-            <button type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></button>
+            <UiButton native type="button" :aria-label="t('network.conditions.moveUpAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveUp')" :disabled="state === 'saving' || index === 0" @click="emit('move', route.id, 'up')"><IconKeyboardArrowUp aria-hidden="true" /></UiButton>
+            <UiButton native type="button" :aria-label="t('network.conditions.moveDownAria', { pattern: route.urlPattern })" :title="t('network.conditions.moveDown')" :disabled="state === 'saving' || index === routes.length - 1" @click="emit('move', route.id, 'down')"><IconKeyboardArrowDown aria-hidden="true" /></UiButton>
+            <UiButton native type="button" :aria-label="t('network.conditions.removeAria', { pattern: route.urlPattern })" :title="t('network.conditions.remove')" :disabled="state === 'saving'" @click="emit('remove', route.id)"><IconDelete aria-hidden="true" /></UiButton>
           </span>
         </article>
       </div>
@@ -149,15 +150,15 @@ function networkProfileLabel(network: 'fast-4g' | 'slow-4g' | 'slow-3g'): string
         </template>
         <div class="request-condition-form-actions">
           <p><IconInfo aria-hidden="true" /> {{ t('network.conditions.safety') }}</p>
-          <button type="submit" class="primary" :disabled="state === 'saving' || !pattern.trim()">
+          <UiButton native type="submit" class="primary" :disabled="state === 'saving' || !pattern.trim()">
             <IconProgress v-if="state === 'saving'" class="state-spinner" aria-hidden="true" /><IconAdd v-else aria-hidden="true" />
             {{ state === 'saving' ? t('network.conditions.adding') : t('network.conditions.add') }}
-          </button>
+          </UiButton>
         </div>
       </form>
       <div v-if="routes.length" class="request-conditions-actions">
         <span>{{ t('network.conditions.secretNote') }}</span>
-        <button type="button" :disabled="state === 'saving'" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('network.conditions.removeAll') }}</button>
+        <UiButton native type="button" :disabled="state === 'saving'" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('network.conditions.removeAll') }}</UiButton>
       </div>
     </div>
   </section>

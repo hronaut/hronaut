@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconDownload from '~icons/material-symbols/download-rounded'
@@ -43,11 +44,11 @@ async function importCredentials(): Promise<void> {
       <h4 id="credential-import-title">{{ t('settings.passwords.importHeading') }}</h4>
       <p>{{ t('settings.passwords.importDescription') }}</p>
     </div>
-    <button class="secondary-button" type="button" :disabled="state === 'importing'" @click="importCredentials">
+    <UiButton native class="secondary-button" type="button" :disabled="state === 'importing'" @click="importCredentials">
       <IconProgress v-if="state === 'importing'" class="state-spinner" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
       {{ state === 'importing' ? t('settings.passwords.importing') : t('settings.passwords.importButton') }}
-    </button>
+    </UiButton>
     <output v-if="message" class="credential-import-status" :class="state" aria-live="polite">{{ message }}</output>
     <p class="credential-import-warning"><IconWarning aria-hidden="true" /> {{ t('settings.passwords.importPlaintext') }}</p>
   </section>

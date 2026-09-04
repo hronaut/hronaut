@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
@@ -25,7 +26,7 @@ const { t } = useI18n({ useScope: 'global' })
       </span>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockPanel')" />
-        <button class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: label })" @click="emit('close')"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: label })" @click="emit('close')"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div>

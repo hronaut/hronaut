@@ -232,6 +232,7 @@ docs/*
 !docs/WALLETS.md
 !docs/WORKSPACE_SITE_ACCESS.md
 playwright-report/
+storybook-static/
 test-results/
 ci-artifacts/
 .DS_Store

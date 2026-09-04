@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconError from '~icons/material-symbols/error-outline-rounded'
@@ -23,9 +24,9 @@ const detail = computed(() => props.details(props.tab))
       <span>{{ tab.pageProblem.message }}</span>
       <code v-if="detail">{{ detail }}</code>
     </span>
-    <button type="button" @click="emit('retry')">
+    <UiButton native type="button" @click="emit('retry')">
       <IconRefresh aria-hidden="true" />
       {{ tab.pageProblem.kind === 'unresponsive' ? t('pageProblem.reload') : t('pageProblem.tryAgain') }}
-    </button>
+    </UiButton>
   </div>
 </template>

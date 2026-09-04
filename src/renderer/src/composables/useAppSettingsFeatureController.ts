@@ -18,7 +18,7 @@ import type {
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
 import type { AppBootstrapTask } from './useAppBootstrapController.js'
 import { friendlyUiError, type AppToastTone } from './useAppToastController.js'
-import { useCommercialLicenseController } from './useCommercialLicenseController.js'
+import { useCommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
 import { useCredentialsController } from './useCredentialsController.js'
 import { useDownloadSettingsController } from './useDownloadSettingsController.js'
 import { useMcpSettingsController } from './useMcpSettingsController.js'

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -41,13 +42,13 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
           <code :title="effectiveDirectory">{{ effectiveDirectory }}</code>
         </span>
         <div class="download-location-actions">
-          <button class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
+          <UiButton native class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
             {{ t('settings.downloads.change') }}
-          </button>
-          <button class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
+          </UiButton>
+          <UiButton native class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
             <IconFolderOpen aria-hidden="true" />
             {{ t('settings.downloads.open') }}
-          </button>
+          </UiButton>
         </div>
       </div>
       <label class="settings-row" for="setting-ask-download-location">

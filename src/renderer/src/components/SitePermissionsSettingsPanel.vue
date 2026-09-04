@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -60,7 +61,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('settings.permissions.allow') }}</option>
             <option value="deny">{{ t('settings.permissions.block') }}</option>
           </select>
-          <button
+          <UiButton native
             class="permission-remove"
             type="button"
             :aria-label="t('runtimeActions.permission.forgetAria', { permission: permissionLabel(permission.permission), origin: group.origin })"
@@ -69,7 +70,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             @click="remove(permission)"
           >
             <IconDelete aria-hidden="true" />
-          </button>
+          </UiButton>
         </div>
       </section>
     </div>

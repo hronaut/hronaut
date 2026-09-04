@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, ref, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -142,7 +143,7 @@ onBeforeUnmount(dispose)
           <span class="tab-search-live" :class="{ paused: previewRefreshPaused }" :data-preview-count="Object.keys(previewsByTab).length"><span aria-hidden="true" />{{ previewRefreshPaused ? t('tabSearch.previewsPaused') : t('tabSearch.livePreviews') }}</span>
           <span class="tab-search-count">{{ t('tabSearch.countOpen', { count: formatNumber(regularTabs.length) }) }}{{ state.savedTabGroups.length ? ` ${t('tabSearch.countSaved', { count: formatNumber(state.savedTabGroups.length) })}` : '' }}{{ state.closedTabs.length ? ` ${t('tabSearch.countClosed', { count: formatNumber(state.closedTabs.length) })}` : '' }}</span>
         </div>
-        <button class="panel-close" type="button" :aria-label="t('tabSearch.close')" @click="close"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('tabSearch.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div v-if="regularTabs.length || state.closedTabs.length || state.savedTabGroups.length" class="tab-search-field">
         <IconSearch aria-hidden="true" />
@@ -171,7 +172,7 @@ onBeforeUnmount(dispose)
         <IconTabSearch aria-hidden="true" />
         <strong>{{ t('tabSearch.empty') }}</strong>
         <span>{{ t('tabSearch.homeAvailable') }}</span>
-        <button type="button" @click="emit('newTab')">{{ t('tabSearch.newTab') }}</button>
+        <UiButton native type="button" @click="emit('newTab')">{{ t('tabSearch.newTab') }}</UiButton>
       </div>
       <div v-else-if="!results.length" class="tab-search-empty compact">
         <IconSearch aria-hidden="true" />
@@ -196,7 +197,7 @@ onBeforeUnmount(dispose)
                 role="listitem"
                 @pointermove="selectFromPointer($event, resultIndex('open', tab.id))"
               >
-                <button
+                <UiButton native
                   :id="resultId({ kind: 'open', tab })"
                   class="tab-overview-open"
                   type="button"
@@ -228,9 +229,9 @@ onBeforeUnmount(dispose)
                     <span>{{ tabDisplayUrl(tab) }}</span>
                     <small v-if="tabMeta(tab)">{{ tabMeta(tab) }}</small>
                   </span>
-                </button>
+                </UiButton>
                 <span class="tab-overview-card-actions">
-                  <button
+                  <UiButton native
                     class="tab-search-pin"
                     :class="{ active: tab.pinned }"
                     type="button"
@@ -239,8 +240,8 @@ onBeforeUnmount(dispose)
                     :aria-pressed="tab.pinned"
                     :disabled="actionPending"
                     @click="togglePinnedTab($event, tab)"
-                  ><IconKeep aria-hidden="true" /></button>
-                  <button class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending || state.allHumanInteractionLocked" data-lock-protected-tab-close @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></button>
+                  ><IconKeep aria-hidden="true" /></UiButton>
+                  <UiButton native class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending || state.allHumanInteractionLocked" data-lock-protected-tab-close @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                 </span>
               </article>
             </div>
@@ -257,16 +258,16 @@ onBeforeUnmount(dispose)
               role="listitem"
               @pointermove="selectFromPointer($event, resultIndex('saved', group.id))"
             >
-              <button :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" :title="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="restoreSavedGroup(group)">
+              <UiButton native :id="resultId({ kind: 'saved', tab: group })" class="tab-search-open" type="button" :title="group.tabs.map((tab) => tab.url).join('\n')" :disabled="actionPending" @click="restoreSavedGroup(group)">
                 <span class="tab-search-site-icon saved" :style="tabGroupColorStyle(group.color)" aria-hidden="true"><IconFolderOpen /></span>
                 <span class="tab-search-copy">
                   <strong>{{ group.name }}</strong>
                   <span>{{ t('tabSearch.savedTabs', { count: formatNumber(group.tabs.length) }, group.tabs.length) }}</span>
                   <small>{{ group.tabs.slice(0, 3).map((tab) => tab.title || tab.url).join(' · ') }}</small>
                 </span>
-              </button>
-              <button class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" :title="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></button>
-              <button class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" :title="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="deleteSavedGroup($event, group)"><IconDelete aria-hidden="true" /></button>
+              </UiButton>
+              <UiButton native class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreWorkspaceAria', { name: group.name })" :title="t('tabSearch.restoreWorkspace')" :disabled="actionPending" @click="restoreSavedGroup(group)"><IconRestore aria-hidden="true" /></UiButton>
+              <UiButton native class="tab-search-close" type="button" :aria-label="t('tabSearch.deleteWorkspaceAria', { name: group.name })" :title="t('tabSearch.deleteWorkspace')" :disabled="actionPending" @click="deleteSavedGroup($event, group)"><IconDelete aria-hidden="true" /></UiButton>
             </article>
           </div>
         </section>
@@ -281,15 +282,15 @@ onBeforeUnmount(dispose)
               role="listitem"
               @pointermove="selectFromPointer($event, resultIndex('closed', tab.id))"
             >
-              <button :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" :title="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
+              <UiButton native :id="resultId({ kind: 'closed', tab })" class="tab-search-open" type="button" :title="tab.url" :disabled="actionPending" @click="restoreClosedTab(tab)">
                 <span class="tab-search-site-icon closed" aria-hidden="true"><IconHistory /></span>
                 <span class="tab-search-copy">
                   <strong>{{ tab.title || t('tabSearch.newTabTitle') }}</strong>
                   <span>{{ tab.url === 'about:blank' ? t('tabSearch.blankPage') : tab.url }}</span>
                   <small>{{ closedTabMeta(tab) }}</small>
                 </span>
-              </button>
-              <button class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></button>
+              </UiButton>
+              <UiButton native class="tab-search-restore" type="button" :aria-label="t('tabSearch.restoreAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.restore')" :disabled="actionPending" @click="restoreClosedTab(tab)"><IconRestore aria-hidden="true" /></UiButton>
             </article>
           </div>
         </section>

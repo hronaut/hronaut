@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
@@ -13,7 +14,7 @@ import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
 import IconSystemUpdate from '~icons/material-symbols/system-update-alt-rounded'
-import type { CommercialLicenseController } from '../composables/useCommercialLicenseController.js'
+import type { CommercialLicenseController } from '../features/settings/support/useCommercialLicenseController.js'
 import type { CredentialsController } from '../composables/useCredentialsController.js'
 import type { DownloadSettingsController } from '../composables/useDownloadSettingsController.js'
 import type { McpSettingsController } from '../composables/useMcpSettingsController.js'
@@ -34,7 +35,7 @@ import PerformanceSettingsPanel from './PerformanceSettingsPanel.vue'
 import PrivacySettingsPanel from './PrivacySettingsPanel.vue'
 import SearchSettingsPanel from './SearchSettingsPanel.vue'
 import SitePermissionsSettingsPanel from './SitePermissionsSettingsPanel.vue'
-import SupportSettingsPanel from './SupportSettingsPanel.vue'
+import SupportSettingsPanel from '../features/settings/support/SupportSettingsPanel.vue'
 import UpdateSettingsPanel from './UpdateSettingsPanel.vue'
 import WalletsSettingsPanel from './WalletsSettingsPanel.vue'
 
@@ -122,7 +123,7 @@ useModalDialogFocus({ open, panel })
           <span class="eyebrow">{{ t('settings.kicker') }}</span>
           <h2 id="settings-title">{{ t('settings.heading') }}</h2>
         </div>
-        <button class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></button>
+        <UiButton native class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </div>
 
       <div
@@ -131,7 +132,7 @@ useModalDialogFocus({ open, panel })
         :inert="resetBusy ? true : undefined"
       >
         <nav class="settings-sidebar" :aria-label="t('settings.sections')" @wheel="scrollNavigationWithWheel">
-          <button
+          <UiButton native
             v-for="item in navigation"
             :key="item.section"
             class="settings-nav-item"
@@ -145,7 +146,7 @@ useModalDialogFocus({ open, panel })
               <strong>{{ item.label }}</strong>
               <small>{{ item.description }}</small>
             </span>
-          </button>
+          </UiButton>
         </nav>
 
         <AppearanceSettings
@@ -205,14 +206,14 @@ useModalDialogFocus({ open, panel })
       </div>
 
       <footer class="settings-footer">
-        <button
+        <UiButton native
           v-if="resetVisible"
           class="secondary-button"
           type="button"
           :disabled="resetDisabled"
           @click="resetCurrent"
-        >{{ t('settings.reset') }}</button>
-        <button class="primary-button" type="button" @click="close">{{ t('common.close') }}</button>
+        >{{ t('settings.reset') }}</UiButton>
+        <UiButton native class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
       </footer>
     </section>
   </div>

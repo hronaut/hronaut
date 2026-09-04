@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -83,27 +84,27 @@ defineExpose({ close, openForTab, setZoom })
 <template>
   <div v-if="open" class="zoom-bar" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
     <span>{{ t('zoom.heading') }}</span>
-    <button
+    <UiButton native
       type="button"
       :title="t('zoom.outTitle')"
       :aria-label="t('zoom.out')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) <= 50"
       @click="setZoom('out')"
-    ><IconRemove aria-hidden="true" /></button>
+    ><IconRemove aria-hidden="true" /></UiButton>
     <output aria-live="polite">{{ formatPercent(activeTab?.zoomPercent ?? 100) }}</output>
-    <button
+    <UiButton native
       type="button"
       :title="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 300"
       @click="setZoom('in')"
-    ><IconZoomIn aria-hidden="true" /></button>
-    <button
+    ><IconZoomIn aria-hidden="true" /></UiButton>
+    <UiButton native
       class="zoom-reset"
       type="button"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) === 100"
       @click="setZoom('reset')"
-    >{{ t('zoom.reset') }}</button>
-    <button type="button" :title="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></button>
+    >{{ t('zoom.reset') }}</UiButton>
+    <UiButton native type="button" :title="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
   </div>
 </template>

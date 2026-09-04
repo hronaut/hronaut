@@ -25,7 +25,7 @@ export default defineConfig(
   {
     ignores: [
       'node_modules/**', 'out/**', 'dist/**', 'docs/assets/**', 'release/**', 'coverage/**',
-      'playwright-report/**', 'test-results/**', 'scripts/mcp-workspace.js', '*.config.*.mjs'
+      'playwright-report/**', 'storybook-static/**', 'test-results/**', 'scripts/mcp-workspace.js', '*.config.*.mjs'
     ]
   },
   {

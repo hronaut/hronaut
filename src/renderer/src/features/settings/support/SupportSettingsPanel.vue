@@ -2,7 +2,8 @@
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconFavorite from '~icons/material-symbols/favorite-rounded'
-import type { CommercialLicenseController } from '../composables/useCommercialLicenseController'
+import { UiButton, UiField, UiNotice } from '../../../ui/index.js'
+import type { CommercialLicenseController } from './useCommercialLicenseController.js'
 
 const props = defineProps<{
   controller: CommercialLicenseController
@@ -43,15 +44,15 @@ const {
         <template v-if="state.lastValidatedAt"> {{ t('settings.support.lastChecked', { time: formatDateTime(state.lastValidatedAt) }) }}</template>
       </small>
       <div class="commercial-license-actions">
-        <button class="secondary-button" type="button" :disabled="busy" @click="refresh">
+        <UiButton :busy="action === 'refreshing'" :disabled="busy" @click="refresh">
           {{ action === 'refreshing' ? t('settings.support.checking') : t('settings.support.check') }}
-        </button>
-        <button class="secondary-button" type="button" :disabled="busy" @click="emit('openUrl', 'https://www.creem.io/my-orders/login')">
+        </UiButton>
+        <UiButton :disabled="busy" @click="emit('openUrl', 'https://www.creem.io/my-orders/login')">
           {{ t('settings.support.manage') }}
-        </button>
-        <button class="secondary-button danger" type="button" :disabled="busy" @click="deactivate">
+        </UiButton>
+        <UiButton variant="danger" :busy="action === 'deactivating'" :disabled="busy" @click="deactivate">
           {{ action === 'deactivating' ? t('settings.support.deactivating') : t('settings.support.deactivate') }}
-        </button>
+        </UiButton>
       </div>
     </div>
     <div v-else class="support-card commercial-license-card">
@@ -60,29 +61,36 @@ const {
       <small v-if="state.secureStorageAvailable">{{ t('settings.support.secure') }}</small>
       <small v-else>{{ t('settings.support.unavailable') }}</small>
       <form class="commercial-license-form" @submit.prevent="activate">
-        <label for="commercial-license-key">{{ t('settings.support.key') }}</label>
-        <input
-          id="commercial-license-key"
-          v-model="keyDraft"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          :placeholder="t('settings.support.placeholder')"
+        <UiField :label="t('settings.support.key')" for-id="commercial-license-key">
+          <input
+            id="commercial-license-key"
+            v-model="keyDraft"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            :placeholder="t('settings.support.placeholder')"
+            :disabled="!state.secureStorageAvailable || busy"
+          />
+        </UiField>
+        <UiButton
+          class="support-primary"
+          type="submit"
+          variant="primary"
+          :busy="action === 'activating'"
           :disabled="!state.secureStorageAvailable || busy"
-        />
-        <button class="primary-button support-primary" type="submit" :disabled="!state.secureStorageAvailable || busy">
+        >
           {{ action === 'activating' ? t('settings.support.activating') : t('settings.support.activate') }}
-        </button>
+        </UiButton>
       </form>
       <small v-if="stateMessage">{{ stateMessage }}</small>
-      <small v-if="errorMessage" class="commercial-license-error" role="alert">{{ errorMessage }}</small>
-      <button class="secondary-button" type="button" @click="emit('purchase')">{{ t('settings.support.support') }}</button>
+      <UiNotice v-if="errorMessage" tone="danger">{{ errorMessage }}</UiNotice>
+      <UiButton @click="emit('purchase')">{{ t('settings.support.support') }}</UiButton>
     </div>
     <div class="support-alternatives">
       <span>{{ t('settings.support.alternatives') }}</span>
-      <button type="button" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('settings.support.license') }}</button>
-      <button type="button" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('settings.support.contributing') }}</button>
-      <button type="button" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/issues')">{{ t('settings.support.issue') }}</button>
+      <UiButton size="small" variant="ghost" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('settings.support.license') }}</UiButton>
+      <UiButton size="small" variant="ghost" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('settings.support.contributing') }}</UiButton>
+      <UiButton size="small" variant="ghost" @click="emit('openUrl', 'https://github.com/hronaut/hronaut/issues')">{{ t('settings.support.issue') }}</UiButton>
     </div>
   </div>
 </template>

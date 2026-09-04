@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import type { HronautLicenseApi, CommercialLicenseState } from '../../../shared/types.js'
+import type { HronautLicenseApi, CommercialLicenseState } from '../../../../../shared/types.js'
 
 type CommercialLicenseAction = 'idle' | 'activating' | 'refreshing' | 'deactivating'
 
