@@ -11,7 +11,7 @@ import {
 describe('theme contract', () => {
   it('keeps persisted and resolved theme names in one authoritative catalog', () => {
     expect(THEME_NAMES).toEqual([
-      'system', 'light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'matrix', 'machine', 'galactic'
+      'system', 'light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'cyberpunk-turbo', 'matrix', 'machine', 'galactic'
     ])
     expect(RESOLVED_THEME_NAMES).toEqual(THEME_NAMES.slice(1))
     expect(THEME_NAMES.every(isThemeName)).toBe(true)
@@ -26,6 +26,7 @@ describe('theme contract', () => {
       ['midnight', 'dark'],
       ['sepia', 'light'],
       ['cyberpunk', 'dark'],
+      ['cyberpunk-turbo', 'dark'],
       ['matrix', 'dark'],
       ['machine', 'dark'],
       ['galactic', 'dark']

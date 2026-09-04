@@ -20,7 +20,7 @@ import UiTextarea from './UiTextarea.vue'
 import UiToggleButton from './UiToggleButton.vue'
 import UiTooltip from './UiTooltip.vue'
 
-const themes = ['light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'matrix', 'machine', 'galactic'] as const
+const themes = ['light', 'dark', 'midnight', 'sepia', 'cyberpunk', 'cyberpunk-turbo', 'matrix', 'machine', 'galactic'] as const
 
 const meta = {
   title: 'UI/Primitives',

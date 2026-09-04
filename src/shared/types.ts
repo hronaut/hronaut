@@ -425,6 +425,7 @@ export type ThemeName =
   | 'midnight'
   | 'sepia'
   | 'cyberpunk'
+  | 'cyberpunk-turbo'
   | 'matrix'
   | 'machine'
   | 'galactic'

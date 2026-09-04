@@ -26,6 +26,7 @@
 :root[data-theme="dark"],
 :root[data-theme="midnight"],
 :root[data-theme="cyberpunk"],
+:root[data-theme="cyberpunk-turbo"],
 :root[data-theme="matrix"],
 :root[data-theme="machine"],
 :root[data-theme="galactic"] { @apply [color-scheme:dark]; }

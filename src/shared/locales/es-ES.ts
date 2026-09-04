@@ -36,6 +36,7 @@ export const esES = {
         "label": "Sepia",
         "description": "Calma de papel cálido"
       },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Miami ’88 · rosa y cian' },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Violeta neón"

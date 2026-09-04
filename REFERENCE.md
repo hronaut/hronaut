@@ -20,7 +20,7 @@ Project home: https://github.com/hronaut/hronaut
 
 ## Appearance
 
-Open **Settings** from the gear button in the top strip. Hronaut includes nine application themes:
+Open **Settings** from the gear button in the top strip. Hronaut includes ten appearance choices:
 
 - **System** follows the operating system's light or dark appearance as it changes.
 - **Light** for a bright, neutral browser shell.
@@ -28,6 +28,7 @@ Open **Settings** from the gear button in the top strip. Hronaut includes nine a
 - **Midnight** for a deep blue-black browser shell.
 - **Sepia** for a warm paper-toned browser shell.
 - **Cyberpunk** for a neon cyan and magenta browser shell.
+- **Cyberpunk Turbo** for Miami ’88-inspired navy surfaces, hot pink controls, cyan accents and a matching Home page.
 - **Matrix** for a green terminal-inspired browser shell.
 - **Machine** for an industrial red and graphite browser shell.
 - **Galactic** for a space-inspired violet and blue browser shell.

@@ -43,6 +43,7 @@ const themeGroups = computed<Array<{
     label: t('appearance.themeCategories.expressive'),
     themes: [
       { name: 'cyberpunk', label: t('appearance.themes.cyberpunk.label'), description: t('appearance.themes.cyberpunk.description') },
+      { name: 'cyberpunk-turbo', label: t('appearance.themes.cyberpunk-turbo.label'), description: t('appearance.themes.cyberpunk-turbo.description') },
       { name: 'matrix', label: t('appearance.themes.matrix.label'), description: t('appearance.themes.matrix.description') },
       { name: 'machine', label: t('appearance.themes.machine.label'), description: t('appearance.themes.machine.description') },
       { name: 'galactic', label: t('appearance.themes.galactic.label'), description: t('appearance.themes.galactic.description') }

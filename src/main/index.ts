@@ -154,7 +154,7 @@ import {
   type ThemeName,
   type SupportedLocale
 } from '../shared/types.js'
-import { isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
+import { CYBERPUNK_TURBO_COLORS, isResolvedThemeName, themeColorScheme, type ResolvedThemeName } from '../shared/theme.js'
 import {
   isLanguagePreference,
   resolveLocalePreference,
@@ -435,6 +435,7 @@ const THEME_BACKGROUND: Record<ResolvedThemeName, string> = {
   midnight: '#0b1422',
   sepia: '#f2eadc',
   cyberpunk: '#10071c',
+  'cyberpunk-turbo': CYBERPUNK_TURBO_COLORS.background,
   matrix: '#020b05',
   machine: '#13080a',
   galactic: '#070d20'
@@ -1161,7 +1162,7 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
   refreshHomeAfterCommittedChange('settings')
 }
 
-function homeDashboardState(): McpDashboardState & { presentationRevision: number } {
+function homeDashboardState(): McpDashboardState & { presentationRevision: number; theme: ResolvedThemeName } {
   const serverState = mcpServer?.getDashboardState()
   return {
     ...(serverState ?? {
@@ -1182,6 +1183,7 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
     endpoint: mcpUrl,
     tools: mcpToolCatalogForSet(settings.mcpToolSet),
     presentationRevision: homePresentationRevision,
+    theme: resolvedTheme(settings.theme),
     status: currentMcpControlState().status,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }

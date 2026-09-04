@@ -9,6 +9,7 @@ export const THEME_NAMES = [
   'midnight',
   'sepia',
   'cyberpunk',
+  'cyberpunk-turbo',
   'matrix',
   'machine',
   'galactic'
@@ -29,3 +30,14 @@ export function isResolvedThemeName(value: unknown): value is ResolvedThemeName 
 export function themeColorScheme(theme: ResolvedThemeName): 'light' | 'dark' {
   return theme === 'light' || theme === 'sepia' ? 'light' : 'dark'
 }
+
+export const CYBERPUNK_TURBO_COLORS = {
+  background: '#090f23',
+  shellTop: '#15142e',
+  toolbar: '#0d1429',
+  text: '#f6f3ff',
+  muted: '#bbc1d9',
+  accent: '#ff69b4',
+  secondary: '#53f5e6',
+  sunset: '#ffb86b'
+} as const

@@ -1,6 +1,6 @@
 import type { InterfaceScale } from './interface-scale.js'
 import type { TabPosition } from './tab-position.js'
-import type { ResolvedThemeName } from './theme.js'
+import { CYBERPUNK_TURBO_COLORS, type ResolvedThemeName } from './theme.js'
 
 export const TITLE_BAR_BASE_HEIGHT = 44
 
@@ -45,6 +45,7 @@ const TITLE_BAR_THEME_COLORS: Record<ResolvedThemeName, TitleBarThemeColors> = {
   dark: { horizontal: '#20212c', vertical: '#171821', symbols: '#eeeef5' },
   midnight: { horizontal: '#111f32', vertical: '#0a1320', symbols: '#edf4ff' },
   sepia: { horizontal: '#e8dcc8', vertical: '#faf4e9', symbols: '#3c3025' },
+  'cyberpunk-turbo': { horizontal: CYBERPUNK_TURBO_COLORS.shellTop, vertical: CYBERPUNK_TURBO_COLORS.toolbar, symbols: CYBERPUNK_TURBO_COLORS.text },
   cyberpunk: { horizontal: '#1d0a32', vertical: '#130922', symbols: '#f5f0ff' },
   matrix: { horizontal: '#07160b', vertical: '#030d06', symbols: '#d9ffe0' },
   machine: { horizontal: '#251012', vertical: '#16090b', symbols: '#fff0ee' },

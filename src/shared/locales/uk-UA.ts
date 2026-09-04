@@ -21,6 +21,7 @@ export const ukUA = {
       dark: { label: 'Темна', description: 'Комфортна для очей' },
       midnight: { label: 'Опівніч', description: 'Глибокий синій фокус' },
       sepia: { label: 'Сепія', description: 'Теплий паперовий спокій' },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Маямі ’88 · рожевий і бірюзовий' },
       cyberpunk: { label: 'Кіберпанк', description: 'Неоново-фіолетова' },
       matrix: { label: 'Матриця', description: 'Зелений дощ термінала' },
       machine: { label: 'Машина', description: 'Червоний тактичний HUD' },

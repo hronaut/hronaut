@@ -1,13 +1,14 @@
 import type { McpDashboardState } from './mcp/server.js'
 import { localeMessages } from '../shared/i18n.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
+import { CYBERPUNK_TURBO_COLORS, type ResolvedThemeName } from '../shared/theme.js'
 import type { SupportedLocale } from '../shared/locale.js'
 
 interface HomePageOptions {
   endpoint: string
   tokenPath?: string
   authenticationDisabled?: boolean
-  initialState: McpDashboardState
+  initialState: McpDashboardState & { theme?: ResolvedThemeName }
   locale: SupportedLocale
   platform?: NodeJS.Platform
 }
@@ -453,6 +454,27 @@ export function renderHomePage(options: HomePageOptions): string {
         --code: #0d0e13;
         --code-text: #f3f3f8;
       }
+    }
+    :root[data-theme="cyberpunk-turbo"] {
+      color-scheme: dark;
+      --bg: ${CYBERPUNK_TURBO_COLORS.background};
+      --panel: #151c35;
+      --panel-solid: #151c35;
+      --text: ${CYBERPUNK_TURBO_COLORS.text};
+      --muted: ${CYBERPUNK_TURBO_COLORS.muted};
+      --border: #424f75;
+      --soft: #212a48;
+      --accent: ${CYBERPUNK_TURBO_COLORS.accent};
+      --accent-2: ${CYBERPUNK_TURBO_COLORS.secondary};
+      --code: #090f23;
+      --code-text: #f6f3ff;
+    }
+    :root[data-theme="cyberpunk-turbo"] body {
+      background: radial-gradient(ellipse at 95% 0, rgba(255,105,180,.12), transparent 40%), var(--bg);
+    }
+    :root[data-theme="cyberpunk-turbo"] .hero {
+      border-bottom: 2px solid transparent;
+      border-image: linear-gradient(90deg, ${CYBERPUNK_TURBO_COLORS.accent}, ${CYBERPUNK_TURBO_COLORS.sunset}, ${CYBERPUNK_TURBO_COLORS.secondary}) 1;
     }
     * { box-sizing: border-box; }
     html { min-width: 320px; min-height: 100%; background: var(--bg); }
@@ -987,6 +1009,7 @@ export function renderHomePage(options: HomePageOptions): string {
     }
 
     function renderDashboard() {
+      document.documentElement.dataset.theme = dashboard.theme === 'cyberpunk-turbo' ? 'cyberpunk-turbo' : '';
       const active = dashboard.activeRequests;
       const serverState = document.getElementById('server-state');
       const status = dashboard.status || (dashboard.paused ? 'paused' : 'ready');

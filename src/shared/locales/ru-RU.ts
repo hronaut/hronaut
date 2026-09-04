@@ -36,6 +36,7 @@ export const ruRU = {
         "label": "Сепия",
         "description": "Тёплое бумажное спокойствие"
       },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Майами ’88 · розовый и бирюзовый' },
       "cyberpunk": {
         "label": "Киберпанк",
         "description": "Неоново-фиолетовая"

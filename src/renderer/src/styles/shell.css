@@ -13,6 +13,17 @@
   @apply [opacity:0.12] [background-image:linear-gradient(rgba(0,_245,_255,_0.22)_1px,_transparent_1px),_linear-gradient(90deg,_rgba(255,_46,_224,_0.2)_1px,_transparent_1px)] [background-size:24px_24px];
 }
 
+:root[data-theme="cyberpunk-turbo"] .shell {
+  @apply [border-bottom-color:#658c9b] [box-shadow:0_1px_12px_rgba(83,_245,_230,_.1)];
+}
+:root[data-theme="cyberpunk-turbo"] .shell::after {
+  @apply absolute inset-0 pointer-events-none [opacity:.16] [background-image:linear-gradient(110deg,_rgba(255,_105,_180,_.32),_transparent_35%,_rgba(83,_245,_230,_.18))];
+  content: "";
+}
+:root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
+  @apply [background:linear-gradient(90deg,_#ff69b4,_#ffb86b,_#53f5e6)];
+}
+
 :root[data-theme="matrix"] .shell::after,
 :root[data-theme="machine"] .shell::after,
 :root[data-theme="galactic"] .shell::after {

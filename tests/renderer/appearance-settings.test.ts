@@ -106,7 +106,7 @@ describe('AppearanceSettings', () => {
     expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Everyday' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Cinematic' })).toBeVisible()
-    expect(screen.getAllByRole('radio')).toHaveLength(9)
+    expect(screen.getAllByRole('radio')).toHaveLength(10)
     expect(screen.getByRole('radio', { name: /System/ })).toHaveAttribute('aria-checked', 'true')
     const language = screen.getByRole('combobox', { name: 'Interface language' })
     expect(Array.from(language.querySelectorAll('option')).map((option) => option.value)).toEqual(['system', ...SUPPORTED_LOCALES])

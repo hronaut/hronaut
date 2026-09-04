@@ -54,7 +54,7 @@ Use a task-owned headless browser or automation library when the browser should 
 
 - Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.
 - Searchable tab previews with a full-page viewer, unmistakable active-tab treatment, and top or collapsible left-side tab layouts.
-- Nine appearance choices: System, Light, Dark, Midnight, Sepia, Cyberpunk, Matrix, Machine, and Galactic.
+- Ten appearance choices: System, Light, Dark, Midnight, Sepia, Cyberpunk, Cyberpunk Turbo, Matrix, Machine, and Galactic.
 - Local Streamable HTTP MCP endpoint with browser navigation, interaction, inspection, diagnostics, downloads, storage, and accessibility tools.
 - Multi-agent workspaces with isolated browser profiles, connection-scoped access, and private restart-safe resume capabilities.
 - Optional trusted [workspace site-access allowlists](docs/WORKSPACE_SITE_ACCESS.md) covering direct navigation, redirects, page actions, popups, and history without granting policy changes to agents.

@@ -168,6 +168,39 @@
   --danger: #ff5ca8;
 }
 
+/* Miami 1988: navy surfaces keep the neon accents readable. */
+:root[data-theme="cyberpunk-turbo"],
+.ui-theme-scope[data-theme="cyberpunk-turbo"] {
+  color: #f6f3ff;
+  background: #090f23;
+  --text: #f6f3ff;
+  --muted: #bbc1d9;
+  --subtle: #9aa5c6;
+  --accent: #ff69b4;
+  --accent-soft: rgba(255, 105, 180, 0.14);
+  --accent-text: #53f5e6;
+  --button-text: #090f23;
+  --shell-top: #15142e;
+  --titlebar-background: #15142e;
+  --titlebar-muted: #bbc1d9;
+  --shell-bottom: #090f23;
+  --toolbar: #0d1429;
+  --surface: #151c35;
+  --surface-raised: #19233e;
+  --surface-muted: #212a48;
+  --hover: #303b5c;
+  --tab-hover: #263354;
+  --border: #586389;
+  --border-soft: #424f75;
+  --pill-bg: #19233e;
+  --pill-border: #658c9b;
+  --shadow: rgba(3, 5, 17, 0.58);
+  --focus-bg: #19233e;
+  --success: #53f5e6;
+  --danger: #ff91ae;
+  --turbo-sunset: #ffb86b;
+}
+
 :root[data-theme="matrix"],
 .ui-theme-scope[data-theme="matrix"] {
   color: #d9ffe0;

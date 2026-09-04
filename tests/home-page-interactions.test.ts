@@ -87,6 +87,19 @@ describe('Home action recovery', () => {
 
 
 describe('Home setup journey', () => {
+  it('updates Cyberpunk Turbo from local status without losing the current setup focus', () => {
+    const page = mount()
+    const guide = button('[data-guide="opencode"]')
+    guide.focus()
+    const themedState = { ...state, theme: 'cyberpunk-turbo' }
+    page.update(themedState)
+    expect(document.documentElement.dataset.theme).toBe('cyberpunk-turbo')
+    expect(document.activeElement).toBe(guide)
+    page.update(state)
+    expect(document.documentElement.dataset.theme).toBe('')
+    expect(document.activeElement).toBe(guide)
+  })
+
   it('remembers a recognized guide across Home reloads without storing setup text', () => {
     mount()
     button('[data-guide="opencode"]').click()

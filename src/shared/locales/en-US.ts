@@ -19,6 +19,7 @@ export const enUS = {
       dark: { label: 'Dark', description: 'Easy on the eyes' },
       midnight: { label: 'Midnight', description: 'Deep blue focus' },
       sepia: { label: 'Sepia', description: 'Warm paper calm' },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Miami ’88 · pink and cyan' },
       cyberpunk: { label: 'Cyberpunk', description: 'Neon violet' },
       matrix: { label: 'Matrix', description: 'Green terminal rain' },
       machine: { label: 'Machine', description: 'Red tactical HUD' },
