@@ -4,6 +4,7 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 
 [![Latest release](https://img.shields.io/github/v/release/hronaut/hronaut?display_name=tag&sort=semver)](https://github.com/hronaut/hronaut/releases/latest)
 [![CI](https://github.com/hronaut/hronaut/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/hronaut/hronaut/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/codeql.yml)
 [![Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6866e9)](https://hronaut.dev/download)
 [![Source-available: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-source--available%20PolyForm%20Noncommercial%201.0.0-4b5563)](LICENSE)
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
