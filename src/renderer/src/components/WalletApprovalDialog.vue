@@ -60,8 +60,8 @@ function rawDetails(): string {
       <p class="wallet-approval-hash">{{ t('wallets.approval.hash') }} <code>{{ request.approvalHash ?? t('wallets.approval.hashPending') }}</code></p>
       <output v-if="controller.errorMessage.value" class="site-controls-error" role="alert">{{ controller.errorMessage.value }}</output>
       <footer>
-        <UiButton native class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>
-        <UiButton native class="primary-button" type="button" :disabled="controller.busy.value" @click="controller.approve(request.id)">{{ t('wallets.approval.approve') }}</UiButton>
+        <UiButton appearance="application" class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.reject(request.id)">{{ t('wallets.approval.reject') }}</UiButton>
+        <UiButton appearance="application" variant="primary" class="primary-button" type="button" :disabled="controller.busy.value" @click="controller.approve(request.id)">{{ t('wallets.approval.approve') }}</UiButton>
       </footer>
     </section>
   </div>

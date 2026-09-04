@@ -96,7 +96,7 @@ function entryKey(message: BrowserConsoleMessage): string {
       </div>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('console.heading') })" />
-        <UiButton native class="panel-close" type="button" :aria-label="t('console.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('console.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div class="console-tools">
@@ -141,7 +141,7 @@ function entryKey(message: BrowserConsoleMessage): string {
           >×{{ message.repeatCount }}</small>
           <small v-if="message.handled" class="console-handled">{{ t('console.handledLater') }}</small>
           <time :datetime="message.timestamp">{{ debugTimestamp(message.timestamp) }}</time>
-          <UiButton native type="button" class="console-message-copy" :aria-label="t('console.copyEntry')" @click="emit('copyEntry', message)">
+          <UiButton appearance="application" type="button" class="console-message-copy" :aria-label="t('console.copyEntry')" @click="emit('copyEntry', message)">
             <IconCheck v-if="copiedEntryKey === entryKey(message)" aria-hidden="true" />
             <IconCopy v-else aria-hidden="true" />
             {{ copiedEntryKey === entryKey(message) ? t('console.copied') : t('console.copy') }}
@@ -170,14 +170,14 @@ function entryKey(message: BrowserConsoleMessage): string {
     <footer>
       <span>{{ t('console.summary', { visible: localNumber(filteredMessages.length), total: localNumber(messages.length), visibleEvents: localNumber(filteredEventCount), totalEvents: localNumber(eventCount) }) }}</span>
       <div class="console-actions">
-        <UiButton native type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</UiButton>
-        <UiButton native type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</UiButton>
-        <UiButton native type="button" :disabled="!messages.length" @click="emit('copyAll')">
+        <UiButton appearance="application" type="button" @click="emit('clear')"><IconDelete aria-hidden="true" /> {{ t('console.clear') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="emit('refresh')"><IconRefresh aria-hidden="true" /> {{ t('console.refresh') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!messages.length" @click="emit('copyAll')">
           <IconCheck v-if="copied === 'all'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />
           {{ copied === 'all' ? t('console.copiedAll') : t('console.copyAll') }}
         </UiButton>
-        <UiButton native type="button" class="primary" :disabled="!filteredMessages.length" @click="emit('copyFiltered')">
+        <UiButton appearance="application" variant="primary" type="button" class="primary" :disabled="!filteredMessages.length" @click="emit('copyFiltered')">
           <IconCheck v-if="copied === 'filtered'" aria-hidden="true" />
           <IconCopy v-else aria-hidden="true" />
           {{ copied === 'filtered' ? t('console.copiedFiltered') : t('console.copyFiltered') }}

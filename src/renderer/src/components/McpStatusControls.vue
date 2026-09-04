@@ -36,11 +36,11 @@ const statusTitle = computed(() => {
 
 <template>
   <div class="mcp-controls" :class="state.status">
-    <UiButton native class="mcp-pill" type="button" :title="statusTitle" @click="copyEndpoint">
+    <UiButton appearance="application" class="mcp-pill" type="button" :title="statusTitle" @click="copyEndpoint">
       <span class="status-dot" />
       {{ statusLabel }}
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="mcp-pause-button"
       type="button"
       :title="canTogglePaused ? t(state.paused ? 'runtime.mcp.resumeCommands' : 'runtime.mcp.pauseCommands') : t('runtime.mcp.unavailable')"

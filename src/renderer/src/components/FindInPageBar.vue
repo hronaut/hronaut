@@ -130,7 +130,7 @@ defineExpose({ close, openForTab })
     <output class="find-count" aria-live="polite">
       {{ query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
-    <UiButton native
+    <UiButton appearance="application"
       class="find-action"
       type="button"
       :title="t('find.previousTitle')"
@@ -140,7 +140,7 @@ defineExpose({ close, openForTab })
     >
       <IconKeyboardArrowUp aria-hidden="true" />
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="find-action"
       type="button"
       :title="t('find.nextTitle')"
@@ -150,7 +150,7 @@ defineExpose({ close, openForTab })
     >
       <IconKeyboardArrowDown aria-hidden="true" />
     </UiButton>
-    <UiButton native class="find-action" type="button" :title="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
+    <UiButton appearance="application" class="find-action" type="button" :title="t('find.closeTitle')" :aria-label="t('find.close')" @click="close">
       <IconClose aria-hidden="true" />
     </UiButton>
   </div>

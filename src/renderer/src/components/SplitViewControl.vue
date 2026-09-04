@@ -117,7 +117,7 @@ defineExpose({ close, toggleMenu })
 
 <template>
   <div v-if="available" class="split-view-control">
-    <UiButton native
+    <UiButton appearance="application"
       class="icon-button split-view-button"
       :class="{ active: Boolean(state.splitView) }"
       type="button"
@@ -144,19 +144,19 @@ defineExpose({ close, toggleMenu })
           <span class="eyebrow">{{ t('shell.split.workspace') }}</span>
           <h2 id="split-view-menu-title">{{ t('shell.split.heading') }}</h2>
         </div>
-        <UiButton native class="panel-close" type="button" :aria-label="t('shell.split.closeMenu')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('shell.split.closeMenu')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <template v-if="state.splitView">
         <p class="split-view-summary">{{ activeTab?.title || t('shell.split.tab') }} {{ t('shell.split.with') }} {{ splitPartner?.title || t('shell.split.tab') }}</p>
         <div class="split-layout-options" role="group" :aria-label="t('shell.split.layout')">
-          <UiButton native
+          <UiButton appearance="application"
             type="button"
             :class="{ selected: state.splitView.orientation === 'vertical' }"
             :aria-pressed="state.splitView.orientation === 'vertical'"
             :disabled="busy"
             @click="changeSplitLayout('vertical')"
           ><IconVerticalSplit aria-hidden="true" /><span>{{ t('shell.split.side') }}</span></UiButton>
-          <UiButton native
+          <UiButton appearance="application"
             type="button"
             :class="{ selected: state.splitView.orientation === 'horizontal' }"
             :aria-pressed="state.splitView.orientation === 'horizontal'"
@@ -178,14 +178,14 @@ defineExpose({ close, toggleMenu })
           <output>{{ Math.round(state.splitView.ratio * 100) }}%</output>
         </label>
         <footer>
-          <UiButton native type="button" :disabled="busy" @click="swapSplitTabs"><IconSwapHoriz aria-hidden="true" /> {{ t('shell.split.swap') }}</UiButton>
-          <UiButton native class="danger" type="button" :disabled="busy" @click="exitSplitView"><IconClose aria-hidden="true" /> {{ t('shell.split.exit') }}</UiButton>
+          <UiButton appearance="application" type="button" :disabled="busy" @click="swapSplitTabs"><IconSwapHoriz aria-hidden="true" /> {{ t('shell.split.swap') }}</UiButton>
+          <UiButton appearance="application" variant="danger" class="danger" type="button" :disabled="busy" @click="exitSplitView"><IconClose aria-hidden="true" /> {{ t('shell.split.exit') }}</UiButton>
         </footer>
       </template>
       <template v-else>
         <p class="split-view-summary">{{ t('shell.split.choose', { page: activeTab?.title || t('shell.split.thisPage') }) }}</p>
         <div class="split-candidate-list">
-          <UiButton native v-for="tab in splitCandidates" :key="tab.id" type="button" :disabled="busy" @click="openTabInSplitView(tab.id)">
+          <UiButton appearance="application" v-for="tab in splitCandidates" :key="tab.id" type="button" :disabled="busy" @click="openTabInSplitView(tab.id)">
             <img v-if="tab.faviconDataUrl" :src="tab.faviconDataUrl" alt="" />
             <IconLanguage v-else aria-hidden="true" />
             <span><strong>{{ tab.title || t('shell.split.newTab') }}</strong><small>{{ tab.mcpGroupName || t('shell.split.noWorkspace') }}</small></span>

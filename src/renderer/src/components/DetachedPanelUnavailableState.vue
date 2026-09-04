@@ -26,7 +26,7 @@ const { t } = useI18n({ useScope: 'global' })
       </span>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockPanel')" />
-        <UiButton native class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: label })" @click="emit('close')"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('panels.closePanel', { panel: label })" @click="emit('close')"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div>

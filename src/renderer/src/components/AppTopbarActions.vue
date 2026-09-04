@@ -49,7 +49,7 @@ const { t } = useI18n({ useScope: 'global' })
 
 <template>
   <div class="topbar-actions">
-    <UiButton native
+    <UiButton appearance="application"
       class="topbar-icon-button command-palette-button"
       type="button"
       :title="t('shell.actions.commandsTitle')"
@@ -60,7 +60,7 @@ const { t } = useI18n({ useScope: 'global' })
     >
       <IconKeyboardCommandKey aria-hidden="true" />
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="topbar-icon-button tab-search-button"
       type="button"
       :title="t('shell.actions.searchTabsTitle')"
@@ -71,7 +71,7 @@ const { t } = useI18n({ useScope: 'global' })
     >
       <IconTabSearch aria-hidden="true" />
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="topbar-icon-button downloads-button"
       :class="{ active: activeDownloads.length, complete: !activeDownloads.length && downloads[0]?.state === 'completed' }"
       type="button"
@@ -85,7 +85,7 @@ const { t } = useI18n({ useScope: 'global' })
       <IconDownload v-else aria-hidden="true" />
       <span v-if="downloads.length" class="downloads-badge" aria-hidden="true">{{ Math.min(downloads.length, 99) }}</span>
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="topbar-icon-button history-button"
       type="button"
       :title="t('shell.actions.historyTitle')"
@@ -97,7 +97,7 @@ const { t } = useI18n({ useScope: 'global' })
       <IconHistory aria-hidden="true" />
     </UiButton>
     <span class="topbar-actions-divider" aria-hidden="true" />
-    <UiButton native
+    <UiButton appearance="application"
       class="browser-lock-button all-lock-button"
       :class="{ locked: allInteractionLocked }"
       type="button"
@@ -110,7 +110,7 @@ const { t } = useI18n({ useScope: 'global' })
       <IconLockOpen v-else aria-hidden="true" />
       {{ allInteractionLocked ? t('shell.tabs.locked') : t('shell.tabs.lock') }}
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="browser-lock-button follow-agent-button"
       :class="{ active: followAgentActivity }"
       type="button"
@@ -129,7 +129,7 @@ const { t } = useI18n({ useScope: 'global' })
       @open="emit('openUpdateSettings')"
     />
     <McpStatusControls :controller="mcpStatusController" />
-    <UiButton native
+    <UiButton appearance="application"
       class="topbar-icon-button settings-button"
       type="button"
       :title="t('shell.actions.settings')"

@@ -59,7 +59,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     role="group"
     :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
   >
-    <UiButton native
+    <UiButton appearance="application"
       class="interaction-lock-button"
       :class="{ locked: tabHumanInteractionLocked }"
       type="button"
@@ -83,7 +83,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     :close-other-menus="closeOtherMenus"
     @error="reportSplitError"
   />
-  <UiButton native
+  <UiButton appearance="application"
     class="icon-button area-capture-button"
     :class="{ active: areaCaptureState === 'picking' || areaCaptureState === 'capturing', copied: areaCaptureState === 'copied', error: areaCaptureState === 'error' }"
     type="button"
@@ -98,7 +98,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <IconProgress v-else-if="areaCaptureState === 'capturing'" class="state-spinner" aria-hidden="true" />
     <IconScreenshotRegion v-else aria-hidden="true" />
   </UiButton>
-  <UiButton native
+  <UiButton appearance="application"
     class="icon-button element-picker-button"
     :class="{ active: elementPickerState === 'picking', copied: elementPickerState === 'copied', error: elementPickerState === 'error' }"
     type="button"
@@ -113,7 +113,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     <IconClose v-else-if="elementPickerState === 'picking'" aria-hidden="true" />
     <IconAdsClick v-else aria-hidden="true" />
   </UiButton>
-  <UiButton native
+  <UiButton appearance="application"
     class="icon-button page-tools-button"
     :class="{ active: pageToolsOpen }"
     type="button"

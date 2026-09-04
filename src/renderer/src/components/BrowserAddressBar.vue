@@ -93,7 +93,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
 
 <template>
   <form ref="form" class="address-form" @submit.prevent="run(submit)" @focusout="handleFocusOut">
-    <UiButton native
+    <UiButton appearance="application"
       ref="siteControlsButton"
       class="site-controls-button"
       :class="{ active: siteControlsOpen, customized: activeSitePermissions.length > 0 }"
@@ -126,7 +126,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       @input="handleInput"
       @keydown="handleKeydown"
     />
-    <UiButton native
+    <UiButton appearance="application"
       v-if="activeEmulation"
       class="emulation-pill"
       :class="{ offline: activeEmulation.network === 'offline' }"
@@ -140,7 +140,7 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       <span>{{ emulationLabel(activeEmulation) }}</span>
       <IconClose aria-hidden="true" />
     </UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       v-if="activeNetworkRouteCount"
       class="network-routes-pill"
       type="button"

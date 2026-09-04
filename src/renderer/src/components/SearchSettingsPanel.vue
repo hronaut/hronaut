@@ -21,7 +21,7 @@ const { settings, busy, select } = props.controller
       <p>{{ t('settings.search.description') }}</p>
     </div>
     <div class="search-engine-options" role="radiogroup" :aria-label="t('settings.search.heading')">
-      <UiButton native
+      <UiButton appearance="application"
         v-for="engine in SEARCH_ENGINE_OPTIONS"
         :key="engine.id"
         class="search-engine-option"

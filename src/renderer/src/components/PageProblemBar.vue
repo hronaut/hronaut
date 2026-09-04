@@ -24,7 +24,7 @@ const detail = computed(() => props.details(props.tab))
       <span>{{ tab.pageProblem.message }}</span>
       <code v-if="detail">{{ detail }}</code>
     </span>
-    <UiButton native type="button" @click="emit('retry')">
+    <UiButton appearance="application" type="button" @click="emit('retry')">
       <IconRefresh aria-hidden="true" />
       {{ tab.pageProblem.kind === 'unresponsive' ? t('pageProblem.reload') : t('pageProblem.tryAgain') }}
     </UiButton>

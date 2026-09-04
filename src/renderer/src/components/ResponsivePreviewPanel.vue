@@ -96,17 +96,17 @@ onBeforeUnmount(dispose)
       </div>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panelDocks.responsive')" />
-        <UiButton native class="panel-close" type="button" :aria-label="t('responsive.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('responsive.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <form class="responsive-preview-content" @submit.prevent="apply">
       <section aria-labelledby="responsive-presets-title">
         <div class="responsive-section-heading">
           <div><h3 id="responsive-presets-title">{{ t('responsive.preset') }}</h3><p>{{ t('responsive.presetHelp') }}</p></div>
-          <UiButton native type="button" :title="t('responsive.rotateTitle')" :aria-label="t('responsive.rotateAria')" @click="toggleOrientation"><IconScreenRotation aria-hidden="true" /> {{ t('responsive.rotate') }}</UiButton>
+          <UiButton appearance="application" type="button" :title="t('responsive.rotateTitle')" :aria-label="t('responsive.rotateAria')" @click="toggleOrientation"><IconScreenRotation aria-hidden="true" /> {{ t('responsive.rotate') }}</UiButton>
         </div>
         <div class="responsive-preset-grid" role="group" :aria-label="t('responsive.presetAria')">
-          <UiButton native
+          <UiButton appearance="application"
             v-for="preset in BROWSER_VIEWPORT_PRESETS"
             :key="preset.id"
             type="button"
@@ -118,7 +118,7 @@ onBeforeUnmount(dispose)
             <span>{{ preset.width }}×{{ preset.height }} · {{ preset.deviceScaleFactor }}×</span>
             <small>{{ preset.description }}</small>
           </UiButton>
-          <UiButton native
+          <UiButton appearance="application"
             type="button"
             :class="{ selected: presetId === 'custom' }"
             :aria-pressed="presetId === 'custom'"
@@ -133,8 +133,8 @@ onBeforeUnmount(dispose)
       <section class="responsive-orientation" aria-labelledby="responsive-orientation-title">
         <div><h3 id="responsive-orientation-title">{{ t('responsive.orientation') }}</h3><p>{{ t('responsive.orientationHelp') }}</p></div>
         <div role="group" :aria-label="t('responsive.orientationAria')">
-          <UiButton native type="button" :class="{ selected: orientation === 'portrait' }" :aria-pressed="orientation === 'portrait'" @click="setOrientation('portrait')">{{ t('responsive.portrait') }}</UiButton>
-          <UiButton native type="button" :class="{ selected: orientation === 'landscape' }" :aria-pressed="orientation === 'landscape'" @click="setOrientation('landscape')">{{ t('responsive.landscape') }}</UiButton>
+          <UiButton appearance="application" type="button" :class="{ selected: orientation === 'portrait' }" :aria-pressed="orientation === 'portrait'" @click="setOrientation('portrait')">{{ t('responsive.portrait') }}</UiButton>
+          <UiButton appearance="application" type="button" :class="{ selected: orientation === 'landscape' }" :aria-pressed="orientation === 'landscape'" @click="setOrientation('landscape')">{{ t('responsive.landscape') }}</UiButton>
         </div>
       </section>
       <section v-if="presetId === 'custom'" class="responsive-custom" aria-labelledby="responsive-custom-title">
@@ -155,8 +155,8 @@ onBeforeUnmount(dispose)
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('responsive.limitation') }}</p>
       <footer>
-        <UiButton native type="button" :disabled="!activeTab?.emulation?.viewport || pendingAction !== null" @click="reset">{{ t('responsive.reset') }}</UiButton>
-        <UiButton native class="primary" type="submit" :disabled="!viewport || pendingAction !== null">
+        <UiButton appearance="application" type="button" :disabled="!activeTab?.emulation?.viewport || pendingAction !== null" @click="reset">{{ t('responsive.reset') }}</UiButton>
+        <UiButton appearance="application" variant="primary" class="primary" type="submit" :disabled="!viewport || pendingAction !== null">
           <IconProgress v-if="pendingAction !== null" class="state-spinner" aria-hidden="true" />
           <IconDevices v-else aria-hidden="true" />
           {{ pendingAction !== null ? t('responsive.applying') : t('responsive.apply') }}

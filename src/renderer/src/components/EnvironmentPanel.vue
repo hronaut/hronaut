@@ -69,7 +69,7 @@ onBeforeUnmount(dispose)
       </div>
       <div class="panel-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('environment.heading') })" />
-        <UiButton native class="panel-close" type="button" :aria-label="t('environment.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('environment.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <form class="environment-content" @submit.prevent="apply(false)">
@@ -265,7 +265,7 @@ onBeforeUnmount(dispose)
         <div class="environment-section-heading">
           <div><h3 id="environment-managed-title">{{ t('environment.other.heading') }}</h3><p>{{ t('environment.other.description') }}</p></div>
         </div>
-        <UiButton native v-if="activeTab?.emulation?.viewport" type="button" @click="openResponsivePreview">
+        <UiButton appearance="application" v-if="activeTab?.emulation?.viewport" type="button" @click="openResponsivePreview">
           <IconDevices aria-hidden="true" />
           <span><strong>{{ activeTab.emulation.viewport.width }}×{{ activeTab.emulation.viewport.height }} {{ t('environment.other.viewport') }}</strong><small>{{ t('environment.other.openResponsive') }}</small></span>
         </UiButton>
@@ -282,10 +282,10 @@ onBeforeUnmount(dispose)
       </output>
       <p class="responsive-preview-caveat"><IconInfo aria-hidden="true" /> {{ t('environment.limitation') }}</p>
       <footer>
-        <UiButton native type="button" :disabled="pendingAction !== null" @click="reset">{{ t('environment.reset') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="pendingAction !== null" @click="reset">{{ t('environment.reset') }}</UiButton>
         <div>
-          <UiButton native type="submit" :disabled="!settings || pendingAction !== null">{{ t('environment.apply') }}</UiButton>
-          <UiButton native class="primary" type="button" :disabled="!settings || pendingAction !== null" @click="apply(true)">
+          <UiButton appearance="application" type="submit" :disabled="!settings || pendingAction !== null">{{ t('environment.apply') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="!settings || pendingAction !== null" @click="apply(true)">
             <IconProgress v-if="pendingAction !== null" class="state-spinner" aria-hidden="true" />
             <IconRefresh v-else aria-hidden="true" />
             {{ pendingAction !== null ? t('environment.applying') : t('environment.applyReload') }}

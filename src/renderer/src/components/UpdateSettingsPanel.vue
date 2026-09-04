@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import UiButton from "../ui/UiButton.vue"
+import { UiButton, UiCheckbox } from '../ui/index.js'
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import UpdateNotification from './UpdateNotification.vue'
@@ -49,9 +49,9 @@ async function changeStartupCheck(event: Event): Promise<void> {
           <strong>{{ t('settings.updates.startup') }}</strong>
           <small>{{ t('settings.updates.startupDescription') }}</small>
         </span>
-        <input
+        <UiCheckbox
+          bare
           id="setting-startup-update"
-          type="checkbox"
           :checked="settings.checkForUpdatesOnStartup"
           :disabled="busy"
           @change="changeStartupCheck"
@@ -63,8 +63,8 @@ async function changeStartupCheck(event: Event): Promise<void> {
           <small>{{ state.currentVersion || t('help.developmentBuild') }}</small>
         </span>
         <div class="update-settings-actions">
-          <UiButton native class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
-          <UiButton native class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</UiButton>
+          <UiButton appearance="application" class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
+          <UiButton appearance="application" class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</UiButton>
         </div>
       </div>
     </div>

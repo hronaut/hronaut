@@ -93,7 +93,7 @@ onBeforeUnmount(disposeComponent)
           <span class="eyebrow">{{ t('commandPalette.kicker') }}</span>
           <h2 id="command-palette-title">{{ t('commandPalette.heading') }}</h2>
         </div>
-        <UiButton native class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('commandPalette.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div class="command-palette-field">
         <IconSearch aria-hidden="true" />
@@ -118,7 +118,7 @@ onBeforeUnmount(disposeComponent)
         {{ t('commandPalette.matches', { count: formatNumber(commands.length) }, commands.length) }}<template v-if="selectedCommand"> {{ t('commandPalette.selected', { label: selectedCommand.label }) }}</template>
       </span>
       <div v-if="commands.length" id="command-palette-results" class="command-palette-results" role="listbox" :aria-label="t('commandPalette.available')">
-        <UiButton native
+        <UiButton appearance="application"
           v-for="(command, index) in commands"
           :id="commandElementId(command)"
           :key="command.id"

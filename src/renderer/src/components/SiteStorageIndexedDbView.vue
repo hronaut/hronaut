@@ -57,7 +57,7 @@ function localNumber(value: number): string { return formatNumber(props.locale, 
       </div>
       <div v-if="store" class="indexeddb-tools">
         <label class="site-storage-search"><IconSearch aria-hidden="true" /><input v-model="search" type="search" :aria-label="t('siteStorage.indexed.filter')" :placeholder="t('siteStorage.indexed.filterPlaceholder')" autocomplete="off" /></label>
-        <UiButton native type="button" :disabled="!report.entries.length" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.indexed.copyLoaded') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="!report.entries.length" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.indexed.copyLoaded') }}</UiButton>
       </div>
       <div v-if="store" class="indexeddb-schema">
         <span>{{ t('siteStorage.indexed.keyPath') }} <code>{{ JSON.stringify(report.selectedDatabase?.objectStores?.find((item) => item.name === store)?.keyPath ?? null) }}</code></span>
@@ -81,7 +81,7 @@ function localNumber(value: number): string { return formatNumber(props.locale, 
       </details>
       <footer class="indexeddb-footer">
         <span>{{ t('siteStorage.indexed.range', { start: localNumber(offset + (report.entries.length ? 1 : 0)), end: localNumber(offset + report.entries.length) }) }}</span>
-        <div><UiButton native type="button" :disabled="offset === 0 || state === 'loading'" @click="emit('move', -1)"><IconArrowBack aria-hidden="true" /> {{ t('siteStorage.indexed.previous') }}</UiButton><UiButton native type="button" :disabled="!report.hasMore || state === 'loading'" @click="emit('move', 1)">{{ t('siteStorage.indexed.next') }} <IconArrowForward aria-hidden="true" /></UiButton></div>
+        <div><UiButton appearance="application" type="button" :disabled="offset === 0 || state === 'loading'" @click="emit('move', -1)"><IconArrowBack aria-hidden="true" /> {{ t('siteStorage.indexed.previous') }}</UiButton><UiButton appearance="application" type="button" :disabled="!report.hasMore || state === 'loading'" @click="emit('move', 1)">{{ t('siteStorage.indexed.next') }} <IconArrowForward aria-hidden="true" /></UiButton></div>
       </footer>
     </template>
   </section>

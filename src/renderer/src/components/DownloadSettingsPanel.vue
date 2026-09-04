@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import UiButton from "../ui/UiButton.vue"
+import { UiButton, UiCheckbox } from '../ui/index.js'
 import { useI18n } from 'vue-i18n'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -42,10 +42,10 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
           <code :title="effectiveDirectory">{{ effectiveDirectory }}</code>
         </span>
         <div class="download-location-actions">
-          <UiButton native class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
+          <UiButton appearance="application" class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
             {{ t('settings.downloads.change') }}
           </UiButton>
-          <UiButton native class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
+          <UiButton appearance="application" class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
             <IconFolderOpen aria-hidden="true" />
             {{ t('settings.downloads.open') }}
           </UiButton>
@@ -56,9 +56,9 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
           <strong>{{ t('settings.downloads.ask') }}</strong>
           <small>{{ t('settings.downloads.askDescription') }}</small>
         </span>
-        <input
+        <UiCheckbox
+          bare
           id="setting-ask-download-location"
-          type="checkbox"
           :checked="settings.askWhereToSaveDownloads"
           :disabled="busy"
           @change="changeAskWhereToSave"

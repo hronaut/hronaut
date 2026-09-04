@@ -42,7 +42,7 @@ const { t } = useI18n({ useScope: 'global' })
         <IconInfo v-else />
       </span>
       <span class="app-toast-copy"><strong>{{ toast.title }}</strong><span>{{ toast.message }}</span></span>
-      <UiButton native type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
+      <UiButton appearance="application" type="button" :aria-label="t('panels.dismiss', { title: toast.title })" @click="$emit('dismiss', toast.id)"><IconClose aria-hidden="true" /></UiButton>
     </article>
   </TransitionGroup>
 </template>

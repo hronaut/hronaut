@@ -89,7 +89,7 @@ onBeforeUnmount(disposeComponent)
           <span class="eyebrow">{{ t('credentialPicker.kicker') }}</span>
           <h2 id="credential-picker-title">{{ t('credentialPicker.heading') }}</h2>
         </div>
-        <UiButton native class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('credentialPicker.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
       <div class="credential-picker-field">
         <IconSearch aria-hidden="true" />
@@ -110,7 +110,7 @@ onBeforeUnmount(disposeComponent)
         />
       </div>
       <div v-if="credentials.length" id="credential-picker-results" class="credential-picker-results" role="listbox" :aria-label="t('credentialPicker.results')">
-        <UiButton native
+        <UiButton appearance="application"
           v-for="(credential, index) in credentials"
           :id="credentialOptionId(credential)"
           :key="credential.id"

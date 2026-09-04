@@ -70,7 +70,7 @@ function usageShare(value: number): number {
       <div class="storage-usage-toolbar">
         <span :class="{ fallback: report.source === 'storage-manager' }">{{ report.source === 'chromium-quota' ? t('siteStorage.chromiumQuota') : t('siteStorage.storageEstimate') }}</span>
         <span v-if="report.overrideActive" class="storage-usage-override">{{ t('siteStorage.override') }}</span>
-        <UiButton native type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</UiButton>
       </div>
       <div v-if="report.breakdown.length" class="storage-usage-breakdown">
         <article v-for="item in report.breakdown" :key="item.storageType">

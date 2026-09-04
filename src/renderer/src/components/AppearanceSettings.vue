@@ -167,7 +167,7 @@ async function setLanguagePreference(event: Event): Promise<void> {
       <section v-for="group in themeGroups" :key="group.name" class="theme-group">
         <h4>{{ group.label }}</h4>
         <div class="theme-options">
-          <UiButton native
+          <UiButton appearance="application"
             v-for="theme in group.themes"
             :key="theme.name"
             class="theme-option"
@@ -291,7 +291,7 @@ async function setLanguagePreference(event: Event): Promise<void> {
           >
             <option v-for="option in attentionSoundOptions" :key="option.cue" :value="option.cue">{{ option.label }}</option>
           </select>
-          <UiButton native class="test-sound-button" type="button" :disabled="!settings.attentionSound" @click="emit('testSound')">
+          <UiButton appearance="application" class="test-sound-button" type="button" :disabled="!settings.attentionSound" @click="emit('testSound')">
             {{ t('appearance.attentionSound.test') }}
           </UiButton>
         </div>

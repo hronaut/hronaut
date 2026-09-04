@@ -91,12 +91,12 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
       </div>
       <div class="bookmarks-header-actions">
         <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('bookmarks.heading') })" />
-        <UiButton native
+        <UiButton appearance="application"
           type="button"
           :disabled="!activeUrl || pendingAction !== null"
           @click="toggleCurrent"
         >{{ currentBookmark ? t('bookmarks.removeCurrent') : t('bookmarks.addCurrent') }}</UiButton>
-        <UiButton native class="panel-close" type="button" :aria-label="t('bookmarks.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('bookmarks.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="bookmarks.length" class="bookmark-search-field">
@@ -129,16 +129,16 @@ function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
             <span>{{ bookmark.url }}</span>
           </span>
         </div>
-        <UiButton native v-else class="bookmark-open" type="button" :title="bookmark.url" :disabled="pendingAction !== null" @click="openEntry(bookmark)">
+        <UiButton appearance="application" v-else class="bookmark-open" type="button" :title="bookmark.url" :disabled="pendingAction !== null" @click="openEntry(bookmark)">
           <span class="bookmark-site-icon" aria-hidden="true"><IconLanguage /></span>
           <span class="bookmark-copy">
             <strong>{{ bookmark.title }}</strong>
             <span>{{ bookmark.url }}</span>
           </span>
         </UiButton>
-        <UiButton native v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.saveAria', { title: bookmark.title })" :title="t('bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
-        <UiButton native v-else class="bookmark-action" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
-        <UiButton native class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id)"><IconDelete aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="editingBookmarkId === bookmark.id" class="bookmark-action confirm" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.saveAria', { title: bookmark.title })" :title="t('bookmarks.save')" @click="commitRename(bookmark.id)"><IconCheck aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-else class="bookmark-action" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.renameAria', { title: bookmark.title })" :title="t('bookmarks.rename')" @click="beginRename(bookmark)"><IconEdit aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" variant="danger" class="bookmark-action danger" type="button" :disabled="pendingAction !== null" :aria-label="t('bookmarks.removeAria', { title: bookmark.title })" :title="t('bookmarks.remove')" @click="remove(bookmark.id)"><IconDelete aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p v-if="error" class="bookmarks-error" role="alert">{{ error }}</p>

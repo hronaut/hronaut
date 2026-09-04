@@ -37,14 +37,14 @@ function refreshOrStop(): void {
 </script>
 
 <template>
-  <UiButton native class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
-  <UiButton native class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
-  <UiButton native class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
+  <UiButton appearance="application" class="icon-button" type="button" :title="t('shell.toolbar.back')" :aria-label="t('shell.toolbar.back')" :disabled="!activeTab?.canGoBack" @click="emit('back')"><IconArrowBack aria-hidden="true" /></UiButton>
+  <UiButton appearance="application" class="icon-button" type="button" :title="t('shell.toolbar.forward')" :aria-label="t('shell.toolbar.forward')" :disabled="!activeTab?.canGoForward" @click="emit('forward')"><IconArrowForward aria-hidden="true" /></UiButton>
+  <UiButton appearance="application" class="icon-button" type="button" :title="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :aria-label="t(activeTab?.loading ? 'runtime.tabs.stop' : 'runtime.tabs.reload')" :disabled="!activeTab" @click="refreshOrStop">
     <IconStop v-if="activeTab?.loading" aria-hidden="true" />
     <IconRefresh v-else aria-hidden="true" />
   </UiButton>
   <slot />
-  <UiButton native
+  <UiButton appearance="application"
     class="icon-button find-button"
     type="button"
     :title="t('shell.toolbar.findTitle')"
@@ -55,7 +55,7 @@ function refreshOrStop(): void {
   >
     <IconSearch aria-hidden="true" />
   </UiButton>
-  <UiButton native
+  <UiButton appearance="application"
     class="zoom-button"
     type="button"
     :title="t('runtime.address.zoom', { percent: formatPercent(activeTab?.zoomPercent ?? 100) })"
@@ -66,7 +66,7 @@ function refreshOrStop(): void {
   >
     {{ activeTab?.zoomPercent ?? 100 }}%
   </UiButton>
-  <UiButton native
+  <UiButton appearance="application"
     class="icon-button bookmarks-button"
     :class="{ bookmarked: currentBookmark }"
     type="button"

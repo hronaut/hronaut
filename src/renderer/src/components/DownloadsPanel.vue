@@ -54,8 +54,8 @@ onBeforeUnmount(dispose)
         <h2 id="downloads-title">{{ t('downloads.heading') }}</h2>
       </div>
       <div class="downloads-header-actions">
-        <UiButton native type="button" :disabled="!finishedDownloads.length || pendingAction !== null" @click="clear">{{ t('downloads.clearFinished') }}</UiButton>
-        <UiButton native class="panel-close" type="button" :aria-label="t('downloads.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" type="button" :disabled="!finishedDownloads.length || pendingAction !== null" @click="clear">{{ t('downloads.clearFinished') }}</UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('downloads.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
       </div>
     </header>
     <div v-if="!downloads.length" class="downloads-empty">
@@ -77,8 +77,8 @@ onBeforeUnmount(dispose)
             <span :class="{ indeterminate: download.totalBytes <= 0 }" :style="download.totalBytes > 0 ? { width: `${downloadProgress(download)}%` } : undefined" />
           </div>
         </div>
-        <UiButton native v-if="download.state === 'progressing'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="cancel(download.id)"><IconClose aria-hidden="true" /></UiButton>
-        <UiButton native v-else-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-if="download.state === 'progressing'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="cancel(download.id)"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" v-else-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
       </article>
     </div>
     <p v-if="error" class="downloads-error" role="alert">{{ error }}</p>

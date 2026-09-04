@@ -61,7 +61,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
             <option value="allow">{{ t('settings.permissions.allow') }}</option>
             <option value="deny">{{ t('settings.permissions.block') }}</option>
           </select>
-          <UiButton native
+          <UiButton appearance="application"
             class="permission-remove"
             type="button"
             :aria-label="t('runtimeActions.permission.forgetAria', { permission: permissionLabel(permission.permission), origin: group.origin })"

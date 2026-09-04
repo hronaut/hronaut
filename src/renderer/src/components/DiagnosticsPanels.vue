@@ -342,7 +342,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('qualityAudit.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('qualityAudit.close')" @click="qualityAuditPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('qualityAudit.close')" @click="qualityAuditPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="qualityAuditState === 'running'" class="accessibility-audit-loading" role="status">
@@ -354,7 +354,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('qualityAudit.failed') }}</strong>
         <span>{{ qualityAuditError }}</span>
-        <UiButton native type="button" @click="runQualityAudit">{{ t('common.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runQualityAudit">{{ t('common.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="qualityAuditReport">
         <div class="quality-audit-summary" :class="qualityAuditReport.status">
@@ -395,8 +395,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('qualityAudit.categoryCount', { count: localNumber(qualityAuditReport.categories.length), time: localTime(qualityAuditReport.auditedAt) }) }}</span>
           <div>
-            <UiButton native type="button" @click="copyQualityAudit"><IconCheck v-if="qualityAuditCopied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ qualityAuditCopied ? t('qualityAudit.copied') : t('qualityAudit.copy') }}</UiButton>
-            <UiButton native type="button" @click="runQualityAudit"><IconRefresh aria-hidden="true" /> {{ t('qualityAudit.runAgain') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="copyQualityAudit"><IconCheck v-if="qualityAuditCopied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ qualityAuditCopied ? t('qualityAudit.copied') : t('qualityAudit.copy') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="runQualityAudit"><IconRefresh aria-hidden="true" /> {{ t('qualityAudit.runAgain') }}</UiButton>
           </div>
         </footer>
       </template>
@@ -417,7 +417,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('accessibilityAudit.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('accessibilityAudit.close')" @click="accessibilityPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('accessibilityAudit.close')" @click="accessibilityPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="accessibilityAuditState === 'running'" class="accessibility-audit-loading" role="status">
@@ -429,7 +429,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('accessibilityAudit.failed') }}</strong>
         <span>{{ accessibilityAuditError }}</span>
-        <UiButton native type="button" @click="runAccessibilityAudit">{{ t('common.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runAccessibilityAudit">{{ t('common.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="accessibilityAudit">
         <div class="accessibility-audit-summary">
@@ -469,12 +469,12 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
                 <span>{{ node.failureSummary }}</span>
               </li>
             </ul>
-            <UiButton native v-if="violation.helpUrl" type="button" @click="openSupport(violation.helpUrl)">{{ t('accessibilityAudit.guidance') }}</UiButton>
+            <UiButton appearance="application" v-if="violation.helpUrl" type="button" @click="openSupport(violation.helpUrl)">{{ t('accessibilityAudit.guidance') }}</UiButton>
           </article>
         </div>
         <footer>
           <span>{{ accessibilityAudit.engine.name }} {{ accessibilityAudit.engine.version }} · {{ accessibilityAudit.standard }}</span>
-          <UiButton native type="button" @click="runAccessibilityAudit"><IconRefresh aria-hidden="true" /> {{ t('accessibilityAudit.runAgain') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runAccessibilityAudit"><IconRefresh aria-hidden="true" /> {{ t('accessibilityAudit.runAgain') }}</UiButton>
         </footer>
       </template>
     </section>
@@ -494,7 +494,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('performance.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('performance.close')" @click="performancePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('performance.close')" @click="performancePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="performanceState === 'running'" class="accessibility-audit-loading" role="status">
@@ -506,7 +506,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('performance.failed') }}</strong>
         <span>{{ performanceError }}</span>
-        <UiButton native type="button" @click="runPerformanceReport()">{{ t('common.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runPerformanceReport()">{{ t('common.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="performanceReport">
         <div v-if="performanceReport.baseline" class="performance-baseline-status" :class="{ warning: performanceReport.comparison && (!performanceReport.comparison.sameUrl || !performanceReport.comparison.sameEnvironment) }">
@@ -622,9 +622,9 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ performanceReport.engine.name }} {{ performanceReport.engine.version }} {{ t('performance.localSample') }}</span>
           <div>
-            <UiButton native v-if="performanceReport.baseline" type="button" @click="runPerformanceReport('clear-baseline')">{{ t('performance.clearBaseline') }}</UiButton>
-            <UiButton native type="button" @click="runPerformanceReport('set-baseline')"><IconDifference aria-hidden="true" /> {{ performanceReport.baseline ? t('performance.replaceBaseline') : t('performance.saveBaseline') }}</UiButton>
-            <UiButton native type="button" @click="runPerformanceReport('measure')"><IconRefresh aria-hidden="true" /> {{ t('performance.measureAgain') }}</UiButton>
+            <UiButton appearance="application" v-if="performanceReport.baseline" type="button" @click="runPerformanceReport('clear-baseline')">{{ t('performance.clearBaseline') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="runPerformanceReport('set-baseline')"><IconDifference aria-hidden="true" /> {{ performanceReport.baseline ? t('performance.replaceBaseline') : t('performance.saveBaseline') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="runPerformanceReport('measure')"><IconRefresh aria-hidden="true" /> {{ t('performance.measureAgain') }}</UiButton>
           </div>
         </footer>
       </template>
@@ -645,7 +645,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('designOverview.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('designOverview.close')" @click="designOverviewPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('designOverview.close')" @click="designOverviewPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="designOverviewState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -657,7 +657,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('designOverview.failed') }}</strong>
         <span>{{ designOverviewError }}</span>
-        <UiButton native type="button" @click="runDesignOverview">{{ t('designOverview.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runDesignOverview">{{ t('designOverview.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="designOverviewReport">
         <div class="design-overview-summary">
@@ -723,7 +723,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <footer>
           <span>{{ t('designOverview.sampled', { count: localNumber(designOverviewReport.summary.elementsScanned) }, designOverviewReport.summary.elementsScanned) }} · {{ debugTimestamp(designOverviewReport.capturedAt) }}</span>
-          <UiButton native type="button" @click="runDesignOverview"><IconRefresh aria-hidden="true" /> {{ t('designOverview.captureAgain') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runDesignOverview"><IconRefresh aria-hidden="true" /> {{ t('designOverview.captureAgain') }}</UiButton>
         </footer>
       </template>
     </section>
@@ -743,7 +743,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('pageMetadata.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('pageMetadata.close')" @click="pageMetadataPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('pageMetadata.close')" @click="pageMetadataPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="pageMetadataState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -755,7 +755,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('pageMetadata.failed') }}</strong>
         <span>{{ pageMetadataError }}</span>
-        <UiButton native type="button" @click="runPageMetadata">{{ t('pageMetadata.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runPageMetadata">{{ t('pageMetadata.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="pageMetadataReport">
         <div class="page-metadata-summary">
@@ -851,7 +851,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <footer>
           <span>{{ t('pageMetadata.renderedDom') }} · {{ debugTimestamp(pageMetadataReport.capturedAt) }}</span>
-          <UiButton native type="button" @click="runPageMetadata"><IconRefresh aria-hidden="true" /> {{ t('pageMetadata.inspectAgain') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runPageMetadata"><IconRefresh aria-hidden="true" /> {{ t('pageMetadata.inspectAgain') }}</UiButton>
         </footer>
       </template>
     </section>
@@ -871,7 +871,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('securityReport.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('securityReport.close')" @click="securityPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('securityReport.close')" @click="securityPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="securityReportState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -883,7 +883,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('securityReport.failed') }}</strong>
         <span>{{ securityReportError }}</span>
-        <UiButton native type="button" @click="runSecurityReport">{{ t('securityReport.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runSecurityReport">{{ t('securityReport.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="securityReport">
         <div class="security-overview" :class="securityReport.state">
@@ -939,7 +939,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <footer>
           <span>{{ t('securityReport.mainChecked', { time: debugTimestamp(securityReport.checkedAt) }) }}</span>
-          <UiButton native type="button" @click="runSecurityReport"><IconRefresh aria-hidden="true" /> {{ t('securityReport.inspectAgain') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runSecurityReport"><IconRefresh aria-hidden="true" /> {{ t('securityReport.inspectAgain') }}</UiButton>
         </footer>
       </template>
     </section>
@@ -959,7 +959,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('coverage.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('coverage.close')" @click="coveragePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('coverage.close')" @click="coveragePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="coverageState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -971,14 +971,14 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('coverage.failed') }}</strong>
         <span>{{ coverageError }}</span>
-        <UiButton native type="button" @click="manageCodeCoverage('get')">{{ t('coverage.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="manageCodeCoverage('get')">{{ t('coverage.tryAgain') }}</UiButton>
       </div>
       <div v-else-if="coverageResult?.status === 'recording'" class="coverage-recording" role="status">
         <IconRecord aria-hidden="true" />
         <strong>{{ t('coverage.recording') }}</strong>
         <span>{{ t('coverage.recordingDescription') }}</span>
         <small>{{ t('coverage.recordingMeta', { mode: coverageResult.recording?.mode ?? '', time: debugTimestamp(coverageResult.recording?.startedAt || '') }) }}</small>
-        <UiButton native class="primary" type="button" @click="manageCodeCoverage('stop')"><IconStop aria-hidden="true" /> {{ t('coverage.stop') }}</UiButton>
+        <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('stop')"><IconStop aria-hidden="true" /> {{ t('coverage.stop') }}</UiButton>
       </div>
       <template v-else-if="coverageResult?.report">
         <div class="coverage-summary">
@@ -1025,8 +1025,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('coverage.mode', { mode: coverageResult.report.mode }) }}<span v-if="coverageResult.report.truncated"> {{ t('coverage.bounded') }}</span></span>
           <div>
-            <UiButton native type="button" @click="manageCodeCoverage('clear')"><IconDelete aria-hidden="true" /> {{ t('coverage.clear') }}</UiButton>
-            <UiButton native class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.recordAgain') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="manageCodeCoverage('clear')"><IconDelete aria-hidden="true" /> {{ t('coverage.clear') }}</UiButton>
+            <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.recordAgain') }}</UiButton>
           </div>
         </footer>
       </template>
@@ -1042,8 +1042,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           </select>
         </label>
         <div>
-          <UiButton native type="button" @click="manageCodeCoverage('start', false)"><IconPlay aria-hidden="true" /> {{ t('coverage.startNow') }}</UiButton>
-          <UiButton native class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.startReload') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="manageCodeCoverage('start', false)"><IconPlay aria-hidden="true" /> {{ t('coverage.startNow') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCodeCoverage('start', true)"><IconRefresh aria-hidden="true" /> {{ t('coverage.startReload') }}</UiButton>
         </div>
       </div>
     </section>
@@ -1063,7 +1063,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('cpuProfile.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('cpuProfile.close')" @click="cpuProfilePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('cpuProfile.close')" @click="cpuProfilePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="cpuProfileState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -1075,14 +1075,14 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('cpuProfile.failed') }}</strong>
         <span>{{ cpuProfileError }}</span>
-        <UiButton native type="button" @click="manageCpuProfile('get')">{{ t('cpuProfile.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="manageCpuProfile('get')">{{ t('cpuProfile.tryAgain') }}</UiButton>
       </div>
       <div v-else-if="cpuProfileResult?.status === 'recording'" class="coverage-recording" role="status">
         <IconRecord aria-hidden="true" />
         <strong>{{ t('cpuProfile.recording') }}</strong>
         <span>{{ t('cpuProfile.recordingDescription') }}</span>
         <small>{{ t('cpuProfile.started', { time: debugTimestamp(cpuProfileResult.recording?.startedAt || '') }) }}</small>
-        <UiButton native class="primary" type="button" @click="manageCpuProfile('stop')"><IconStop aria-hidden="true" /> {{ t('cpuProfile.stop') }}</UiButton>
+        <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCpuProfile('stop')"><IconStop aria-hidden="true" /> {{ t('cpuProfile.stop') }}</UiButton>
       </div>
       <template v-else-if="cpuProfileResult?.report">
         <div class="coverage-summary">
@@ -1135,8 +1135,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('cpuProfile.startedOn', { url: cpuProfileResult.report.startedUrl }) }}<span v-if="cpuProfileResult.report.currentUrl !== cpuProfileResult.report.startedUrl"> {{ t('cpuProfile.pageChanged') }}</span></span>
           <div>
-            <UiButton native type="button" @click="manageCpuProfile('clear')"><IconDelete aria-hidden="true" /> {{ t('cpuProfile.clear') }}</UiButton>
-            <UiButton native class="primary" type="button" @click="manageCpuProfile('start')"><IconRecord aria-hidden="true" /> {{ t('cpuProfile.recordAgain') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="manageCpuProfile('clear')"><IconDelete aria-hidden="true" /> {{ t('cpuProfile.clear') }}</UiButton>
+            <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCpuProfile('start')"><IconRecord aria-hidden="true" /> {{ t('cpuProfile.recordAgain') }}</UiButton>
           </div>
         </footer>
       </template>
@@ -1145,7 +1145,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <strong>{{ t('cpuProfile.emptyHeading') }}</strong>
         <span>{{ t('cpuProfile.emptyDescription') }}</span>
         <div>
-          <UiButton native class="primary" type="button" @click="manageCpuProfile('start')"><IconRecord aria-hidden="true" /> {{ t('cpuProfile.start') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageCpuProfile('start')"><IconRecord aria-hidden="true" /> {{ t('cpuProfile.start') }}</UiButton>
         </div>
       </div>
     </section>
@@ -1165,7 +1165,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('memory.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('memory.close')" @click="memoryPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('memory.close')" @click="memoryPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="memoryState === 'running'" class="accessibility-audit-loading" role="status">
@@ -1177,7 +1177,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('memory.failed') }}</strong>
         <span>{{ memoryError }}</span>
-        <UiButton native type="button" @click="runMemoryReport()">{{ t('memory.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runMemoryReport()">{{ t('memory.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="memoryReport?.current">
         <div class="memory-summary">
@@ -1222,7 +1222,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
                 <span class="eyebrow">{{ t('memory.allocation.kicker') }}</span>
                 <h3 id="memory-allocation-title">{{ t('memory.allocation.heading') }}</h3>
               </div>
-              <UiButton native
+              <UiButton appearance="application"
                 v-if="memoryReport.allocationProfile"
                 type="button"
                 @click="manageMemoryAllocation('clear')"
@@ -1233,7 +1233,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
               <strong>{{ t('memory.allocation.recording') }}</strong>
               <span>{{ t('memory.allocation.recordingDescription') }}</span>
               <small>{{ t('memory.allocation.started', { time: debugTimestamp(memoryReport.allocationRecording?.startedAt || '') }) }}</small>
-              <UiButton native class="primary" type="button" @click="manageMemoryAllocation('stop')"><IconStop aria-hidden="true" /> {{ t('memory.allocation.stop') }}</UiButton>
+              <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageMemoryAllocation('stop')"><IconStop aria-hidden="true" /> {{ t('memory.allocation.stop') }}</UiButton>
             </div>
             <template v-else-if="memoryReport.allocationProfile">
               <div class="coverage-summary memory-allocation-summary">
@@ -1284,7 +1284,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
                 </ul>
               </details>
               <div class="memory-allocation-actions">
-                <UiButton native class="primary" type="button" @click="manageMemoryAllocation('start')"><IconRecord aria-hidden="true" /> {{ t('memory.allocation.recordAgain') }}</UiButton>
+                <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageMemoryAllocation('start')"><IconRecord aria-hidden="true" /> {{ t('memory.allocation.recordAgain') }}</UiButton>
               </div>
             </template>
             <div v-else class="memory-allocation-empty">
@@ -1293,7 +1293,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
                 <strong>{{ t('memory.allocation.emptyHeading') }}</strong>
                 <span>{{ t('memory.allocation.emptyDescription') }}</span>
               </div>
-              <UiButton native class="primary" type="button" @click="manageMemoryAllocation('start')"><IconRecord aria-hidden="true" /> {{ t('memory.allocation.start') }}</UiButton>
+              <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageMemoryAllocation('start')"><IconRecord aria-hidden="true" /> {{ t('memory.allocation.start') }}</UiButton>
             </div>
           </section>
         </div>
@@ -1306,9 +1306,9 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
       <footer>
         <span>{{ memoryReport?.baseline ? t('memory.baselineActive') : t('memory.noBaseline') }}</span>
         <div class="memory-actions">
-          <UiButton native v-if="memoryReport?.baseline" type="button" @click="clearMemoryBaseline"><IconDelete aria-hidden="true" /> {{ t('memory.clear') }}</UiButton>
-          <UiButton native type="button" @click="runMemoryReport('set-baseline', true)"><IconKeep aria-hidden="true" /> {{ t('memory.setBaseline') }}</UiButton>
-          <UiButton native type="button" @click="runMemoryReport('measure', true)"><IconRefresh aria-hidden="true" /> {{ t('memory.gcMeasure') }}</UiButton>
+          <UiButton appearance="application" v-if="memoryReport?.baseline" type="button" @click="clearMemoryBaseline"><IconDelete aria-hidden="true" /> {{ t('memory.clear') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runMemoryReport('set-baseline', true)"><IconKeep aria-hidden="true" /> {{ t('memory.setBaseline') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="runMemoryReport('measure', true)"><IconRefresh aria-hidden="true" /> {{ t('memory.gcMeasure') }}</UiButton>
         </div>
       </footer>
     </section>
@@ -1328,7 +1328,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panelDocks.issues')" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('issues.close')" @click="inspectorIssuesOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('issues.close')" @click="inspectorIssuesOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="inspectorIssuesState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -1340,7 +1340,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('issues.failed') }}</strong>
         <span>{{ inspectorIssuesError }}</span>
-        <UiButton native type="button" @click="refreshInspectorIssues()">{{ t('issues.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="refreshInspectorIssues()">{{ t('issues.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="inspectorIssuesReport">
         <div class="inspector-issues-summary">
@@ -1381,9 +1381,9 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('issues.count', { count: localNumber(inspectorIssuesReport.issueCount) }, inspectorIssuesReport.issueCount) }} {{ t('issues.review') }}</span>
           <div class="debug-report-actions">
-            <UiButton native type="button" @click="clearInspectorIssues"><IconDelete aria-hidden="true" /> {{ t('issues.clear') }}</UiButton>
-            <UiButton native type="button" @click="refreshInspectorIssues()"><IconRefresh aria-hidden="true" /> {{ t('issues.refresh') }}</UiButton>
-            <UiButton native type="button" class="primary" :disabled="!inspectorIssuesReport.issueCount" @click="copyInspectorIssues">
+            <UiButton appearance="application" type="button" @click="clearInspectorIssues"><IconDelete aria-hidden="true" /> {{ t('issues.clear') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="refreshInspectorIssues()"><IconRefresh aria-hidden="true" /> {{ t('issues.refresh') }}</UiButton>
+            <UiButton appearance="application" variant="primary" type="button" class="primary" :disabled="!inspectorIssuesReport.issueCount" @click="copyInspectorIssues">
               <IconCheck v-if="inspectorIssuesCopied" aria-hidden="true" />
               <IconDownload v-else aria-hidden="true" />
               {{ inspectorIssuesCopied ? t('issues.copied') : t('issues.copy') }}
@@ -1408,7 +1408,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('debugReport.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('debugReport.close')" @click="debugReportPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('debugReport.close')" @click="debugReportPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="debugReportState === 'running'" class="accessibility-audit-loading" role="status">
@@ -1420,7 +1420,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('debugReport.failed') }}</strong>
         <span>{{ debugReportError }}</span>
-        <UiButton native type="button" @click="runDebugReport">{{ t('debugReport.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runDebugReport">{{ t('debugReport.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="debugReport">
         <div class="debug-report-summary">
@@ -1472,8 +1472,8 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
             </label>
           </div>
           <div class="debug-report-actions">
-            <UiButton native type="button" @click="runDebugReport"><IconRefresh aria-hidden="true" /> {{ t('debugReport.refresh') }}</UiButton>
-            <UiButton native type="button" class="primary" @click="copyDebugReport">
+            <UiButton appearance="application" type="button" @click="runDebugReport"><IconRefresh aria-hidden="true" /> {{ t('debugReport.refresh') }}</UiButton>
+            <UiButton appearance="application" variant="primary" type="button" class="primary" @click="copyDebugReport">
               <IconCheck v-if="debugReportCopied" aria-hidden="true" />
               <IconBugReport v-else aria-hidden="true" />
               {{ debugReportCopied ? t('debugReport.copied') : t('debugReport.copy') }}
@@ -1498,7 +1498,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('repro.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('repro.close')" @click="reproPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('repro.close')" @click="reproPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="reproState === 'loading' && !reproRecording" class="accessibility-audit-loading" role="status">
@@ -1509,7 +1509,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('repro.failed') }}</strong>
         <span>{{ reproError }}</span>
-        <UiButton native type="button" @click="manageRepro('get')">{{ t('repro.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="manageRepro('get')">{{ t('repro.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="reproRecording">
         <div class="repro-safety" :class="{ recording: reproRecording.active }">
@@ -1523,7 +1523,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <IconRecord aria-hidden="true" />
           <strong>{{ t('repro.showIssue') }}</strong>
           <span>{{ t('repro.emptyDescription') }}</span>
-          <UiButton native class="primary" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.start') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.start') }}</UiButton>
         </div>
         <div v-else class="repro-timeline" :aria-label="t('repro.timelineAria')">
           <article v-for="step in reproRecording.steps" :key="step.index" class="repro-step" :class="step.kind">
@@ -1544,15 +1544,15 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('repro.stepCount', { count: localNumber(reproRecording.stepCount) }, reproRecording.stepCount) }} {{ t('repro.review') }}</span>
           <div class="debug-report-actions">
-            <UiButton native type="button" :disabled="reproState === 'loading' || !reproRecording.stepCount" @click="clearReproRecording"><IconDelete aria-hidden="true" /> {{ t('repro.clear') }}</UiButton>
-            <UiButton native v-if="reproRecording.active" class="primary" type="button" :disabled="reproState === 'loading'" @click="stopReproRecording"><IconStop aria-hidden="true" /> {{ t('repro.stop') }}</UiButton>
-            <UiButton native v-else-if="reproRecording.stepCount" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.recordAgain') }}</UiButton>
-            <UiButton native v-if="reproRecording.stepCount && !reproRecording.active" type="button" @click="copyReproRecording">
+            <UiButton appearance="application" type="button" :disabled="reproState === 'loading' || !reproRecording.stepCount" @click="clearReproRecording"><IconDelete aria-hidden="true" /> {{ t('repro.clear') }}</UiButton>
+            <UiButton appearance="application" variant="primary" v-if="reproRecording.active" class="primary" type="button" :disabled="reproState === 'loading'" @click="stopReproRecording"><IconStop aria-hidden="true" /> {{ t('repro.stop') }}</UiButton>
+            <UiButton appearance="application" v-else-if="reproRecording.stepCount" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.recordAgain') }}</UiButton>
+            <UiButton appearance="application" v-if="reproRecording.stepCount && !reproRecording.active" type="button" @click="copyReproRecording">
               <IconCheck v-if="reproCopied" aria-hidden="true" />
               <IconBugReport v-else aria-hidden="true" />
               {{ reproCopied ? t('repro.copied') : t('repro.copyTimeline') }}
             </UiButton>
-            <UiButton native v-if="reproRecording.stepCount && !reproRecording.active" class="primary" type="button" @click="copyReproPlaywright">
+            <UiButton appearance="application" variant="primary" v-if="reproRecording.stepCount && !reproRecording.active" class="primary" type="button" @click="copyReproPlaywright">
               <IconCheck v-if="reproPlaywrightCopied" aria-hidden="true" />
               <IconCode v-else aria-hidden="true" />
               {{ reproPlaywrightCopied ? t('repro.copiedPlaywright') : t('repro.copyPlaywright') }}
@@ -1577,7 +1577,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('domChanges.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('domChanges.close')" @click="domChangesPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('domChanges.close')" @click="domChangesPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="domChangesState === 'loading' && !domChangesReport" class="accessibility-audit-loading" role="status">
@@ -1588,7 +1588,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('domChanges.failed') }}</strong>
         <span>{{ domChangesError }}</span>
-        <UiButton native type="button" @click="manageDomChanges('get')">{{ t('domChanges.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="manageDomChanges('get')">{{ t('domChanges.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="domChangesReport">
         <div class="repro-safety" :class="{ recording: domChangesReport.active }">
@@ -1602,7 +1602,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <IconAccountTree aria-hidden="true" />
           <strong>{{ t('domChanges.reveal') }}</strong>
           <span>{{ t('domChanges.emptyDescription') }}</span>
-          <UiButton native class="primary" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('start')"><IconRecord aria-hidden="true" /> {{ t('domChanges.start') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('start')"><IconRecord aria-hidden="true" /> {{ t('domChanges.start') }}</UiButton>
         </div>
         <div v-else-if="!domChangesReport.entries.length" class="accessibility-audit-empty debug-report-empty">
           <IconAccountTree aria-hidden="true" />
@@ -1629,10 +1629,10 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer>
           <span>{{ t('domChanges.mutations', { count: localNumber(domChangesReport.changeCount) }, domChangesReport.changeCount) }} · {{ t('domChanges.entries', { count: localNumber(domChangesReport.entries.length) }, domChangesReport.entries.length) }}</span>
           <div class="debug-report-actions">
-            <UiButton native type="button" :disabled="domChangesState === 'loading' || !domChangesReport.startedAt" @click="manageDomChanges('clear')"><IconDelete aria-hidden="true" /> {{ t('domChanges.clear') }}</UiButton>
-            <UiButton native v-if="domChangesReport.active" class="primary" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('stop')"><IconStop aria-hidden="true" /> {{ t('domChanges.stop') }}</UiButton>
-            <UiButton native v-else-if="domChangesReport.startedAt" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('start')"><IconRecord aria-hidden="true" /> {{ t('domChanges.recordAgain') }}</UiButton>
-            <UiButton native v-if="domChangesReport.entries.length && !domChangesReport.active" class="primary" type="button" @click="copyDomChanges">
+            <UiButton appearance="application" type="button" :disabled="domChangesState === 'loading' || !domChangesReport.startedAt" @click="manageDomChanges('clear')"><IconDelete aria-hidden="true" /> {{ t('domChanges.clear') }}</UiButton>
+            <UiButton appearance="application" variant="primary" v-if="domChangesReport.active" class="primary" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('stop')"><IconStop aria-hidden="true" /> {{ t('domChanges.stop') }}</UiButton>
+            <UiButton appearance="application" v-else-if="domChangesReport.startedAt" type="button" :disabled="domChangesState === 'loading'" @click="manageDomChanges('start')"><IconRecord aria-hidden="true" /> {{ t('domChanges.recordAgain') }}</UiButton>
+            <UiButton appearance="application" variant="primary" v-if="domChangesReport.entries.length && !domChangesReport.active" class="primary" type="button" @click="copyDomChanges">
               <IconCheck v-if="domChangesCopied" aria-hidden="true" />
               <IconAccountTree v-else aria-hidden="true" />
               {{ domChangesCopied ? t('domChanges.copied') : t('domChanges.copy') }}
@@ -1657,7 +1657,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <div class="panel-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('visualCompare.heading') })" />
-          <UiButton native class="panel-close" type="button" :aria-label="t('visualCompare.close')" @click="visualComparePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('visualCompare.close')" @click="visualComparePanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div v-if="visualCompareState === 'loading'" class="accessibility-audit-loading" role="status">
@@ -1668,14 +1668,14 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('visualCompare.failed') }}</strong>
         <span>{{ visualCompareError }}</span>
-        <UiButton native type="button" @click="manageVisualCompare('get')">{{ t('visualCompare.returnBaseline') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="manageVisualCompare('get')">{{ t('visualCompare.returnBaseline') }}</UiButton>
       </div>
       <template v-else-if="visualCompareReport">
         <div v-if="visualCompareReport.status === 'empty'" class="accessibility-audit-empty debug-report-empty">
           <IconDifference aria-hidden="true" />
           <strong>{{ t('visualCompare.empty') }}</strong>
           <span>{{ t('visualCompare.emptyDescription') }}</span>
-          <UiButton native class="primary" type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t('visualCompare.setBaseline') }}</UiButton>
+          <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t('visualCompare.setBaseline') }}</UiButton>
         </div>
         <div v-else class="visual-compare-content">
           <div class="visual-compare-summary" :class="{ identical: visualCompareReport.identical, changed: visualCompareReport.status === 'compared' && !visualCompareReport.identical }">
@@ -1714,10 +1714,10 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <footer v-if="visualCompareReport.status !== 'empty'">
           <span>{{ t('visualCompare.storage') }}</span>
           <div class="debug-report-actions">
-            <UiButton native type="button" @click="manageVisualCompare('clear')"><IconDelete aria-hidden="true" /> {{ t('visualCompare.clear') }}</UiButton>
-            <UiButton native type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t('visualCompare.newBaseline') }}</UiButton>
-            <UiButton native class="primary" type="button" @click="manageVisualCompare('compare')"><IconDifference aria-hidden="true" /> {{ t('visualCompare.compare') }}</UiButton>
-            <UiButton native v-if="visualCompareReport.status === 'compared'" type="button" @click="copyVisualDiff">
+            <UiButton appearance="application" type="button" @click="manageVisualCompare('clear')"><IconDelete aria-hidden="true" /> {{ t('visualCompare.clear') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="manageVisualCompare('set-baseline')"><IconScreenshotRegion aria-hidden="true" /> {{ t('visualCompare.newBaseline') }}</UiButton>
+            <UiButton appearance="application" variant="primary" class="primary" type="button" @click="manageVisualCompare('compare')"><IconDifference aria-hidden="true" /> {{ t('visualCompare.compare') }}</UiButton>
+            <UiButton appearance="application" v-if="visualCompareReport.status === 'compared'" type="button" @click="copyVisualDiff">
               <IconCheck v-if="visualCompareCopied" aria-hidden="true" />
               <IconDifference v-else aria-hidden="true" />
               {{ visualCompareCopied ? t('visualCompare.copied') : t('visualCompare.copy') }}

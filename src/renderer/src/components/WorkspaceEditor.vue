@@ -117,7 +117,7 @@ onBeforeUnmount(dispose)
         <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
         <div class="workspace-editor-header-actions">
           <span v-if="pendingMessage" class="workspace-editor-pending" role="status"><IconProgress class="state-spinner" aria-hidden="true" />{{ pendingMessage }}</span>
-          <UiButton native class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked" @click="close"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked" @click="close"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <div class="workspace-editor-body">
@@ -125,7 +125,7 @@ onBeforeUnmount(dispose)
         <input id="tab-group-name" v-model="name" type="text" maxlength="80" autocomplete="off" autofocus :disabled="dismissBlocked || (mode === 'edit' && isDefault)" />
         <label id="tab-group-color-label">{{ t('workspaceEditor.color') }}</label>
         <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
-          <UiButton native
+          <UiButton appearance="application"
             v-for="option in BROWSER_TAB_GROUP_COLORS"
             :key="option"
             class="tab-group-color-option"
@@ -176,7 +176,7 @@ onBeforeUnmount(dispose)
             <span><strong>{{ t('workspaceEditor.fork') }}</strong><small>{{ t('workspaceEditor.forkDescription') }}</small></span>
           </label>
           <div v-if="storageMode === 'fork-default'" class="workspace-origin-picker">
-            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton native type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
+            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton appearance="application" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
             <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
             <p v-else-if="storageState === 'error'" class="error" role="alert">{{ storageMessage }}</p>
             <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noOrigins') }}</p>
@@ -191,18 +191,18 @@ onBeforeUnmount(dispose)
             <label><input v-model="transferDirection" type="radio" value="to-default" :disabled="dismissBlocked" /><span>{{ t('workspaceEditor.saveDefault') }}</span></label>
           </div>
           <div class="workspace-origin-picker">
-            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton native type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
+            <div><strong>{{ t('workspaceEditor.websites') }}</strong><UiButton appearance="application" type="button" :disabled="dismissBlocked" @click="toggleAllOrigins">{{ selectedOrigins.length === originOptions.length ? t('workspaceEditor.clear') : t('workspaceEditor.selectAll') }}</UiButton></div>
             <p v-if="storageState === 'loading'">{{ t('workspaceEditor.loading') }}</p>
             <p v-else-if="!originOptions.length">{{ t('workspaceEditor.noSourceOrigins') }}</p>
             <label v-for="origin in originOptions" :key="origin"><input v-model="selectedOrigins" type="checkbox" :value="origin" :disabled="dismissBlocked" /><span>{{ origin }}</span></label>
           </div>
-          <UiButton native class="workspace-transfer-button" type="button" :disabled="actionPending || storageState === 'saving' || storageState === 'loading' || storageState === 'error'" @click="transferStorage"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? t('workspaceEditor.copying') : transferDirection === 'from-default' ? t('workspaceEditor.importSelected') : t('workspaceEditor.saveSelected') }}</UiButton>
+          <UiButton appearance="application" class="workspace-transfer-button" type="button" :disabled="actionPending || storageState === 'saving' || storageState === 'loading' || storageState === 'error'" @click="transferStorage"><IconSwapHoriz aria-hidden="true" /> {{ storageState === 'saving' ? t('workspaceEditor.copying') : transferDirection === 'from-default' ? t('workspaceEditor.importSelected') : t('workspaceEditor.saveSelected') }}</UiButton>
           <output v-if="storageMessage" :class="{ error: storageState === 'error' }" role="status">{{ storageMessage }}</output>
-          <div class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton native type="button" :disabled="dismissBlocked || state.allHumanInteractionLocked" :title="state.allHumanInteractionLocked ? t('workspaceEditor.unlockTitle') : undefined" data-lock-protected-tab-close @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
+          <div class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton appearance="application" type="button" :disabled="dismissBlocked || state.allHumanInteractionLocked" :title="state.allHumanInteractionLocked ? t('workspaceEditor.unlockTitle') : undefined" data-lock-protected-tab-close @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
         </section>
         <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
       </div>
-      <footer><UiButton native type="button" :disabled="dismissBlocked" @click="close">{{ t('workspaceEditor.cancel') }}</UiButton><UiButton native class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
+      <footer><UiButton appearance="application" type="button" :disabled="dismissBlocked" @click="close">{{ t('workspaceEditor.cancel') }}</UiButton><UiButton appearance="application" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
     </form>
   </div>
 </template>

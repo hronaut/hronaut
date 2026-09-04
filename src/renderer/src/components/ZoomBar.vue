@@ -84,7 +84,7 @@ defineExpose({ close, openForTab, setZoom })
 <template>
   <div v-if="open" class="zoom-bar" role="group" :aria-label="t('zoom.controls')" :aria-busy="busy">
     <span>{{ t('zoom.heading') }}</span>
-    <UiButton native
+    <UiButton appearance="application"
       type="button"
       :title="t('zoom.outTitle')"
       :aria-label="t('zoom.out')"
@@ -92,19 +92,19 @@ defineExpose({ close, openForTab, setZoom })
       @click="setZoom('out')"
     ><IconRemove aria-hidden="true" /></UiButton>
     <output aria-live="polite">{{ formatPercent(activeTab?.zoomPercent ?? 100) }}</output>
-    <UiButton native
+    <UiButton appearance="application"
       type="button"
       :title="t('zoom.inTitle')"
       :aria-label="t('zoom.in')"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) >= 300"
       @click="setZoom('in')"
     ><IconZoomIn aria-hidden="true" /></UiButton>
-    <UiButton native
+    <UiButton appearance="application"
       class="zoom-reset"
       type="button"
       :disabled="busy || (activeTab?.zoomPercent ?? 100) === 100"
       @click="setZoom('reset')"
     >{{ t('zoom.reset') }}</UiButton>
-    <UiButton native type="button" :title="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+    <UiButton appearance="application" type="button" :title="t('zoom.closeTitle')" :aria-label="t('zoom.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
   </div>
 </template>

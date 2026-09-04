@@ -123,7 +123,7 @@ useModalDialogFocus({ open, panel })
           <span class="eyebrow">{{ t('settings.kicker') }}</span>
           <h2 id="settings-title">{{ t('settings.heading') }}</h2>
         </div>
-        <UiButton native class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('settings.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </div>
 
       <div
@@ -132,7 +132,7 @@ useModalDialogFocus({ open, panel })
         :inert="resetBusy ? true : undefined"
       >
         <nav class="settings-sidebar" :aria-label="t('settings.sections')" @wheel="scrollNavigationWithWheel">
-          <UiButton native
+          <UiButton appearance="application"
             v-for="item in navigation"
             :key="item.section"
             class="settings-nav-item"
@@ -206,14 +206,14 @@ useModalDialogFocus({ open, panel })
       </div>
 
       <footer class="settings-footer">
-        <UiButton native
+        <UiButton appearance="application"
           v-if="resetVisible"
           class="secondary-button"
           type="button"
           :disabled="resetDisabled"
           @click="resetCurrent"
         >{{ t('settings.reset') }}</UiButton>
-        <UiButton native class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
+        <UiButton appearance="application" variant="primary" class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
       </footer>
     </section>
   </div>

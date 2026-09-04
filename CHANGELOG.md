@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.46] - 2026-09-04
+
+### Added
+
+- Expand the renderer UI library with semantic inputs, textareas, selects, checkboxes, switches, dialogs, menus, popovers, tabs, segmented controls, toggle buttons, tooltips, spinners, and empty states, including keyboard and accessibility contracts in Storybook and component tests.
+
+### Improved
+
+- Replace the temporary native button compatibility mode with an explicit application appearance, so every renderer action receives shared button state and focus behavior while established compact controls retain their intentional dimensions.
+- Automatically connect shared form controls to field labels, validation messages, hints, required state, and disabled state, and adopt the form contracts in commercial-license and core settings panels.
+
 ## [1.11.45] - 2026-09-04
 
 ### Added

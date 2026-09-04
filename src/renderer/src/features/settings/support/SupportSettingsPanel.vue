@@ -2,7 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconFavorite from '~icons/material-symbols/favorite-rounded'
-import { UiButton, UiField, UiNotice } from '../../../ui/index.js'
+import { UiButton, UiField, UiInput, UiNotice } from '../../../ui/index.js'
 import type { CommercialLicenseController } from './useCommercialLicenseController.js'
 
 const props = defineProps<{
@@ -62,8 +62,7 @@ const {
       <small v-else>{{ t('settings.support.unavailable') }}</small>
       <form class="commercial-license-form" @submit.prevent="activate">
         <UiField :label="t('settings.support.key')" for-id="commercial-license-key">
-          <input
-            id="commercial-license-key"
+          <UiInput
             v-model="keyDraft"
             type="password"
             autocomplete="off"
@@ -83,7 +82,7 @@ const {
         </UiButton>
       </form>
       <small v-if="stateMessage">{{ stateMessage }}</small>
-      <UiNotice v-if="errorMessage" tone="danger">{{ errorMessage }}</UiNotice>
+      <UiNotice v-if="errorMessage" tone="danger" role="alert">{{ errorMessage }}</UiNotice>
       <UiButton @click="emit('purchase')">{{ t('settings.support.support') }}</UiButton>
     </div>
     <div class="support-alternatives">

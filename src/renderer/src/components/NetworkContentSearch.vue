@@ -38,14 +38,14 @@ function requestName(request: Pick<BrowserNetworkSearchMatch, 'url'>): string {
     <form @submit.prevent="emit('search')">
       <label><IconSearch aria-hidden="true" /><input ref="input" v-model="query" type="search" :aria-label="t('network.contentSearch.aria')" :placeholder="t('network.contentSearch.aria')" maxlength="200" spellcheck="false" /></label>
       <label class="network-content-search-case"><input v-model="caseSensitive" type="checkbox" />{{ t('network.contentSearch.matchCase') }}</label>
-      <UiButton native type="submit" class="primary" :disabled="state === 'searching' || !query.trim()"><IconProgress v-if="state === 'searching'" class="state-spinner" aria-hidden="true" /><IconSearch v-else aria-hidden="true" />{{ state === 'searching' ? t('network.contentSearch.searching') : t('network.contentSearch.search') }}</UiButton>
-      <UiButton native type="button" :aria-label="t('network.contentSearch.close')" @click="emit('close')"><IconClose aria-hidden="true" /></UiButton>
+      <UiButton appearance="application" variant="primary" type="submit" class="primary" :disabled="state === 'searching' || !query.trim()"><IconProgress v-if="state === 'searching'" class="state-spinner" aria-hidden="true" /><IconSearch v-else aria-hidden="true" />{{ state === 'searching' ? t('network.contentSearch.searching') : t('network.contentSearch.search') }}</UiButton>
+      <UiButton appearance="application" type="button" :aria-label="t('network.contentSearch.close')" @click="emit('close')"><IconClose aria-hidden="true" /></UiButton>
     </form>
     <p v-if="error" class="network-content-search-error" role="alert">{{ error }}</p>
     <template v-if="result">
       <header><strong>{{ t('network.contentSearch.result', { fields: t('network.contentSearch.fieldCount', { count: localNumber(result.resultCount) }, result.resultCount), requests: t('network.contentSearch.requestCount', { count: localNumber(result.matchingRequestCount) }, result.matchingRequestCount) }) }}</strong><span>{{ t('network.contentSearch.searched', { searched: localNumber(result.searchedRequestCount), available: localNumber(result.availableRequestCount) }) }}<template v-if="result.truncated"> {{ t('network.contentSearch.bounded') }}</template></span></header>
       <div v-if="result.matches.length" class="network-content-search-results">
-        <UiButton native v-for="(match, index) in result.matches" :key="`${match.requestId}:${match.field}:${match.label}:${index}`" type="button" :aria-label="t('network.contentSearch.inspect', { number: localNumber(index + 1), label: match.label })" @click="emit('select', match)">
+        <UiButton appearance="application" v-for="(match, index) in result.matches" :key="`${match.requestId}:${match.field}:${match.label}:${index}`" type="button" :aria-label="t('network.contentSearch.inspect', { number: localNumber(index + 1), label: match.label })" @click="emit('select', match)">
           <span><strong>{{ match.label }}</strong><small>{{ match.method }} · {{ match.status ?? t('network.noStatus') }} · {{ networkResourceCategory(match.resourceType) }} · {{ requestName(match) }}<template v-if="match.occurrenceCount > 1"> · {{ t('network.contentSearch.occurrenceCount', { count: localNumber(match.occurrenceCount) }, match.occurrenceCount) }}</template></small></span><code>{{ match.snippet }}</code>
         </UiButton>
       </div>

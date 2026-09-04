@@ -49,10 +49,17 @@ npm run test:unit:docker:focused -- tests/renderer/modal-dialog-focus.test.ts -t
 
 Renderer action buttons must use the primitives exported from
 `src/renderer/src/ui/`. Use the standard `UiButton` variants for new product UI;
-use its `native` mode only when migrating an established specialized control
-whose existing selector remains responsible for its appearance. Develop and
-review primitives with `npm run storybook`, and verify the production workbench
-with `npm run build:storybook`.
+there is no unstyled or native bypass. Form fields should compose `UiField` with
+`UiInput`, `UiSelect`, or `UiTextarea`, and boolean preferences should use
+`UiCheckbox` or `UiSwitch`. Reuse the dialog, menu, popover, tabs, segmented
+control, toggle, tooltip, spinner, and empty-state primitives instead of
+reimplementing their accessibility or keyboard behavior. Keep component
+variants as closed TypeScript unions and add component tests for behavior.
+Develop and review primitives with `npm run storybook`, and verify the
+production workbench with `npm run build:storybook`. Renderer styling continues
+to use the token, base, primitive, and application CSS layers; do not introduce
+a parallel utility-CSS system without a measured problem and an explicit
+migration decision.
 
 You can also target a source line, list matching tests without launching
 Electron, or stop after the first failure:

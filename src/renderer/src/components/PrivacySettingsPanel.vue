@@ -60,7 +60,7 @@ const {
       </label>
     </fieldset>
     <div class="privacy-data-actions">
-      <UiButton native class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
+      <UiButton appearance="application" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll', { count: formatNumber(selectedCount) }) }}
       </UiButton>
       <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totalsDetail', { history: t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries), cookies: t(summary.cookieCount === 1 ? 'shell.siteControls.cookie' : 'shell.siteControls.cookies', { count: formatNumber(summary.cookieCount) }), cache: formatBytes(summary.cacheBytes) }) : t('settings.privacy.loadingTotals')) }}</output>
@@ -70,7 +70,7 @@ const {
         <h4>{{ t('settings.privacy.websites') }}</h4>
         <p>{{ t('settings.privacy.websitesDescription') }}</p>
       </div>
-      <UiButton native class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
+      <UiButton appearance="application" class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
         <IconRefresh aria-hidden="true" />
         {{ t('settings.privacy.refresh') }}
       </UiButton>
@@ -106,7 +106,7 @@ const {
           </span>
           <span v-else class="janitor-site-meta"><span>{{ t('settings.privacy.known') }}</span></span>
         </span>
-        <UiButton native
+        <UiButton appearance="application"
           class="janitor-clear-button"
           type="button"
           :aria-label="t('settings.privacy.clearSiteAria', { origin: site.origin })"

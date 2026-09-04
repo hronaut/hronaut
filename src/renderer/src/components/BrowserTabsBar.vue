@@ -476,7 +476,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     @focusin="setRailFocusWithin(true)"
     @focusout="handleRailFocusOut"
   >
-  <UiButton native
+  <UiButton appearance="application"
     class="app-home-button"
     :class="{ active: homeTab?.active }"
     type="button"
@@ -491,7 +491,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   </UiButton>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
-    <UiButton native
+    <UiButton appearance="application"
       v-if="hasTabOverflow"
       class="tabs-scroll-button previous"
       type="button"
@@ -515,7 +515,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       role="group"
       :aria-label="workspace.name"
     >
-      <UiButton native
+      <UiButton appearance="application"
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
         :style="tabGroupColorStyle(workspace.color)"
@@ -536,7 +536,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         <span>{{ workspace.name }}</span>
         <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
-      <UiButton native
+      <UiButton appearance="application"
         class="new-tab workspace-new-tab"
         type="button"
         :style="tabGroupColorStyle(workspace.color)"
@@ -550,7 +550,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :aria-label="workspace.name"
         :aria-orientation="orientation"
       >
-        <UiButton native
+        <UiButton appearance="application"
           v-for="tab in isTabGroupCollapsed(workspace.id) ? [] : tabGroupTabs(workspace.id)"
           :key="tab.id"
           class="tab"
@@ -631,7 +631,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       </div>
     </div>
     <span class="workspace-action-divider" aria-hidden="true" />
-    <UiButton native
+    <UiButton appearance="application"
       class="new-workspace"
       type="button"
       :title="t('shell.tabs.createWorkspaceTitle')"
@@ -642,7 +642,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       <span>{{ t('shell.tabs.workspace') }}</span>
     </UiButton>
     </div>
-    <UiButton native
+    <UiButton appearance="application"
       v-if="hasTabOverflow"
       class="tabs-scroll-button next"
       type="button"
@@ -652,7 +652,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>
   </div>
-  <UiButton native
+  <UiButton appearance="application"
     v-if="vertical"
     class="tab-rail-pin"
     type="button"

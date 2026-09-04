@@ -197,15 +197,15 @@ onBeforeUnmount(dispose)
         </div>
         <div class="network-monitor-header-actions">
           <PanelDockPicker v-model="dock" :label="t('panelDocks.network')" />
-          <UiButton native
+          <UiButton appearance="application"
             type="button"
             :class="{ active: networkContentSearchOpen }"
             :aria-label="t('network.searchContent')"
             :title="t('network.searchContentTitle')"
             @click="toggleNetworkContentSearch"
           ><IconSearch aria-hidden="true" /></UiButton>
-          <UiButton native type="button" :aria-label="t('network.refreshRequests')" :title="t('network.refresh')" @click="refreshNetworkMonitor()"><IconRefresh aria-hidden="true" /></UiButton>
-          <UiButton native class="panel-close" type="button" :aria-label="t('network.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" type="button" :aria-label="t('network.refreshRequests')" :title="t('network.refresh')" @click="refreshNetworkMonitor()"><IconRefresh aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('network.close')" @click="open = false"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
       <NetworkRequestConditions
@@ -247,7 +247,7 @@ onBeforeUnmount(dispose)
               <option v-for="option in networkSortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
-          <UiButton native
+          <UiButton appearance="application"
             type="button"
             :aria-label="t('network.sortDirection', { direction: networkSortDirection === 'asc' ? t('network.ascending') : t('network.descending') })"
             :title="networkSortDirection === 'asc' ? t('network.ascendingTitle') : t('network.descendingTitle')"
@@ -268,7 +268,7 @@ onBeforeUnmount(dispose)
         </label>
       </div>
       <div class="network-resource-filters" role="group" :aria-label="t('network.resourceFilterAria')">
-        <UiButton native
+        <UiButton appearance="application"
           v-for="filter in networkResourceFilters"
           :key="filter.value || 'all'"
           type="button"
@@ -296,7 +296,7 @@ onBeforeUnmount(dispose)
       </div>
       <div v-else class="network-monitor-workspace">
         <div class="network-request-list" role="listbox" :aria-label="t('network.requestsAria')">
-          <UiButton native
+          <UiButton appearance="application"
             v-for="request in filteredNetworkRequests"
             :key="request.id"
             type="button"
@@ -377,7 +377,7 @@ onBeforeUnmount(dispose)
                 {{ t('network.details.evidence') }}<template v-if="canFormatNetworkRequestCopy(networkRequestDetails)"> {{ t('network.details.reviewCommands') }}</template>
               </span>
               <div class="network-detail-copy-actions">
-                <UiButton native
+                <UiButton appearance="application" variant="danger"
                   v-if="networkRequestDetails.resourceType.toLowerCase() === 'xhr'"
                   type="button"
                   :class="{
@@ -402,12 +402,12 @@ onBeforeUnmount(dispose)
                         ? t('network.details.replayed')
                         : t('network.details.replay') }}
                 </UiButton>
-                <UiButton native type="button" @click="copySanitizedNetworkDetails('json')">
+                <UiButton appearance="application" type="button" @click="copySanitizedNetworkDetails('json')">
                   <IconCheck v-if="networkDetailsCopied === 'json'" aria-hidden="true" />
                   <IconCode v-else aria-hidden="true" />
                   {{ networkDetailsCopied === 'json' ? t('network.details.copiedJson') : t('network.details.copyJson') }}
                 </UiButton>
-                <UiButton native
+                <UiButton appearance="application"
                   v-if="canFormatNetworkRequestCopy(networkRequestDetails)"
                   type="button"
                   @click="copySanitizedNetworkDetails('curl')"
@@ -416,7 +416,7 @@ onBeforeUnmount(dispose)
                   <IconTerminal v-else aria-hidden="true" />
                   {{ networkDetailsCopied === 'curl' ? t('network.details.copiedCurl') : t('network.details.copyCurl') }}
                 </UiButton>
-                <UiButton native
+                <UiButton appearance="application"
                   v-if="canFormatNetworkRequestCopy(networkRequestDetails)"
                   type="button"
                   @click="copySanitizedNetworkDetails('fetch')"
@@ -465,7 +465,7 @@ onBeforeUnmount(dispose)
                     <strong>{{ t('network.details.triggeredBy') }}</strong>
                     <span>{{ t('network.details.reportedByChromium') }}</span>
                   </header>
-                  <UiButton native
+                  <UiButton appearance="application"
                     type="button"
                     :aria-label="t('network.details.inspectTrigger', { request: networkRequestName(networkRequestDetails.relationships.triggeredBy) })"
                     @click="selectRelatedNetworkRequest(networkRequestDetails.relationships.triggeredBy)"
@@ -482,7 +482,7 @@ onBeforeUnmount(dispose)
                     <strong>{{ t('network.details.redirectChain') }}</strong>
                     <span>{{ t('network.details.retainedHops', { count: localNumber(networkRequestDetails.relationships.redirectChain.length) }, networkRequestDetails.relationships.redirectChain.length) }}</span>
                   </header>
-                  <UiButton native
+                  <UiButton appearance="application"
                     v-for="(related, index) in networkRequestDetails.relationships.redirectChain"
                     :key="related.id"
                     type="button"
@@ -506,7 +506,7 @@ onBeforeUnmount(dispose)
                     <strong>{{ t('network.details.triggeredRequests') }}</strong>
                     <span>{{ t('network.details.directCount', { count: localNumber(networkRequestDetails.relationships.dependents.length) }, networkRequestDetails.relationships.dependents.length) }}</span>
                   </header>
-                  <UiButton native
+                  <UiButton appearance="application"
                     v-for="related in networkRequestDetails.relationships.dependents"
                     :key="related.id"
                     type="button"
@@ -648,13 +648,13 @@ onBeforeUnmount(dispose)
       <footer>
         <span>{{ t('network.summary', { visible: localNumber(filteredNetworkRequests.length), total: localNumber(networkRequests.length), bytes: formatBytes(networkResponseBytes) }) }}</span>
         <div class="network-monitor-actions">
-          <UiButton native type="button" :disabled="!networkRequests.length" @click="refreshNetworkMonitor(true)"><IconDelete aria-hidden="true" /> {{ t('network.clear') }}</UiButton>
-          <UiButton native type="button" :disabled="!filteredNetworkRequests.length" @click="copySanitizedNetworkHar">
+          <UiButton appearance="application" type="button" :disabled="!networkRequests.length" @click="refreshNetworkMonitor(true)"><IconDelete aria-hidden="true" /> {{ t('network.clear') }}</UiButton>
+          <UiButton appearance="application" type="button" :disabled="!filteredNetworkRequests.length" @click="copySanitizedNetworkHar">
             <IconCheck v-if="networkHarCopied" aria-hidden="true" />
             <IconCopy v-else aria-hidden="true" />
             {{ networkHarCopied ? t('network.copied') : t('network.copyHar') }}
           </UiButton>
-          <UiButton native
+          <UiButton appearance="application" variant="primary"
             type="button"
             class="primary"
             :title="networkHarExport?.path"

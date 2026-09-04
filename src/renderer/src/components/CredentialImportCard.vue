@@ -44,7 +44,7 @@ async function importCredentials(): Promise<void> {
       <h4 id="credential-import-title">{{ t('settings.passwords.importHeading') }}</h4>
       <p>{{ t('settings.passwords.importDescription') }}</p>
     </div>
-    <UiButton native class="secondary-button" type="button" :disabled="state === 'importing'" @click="importCredentials">
+    <UiButton appearance="application" class="secondary-button" type="button" :disabled="state === 'importing'" @click="importCredentials">
       <IconProgress v-if="state === 'importing'" class="state-spinner" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
       {{ state === 'importing' ? t('settings.passwords.importing') : t('settings.passwords.importButton') }}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import UiButton from "../ui/UiButton.vue"
+import { UiButton, UiCheckbox } from '../ui/index.js'
 import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
@@ -62,9 +62,9 @@ async function changeTimeout(event: Event): Promise<void> {
           <strong>{{ t('settings.memory.auto') }}</strong>
           <small>{{ t('settings.memory.autoDescription') }}</small>
         </span>
-        <input
+        <UiCheckbox
+          bare
           id="setting-memory-saver"
-          type="checkbox"
           :checked="settings.memorySaverEnabled"
           :disabled="busy"
           @change="changeEnabled"
@@ -88,7 +88,7 @@ async function changeTimeout(event: Event): Promise<void> {
       </label>
     </div>
     <div class="memory-saver-actions">
-      <UiButton native class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="sleepNow">
+      <UiButton appearance="application" class="secondary-button" type="button" :disabled="busy || !settings.memorySaverEnabled" @click="sleepNow">
         <IconBedtime aria-hidden="true" /> {{ t('settings.memory.sleepNow') }}
       </UiButton>
     </div>

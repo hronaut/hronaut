@@ -46,7 +46,7 @@ const {
             <strong>{{ credential.username || t('credentialPicker.unnamed') }}</strong>
             <small>{{ credential.origin }}</small>
           </span>
-          <UiButton native
+          <UiButton appearance="application"
             class="permission-remove credential-remove"
             type="button"
             :aria-label="t('settings.passwords.removeAria', { username: credential.username || t('settings.passwords.unnamed'), origin: credential.origin })"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import UiButton from "../ui/UiButton.vue"
+import { UiButton, UiCheckbox } from '../ui/index.js'
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
@@ -62,9 +62,9 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <strong>{{ t('settings.mcp.require') }}</strong>
           <small>{{ t('settings.mcp.requireDescription') }}</small>
         </span>
-        <input
+        <UiCheckbox
+          bare
           id="setting-mcp-authentication"
-          type="checkbox"
           :checked="settings.mcpAuthentication"
           :disabled="busy"
           @change="changeAuthentication"
@@ -109,7 +109,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
               @input="changePort"
               @keydown="handlePortKeydown"
             />
-            <UiButton native
+            <UiButton appearance="application"
               class="secondary-button"
               type="button"
               :disabled="!canApplyPort"
