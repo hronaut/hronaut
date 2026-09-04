@@ -4620,6 +4620,63 @@ test('puts an active website tab to sleep from its native context menu and wakes
   }
 })
 
+test('keeps plaintext-only editable drafts awake when Memory Saver runs', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Editable draft fixture</title><main><div id="draft" contenteditable="plaintext-only" aria-label="Draft"></div></main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Editable draft fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/editable-draft`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Editable draft fixture')
+    const tabId = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.id)') as string
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Editable draft fixture WebContents was not found')
+      page.focus()
+      await page.executeJavaScript(`document.querySelector('#draft').focus()`)
+      for (const character of 'unsaved draft') page.sendInputEvent({ type: 'char', keyCode: character })
+    }, url)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript(`document.querySelector('#draft').textContent`)
+    }, url)).toBe('unsaved draft')
+
+    await appWindow.evaluate(`window.hronaut.newTab({ url: 'about:blank', active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).not.toBe(tabId)
+    const sleepError = await appWindow.evaluate(`(async () => {
+      try {
+        await window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true);
+        return null;
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+      }
+    })()`)
+
+    expect(sleepError).toContain('partially filled form')
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((candidate) => candidate.id === ${JSON.stringify(tabId)})?.sleeping
+    ))`)).toBe(false)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript(`document.querySelector('#draft').textContent`)
+    }, url)).toBe('unsaved draft')
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('rolls back pinning when a sleeping tab cannot wake and permits a retry', async ({
   appWindow,
   electronApp

@@ -7608,8 +7608,7 @@ export class BrowserTabsManager {
       window.__hronautContentEditableDirty = false;
       document.addEventListener('input', (event) => {
         const target = event.target;
-        if (!(target instanceof Element)) return;
-        if (target.matches('[contenteditable="true"]') || target.closest('[contenteditable="true"]')) {
+        if (target instanceof HTMLElement && target.isContentEditable) {
           window.__hronautContentEditableDirty = true;
         }
       }, true);

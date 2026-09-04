@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Memory Saver from unloading unsaved drafts in valid `contenteditable` modes such as plaintext-only editing regions.
+
 ## [1.11.47] - 2026-09-04
 
 ### Improved
