@@ -168,37 +168,38 @@
   --danger: #ff5ca8;
 }
 
-/* Miami 1988: navy surfaces keep the neon accents readable. */
+/* Cyberpunk Turbo: neon cyan and magenta with yellow highlights. */
 :root[data-theme="cyberpunk-turbo"],
 .ui-theme-scope[data-theme="cyberpunk-turbo"] {
-  color: #f6f3ff;
-  background: #090f23;
-  --text: #f6f3ff;
-  --muted: #bbc1d9;
-  --subtle: #9aa5c6;
-  --accent: #ff69b4;
-  --accent-soft: rgba(255, 105, 180, 0.14);
-  --accent-text: #53f5e6;
-  --button-text: #090f23;
-  --shell-top: #15142e;
-  --titlebar-background: #15142e;
-  --titlebar-muted: #bbc1d9;
-  --shell-bottom: #090f23;
-  --toolbar: #0d1429;
-  --surface: #151c35;
-  --surface-raised: #19233e;
-  --surface-muted: #212a48;
-  --hover: #303b5c;
-  --tab-hover: #263354;
-  --border: #586389;
-  --border-soft: #424f75;
-  --pill-bg: #19233e;
-  --pill-border: #658c9b;
-  --shadow: rgba(3, 5, 17, 0.58);
-  --focus-bg: #19233e;
-  --success: #53f5e6;
-  --danger: #ff91ae;
-  --turbo-sunset: #ffb86b;
+  font-family: var(--font-mono);
+  color: #8af7ff;
+  background: #12121e;
+  --text: #8af7ff;
+  --muted: #b6c9dc;
+  --subtle: #9eafcc;
+  --accent: #ff4de3;
+  --accent-soft: rgba(255, 77, 227, 0.12);
+  --accent-text: #00ffff;
+  --button-text: #12121e;
+  --shell-top: #1a1a2e;
+  --titlebar-background: #1a1a2e;
+  --titlebar-muted: #b6c9dc;
+  --shell-bottom: #12121e;
+  --toolbar: #141424;
+  --surface: #1a1a2e;
+  --surface-raised: #222238;
+  --surface-muted: #292942;
+  --hover: #383853;
+  --tab-hover: #32324d;
+  --border: #817295;
+  --border-soft: #594b70;
+  --pill-bg: #222238;
+  --pill-border: #796b95;
+  --shadow: rgba(0, 0, 0, 0.58);
+  --focus-bg: #222238;
+  --success: #00ffff;
+  --danger: #ff7373;
+  --turbo-highlight: #ffe45e;
 }
 
 :root[data-theme="matrix"],

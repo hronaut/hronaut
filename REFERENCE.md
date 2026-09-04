@@ -28,7 +28,7 @@ Open **Settings** from the gear button in the top strip. Hronaut includes ten ap
 - **Midnight** for a deep blue-black browser shell.
 - **Sepia** for a warm paper-toned browser shell.
 - **Cyberpunk** for a neon cyan and magenta browser shell.
-- **Cyberpunk Turbo** for Miami ’88-inspired navy surfaces, hot pink controls, cyan accents and a matching Home page.
+- **Cyberpunk Turbo** for neon cyan typography, magenta controls, yellow highlights and a matching Home page.
 - **Matrix** for a green terminal-inspired browser shell.
 - **Machine** for an industrial red and graphite browser shell.
 - **Galactic** for a space-inspired violet and blue browser shell.

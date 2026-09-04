@@ -36,7 +36,7 @@ export const plPL = {
         "label": "Sepia",
         "description": "Ciepły papierowy spokój"
       },
-      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Miami ’88 · róż i cyjan' },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Neonowy cyjan, magenta i żółć' },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Neonowy fiolet"

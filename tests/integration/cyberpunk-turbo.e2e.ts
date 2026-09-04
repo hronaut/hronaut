@@ -14,6 +14,7 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   await appWindow.evaluate(axe.source)
   const contrast = await appWindow.evaluate(`globalThis.axe.run({ include: ['.theme-cyberpunk-turbo', '.settings-footer', '.settings-header', '.settings-nav-item'] }, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)`)
   expect(contrast).toEqual([])
+  await expect(appWindow.locator('.settings-dialog')).toHaveCSS('border-radius', '4px')
   await settings.screenshot({ path: testInfo.outputPath('cyberpunk-turbo-settings.png') })
   await settings.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
 
@@ -24,6 +25,7 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   const homeContrast = await electronApp.evaluate(async ({ webContents }, source) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
     await home.executeJavaScript(source)
+    await home.executeJavaScript(`document.querySelector('[data-guide=\"vscode\"]').click()`)
     return home.executeJavaScript(`axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)`)
   }, axe.source)
   expect(homeContrast).toEqual([])
@@ -33,7 +35,7 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   })
   await writeFile(testInfo.outputPath('cyberpunk-turbo-home.png'), Buffer.from(homeImage, 'base64'))
 
-  await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Miami research</title><main>Fixture</main>', active: true })`)
+  await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Signal research</title><main>Fixture</main>', active: true })`)
   for (const width of [1200, 760]) {
     await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 800), width)
     await expect.poll(() => appWindow.evaluate('innerWidth')).toBe(width)
@@ -41,12 +43,12 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
     expect(await appWindow.evaluate('document.documentElement.scrollWidth <= innerWidth')).toBe(true)
   }
   expect(await appWindow.evaluate("globalThis.axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)")).toEqual([])
-  await appWindow.evaluate("window.hronautBookmarks.add('https://example.com/miami', 'Miami sunset')")
-  await appWindow.locator('input.address').fill('miami')
+  await appWindow.evaluate("window.hronautBookmarks.add('https://example.com/signal', 'Signal diagnostics')")
+  await appWindow.locator('input.address').fill('signal')
   await expect.poll(() => electronApp.evaluate(({ webContents }) => {
     const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
     return overlay?.executeJavaScript(`({ theme: document.documentElement.dataset.theme, scheme: getComputedStyle(document.documentElement).colorScheme, accent: getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() })`)
-  })).toEqual({ theme: 'cyberpunk-turbo', scheme: 'dark', accent: '#ff69b4' })
+  })).toEqual({ theme: 'cyberpunk-turbo', scheme: 'dark', accent: '#ff4de3' })
   await appWindow.keyboard.press('Escape')
   await appWindow.evaluate("window.hronautSettings.setTheme('light')")
   await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!.executeJavaScript('document.documentElement.dataset.theme'))).toBe('')

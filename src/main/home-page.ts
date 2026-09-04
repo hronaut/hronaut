@@ -456,25 +456,40 @@ export function renderHomePage(options: HomePageOptions): string {
       }
     }
     :root[data-theme="cyberpunk-turbo"] {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
       color-scheme: dark;
       --bg: ${CYBERPUNK_TURBO_COLORS.background};
-      --panel: #151c35;
-      --panel-solid: #151c35;
+      --panel: #1a1a2e;
+      --panel-solid: #1a1a2e;
       --text: ${CYBERPUNK_TURBO_COLORS.text};
       --muted: ${CYBERPUNK_TURBO_COLORS.muted};
-      --border: #424f75;
-      --soft: #212a48;
+      --border: #594b70;
+      --soft: #292942;
       --accent: ${CYBERPUNK_TURBO_COLORS.accent};
       --accent-2: ${CYBERPUNK_TURBO_COLORS.secondary};
-      --code: #090f23;
-      --code-text: #f6f3ff;
-    }
-    :root[data-theme="cyberpunk-turbo"] body {
-      background: radial-gradient(ellipse at 95% 0, rgba(255,105,180,.12), transparent 40%), var(--bg);
+      --code: #12121e;
+      --code-text: #8af7ff;
     }
     :root[data-theme="cyberpunk-turbo"] .hero {
-      border-bottom: 2px solid transparent;
-      border-image: linear-gradient(90deg, ${CYBERPUNK_TURBO_COLORS.accent}, ${CYBERPUNK_TURBO_COLORS.sunset}, ${CYBERPUNK_TURBO_COLORS.secondary}) 1;
+      border-bottom: 2px solid var(--accent);
+      box-shadow: 0 8px 14px -12px var(--accent);
+    }
+    :root[data-theme="cyberpunk-turbo"] :is(button, input, pre, .panel, .mark, .count, .client-icon, .connection-state, .verify code) {
+      border-radius: 4px;
+    }
+    :root[data-theme="cyberpunk-turbo"] :is(.brand, .eyebrow, .connection-state) {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      letter-spacing: .04em;
+    }
+    :root[data-theme="cyberpunk-turbo"] h1 {
+      color: var(--accent-2);
+      text-shadow: 0 0 14px rgba(0,255,255,.18);
+    }
+    :root[data-theme="cyberpunk-turbo"] .mark {
+      background: ${CYBERPUNK_TURBO_COLORS.highlight};
+    }
+    :root[data-theme="cyberpunk-turbo"] .guide-primary-action button {
+      color: var(--bg);
     }
     * { box-sizing: border-box; }
     html { min-width: 320px; min-height: 100%; background: var(--bg); }

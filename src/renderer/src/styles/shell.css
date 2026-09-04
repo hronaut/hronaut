@@ -14,14 +14,25 @@
 }
 
 :root[data-theme="cyberpunk-turbo"] .shell {
-  @apply [border-bottom-color:#658c9b] [box-shadow:0_1px_12px_rgba(83,_245,_230,_.1)];
-}
-:root[data-theme="cyberpunk-turbo"] .shell::after {
-  @apply absolute inset-0 pointer-events-none [opacity:.16] [background-image:linear-gradient(110deg,_rgba(255,_105,_180,_.32),_transparent_35%,_rgba(83,_245,_230,_.18))];
-  content: "";
+  @apply [border-bottom-color:#796b95] [box-shadow:0_1px_12px_rgba(255,_77,_227,_.2)];
 }
 :root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
-  @apply [background:linear-gradient(90deg,_#ff69b4,_#ffb86b,_#53f5e6)];
+  @apply [background:var(--turbo-highlight)];
+}
+:root[data-theme="cyberpunk-turbo"] :is(.tab-group, .tab, .address-form, .ui-button, .ui-input, .ui-select, .settings-dialog, .theme-option, .global-lock-controls) {
+  @apply [border-radius:4px];
+}
+:root[data-theme="cyberpunk-turbo"] .settings-dialog {
+  @apply [border-color:var(--accent)] [box-shadow:0_0_22px_rgba(255,_77,_227,_.18)];
+}
+:root[data-theme="cyberpunk-turbo"] .settings-header h2 {
+  @apply [color:var(--accent-text)] [text-shadow:0_0_10px_rgba(0,_255,_255,_.18)];
+}
+:root[data-theme="cyberpunk-turbo"] :is(.zoom-button, .settings-header .eyebrow) {
+  @apply [font-family:var(--font-mono)] [letter-spacing:.04em];
+}
+:root[data-theme="cyberpunk-turbo"] :is(.downloads-badge, .area-capture-button.active, .element-picker-button.active, .split-view-button.active, .update-status-icon, .update-status-card-icon, .site-storage-editor button, .storage-changes-footer button.primary, .workspace-transfer-button, .tab-group-editor > footer button.primary) {
+  @apply [color:var(--button-text)];
 }
 
 :root[data-theme="matrix"] .shell::after,

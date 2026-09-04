@@ -36,7 +36,7 @@ export const deDE = {
         "label": "Sepia",
         "description": "Warme Papierruhe"
       },
-      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Miami ’88 · Pink und Cyan' },
+      'cyberpunk-turbo': { label: 'Cyberpunk Turbo', description: 'Neon-Cyan, Magenta und Gelb' },
       "cyberpunk": {
         "label": "Cyberpunk",
         "description": "Neonviolett"

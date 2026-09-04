@@ -37,7 +37,7 @@
 .theme-midnight { --preview-page: #0b1422; --preview-bar: #1b2d45; --preview-surface: #132238; --preview-accent: #69a7ff; }
 .theme-sepia { --preview-page: #f2eadc; --preview-bar: #eee3d1; --preview-surface: #fffaf1; --preview-accent: #a55f31; }
 .theme-cyberpunk { --preview-page: #10071c; --preview-bar: #241139; --preview-surface: #1d0a32; --preview-accent: #00f5ff; }
-.theme-cyberpunk-turbo { --preview-page: #090f23; --preview-bar: #212a48; --preview-surface: #19233e; --preview-accent: linear-gradient(90deg, #ff69b4, #ffb86b, #53f5e6); }
+.theme-cyberpunk-turbo { --preview-page: #12121e; --preview-bar: #292942; --preview-surface: #222238; --preview-accent: #ff4de3; }
 .theme-matrix { --preview-page: #020b05; --preview-bar: #0d2414; --preview-surface: #07150b; --preview-accent: #39ff72; }
 .theme-machine { --preview-page: #13080a; --preview-bar: #35191c; --preview-surface: #241012; --preview-accent: #ff493f; }
 .theme-galactic { --preview-page: #070d20; --preview-bar: #1b274b; --preview-surface: #111a37; --preview-accent: #68a9ff; }

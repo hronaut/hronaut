@@ -32,12 +32,12 @@ export function themeColorScheme(theme: ResolvedThemeName): 'light' | 'dark' {
 }
 
 export const CYBERPUNK_TURBO_COLORS = {
-  background: '#090f23',
-  shellTop: '#15142e',
-  toolbar: '#0d1429',
-  text: '#f6f3ff',
-  muted: '#bbc1d9',
-  accent: '#ff69b4',
-  secondary: '#53f5e6',
-  sunset: '#ffb86b'
+  background: '#12121e',
+  shellTop: '#1a1a2e',
+  toolbar: '#141424',
+  text: '#8af7ff',
+  muted: '#b6c9dc',
+  accent: '#ff4de3',
+  secondary: '#00ffff',
+  highlight: '#ffe45e'
 } as const
