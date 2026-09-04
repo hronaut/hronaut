@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Improved
 
+- Add Cyberpunk Turbo with neon cyan typography, magenta controls, yellow highlights, and matching Home and address suggestions.
 - Sharpen the enlarged single-tab overview preview while keeping normal thumbnails compact and retaining the existing image-size limit for visually complex pages.
 - Group tabs inside their workspace with a New tab action after the last tab, persistent workspace names during horizontal scrolling, and clear selection in horizontal and vertical layouts.
 - Bring Home setup into view sooner with compact live status and endpoint controls, clearer client instructions, and secondary connection verification and first-task sections.
