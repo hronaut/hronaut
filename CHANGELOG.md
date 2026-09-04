@@ -4,10 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [1.11.52] - 2026-09-05
+## [1.11.53] - 2026-09-05
 
 ### Fixed
 
+- Keep workspace tabs and page actions visible at larger interface sizes in narrow windows.
 - Preserve the full selected element or rectangle in screenshots at non-default page zoom, and honor image size limits on high-DPI displays and emulated viewports.
 - Detect version bumps across the complete Git push so a later commit in the same push cannot silently skip the release.
 - Keep Settings actions visible in short windows at larger interface sizes, and give narrow forms enough room for their explanations and controls.
