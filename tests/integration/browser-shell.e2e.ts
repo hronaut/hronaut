@@ -7556,26 +7556,27 @@ test('rolls back tab and global interaction locks when the native input guard fa
   }))`) as { tabId: string; url: string }
   const { tabId, url: activeUrl } = fixture
 
-  const failNextNativeGuard = async (failureMethod: 'Input.setIgnoreInputEvents' | 'Page.getFrameTree'): Promise<void> => {
+  const failNativeGuardUntilRollback = async (failureMethod: 'Input.setIgnoreInputEvents' | 'Page.getFrameTree'): Promise<void> => {
     await electronApp.evaluate(({ webContents }, options) => {
       const { requestedUrl, failureMethod: requestedFailureMethod } = options
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error(`Interaction guard fixture was not found: ${requestedUrl}`)
       const debuggerApi = page.debugger
       const original = debuggerApi.sendCommand.bind(debuggerApi)
-      let shouldFail = true
       let lockGuardStarted = false
       Object.defineProperty(debuggerApi, 'sendCommand', {
         configurable: true,
         value: async (method: string, commandParams?: Record<string, unknown>, sessionId?: string) => {
-          if (method === 'Input.setIgnoreInputEvents' && commandParams?.ignore === true) {
-            lockGuardStarted = true
+          if (method === 'Input.setIgnoreInputEvents') {
+            lockGuardStarted = commandParams?.ignore === true
           }
           const belongsToLockAttempt = requestedFailureMethod === 'Input.setIgnoreInputEvents'
             ? commandParams?.ignore === true
             : lockGuardStarted
-          if (method === requestedFailureMethod && belongsToLockAttempt && shouldFail) {
-            shouldFail = false
+          // A lifecycle-triggered guard sync can be queued ahead of the IPC request.
+          // Keep failing lock attempts until the requested operation rolls back with
+          // ignore=false instead of letting that background sync consume the fault.
+          if (method === requestedFailureMethod && belongsToLockAttempt) {
             throw new Error('Synthetic native input guard failure')
           }
           return original(method, commandParams, sessionId)
@@ -7603,7 +7604,7 @@ test('rolls back tab and global interaction locks when the native input guard fa
 
   // Fail after Chromium has already ignored input so the rollback must actively
   // remove the native compositor guard, not merely restore the reported flag.
-  await failNextNativeGuard('Page.getFrameTree')
+  await failNativeGuardUntilRollback('Page.getFrameTree')
   const tabError = await appWindow.evaluate(`window.hronaut
     .setTabHumanInteractionLocked(${JSON.stringify(tabId)}, true)
     .then(() => null, (error) => String(error))`)
@@ -7613,7 +7614,7 @@ test('rolls back tab and global interaction locks when the native input guard fa
   await clickFixture()
   await expect.poll(fixtureClicks).toBe(1)
 
-  await failNextNativeGuard('Input.setIgnoreInputEvents')
+  await failNativeGuardUntilRollback('Input.setIgnoreInputEvents')
   const globalError = await appWindow.evaluate(`window.hronaut
     .setAllHumanInteractionLocked(true)
     .then(() => null, (error) => String(error))`)

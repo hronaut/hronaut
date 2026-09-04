@@ -4,7 +4,7 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [1.11.48] - 2026-09-04
+## [1.11.49] - 2026-09-04
 
 ### Fixed
 
@@ -13,6 +13,10 @@ All notable changes to Hronaut are documented in this file.
 - Open uppercase, mixed-case, and trailing-dot `localhost` development addresses over HTTP when their scheme is omitted.
 - Rate-limit repeated failed local MCP authentication attempts without throttling authenticated agents.
 - Encode dynamic page-script values defensively across credential filling, text waits, and reproduction exports.
+
+### Improved
+
+- Keep native interaction-lock rollback verification deterministic when page lifecycle synchronization is queued, preserving the strict no-flake release gate.
 
 ## [1.11.47] - 2026-09-04
 
