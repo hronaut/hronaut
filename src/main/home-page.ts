@@ -969,11 +969,21 @@ export function renderHomePage(options: HomePageOptions): string {
         if (!response.ok) throw new Error('Local status unavailable');
         const nextDashboard = await response.json();
         if (sequence !== dashboardRefreshSequence) return;
-        if (nextDashboard && nextDashboard.presentationRevision !== renderedPresentationRevision) {
+        if (
+          !nextDashboard || typeof nextDashboard !== 'object'
+          || typeof nextDashboard.version !== 'string'
+          || !Number.isFinite(nextDashboard.activeRequests)
+          || !Number.isFinite(nextDashboard.totalRequests)
+          || typeof nextDashboard.paused !== 'boolean'
+          || !Array.isArray(nextDashboard.clients) || !Array.isArray(nextDashboard.tools)
+          || (nextDashboard.recentActivity !== undefined && !Array.isArray(nextDashboard.recentActivity))
+          || (nextDashboard.toolMetrics !== undefined && !Array.isArray(nextDashboard.toolMetrics))
+        ) throw new Error('Invalid local status response');
+        if (nextDashboard.presentationRevision !== renderedPresentationRevision) {
           window.location.reload();
           return;
         }
-        if (nextDashboard) dashboard = nextDashboard;
+        dashboard = nextDashboard;
         renderDashboard();
       } catch {
         if (sequence !== dashboardRefreshSequence) return;

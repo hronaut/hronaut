@@ -1,6 +1,6 @@
 import { expect, test } from './fixtures.js'
 
-for (const failure of ['http', 'network', 'json'] as const) {
+for (const failure of ['http', 'network', 'json', 'null', 'invalid-object'] as const) {
   test(`shows unavailable Home status after a ${failure} failure and recovers on the next successful refresh`, async ({ electronApp }) => {
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().some(contents => contents.getURL().startsWith('hronaut://home'))
@@ -29,14 +29,19 @@ for (const failure of ['http', 'network', 'json'] as const) {
             return {
               ok: ${JSON.stringify(failureKind)} !== 'http',
               status: 503,
-              json: async () => { throw new Error('Invalid JSON'); }
+              json: async () => {
+                if (${JSON.stringify(failureKind)} === 'null') return null;
+                if (${JSON.stringify(failureKind)} === 'invalid-object') return { ...ready, clients: null };
+                throw new Error('Invalid JSON');
+              }
             };
           };
           await refreshDashboard();
           const unavailable = readStatus();
+          const retainedDashboard = dashboard === ready;
           window.fetch = async () => ({ ok: true, json: async () => ({ ...ready, activeRequests: 0, totalRequests: 4 }) });
           await refreshDashboard();
-          return { before, unavailable, recovered: readStatus() };
+          return { before, unavailable, retainedDashboard, recovered: readStatus() };
         } finally {
           window.fetch = originalFetch;
           dashboard = originalDashboard;
@@ -53,6 +58,7 @@ for (const failure of ['http', 'network', 'json'] as const) {
       ready: false,
       live: 'polite'
     })
+    expect(states.retainedDashboard).toBe(true)
     expect(states.recovered).toMatchObject({ ready: true, active: '0 active', detail: '4 MCP requests handled' })
   })
 }
