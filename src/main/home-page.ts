@@ -966,7 +966,8 @@ export function renderHomePage(options: HomePageOptions): string {
       const sequence = ++dashboardRefreshSequence;
       try {
         const response = await fetch('/api/status', { cache: 'no-store' });
-        const nextDashboard = response.ok ? await response.json() : null;
+        if (!response.ok) throw new Error('Local status unavailable');
+        const nextDashboard = await response.json();
         if (sequence !== dashboardRefreshSequence) return;
         if (nextDashboard && nextDashboard.presentationRevision !== renderedPresentationRevision) {
           window.location.reload();
@@ -976,6 +977,10 @@ export function renderHomePage(options: HomePageOptions): string {
         renderDashboard();
       } catch {
         if (sequence !== dashboardRefreshSequence) return;
+        const serverState = document.getElementById('server-state');
+        serverState.innerHTML = '<span class="dot error"></span> ' + escapeText(messages.status.unavailable);
+        serverState.title = '';
+        document.getElementById('active-count').textContent = messages.status.unavailable;
         document.getElementById('request-count').textContent = messages.status.reconnecting;
       }
     }

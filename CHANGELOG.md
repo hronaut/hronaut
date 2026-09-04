@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Show unavailable status on Home when local status requests fail, and restore the current MCP status automatically after a successful refresh.
+
 ## [1.11.50] - 2026-09-04
 
 ### Fixed
