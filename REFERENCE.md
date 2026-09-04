@@ -162,6 +162,10 @@ Hronaut supports the standard browser shortcuts from either its shell or the act
 
 Use the fixed tab-search button or press **Ctrl/Cmd+Shift+A** from Hronaut or any active website. Search matches titles and addresses across both open tabs and the bounded recently closed stack. Use Up/Down and Enter to switch to an open page or restore any matching closed page without leaving the keyboard; pin, unpin, and close open entries directly from the accessible floating panel. Recently closed entries retain only title, address, pin state, and close time for the current launch. Home remains application navigation and is intentionally excluded from website-tab results. This keeps active pages discoverable when the 50-tab strip overflows and makes recovery visible without requiring a shortcut.
 
+Choose **Full-page preview** on an awake tab to inspect its complete document without switching to it. From the search field, **Alt+Enter** previews the selected open result. **Fit page** shows the entire capture; **Fit width** enlarges it for scrolling. **Refresh preview** takes a new snapshot, **Open tab** returns to the live page, and **Escape** returns from the preview to the tab list. Navigation or closing the source tab discards its old preview. Sleeping tabs remain asleep until opened.
+
+Full-page previews preserve the live page's viewport and scroll position. They are bounded JPEG snapshots (at most 1,440 pixels wide, 12,000 pixels high, 12 megapixels, and 4 MiB), so very large pages are reduced in size. They capture currently rendered content; they do not scroll a site to trigger lazy loading. Close the tab's Developer Tools before requesting a preview.
+
 ## Compare two live pages in split view
 
 Use the split-view button beside the address bar to choose another open website, or right-click a tab and choose **Open in Split View**. Hronaut puts the second page on the right by default and keeps both websites live and interactive. Click either page or either marked tab to make it the active pane; the address bar and page tools follow that focus without closing the other page.

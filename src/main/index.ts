@@ -2227,6 +2227,12 @@ function registerIpc(): void {
     await tabsInitializationPromise
     return tabsManager!.getTabOverviewPreviews(tabIds)
   })
+  ipcMain.handle('browser:get-tab-overview-page-preview', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    const [tabId] = validateTabOverviewPreviewIds([value])
+    await tabsInitializationPromise
+    return tabsManager!.getTabOverviewPagePreview(tabId!)
+  })
   ipcMain.handle('browser:copy-text', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')

@@ -1,12 +1,16 @@
 .settings-overlay.tab-overview-overlay {
-  @apply items-start [padding:16px];
+  @apply items-start justify-center [padding:16px];
 }
 .tab-search-panel {
   @apply flex [width:calc(100vw_-_32px)] [height:calc(100vh_-_32px)] [max-height:none] overflow-hidden flex-col [border:1px_solid_var(--border)] [border-radius:14px] [outline:0] bg-surface-raised [box-shadow:0_28px_90px_rgba(0,_0,_0,_.54)] [user-select:text];
 }
+.tab-search-panel.tab-search-sparse { max-width: 1120px; }
+.tab-search-panel.tab-search-single { max-width: 960px; }
+.tab-search-panel.tab-search-detail { max-width: 1600px; }
 .tab-search-panel > header {
   @apply grid [min-height:68px] flex-none [grid-template-columns:minmax(0,_1fr)_auto_32px] items-center [gap:10px] [padding:13px_14px_12px_16px] [border-bottom:1px_solid_var(--border-soft)] bg-surface;
 }
+.tab-search-detail > header { grid-template-columns: minmax(0, 1fr) 32px; }
 .tab-search-panel h2 { @apply [margin:3px_0_0] [font-size:18px] [line-height:1.15]; }
 .tab-search-summary { @apply flex items-center [gap:7px]; }
 .tab-search-live { @apply flex items-center [gap:6px] [color:var(--success)] [font-size:12px] [font-weight:750] whitespace-nowrap; }
@@ -20,7 +24,7 @@
 .tab-search-field > svg { @apply [width:18px] [height:18px] flex-none; }
 .tab-search-field input { @apply min-w-0 w-full border-0 [outline:0] text-copy bg-transparent [font-size:14px]; }
 .tab-search-field > kbd { @apply flex-none text-muted [font:650_12px/1_"SFMono-Regular",_Consolas,_monospace] whitespace-nowrap; }
-.tab-search-list { @apply min-h-0 overflow-y-auto [padding:4px_14px_14px]; }
+.tab-search-list { @apply flex-1 min-h-0 overflow-y-auto [padding:4px_14px_14px]; }
 .tab-search-section > h3 { @apply flex [min-height:34px] items-center justify-between [gap:12px] m-0 [padding:8px_8px_5px] text-muted [font-size:12px] [font-weight:800] [letter-spacing:.05em] uppercase; }
 .tab-search-section > h3 span { @apply text-subtle [font-size:11px] [font-variant-numeric:tabular-nums]; }
 .tab-search-section + .tab-search-section { @apply [margin-top:6px] [padding-top:5px] [border-top:1px_solid_var(--border-soft)]; }
@@ -57,7 +61,7 @@
 .tab-search-pin svg,
 .tab-search-close svg,
 .tab-search-restore svg { @apply [width:17px] [height:17px]; }
-.tab-search-empty { @apply grid [min-height:200px] place-items-center [align-content:center] [padding:28px] text-muted text-center; }
+.tab-search-empty { @apply flex-1 grid [min-height:200px] place-items-center [align-content:center] [padding:28px] text-muted text-center; }
 .tab-search-empty.compact { @apply [min-height:155px]; }
 .tab-search-empty > svg { @apply [width:34px] [height:34px] text-accent-copy; }
 .tab-search-empty strong { @apply [margin-top:12px] text-copy [font-size:15px]; }
@@ -72,6 +76,8 @@
 .tab-overview-workspace {
   @apply [min-width:220px] [max-width:min(100%,_var(--tab-overview-max-width))] [flex:1_1_var(--tab-overview-basis)] [padding:4px_0_12px];
 }
+.tab-search-sparse .tab-overview-workspace { max-width: 100%; }
+.tab-search-single .tab-overview-workspace { max-width: 760px; margin-inline: auto; }
 .tab-overview-workspace > h3 {
   @apply flex [min-height:35px] items-center [gap:8px] m-0 [padding:7px_3px] text-copy [font-size:13px] [font-weight:800];
 }
@@ -87,7 +93,7 @@
 .tab-overview-card.active::after { @apply absolute [z-index:2] [right:0] [bottom:0] [left:0] [height:3px] bg-accent; content: ''; @apply pointer-events-none; }
 .tab-overview-open { @apply block min-w-0 w-full p-0 border-0 text-copy bg-transparent text-left cursor-pointer; }
 .tab-overview-preview { @apply relative grid [aspect-ratio:16_/_10] overflow-hidden place-items-center [border-bottom:1px_solid_var(--border-soft)] bg-surface-muted; }
-.tab-overview-preview > img { @apply w-full h-full object-cover [object-position:top_center]; }
+.tab-overview-preview > img { @apply w-full h-full object-contain [object-position:center]; }
 .tab-overview-placeholder { @apply grid w-full h-full place-items-center [align-content:center] [gap:8px] text-muted [background:linear-gradient(145deg,_var(--surface-muted),_var(--surface))]; }
 .tab-overview-placeholder > svg { @apply [width:28px] [height:28px] text-accent-copy [opacity:.72]; }
 .tab-overview-placeholder > img { @apply [width:28px] [height:28px] object-contain; }
@@ -126,6 +132,32 @@
   .tab-overview-grid { @apply [grid-template-columns:1fr]; }
   .tab-search-field > kbd,
   .tab-search-panel > footer span:nth-child(2) { @apply hidden; }
+}
+
+.tab-overview-preview-action { @apply flex [padding:0_12px_12px]; }
+.tab-overview-preview-action > button { @apply w-full; }
+.tab-page-preview { @apply flex flex-1 min-h-0 min-w-0 flex-col; }
+.tab-page-preview-toolbar { @apply flex flex-none items-center [gap:12px] [padding:12px_16px]; }
+.tab-page-preview-heading { @apply flex flex-1 min-w-0 flex-col [gap:4px]; }
+.tab-page-preview-heading strong,
+.tab-page-preview-heading span { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+.tab-page-preview-heading span { @apply text-muted [font-size:12px]; }
+.tab-page-preview-options { @apply flex flex-none items-center flex-wrap [gap:10px] [padding:0_16px_12px]; }
+.tab-page-preview-options > span { @apply flex-1 text-muted [font-size:12px]; }
+.tab-page-preview-canvas { @apply flex-1 min-h-0 overflow-auto [padding:16px] [background:var(--surface-muted)] [border-top:1px_solid_var(--border-soft)]; }
+.tab-page-preview-canvas.fit-page { @apply flex items-center justify-center; }
+.tab-page-preview-canvas.fit-page > img { @apply block w-full h-full object-contain; }
+.tab-page-preview-canvas.fit-width > img { @apply block w-full h-auto [margin-inline:auto]; }
+.tab-page-preview-state { @apply flex flex-1 min-h-0 overflow-auto flex-col items-center justify-center [gap:14px] [padding:24px] text-center; }
+.tab-page-preview-state > span:not(.spinner) { @apply text-muted [max-width:440px] [font-size:13px]; }
+@media (max-width: 600px) {
+  .tab-page-preview-toolbar { @apply flex-wrap [gap:8px] [padding:10px]; }
+  .tab-page-preview-heading { @apply [order:-1] [flex-basis:100%]; }
+  .tab-page-preview-toolbar > button:last-child { @apply [margin-left:auto]; }
+  .tab-page-preview-options { @apply [padding:0_10px_10px]; }
+  .tab-page-preview-options > span { @apply hidden; }
+  .tab-page-preview-options > button { @apply [margin-left:auto]; }
+  .tab-page-preview-canvas { @apply [padding:8px]; }
 }
 
 .downloads-panel {

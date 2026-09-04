@@ -2227,6 +2227,7 @@ export interface BrowserStorageChangesReport {
 export interface HronautApi {
   getState(): Promise<BrowserState>
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
+  getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
   copyText(text: string): Promise<void>
   openHome(): Promise<BrowserState>
   newTab(options?: NewTabOptions): Promise<BrowserState>

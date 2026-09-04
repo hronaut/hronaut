@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount, ref, toRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, toRef, watch } from 'vue'
+import UiSegmentedControl from '../ui/UiSegmentedControl.vue'
+import { useTabPagePreview } from '../composables/useTabPagePreview.js'
 import { useI18n } from 'vue-i18n'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconBedtime from '~icons/material-symbols/bedtime-outline-rounded'
@@ -88,6 +90,69 @@ const {
   showError: props.showError
 })
 
+const pagePreview = useTabPagePreview({
+  open,
+  tabs: computed(() => props.state.tabs),
+  capture: (tabId) => window.hronaut.getTabOverviewPagePreview(tabId)
+})
+const { tabId: previewTabId, tab: previewTab, preview: fullPreview, status: pagePreviewStatus, error: pagePreviewError, fit: previewFit } = pagePreview
+const previewBack = ref<{ focus: () => void } | null>(null)
+const sparseCount = computed(() => regularTabs.value.length + props.state.closedTabs.length + props.state.savedTabGroups.length)
+const fitOptions = computed(() => [
+  { value: 'page', label: t('tabSearch.fitPage') },
+  { value: 'width', label: t('tabSearch.fitWidth') }
+])
+let previewReturnId: string | null = null
+
+async function showPagePreview(tab: BrowserTabState): Promise<void> {
+  if (actionPending.value || tab.sleeping || tab.loading) return
+  previewReturnId = `tab-page-preview-${tab.id}`
+  void pagePreview.show(tab)
+  await nextTick()
+  if (previewTabId.value === tab.id) previewBack.value?.focus()
+}
+
+async function backToTabs(): Promise<void> {
+  pagePreview.back()
+  await nextTick()
+  if (!open.value) return
+  const target = previewReturnId ? document.getElementById(previewReturnId) : null
+  if (target instanceof HTMLButtonElement && !target.disabled) target.focus()
+  else input.value?.focus()
+}
+
+function handlePanelKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.key === 'Escape' && previewTabId.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    void backToTabs()
+  }
+}
+
+function handleSearchKeydown(event: KeyboardEvent): void {
+  if (event.isComposing || event.keyCode === 229) return
+  if (event.altKey && event.key === 'Enter' && selectedResult.value?.kind === 'open') {
+    event.preventDefault()
+    void showPagePreview(selectedResult.value.tab)
+    return
+  }
+  handleKeydown(event)
+}
+
+// Capture focus before Vue replaces the image/recovery subtree. Keep persistent
+// toolbar focus intact and never restore into a closed or superseded preview.
+watch([fullPreview, pagePreviewStatus], async () => {
+  const selectedTabId = previewTabId.value
+  const previousFocus = document.activeElement
+  if (!selectedTabId || !(previousFocus instanceof HTMLElement)
+    || !previousFocus.closest('.tab-page-preview-canvas, .tab-page-preview-state')) return
+  await nextTick()
+  if (!open.value || previewTabId.value !== selectedTabId || previousFocus.isConnected
+    || document.activeElement !== document.body || !document.hasFocus()) return
+  previewBack.value?.focus()
+})
+
 useModalDialogFocus({ open, panel, focusTarget: input })
 
 let lastPointerPosition: { x: number; y: number } | null = null
@@ -128,23 +193,48 @@ function tabDisplayUrl(tab: BrowserTabState): string {
 }
 
 defineExpose({ openPanel, close })
-onBeforeUnmount(dispose)
+onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
 </script>
 
 <template>
   <div v-if="open" class="settings-overlay tab-overview-overlay" @click.self="close">
-    <section ref="panel" class="tab-search-panel" role="dialog" aria-modal="true" aria-labelledby="tab-search-title" tabindex="-1">
+    <section ref="panel" class="tab-search-panel" :class="{ 'tab-search-sparse': sparseCount <= 2, 'tab-search-single': sparseCount <= 1, 'tab-search-detail': previewTabId }" @keydown="handlePanelKeydown" role="dialog" aria-modal="true" aria-labelledby="tab-search-title" tabindex="-1">
       <header>
         <div>
           <span class="eyebrow">{{ t('tabSearch.kicker') }}</span>
           <h2 id="tab-search-title">{{ t('tabSearch.heading') }}</h2>
         </div>
-        <div class="tab-search-summary">
+        <div v-if="!previewTabId" class="tab-search-summary">
           <span class="tab-search-live" :class="{ paused: previewRefreshPaused }" :data-preview-count="Object.keys(previewsByTab).length"><span aria-hidden="true" />{{ previewRefreshPaused ? t('tabSearch.previewsPaused') : t('tabSearch.livePreviews') }}</span>
           <span class="tab-search-count">{{ t('tabSearch.countOpen', { count: formatNumber(regularTabs.length) }) }}{{ state.savedTabGroups.length ? ` ${t('tabSearch.countSaved', { count: formatNumber(state.savedTabGroups.length) })}` : '' }}{{ state.closedTabs.length ? ` ${t('tabSearch.countClosed', { count: formatNumber(state.closedTabs.length) })}` : '' }}</span>
         </div>
         <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('tabSearch.close')" @click="close"><IconClose aria-hidden="true" /></UiButton>
       </header>
+      <section v-if="previewTabId" class="tab-page-preview" role="region" :aria-label="t('tabSearch.pagePreview')">
+        <div class="tab-page-preview-toolbar">
+          <UiButton ref="previewBack" @click="backToTabs">{{ t('tabSearch.backToTabs') }}</UiButton>
+          <div class="tab-page-preview-heading">
+            <strong>{{ previewTab?.title || t('tabSearch.newTabTitle') }}</strong>
+            <span>{{ previewTab ? tabDisplayUrl(previewTab) : t('tabSearch.previewClosed') }}</span>
+          </div>
+          <UiButton variant="primary" :disabled="!previewTab || actionPending" @click="previewTab && selectOpenTab(previewTab)">{{ t('tabSearch.openTab') }}</UiButton>
+        </div>
+        <div class="tab-page-preview-options">
+          <UiSegmentedControl v-model="previewFit" :options="fitOptions" :label="t('tabSearch.previewScale')" />
+          <span>{{ t('tabSearch.previewSnapshot') }}</span>
+          <UiButton :disabled="pagePreviewStatus === 'loading' || !previewTab || previewTab.loading || previewTab.sleeping" @click="pagePreview.refresh">{{ t('tabSearch.refreshPreview') }}</UiButton>
+        </div>
+        <div v-if="fullPreview" class="tab-page-preview-canvas" :class="`fit-${previewFit}`" tabindex="0" :aria-label="t('tabSearch.pagePreview')">
+          <img :src="fullPreview.dataUrl" :width="fullPreview.width" :height="fullPreview.height" :alt="t('tabSearch.fullPreviewAlt', { title: previewTab?.title || t('tabSearch.newTabTitle') })" draggable="false" />
+        </div>
+        <div v-else class="tab-page-preview-state" :role="pagePreviewStatus === 'loading' ? 'status' : 'alert'" :aria-busy="pagePreviewStatus === 'loading'">
+          <span v-if="pagePreviewStatus === 'loading'" class="spinner" aria-hidden="true" />
+          <strong>{{ t(pagePreviewStatus === 'loading' ? 'tabSearch.previewCapturing' : pagePreviewStatus === 'closed' ? 'tabSearch.previewClosed' : pagePreviewStatus === 'changed' ? 'tabSearch.previewChanged' : 'tabSearch.previewFailed') }}</strong>
+          <span v-if="pagePreviewStatus !== 'loading' && previewTab">{{ pagePreviewStatus === 'error' ? formatError(pagePreviewError, t('tabSearch.previewRecovery')) : t('tabSearch.previewRecovery') }}</span>
+          <UiButton v-if="pagePreviewStatus !== 'loading' && previewTab" :disabled="previewTab.loading || previewTab.sleeping" @click="pagePreview.refresh">{{ t('tabSearch.retryPreview') }}</UiButton>
+        </div>
+      </section>
+      <template v-else>
       <div v-if="regularTabs.length || state.closedTabs.length || state.savedTabGroups.length" class="tab-search-field">
         <IconSearch aria-hidden="true" />
         <input
@@ -161,7 +251,7 @@ onBeforeUnmount(dispose)
           autocomplete="off"
           spellcheck="false"
           :placeholder="t('tabSearch.placeholder')"
-          @keydown="handleKeydown"
+          @keydown="handleSearchKeydown"
         />
         <kbd>⌃/⌘ ⇧ A</kbd>
       </div>
@@ -230,6 +320,9 @@ onBeforeUnmount(dispose)
                     <small v-if="tabMeta(tab)">{{ tabMeta(tab) }}</small>
                   </span>
                 </UiButton>
+                <div class="tab-overview-preview-action">
+                  <UiButton :id="`tab-page-preview-${tab.id}`" :aria-label="t('tabSearch.previewAria', { title: tab.title || t('tabSearch.newTabTitle') })" :disabled="actionPending || tab.sleeping || tab.loading" :title="tab.sleeping ? t('tabSearch.previewSleeping') : undefined" @click="showPagePreview(tab)">{{ t('tabSearch.fullPagePreview') }}</UiButton>
+                </div>
                 <span class="tab-overview-card-actions">
                   <UiButton appearance="application"
                     class="tab-search-pin"
@@ -295,7 +388,8 @@ onBeforeUnmount(dispose)
           </div>
         </section>
       </div>
-      <footer v-if="results.length"><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('tabSearch.navigate') }}</span><span><kbd>Enter</kbd> {{ t('tabSearch.open') }}</span><span><kbd>Esc</kbd> {{ t('tabSearch.close') }}</span></footer>
+      </template>
+      <footer v-if="!previewTabId"><span><kbd>↑</kbd><kbd>↓</kbd> {{ t('tabSearch.navigate') }}</span><span><kbd>Enter</kbd> {{ t('tabSearch.open') }}</span><span><kbd>Esc</kbd> {{ t('tabSearch.close') }}</span></footer>
     </section>
   </div>
 </template>

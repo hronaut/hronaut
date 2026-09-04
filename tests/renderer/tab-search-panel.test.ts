@@ -49,6 +49,7 @@ describe('TabSearchPanel', () => {
       setTabPinned: vi.fn(async () => browserState),
       restoreSavedTabGroup: vi.fn(async () => browserState),
       deleteSavedTabGroup: vi.fn(async () => browserState),
+      getTabOverviewPagePreview: vi.fn(async (tabId: string) => ({ tabId, navigationGeneration: 1, dataUrl: 'data:image/jpeg;base64,YWJj', width: 1000, height: 4000 })),
       getTabOverviewPreviews: vi.fn(async () => [{
         tabId: 'beta',
         navigationGeneration: 1,
@@ -86,8 +87,27 @@ describe('TabSearchPanel', () => {
       expect(screen.getByRole('list', { name: /Other tabs/ })).toBeVisible()
       expect(document.querySelector('.tab-overview-current')).toHaveTextContent('Current tab')
       await vi.waitFor(() => expect(document.querySelector('.tab-overview-preview > img')).toHaveAttribute('src', 'data:image/jpeg;base64,cHJldmlldw=='))
-      await userEvent.setup().type(search, 'alpha')
-      expect(search).toHaveAttribute('aria-activedescendant', 'tab-search-open-alpha')
+      expect(browser.getTabOverviewPagePreview).not.toHaveBeenCalled()
+      const previewAction = screen.getByRole('button', { name: 'Preview Tab beta' })
+      await userEvent.setup().click(previewAction)
+      expect(selectTab).not.toHaveBeenCalled()
+      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Back to tabs' })).toHaveFocus())
+      expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
+      expect(screen.getByRole('img', { name: 'Full-page preview of Tab beta' })).toBeVisible()
+      expect(screen.getByRole('radio', { name: 'Fit page' })).toHaveAttribute('aria-checked', 'true')
+      await userEvent.setup().click(screen.getByRole('radio', { name: 'Fit width' }))
+      expect(document.querySelector('.tab-page-preview-canvas')).toHaveClass('fit-width')
+      await userEvent.setup().keyboard('{Escape}')
+      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Preview Tab beta' })).toHaveFocus())
+      expect(view.emitted()['update:open']).toBeUndefined()
+      const restoredSearch = screen.getByRole('searchbox', { name: 'Search tabs' })
+      await userEvent.setup().click(restoredSearch)
+      await userEvent.setup().keyboard('{Alt>}{Enter}{/Alt}')
+      expect(browser.getTabOverviewPagePreview).toHaveBeenCalledTimes(2)
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Back to tabs' }))
+      const activeSearch = screen.getByRole('searchbox', { name: 'Search tabs' })
+      await userEvent.setup().type(activeSearch, 'alpha')
+      expect(activeSearch).toHaveAttribute('aria-activedescendant', 'tab-search-open-alpha')
       expect(screen.getByText('Tab alpha').closest('.tab-overview-card')).toHaveClass('selected')
       await userEvent.setup().keyboard('{Enter}')
       await vi.waitFor(() => expect(selectTab).toHaveBeenCalledWith('alpha'))
@@ -143,6 +163,52 @@ describe('TabSearchPanel', () => {
     } finally {
       view.unmount()
       if (previousHronaut) Object.defineProperty(window, 'hronaut', previousHronaut)
+      else Reflect.deleteProperty(window, 'hronaut')
+    }
+  })
+
+  it('keeps keyboard focus inside preview recovery after navigation removes the canvas', async () => {
+    const browserState = state()
+    const browser = {
+      closeTab: vi.fn(async () => browserState), reopenClosedTab: vi.fn(async () => browserState),
+      setTabPinned: vi.fn(async () => browserState), restoreSavedTabGroup: vi.fn(async () => browserState),
+      deleteSavedTabGroup: vi.fn(async () => browserState), getTabOverviewPreviews: vi.fn(async () => []),
+      getTabOverviewPagePreview: vi.fn(async (tabId: string) => ({ tabId, navigationGeneration: 1,
+        dataUrl: 'data:image/jpeg;base64,YWJj', width: 1000, height: 4000 }))
+    }
+    const previous = Object.getOwnPropertyDescriptor(window, 'hronaut')
+    Object.defineProperty(window, 'hronaut', { configurable: true, value: browser })
+    const view = render(TabSearchPanel, {
+      global: { plugins: [createHronautI18n('en-US')] },
+      props: { open: true, state: browserState, mcpActivityByTab: {},
+        syncState: vi.fn(async () => undefined), selectTab: vi.fn(async () => undefined), expandTabGroup: vi.fn(),
+        describeEmulation: () => '', formatNumber: String, formatTime: String,
+        formatError: (_cause: unknown, fallback: string) => fallback, showError: vi.fn() }
+    })
+    try {
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: 'Preview Tab beta' }))
+      const canvas = document.querySelector<HTMLElement>('.tab-page-preview-canvas')!
+      canvas.focus()
+      expect(canvas).toHaveFocus()
+      await view.rerender({ state: { ...browserState, tabs: browserState.tabs.map((tab) => ({ ...tab, navigationGeneration: 2 })) } })
+      expect(screen.getByRole('alert')).toHaveTextContent('The page changed')
+      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Back to tabs' })).toHaveFocus())
+      browser.getTabOverviewPagePreview.mockResolvedValueOnce({ tabId: 'beta', navigationGeneration: 2,
+        dataUrl: 'data:image/jpeg;base64,YWJj', width: 1000, height: 4000 })
+      await user.click(screen.getByRole('button', { name: 'Retry preview' }))
+      expect(screen.getByRole('img', { name: 'Full-page preview of Tab beta' })).toBeVisible()
+      await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Back to tabs' })).toHaveFocus())
+      const persistentControl = screen.getByRole('radio', { name: 'Fit width' })
+      await user.click(persistentControl)
+      await view.rerender({ state: { ...browserState, tabs: browserState.tabs.map((tab) => ({ ...tab, navigationGeneration: 3 })) } })
+      expect(persistentControl).toHaveFocus()
+      await user.keyboard('{Escape}')
+      expect(screen.getByRole('searchbox', { name: 'Search tabs' })).toBeVisible()
+      expect(view.emitted()['update:open']).toBeUndefined()
+    } finally {
+      view.unmount()
+      if (previous) Object.defineProperty(window, 'hronaut', previous)
       else Reflect.deleteProperty(window, 'hronaut')
     }
   })

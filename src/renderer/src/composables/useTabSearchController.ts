@@ -400,7 +400,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     }
     if (event.key === 'Enter' && selectedResult.value) {
       event.preventDefault()
-      void runSelectedResult()
+      if (!actionPending.value) void runSelectedResult()
     }
   }
 

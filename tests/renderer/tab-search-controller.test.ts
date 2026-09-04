@@ -101,6 +101,26 @@ function createController(initialState = browserState()) {
 }
 
 describe('tab search controller', () => {
+  it('does not activate a result with Enter while an overview action is pending', async () => {
+    const { controller, browser, selectTab, state } = createController()
+    const pending = deferred<BrowserState>()
+    browser.setTabPinned.mockReturnValueOnce(pending.promise)
+    try {
+      await controller.openPanel()
+      const pin = controller.togglePinnedTab(new MouseEvent('click'), state.value.tabs[0])
+      expect(controller.actionPending.value).toBe(true)
+      controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+      expect(selectTab).not.toHaveBeenCalled()
+      pending.resolve(state.value)
+      await pin
+      controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+      expect(selectTab).toHaveBeenCalledWith('beta')
+    } finally {
+      pending.resolve(state.value)
+      controller.dispose()
+    }
+  })
+
   it('contains a rejected tab selection and reports it through the shell', async () => {
     const { open, selectTab, showError, controller } = createController()
     await controller.openPanel()

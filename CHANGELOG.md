@@ -4,14 +4,24 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.51] - 2026-09-05
+
 ### Fixed
 
+- Preserve the complete viewport in tab thumbnails and keep overview navigation controls at the bottom of the window.
+- Keep keyboard tab activation disabled while another overview action is pending.
+- Keep selected segmented controls readable when hovered.
+- Preserve keyboard focus when navigation replaces a full-page preview or retry message.
+- Include every page edge in bounded full-page screenshots at non-default zoom.
+- Capture awake background tabs without selecting them, handle very long pages at the preview size limit, and discard captures made stale by a viewport change.
 - Show unavailable status on Home when local status requests fail, and restore the current MCP status automatically after a successful refresh.
 - Restore the standard button size and styling for clearing an empty Page tools search.
 - Show visible, accessible retry feedback when Home cannot open an agent guide, troubleshooting, or setup feedback.
 
 ### Improved
 
+- Inspect a tab's full page from the overview with Fit page, Fit width, refresh, and an explicit Open tab action, while preserving the live tab's viewport, scroll, and selection.
+- Give small tab collections larger, centered previews and keep larger collections searchable in a stable layout.
 - Guide Home setup through connecting an agent, verifying observed activity, and trying a first task, with searchable client guides, remembered guide selection, and collapsible setup and tool reference sections.
 
 ## [1.11.50] - 2026-09-04

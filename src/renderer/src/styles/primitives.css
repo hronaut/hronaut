@@ -121,6 +121,7 @@
 .ui-segmented { @apply inline-flex gap-0.5 rounded-[9px] border border-border-soft bg-surface-muted p-[3px]; }
 .ui-segmented__option { @apply min-h-[30px] border-0; }
 .ui-segmented__option--selected { @apply bg-accent text-button-copy; }
+.ui-segmented__option--selected:hover:not(:disabled) { @apply bg-accent; }
 
 .ui-tooltip { @apply relative inline-flex; }
 .ui-tooltip__trigger { @apply inline-flex; }

@@ -10,6 +10,7 @@ import {
   BrowserWindow,
   Menu,
   nativeImage,
+  screen,
   session,
   shell,
   webContents as electronWebContents,
@@ -147,7 +148,7 @@ import {
   storageManagerUsageBreakdown
 } from '../../shared/storage-usage.js'
 import { networkRoutePatternMatches, validateNetworkRoutePattern } from '../../shared/network-routes.js'
-import { boundedScreenshotSize } from '../../shared/screenshot.js'
+import { boundedScreenshotSize, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { compareBgraBitmaps, normalizeVisualCompareThreshold } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
 import {
@@ -355,6 +356,12 @@ const TAB_OVERVIEW_PREVIEW_JPEG_QUALITY = 65
 const TAB_OVERVIEW_PREVIEW_SETTLE_MS = 250
 const TAB_OVERVIEW_LIVE_CAPTURE_BATCH = 4
 const TAB_OVERVIEW_CAPTURE_TIMEOUT_MS = 2_000
+const MAX_TAB_OVERVIEW_PAGE_WIDTH = 1_440
+const MAX_TAB_OVERVIEW_PAGE_HEIGHT = 12_000
+const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
+const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
+const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
+const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
 const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
 const MAX_NETWORK_ROUTE_HEADERS = 50
 const MAX_NETWORK_ROUTE_HEADER_BYTES = 32 * 1024
@@ -1002,6 +1009,7 @@ export class BrowserTabsManager {
   private readonly recoveringRenderers = new Set<number>()
   private readonly renderQueues = new Map<number, Promise<void>>()
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
+  private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   private readonly tabOverviewPreviewCaptures = new Map<string, Promise<void>>()
   private readonly tabOverviewPendingCaptures = new Map<string, TabOverviewPreviewCaptureRequest>()
@@ -1196,6 +1204,127 @@ export class BrowserTabsManager {
       previews.push({ ...preview })
     }
     return previews
+  }
+
+  private screenshotPixelRatio(tab: BrowserTab): number {
+    const ratio = Math.max(1, screen.getDisplayMatching(this.window.getBounds()).scaleFactor, tab.emulation.viewport?.deviceScaleFactor ?? 1)
+    if (!Number.isFinite(ratio) || ratio > 32) throw new Error('This page uses an unsupported screenshot scale.')
+    return ratio
+  }
+
+  async getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview> {
+    const tab = this.getTab(tabId)
+    const webContents = tab.webContents
+    const navigationGeneration = tab.navigationGeneration
+    let expired = false
+    let viewportIdentity: string | undefined = undefined
+    const currentViewportIdentity = (): string => {
+      const { width, height } = tab.view.getBounds()
+      return JSON.stringify([width, height, webContents.getZoomFactor(), this.screenshotPixelRatio(tab), tab.emulation.viewport])
+    }
+    const assertCurrent = (): void => {
+      if (expired) throw new Error('Full-page preview timed out. Try again when the page is ready.')
+      if (this.destroyed || this.window.isDestroyed() || this.tabs.get(tabId) !== tab || webContents.isDestroyed()) {
+        throw new Error('The tab closed before its full-page preview was ready.')
+      }
+      if (tab.sleeping || tab.wakePromise) throw new Error('Wake this tab before requesting a full-page preview.')
+      if (tab.navigationGeneration !== navigationGeneration) throw new Error('The page changed while preparing its preview. Try again.')
+      if (tab.loading || webContents.isLoadingMainFrame()) throw new Error('Wait for the page to finish loading, then try its preview again.')
+      if (viewportIdentity !== undefined && currentViewportIdentity() !== viewportIdentity) {
+        throw new Error('The page viewport changed while preparing its preview. Try again.')
+      }
+      if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
+        throw new Error('Close Developer Tools for this tab before requesting a full-page preview.')
+      }
+    }
+    assertCurrent()
+    const existing = this.tabOverviewPageCaptures.get(tabId)
+    if (existing) return existing
+    if (this.tabOverviewPageCaptures.size >= MAX_TAB_OVERVIEW_PAGE_CAPTURES) {
+      throw new Error('Other full-page previews are still finishing. Try again shortly.')
+    }
+
+    viewportIdentity = currentViewportIdentity()
+
+    // Warm views can capture directly. A never-presented view needs the existing
+    // offscreen host; neither path selects, scrolls, focuses, or wakes its tab.
+    const runCapture = () => this.withDebugger(webContents, async () => {
+      assertCurrent()
+      const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
+        cssContentSize?: { x: number; y: number; width: number; height: number }
+        cssVisualViewport?: { zoom?: number }
+      }
+      assertCurrent()
+      const size = metrics.cssContentSize
+      if (!size || ![size.x, size.y, size.width, size.height].every(Number.isFinite)
+        || size.width <= 0 || size.height <= 0 || size.width > 1_000_000 || size.height > 1_000_000) {
+        throw new Error('This page does not provide a supported full-page preview size.')
+      }
+      // Page JavaScript can replace devicePixelRatio. Only trusted native and
+      // Hronaut emulation values may influence capture allocation limits.
+      const pixelRatio = this.screenshotPixelRatio(tab)
+      // Page.Viewport takes DIP, while cssContentSize is CSS pixels. Native
+      // page zoom changes that ratio; scaling only the output crops the page.
+      const clip = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
+      const pixelWidth = clip.width * pixelRatio
+      const pixelHeight = clip.height * pixelRatio
+      const bounded = boundedScreenshotSize(pixelWidth, pixelHeight, MAX_TAB_OVERVIEW_PAGE_WIDTH, MAX_TAB_OVERVIEW_PAGE_HEIGHT)
+      let scale = Math.min(bounded.scale, Math.sqrt(MAX_TAB_OVERVIEW_PAGE_PIXELS / (pixelWidth * pixelHeight)))
+      if (scale < 1) {
+        // Chromium can round fractional raster dimensions up. Leave one pixel
+        // of headroom per axis before allocating a capture near the limit.
+        scale = Math.min(scale, Math.max(1, Math.floor(pixelWidth * scale) - 1) / pixelWidth, Math.max(1, Math.floor(pixelHeight * scale) - 1) / pixelHeight)
+      }
+      const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
+        format: 'jpeg', quality: 80,
+        clip: { ...clip, scale },
+        captureBeyondViewport: true,
+        fromSurface: true
+      }) as { data?: unknown }
+      assertCurrent()
+      if (typeof result.data !== 'string' || result.data.length > Math.ceil(MAX_TAB_OVERVIEW_PAGE_BYTES / 3) * 4) {
+        throw new Error('This full-page preview exceeds the image size limit.')
+      }
+      const jpeg = Buffer.from(result.data, 'base64')
+      if (!jpeg.length || jpeg.length > MAX_TAB_OVERVIEW_PAGE_BYTES) throw new Error('The full-page preview could not be captured within the image size limit.')
+      const image = nativeImage.createFromBuffer(jpeg)
+      const actual = image.getSize()
+      if (image.isEmpty() || actual.width <= 0 || actual.height <= 0
+        || actual.width > MAX_TAB_OVERVIEW_PAGE_WIDTH || actual.height > MAX_TAB_OVERVIEW_PAGE_HEIGHT
+        || actual.width * actual.height > MAX_TAB_OVERVIEW_PAGE_PIXELS) {
+        throw new Error('The full-page preview could not be captured within the image dimensions limit.')
+      }
+      assertCurrent()
+      return { tabId, navigationGeneration, dataUrl: `data:image/jpeg;base64,${jpeg.toString('base64')}`, ...actual }
+    })
+    let timer: NodeJS.Timeout | undefined
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        expired = true
+        reject(new Error('Full-page preview timed out. Try again when the page is ready.'))
+      }, TAB_OVERVIEW_PAGE_TIMEOUT_MS)
+      timer.unref()
+    })
+    let nativeCapture: Promise<BrowserTabOverviewPreview> | undefined
+    const captureOperation = (): Promise<BrowserTabOverviewPreview> => {
+      assertCurrent()
+      nativeCapture = runCapture()
+      return Promise.race([nativeCapture, deadline])
+    }
+    const capture = this.tabOverviewPreviewableTabs.has(tabId)
+      ? captureOperation()
+      : this.withRenderableTab(tab, captureOperation, false)
+    const request = Promise.race([capture, deadline])
+    this.tabOverviewPageCaptures.set(tabId, request)
+    // The deadline releases an offscreen host promptly, but cannot cancel CDP.
+    // Keep the slot until native work settles so retries do not accumulate or
+    // detach a debugger owned by another operation.
+    void capture.finally(async () => {
+      if (timer) clearTimeout(timer)
+      await nativeCapture?.catch(() => undefined)
+      if (this.tabOverviewPageCaptures.get(tabId) === request) this.tabOverviewPageCaptures.delete(tabId)
+    }).catch(() => undefined)
+    return request
   }
 
   listMcpTabGroups(): BrowserTabGroupState[] {
@@ -6198,14 +6327,11 @@ export class BrowserTabsManager {
         await this.withDebugger(webContents, async () => {
           let clip: { x: number; y: number; width: number; height: number; scale: number } | undefined
           if (options.maxWidth !== undefined || options.maxHeight !== undefined) {
-            const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as {
-              cssContentSize?: { width: number; height: number }
-              contentSize?: { width: number; height: number }
-            }
-            const contentSize = metrics.cssContentSize ?? metrics.contentSize
-            if (!contentSize) throw new Error('Could not determine the full-page screenshot size')
-            const bounded = boundedScreenshotSize(contentSize.width, contentSize.height, options.maxWidth, options.maxHeight)
-            clip = { x: 0, y: 0, width: contentSize.width, height: contentSize.height, scale: bounded.scale }
+            const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
+            const bounds = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
+            const pixelRatio = this.screenshotPixelRatio(tab)
+            const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
+            clip = { ...bounds, scale: bounded.scale }
           }
           const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
             format,
@@ -6510,6 +6636,16 @@ export class BrowserTabsManager {
     this.mcpActivityFollower.setOccluded(this.browserContentOccluded || suspended)
   }
 
+  private browserViewBounds(): Rectangle {
+    const bounds = this.window.getContentBounds()
+    return {
+      x: this.contentInsets.left,
+      y: this.toolbarHeight + this.contentInsets.top,
+      width: Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right),
+      height: Math.max(1, bounds.height - this.toolbarHeight - this.contentInsets.top - this.contentInsets.bottom)
+    }
+  }
+
   layout(): void {
     if (this.destroyed || this.window.isDestroyed() || !this.activeTabId) return
     const tab = this.tabs.get(this.activeTabId)
@@ -6519,17 +6655,7 @@ export class BrowserTabsManager {
     // WebContentsView. Hiding the page is more reliable than collapsing it to
     // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
     const browserContentVisible = !this.browserContentOccluded && this.toolbarHeight < bounds.height - 1
-    const availableWidth = Math.max(1, bounds.width - this.contentInsets.left - this.contentInsets.right)
-    const availableHeight = Math.max(
-      1,
-      bounds.height - this.toolbarHeight - this.contentInsets.top - this.contentInsets.bottom
-    )
-    const viewBounds: Rectangle = {
-      x: this.contentInsets.left,
-      y: this.toolbarHeight + this.contentInsets.top,
-      width: availableWidth,
-      height: availableHeight
-    }
+    const viewBounds = this.browserViewBounds()
     if (this.splitView) {
       const firstTab = this.tabs.get(this.splitView.firstTabId)
       const secondTab = this.tabs.get(this.splitView.secondTabId)
@@ -6705,6 +6831,9 @@ export class BrowserTabsManager {
       }
     })
     view.setBackgroundColor('#ffffff')
+    // Background tabs need a real initial layout even before their first selection.
+    // A zero-sized viewport cannot paint a meaningful explicit page preview.
+    view.setBounds(this.browserViewBounds())
     const tab: BrowserTab = {
       id,
       title: normalizeTabTitle(
@@ -8884,10 +9013,14 @@ export class BrowserTabsManager {
           // that stale child to the shell after the offscreen operation ends.
           if (tabIsLive()) {
             try {
-              tab.view.setBounds(originalBounds)
-              if (wasAttached) {
+              // Selection may change while an offscreen capture is pending.
+              // Restore the current visible layout rather than stale ownership
+              // or bounds from when the capture began.
+              if (tab.id === this.activeTabId || this.splitViewContains(tab.id)) {
                 this.window.contentView.addChildView(tab.view)
                 this.layout()
+              } else {
+                tab.view.setBounds(originalBounds)
               }
             } catch (error) {
               cleanupError ??= error
