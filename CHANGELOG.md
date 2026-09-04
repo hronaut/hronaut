@@ -4,14 +4,20 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.52] - 2026-09-05
+
 ### Fixed
 
 - Preserve the full selected element or rectangle in screenshots at non-default page zoom, and honor image size limits on high-DPI displays and emulated viewports.
 - Detect version bumps across the complete Git push so a later commit in the same push cannot silently skip the release.
+- Keep Settings actions visible in short windows at larger interface sizes, and give narrow forms enough room for their explanations and controls.
 
 ### Improved
 
 - Sharpen the enlarged single-tab overview preview while keeping normal thumbnails compact and retaining the existing image-size limit for visually complex pages.
+- Group tabs inside their workspace with a New tab action after the last tab, persistent workspace names during horizontal scrolling, and clear selection in horizontal and vertical layouts.
+- Bring Home setup into view sooner with compact live status and endpoint controls, clearer client instructions, and secondary connection verification and first-task sections.
+- Simplify Settings and Page Tools with quieter navigation, readable rows, and clearer actions.
 
 ## [1.11.51] - 2026-09-05
 

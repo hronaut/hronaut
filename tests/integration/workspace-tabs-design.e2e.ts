@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../src/shared/tab-position.js'
-import type { BrowserState } from '../../src/shared/types.js'
+import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
 async function state(page: Page): Promise<BrowserState> {
@@ -142,3 +142,31 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
     }
   })
 }
+
+test('backward Tab reveals a previous workspace trailing creation button beyond its sticky name', async ({ appWindow, electronApp }) => {
+  await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 620))
+  await appWindow.evaluate("window.hronautSettings.setTabPosition('top')")
+  const previous = await appWindow.evaluate(async () => {
+    const bridge = (window as unknown as { hronaut: HronautApi }).hronaut
+    const created = await bridge.createWorkspace({ name: 'Previous workspace', color: 'purple', storage: 'scratch' })
+    const id = created.mcpTabGroups.find(group => group.name === 'Previous workspace')!.id
+    for (let index = 0; index < 7; index += 1) await bridge.newTab({ mcpGroupId: id, url: 'about:blank', active: true })
+    await bridge.createWorkspace({ name: 'Next workspace', color: 'cyan', storage: 'scratch' })
+    return id
+  })
+  const next = appWindow.locator('.tab-group-label', { hasText: 'Next workspace' })
+  const plus = appWindow.getByRole('button', { name: 'New tab in Previous workspace workspace', exact: true })
+  await next.focus()
+  await next.press('Shift+Tab')
+  await expect(plus).toBeFocused()
+  await expect.poll(() => plus.evaluate(element => {
+    const box = element.getBoundingClientRect()
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+    return Boolean(hit && element.contains(hit))
+  })).toBe(true)
+  await plus.press('Enter')
+  await expect.poll(() => appWindow.evaluate(async () => {
+    const state = await (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+    return state.tabs.find(tab => tab.active)?.mcpGroupId
+  })).toBe(previous)
+})

@@ -472,7 +472,7 @@ export function renderHomePage(options: HomePageOptions): string {
     .status-value { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
     .status-detail { display: block; color: var(--muted); font-size: 12px; text-align: right; }
     .endpoint { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .endpoint-label { flex: 0 0 auto; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .endpoint-label { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
     .endpoint code { min-width: 0; flex: 1; overflow: hidden; color: var(--text); font-family: "SFMono-Regular", Consolas, monospace; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
     .copy-button { flex: 0 0 auto; padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-solid); cursor: pointer; font-size: 12px; font-weight: 650; }
     .copy-button:hover { border-color: var(--accent); color: var(--accent); }
