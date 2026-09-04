@@ -7,6 +7,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep Memory Saver from unloading unsaved drafts in valid `contenteditable` modes such as plaintext-only editing regions.
+- Fill saved passwords only into visible login fields and keep username selection inside the password field's form.
+- Open uppercase, mixed-case, and trailing-dot `localhost` development addresses over HTTP when their scheme is omitted.
 
 ## [1.11.47] - 2026-09-04
 

@@ -279,12 +279,12 @@ test('opens a scheme-less loopback address over HTTP from the address bar', asyn
   try {
     await appWindow.getByRole('button', { name: 'New tab' }).click()
     const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
-    await addressInput.fill(`127.0.0.1:${address.port}/scheme-less`)
+    await addressInput.fill(`LOCALHOST:${address.port}/scheme-less`)
     await addressInput.press('Enter')
 
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)'
-    )).toBe(`http://127.0.0.1:${address.port}/scheme-less`)
+    )).toBe(`http://localhost:${address.port}/scheme-less`)
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
     )).toBe('Scheme-less loopback')

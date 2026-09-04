@@ -1,7 +1,7 @@
 import { DEFAULT_SEARCH_ENGINE, searchUrl, type SearchEngineName } from '../../shared/search-engine.js'
 
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
-const HOST_LIKE_PATTERN = /^(localhost|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-fA-F:]+\]|[^\s/]+\.[^\s/]+)(?::\d+)?(?:\/.*)?$/
+const HOST_LIKE_PATTERN = /^(localhost\.?|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\]|[^\s/]+\.[^\s/]+)(?::\d+)?(?:\/.*)?$/i
 
 function isLoopbackAddress(value: string): boolean {
   try {

@@ -172,6 +172,7 @@ import {
   isCurrentCredentialFillContext,
   type CredentialFillContext
 } from './credential-fill-context.js'
+import { credentialFillPageScript } from './credential-fill-page.js'
 import type {
   BrowserEmulationOptions,
   BrowserEmulationState,
@@ -2494,27 +2495,7 @@ export class BrowserTabsManager {
   ): Promise<boolean> {
     const tab = this.getTab(tabId)
     if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
-    const script = `(() => {
-      if (location.origin !== ${JSON.stringify(expectedContext.origin)}
-        || location.href !== ${JSON.stringify(expectedContext.url)}) return false;
-      const passwords = [...document.querySelectorAll('input[type="password"]')].filter((input) => !input.disabled && !input.readOnly);
-      const passwordField = passwords.find((input) => input.autocomplete === 'current-password') || passwords[0];
-      if (!passwordField) return false;
-      const fields = [...document.querySelectorAll('input:not([type="password"]):not([type="hidden"])')].filter((input) => !input.disabled && !input.readOnly);
-      const usernameField = fields.find((input) => input.autocomplete === 'username')
-        || fields.find((input) => input.type === 'email')
-        || fields.find((input) => input.name && /user|email|login/i.test(input.name));
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      const assign = (input, value) => {
-        if (setter) setter.call(input, value); else input.value = value;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      if (usernameField) assign(usernameField, ${JSON.stringify(username)});
-      assign(passwordField, ${JSON.stringify(password)});
-      passwordField.focus();
-      return true;
-    })()`
+    const script = credentialFillPageScript(expectedContext, username, password)
     return this.withAgentInput(tab.webContents, async () => Boolean(await tab.webContents.executeJavaScript(script, true)))
   }
 
