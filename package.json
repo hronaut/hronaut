@@ -1,6 +1,6 @@
 {
   "name": "hronaut",
-  "version": "1.11.46",
+  "version": "1.11.47",
   "description": "A visible local Browser MCP for coding agents with persistent tabs and isolated workspaces",
   "desktopName": "Hronaut",
   "author": "Hronaut",
@@ -112,6 +112,7 @@
     "@playwright/test": "^1.62.1",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/vue3-vite": "^10.6.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/user-event": "^14.6.6",
     "@testing-library/vue": "^8.1.0",
@@ -129,6 +130,7 @@
     "jsdom": "^30.0.1",
     "storybook": "^10.6.0",
     "stylelint": "^17.14.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.68.0",
     "unplugin-icons": "^23.0.1",

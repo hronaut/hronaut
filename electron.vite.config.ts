@@ -1,5 +1,6 @@
 import { resolve } from 'node:path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import Icons from 'unplugin-icons/vite'
 
@@ -29,7 +30,7 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
-    plugins: [vue(), Icons({ compiler: 'vue3' })],
+    plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' })],
     build: {
       rollupOptions: {
         input: {

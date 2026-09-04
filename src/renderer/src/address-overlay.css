@@ -1,64 +1,84 @@
-@import './styles/tokens.css';
+@layer theme, tokens, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities) source("./");
+@import './styles/tokens.css' layer(tokens);
+
+@theme inline {
+  --color-copy: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-copy: var(--accent-text);
+  --color-danger-copy: var(--danger-text);
+  --color-hover: var(--hover);
+  --color-border: var(--border);
+  --color-border-soft: var(--border-soft);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-raised: var(--surface-raised);
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
 
 :root,
 :root[data-theme="light"],
-:root[data-theme="sepia"] { color-scheme: light; }
+:root[data-theme="sepia"] { @apply [color-scheme:light]; }
 :root[data-theme="dark"],
 :root[data-theme="midnight"],
 :root[data-theme="cyberpunk"],
 :root[data-theme="matrix"],
 :root[data-theme="machine"],
-:root[data-theme="galactic"] { color-scheme: dark; }
+:root[data-theme="galactic"] { @apply [color-scheme:dark]; }
 
-* { box-sizing: border-box; }
-html, body, #address-overlay-root { width: 100%; margin: 0; overflow: hidden; background: transparent; }
-button { font: inherit; }
+* { @apply box-border; }
+html, body, #address-overlay-root { @apply w-full; @apply m-0; @apply overflow-hidden; @apply bg-transparent; }
+button { @apply [font:inherit]; }
 
 .address-suggestions {
-  display: flex;
-  width: 100%;
-  max-height: 100vh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  color: var(--text);
-  background: var(--surface-raised);
-  box-shadow: 0 18px 54px rgba(16, 13, 36, .24);
-  user-select: text;
+  @apply flex;
+  @apply w-full;
+  @apply [max-height:100vh];
+  @apply overflow-x-hidden;
+  @apply overflow-y-auto;
+  @apply flex-col;
+  @apply [border:1px_solid_var(--border)];
+  @apply [border-radius:12px];
+  @apply text-copy;
+  @apply bg-surface-raised;
+  @apply [box-shadow:0_18px_54px_rgba(16,_13,_36,_.24)];
+  @apply [user-select:text];
 }
 
-.address-suggestion-list { flex: 0 0 auto; }
+.address-suggestion-list { @apply flex-none; }
 .address-suggestion {
-  display: grid;
-  width: calc(100% - 14px);
-  min-height: 58px;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  margin: 3px 7px 0;
-  padding: 7px 9px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  color: var(--text);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
+  @apply grid;
+  @apply [width:calc(100%_-_14px)];
+  @apply [min-height:58px];
+  @apply [grid-template-columns:34px_minmax(0,_1fr)_auto];
+  @apply items-center;
+  @apply [gap:10px];
+  @apply [margin:3px_7px_0];
+  @apply [padding:7px_9px];
+  @apply [border:1px_solid_transparent];
+  @apply [border-radius:9px];
+  @apply text-copy;
+  @apply bg-transparent;
+  @apply text-left;
+  @apply cursor-pointer;
 }
-.address-suggestion:first-child { margin-top: 7px; }
+.address-suggestion:first-child { @apply [margin-top:7px]; }
 .address-suggestion:hover,
-.address-suggestion.selected { border-color: color-mix(in srgb, var(--accent-text) 45%, var(--border-soft)); background: var(--hover); }
-.address-suggestion:focus-visible { outline: 2px solid var(--accent-text); outline-offset: -2px; }
-.address-suggestion-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; color: var(--accent-text); background: var(--surface-muted); font-size: 18px; }
-.address-suggestion-icon.kind-bookmark { color: #d49a16; }
-.address-suggestion-icon.kind-history { color: var(--muted); }
-.address-suggestion-copy { min-width: 0; }
+.address-suggestion.selected { @apply [border-color:color-mix(in_srgb,_var(--accent-text)_45%,_var(--border-soft))]; @apply bg-hover; }
+.address-suggestion:focus-visible { @apply [outline:2px_solid_var(--accent-text)]; @apply [outline-offset:-2px]; }
+.address-suggestion-icon { @apply grid; @apply [width:34px]; @apply [height:34px]; @apply place-items-center; @apply [border-radius:9px]; @apply text-accent-copy; @apply bg-surface-muted; @apply [font-size:18px]; }
+.address-suggestion-icon.kind-bookmark { @apply [color:#d49a16]; }
+.address-suggestion-icon.kind-history { @apply text-muted; }
+.address-suggestion-copy { @apply min-w-0; }
 .address-suggestion-copy strong,
-.address-suggestion-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.address-suggestion-copy strong { font-size: 14px; line-height: 1.35; }
-.address-suggestion-copy span { margin-top: 3px; color: var(--muted); font-size: 12px; }
-.address-suggestion small { color: var(--accent-text); font-size: 12px; font-weight: 700; white-space: nowrap; }
-.address-suggestions footer { position: sticky; bottom: 0; display: flex; min-height: 39px; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; padding: 6px 12px; border-top: 1px solid var(--border-soft); color: var(--muted); background: var(--surface); font-size: 12px; }
-.address-suggestions footer span { display: flex; align-items: center; gap: 5px; }
-.address-suggestions footer kbd { padding: 3px 5px; border: 1px solid var(--border-soft); border-radius: 5px; color: var(--text); background: var(--surface-muted); font: 650 11px/1 "SFMono-Regular", Consolas, monospace; }
+.address-suggestion-copy span { @apply block; @apply overflow-hidden; @apply text-ellipsis; @apply whitespace-nowrap; }
+.address-suggestion-copy strong { @apply [font-size:14px]; @apply [line-height:1.35]; }
+.address-suggestion-copy span { @apply [margin-top:3px]; @apply text-muted; @apply [font-size:12px]; }
+.address-suggestion small { @apply text-accent-copy; @apply [font-size:12px]; @apply [font-weight:700]; @apply whitespace-nowrap; }
+.address-suggestions footer { @apply sticky; @apply [bottom:0]; @apply flex; @apply [min-height:39px]; @apply flex-none; @apply items-center; @apply justify-between; @apply [gap:12px]; @apply [margin-top:4px]; @apply [padding:6px_12px]; @apply [border-top:1px_solid_var(--border-soft)]; @apply text-muted; @apply bg-surface; @apply [font-size:12px]; }
+.address-suggestions footer span { @apply flex; @apply items-center; @apply [gap:5px]; }
+.address-suggestions footer kbd { @apply [padding:3px_5px]; @apply [border:1px_solid_var(--border-soft)]; @apply [border-radius:5px]; @apply text-copy; @apply bg-surface-muted; @apply [font:650_11px/1_"SFMono-Regular",_Consolas,_monospace]; }

@@ -18,8 +18,7 @@
 }
 
 [data-titlebar-drag-surface] {
-  -webkit-app-region: drag;
-  app-region: drag;
+  @apply [-webkit-app-region:drag] [app-region:drag];
 }
 
 .custom-title-bar :where(
@@ -37,8 +36,7 @@
   [role="slider"],
   [role="tab"]
 ) {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  @apply [-webkit-app-region:no-drag] [app-region:no-drag];
 }
 
 .custom-title-bar :where(
@@ -56,15 +54,12 @@
   [role="slider"],
   [role="tab"]
 ) * {
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  @apply [-webkit-app-region:no-drag] [app-region:no-drag];
 }
 
 .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
   --muted: var(--titlebar-muted);
-  width: 100%;
-  height: var(--titlebar-area-height-safe);
-  margin-left: 0;
+  @apply w-full [height:var(--titlebar-area-height-safe)] [margin-left:0];
   padding-left: max(
     10px,
     calc(var(--titlebar-controls-left-safe) + 10px)
@@ -74,7 +69,7 @@
     calc(var(--titlebar-controls-right-safe) + 10px),
     calc(var(--titlebar-controls-fallback-width) + 10px)
   );
-  background: var(--titlebar-background);
+  @apply [background:var(--titlebar-background)];
 }
 
 :root[data-desktop-platform="darwin"] .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
@@ -83,88 +78,50 @@
     calc(var(--titlebar-controls-left-safe) + 10px),
     calc(var(--titlebar-controls-fallback-width) + 10px)
   );
-  padding-right: max(10px, calc(var(--titlebar-controls-right-safe) + 10px));
+  @apply [padding-right:max(10px,_calc(var(--titlebar-controls-right-safe)_+_10px))];
 }
 
 .custom-title-bar:not(.vertical-tabs-shell) {
-  min-height: calc(var(--titlebar-area-height-safe) + 60px);
+  @apply [min-height:calc(var(--titlebar-area-height-safe)_+_60px)];
 }
 
 .custom-title-bar:not(.vertical-tabs-shell).home-shell {
-  min-height: var(--titlebar-area-height-safe);
+  @apply [min-height:var(--titlebar-area-height-safe)];
 }
 
 .shell-title-bar-surface {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  box-sizing: border-box;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  overflow: hidden;
-  color: var(--muted);
-  background: var(--toolbar);
-  font-size: 13px;
-  white-space: nowrap;
+  @apply relative [z-index:2] flex box-border min-w-0 items-center [gap:8px] [padding:0_14px] overflow-hidden text-muted [background:var(--toolbar)] [font-size:13px] whitespace-nowrap;
 }
 
 .shell-title-bar-surface strong {
-  overflow: hidden;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 800;
-  text-overflow: ellipsis;
+  @apply overflow-hidden text-copy [font-size:13px] [font-weight:800] text-ellipsis;
 }
 
 .shell-title-bar-mark {
-  display: grid;
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
-  place-items: center;
-  border-radius: 7px;
-  color: var(--accent-text);
-  background: var(--accent-soft);
+  @apply grid [width:24px] [height:24px] [flex:0_0_24px] place-items-center [border-radius:7px] text-accent-copy bg-accent-soft;
 }
 
-.shell-title-bar-mark svg { width: 16px; height: 16px; }
+.shell-title-bar-mark svg { @apply [width:16px] [height:16px]; }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-rail {
-  position: fixed;
-  z-index: 49;
-  top: 0;
-  left: 0;
-  width: var(--tab-rail-width);
-  height: var(--vertical-titlebar-height);
-  justify-content: flex-start;
-  padding-right: 14px;
-  padding-left: 14px;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--toolbar);
+  @apply fixed [z-index:49] [top:0] [left:0] [width:var(--tab-rail-width)] [height:var(--vertical-titlebar-height)] justify-start [padding-right:14px] [padding-left:14px] [border-right:1px_solid_var(--border)] [border-bottom:1px_solid_var(--border-soft)] [background:var(--toolbar)];
 }
 .custom-title-bar.vertical-tabs-shell:not(.compact-vertical-tab-rail) .shell-title-bar-surface.surface-rail,
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail-revealed .shell-title-bar-surface.surface-rail {
-  padding-left: max(14px, calc(var(--titlebar-controls-left-safe) + 8px));
-  padding-right: 14px;
+  @apply [padding-left:max(14px,_calc(var(--titlebar-controls-left-safe)_+_8px))] [padding-right:14px];
 }
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail:not(.compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail {
-  padding: 0;
+  @apply p-0;
 }
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail:not(.compact-vertical-tab-rail-revealed) .shell-title-bar-surface.surface-rail > * {
-  visibility: hidden;
+  @apply invisible;
 }
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail-revealed .shell-title-bar-surface.surface-rail {
-  width: 280px;
-  box-shadow: 8px 0 22px color-mix(in srgb, var(--shadow) 78%, transparent);
+  @apply [width:280px] [box-shadow:8px_0_22px_color-mix(in_srgb,_var(--shadow)_78%,_transparent)];
 }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-home {
-  width: calc(100% - var(--tab-rail-width));
-  height: var(--vertical-titlebar-height);
-  margin-left: var(--tab-rail-width);
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [height:var(--vertical-titlebar-height)] [margin-left:var(--tab-rail-width)];
   padding-left: max(
     14px,
     calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 8px)
@@ -177,20 +134,18 @@
 }
 
 .custom-title-bar.vertical-tabs-shell.home-shell {
-  min-height: var(--vertical-titlebar-height);
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 1px 4px var(--shadow);
+  @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:1px_solid_var(--border)] [box-shadow:0_1px_4px_var(--shadow)];
 }
 
 @media (max-width: 900px) {
-  .custom-title-bar:not(.vertical-tabs-shell) .tab { min-width: 72px; }
+  .custom-title-bar:not(.vertical-tabs-shell) .tab { @apply [min-width:72px]; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .custom-title-bar,
   .custom-title-bar::after,
   .custom-title-bar * {
-    scroll-behavior: auto;
+    @apply [scroll-behavior:auto];
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

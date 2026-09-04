@@ -41,6 +41,6 @@ describe('theme contract', () => {
       expect(tokens).toContain(`:root[data-theme="${theme}"]`)
       expect(settings).toContain(`.theme-${theme}`)
     }
-    expect(overlay).toContain("@import './styles/tokens.css';")
+    expect(overlay).toContain("@import './styles/tokens.css' layer(tokens);")
   })
 })

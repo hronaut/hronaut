@@ -1,4 +1,5 @@
 import type { StorybookConfig } from '@storybook/vue3-vite'
+import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 
 const config: StorybookConfig = {
@@ -11,7 +12,7 @@ const config: StorybookConfig = {
   docs: { autodocs: 'tag' },
   viteFinal: (config) => ({
     ...config,
-    plugins: [...(config.plugins ?? []), vue()]
+    plugins: [...(config.plugins ?? []), tailwindcss(), vue()]
   })
 }
 

@@ -1,26 +1,20 @@
-* { box-sizing: border-box; }
-.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-body { background: var(--toolbar); color: var(--text); }
-button, input { font: inherit; }
-button { color: inherit; }
+* { @apply box-border; }
+.sr-only { @apply absolute; width: 1px !important; height: 1px !important; @apply p-0; margin: -1px !important; @apply overflow-hidden; clip: rect(0, 0, 0, 0) !important; @apply whitespace-nowrap border-0; }
+html, body, #app { @apply w-full h-full m-0 overflow-hidden; }
+body { @apply [background:var(--toolbar)] text-copy; }
+button, input { @apply [font:inherit]; }
+button { @apply [color:inherit]; }
 
 .startup-failure {
-  width: min(560px, calc(100% - 40px));
-  margin: clamp(40px, 12vh, 120px) auto 0;
-  padding: 28px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: var(--surface);
-  box-shadow: 0 18px 48px var(--shadow);
+  @apply [width:min(560px,_calc(100%_-_40px))] [margin:clamp(40px,_12vh,_120px)_auto_0] [padding:28px] [border:1px_solid_var(--border)] [border-radius:18px] bg-surface [box-shadow:0_18px_48px_var(--shadow)];
 }
-.startup-failure-brand { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.78rem; font-weight: 800; letter-spacing: 0.16em; }
-.startup-failure-mark { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 9px; color: var(--button-text); background: var(--accent); box-shadow: 0 5px 16px var(--shadow); letter-spacing: 0; }
-.startup-failure-copy { margin: 24px 0; }
-.startup-failure-copy h1 { margin: 0; font-size: clamp(1.8rem, 6vw, 2.8rem); line-height: 1.06; }
-.startup-failure-copy p { margin: 12px 0; color: var(--muted); line-height: 1.55; }
-.startup-failure-copy code { display: block; max-height: 150px; overflow: auto; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; color: var(--danger); background: var(--surface-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
-.startup-failure-retry { min-height: 42px; padding: 0 18px; border: 0; border-radius: 10px; color: var(--button-text); background: var(--accent); cursor: pointer; font-weight: 750; }
-.startup-failure-retry:hover { filter: brightness(1.06); }
-.startup-failure-retry:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 3px; }
-.startup-failure small { display: block; margin-top: 16px; color: var(--subtle); }
+.startup-failure-brand { @apply flex items-center [gap:10px] text-muted [font-size:0.78rem] [font-weight:800] [letter-spacing:0.16em]; }
+.startup-failure-mark { @apply grid [width:30px] [height:30px] place-items-center [border-radius:9px] text-button-copy bg-accent [box-shadow:0_5px_16px_var(--shadow)] [letter-spacing:0]; }
+.startup-failure-copy { @apply [margin:24px_0]; }
+.startup-failure-copy h1 { @apply m-0 [font-size:clamp(1.8rem,_6vw,_2.8rem)] [line-height:1.06]; }
+.startup-failure-copy p { @apply [margin:12px_0] text-muted [line-height:1.55]; }
+.startup-failure-copy code { @apply block [max-height:150px] overflow-auto [padding:12px] [border:1px_solid_var(--border-soft)] [border-radius:10px] text-danger bg-surface-muted whitespace-pre-wrap [overflow-wrap:anywhere]; }
+.startup-failure-retry { @apply [min-height:42px] [padding:0_18px] border-0 [border-radius:10px] text-button-copy bg-accent cursor-pointer [font-weight:750]; }
+.startup-failure-retry:hover { @apply [filter:brightness(1.06)]; }
+.startup-failure-retry:focus-visible { @apply [outline:3px_solid_var(--accent-soft)] [outline-offset:3px]; }
+.startup-failure small { @apply block [margin-top:16px] text-subtle; }

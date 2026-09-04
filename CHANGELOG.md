@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.47] - 2026-09-04
+
+### Improved
+
+- Migrate the complete renderer and address-overlay styling surface to Tailwind CSS 4 composition, expose the existing theme tokens as semantic utilities, and enable the same pipeline in Storybook without applying global Preflight to Electron controls.
+
 ## [1.11.46] - 2026-09-04
 
 ### Added
