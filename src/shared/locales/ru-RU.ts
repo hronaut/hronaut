@@ -2905,6 +2905,11 @@ export const ruRU = {
       "wrongProduct": "Эта коммерческая лицензия предназначена не для Hronaut."
     },
     "dialog": {
+      "closeTabTitle": "Закрыть эту вкладку?",
+      "closeTabMessage": "Эта страница просит Hronaut подтвердить закрытие.",
+      "closeTabDetail": "При закрытии вкладки несохранённые изменения могут быть потеряны.",
+      "keepEditing": "Продолжить редактирование",
+      "discardChanges": "Отменить изменения",
       "importPasswordsFile": "Выбрать CSV паролей браузера",
       "choosePasswordFile": "Выбрать CSV",
       "importPasswordsTitle": "Импортировать сохранённые пароли?",

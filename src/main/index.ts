@@ -3518,6 +3518,19 @@ async function createWindow(): Promise<void> {
       sendToPanelWindow('browser:state-changed', state)
     },
     onDownloadsChanged: (downloads) => sendToPanelWindow('browser:downloads-changed', downloads),
+    confirmBeforeUnloadClose: async () => {
+      const { response } = await showMessageBox({
+        type: 'warning',
+        title: text('native.dialog.closeTabTitle'),
+        message: text('native.dialog.closeTabMessage'),
+        detail: text('native.dialog.closeTabDetail'),
+        buttons: [text('native.dialog.keepEditing'), text('native.dialog.discardChanges')],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true
+      })
+      return response === 1
+    },
     ...walletLifecycleCallbacks,
     onPageVisited: ({ url, title }) => {
       void historyStore?.record({ url, title })

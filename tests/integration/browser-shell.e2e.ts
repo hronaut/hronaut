@@ -4677,6 +4677,144 @@ test('keeps plaintext-only editable drafts awake when Memory Saver runs', async 
   }
 })
 
+test('keeps an edited page open until the user confirms its beforeunload close', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html>
+      <title>Beforeunload close fixture</title>
+      <label>Draft <input id="draft"></label>
+      <script>
+        window.beforeUnloadCount = 0;
+        window.addEventListener('beforeunload', (event) => {
+          window.beforeUnloadCount += 1;
+          event.preventDefault();
+          event.returnValue = '';
+        });
+      </script>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Beforeunload close fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/beforeunload-close`
+    const state = await appWindow.evaluate((requestedUrl) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.newTab({ url: requestedUrl, active: true }), url)
+    const tabId = state.activeTabId
+    if (!tabId) throw new Error('Beforeunload close fixture did not create an active tab')
+    await expect.poll(() => appWindow.evaluate((id) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((current) => current.tabs.find((tab) => tab.id === id)?.loading), tabId)).toBe(false)
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Beforeunload close fixture WebContents was not found')
+      page.focus()
+      await page.executeJavaScript("document.querySelector('#draft').focus()")
+      page.sendInputEvent({ type: 'char', keyCode: 'x' })
+    }, url)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript("document.querySelector('#draft').value")
+    }, url)).toBe('x')
+
+    await electronApp.evaluate(({ dialog }) => {
+      let releaseFirst!: () => void
+      const firstResponse = new Promise<void>((resolve) => { releaseFirst = resolve })
+      const control = {
+        original: dialog.showMessageBox.bind(dialog),
+        responses: [0, 1],
+        calls: [] as Electron.MessageBoxOptions[],
+        firstResponse,
+        releaseFirst
+      }
+      ;(globalThis as typeof globalThis & { __hronautBeforeUnloadDialog?: typeof control }).__hronautBeforeUnloadDialog = control
+      Object.defineProperty(dialog, 'showMessageBox', {
+        configurable: true,
+        value: async (...args: unknown[]) => {
+          const options = args.at(-1) as Electron.MessageBoxOptions
+          control.calls.push(options)
+          if (control.calls.length === 1) await control.firstResponse
+          return { response: control.responses.shift() ?? 0, checkboxChecked: false }
+        }
+      })
+    })
+    // Electron resolves a WebContents beforeunload request through its own
+    // will-prevent-unload event. Keep Playwright from also auto-dismissing the
+    // transient CDP dialog, which would race Electron's native handling.
+    for (const page of electronApp.context().pages()) page.on('dialog', () => undefined)
+
+    const closeButton = appWindow.locator(`[data-tab-id="${tabId}"] .tab-close`)
+    await closeButton.click()
+    await closeButton.click()
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & {
+        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
+      }).__hronautBeforeUnloadDialog?.calls.length ?? 0
+    ))).toBe(1)
+    await electronApp.evaluate(() => {
+      (globalThis as typeof globalThis & {
+        __hronautBeforeUnloadDialog?: { releaseFirst: () => void }
+      }).__hronautBeforeUnloadDialog?.releaseFirst()
+    })
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, input) => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
+      }).__hronautBeforeUnloadDialog
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
+      return {
+        dialogCalls: control?.calls.length ?? 0,
+        beforeUnloadCount: await page?.executeJavaScript('window.beforeUnloadCount'),
+        value: await page?.executeJavaScript("document.querySelector('#draft').value")
+      }
+    }, { url })).toEqual({ dialogCalls: 1, beforeUnloadCount: 1, value: 'x' })
+    await expect.poll(() => appWindow.evaluate((id) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((current) => current.tabs.some((tab) => tab.id === id)), tabId)).toBe(true)
+
+    await closeButton.click()
+    await expect.poll(() => appWindow.evaluate((id) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((current) => ({
+      present: current.tabs.some((tab) => tab.id === id),
+      closedEntries: current.closedTabs.filter((tab) => tab.title === 'Beforeunload close fixture').length
+    })), tabId)).toEqual({ present: false, closedEntries: 1 })
+    expect(await electronApp.evaluate(() => {
+      const calls = (globalThis as typeof globalThis & {
+        __hronautBeforeUnloadDialog?: { calls: Electron.MessageBoxOptions[] }
+      }).__hronautBeforeUnloadDialog?.calls ?? []
+      return calls.map((call) => ({ title: call.title, buttons: call.buttons, defaultId: call.defaultId, cancelId: call.cancelId }))
+    })).toEqual([
+      expect.objectContaining({ buttons: ['Keep editing', 'Discard changes'], defaultId: 0, cancelId: 0 }),
+      expect.objectContaining({ buttons: ['Keep editing', 'Discard changes'], defaultId: 0, cancelId: 0 })
+    ])
+    expect(await electronApp.evaluate(({ webContents }, requestedUrl) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL() === requestedUrl)
+    ), url)).toBe(false)
+  } finally {
+    await electronApp.evaluate(({ dialog }) => {
+      const scope = globalThis as typeof globalThis & {
+        __hronautBeforeUnloadDialog?: { original: typeof dialog.showMessageBox }
+      }
+      if (scope.__hronautBeforeUnloadDialog) {
+        Object.defineProperty(dialog, 'showMessageBox', {
+          configurable: true,
+          value: scope.__hronautBeforeUnloadDialog.original
+        })
+      }
+      delete scope.__hronautBeforeUnloadDialog
+    })
+    await closeFixtureServer(server)
+  }
+})
+
 test('rolls back pinning when a sleeping tab cannot wake and permits a retry', async ({
   appWindow,
   electronApp

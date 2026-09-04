@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Honor page beforeunload protection for human tab-close actions with a trusted, cancel-safe confirmation while keeping agent closes non-blocking.
 - Redact token-like query values from IndexedDB, storage-change, cookie, code-coverage, CPU-profile, and memory diagnostic report URLs.
 
 ### Improved

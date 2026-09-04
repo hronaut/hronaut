@@ -937,6 +937,7 @@ export interface TabsManagerOptions {
   onWalletTabClosed?: (tabId: string) => void | Promise<void>
   onWalletTabRestored?: (tabId: string, navigationGeneration: number) => void | Promise<void>
   onWalletWorkspaceClosed?: (workspaceId: string) => void | Promise<void>
+  confirmBeforeUnloadClose?: () => Promise<boolean>
   configureSession?: (browserSession: Session) => void
 }
 
@@ -967,6 +968,8 @@ export class BrowserTabsManager {
   private backgroundAgentFocusOwnerWindowId: number | null = null
   private readonly elementPickerSessions = new Map<number, BrowserElementPickerSession>()
   private readonly screenshotAreaSessions = new Map<number, BrowserScreenshotAreaSession>()
+  private readonly pendingHumanTabCloses = new Map<string, { tab: BrowserTab; operation: Promise<BrowserState> }>()
+  private readonly expectedTabClosures = new WeakSet<WebContents>()
   private destroyed = false
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
@@ -3237,6 +3240,88 @@ export class BrowserTabsManager {
     return this.closeTabInternal(tabId, true, respectGlobalInteractionLock)
   }
 
+  private stageBeforeUnloadClose(tab: BrowserTab): {
+    targetDetached: boolean
+    rollback: () => void
+  } {
+    const wasActive = tab.id === this.activeTabId
+    const splitPartnerId = this.splitViewContains(tab.id)
+      ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
+      : null
+    if (!wasActive && !splitPartnerId) {
+      return { targetDetached: false, rollback: () => undefined }
+    }
+
+    const bounds = tab.view.getBounds()
+    const visible = tab.view.getVisible()
+    const nextId = this.closeTabTransition(tab).nextId
+    const replacement = wasActive && !splitPartnerId && nextId
+      ? this.tabs.get(nextId)
+      : undefined
+    let replacementWasAttached = false
+    this.window.contentView.removeChildView(tab.view)
+    try {
+      if (replacement && !replacement.webContents.isDestroyed()) {
+        this.window.contentView.addChildView(replacement.view)
+        replacementWasAttached = true
+        replacement.view.setBounds(bounds)
+        replacement.view.setVisible(visible)
+      }
+    } catch (error) {
+      if (replacementWasAttached && replacement && !replacement.webContents.isDestroyed()) {
+        this.window.contentView.removeChildView(replacement.view)
+      }
+      if (!tab.webContents.isDestroyed()) {
+        this.window.contentView.addChildView(tab.view)
+        tab.view.setBounds(bounds)
+        tab.view.setVisible(visible)
+      }
+      throw error
+    }
+
+    return {
+      targetDetached: true,
+      rollback: () => {
+        if (replacementWasAttached && replacement && !replacement.webContents.isDestroyed()) {
+          this.window.contentView.removeChildView(replacement.view)
+          replacementWasAttached = false
+        }
+        if (tab.webContents.isDestroyed() || this.tabs.get(tab.id) !== tab) return
+        this.window.contentView.addChildView(tab.view)
+        this.layout()
+        if (this.activeTabId === tab.id) this.focusTabOrTrustedChrome(tab)
+      }
+    }
+  }
+
+  private attemptBeforeUnloadClose(webContents: WebContents): Promise<'closed' | 'prevented'> {
+    if (webContents.isDestroyed()) return Promise.resolve('closed')
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const cleanup = (): void => {
+        webContents.removeListener('will-prevent-unload', onPrevented)
+        webContents.removeListener('destroyed', onDestroyed)
+      }
+      const finish = (result: 'closed' | 'prevented'): void => {
+        if (settled) return
+        settled = true
+        cleanup()
+        resolve(result)
+      }
+      const onPrevented = (): void => finish('prevented')
+      const onDestroyed = (): void => finish('closed')
+      webContents.once('will-prevent-unload', onPrevented)
+      webContents.once('destroyed', onDestroyed)
+      try {
+        webContents.close({ waitForBeforeUnload: true })
+        if (webContents.isDestroyed()) finish('closed')
+      } catch (error) {
+        cleanup()
+        reject(error)
+      }
+    })
+  }
+
   private closeTabTransition(tab: BrowserTab): { splitPartnerId: string | null; nextId: string | undefined } {
     const splitPartnerId = this.splitViewContains(tab.id)
       ? (this.splitView!.firstTabId === tab.id ? this.splitView!.secondTabId : this.splitView!.firstTabId)
@@ -3288,10 +3373,30 @@ export class BrowserTabsManager {
     }
   }
 
-  private async closeTabInternal(
+  private closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
     respectGlobalInteractionLock = false
+  ): Promise<BrowserState> {
+    if (!respectGlobalInteractionLock) {
+      return this.performCloseTab(tabId, ensureReplacement, false, true)
+    }
+    const tab = this.getTab(tabId)
+    const existing = this.pendingHumanTabCloses.get(tabId)
+    if (existing?.tab === tab) return existing.operation
+    const operation = this.performCloseTab(tabId, ensureReplacement, true, false)
+    this.pendingHumanTabCloses.set(tabId, { tab, operation })
+    void operation.finally(() => {
+      if (this.pendingHumanTabCloses.get(tabId)?.operation === operation) this.pendingHumanTabCloses.delete(tabId)
+    }).catch(() => undefined)
+    return operation
+  }
+
+  private async performCloseTab(
+    tabId: string,
+    ensureReplacement: boolean,
+    respectGlobalInteractionLock: boolean,
+    forceClose: boolean
   ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
@@ -3312,6 +3417,54 @@ export class BrowserTabsManager {
     // the global guard before committing any irreversible tab state so a lock
     // engaged during that wake takes effect immediately.
     if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
+    let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
+    if (respectGlobalInteractionLock && !forceClose && !webContents.isDestroyed()) {
+      const navigationGeneration = tab.navigationGeneration
+      stagedClose = this.stageBeforeUnloadClose(tab)
+      this.expectedTabClosures.add(webContents)
+      let disposition: 'closed' | 'prevented'
+      try {
+        // Electron implements beforeunload through the same Chromium dialog
+        // channel used by our diagnostics debugger. Suspend that debugger for
+        // the native close probe so it cannot race Electron's own handling.
+        this.detachDialogMonitoring(webContents)
+        disposition = await this.attemptBeforeUnloadClose(webContents)
+      } catch (error) {
+        this.expectedTabClosures.delete(webContents)
+        stagedClose.rollback()
+        if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
+          await this.ensureDialogMonitoring(tab)
+        }
+        throw error
+      }
+      this.expectedTabClosures.delete(webContents)
+      if (disposition === 'prevented') {
+        stagedClose.rollback()
+        if (!webContents.isDestroyed() && this.tabs.get(tab.id) === tab) {
+          await this.ensureDialogMonitoring(tab)
+        }
+        let confirmed = false
+        try {
+          confirmed = await (this.options.confirmBeforeUnloadClose?.() ?? Promise.resolve(false))
+        } catch (error) {
+          console.error('[browser] Could not confirm closing a page with unsaved changes:', error)
+          this.options.onActionFailed?.('confirm closing a tab', error)
+          return this.getState()
+        }
+        if (!confirmed) return this.getState()
+        if (
+          this.tabs.get(tab.id) !== tab
+          || tab.webContents !== webContents
+          || webContents.isDestroyed()
+          || tab.navigationGeneration !== navigationGeneration
+          || this.allHumanInteractionLocked
+        ) return this.getState()
+        return this.performCloseTab(tabId, ensureReplacement, true, true)
+      }
+      if (this.tabs.get(tab.id) !== tab) {
+        return this.getState()
+      }
+    }
     const wasActive = tab.id === this.activeTabId
     this.rejectNetworkWaiters(tab.id, 'The tab closed while waiting for network activity.')
     this.clearReproRecording(tab)
@@ -3321,7 +3474,7 @@ export class BrowserTabsManager {
 
     if (splitPartnerId) {
       const splitPartner = this.tabs.get(splitPartnerId)
-      if (wasActive && splitPartner && splitPartner.id !== nextId && !splitPartner.webContents.isDestroyed()) {
+      if (!stagedClose && wasActive && splitPartner && splitPartner.id !== nextId && !splitPartner.webContents.isDestroyed()) {
         this.window.contentView.removeChildView(splitPartner.view)
       }
       this.splitView = null
@@ -3329,8 +3482,21 @@ export class BrowserTabsManager {
     // Move a live replacement into the BrowserWindow before destroying the
     // current view. Electron can otherwise leave the parent view in an invalid
     // child transition after a neighboring WebContentsView was destroyed.
-    if (wasActive && nextId) this.selectTab(nextId)
-    else if (wasActive || splitPartnerId) this.window.contentView.removeChildView(tab.view)
+    if (wasActive && nextId) {
+      if (stagedClose) {
+        const replacement = this.tabs.get(nextId)
+        if (replacement && !replacement.webContents.isDestroyed()) {
+          this.tabSelectionGeneration += 1
+          replacement.lastActiveAt = Date.now()
+          this.activeTabId = replacement.id
+          this.markTabActiveInGroup(replacement)
+        }
+      } else {
+        this.selectTab(nextId)
+      }
+    } else if ((wasActive || splitPartnerId) && !stagedClose?.targetDetached) {
+      this.window.contentView.removeChildView(tab.view)
+    }
 
     this.removeTabRecord(tab)
     if (!webContents.isDestroyed()) {
@@ -3348,6 +3514,10 @@ export class BrowserTabsManager {
     } else {
       if (!this.tabs.size || (wasActive && !nextId)) this.activeTabId = null
       this.layout()
+      if (stagedClose && wasActive && this.activeTabId) {
+        const replacement = this.tabs.get(this.activeTabId)
+        if (replacement && !replacement.webContents.isDestroyed()) this.focusTabOrTrustedChrome(replacement)
+      }
       this.changed()
     }
     return this.getState()
@@ -3379,7 +3549,9 @@ export class BrowserTabsManager {
   ): Promise<BrowserState> {
     for (const tabId of tabIds) {
       if (this.tabs.has(tabId)) {
+        const requestedTab = this.tabs.get(tabId)
         await this.closeTabInternal(tabId, ensureReplacement, respectGlobalInteractionLock)
+        if (respectGlobalInteractionLock && this.tabs.get(tabId) === requestedTab) break
       }
     }
     return this.getState()
@@ -6728,6 +6900,11 @@ export class BrowserTabsManager {
       this.tabOverviewPreviewableTabs.delete(tab.id)
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
+      if (this.expectedTabClosures.has(webContents)) {
+        this.dialogMonitorAttachPromises.delete(webContents.id)
+        this.defaultExecutionContexts.delete(webContents.id)
+        return
+      }
       if (this.destroyed || this.tabs.get(tab.id) !== tab) return
       this.runWalletLifecycleAction('cancel wallet requests after a tab renderer closes', () => (
         this.options.onWalletTabClosed?.(tab.id)

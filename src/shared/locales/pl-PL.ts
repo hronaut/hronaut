@@ -2905,6 +2905,11 @@ export const plPL = {
       "wrongProduct": "Ta licencja komercyjna nie jest przeznaczona dla Hronaut."
     },
     "dialog": {
+      "closeTabTitle": "Zamknąć tę kartę?",
+      "closeTabMessage": "Ta strona prosi Hronaut o potwierdzenie przed zamknięciem.",
+      "closeTabDetail": "Zamknięcie karty może spowodować utratę niezapisanych zmian.",
+      "keepEditing": "Kontynuuj edycję",
+      "discardChanges": "Odrzuć zmiany",
       "importPasswordsFile": "Wybierz CSV haseł przeglądarki",
       "choosePasswordFile": "Wybierz CSV",
       "importPasswordsTitle": "Importować zapisane hasła?",

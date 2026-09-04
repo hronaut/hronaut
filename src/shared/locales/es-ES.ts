@@ -2905,6 +2905,11 @@ export const esES = {
       "wrongProduct": "Esta licencia comercial no es para Hronaut."
     },
     "dialog": {
+      "closeTabTitle": "¿Cerrar esta pestaña?",
+      "closeTabMessage": "Esta página ha pedido a Hronaut que confirme antes de cerrarla.",
+      "closeTabDetail": "Al cerrar la pestaña se pueden perder los cambios no guardados.",
+      "keepEditing": "Seguir editando",
+      "discardChanges": "Descartar cambios",
       "importPasswordsFile": "Elegir CSV de contraseñas del navegador",
       "choosePasswordFile": "Elegir CSV",
       "importPasswordsTitle": "¿Importar contraseñas guardadas?",

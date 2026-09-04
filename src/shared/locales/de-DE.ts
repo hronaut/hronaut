@@ -2905,6 +2905,11 @@ export const deDE = {
       "wrongProduct": "Diese kommerzielle Lizenz ist nicht für Hronaut bestimmt."
     },
     "dialog": {
+      "closeTabTitle": "Diesen Tab schließen?",
+      "closeTabMessage": "Diese Seite bittet Hronaut, das Schließen zu bestätigen.",
+      "closeTabDetail": "Beim Schließen des Tabs können nicht gespeicherte Änderungen verloren gehen.",
+      "keepEditing": "Weiter bearbeiten",
+      "discardChanges": "Änderungen verwerfen",
       "importPasswordsFile": "Browser-Passwort-CSV auswählen",
       "choosePasswordFile": "CSV auswählen",
       "importPasswordsTitle": "Gespeicherte Passwörter importieren?",

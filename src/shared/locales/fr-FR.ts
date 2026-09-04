@@ -2905,6 +2905,11 @@ export const frFR = {
       "wrongProduct": "Cette licence commerciale n’est pas destinée à Hronaut."
     },
     "dialog": {
+      "closeTabTitle": "Fermer cet onglet ?",
+      "closeTabMessage": "Cette page demande à Hronaut de confirmer sa fermeture.",
+      "closeTabDetail": "La fermeture de l’onglet peut supprimer des modifications non enregistrées.",
+      "keepEditing": "Continuer la modification",
+      "discardChanges": "Ignorer les modifications",
       "importPasswordsFile": "Choisir le CSV de mots de passe du navigateur",
       "choosePasswordFile": "Choisir le CSV",
       "importPasswordsTitle": "Importer les mots de passe enregistrés ?",
