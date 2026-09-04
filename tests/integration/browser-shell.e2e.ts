@@ -7634,6 +7634,14 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       home.focus()
       home.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...guidePoint })
       home.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...guidePoint })
+    })
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+      return home?.executeJavaScript("document.getElementById('guide-name').textContent")
+    })).toBe('OpenCode')
+    await electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
+      if (!home) throw new Error('Hronaut Home web contents was not found while copying setup')
       const point = await home.executeJavaScript(`(async () => {
         const copy = document.querySelector('[data-copy-target="guide-code"]')
         copy.scrollIntoView({ block: 'center', behavior: 'instant' })
