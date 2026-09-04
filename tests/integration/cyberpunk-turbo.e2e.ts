@@ -15,6 +15,8 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   const contrast = await appWindow.evaluate(`globalThis.axe.run({ include: ['.theme-cyberpunk-turbo', '.settings-footer', '.settings-header', '.settings-nav-item'] }, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)`)
   expect(contrast).toEqual([])
   await expect(appWindow.locator('.settings-dialog')).toHaveCSS('border-radius', '4px')
+  expect(await settings.evaluate(element => getComputedStyle(element).fontFamily)).not.toContain('monospace')
+  await expect(settings).toHaveCSS('color', 'rgb(242, 243, 248)')
   await settings.screenshot({ path: testInfo.outputPath('cyberpunk-turbo-settings.png') })
   await settings.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
 
@@ -24,6 +26,8 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   })).toBe('cyberpunk-turbo')
   const homeContrast = await electronApp.evaluate(async ({ webContents }, source) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
+    const typography = await home.executeJavaScript('({ family: getComputedStyle(document.body).fontFamily, color: getComputedStyle(document.body).color })')
+    if (typography.family.includes('monospace') || typography.color !== 'rgb(242, 243, 248)') throw new Error('Home reading text must use the standard sans-serif font and off-white color')
     await home.executeJavaScript(source)
     await home.executeJavaScript(`document.querySelector('[data-guide=\"vscode\"]').click()`)
     return home.executeJavaScript(`axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] } }).then(result => result.violations)`)

@@ -14,7 +14,7 @@
 }
 
 :root[data-theme="cyberpunk-turbo"] .shell {
-  @apply [border-bottom-color:#796b95] [box-shadow:0_1px_12px_rgba(255,_77,_227,_.2)];
+  @apply [border-bottom-color:#796b95] [box-shadow:0_1px_8px_rgba(255,_77,_227,_.1)];
 }
 :root[data-theme="cyberpunk-turbo"] .tab.active .tab-active-indicator {
   @apply [background:var(--turbo-highlight)];
@@ -23,10 +23,10 @@
   @apply [border-radius:4px];
 }
 :root[data-theme="cyberpunk-turbo"] .settings-dialog {
-  @apply [border-color:var(--accent)] [box-shadow:0_0_22px_rgba(255,_77,_227,_.18)];
+  @apply [border-color:color-mix(in_srgb,_var(--accent)_45%,_var(--border))] [box-shadow:0_0_16px_rgba(255,_77,_227,_.1)];
 }
 :root[data-theme="cyberpunk-turbo"] .settings-header h2 {
-  @apply [color:var(--accent-text)] [text-shadow:0_0_10px_rgba(0,_255,_255,_.18)];
+  @apply [color:var(--accent-text)];
 }
 :root[data-theme="cyberpunk-turbo"] :is(.zoom-button, .settings-header .eyebrow) {
   @apply [font-family:var(--font-mono)] [letter-spacing:.04em];

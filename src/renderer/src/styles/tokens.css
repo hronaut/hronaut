@@ -171,10 +171,9 @@
 /* Cyberpunk Turbo: neon cyan and magenta with yellow highlights. */
 :root[data-theme="cyberpunk-turbo"],
 .ui-theme-scope[data-theme="cyberpunk-turbo"] {
-  font-family: var(--font-mono);
-  color: #8af7ff;
+  color: #f2f3f8;
   background: #12121e;
-  --text: #8af7ff;
+  --text: #f2f3f8;
   --muted: #b6c9dc;
   --subtle: #9eafcc;
   --accent: #ff4de3;

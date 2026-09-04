@@ -456,7 +456,6 @@ export function renderHomePage(options: HomePageOptions): string {
       }
     }
     :root[data-theme="cyberpunk-turbo"] {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
       color-scheme: dark;
       --bg: ${CYBERPUNK_TURBO_COLORS.background};
       --panel: #1a1a2e;
@@ -468,11 +467,10 @@ export function renderHomePage(options: HomePageOptions): string {
       --accent: ${CYBERPUNK_TURBO_COLORS.accent};
       --accent-2: ${CYBERPUNK_TURBO_COLORS.secondary};
       --code: #12121e;
-      --code-text: #8af7ff;
+      --code-text: #d8e9f0;
     }
     :root[data-theme="cyberpunk-turbo"] .hero {
-      border-bottom: 2px solid var(--accent);
-      box-shadow: 0 8px 14px -12px var(--accent);
+      border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
     }
     :root[data-theme="cyberpunk-turbo"] :is(button, input, pre, .panel, .mark, .count, .client-icon, .connection-state, .verify code) {
       border-radius: 4px;
@@ -483,7 +481,6 @@ export function renderHomePage(options: HomePageOptions): string {
     }
     :root[data-theme="cyberpunk-turbo"] h1 {
       color: var(--accent-2);
-      text-shadow: 0 0 14px rgba(0,255,255,.18);
     }
     :root[data-theme="cyberpunk-turbo"] .mark {
       background: ${CYBERPUNK_TURBO_COLORS.highlight};

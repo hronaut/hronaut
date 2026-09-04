@@ -35,7 +35,7 @@ export const CYBERPUNK_TURBO_COLORS = {
   background: '#12121e',
   shellTop: '#1a1a2e',
   toolbar: '#141424',
-  text: '#8af7ff',
+  text: '#f2f3f8',
   muted: '#b6c9dc',
   accent: '#ff4de3',
   secondary: '#00ffff',
