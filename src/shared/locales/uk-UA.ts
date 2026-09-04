@@ -339,6 +339,7 @@ export const ukUA = {
         geminiCli: 'Додає Hronaut як користувацький сервер потокового HTTP у Gemini CLI.',
         goose: 'Додає Hronaut як постійне розширення Streamable HTTP у Goose.',
         cline: 'Додає Hronaut до Cline через рекомендований транспорт Streamable HTTP.',
+        zooCode: 'Додає Hronaut до підтримуваного спільнотою наступника Zoo Code без автоматичного схвалення інструментів.',
         kiro: 'Додає Hronaut до користувацької конфігурації Kiro без автоматичного схвалення інструментів.',
         kilo: 'Додає Hronaut як віддалений сервер Streamable HTTP для клієнтів Kilo Code.',
         jetbrainsJunie: 'Додає Hronaut до користувацької конфігурації MCP, спільної для Junie CLI та IDE JetBrains.',

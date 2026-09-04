@@ -8725,7 +8725,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
         grokCommand: null,
         grokVerifyCommand: null,
         qwenCommand: null,
-        qwenVerifyCommand: null
+        qwenVerifyCommand: null,
+        zooConfig: null,
+        zooVerifyCommand: null
       };
       document.querySelector('[data-guide="gemini-cli"]')?.click();
       result.geminiConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
@@ -8753,6 +8755,9 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
       document.querySelector('[data-guide="qwen-code"]')?.click();
       result.qwenCommand = document.getElementById('guide-code')?.textContent;
       result.qwenVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
+      document.querySelector('[data-guide="zoo-code"]')?.click();
+      result.zooConfig = JSON.parse(document.getElementById('guide-code')?.textContent ?? '{}');
+      result.zooVerifyCommand = document.getElementById('guide-verify-command')?.textContent;
       return result;
     })()`)
   }) as {
@@ -8828,9 +8833,20 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     grokVerifyCommand: string
     qwenCommand: string
     qwenVerifyCommand: string
+    zooConfig: {
+      mcpServers?: {
+        hronaut?: {
+          type?: string
+          url?: string
+          alwaysAllow?: string[]
+          disabled?: boolean
+        }
+      }
+    }
+    zooVerifyCommand: string
   }
   expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
-  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Goose', 'Cline', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
+  expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Goose', 'Cline', 'Zoo Code', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')
   expect(homeContent.requestCount).toBe('Waiting for the first tool call')
@@ -8872,6 +8888,13 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(homeContent.grokVerifyCommand).toBe('grok mcp doctor hronaut')
   expect(homeContent.qwenCommand).toBe(`qwen mcp add --scope user --transport http hronaut http://127.0.0.1:${mcpPort}/mcp`)
   expect(homeContent.qwenVerifyCommand).toBe('qwen mcp list')
+  expect(homeContent.zooConfig.mcpServers?.hronaut).toEqual({
+    type: 'streamable-http',
+    url: `http://127.0.0.1:${mcpPort}/mcp`,
+    alwaysAllow: [],
+    disabled: false
+  })
+  expect(homeContent.zooVerifyCommand).toBe('Zoo Code → MCP Servers: hronaut is connected')
 
   const initial = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
     method: 'POST',

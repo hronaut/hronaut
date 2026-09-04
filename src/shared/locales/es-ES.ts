@@ -2632,6 +2632,7 @@ export const esES = {
         "geminiCli": "Añade Hronaut a Gemini CLI como servidor HTTP Streamable de ámbito de usuario.",
         "goose": "Añade Hronaut como una extensión HTTP Streamable persistente en Goose.",
         "cline": "Añade Hronaut a Cline con el transporte HTTP Streamable recomendado.",
+        "zooCode": "Añade Hronaut al sucesor comunitario mantenido Zoo Code sin aprobación automática de herramientas.",
         "kiro": "Añade Hronaut a Kiro a nivel de usuario sin aprobar herramientas automáticamente.",
         "kilo": "Añade Hronaut como servidor HTTP Streamable remoto compartido por Kilo Code.",
         "jetbrainsJunie": "Añade Hronaut a la configuración MCP de usuario compartida por Junie CLI y los IDE de JetBrains.",

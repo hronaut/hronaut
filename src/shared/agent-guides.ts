@@ -7,6 +7,7 @@ export const AGENT_GUIDE_IDS = [
   'gemini-cli',
   'goose',
   'cline',
+  'zoo-code',
   'kiro',
   'kilo',
   'jetbrains-junie',

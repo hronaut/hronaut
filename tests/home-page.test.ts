@@ -69,7 +69,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('<html lang="en-US">')
     expect(html).toContain('<title>Hronaut Home</title>')
     expect(html).toContain('Connect your coding agent')
-    expect(html).toContain('<span class="count">19 clients</span>')
+    expect(html).toContain('<span class="count">20 clients</span>')
     expect(html).toContain('<span class="mark">H</span> Hronaut')
     expect(html).toContain('Try Hronaut with one safe task')
     expect(html).toContain('data-copy-target="first-run-prompt"')
@@ -234,6 +234,21 @@ api_key_format = "Bearer {token}"`)
         }
       }
     })
+    const zooCode = renderedGuides(html).find((guide) => guide.id === 'zoo-code')
+    expect(zooCode?.location).toBe('Zoo Code → MCP Servers → Edit Global MCP')
+    expect(zooCode?.setupCommand).toBeUndefined()
+    expect(zooCode?.verifyCommand).toBe('Zoo Code → MCP Servers: hronaut is connected')
+    expect(JSON.parse(zooCode?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamable-http',
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer ${env:HRONAUT_MCP_TOKEN}' },
+          alwaysAllow: [],
+          disabled: false
+        }
+      }
+    })
     const goose = renderedGuides(html).find((guide) => guide.id === 'goose')
     expect(goose?.location).toBe('~/.config/goose/config.yaml')
     expect(goose?.setupCommand).toBeUndefined()
@@ -370,6 +385,7 @@ api_key_format = "Bearer {token}"`)
     const goose = guides.find((guide) => guide.id === 'goose')
     const windsurf = guides.find((guide) => guide.id === 'windsurf')
     const grokBuild = guides.find((guide) => guide.id === 'grok-build')
+    const zooCode = guides.find((guide) => guide.id === 'zoo-code')
 
     expect(codex?.code).toContain(
       "$env:HRONAUT_MCP_TOKEN = (Get-Content -Raw 'C:\\Users\\Yevhen O''Brien\\AppData\\Roaming\\Hronaut\\mcp-token').Trim()"
@@ -384,6 +400,18 @@ api_key_format = "Bearer {token}"`)
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
     expect(goose?.setupCommand).toBe(kiro?.setupCommand)
     expect(grokBuild?.setupCommand).toBe(kiro?.setupCommand)
+    expect(zooCode?.setupCommand).toBe(kiro?.setupCommand)
+    expect(JSON.parse(zooCode?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamable-http',
+          url: dashboard.endpoint,
+          headers: { Authorization: 'Bearer ${env:HRONAUT_MCP_TOKEN}' },
+          alwaysAllow: [],
+          disabled: false
+        }
+      }
+    })
     expect(grokBuild?.code).toContain("'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'")
     expect(grokBuild?.code).not.toContain(tokenPath)
     expect(JSON.parse(windsurf?.code ?? '{}')).toEqual({
@@ -571,7 +599,7 @@ url = "${dashboard.endpoint}"`)
     expect(warp?.code).not.toContain('HRONAUT_MCP_TOKEN')
   })
 
-  it('keeps owner token paths out of environment-backed Kiro, Mistral Vibe, Goose, and Grok Build configuration', () => {
+  it('keeps owner token paths out of environment-backed Kiro, Mistral Vibe, Goose, Grok Build, and Zoo Code configuration', () => {
     const tokenPath = '/tmp/private Hronaut token'
     const guides = renderedGuides(renderHomePage({
       endpoint: dashboard.endpoint,
@@ -583,6 +611,7 @@ url = "${dashboard.endpoint}"`)
     const mistralVibe = guides.find((guide) => guide.id === 'mistral-vibe')
     const goose = guides.find((guide) => guide.id === 'goose')
     const grokBuild = guides.find((guide) => guide.id === 'grok-build')
+    const zooCode = guides.find((guide) => guide.id === 'zoo-code')
 
     expect(kiro?.code).toContain('Bearer ${HRONAUT_MCP_TOKEN}')
     expect(mistralVibe?.code).toContain('api_key_env = "HRONAUT_MCP_TOKEN"')
@@ -593,10 +622,13 @@ url = "${dashboard.endpoint}"`)
     expect(goose?.code).not.toContain(tokenPath)
     expect(grokBuild?.code).toContain("'Authorization: Bearer ${HRONAUT_MCP_TOKEN}'")
     expect(grokBuild?.code).not.toContain(tokenPath)
+    expect(zooCode?.code).toContain('Bearer ${env:HRONAUT_MCP_TOKEN}')
+    expect(zooCode?.code).not.toContain(tokenPath)
     expect(kiro?.setupCommand).toBe(`export HRONAUT_MCP_TOKEN="$(cat '${tokenPath}')"`)
     expect(mistralVibe?.setupCommand).toBe(kiro?.setupCommand)
     expect(goose?.setupCommand).toBe(kiro?.setupCommand)
     expect(grokBuild?.setupCommand).toBe(kiro?.setupCommand)
+    expect(zooCode?.setupCommand).toBe(kiro?.setupCommand)
   })
 
   it('keeps the owner token inside Windsurf file interpolation', () => {
@@ -661,6 +693,31 @@ url = "${dashboard.endpoint}"`)
     })
     expect(qwenCode?.setupCommand).toBeUndefined()
     expect(qwenCode?.code).not.toContain('Authorization')
+  })
+
+  it('renders Zoo Code Streamable HTTP setup without authentication material when local authentication is disabled', () => {
+    const zooCode = renderedGuides(renderHomePage({
+      endpoint: dashboard.endpoint,
+      initialState: dashboard,
+      locale: 'en-US',
+      authenticationDisabled: true
+    })).find((guide) => guide.id === 'zoo-code')
+
+    expect(zooCode).toMatchObject({
+      location: 'Zoo Code → MCP Servers → Edit Global MCP',
+      verifyCommand: 'Zoo Code → MCP Servers: hronaut is connected'
+    })
+    expect(JSON.parse(zooCode?.code ?? '{}')).toEqual({
+      mcpServers: {
+        hronaut: {
+          type: 'streamable-http',
+          url: dashboard.endpoint,
+          alwaysAllow: [],
+          disabled: false
+        }
+      }
+    })
+    expect(zooCode?.setupCommand).toBeUndefined()
   })
 
   it('renders Goose Streamable HTTP setup without authentication material when local authentication is disabled', () => {

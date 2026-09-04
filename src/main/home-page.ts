@@ -205,6 +205,27 @@ function agentGuides(
       verifyCommand: 'cline config mcp --json'
     },
     {
+      id: 'zoo-code',
+      name: 'Zoo Code',
+      note: home.connect.guides.zooCode,
+      location: 'Zoo Code → MCP Servers → Edit Global MCP',
+      code: JSON.stringify({
+        mcpServers: {
+          hronaut: {
+            type: 'streamable-http',
+            url: endpoint,
+            ...(!authenticationDisabled && {
+              headers: { Authorization: 'Bearer ${env:HRONAUT_MCP_TOKEN}' }
+            }),
+            alwaysAllow: [],
+            disabled: false
+          }
+        }
+      }, null, 2),
+      ...(!authenticationDisabled && tokenEnvironmentSetup && { setupCommand: tokenEnvironmentSetup }),
+      verifyCommand: 'Zoo Code → MCP Servers: hronaut is connected'
+    },
+    {
       id: 'kiro',
       name: 'Kiro',
       note: home.connect.guides.kiro,

@@ -2632,6 +2632,7 @@ export const deDE = {
         "geminiCli": "Fügt Hronaut als benutzerweiten Streamable-HTTP-Server in Gemini CLI hinzu.",
         "goose": "Fügt Hronaut als dauerhafte Streamable-HTTP-Erweiterung zu Goose hinzu.",
         "cline": "Fügt Hronaut mit dem empfohlenen Streamable-HTTP-Transport zu Cline hinzu.",
+        "zooCode": "Fügt Hronaut zum gepflegten Community-Nachfolger Zoo Code hinzu, ohne Tools automatisch zu genehmigen.",
         "kiro": "Fügt Hronaut auf Benutzerebene zu Kiro hinzu, ohne Tools automatisch zu genehmigen.",
         "kilo": "Fügt Hronaut als gemeinsam genutzten entfernten Streamable-HTTP-Server zu Kilo Code hinzu.",
         "jetbrainsJunie": "Fügt Hronaut zur benutzerweiten MCP-Konfiguration hinzu, die Junie CLI und JetBrains-IDEs gemeinsam verwenden.",

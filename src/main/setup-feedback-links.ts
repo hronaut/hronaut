@@ -12,6 +12,7 @@ export const AGENT_GUIDE_URLS = Object.freeze({
   'gemini-cli': 'https://hronaut.dev/gemini-cli-browser-mcp',
   goose: 'https://hronaut.dev/goose-browser-mcp',
   cline: 'https://hronaut.dev/cline-browser-mcp',
+  'zoo-code': 'https://hronaut.dev/zoo-code-browser-mcp',
   kiro: 'https://hronaut.dev/kiro-browser-mcp',
   kilo: 'https://hronaut.dev/kilo-code-browser-mcp',
   'jetbrains-junie': 'https://hronaut.dev/jetbrains-junie-browser-mcp',

@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add first-class Zoo Code setup to Hronaut Home with global Streamable HTTP configuration, conservative approval defaults, and environment-backed authentication that keeps the owner token out of JSON.
 - Add first-class Goose setup to Hronaut Home with persistent Streamable HTTP configuration, cross-platform config locations, and environment-backed authentication that keeps the owner token out of YAML.
 
 ## [1.11.44] - 2026-09-04

@@ -2632,6 +2632,7 @@ export const ruRU = {
         "geminiCli": "Добавляет Hronaut в Gemini CLI как пользовательский сервер Streamable HTTP.",
         "goose": "Добавляет Hronaut как постоянное расширение Streamable HTTP в Goose.",
         "cline": "Добавляет Hronaut в Cline через рекомендуемый транспорт Streamable HTTP.",
+        "zooCode": "Добавляет Hronaut в поддерживаемого сообществом преемника Zoo Code без автоматического одобрения инструментов.",
         "kiro": "Добавляет Hronaut в пользовательскую конфигурацию Kiro без автоматического одобрения инструментов.",
         "kilo": "Добавляет Hronaut как удалённый сервер Streamable HTTP для клиентов Kilo Code.",
         "jetbrainsJunie": "Добавляет Hronaut в пользовательскую конфигурацию MCP, общую для Junie CLI и IDE JetBrains.",
