@@ -33,7 +33,7 @@ Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.
 
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
 
-- **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [Goose](https://hronaut.dev/goose-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), [Grok Build](https://hronaut.dev/grok-build-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
+- **Terminal and desktop agents:** [Codex](https://hronaut.dev/codex-browser-mcp), [Claude Code](https://hronaut.dev/claude-code-browser-mcp), [Gemini CLI](https://hronaut.dev/gemini-cli-browser-mcp), [Goose](https://hronaut.dev/goose-browser-mcp), [OpenCode](https://hronaut.dev/opencode-browser-mcp), [Devin Local](https://hronaut.dev/devin-local-browser-mcp), [Mistral Vibe](https://hronaut.dev/mistral-vibe-browser-mcp), [Grok Build](https://hronaut.dev/grok-build-browser-mcp), [Qwen Code](https://hronaut.dev/qwen-code-browser-mcp), and [Warp](https://hronaut.dev/warp-browser-mcp).
 - **Editor agents:** [Cursor](https://hronaut.dev/cursor-browser-mcp), [VS Code / GitHub Copilot](https://hronaut.dev/github-copilot-browser-mcp), [Cline](https://hronaut.dev/cline-browser-mcp), [Zoo Code](https://hronaut.dev/zoo-code-browser-mcp), [Kiro](https://hronaut.dev/kiro-browser-mcp), [Kilo Code](https://hronaut.dev/kilo-code-browser-mcp), [JetBrains Junie](https://hronaut.dev/jetbrains-junie-browser-mcp), [Zed](https://hronaut.dev/zed-browser-mcp), and [Windsurf](https://hronaut.dev/setup#client-configurations).
 - **Other clients:** use the [generic Streamable HTTP setup](https://hronaut.dev/setup).
 
@@ -135,7 +135,7 @@ Start Hronaut, then configure a Streamable HTTP client with the local endpoint:
 }
 ```
 
-The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Goose, Cursor, Cline, Zoo Code, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Grok Build, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
+The public [setup guide](https://hronaut.dev/setup) provides tested commands for Codex, Claude Code, Gemini CLI, Goose, Cursor, Cline, Zoo Code, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Grok Build, Qwen Code, Warp, Windsurf, VS Code/GitHub Copilot, OpenCode, and generic MCP clients. Hronaut Home contains the current profile-specific version for every built-in client, including the right endpoint and authentication settings.
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 

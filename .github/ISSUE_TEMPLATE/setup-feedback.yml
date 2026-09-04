@@ -22,7 +22,9 @@ body:
         - VS Code / GitHub Copilot
         - OpenCode
         - Gemini CLI
+        - Goose
         - Cline
+        - Zoo Code
         - Kiro
         - Kilo Code
         - JetBrains Junie
@@ -31,6 +33,8 @@ body:
         - Mistral Vibe
         - Warp
         - Windsurf
+        - Grok Build
+        - Qwen Code
         - Another MCP client
     validations:
       required: true

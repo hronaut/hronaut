@@ -443,6 +443,8 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
   try {
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Fixture server did not expose a port')
+    const fixtureUrl = `http://127.0.0.1:${address.port}/?token=top-level-navigation-secret&view=capabilities`
+    const redactedFixtureUrl = `http://127.0.0.1:${address.port}/?view=capabilities&token=%5BREDACTED%5D`
     await expect
       .poll(async () => {
         try {
@@ -502,16 +504,16 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
 
     const opened = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { url: `http://127.0.0.1:${address.port}/`, active: true }
+      arguments: { url: fixtureUrl, active: true }
     }) as CallToolResult
     const state = JSON.parse(text(opened)) as { activeTabId: string }
     const tabId = state.activeTabId
     await client.callTool({ name: 'browser_wait', arguments: { tabId } })
-    await electronApp.evaluate(async ({ webContents }, fixtureTabId) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('http://127.0.0.1') && contents.getURL().endsWith('/'))
-      if (!page) throw new Error(`Memory Saver fixture tab was not found: ${fixtureTabId}`)
+    await electronApp.evaluate(async ({ webContents }, fixture) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === fixture.url)
+      if (!page) throw new Error(`Memory Saver fixture tab was not found: ${fixture.tabId}`)
       await page.executeJavaScript('window.startMemorySaverProbe()')
-    }, tabId)
+    }, { tabId, url: fixtureUrl })
     await expect.poll(() => memorySaverTicks).toBeGreaterThan(1)
     await appWindow.evaluate(`window.hronaut.newTab({ url: 'about:blank', active: true })`)
     await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
@@ -571,21 +573,21 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     })
     expect(text(generatedLocatorResult)).not.toContain('element-inspection-secret')
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((value) => value.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(false)
-    await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('http://127.0.0.1') && contents.getURL().endsWith('/'))
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
       if (!page) throw new Error('Woken Memory Saver fixture tab was not found')
       await page.executeJavaScript('window.startMemorySaverProbe()')
-    })
+    }, fixtureUrl)
     await expect.poll(() => memorySaverTicks).toBeGreaterThan(ticksBeforeSleep + 1)
-    await electronApp.evaluate(async ({ webContents }) => {
-      const page = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('http://127.0.0.1') && contents.getURL().endsWith('/'))
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
       if (!page) throw new Error('Memory Saver form-protection fixture tab was not found')
       await page.executeJavaScript(`(() => {
         const input = document.querySelector('#name');
         input.value = 'unsaved draft';
         input.dispatchEvent(new Event('input', { bubbles: true }));
       })()`)
-    })
+    }, fixtureUrl)
     const sleepError = await appWindow.evaluate(`(async () => {
       try {
         await window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)
@@ -921,9 +923,11 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(coverageStarted.isError, text(coverageStarted)).not.toBe(true)
     expect(JSON.parse(text(coverageStarted))).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       status: 'recording',
-      recording: { mode: 'function' }
+      recording: { mode: 'function', startedUrl: redactedFixtureUrl }
     })
+    expect(text(coverageStarted)).not.toContain('top-level-navigation-secret')
     await client.callTool({ name: 'browser_wait', arguments: { tabId } })
     const coverageStopped = await client.callTool({
       name: 'browser_code_coverage',
@@ -933,8 +937,11 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const coverageReport = JSON.parse(text(coverageStopped))
     expect(coverageReport).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       status: 'complete',
       report: {
+        startedUrl: redactedFixtureUrl,
+        currentUrl: redactedFixtureUrl,
         mode: 'function',
         totalBytes: expect.any(Number),
         usedBytes: expect.any(Number),
@@ -945,6 +952,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(coverageReport.report.totalBytes).toBeGreaterThan(0)
     expect(coverageReport.report.usedBytes).toBeLessThanOrEqual(coverageReport.report.totalBytes)
     expect(JSON.stringify(coverageReport)).not.toContain('hronaut-console-marker')
+    expect(JSON.stringify(coverageReport)).not.toContain('top-level-navigation-secret')
 
     await openPageTool(/Code coverage:/)
     await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
@@ -961,7 +969,13 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       arguments: { tabId, action: 'start' }
     }) as CallToolResult
     expect(cpuProfileStarted.isError, text(cpuProfileStarted)).not.toBe(true)
-    expect(JSON.parse(text(cpuProfileStarted))).toMatchObject({ tabId, status: 'recording' })
+    expect(JSON.parse(text(cpuProfileStarted))).toMatchObject({
+      tabId,
+      url: redactedFixtureUrl,
+      status: 'recording',
+      recording: { startedUrl: redactedFixtureUrl }
+    })
+    expect(text(cpuProfileStarted)).not.toContain('top-level-navigation-secret')
     const cpuProbe = await client.callTool({
       name: 'browser_evaluate',
       arguments: { tabId, script: 'window.runCpuProfileProbe()' }
@@ -975,8 +989,11 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const cpuProfile = JSON.parse(text(cpuProfileStopped))
     expect(cpuProfile).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       status: 'complete',
       report: {
+        startedUrl: redactedFixtureUrl,
+        currentUrl: redactedFixtureUrl,
         durationMs: expect.any(Number),
         sampledTimeMs: expect.any(Number),
         sampleCount: expect.any(Number),
@@ -993,6 +1010,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       })
     ]))
     expect(JSON.stringify(cpuProfile)).not.toContain('cpu-profile-secret')
+    expect(JSON.stringify(cpuProfile)).not.toContain('top-level-navigation-secret')
 
     await openPageTool(/JavaScript CPU profile:/)
     await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
@@ -1036,6 +1054,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const memoryBaseline = JSON.parse(text(memoryBaselineResult))
     expect(memoryBaseline).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       action: 'set-baseline',
       forcedGarbageCollection: true,
       allocationStatus: 'idle',
@@ -1053,10 +1072,12 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(allocationStartResult.isError, text(allocationStartResult)).not.toBe(true)
     expect(JSON.parse(text(allocationStartResult))).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       action: 'start-allocation-sampling',
       allocationStatus: 'recording',
-      allocationRecording: { startedAt: expect.any(String) }
+      allocationRecording: { startedAt: expect.any(String), startedUrl: redactedFixtureUrl }
     })
+    expect(text(allocationStartResult)).not.toContain('top-level-navigation-secret')
     const cpuDuringAllocation = await client.callTool({
       name: 'browser_cpu_profile',
       arguments: { tabId, action: 'start' }
@@ -1101,9 +1122,12 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const allocationStop = JSON.parse(text(allocationStopResult))
     expect(allocationStop).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       action: 'stop-allocation-sampling',
       allocationStatus: 'complete',
       allocationProfile: {
+        startedUrl: redactedFixtureUrl,
+        currentUrl: redactedFixtureUrl,
         sampledBytes: expect.any(Number),
         sampleCount: expect.any(Number),
         hotspots: expect.any(Array)
@@ -1128,6 +1152,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const memoryMeasurement = JSON.parse(text(memoryMeasurementResult))
     expect(memoryMeasurement).toMatchObject({
       tabId,
+      url: redactedFixtureUrl,
       action: 'measure',
       forcedGarbageCollection: true,
       delta: {
@@ -1140,6 +1165,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(memoryMeasurement.delta.nodes).toBeGreaterThanOrEqual(800)
     expect(memoryMeasurement.delta.eventListeners).toBeGreaterThanOrEqual(800)
     expect(JSON.stringify(memoryMeasurement)).not.toContain('retained-memory-fixture')
+    expect(JSON.stringify(memoryMeasurement)).not.toContain('top-level-navigation-secret')
 
     await openPageTool(/Page memory:/)
     await appWindow.evaluate("window.hronautSettings.setLanguagePreference('uk-UA')")
@@ -1263,7 +1289,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(JSON.parse(text(inspectedSiteData))).toMatchObject({
       origin: fixtureOrigin,
       cookieCount: 2,
-      historyEntries: 1
+      historyEntries: 2
     })
     const clearedSiteData = await client.callTool({
       name: 'browser_site_data',
@@ -1272,7 +1298,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(JSON.parse(text(clearedSiteData))).toMatchObject({
       origin: fixtureOrigin,
       cleared: ['cookies-and-storage', 'cache'],
-      remaining: { cookieCount: 0, historyEntries: 1 }
+      remaining: { cookieCount: 0, historyEntries: 2 }
     })
     const rejectedWholeProfileClear = await client.callTool({
       name: 'browser_site_data',
@@ -1297,14 +1323,16 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
         arguments: { action: 'list', query: 'Capability fixture' }
       }) as CallToolResult
       return JSON.parse(text(result))
-    }).toEqual([
-      expect.objectContaining({ title: 'Capability fixture', url: `http://127.0.0.1:${address.port}/` })
-    ])
+    }).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: 'Capability fixture', url: `http://127.0.0.1:${address.port}/` }),
+      expect.objectContaining({ title: 'Capability fixture', url: fixtureUrl })
+    ]))
     const listedHistory = await client.callTool({
       name: 'browser_visit_history',
       arguments: { action: 'list', query: 'Capability fixture' }
     }) as CallToolResult
-    const historyEntry = (JSON.parse(text(listedHistory)) as Array<{ id: string }>)[0]
+    const historyEntry = (JSON.parse(text(listedHistory)) as Array<{ id: string; url: string }>)
+      .find((entry) => entry.url === `http://127.0.0.1:${address.port}/`)
     if (!historyEntry) throw new Error('MCP did not return the recorded visit')
     const reopenedHistory = await client.callTool({
       name: 'browser_visit_history',
@@ -2158,7 +2186,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(networkDetails.timing.contentDownloadMs).toBeGreaterThanOrEqual(0)
     expect(networkDetails.initiator.type).toBe('script')
     expect(networkDetails.initiator.stack).toEqual(expect.arrayContaining([
-      expect.objectContaining({ url: `http://127.0.0.1:${address.port}/`, lineNumber: expect.any(Number) })
+      expect.objectContaining({ url: redactedFixtureUrl, lineNumber: expect.any(Number) })
     ]))
     expect(JSON.stringify(networkDetails.initiator)).not.toContain('url-secret')
 

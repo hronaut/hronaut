@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { parse } from 'yaml'
 import { describe, expect, it } from 'vitest'
+import { AGENT_GUIDE_IDS, AGENT_GUIDE_NAMES } from '../src/shared/agent-guides.js'
 
 interface FormItem {
   type?: string
@@ -42,21 +43,7 @@ describe('setup feedback issue form', () => {
     }
 
     expect(items.find((item) => item.id === 'client')?.attributes?.options).toEqual([
-      'Codex',
-      'Claude Code',
-      'Cursor',
-      'VS Code / GitHub Copilot',
-      'OpenCode',
-      'Gemini CLI',
-      'Cline',
-      'Kiro',
-      'Kilo Code',
-      'JetBrains Junie',
-      'Devin Local',
-      'Zed',
-      'Mistral Vibe',
-      'Warp',
-      'Windsurf',
+      ...AGENT_GUIDE_IDS.filter((id) => id !== 'generic').map((id) => AGENT_GUIDE_NAMES[id]),
       'Another MCP client'
     ])
 
@@ -72,6 +59,28 @@ describe('setup feedback issue form', () => {
     const introduction = items.find((item) => item.type === 'markdown')?.attributes?.value ?? ''
     for (const warning of ['public', 'credentials', 'MCP bearer tokens', 'private URLs', 'page content', 'personal data']) {
       expect(introduction, warning).toContain(warning)
+    }
+  })
+
+  it('keeps public setup summaries aligned with every built-in named client', async () => {
+    const [readme, reference] = await Promise.all([
+      readFile('README.md', 'utf8'),
+      readFile('REFERENCE.md', 'utf8')
+    ])
+    const readmeStart = readme.indexOf('### Works with your coding agent')
+    const readmeEnd = readme.indexOf('## When Hronaut is the right browser')
+    const readmeClientDirectory = readme.slice(readmeStart, readmeEnd)
+    const referenceHomeLine = reference.split('\n')
+      .find((line) => line.startsWith('- Copy-ready setup instructions')) ?? ''
+
+    expect(readmeStart).toBeGreaterThanOrEqual(0)
+    expect(readmeEnd).toBeGreaterThan(readmeStart)
+    expect(referenceHomeLine).not.toBe('')
+    for (const id of AGENT_GUIDE_IDS) {
+      if (id === 'generic') continue
+      const name = AGENT_GUIDE_NAMES[id]
+      expect(readmeClientDirectory, `README client directory: ${name}`).toContain(name)
+      expect(referenceHomeLine, `REFERENCE Home summary: ${name}`).toContain(name)
     }
   })
 })

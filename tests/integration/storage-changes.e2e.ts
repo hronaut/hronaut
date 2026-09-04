@@ -77,9 +77,10 @@ test('compares bounded browser storage changes for people and grouped agents', a
       arguments: { action: 'create', name: 'Storage changes' }
     }) as CallToolResult
     const workspaceId = (JSON.parse(text(groupResult)) as { id: string }).id
+    const fixtureUrl = `http://127.0.0.1:${address.port}/?access_token=storage-navigation-secret&view=changes`
     const opened = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { workspaceId, url: `http://127.0.0.1:${address.port}/` }
+      arguments: { workspaceId, url: fixtureUrl }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, text: 'Storage changes fixture' } })
@@ -91,12 +92,25 @@ test('compares bounded browser storage changes for people and grouped agents', a
     expect(baseline.isError, text(baseline)).not.toBe(true)
     expect(JSON.parse(text(baseline))).toMatchObject({
       tabId,
+      url: `http://127.0.0.1:${address.port}/?view=changes&access_token=%5BREDACTED%5D`,
       status: 'baseline',
       changeCount: 0,
       baselineItemCounts: { 'local-storage': 2, 'session-storage': 1, cookies: 2 },
       valuesIncluded: false
     })
     expect(text(baseline)).not.toContain('server-secret-old')
+    expect(text(baseline)).not.toContain('storage-navigation-secret')
+
+    const cookieStorage = await client.callTool({
+      name: 'browser_storage',
+      arguments: { workspaceId, tabId, kind: 'cookies', action: 'list' }
+    }) as CallToolResult
+    expect(cookieStorage.isError, text(cookieStorage)).not.toBe(true)
+    expect(JSON.parse(text(cookieStorage))).toMatchObject({
+      url: `http://127.0.0.1:${address.port}/?view=changes&access_token=%5BREDACTED%5D`,
+      kind: 'cookies'
+    })
+    expect(text(cookieStorage)).not.toContain('storage-navigation-secret')
 
     const mutated = await client.callTool({
       name: 'browser_evaluate',

@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Redact token-like query values from IndexedDB, storage-change, cookie, code-coverage, CPU-profile, and memory diagnostic report URLs.
+
+### Improved
+
+- Keep the public setup directory, reference, and setup-feedback client list aligned with every built-in coding-agent guide.
+
 ## [1.11.49] - 2026-09-04
 
 ### Fixed

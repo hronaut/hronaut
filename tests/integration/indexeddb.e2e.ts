@@ -77,9 +77,10 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       arguments: { action: 'create', name: 'IndexedDB inspection' }
     }) as CallToolResult
     const workspaceId = (JSON.parse(text(groupResult)) as { id: string }).id
+    const fixtureUrl = `http://127.0.0.1:${address.port}/?token=indexeddb-navigation-secret&view=records`
     const opened = await client.callTool({
       name: 'browser_new_tab',
-      arguments: { workspaceId, url: `http://127.0.0.1:${address.port}/` }
+      arguments: { workspaceId, url: fixtureUrl }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, text: 'IndexedDB ready' } })
@@ -91,10 +92,12 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
     expect(databasesResult.isError, text(databasesResult)).not.toBe(true)
     expect(JSON.parse(text(databasesResult))).toMatchObject({
       tabId,
+      url: `http://127.0.0.1:${address.port}/?view=records&token=%5BREDACTED%5D`,
       databases: [{ name: 'app-cache', version: 3 }],
       entries: [],
       valuesIncluded: false
     })
+    expect(text(databasesResult)).not.toContain('indexeddb-navigation-secret')
 
     const schemaResult = await client.callTool({
       name: 'browser_indexeddb',

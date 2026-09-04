@@ -1930,7 +1930,7 @@ export class BrowserTabsManager {
     ) as Omit<BrowserIndexedDbReport, 'tabId' | 'url' | 'origin' | 'caveats'>
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       origin: pageUrl.origin,
       ...result,
       caveats: [
@@ -2216,7 +2216,7 @@ export class BrowserTabsManager {
     if (!comparison) {
       return {
         tabId: tab.id,
-        url: tab.url,
+        url: redactNetworkUrl(tab.url),
         origin,
         action,
         status: 'empty',
@@ -2230,7 +2230,7 @@ export class BrowserTabsManager {
     if (!comparison.current) {
       return {
         tabId: tab.id,
-        url: tab.url,
+        url: redactNetworkUrl(tab.url),
         origin,
         action,
         status: 'baseline',
@@ -2247,7 +2247,7 @@ export class BrowserTabsManager {
     const result = compareBrowserStorageSnapshots(comparison.baseline, comparison.current, includeValues)
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       origin,
       action,
       status: 'compared',
@@ -2431,7 +2431,7 @@ export class BrowserTabsManager {
     const bounded = this.boundStorageItems(rawItems, includeValues || action === 'get', true)
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       origin: pageUrl.origin,
       kind: 'cookies',
       action,
@@ -3906,14 +3906,14 @@ export class BrowserTabsManager {
     const report = tab.codeCoverage?.report
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       title: tab.title,
       action,
       status: recording ? 'recording' : report ? 'complete' : 'idle',
       ...(recording ? {
         recording: {
           startedAt: recording.startedAt,
-          startedUrl: recording.startedUrl,
+          startedUrl: redactNetworkUrl(recording.startedUrl),
           mode: recording.mode
         }
       } : {}),
@@ -4145,11 +4145,16 @@ export class BrowserTabsManager {
     const report = tab.cpuProfile?.report
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       title: tab.title,
       action,
       status: recording ? 'recording' : report ? 'complete' : 'idle',
-      ...(recording ? { recording: { ...recording } } : {}),
+      ...(recording ? {
+        recording: {
+          startedAt: recording.startedAt,
+          startedUrl: redactNetworkUrl(recording.startedUrl)
+        }
+      } : {}),
       ...(report ? { report } : {}),
       ...(cleared !== undefined ? { cleared } : {})
     }
@@ -4273,7 +4278,7 @@ export class BrowserTabsManager {
     const allocationProfile = tab.memoryAllocation?.report
     return {
       tabId: tab.id,
-      url: tab.url,
+      url: redactNetworkUrl(tab.url),
       title: tab.title,
       action,
       forcedGarbageCollection,
