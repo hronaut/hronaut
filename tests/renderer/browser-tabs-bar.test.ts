@@ -730,12 +730,31 @@ describe('BrowserTabsBar', () => {
       })
 
       await vi.waitFor(() => {
-        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
       })
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
       else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
     }
+  })
+
+  it('keeps keyboard-focused tabs clear of their sticky workspace name', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }))
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    const secondControl = screen.getByRole('tab', { name: second.title })
+    const header = screen.getByRole('button', { name: 'Collapse workspace Research, 2 tabs' })
+    const scrollBy = vi.fn()
+    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+    vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 200, 37))
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 4, 74, 29))
+    vi.spyOn(secondControl, 'getBoundingClientRect').mockReturnValue(new DOMRect(110, 4, 112, 29))
+    await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowRight' })
+    await vi.waitFor(() => {
+      expect(secondControl).toHaveFocus()
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: -68 }))
+    })
   })
 
   it('keeps a newly active crowded tab clear of the fixed scroll controls', async () => {
@@ -761,7 +780,7 @@ describe('BrowserTabsBar', () => {
     })
 
     await vi.waitFor(() => {
-      expect(scrollBy).toHaveBeenCalledWith({ left: 121, behavior: 'smooth' })
+      expect(scrollBy).toHaveBeenCalledWith({ left: 121, behavior: 'auto' })
     })
   })
 
@@ -805,7 +824,7 @@ describe('BrowserTabsBar', () => {
       })
 
       await vi.waitFor(() => {
-        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
       })
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)
@@ -838,7 +857,7 @@ describe('BrowserTabsBar', () => {
       })
 
       await vi.waitFor(() => {
-        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest', inline: 'nearest' })
       })
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', original)

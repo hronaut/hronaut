@@ -136,10 +136,9 @@ function scrollTabsWithWheel(event: WheelEvent): void {
   updateTabOverflow()
 }
 
-function revealActiveTab(behavior: ScrollBehavior = 'smooth'): void {
+function revealTab(activeTab: HTMLElement, behavior?: ScrollBehavior): void {
   const strip = tabsStrip.value
-  const activeTab = strip?.querySelector<HTMLElement>('[data-active-tab="true"]')
-  if (!strip || !activeTab) return
+  if (!strip) return
 
   const stripBounds = strip.getBoundingClientRect()
   const tabBounds = activeTab.getBoundingClientRect()
@@ -147,8 +146,12 @@ function revealActiveTab(behavior: ScrollBehavior = 'smooth'): void {
   const margin = Math.min(31, Math.max(0, availableSpan / 2))
   const leadingEdge = vertical.value ? tabBounds.top : tabBounds.left
   const trailingEdge = vertical.value ? tabBounds.bottom : tabBounds.right
-  const visibleLeadingEdge = (vertical.value ? stripBounds.top : stripBounds.left) + margin
-  const visibleTrailingEdge = (vertical.value ? stripBounds.bottom : stripBounds.right) - margin
+  const header = activeTab.closest('.workspace-tab-section')?.querySelector('.tab-group-label')
+  const headerSpace = !vertical.value && header ? header.getBoundingClientRect().width + 4 : 0
+  const leadingMargin = Math.max(margin, Math.min(headerSpace, Math.max(0, availableSpan)))
+  const trailingMargin = Math.min(margin, Math.max(0, availableSpan - leadingMargin))
+  const visibleLeadingEdge = (vertical.value ? stripBounds.top : stripBounds.left) + leadingMargin
+  const visibleTrailingEdge = (vertical.value ? stripBounds.bottom : stripBounds.right) - trailingMargin
   const correction = leadingEdge < visibleLeadingEdge
     ? leadingEdge - visibleLeadingEdge
     : trailingEdge > visibleTrailingEdge
@@ -159,8 +162,13 @@ function revealActiveTab(behavior: ScrollBehavior = 'smooth'): void {
     return
   }
   if (typeof activeTab.scrollIntoView === 'function') {
-    activeTab.scrollIntoView({ behavior, block: 'nearest', inline: 'nearest' })
+    activeTab.scrollIntoView({ ...(behavior ? { behavior } : {}), block: 'nearest', inline: 'nearest' })
   }
+}
+
+function revealActiveTab(behavior: ScrollBehavior = 'auto'): void {
+  const activeTab = tabsStrip.value?.querySelector<HTMLElement>('[data-active-tab="true"]')
+  if (activeTab) revealTab(activeTab, behavior)
 }
 
 function activeTabIntersectsVisibleStrip(): boolean {
@@ -238,9 +246,15 @@ function focusTab(tabId: string): void {
   void nextTick(() => {
     const control = tabControl(tabId)
     control?.focus({ preventScroll: true })
-    if (typeof control?.scrollIntoView === 'function') {
-      control.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    }
+    if (control) revealTab(control)
+  })
+}
+
+function activateTab(tabId: string): void {
+  emit('selectTab', tabId)
+  void nextTick(() => {
+    const control = tabControl(tabId)
+    if (control && document.activeElement === control) revealTab(control, 'auto')
   })
 }
 
@@ -512,6 +526,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       v-for="workspace in state.mcpTabGroups"
       :key="workspace.id"
       class="workspace-tab-section"
+      :class="{ collapsed: isTabGroupCollapsed(workspace.id), empty: tabGroupTabCount(workspace.id) === 0 }"
+      :style="tabGroupColorStyle(workspace.color)"
       role="group"
       :aria-label="workspace.name"
     >
@@ -536,14 +552,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         <span>{{ workspace.name }}</span>
         <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
-      <UiButton appearance="application"
-        class="new-tab workspace-new-tab"
-        type="button"
-        :style="tabGroupColorStyle(workspace.color)"
-        :title="t('runtime.tabs.newTab', { name: workspace.name })"
-        :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
-        @click="emit('newTab', workspace.id)"
-      ><IconAdd aria-hidden="true" /></UiButton>
       <div
         class="workspace-tab-list"
         role="tablist"
@@ -580,7 +588,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           :data-active-tab="tab.active ? 'true' : undefined"
           @focus="focusedTabId = tab.id"
           @keydown="handleTabKeyDown($event, tab)"
-          @click="emit('selectTab', tab.id)"
+          @click="activateTab(tab.id)"
           @auxclick="handleTabAuxClick($event, tab)"
           @contextmenu.prevent="emit('showTabContextMenu', tab.id)"
           @dragstart="beginTabDrag($event, tab)"
@@ -629,6 +637,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           ><IconClose aria-hidden="true" /></span>
         </UiButton>
       </div>
+      <UiButton appearance="application"
+        class="new-tab workspace-new-tab"
+        type="button"
+        :style="tabGroupColorStyle(workspace.color)"
+        :title="t('runtime.tabs.newTab', { name: workspace.name })"
+        :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
+        @click="emit('newTab', workspace.id)"
+      ><IconAdd aria-hidden="true" /></UiButton>
     </div>
     <span class="workspace-action-divider" aria-hidden="true" />
     <UiButton appearance="application"
