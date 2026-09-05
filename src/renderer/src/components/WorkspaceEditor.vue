@@ -111,7 +111,7 @@ onBeforeUnmount(dispose)
 </script>
 
 <template>
-  <div v-if="open" class="tab-group-editor-overlay" @click.self="close">
+  <div v-if="open" class="tab-group-editor-overlay">
     <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked" @submit.prevent="save">
       <header>
         <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>

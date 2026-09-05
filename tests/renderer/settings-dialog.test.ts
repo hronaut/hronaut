@@ -32,7 +32,7 @@ describe('SettingsDialog', () => {
     const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
     const searchController = useSearchSettingsController({
       settings,
-      setSearchEngine: vi.fn(async () => settings.value),
+      setSearchEngine: vi.fn(async (searchEngine: AppSettings['searchEngine']) => (settings.value = { ...settings.value, searchEngine })),
       onError: vi.fn()
     })
     const inactiveController = {} as never
@@ -79,6 +79,12 @@ describe('SettingsDialog', () => {
     resetting.resolve(true)
     await vi.waitFor(() => expect(reset).toBeEnabled())
     expect(dialog.querySelector('.settings-layout')).not.toHaveAttribute('inert')
+
+    await userEvent.setup().click(screen.getByTestId('search-engine-bing'))
+    await userEvent.setup().click(dialog.parentElement!)
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByTestId('search-engine-bing')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: /Search engine/ })).toHaveAttribute('aria-current', 'page')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Close settings' }))
     expect(screen.queryByRole('dialog', { name: 'Settings' })).not.toBeInTheDocument()

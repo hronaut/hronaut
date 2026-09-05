@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Settings and workspace Create/Edit dialogs open when clicking their backdrop, so outside clicks and text-selection drags do not discard unfinished workspace drafts.
+
 ## [1.11.55] - 2026-09-05
 
 ### Fixed
