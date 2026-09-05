@@ -124,8 +124,8 @@
 }
 
 @media (max-width: 720px) {
-  .app-home-button { @apply [padding-inline:9px]; }
-  .app-home-button .app-home-label { @apply hidden; }
+  .browser-tabs-bar.horizontal .app-home-button { @apply [padding-inline:9px]; }
+  .browser-tabs-bar.horizontal .app-home-button .app-home-label { @apply hidden; }
   .settings-overlay { @apply [padding:14px]; }
   .command-palette-overlay { @apply [padding-top:28px]; }
   .command-palette { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_56px)]; }

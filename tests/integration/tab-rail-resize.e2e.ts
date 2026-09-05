@@ -84,6 +84,7 @@ for (const scale of [1, 1.25]) {
     await handle.focus()
     await handle.press('Home')
     await appWindow.evaluate("window.hronautSettings.setLanguagePreference('de-DE')")
+    await expect(appWindow.locator('.app-home-label')).toBeVisible()
     await appWindow.locator('.app-home-button').focus()
     await expect(appWindow.locator('.tab-rail-resize-handle')).toHaveAttribute('aria-valuenow', '200')
     await electronApp.evaluate(({ BrowserWindow, app }) => BrowserWindow.getAllWindows()[0]!.webContents.send('updates:changed', {
