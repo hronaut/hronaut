@@ -101,6 +101,9 @@
   @apply grid [width:24px] [height:24px] [flex:0_0_24px] place-items-center [border-radius:7px] text-accent-copy bg-accent-soft;
 }
 
+.shell-title-bar-mark.app-brand { @apply bg-transparent; }
+.shell-title-bar-mark img { @apply block w-full h-full object-contain; }
+
 .shell-title-bar-mark svg { @apply [width:16px] [height:16px]; }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-rail {

@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Use the normal cursor over tabs, a pointer over Close, and a dragging cursor only during an actual drag.
+- Show the canonical Hronaut app icon beside its title-bar name instead of a generic dashboard grid.
 - Keep Settings and workspace Create/Edit dialogs open when clicking their backdrop, so outside clicks and text-selection drags do not discard unfinished workspace drafts.
 
 ## [1.11.55] - 2026-09-05
