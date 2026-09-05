@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the software-update loading indicator visible during checks, downloads, and installation across themes.
+
 ### Improved
 
 - Suggest playful, editable names for new human-created workspaces, avoiding open and archived workspace names.

@@ -335,7 +335,11 @@
 }
 .update-status-icon.busy,
 .update-status-card-icon.busy {
-  @apply [border:2px_solid_var(--border)] [border-top-color:var(--accent)] bg-transparent [animation:spin_0.85s_linear_infinite];
+  @apply bg-transparent;
+}
+.update-status-icon .ui-spinner,
+.update-status-card-icon .ui-spinner {
+  @apply text-accent-copy;
 }
 .update-status-icon.error,
 .update-status-card-icon.error { @apply [background:#d9534f]; }

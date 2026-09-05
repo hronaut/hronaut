@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
+import UiSpinner from "../ui/UiSpinner.vue"
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -83,11 +84,13 @@ const pillLabel = computed(() => {
     @click="emit('open')"
   >
     <span class="update-status-icon" :class="{ busy, error: state.status === 'error' || state.status === 'install-error' }" aria-hidden="true">
-      <IconCheck v-if="state.status === 'up-to-date'" />
+      <UiSpinner v-if="busy" :label="title" size="small" />
+      <IconCheck v-else-if="state.status === 'up-to-date'" />
       <IconDownload v-else-if="state.status === 'available'" />
       <IconRefresh v-else-if="state.status === 'downloaded'" />
       <IconError v-else-if="state.status === 'error' || state.status === 'install-error'" />
       <IconInfo v-else-if="state.status === 'disabled'" />
+      <IconRefresh v-else />
     </span>
     <span class="update-status-label">{{ pillLabel }}</span>
     <IconChevronRight class="update-status-chevron" aria-hidden="true" />
@@ -96,11 +99,13 @@ const pillLabel = computed(() => {
   <section v-else class="update-status-card" :class="state.status" aria-live="polite" :aria-label="t('updates.cardLabel')">
     <div class="update-status-card-heading">
       <span class="update-status-card-icon" :class="{ busy, error: state.status === 'error' || state.status === 'install-error' }" aria-hidden="true">
-        <IconCheck v-if="state.status === 'up-to-date'" />
+        <UiSpinner v-if="busy" :label="title" size="medium" />
+        <IconCheck v-else-if="state.status === 'up-to-date'" />
         <IconDownload v-else-if="state.status === 'available'" />
         <IconRefresh v-else-if="state.status === 'downloaded'" />
         <IconError v-else-if="state.status === 'error' || state.status === 'install-error'" />
         <IconInfo v-else-if="state.status === 'disabled'" />
+        <IconRefresh v-else />
       </span>
       <div>
         <strong>{{ title }}</strong>
