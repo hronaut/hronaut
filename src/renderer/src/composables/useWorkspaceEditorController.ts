@@ -6,6 +6,7 @@ import type {
   BrowserWorkspaceNavigationPolicy,
   HronautApi
 } from '../../../shared/types.js'
+import { suggestWorkspaceName } from '../workspace-names.js'
 import { createWorkspaceOriginLoader } from './useWorkspaceOriginLoader.js'
 
 type WorkspaceEditorBrowserApi = Pick<
@@ -53,6 +54,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const originLoader = createWorkspaceOriginLoader((id) => options.browser.listWorkspaceStorageOrigins(id))
   let suppressDirectionReload = false
   let presentationGeneration = 0
+  let lastSuggestedName = ''
 
   const workspace = computed(() => options.state.value.mcpTabGroups.find((candidate) => candidate.id === workspaceId.value))
   const isDefault = computed(() => workspace.value?.isDefault === true)
@@ -169,7 +171,12 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     mode.value = 'create'
     options.open.value = true
     workspaceId.value = null
-    name.value = options.translate('runtime.workspace.newName')
+    name.value = suggestWorkspaceName([
+      ...options.state.value.mcpTabGroups.map(group => group.name),
+      ...options.state.value.savedTabGroups.map(group => group.name),
+      lastSuggestedName
+    ])
+    lastSuggestedName = name.value
     color.value = 'purple'
     navigationMode.value = 'unrestricted'
     navigationRulesText.value = ''

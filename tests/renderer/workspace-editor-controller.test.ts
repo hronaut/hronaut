@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { nextTick, ref, type Ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useWorkspaceEditorController } from '../../src/renderer/src/composables/useWorkspaceEditorController.js'
 import type {
@@ -99,6 +99,50 @@ function createController(initialState = browserState()) {
 }
 
 describe('workspace editor controller', () => {
+  it('suggests a fresh editable name once per new dialog and preserves edits through async loading', async () => {
+    const { state, browser, controller } = createController()
+    const pendingOrigins = deferred<string[]>()
+    browser.listWorkspaceStorageOrigins.mockReturnValueOnce(pendingOrigins.promise)
+    const opening = controller.openNew()
+    const suggestion = controller.name.value
+    expect(suggestion).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+    controller.name.value = 'My release checks'
+    state.value = { ...state.value, mcpTabGroups: [...state.value.mcpTabGroups, workspace('new', 'Other task')] }
+    pendingOrigins.resolve([])
+    await opening
+    await nextTick()
+    expect(controller.name.value).toBe('My release checks')
+    await controller.save()
+    expect(browser.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ name: 'My release checks' }))
+    await controller.openNew()
+    expect(controller.name.value).not.toBe(suggestion)
+    expect(controller.name.value).not.toBe('My release checks')
+    await controller.openExisting('agent')
+    expect(controller.name.value).toBe('Agent workspace')
+    controller.dispose()
+  })
+
+  it('avoids visible open and archived names when suggesting a new workspace', async () => {
+    const { state, controller } = createController()
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+    try {
+      state.value.mcpTabGroups.push(workspace('same', ' curious otter '))
+      state.value.savedTabGroups.push({
+        id: 'archive', name: 'CURIOUS OTTER 2', color: 'purple', tabs: [],
+        savedAt: '2026-09-05T00:00:00Z', storageOriginCount: 0,
+        navigationPolicy: { mode: 'unrestricted', rules: [] }
+      })
+      await controller.openNew()
+      expect(controller.name.value).toBe('Curious Otter 3')
+      controller.close()
+      await controller.openNew()
+      expect(controller.name.value).toBe('Curious Otter 4')
+    } finally {
+      random.mockRestore()
+      controller.dispose()
+    }
+  })
+
   it('keeps the latest workspace when editor state requests resolve out of order', async () => {
     const { state, open, browser, controller } = createController()
     state.value = {
@@ -182,7 +226,7 @@ describe('workspace editor controller', () => {
     expect(open.value).toBe(true)
     expect(controller.mode.value).toBe('create')
     expect(controller.workspaceId.value).toBeNull()
-    expect(controller.name.value).toBe('runtime.workspace.newName')
+    expect(controller.name.value).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+(?: \d+)?$/)
     controller.dispose()
   })
 
