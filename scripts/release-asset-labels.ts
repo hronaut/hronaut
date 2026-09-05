@@ -18,6 +18,7 @@ const RELEASE_ASSET_LABELS: Readonly<Record<string, string>> = {
 
 function releaseAssetLabel(path: string): string | undefined {
   const name = basename(path)
+  if (name === 'release-history.json') return 'Verified release history'
   if (name === 'hashes.txt') return 'SHA-256 checksums'
   if (!name.startsWith('hronaut-')) return undefined
   for (const [packageName, label] of Object.entries(RELEASE_ASSET_LABELS)) {

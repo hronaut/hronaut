@@ -3,6 +3,7 @@ import { releaseAssetUploadArgument, releaseAssetUploadArguments } from '../scri
 
 describe('release asset labels', () => {
   it.each([
+    ['release-history.json', 'Verified release history'],
     ['hashes.txt', 'SHA-256 checksums'],
     ['hronaut-1.11.35-x64-setup.exe', 'Windows x64 installer'],
     ['hronaut-1.11.35-x64-windows-portable.exe', 'Windows x64 portable app'],

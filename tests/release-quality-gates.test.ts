@@ -275,6 +275,20 @@ describe('release quality gates', () => {
     expect(verification).toContain('run: node scripts/verify-public-release.ts "$VERSION"')
   })
 
+  it('freezes complete published history after release notes and before checksums and attestations', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const publish = job(workflow, 'publish-release')
+    const notes = publish.indexOf('node scripts/release-notes.ts')
+    const history = publish.indexOf('node scripts/release-history.ts')
+    const hashes = publish.indexOf('Generate SHA-256 manifest')
+    const attest = publish.indexOf('Attest release assets')
+    expect(history).toBeGreaterThan(notes)
+    expect(hashes).toBeGreaterThan(history)
+    expect(attest).toBeGreaterThan(hashes)
+    expect(publish.indexOf('gh release upload')).toBeGreaterThan(attest)
+    expect(publish).toContain('release-assets/release-history.json')
+  })
+
   it('uploads only regular release files when a rerun still has failure diagnostics', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
     const publish = job(workflow, 'publish-release')

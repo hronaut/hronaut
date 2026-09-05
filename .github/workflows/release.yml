@@ -341,21 +341,6 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/linux-update-manifests.ts release-assets "$VERSION"
 
-      - name: Generate SHA-256 manifest
-        run: |
-          set -euo pipefail
-          cd release-assets
-          LC_ALL=C find . -maxdepth 1 -type f ! -name 'hashes.txt' -print0 \
-            | sort -z \
-            | xargs -0 sha256sum > hashes.txt
-          sed -i 's|  \./|  |' hashes.txt
-          cat hashes.txt
-
-      - name: Attest release assets and checksum manifest
-        uses: actions/attest@v4
-        with:
-          subject-path: release-assets/*
-
       - name: Create one draft release for the completed artifact set
         env:
           GH_TOKEN: ${{ github.token }}
@@ -386,6 +371,27 @@ jobs:
           gh release edit "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Hronaut $VERSION"
+
+      - name: Generate published release history artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/release-history.ts "$VERSION" release-notes.md release-assets/release-history.json
+
+      - name: Generate SHA-256 manifest
+        run: |
+          set -euo pipefail
+          cd release-assets
+          LC_ALL=C find . -maxdepth 1 -type f ! -name 'hashes.txt' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > hashes.txt
+          sed -i 's|  \./|  |' hashes.txt
+          cat hashes.txt
+
+      - name: Attest release assets and checksum manifest
+        uses: actions/attest@v4
+        with:
+          subject-path: release-assets/*
 
       - name: Upload assets and publish completed release
         env:
