@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.56] - 2026-09-05
+
 ### Improved
 
 - Add a quick collapse animation to the unpinned workspace panel, respecting reduced motion and keeping manual resizing immediate.
