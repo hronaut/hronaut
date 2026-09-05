@@ -180,6 +180,10 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
       .map((id) => menu?.getMenuItemById(id)?.label ?? null)
   })).toEqual(['Move Tab Up', 'Move Tab Down', 'Close Tabs Below'])
   await toolbar.hover()
+  // A rail control keeps the expanded rail open while it owns keyboard focus.
+  // Test collapsed geometry after explicitly moving focus into the toolbar.
+  await appWindow.getByRole('combobox', { name: 'Address' }).focus()
+  await expect(appWindow.getByRole('combobox', { name: 'Address' })).toBeFocused()
 
   await electronApp.evaluate(({ BrowserWindow }) => {
     const main = BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Hronaut')
