@@ -61,7 +61,7 @@
 }
 .custom-title-bar.vertical-tabs-shell .topbar { @apply [padding-top:var(--vertical-titlebar-height)]; }
 .vertical-tabs-shell .topbar.compact-vertical-tab-rail:not(.rail-collapsed) {
-  @apply [width:280px] [box-shadow:8px_0_22px_color-mix(in_srgb,_var(--shadow)_78%,_transparent)];
+  @apply [width:var(--tab-rail-expanded-width,_280px)] [box-shadow:8px_0_22px_color-mix(in_srgb,_var(--shadow)_78%,_transparent)];
 }
 .browser-tabs-bar.vertical {
   @apply relative [z-index:1] flex w-full min-w-0 min-h-0 [flex:1_1_auto] flex-col [gap:8px] [padding:10px_9px_9px];
@@ -582,3 +582,34 @@
 .network-routes-pill svg { @apply [width:15px] [height:15px] flex-none; }
 .network-routes-pill span { @apply overflow-hidden text-ellipsis; }
 .page-tools-button.active { @apply text-accent-copy bg-accent-soft; }
+
+.vertical-tabs-shell .topbar > .tab-rail-resize-handle {
+  @apply absolute [z-index:50] [top:0] [right:0] [bottom:0] [left:auto] [width:8px] [cursor:col-resize];
+}
+.custom-title-bar.vertical-tabs-shell .topbar > .tab-rail-resize-handle { @apply [top:var(--vertical-titlebar-height)]; }
+.vertical-tabs-shell .topbar > .tab-rail-resize-handle::after {
+  @apply [top:0] [right:0] [bottom:0] [left:auto] [width:2px];
+}
+
+.vertical-tabs-shell .topbar { @apply [container-type:inline-size] [container-name:workspace-rail]; }
+@container workspace-rail (max-width: 239px) {
+  .vertical-tabs-shell .topbar-actions { @apply [grid-template-columns:repeat(4,_minmax(0,_1fr))]; }
+  .vertical-tabs-shell .command-palette-button { @apply flex items-center justify-center [gap:4px] [grid-column:1_/_4] [grid-row:1]; }
+  .vertical-tabs-shell .compact-commands-label { @apply block min-w-0 overflow-hidden text-ellipsis [font-size:12px]; }
+  .vertical-tabs-shell .command-palette-button > svg { @apply hidden; }
+  .vertical-tabs-shell .compact-download-status { @apply flex flex-none text-accent-copy; }
+  .vertical-tabs-shell .compact-download-status svg { @apply [width:14px] [height:14px]; }
+  .vertical-tabs-shell .settings-button { @apply [grid-column:4] [grid-row:1]; }
+  .vertical-tabs-shell .all-lock-button { @apply [grid-column:1_/_3] [grid-row:2]; }
+  .vertical-tabs-shell .follow-agent-button { @apply [grid-column:3_/_5] [grid-row:2]; }
+  .vertical-tabs-shell .browser-lock-button { @apply [padding-inline:4px] [gap:4px] [line-height:1.1]; }
+  .vertical-tabs-shell .mcp-controls { @apply [grid-column:1_/_5] [grid-row:3]; }
+  .vertical-tabs-shell .mcp-pill { @apply [line-height:1.1]; }
+  .vertical-tabs-shell .topbar-actions:has(.update-status-pill) .mcp-controls { @apply [grid-column:1_/_4]; }
+  .vertical-tabs-shell .update-status-pill { @apply [grid-column:4] [grid-row:3] p-0; }
+  .vertical-tabs-shell .update-status-label,
+  .vertical-tabs-shell .update-status-chevron,
+  .vertical-tabs-shell .tab-search-button,
+  .vertical-tabs-shell .downloads-button,
+  .vertical-tabs-shell .history-button { @apply hidden; }
+}

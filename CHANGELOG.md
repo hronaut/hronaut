@@ -11,6 +11,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Improved
 
+- Resize the workspace panel by dragging its page boundary or using the keyboard. Remember the preferred width across restarts while preserving room for the page in smaller windows.
+
 - Suggest playful, editable names for new human-created workspaces, avoiding open and archived workspace names.
 - Keep workspace names visible while scrolling vertical tabs and recover tab-list space with a compact Home/pin row and paired scroll controls. In short windows, reach tab search, history, and downloads through Commands while Settings, input lock, agent follow, and server status remain visible.
 - Include bounded recent published release history in checksummed and attested release assets so the website can recover when the GitHub API is unavailable.

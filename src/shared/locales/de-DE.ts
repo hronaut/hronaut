@@ -998,6 +998,8 @@ export const deDE = {
     },
     "loading": "Wird geladen",
     "tabs": {
+      "resizeRail": "Arbeitsbereichsleiste skalieren",
+      "resizeRailHelp": "Zum Skalieren ziehen. Pfeiltasten ändern die Breite; Pos1/Ende wählen Minimum/Maximum. Doppelklick setzt zurück.",
       "navigation": "Tab-Navigation",
       "list": "Browser-Tabs und Arbeitsbereiche",
       "scrollBack": "Vorherige Tabs anzeigen",

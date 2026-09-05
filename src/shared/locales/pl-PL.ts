@@ -998,6 +998,8 @@ export const plPL = {
     },
     "loading": "Ładowanie",
     "tabs": {
+      "resizeRail": "Zmień szerokość panelu obszarów",
+      "resizeRailHelp": "Przeciągnij, aby zmienić szerokość. Strzałki dostosowują szerokość; Home/End wybierają minimum/maksimum. Kliknij dwukrotnie, aby zresetować.",
       "navigation": "Nawigacja po kartach",
       "list": "Karty i obszary robocze przeglądarki",
       "scrollBack": "Pokaż poprzednie karty",

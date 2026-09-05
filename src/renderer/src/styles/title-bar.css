@@ -117,7 +117,7 @@
   @apply invisible;
 }
 .custom-title-bar.vertical-tabs-shell.compact-vertical-tab-rail-revealed .shell-title-bar-surface.surface-rail {
-  @apply [width:280px] [box-shadow:8px_0_22px_color-mix(in_srgb,_var(--shadow)_78%,_transparent)];
+  @apply [width:var(--tab-rail-expanded-width,_280px)] [box-shadow:8px_0_22px_color-mix(in_srgb,_var(--shadow)_78%,_transparent)];
 }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-home {

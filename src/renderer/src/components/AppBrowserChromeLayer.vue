@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { ref } from 'vue'
 import type {
   BrowserState,
@@ -23,6 +24,7 @@ import BrowserAddressBar from './BrowserAddressBar.vue'
 import BrowserNavigationControls from './BrowserNavigationControls.vue'
 import BrowserPageActions from './BrowserPageActions.vue'
 import BrowserTabsBar from './BrowserTabsBar.vue'
+import PanelResizeHandle from './PanelResizeHandle.vue'
 import ShellTitleBarSurface from './ShellTitleBarSurface.vue'
 
 export interface AppBrowserChromeLayerActions {
@@ -37,6 +39,8 @@ export interface AppBrowserChromeLayerActions {
   prepareSplitViewMenu: () => void
   handleSplitViewError: (error: unknown, fallback: string) => void
 }
+
+const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   state: BrowserState
@@ -80,6 +84,7 @@ const {
   compactVerticalTabRail,
   verticalTabRailCollapsed,
   verticalTabRailPinned,
+  tabRailResize,
   verticalTabRailRevealed,
   revealVerticalTabRail,
   concealVerticalTabRail,
@@ -243,6 +248,20 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @toggle-follow-agent-activity="runAction(toggleFollowAgentActivity)"
       @open-update-settings="runAction(openUpdateSettings)"
       @toggle-settings="runAction(toggleSettings)"
+    />
+    <PanelResizeHandle
+      v-if="tabOrientation === 'vertical' && !verticalTabRailCollapsed"
+      class="tab-rail-resize-handle"
+      dock="left"
+      :active="tabRailResize.resizing.value"
+      :minimum="tabRailResize.minimum.value"
+      :maximum="tabRailResize.maximum.value"
+      :value="tabRailResize.width.value"
+      :label="t('shell.tabs.resizeRail')"
+      :title="t('shell.tabs.resizeRailHelp')"
+      @pointerdown="tabRailResize.startResize"
+      @keydown="tabRailResize.resizeWithKeyboard"
+      @reset="tabRailResize.resetSize"
     />
   </div>
   <div

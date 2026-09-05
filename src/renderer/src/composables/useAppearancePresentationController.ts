@@ -1,8 +1,9 @@
 import { play as playFoley, set as setFoley } from '@foleyjs/core'
-import { computed, ref, watch, type Ref } from 'vue'
+import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
 import { themeColorScheme } from '../../../shared/theme.js'
-import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH, VERTICAL_TAB_RAIL_WIDTH } from '../../../shared/tab-position.js'
+import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../../shared/tab-position.js'
+import { useTabRailResizeController } from './useTabRailResizeController.js'
 
 interface AppearancePresentationOptions {
   settings: Ref<AppSettings>
@@ -25,20 +26,25 @@ export function useAppearancePresentationController(options: AppearancePresentat
   const verticalTabRailPinned = ref(storedVerticalTabRailPinned())
   const verticalTabRailRevealed = ref(false)
   const viewportWidth = ref(window.innerWidth)
+  const tabRailResize = useTabRailResizeController({
+    viewportWidth,
+    enabled: computed(() => !options.detachedWindow && options.settings.value.tabPosition === 'left')
+  })
   const compactVerticalTabRail = computed(() => (
     !options.detachedWindow
     && options.settings.value.tabPosition === 'left'
     && viewportWidth.value < COMPACT_VERTICAL_TAB_RAIL_MAX_WIDTH
   ))
   const verticalTabRailCollapsed = computed(() => (
-    (compactVerticalTabRail.value && !verticalTabRailRevealed.value)
-    || (!verticalTabRailPinned.value && !verticalTabRailRevealed.value)
+    !tabRailResize.resizing.value
+    && ((compactVerticalTabRail.value && !verticalTabRailRevealed.value)
+      || (!verticalTabRailPinned.value && !verticalTabRailRevealed.value))
   ))
   const tabRailWidth = computed(() => (
     !options.detachedWindow && options.settings.value.tabPosition === 'left'
       ? compactVerticalTabRail.value || verticalTabRailCollapsed.value
         ? VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
-        : VERTICAL_TAB_RAIL_WIDTH
+        : tabRailResize.width.value
       : 0
   ))
   const tabOrientation = computed(() => tabRailWidth.value > 0 ? 'vertical' as const : 'horizontal' as const)
@@ -77,7 +83,9 @@ export function useAppearancePresentationController(options: AppearancePresentat
     if (tabOrientation.value === 'vertical') setVerticalTabRailRevealed(true)
   }
 
-  function concealVerticalTabRail(): void {
+  function concealVerticalTabRail(event?: MouseEvent): void {
+    const chrome = event?.currentTarget
+    if (document.hasFocus() && chrome instanceof HTMLElement && chrome.contains(document.activeElement)) return
     if (tabOrientation.value === 'vertical') setVerticalTabRailRevealed(false)
   }
 
@@ -86,6 +94,11 @@ export function useAppearancePresentationController(options: AppearancePresentat
     if (event.relatedTarget instanceof Node && chrome.contains(event.relatedTarget)) return
     concealVerticalTabRail()
   }
+
+  // Native page focus may leave document.activeElement pointing at old chrome.
+  function concealOnWindowBlur(): void { setVerticalTabRailRevealed(false) }
+  window.addEventListener('blur', concealOnWindowBlur)
+  onScopeDispose(() => window.removeEventListener('blur', concealOnWindowBlur))
 
   watch(
     [options.settings, options.systemTheme],
@@ -102,6 +115,8 @@ export function useAppearancePresentationController(options: AppearancePresentat
 
   return {
     tabRailWidth,
+    expandedTabRailWidth: tabRailResize.width,
+    tabRailResize,
     tabOrientation,
     compactVerticalTabRail,
     verticalTabRailCollapsed,

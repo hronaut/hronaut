@@ -29,6 +29,22 @@ def main() -> None:
         xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
         xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
+        if action.startswith("--drag-to="):
+            target_x, target_y = map(int, action.removeprefix("--drag-to=").split(","))
+            xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            xtst.XTestFakeButtonEvent(display, 1, True, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            for step in range(1, 11):
+                xtst.XTestFakeMotionEvent(display, -1, x + round((target_x - x) * step / 10), y + round((target_y - y) * step / 10), 0)
+                x11.XSync(display, False)
+                time.sleep(0.02)
+            xtst.XTestFakeButtonEvent(display, 1, False, 0)
+            x11.XSync(display, False)
+            time.sleep(0.05)
+            return
         if action == "--click":
             xtst.XTestFakeMotionEvent(display, -1, x, y, 0)
             x11.XSync(display, False)

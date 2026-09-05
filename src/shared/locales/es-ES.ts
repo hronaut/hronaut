@@ -998,6 +998,8 @@ export const esES = {
     },
     "loading": "Cargando",
     "tabs": {
+      "resizeRail": "Cambiar el ancho del panel de espacios",
+      "resizeRailHelp": "Arrastra para cambiar el ancho. Las flechas ajustan el ancho; Inicio/Fin eligen el mínimo/máximo. Doble clic para restablecer.",
       "navigation": "Navegación por pestañas",
       "list": "Pestañas y espacios de trabajo del navegador",
       "scrollBack": "Mostrar pestañas anteriores",

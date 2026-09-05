@@ -998,6 +998,8 @@ export const frFR = {
     },
     "loading": "Chargement",
     "tabs": {
+      "resizeRail": "Redimensionner le panneau des espaces",
+      "resizeRailHelp": "Faites glisser pour redimensionner. Les flèches ajustent la largeur ; Début/Fin choisissent le minimum/maximum. Double-cliquez pour réinitialiser.",
       "navigation": "Navigation dans les onglets",
       "list": "Onglets et espaces de travail du navigateur",
       "scrollBack": "Afficher les onglets précédents",

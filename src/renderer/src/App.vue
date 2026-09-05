@@ -104,6 +104,7 @@ const {
   overlayEnabled: customTitleBar,
   syncGeometry: syncTitleBarGeometry,
   tabRailWidth,
+  expandedTabRailWidth,
   tabOrientation,
   compactVerticalTabRail,
   verticalTabRailCollapsed,
@@ -749,7 +750,8 @@ useAppLifecycleController({
     :style="{
       '--panel-dock-size': `${panelDockSize}px`,
       '--shell-content-top': `${shellContentTop}px`,
-      '--tab-rail-width': `${tabRailWidth}px`
+      '--tab-rail-width': `${tabRailWidth}px`,
+      '--tab-rail-expanded-width': `${expandedTabRailWidth}px`
     }"
     @click.capture="guardShellInteraction"
     @pointerdown.capture="guardShellInteraction"

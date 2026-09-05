@@ -82,24 +82,24 @@
 .panel-resize-handle:focus-visible::after {
   @apply bg-accent [box-shadow:0_0_0_2px_var(--accent-soft)];
 }
-.shell.panel-dock-right .panel-resize-handle,
-.shell.panel-dock-left .panel-resize-handle {
+.shell.panel-dock-right .panel-resize-handle:not(.tab-rail-resize-handle),
+.shell.panel-dock-left .panel-resize-handle:not(.tab-rail-resize-handle) {
   @apply [top:var(--shell-content-top)] [bottom:0] [width:9px] [cursor:col-resize];
 }
-.shell.panel-dock-right .panel-resize-handle { @apply [right:calc(var(--panel-dock-size)_-_5px)]; }
-.shell.panel-dock-left .panel-resize-handle { @apply [left:calc(var(--tab-rail-width,_0px)_+_var(--panel-dock-size)_-_5px)]; }
-.shell.panel-dock-right .panel-resize-handle::after,
-.shell.panel-dock-left .panel-resize-handle::after {
+.shell.panel-dock-right .panel-resize-handle:not(.tab-rail-resize-handle) { @apply [right:calc(var(--panel-dock-size)_-_5px)]; }
+.shell.panel-dock-left .panel-resize-handle:not(.tab-rail-resize-handle) { @apply [left:calc(var(--tab-rail-width,_0px)_+_var(--panel-dock-size)_-_5px)]; }
+.shell.panel-dock-right .panel-resize-handle:not(.tab-rail-resize-handle)::after,
+.shell.panel-dock-left .panel-resize-handle:not(.tab-rail-resize-handle)::after {
   @apply [top:10px] [bottom:10px] [left:3px] [width:3px];
 }
-.shell.panel-dock-top .panel-resize-handle,
-.shell.panel-dock-bottom .panel-resize-handle {
+.shell.panel-dock-top .panel-resize-handle:not(.tab-rail-resize-handle),
+.shell.panel-dock-bottom .panel-resize-handle:not(.tab-rail-resize-handle) {
   @apply [right:0] [left:var(--tab-rail-width,_0px)] [height:9px] [cursor:row-resize];
 }
-.shell.panel-dock-top .panel-resize-handle { @apply [top:calc(var(--shell-content-top)_+_var(--panel-dock-size)_-_5px)]; }
-.shell.panel-dock-bottom .panel-resize-handle { @apply [bottom:calc(var(--panel-dock-size)_-_5px)]; }
-.shell.panel-dock-top .panel-resize-handle::after,
-.shell.panel-dock-bottom .panel-resize-handle::after {
+.shell.panel-dock-top .panel-resize-handle:not(.tab-rail-resize-handle) { @apply [top:calc(var(--shell-content-top)_+_var(--panel-dock-size)_-_5px)]; }
+.shell.panel-dock-bottom .panel-resize-handle:not(.tab-rail-resize-handle) { @apply [bottom:calc(var(--panel-dock-size)_-_5px)]; }
+.shell.panel-dock-top .panel-resize-handle:not(.tab-rail-resize-handle)::after,
+.shell.panel-dock-bottom .panel-resize-handle:not(.tab-rail-resize-handle)::after {
   @apply [right:10px] [bottom:3px] [left:10px] [height:3px];
 }
 .shell.panel-dock-right .network-monitor-workspace,

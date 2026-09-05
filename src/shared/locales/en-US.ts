@@ -330,7 +330,7 @@ export const enUS = {
   shell: {
     home: { open: 'Open Hronaut Home', label: 'Home' },
     loading: 'Loading',
-    tabs: {
+    tabs: { resizeRail: "Resize workspace panel", resizeRailHelp: "Drag to resize. Arrow keys adjust width; Home/End use the minimum/maximum. Double-click to reset.",
       navigation: 'Tab navigation', list: 'Browser tabs and workspaces', scrollBack: 'Show previous tabs', scrollForward: 'Show more tabs', defaultWorkspace: 'Default workspace for new tabs', pageAttention: 'Page needs attention', sleeping: 'Sleeping to save resources', stackedVisible: 'Visible in stacked split view', sideVisible: 'Visible in side-by-side split view', inputLocked: 'Page input locked',
       createWorkspaceTitle: 'Create a new isolated workspace', createWorkspace: 'Create workspace', workspace: 'Workspace', collapseRail: 'Collapse tab rail when not in use', keepRailExpanded: 'Keep tab rail expanded', locked: 'Input blocked', lock: 'Block input'
     },
