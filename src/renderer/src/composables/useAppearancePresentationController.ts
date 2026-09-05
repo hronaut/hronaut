@@ -3,6 +3,7 @@ import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
 import { themeColorScheme } from '../../../shared/theme.js'
 import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../../shared/tab-position.js'
+import { useTabRailCollapseMotion } from './useTabRailCollapseMotion.js'
 import { useTabRailResizeController } from './useTabRailResizeController.js'
 
 interface AppearancePresentationOptions {
@@ -35,16 +36,25 @@ export function useAppearancePresentationController(options: AppearancePresentat
     && options.settings.value.tabPosition === 'left'
     && viewportWidth.value < COMPACT_VERTICAL_TAB_RAIL_MAX_WIDTH
   ))
-  const verticalTabRailCollapsed = computed(() => (
+  const targetRailCollapsed = computed(() => (
     !tabRailResize.resizing.value
     && ((compactVerticalTabRail.value && !verticalTabRailRevealed.value)
       || (!verticalTabRailPinned.value && !verticalTabRailRevealed.value))
   ))
+  const collapseMotion = useTabRailCollapseMotion({
+    collapsed: targetRailCollapsed,
+    expandedWidth: tabRailResize.width,
+    viewportWidth,
+    // Compact rails overlay page space instead of moving native content.
+    animate: computed(() => !options.detachedWindow && options.settings.value.tabPosition === 'left'
+      && !compactVerticalTabRail.value && !tabRailResize.resizing.value)
+  })
+  const verticalTabRailCollapsed = computed(() => targetRailCollapsed.value && !collapseMotion.collapsing.value)
   const tabRailWidth = computed(() => (
     !options.detachedWindow && options.settings.value.tabPosition === 'left'
-      ? compactVerticalTabRail.value || verticalTabRailCollapsed.value
+      ? compactVerticalTabRail.value
         ? VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
-        : tabRailResize.width.value
+        : collapseMotion.width.value
       : 0
   ))
   const tabOrientation = computed(() => tabRailWidth.value > 0 ? 'vertical' as const : 'horizontal' as const)
@@ -96,7 +106,11 @@ export function useAppearancePresentationController(options: AppearancePresentat
   }
 
   // Native page focus may leave document.activeElement pointing at old chrome.
-  function concealOnWindowBlur(): void { setVerticalTabRailRevealed(false) }
+  function concealOnWindowBlur(): void {
+    setVerticalTabRailRevealed(false)
+    // A native page click must finish against stable view bounds.
+    collapseMotion.settle()
+  }
   window.addEventListener('blur', concealOnWindowBlur)
   onScopeDispose(() => window.removeEventListener('blur', concealOnWindowBlur))
 
@@ -116,6 +130,7 @@ export function useAppearancePresentationController(options: AppearancePresentat
   return {
     tabRailWidth,
     expandedTabRailWidth: tabRailResize.width,
+    verticalTabRailCollapsing: collapseMotion.collapsing,
     tabRailResize,
     tabOrientation,
     compactVerticalTabRail,

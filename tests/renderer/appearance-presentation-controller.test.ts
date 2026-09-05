@@ -121,6 +121,24 @@ describe('useAppearancePresentationController', () => {
     scope.stop()
   })
 
+  it('finishes a pending collapse immediately when a native page takes window focus', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
+    const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const })
+    const systemTheme = ref<'light' | 'dark'>('light')
+    const scope = effectScope()
+    try {
+      const controller = scope.run(() => useAppearancePresentationController({ settings, systemTheme, detachedWindow: false }))!
+      controller.updateViewportWidth(1200)
+      controller.revealVerticalTabRail()
+      controller.toggleVerticalTabRailPinned()
+      controller.concealVerticalTabRail()
+      expect(controller.verticalTabRailCollapsing.value).toBe(true)
+      window.dispatchEvent(new Event('blur'))
+      expect(controller.verticalTabRailCollapsing.value).toBe(false)
+      expect(controller.tabRailWidth.value).toBe(56)
+    } finally { scope.stop(); vi.unstubAllGlobals() }
+  })
+
   it('applies system theme and plays the selected attention cue', () => {
     const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, attentionSoundCue: 'chime' as const })
     const systemTheme = ref<'light' | 'dark'>('dark')

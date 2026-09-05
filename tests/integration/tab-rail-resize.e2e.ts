@@ -155,6 +155,9 @@ test('restores the preferred workspace width after restarting Hronaut', async ({
       return { clicked: await view.webContents.executeJavaScript('document.body.dataset.clicked') as string, focused: webContents.getFocusedWebContents()?.id === view.webContents.id }
     })).toEqual({ clicked: 'yes', focused: true })
     await expect(second.window.locator('.topbar')).toHaveCSS('width', '56px')
+    await expect(second.window.locator('.topbar')).not.toHaveClass(/rail-collapsing/)
+    await expect(second.window.locator('.browser-tabs-bar')).toHaveClass(/rail-collapsed/)
+    expect(await second.window.locator('.tab').first().evaluate(tab => tab.getBoundingClientRect().right)).toBeLessThanOrEqual(56)
   } finally {
     if (second) await closeHronaut(second.app)
     else await closeHronaut(first.app)

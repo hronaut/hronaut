@@ -83,6 +83,7 @@ const {
   tabOrientation,
   compactVerticalTabRail,
   verticalTabRailCollapsed,
+  verticalTabRailCollapsing,
   verticalTabRailPinned,
   tabRailResize,
   verticalTabRailRevealed,
@@ -192,6 +193,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
   <div
     class="topbar"
     :class="{
+      'rail-collapsing': verticalTabRailCollapsing,
       'rail-collapsed': tabOrientation === 'vertical' && verticalTabRailCollapsed,
       'compact-vertical-tab-rail': compactVerticalTabRail
     }"
@@ -207,8 +209,9 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :hydrated="hydrated"
       :orientation="tabOrientation"
       :rail-pinned="verticalTabRailPinned"
-      :rail-revealed="verticalTabRailRevealed"
-      :force-rail-collapsed="compactVerticalTabRail && verticalTabRailCollapsed"
+      :rail-revealed="verticalTabRailRevealed || verticalTabRailCollapsing"
+      :inert="verticalTabRailCollapsing"
+      :force-rail-collapsed="tabOrientation === 'vertical' && verticalTabRailCollapsed"
       :mcp-activity-by-tab="mcpActivityByTab"
       :format-number="formatNumber"
       :tab-tooltip="tabTooltip"
@@ -226,6 +229,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @toggle-rail-pinned="toggleVerticalTabRailPinned"
     />
     <AppTopbarActions
+      :inert="verticalTabRailCollapsing"
       :command-palette-open="commandPaletteOpen"
       :tab-search-open="tabSearchOpen"
       :downloads-open="downloadsOpen"
@@ -250,7 +254,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @toggle-settings="runAction(toggleSettings)"
     />
     <PanelResizeHandle
-      v-if="tabOrientation === 'vertical' && !verticalTabRailCollapsed"
+      v-if="tabOrientation === 'vertical' && !verticalTabRailCollapsed && !verticalTabRailCollapsing"
       class="tab-rail-resize-handle"
       dock="left"
       :active="tabRailResize.resizing.value"

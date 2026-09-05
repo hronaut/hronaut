@@ -612,3 +612,8 @@
   .vertical-tabs-shell .downloads-button,
   .vertical-tabs-shell .history-button { @apply hidden; }
 }
+
+.vertical-tabs-shell .topbar.rail-collapsing { @apply overflow-hidden; }
+.vertical-tabs-shell .topbar.rail-collapsing > :is(.browser-tabs-bar, .topbar-actions) {
+  @apply [width:var(--tab-rail-expanded-width)] [min-width:var(--tab-rail-expanded-width)] pointer-events-none;
+}

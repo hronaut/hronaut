@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Add a quick collapse animation to the unpinned workspace panel, respecting reduced motion and keeping manual resizing immediate.
+
 ### Fixed
 
 - Keep inactive page tools neutral so only enabled tools and capture feedback use status colors.
