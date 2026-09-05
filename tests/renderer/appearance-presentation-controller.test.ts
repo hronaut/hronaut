@@ -66,8 +66,9 @@ describe('useAppearancePresentationController', () => {
 
     controller.setVerticalTabRailRevealed(true)
     expect(controller.verticalTabRailCollapsed.value).toBe(false)
-    expect(controller.tabRailWidth.value).toBe(56)
+    expect(controller.tabRailWidth.value).toBe(280)
     controller.setVerticalTabRailRevealed(false)
+    expect(controller.tabRailWidth.value).toBe(56)
 
     controller.updateViewportWidth(1_000)
     expect(controller.compactVerticalTabRail.value).toBe(false)

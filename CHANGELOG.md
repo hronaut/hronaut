@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep revealed workspace controls above the page in narrow windows by reserving their actual width, with a readable address row and correctly anchored suggestions.
+
 ## [1.11.56] - 2026-09-05
 
 ### Improved

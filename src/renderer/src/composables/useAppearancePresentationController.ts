@@ -2,7 +2,6 @@ import { play as playFoley, set as setFoley } from '@foleyjs/core'
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue'
 import type { AppSettings } from '../../../shared/types.js'
 import { themeColorScheme } from '../../../shared/theme.js'
-import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../../shared/tab-position.js'
 import { useTabRailCollapseMotion } from './useTabRailCollapseMotion.js'
 import { useTabRailResizeController } from './useTabRailResizeController.js'
 
@@ -45,16 +44,14 @@ export function useAppearancePresentationController(options: AppearancePresentat
     collapsed: targetRailCollapsed,
     expandedWidth: tabRailResize.width,
     viewportWidth,
-    // Compact rails overlay page space instead of moving native content.
+    // Compact rails reveal immediately; native page space still follows their visible width.
     animate: computed(() => !options.detachedWindow && options.settings.value.tabPosition === 'left'
       && !compactVerticalTabRail.value && !tabRailResize.resizing.value)
   })
   const verticalTabRailCollapsed = computed(() => targetRailCollapsed.value && !collapseMotion.collapsing.value)
   const tabRailWidth = computed(() => (
     !options.detachedWindow && options.settings.value.tabPosition === 'left'
-      ? compactVerticalTabRail.value
-        ? VERTICAL_TAB_RAIL_COLLAPSED_WIDTH
-        : collapseMotion.width.value
+      ? collapseMotion.width.value
       : 0
   ))
   const tabOrientation = computed(() => tabRailWidth.value > 0 ? 'vertical' as const : 'horizontal' as const)

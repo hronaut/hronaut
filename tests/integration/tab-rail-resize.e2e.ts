@@ -72,14 +72,14 @@ for (const scale of [1, 1.25]) {
     expect(await appWindow.evaluate(key => localStorage.getItem(key), key)).toBe('432')
 
     // A smaller viewport clamps the display, while preserving the preferred
-    // width for the next large window. Compact overlay content still reserves 56px.
+    // width for the next large window. A revealed compact rail reserves its visible width.
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(760, 520))
     await expect.poll(() => appWindow.evaluate('innerWidth')).toBe(Math.round(760 / scale))
     await appWindow.locator('.app-home-button').focus()
     const maximum = Math.min(480, Math.round(760 / scale) - 320)
     await expect(handle).toHaveAttribute('aria-valuemax', String(maximum))
     await expect(handle).toHaveAttribute('aria-valuenow', String(Math.min(432, maximum)))
-    await expect.poll(() => pageBounds(electronApp)).toMatchObject({ x: Math.round(56 * scale), visible: true })
+    await expect.poll(() => pageBounds(electronApp)).toMatchObject({ x: Math.round(Math.min(432, maximum) * scale), visible: true })
     expect(await appWindow.evaluate(key => localStorage.getItem(key), key)).toBe('432')
     await handle.focus()
     await handle.press('Home')

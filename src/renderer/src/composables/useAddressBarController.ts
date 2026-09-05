@@ -1,4 +1,5 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
+import { useResizeObserver } from '@vueuse/core'
 import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme } from '../../../shared/address-suggestions.js'
 import { buildLocalAddressSuggestions } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
@@ -239,6 +240,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   }
 
   const registrations: Array<() => () => void> = [
+    // A compact rail can reflow the address row without resizing the window.
+    () => useResizeObserver(form, syncOverlay).stop,
     () => watch(() => suggestions.value.length, async (length) => {
       if (disposed) return
       if (selection.value >= length) selection.value = -1
