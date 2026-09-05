@@ -182,9 +182,22 @@ function activeTabIntersectsVisibleStrip(): boolean {
     : tabBounds.right >= stripBounds.left - 1 && tabBounds.left <= stripBounds.right + 1
 }
 
+function focusedStripControl(): HTMLElement | undefined {
+  const focused = document.activeElement
+  return focused instanceof HTMLElement && tabsStrip.value?.contains(focused) ? focused : undefined
+}
+
+function revealAfterLayout(revealActive = true): void {
+  // Expanding the rail can resize it after keyboard navigation has revealed a
+  // different tab. Preserve the user's current control through that layout pass.
+  const focused = focusedStripControl()
+  if (focused) revealTab(focused, 'auto')
+  else if (revealActive) revealActiveTab('auto')
+}
+
 function handleTabStripResize(): void {
   updateTabOverflow()
-  revealActiveTab('auto')
+  revealAfterLayout()
 }
 
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
@@ -402,10 +415,10 @@ watch(
     () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
   async () => {
-    const revealAfterLayout = activeTabIntersectsVisibleStrip()
+    const activeWasVisible = activeTabIntersectsVisibleStrip()
     await nextTick()
     updateTabOverflow()
-    if (revealAfterLayout) revealActiveTab()
+    revealAfterLayout(activeWasVisible)
   }
 )
 
@@ -414,7 +427,7 @@ watch(
   async () => {
     await nextTick()
     updateTabOverflow()
-    revealActiveTab('auto')
+    revealAfterLayout()
   }
 )
 

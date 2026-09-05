@@ -40,6 +40,13 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
     const tabs = research.getByRole('tab')
     await tabs.first().focus()
     await tabs.first().press(orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown')
+    // A resize delivered after keyboard navigation must preserve its target,
+    // even while the selected page belongs to a different workspace.
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(780, 540))
+    await expect.poll(() => appWindow.evaluate('innerWidth')).toBe(624)
+    await expectControlUncovered(tabs.nth(1))
+    await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(760, 520))
+    await expect.poll(() => appWindow.evaluate('innerWidth')).toBe(608)
     await captureChrome(electronApp, testInfo.outputPath(`${orientation}-scaled-keyboard.png`))
     await expectControlUncovered(tabs.nth(1))
     await tabs.nth(1).press('Enter')
@@ -55,7 +62,16 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
       return box.left >= 0 && box.right <= innerWidth + 1
     })), 'All visible chrome actions must fit the scaled viewport').toBe(true)
 
-    const toolbarBottom = await appWindow.locator('.toolbar').evaluate(element => element.getBoundingClientRect().bottom)
+    // Native content starts after the whole shell, including its bottom border.
+    // Wait for the renderer's resize report to reach the native view.
+    await expect.poll(async () => {
+      const shellBottom = await appWindow.locator('.shell').evaluate(element => element.getBoundingClientRect().bottom)
+      const contentTop = await electronApp.evaluate(({ BrowserWindow, webContents }) => {
+        const page = webContents.getAllWebContents().find(contents => contents.getTitle() === 'Research document 1 with a long title')!
+        return BrowserWindow.getAllWindows()[0]!.contentView.children.find(view => 'webContents' in view && view.webContents === page)!.getBounds().y
+      })
+      return contentTop - Math.ceil(Math.ceil(shellBottom) * 1.25)
+    }, 'Native page must begin immediately after the scaled shell').toBe(0)
     const content = await electronApp.evaluate(async ({ BrowserWindow, webContents }) => {
       const page = webContents.getAllWebContents().find(contents => contents.getTitle() === 'Research document 1 with a long title')!
       const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find(view => 'webContents' in view && view.webContents === page)!
@@ -66,7 +82,6 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
       })()`)
       return { bounds: view.getBounds(), heading, image: (await page.capturePage()).toPNG().toString('base64') }
     })
-    expect(Math.abs(content.bounds.y - Math.ceil(toolbarBottom * 1.25))).toBeLessThanOrEqual(1)
     expect(content.bounds.width).toBeGreaterThan(0)
     expect(content.bounds.height).toBeGreaterThan(0)
     expect(content.heading).toEqual({ text: 'Visible research document 1', visible: true })

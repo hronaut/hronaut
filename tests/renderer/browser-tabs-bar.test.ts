@@ -897,6 +897,42 @@ describe('BrowserTabsBar', () => {
     }
   })
 
+  it.each(['tab', 'add', 'workspace'] as const)('keeps the focused %s visible when the vertical rail resizes', async (target) => {
+    let resizeCallback: ResizeObserverCallback | undefined
+    const scrollIntoView = vi.fn()
+    const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    try {
+      const first = tab('first')
+      const active = tab('active', { active: true })
+      renderTabs(browserState({ tabs: [first, active], activeTabId: active.id }), true, 'vertical', false)
+      await vi.waitFor(() => expect(resizeCallback).toBeDefined())
+      const control = target === 'tab'
+        ? screen.getByRole('tab', { name: first.title })
+        : target === 'add'
+          ? screen.getByRole('button', { name: 'New tab in Research workspace' })
+          : screen.getByRole('button', { name: /Collapse workspace Research/ })
+      control.focus()
+      await nextTick()
+      scrollIntoView.mockClear()
+
+      resizeCallback!([], {} as ResizeObserver)
+      expect(scrollIntoView.mock.instances).toEqual([control])
+      expect(control).toHaveFocus()
+      expect(screen.getByRole('tab', { name: active.title })).toHaveAttribute('aria-selected', 'true')
+    } finally {
+      vi.unstubAllGlobals()
+      if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll)
+      else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
+
   it('reveals the active tab again when the scrolling strip is resized', async () => {
     const originalResizeObserver = Object.getOwnPropertyDescriptor(window, 'ResizeObserver')
     const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
