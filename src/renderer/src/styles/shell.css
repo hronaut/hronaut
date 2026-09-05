@@ -309,12 +309,11 @@
 }
 
 .tab {
-  @apply flex items-center [gap:6px] [width:clamp(112px,_10vw,_196px)] [min-width:112px] [flex:0_1_196px] [height:29px] [padding:0_8px] [border:1px_solid_var(--border-soft)] [border-radius:5px] [background:var(--surface)] cursor-grab;
+  @apply flex items-center [gap:6px] [width:clamp(112px,_10vw,_196px)] [min-width:112px] [flex:0_1_196px] [height:29px] [padding:0_8px] [border:1px_solid_var(--border-soft)] [border-radius:5px] [background:var(--surface)] cursor-default;
 }
 
 .tab { @apply relative [isolation:isolate]; }
-.tab:active { @apply cursor-grabbing; }
-.tab.dragging { @apply [opacity:0.46]; }
+.tab.dragging { @apply cursor-grabbing [opacity:0.46]; }
 .tab.drop-before::after,
 .tab.drop-after::after {
   @apply absolute [z-index:4] [top:4px] [bottom:4px] [width:3px] [border-radius:999px] bg-accent [box-shadow:0_0_7px_color-mix(in_srgb,_var(--accent)_70%,_transparent)];
@@ -370,7 +369,7 @@
 .favicon-fallback { @apply [width:16px] [height:16px] [flex:0_0_16px] object-contain; }
 .favicon-fallback { @apply grid place-items-center text-accent [font-size:12px]; }
 .tab-problem-icon { @apply [color:#d9534f]; }
-.tab-close { @apply grid place-items-center [width:20px] [height:20px] [border-radius:5px] [line-height:1]; }
+.tab-close { @apply grid place-items-center [width:20px] [height:20px] [border-radius:5px] [line-height:1] cursor-pointer; }
 .tab-close svg { @apply [width:15px] [height:15px]; }
 .tab-close:hover { @apply bg-hover; }
 .tab-audio { @apply grid [width:20px] [height:20px] [flex:0_0_20px] place-items-center [border-radius:5px] text-accent-copy; }
