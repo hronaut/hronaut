@@ -26,7 +26,7 @@ function deferred<Value>() {
 function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
   status: 'idle',
   currentVersion: '1.9.2'
-})) {
+}), detachedWindow = false) {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const browserState = ref<BrowserState>(emptyBrowserState())
   const rendererState = (): RendererSettingsState => ({
@@ -44,6 +44,7 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
   const licenseUnsubscribe = vi.fn(() => { disposalOrder.push('license') })
   const mcpUnsubscribe = vi.fn(() => { disposalOrder.push('mcp') })
   const options = {
+    detachedWindow,
     settings,
     browserState,
     settingsStore: {
@@ -230,6 +231,18 @@ describe('app settings feature controller', () => {
     expect(harness.licenseUnsubscribe).toHaveBeenCalledOnce()
     expect(harness.mcpUnsubscribe).toHaveBeenCalledOnce()
     expect(harness.disposalOrder).toEqual(['updates', 'license', 'mcp'])
+  })
+
+  it('initializes detached panels without reading or subscribing to primary-window wallets', async () => {
+    const harness = createHarness(undefined, true)
+    try {
+      await Promise.all(harness.controller.bootstrapTasks.map(({ run }) => run()))
+      for (const api of Object.values(harness.options.apis.wallets)) expect(api).not.toHaveBeenCalled()
+      expect(harness.options.apis.mcp.getState).toHaveBeenCalledOnce()
+      expect(harness.options.apis.updates.getState).toHaveBeenCalledOnce()
+    } finally {
+      harness.controller.dispose()
+    }
   })
 
   it('invalidates a delayed feature initialization and disposes the aggregate only once', async () => {

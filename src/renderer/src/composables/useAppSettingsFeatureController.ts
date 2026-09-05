@@ -75,6 +75,7 @@ type Translate = (
 ) => string
 
 export interface AppSettingsFeatureControllerOptions {
+  detachedWindow?: boolean
   settings: Ref<AppSettings>
   browserState: Readonly<Ref<BrowserState>>
   settingsStore: AppSettingsFeatureStore
@@ -304,7 +305,8 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     { id: 'license', run: commercialLicenseController.initialize },
     { id: 'mcp', run: mcpStatusController.initialize },
     { id: 'download-directory', run: loadDefaultDownloadDirectory },
-    { id: 'wallets', run: walletsController.initialize },
+    // Wallet state and approval subscriptions belong to the primary shell only.
+    ...(options.detachedWindow ? [] : [{ id: 'wallets', run: walletsController.initialize }]),
     {
       id: 'permissions',
       run: () => sitePermissionsController.initialize(options.apis.permissions.list())

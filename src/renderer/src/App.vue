@@ -174,6 +174,7 @@ const {
   dispose: disposeHelpDialogController
 } = helpDialogController
 const appSettingsFeatureController = useAppSettingsFeatureController({
+  detachedWindow: isDetachedPanelWindow,
   settings,
   browserState: state,
   settingsStore,

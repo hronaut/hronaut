@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Open detached Page Tools without a false startup failure from primary-window wallet initialization.
 - Keep the software-update loading indicator visible during checks, downloads, and installation across themes.
 
 ### Improved
