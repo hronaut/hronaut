@@ -35,7 +35,8 @@ describe('published release history artifact', () => {
 
   it('bounds notes and removes HTML/control content for both prepared and prior entries', async () => {
     const artifact = await generate([release('1.11.51', { body: '<script>secret()</script>\u0000Safe' })], 'x'.repeat(60_000))
-    expect(artifact.releases[0]?.notes).toHaveLength(48_000)
+    expect(Buffer.byteLength(JSON.stringify(artifact.releases[0]?.notes))).toBeLessThanOrEqual(16 * 1024)
+    expect(artifact.releases[0]?.notes).toMatch(/…$/u)
     expect(artifact.releases[1]?.notes).toBe('Safe')
   })
 
@@ -44,8 +45,51 @@ describe('published release history artifact', () => {
     await expect(generateReleaseHistory('1.11.55', 'Notes', { fetcher })).rejects.toThrow('403')
   })
 
-  it('fails closed when history exceeds the supported pagination bound', async () => {
+  it('retains the newest 200 entries and routes older history to GitHub without blocking publication', async () => {
     const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => Response.json(Array.from({ length: 100 }, (_, i) => release(`1.${String(url).endsWith('page=1') ? 0 : 1}.${i}`)))) as unknown as typeof fetch
-    await expect(generateReleaseHistory('1.11.55', 'Notes', { fetcher })).rejects.toThrow('200-release limit')
+    const artifact = await generateReleaseHistory('1.11.55', 'Notes', { fetcher })
+    expect(artifact.releases).toHaveLength(200)
+    expect(artifact.releases[0]?.version).toBe('1.11.55')
+    expect(artifact.releases.at(-1)?.version).toBe('1.1.98')
+    expect(artifact).toMatchObject({ truncated: true, olderHistoryUrl: 'https://github.com/hronaut/hronaut/releases' })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('retains 200 long multibyte and escaped notes within the encoded byte budget', async () => {
+    const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => Response.json(Array.from({ length: String(url).endsWith('page=1') ? 100 : 99 }, (_, i) => release(`1.${String(url).endsWith('page=1') ? 0 : 1}.${i}`, { body: '😀"\\'.repeat(14_000) })))) as unknown as typeof fetch
+    const artifact = await generateReleaseHistory('1.11.55', '😀"\\'.repeat(14_000), { fetcher })
+    expect(artifact.releases).toHaveLength(200)
+    expect(artifact.truncated).toBe(false)
+    for (const entry of artifact.releases) {
+      expect(Buffer.byteLength(JSON.stringify(entry.notes))).toBeLessThanOrEqual(16 * 1024)
+      expect(entry.notes).toMatch(/…$/u)
+      expect(entry.notes).not.toMatch(/\p{Surrogate}/u)
+    }
+    expect(Buffer.byteLength(JSON.stringify(artifact)) + 1).toBeLessThanOrEqual(4 * 1024 * 1024)
+  })
+
+  it('rejects oversized upstream data before JSON parsing even without a length header', async () => {
+    const fetcher = vi.fn(async () => new Response('x'.repeat(20 * 1024 * 1024 + 1))) as unknown as typeof fetch
+    await expect(generateReleaseHistory('1.11.55', 'Notes', { fetcher })).rejects.toThrow('20 MiB')
+  })
+
+  it('does not fetch another page once the retained-entry cap is reached', async () => {
+    const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => {
+      if (String(url).endsWith('page=1')) return Response.json(Array.from({ length: 100 }, (_, i) => release(`1.0.${i}`)))
+      if (String(url).endsWith('page=2')) return Response.json([...Array.from({ length: 99 }, (_, i) => release(`1.1.${i}`)), release('1.2.0', { draft: true })])
+      return new Response('unavailable older page', { status: 503 })
+    }) as unknown as typeof fetch
+    const artifact = await generateReleaseHistory('1.11.55', 'Notes', { fetcher })
+    expect(artifact.releases).toHaveLength(200)
+    expect(artifact.truncated).toBe(true)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports complete history when exactly 200 retained records exhaust upstream history', async () => {
+    const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => Response.json(Array.from({ length: String(url).endsWith('page=1') ? 100 : 99 }, (_, i) => release(`1.${String(url).endsWith('page=1') ? 0 : 1}.${i}`)))) as unknown as typeof fetch
+    const artifact = await generateReleaseHistory('1.11.55', 'Notes', { fetcher })
+    expect(artifact.releases).toHaveLength(200)
+    expect(artifact.truncated).toBe(false)
+    expect(artifact.olderHistoryUrl).toBeUndefined()
   })
 })
