@@ -20,11 +20,11 @@ function harness() {
   const viewportWidth = ref(1200)
   const scope = effectScope()
   const motion = scope.run(() => useTabRailCollapseMotion({ collapsed, expandedWidth, animate, viewportWidth }))!
-  const tick = (milliseconds: number) => {
+  const tick = (milliseconds: number, frameTimestamp = now + milliseconds) => {
     now += milliseconds
     const queued = [...frames.values()]
     frames.clear()
-    queued.forEach(callback => callback(now))
+    queued.forEach(callback => callback(frameTimestamp))
   }
   const reduce = () => { Object.assign(media, { matches: true }); media.dispatchEvent(new Event('change')) }
   const dispose = () => { scope.stop(); vi.unstubAllGlobals() }
@@ -45,6 +45,28 @@ describe('workspace rail collapse motion', () => {
     expect(h.motion.collapsing.value).toBe(false)
     expect(h.frames.size).toBe(0)
     h.dispose()
+  })
+
+  it('never expands past its starting width when the first frame timestamp precedes the start clock', () => {
+    const h = harness()
+    try {
+      h.collapsed.value = true
+      const widths = [h.motion.width.value]
+      // RAF timestamps describe the rendering frame, which can begin before
+      // performance.now() sampled when the collapse starts within that frame.
+      h.tick(10, -10)
+      widths.push(h.motion.width.value)
+      expect(h.motion.width.value).toBe(320)
+      h.tick(10, 0)
+      widths.push(h.motion.width.value)
+      h.tick(60, 70)
+      widths.push(h.motion.width.value)
+      h.tick(70, 140)
+      widths.push(h.motion.width.value)
+      expect(widths.every((width, index) => width >= 56 && width <= (widths[index - 1] ?? 320))).toBe(true)
+      expect(h.motion.width.value).toBe(56)
+      expect(h.motion.collapsing.value).toBe(false)
+    } finally { h.dispose() }
   })
 
   it('cancels cleanly on rapid reveal then hide without a stale frame snapping closed', () => {

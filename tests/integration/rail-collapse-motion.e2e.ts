@@ -36,7 +36,18 @@ for (const scale of [1, 1.25]) {
       const frames = await appWindow.evaluate(async () => {
         const rail = document.querySelector<HTMLElement>('.topbar')!
         const frames: Array<{ width: number; collapsing: boolean; tabsInert: boolean; actionsInert: boolean }> = []
-        document.querySelector<HTMLInputElement>('input.address')!.focus()
+        // A busy renderer can receive the first RAF callback with a frame
+        // timestamp older than performance.now() at the collapse start.
+        const requestFrame = window.requestAnimationFrame.bind(window)
+        let firstFrame = true
+        window.requestAnimationFrame = callback => {
+          const timestamp = performance.now() - 10
+          const useEarlierTimestamp = firstFrame
+          firstFrame = false
+          return requestFrame(now => callback(useEarlierTimestamp ? timestamp : now))
+        }
+        try { document.querySelector<HTMLInputElement>('input.address')!.focus() }
+        finally { window.requestAnimationFrame = requestFrame }
         await new Promise<void>(resolve => {
           const sample = (): void => {
             frames.push({ width: rail.getBoundingClientRect().width, collapsing: rail.classList.contains('rail-collapsing'),
@@ -49,6 +60,7 @@ for (const scale of [1, 1.25]) {
         })
         return frames
       })
+      expect(frames.every((frame, index) => frame.width >= 56 && frame.width <= (frames[index - 1]?.width ?? 280) + 0.1)).toBe(true)
       expect(frames.some(frame => frame.collapsing && frame.width > 56 && frame.width < 280)).toBe(true)
       expect(frames.filter(frame => frame.collapsing).every(frame => frame.tabsInert && frame.actionsInert)).toBe(true)
       expect(frames.at(-1)).toMatchObject({ collapsing: false, tabsInert: false, actionsInert: false })

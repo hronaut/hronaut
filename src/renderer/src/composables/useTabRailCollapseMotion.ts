@@ -36,7 +36,7 @@ export function useTabRailCollapseMotion(options: {
     const started = performance.now()
     collapsing.value = true
     const step = (now: number): void => {
-      const progress = Math.min(1, (now - started) / COLLAPSE_DURATION)
+      const progress = Math.max(0, Math.min(1, (now - started) / COLLAPSE_DURATION))
       width.value = VERTICAL_TAB_RAIL_COLLAPSED_WIDTH + (from - VERTICAL_TAB_RAIL_COLLAPSED_WIDTH) * (1 - progress) ** 3
       if (progress < 1) frame = window.requestAnimationFrame(step)
       else settle()
