@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import AppBrowserChromeLayer from '../../src/renderer/src/components/AppBrowserChromeLayer.vue'
+import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(overrides: Partial<BrowserTabState> = {}): BrowserTabState {
@@ -223,6 +224,15 @@ function createHarness(home = false) {
     handleVerticalTabRailFocusOut: vi.fn(),
     toggleVerticalTabRailPinned: vi.fn()
   }
+  const tabRailResize = {
+    width: ref(280),
+    minimum: ref(200),
+    maximum: ref(480),
+    resizing: ref(false),
+    startResize: vi.fn(),
+    resizeWithKeyboard: vi.fn(),
+    resetSize: vi.fn()
+  }
   const collectionActions = {
     toggleDownloads: vi.fn(),
     toggleBookmarks: vi.fn(),
@@ -267,6 +277,7 @@ function createHarness(home = false) {
       verticalTabRailPinned: ref(false),
       verticalTabRailRevealed: ref(false),
       panelDock,
+      tabRailResize,
       ...shellActions
     } as never,
     runtimeController: {
@@ -338,6 +349,7 @@ function createHarness(home = false) {
   const wrapper = mount(AppBrowserChromeLayer, {
     props,
     global: {
+      plugins: [createHronautI18n('en-US')],
       stubs: {
         BrowserTabsBar: BrowserTabsBarStub,
         AppTopbarActions: AppTopbarActionsStub,
@@ -363,6 +375,7 @@ function createHarness(home = false) {
     browser,
     actions,
     shellActions,
+    tabRailResize,
     collectionActions,
     pageActions,
     siteActions,
@@ -373,6 +386,44 @@ function createHarness(home = false) {
 }
 
 describe('AppBrowserChromeLayer', () => {
+  it('exposes the expanded vertical rail separator and forwards resize gestures', async () => {
+    const harness = createHarness()
+    const separator = () => harness.wrapper.find('[role="separator"]')
+
+    expect(separator().exists()).toBe(false)
+    harness.orientation.value = 'vertical'
+    await nextTick()
+
+    expect(separator().attributes()).toMatchObject({
+      'aria-label': 'Resize workspace panel',
+      'aria-orientation': 'vertical',
+      'aria-valuemin': '200',
+      'aria-valuemax': '480',
+      'aria-valuenow': '280',
+      tabindex: '0'
+    })
+    const pointerDown = new PointerEvent('pointerdown', { pointerId: 1, button: 0 })
+    separator().element.dispatchEvent(pointerDown)
+    expect(harness.tabRailResize.startResize).toHaveBeenCalledExactlyOnceWith(pointerDown)
+    await separator().trigger('keydown', { key: 'ArrowRight', shiftKey: true })
+    expect(harness.tabRailResize.resizeWithKeyboard).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ key: 'ArrowRight', shiftKey: true })
+    )
+    await separator().trigger('dblclick')
+    expect(harness.tabRailResize.resetSize).toHaveBeenCalledOnce()
+
+    harness.tabRailResize.resizing.value = true
+    harness.tabRailResize.width.value = 328
+    await nextTick()
+    expect(separator().classes()).toContain('active')
+    expect(separator().attributes('aria-valuenow')).toBe('328')
+
+    harness.collapsed.value = true
+    await nextTick()
+    expect(separator().exists()).toBe(false)
+    harness.wrapper.unmount()
+  })
+
   it('keeps global chrome on Home and switches website and titlebar surfaces without layout drift', async () => {
     const harness = createHarness(true)
     const topbar = () => harness.wrapper.get('.topbar')
