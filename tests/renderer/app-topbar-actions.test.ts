@@ -69,6 +69,7 @@ describe('AppTopbarActions', () => {
 
     const downloads = screen.getByRole('button', { name: '1 download in progress' })
     expect(downloads).toHaveClass('active')
+    expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveAttribute('aria-description', '1 download in progress')
     expect(screen.getByText('99')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }))
@@ -77,7 +78,7 @@ describe('AppTopbarActions', () => {
     await user.click(screen.getByRole('button', { name: 'Browsing history' }))
     await user.click(screen.getByRole('button', { name: 'Lock all tabs' }))
     await user.click(screen.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' }))
-    await user.click(screen.getByTitle('Open Software updates'))
+    await user.click(screen.getByRole('button', { name: /^Open software updates:/ }))
     await user.click(screen.getByRole('button', { name: 'Settings' }))
 
     expect(rendered.emitted()).toMatchObject({

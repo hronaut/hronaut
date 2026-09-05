@@ -79,7 +79,7 @@ const pillLabel = computed(() => {
     type="button"
     aria-live="polite"
     :aria-label="t('updates.open', { status: pillLabel })"
-    :title="t('updates.openTitle')"
+    :title="t('updates.open', { status: pillLabel })"
     @click="emit('open')"
   >
     <span class="update-status-icon" :class="{ busy, error: state.status === 'error' || state.status === 'install-error' }" aria-hidden="true">

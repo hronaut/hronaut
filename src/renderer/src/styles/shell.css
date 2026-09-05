@@ -55,7 +55,7 @@
 .topbar {
   @apply relative [z-index:1] flex [align-items:end] [height:44px] [padding:7px_10px_0];
 }
-.browser-tabs-bar.horizontal { @apply [display:contents]; }
+.browser-tabs-bar.horizontal, .tab-rail-header { @apply [display:contents]; }
 .vertical-tabs-shell .topbar {
   @apply fixed [z-index:47] [top:0] [bottom:0] [left:0] flex [width:var(--tab-rail-width)] [height:auto] min-w-0 flex-col items-stretch p-0 [border-top:1px_solid_var(--border-soft)] [border-right:1px_solid_var(--border)] [background:linear-gradient(180deg,_var(--shell-bottom),_var(--toolbar))] [box-shadow:2px_0_8px_color-mix(in_srgb,_var(--shadow)_68%,_transparent)];
 }
@@ -66,8 +66,9 @@
 .browser-tabs-bar.vertical {
   @apply relative [z-index:1] flex w-full min-w-0 min-h-0 [flex:1_1_auto] flex-col [gap:8px] [padding:10px_9px_9px];
 }
+.browser-tabs-bar.vertical .tab-rail-header { @apply flex items-center [gap:4px] flex-none; }
 .browser-tabs-bar.vertical .app-home-button {
-  @apply w-full [height:34px] justify-start m-0;
+  @apply min-w-0 [flex:1] [height:34px] justify-start m-0;
 }
 .browser-tabs-bar.vertical .topbar-divider { @apply w-full [height:1px] m-0; }
 .browser-tabs-bar.vertical .tabs-strip-shell {
@@ -77,13 +78,13 @@
   @apply w-full h-full flex-col items-stretch [gap:4px] overflow-x-hidden overflow-y-auto [scroll-padding:2px_0] [overscroll-behavior-block:contain];
 }
 .browser-tabs-bar.vertical .tabs-strip-shell.has-tab-overflow .tabs-strip {
-  @apply [height:calc(100%_-_64px)] [margin:32px_0];
+  @apply [height:calc(100%_-_32px)] [margin:0_0_32px];
 }
 .browser-tabs-bar.vertical .tabs-scroll-button {
   @apply [right:auto] [bottom:auto] [left:50%] [transform:translateX(-50%)];
 }
-.browser-tabs-bar.vertical .tabs-scroll-button.previous { @apply [top:2px]; }
-.browser-tabs-bar.vertical .tabs-scroll-button.next { @apply [top:auto] [bottom:2px]; }
+.browser-tabs-bar.vertical .tabs-scroll-button.previous { @apply [top:auto] [bottom:0] [left:calc(50%_-_18px)]; }
+.browser-tabs-bar.vertical .tabs-scroll-button.next { @apply [top:auto] [bottom:0] [left:calc(50%_+_18px)]; }
 .browser-tabs-bar.vertical .workspace-tab-section {
   @apply grid [grid-template-columns:minmax(0,_1fr)_28px] [height:auto] [padding:4px] [gap:4px] flex-none;
 }
@@ -91,7 +92,7 @@
   @apply flex-col items-stretch [grid-column:1_/_-1] [padding-left:5px];
 }
 .browser-tabs-bar.vertical .tab-group-label {
-  @apply w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1];
+  @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1] [background:color-mix(in_srgb,_var(--tab-group-color)_8%,_var(--toolbar))];
 }
 .browser-tabs-bar.vertical .workspace-new-tab {
   @apply w-full [height:28px] m-0 [grid-column:1_/_-1];
@@ -113,12 +114,13 @@
 .browser-tabs-bar.vertical .workspace-action-divider { @apply w-full [height:1px] [margin:5px_0_2px]; }
 .browser-tabs-bar.vertical .new-workspace { @apply w-full [height:32px] m-0; }
 .browser-tabs-bar.vertical .tab-rail-pin {
-  @apply flex w-full [height:32px] [flex:0_0_32px] items-center [gap:8px] [padding:0_9px] overflow-hidden [border:1px_solid_transparent] [border-radius:8px] text-muted bg-transparent cursor-pointer;
+  @apply flex [width:34px] [height:34px] [flex:0_0_34px] items-center justify-center p-0 overflow-hidden [border:1px_solid_transparent] [border-radius:8px] text-muted bg-transparent cursor-pointer;
 }
 .browser-tabs-bar.vertical .tab-rail-pin:hover { @apply text-copy bg-hover; }
 .browser-tabs-bar.vertical .tab-rail-pin:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
 .browser-tabs-bar.vertical .tab-rail-pin svg { @apply [width:18px] [height:18px] flex-none; }
-.browser-tabs-bar.vertical .tab-rail-pin span { @apply overflow-hidden text-ellipsis whitespace-nowrap; }
+.browser-tabs-bar.vertical .tab-rail-pin span { @apply hidden; }
+.browser-tabs-bar.vertical.rail-collapsed .tab-rail-header { @apply flex-col; }
 .browser-tabs-bar.vertical.rail-collapsed { @apply [gap:7px] [padding-right:7px] [padding-left:7px]; }
 .browser-tabs-bar.vertical.rail-collapsed .app-home-button,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label,
@@ -129,6 +131,9 @@
   @apply [width:40px] [min-width:40px] [align-self:center] justify-center [padding-right:0] [padding-left:0];
 }
 .browser-tabs-bar.vertical.rail-collapsed .tabs-strip { @apply items-center; }
+.browser-tabs-bar.vertical.rail-collapsed .tabs-strip-shell.has-tab-overflow .tabs-strip { @apply [height:calc(100%_-_64px)] [margin:32px_0]; }
+.browser-tabs-bar.vertical.rail-collapsed .tabs-scroll-button.previous { @apply [top:2px] [bottom:auto] [left:50%]; }
+.browser-tabs-bar.vertical.rail-collapsed .tabs-scroll-button.next { @apply [bottom:2px] [left:50%]; }
 .browser-tabs-bar.vertical.rail-collapsed .workspace-tab-section { @apply [width:40px] [padding:2px] [grid-template-columns:minmax(0,_1fr)]; }
 .browser-tabs-bar.vertical.rail-collapsed .workspace-tab-list { @apply p-0; }
 .browser-tabs-bar.vertical.rail-collapsed .workspace-tab-section .tab-group-label,
@@ -279,6 +284,28 @@
 }
 .vertical-tabs-shell .topbar.rail-collapsed .topbar-actions {
   @apply [max-height:0] p-0 overflow-hidden [border-top:0] opacity-0 pointer-events-none invisible;
+}
+
+.compact-commands-label, .compact-download-status { @apply hidden; }
+@media (max-height: 600px) {
+  .browser-tabs-bar.vertical { @apply [gap:4px] [padding:6px_9px]; }
+  .vertical-tabs-shell .topbar-actions { @apply [grid-template-columns:repeat(6,_minmax(0,_1fr))] [padding:6px_8px]; }
+  .vertical-tabs-shell .all-lock-button { @apply [grid-column:1_/_3] [grid-row:1] [padding-inline:4px] [gap:4px]; }
+  .vertical-tabs-shell .follow-agent-button { @apply [grid-column:3_/_6] [grid-row:1] [padding-inline:4px] [gap:4px]; }
+  .vertical-tabs-shell .settings-button { @apply [grid-column:6] [grid-row:1]; }
+  .vertical-tabs-shell .command-palette-button { @apply flex items-center justify-center [gap:4px] [grid-column:1_/_3] [grid-row:2]; }
+  .vertical-tabs-shell .compact-commands-label { @apply block min-w-0 overflow-hidden text-ellipsis [font-size:12px]; }
+  .vertical-tabs-shell .command-palette-button > svg { @apply hidden; }
+  .vertical-tabs-shell .compact-download-status { @apply flex flex-none text-accent-copy; }
+  .vertical-tabs-shell .compact-download-status svg { @apply [width:14px] [height:14px]; }
+  .vertical-tabs-shell .mcp-controls { @apply [grid-column:3_/_7] [grid-row:2]; }
+  .vertical-tabs-shell .topbar-actions:has(.update-status-pill) .mcp-controls { @apply [grid-column:3_/_6]; }
+  .vertical-tabs-shell .update-status-pill { @apply [grid-column:6] [grid-row:2] p-0; }
+  .vertical-tabs-shell .update-status-label,
+  .vertical-tabs-shell .update-status-chevron,
+  .vertical-tabs-shell .tab-search-button,
+  .vertical-tabs-shell .downloads-button,
+  .vertical-tabs-shell .history-button { @apply hidden; }
 }
 
 .tab {

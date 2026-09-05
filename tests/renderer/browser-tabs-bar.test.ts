@@ -757,6 +757,25 @@ describe('BrowserTabsBar', () => {
     })
   })
 
+  it('reserves vertical workspace header height when revealing a keyboard tab', async () => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }), true, 'vertical')
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    const target = screen.getByRole('tab', { name: second.title })
+    const header = screen.getByRole('button', { name: /Collapse workspace Research/ })
+    const scrollBy = vi.fn()
+    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+    vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 250, 180))
+    vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(5, 100, 240, 28))
+    vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 110, 230, 34))
+    await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowDown' })
+    await vi.waitFor(() => {
+      expect(target).toHaveFocus()
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ top: -22 }))
+    })
+  })
+
   it('keeps a newly active crowded tab clear of the fixed scroll controls', async () => {
     const first = tab('first', { active: true })
     const second = tab('second')
@@ -930,6 +949,34 @@ describe('BrowserTabsBar', () => {
       vi.unstubAllGlobals()
       if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll)
       else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+    }
+  })
+
+  it('does not scroll a visible sticky workspace header away from its leading edge on resize', async () => {
+    let resizeCallback: ResizeObserverCallback | undefined
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resizeCallback = callback }
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    })
+    try {
+      renderTabs(browserState(), true, 'vertical')
+      await vi.waitFor(() => expect(resizeCallback).toBeDefined())
+      const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+      const header = screen.getByRole('button', { name: /Collapse workspace Research/ })
+      const scrollBy = vi.fn()
+      Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+      vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 250, 180))
+      vi.spyOn(header, 'getBoundingClientRect').mockReturnValue(new DOMRect(5, 100, 240, 28))
+      header.focus()
+      await nextTick()
+      scrollBy.mockClear()
+      resizeCallback!([], {} as ResizeObserver)
+      expect(header).toHaveFocus()
+      expect(scrollBy).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
     }
   })
 

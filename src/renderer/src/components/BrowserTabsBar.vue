@@ -143,11 +143,15 @@ function revealTab(activeTab: HTMLElement, behavior?: ScrollBehavior): void {
   const stripBounds = strip.getBoundingClientRect()
   const tabBounds = activeTab.getBoundingClientRect()
   const availableSpan = vertical.value ? stripBounds.height - tabBounds.height : stripBounds.width - tabBounds.width
-  const margin = Math.min(31, Math.max(0, availableSpan / 2))
+  const header = activeTab.closest('.workspace-tab-section')?.querySelector('.tab-group-label')
+  // A sticky header already occupies the leading edge; never reserve its own
+  // space when it receives focus (including after a rail resize).
+  const isHeader = activeTab === header
+  const margin = isHeader ? 0 : Math.min(31, Math.max(0, availableSpan / 2))
   const leadingEdge = vertical.value ? tabBounds.top : tabBounds.left
   const trailingEdge = vertical.value ? tabBounds.bottom : tabBounds.right
-  const header = activeTab.closest('.workspace-tab-section')?.querySelector('.tab-group-label')
-  const headerSpace = !vertical.value && header ? header.getBoundingClientRect().width + 4 : 0
+  const headerBounds = header?.getBoundingClientRect()
+  const headerSpace = headerBounds && !isHeader ? (vertical.value ? headerBounds.height : headerBounds.width) + 4 : 0
   const leadingMargin = Math.max(margin, Math.min(headerSpace, Math.max(0, availableSpan)))
   const trailingMargin = Math.min(margin, Math.max(0, availableSpan - leadingMargin))
   const visibleLeadingEdge = (vertical.value ? stripBounds.top : stripBounds.left) + leadingMargin
@@ -503,6 +507,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     @focusin="setRailFocusWithin(true)"
     @focusout="handleRailFocusOut"
   >
+  <div class="tab-rail-header">
   <UiButton appearance="application"
     class="app-home-button"
     :class="{ active: homeTab?.active }"
@@ -516,6 +521,20 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <IconDashboard v-else aria-hidden="true" />
     <span class="app-home-label">{{ t('shell.home.label') }}</span>
   </UiButton>
+  <UiButton appearance="application"
+    v-if="vertical"
+    class="tab-rail-pin"
+    type="button"
+    :title="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
+    :aria-label="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
+    :aria-pressed="railPinned"
+    @click="emit('toggleRailPinned')"
+  >
+    <IconKeep v-if="railPinned" aria-hidden="true" />
+    <IconKeepOff v-else aria-hidden="true" />
+    <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
+  </UiButton>
+  </div>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <UiButton appearance="application"
@@ -681,18 +700,5 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @click="scrollTabs(1)"
     ><IconKeyboardArrowDown v-if="vertical" aria-hidden="true" /><IconKeyboardArrowRight v-else aria-hidden="true" /></UiButton>
   </div>
-  <UiButton appearance="application"
-    v-if="vertical"
-    class="tab-rail-pin"
-    type="button"
-    :title="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
-    :aria-label="t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded')"
-    :aria-pressed="railPinned"
-    @click="emit('toggleRailPinned')"
-  >
-    <IconKeep v-if="railPinned" aria-hidden="true" />
-    <IconKeepOff v-else aria-hidden="true" />
-    <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
-  </UiButton>
   </nav>
 </template>

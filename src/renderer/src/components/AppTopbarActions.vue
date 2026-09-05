@@ -54,11 +54,14 @@ const { t } = useI18n({ useScope: 'global' })
       type="button"
       :title="t('shell.actions.commandsTitle')"
       :aria-label="t('shell.actions.commands')"
+      :aria-description="activeDownloads.length ? downloadButtonLabel : undefined"
       aria-keyshortcuts="Control+Shift+P Meta+Shift+P"
       :aria-expanded="commandPaletteOpen"
       @click="emit('toggleCommandPalette')"
     >
       <IconKeyboardCommandKey aria-hidden="true" />
+      <span class="compact-commands-label">{{ t('commandPalette.heading') }}</span>
+      <span v-if="activeDownloads.length" class="compact-download-status" :title="downloadButtonLabel" aria-hidden="true"><IconProgress class="state-spinner" /></span>
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button tab-search-button"

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Keep workspace names visible while scrolling vertical tabs and recover tab-list space with a compact Home/pin row and paired scroll controls. In short windows, reach tab search, history, and downloads through Commands while Settings, input lock, agent follow, and server status remain visible.
+
 ## [1.11.54] - 2026-09-05
 
 ### Fixed
