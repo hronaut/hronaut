@@ -72,11 +72,19 @@ if ($Action -eq 'tray') {
   if ($null -eq $icon -or $icon.Current.IsOffscreen) {
     Click-Native (Find-Named $tray 'Show hidden icons') $false
     Start-Sleep -Milliseconds 500
-    $overflowCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
-    $overflow = $root.FindFirst($scope, $overflowCondition)
-    if ($null -eq $overflow) { throw 'Notification overflow unavailable' }
-    Save-Elements $overflow ($OutputPath + '.overflow.json')
-    $icon = Find-Named $overflow 'Hronaut'
+    # Server 2025 uses a XAML overflow host rather than the legacy window class.
+    # Identify the actual Hronaut icon by Explorer ownership and visible popup bounds.
+    $processCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ProcessIdProperty, $tray.Current.ProcessId)
+    $nameCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Hronaut', [System.Windows.Automation.PropertyConditionFlags]::IgnoreCase)
+    $condition = New-Object System.Windows.Automation.AndCondition($processCondition, $nameCondition)
+    $icons = @($root.FindAll($scope, $condition) | Where-Object {
+      -not $_.Current.IsOffscreen -and -not $_.Current.BoundingRectangle.IsEmpty -and $_.Current.BoundingRectangle.Bottom -le $tray.Current.BoundingRectangle.Top
+    })
+    if ($OutputPath) {
+      @($icons | ForEach-Object { @{ Name=$_.Current.Name; Class=$_.Current.ClassName; Bounds=$_.Current.BoundingRectangle.ToString() } }) | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 ($OutputPath + '.overflow.json')
+    }
+    if ($icons.Count -ne 1) { throw "Expected exactly one visible Explorer Hronaut overflow icon, found $($icons.Count)" }
+    $icon = $icons[0]
   }
   Click-Native $icon $true
 } else {
