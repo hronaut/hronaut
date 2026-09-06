@@ -1,0 +1,61 @@
+name: macOS native preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-native-preflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native:
+    name: Native macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+            app: dist/mac-arm64/Hronaut.app
+          - runner: macos-15-intel
+            arch: x64
+            app: dist/mac/Hronaut.app
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+      - name: Build native unsigned application without publishing
+        env:
+          PACKAGE_ARCH: ${{ matrix.arch }}
+        run: |
+          npm run build:app
+          npx --no-install electron-builder --mac dir "--$PACKAGE_ARCH" --publish never
+      - name: Verify native packaged runtime, clipboard and tray lifecycle
+        env:
+          CANDIDATE_APP: ${{ matrix.app }}
+          CANDIDATE_ARCH: ${{ matrix.arch }}
+        run: node scripts/macos-native-preflight.ts "$CANDIDATE_APP" "$CANDIDATE_ARCH"
+      - name: Upload native preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-native-${{ matrix.arch }}-${{ github.sha }}
+          path: test-results/macos-native/
+          if-no-files-found: error
+          retention-days: 14
