@@ -7,6 +7,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep revealed workspace controls above the page in narrow windows by reserving their actual width, with a readable address row and correctly anchored suggestions.
+- Keep Split view menus inside short windows, with scrollable candidates and reachable Close and Exit controls.
+- Finish toolbar clicks before collapsing a focused workspace rail, so moving focus cannot shift the clicked control before mouse release.
 
 ## [1.11.56] - 2026-09-05
 

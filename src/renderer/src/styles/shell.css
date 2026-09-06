@@ -519,10 +519,10 @@
 .split-view-button { @apply text-copy; }
 .split-view-button.active { @apply [color:#fff] bg-accent; }
 .split-view-menu {
-  @apply absolute [z-index:20] [top:44px] [right:0] [width:min(380px,_calc(100vw_-_24px))] overflow-hidden [border:1px_solid_var(--border)] [border-radius:14px] text-copy bg-surface [box-shadow:var(--shadow)];
+  @apply fixed [z-index:20] [top:calc(var(--shell-content-top)_+_8px)] [right:12px] [width:min(380px,_calc(100vw_-_var(--tab-rail-width,_0px)_-_24px))] [max-height:min(460px,_calc(100vh_-_var(--shell-content-top)_-_24px))] overflow-auto [border:1px_solid_var(--border)] [border-radius:14px] text-copy bg-surface [box-shadow:var(--shadow)];
 }
 .split-view-menu > header {
-  @apply flex [min-height:62px] items-center justify-between [padding:10px_12px_9px_16px] [border-bottom:1px_solid_var(--border-soft)];
+  @apply sticky top-0 [z-index:1] bg-surface flex [min-height:62px] items-center justify-between [padding:10px_12px_9px_16px] [border-bottom:1px_solid_var(--border-soft)];
 }
 .split-view-menu h2 { @apply [margin:1px_0_0] [font-size:17px]; }
 .split-view-summary { @apply m-0 [padding:14px_16px_10px] text-muted [font-size:13px] [line-height:1.45]; }
@@ -538,14 +538,14 @@
 }
 .split-ratio-control input { @apply w-full [accent-color:var(--accent)]; }
 .split-ratio-control output { @apply text-copy [font-variant-numeric:tabular-nums] text-right; }
-.split-view-menu > footer { @apply flex [gap:8px] justify-end [padding:11px_16px] [border-top:1px_solid_var(--border-soft)]; }
+.split-view-menu > footer { @apply sticky bottom-0 bg-surface flex [gap:8px] justify-end [padding:11px_16px] [border-top:1px_solid_var(--border-soft)]; }
 .split-view-menu > footer button {
   @apply inline-flex [min-height:34px] items-center [gap:6px] [padding:0_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface-muted [font:inherit] [font-size:13px] [font-weight:700] cursor-pointer;
 }
 .split-view-menu > footer button:hover { @apply bg-hover; }
 .split-view-menu > footer button.danger { @apply [color:#b83246]; }
 .split-view-menu > footer svg { @apply [width:17px] [height:17px]; }
-.split-candidate-list { @apply grid [max-height:300px] overflow-auto [padding:0_8px_10px]; }
+.split-candidate-list { @apply grid [padding:0_8px_10px]; }
 .split-candidate-list button {
   @apply grid [grid-template-columns:24px_minmax(0,_1fr)] [gap:9px] items-center [padding:9px_8px] border-0 [border-radius:9px] text-copy bg-transparent text-left cursor-pointer;
 }

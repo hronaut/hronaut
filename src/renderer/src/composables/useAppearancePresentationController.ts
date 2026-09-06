@@ -25,6 +25,15 @@ function storedVerticalTabRailPinned(): boolean {
 export function useAppearancePresentationController(options: AppearancePresentationOptions) {
   const verticalTabRailPinned = ref(storedVerticalTabRailPinned())
   const verticalTabRailRevealed = ref(false)
+  let shellPointerId: number | undefined
+  let deferredFocusConceal = false
+  let focusConcealTimer: number | undefined
+
+  function cancelDeferredFocusConceal(): void {
+    deferredFocusConceal = false
+    if (focusConcealTimer !== undefined) window.clearTimeout(focusConcealTimer)
+    focusConcealTimer = undefined
+  }
   const viewportWidth = ref(window.innerWidth)
   const tabRailResize = useTabRailResizeController({
     viewportWidth,
@@ -79,6 +88,7 @@ export function useAppearancePresentationController(options: AppearancePresentat
   }
 
   function setVerticalTabRailRevealed(revealed: boolean): void {
+    cancelDeferredFocusConceal()
     verticalTabRailRevealed.value = revealed
   }
 
@@ -99,17 +109,56 @@ export function useAppearancePresentationController(options: AppearancePresentat
   function handleVerticalTabRailFocusOut(event: FocusEvent): void {
     const chrome = event.currentTarget as HTMLElement
     if (event.relatedTarget instanceof Node && chrome.contains(event.relatedTarget)) return
+    if (shellPointerId !== undefined) {
+      deferredFocusConceal = true
+      return
+    }
     concealVerticalTabRail()
+  }
+
+  function handleShellPointerDown(event: PointerEvent): void {
+    if (event.button !== 0 || !event.isPrimary || !(event.target instanceof Element)
+      || !event.target.closest('.shell')) return
+    shellPointerId = event.pointerId
+  }
+
+  function handleShellPointerUp(event: PointerEvent): void {
+    if (event.pointerId !== shellPointerId) return
+    shellPointerId = undefined
+    if (!deferredFocusConceal) return
+    // Focusout runs during pointerdown. Keep the release and its following
+    // click on the same control before changing the compact toolbar's layout.
+    focusConcealTimer = window.setTimeout(() => {
+      focusConcealTimer = undefined
+      if (deferredFocusConceal && shellPointerId === undefined) concealVerticalTabRail()
+    }, 0)
+  }
+
+  function handleShellPointerCancel(event: PointerEvent): void {
+    if (event.pointerId !== shellPointerId) return
+    shellPointerId = undefined
+    if (deferredFocusConceal) concealVerticalTabRail()
   }
 
   // Native page focus may leave document.activeElement pointing at old chrome.
   function concealOnWindowBlur(): void {
+    shellPointerId = undefined
     setVerticalTabRailRevealed(false)
     // A native page click must finish against stable view bounds.
     collapseMotion.settle()
   }
   window.addEventListener('blur', concealOnWindowBlur)
-  onScopeDispose(() => window.removeEventListener('blur', concealOnWindowBlur))
+  window.addEventListener('pointerdown', handleShellPointerDown, true)
+  window.addEventListener('pointerup', handleShellPointerUp, true)
+  window.addEventListener('pointercancel', handleShellPointerCancel, true)
+  onScopeDispose(() => {
+    cancelDeferredFocusConceal()
+    shellPointerId = undefined
+    window.removeEventListener('blur', concealOnWindowBlur)
+    window.removeEventListener('pointerdown', handleShellPointerDown, true)
+    window.removeEventListener('pointerup', handleShellPointerUp, true)
+    window.removeEventListener('pointercancel', handleShellPointerCancel, true)
+  })
 
   watch(
     [options.settings, options.systemTheme],

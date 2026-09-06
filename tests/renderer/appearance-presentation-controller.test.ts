@@ -140,6 +140,71 @@ describe('useAppearancePresentationController', () => {
     } finally { scope.stop(); vi.unstubAllGlobals() }
   })
 
+  it.each(['release', 'cancel', 'native-blur', 'new-reveal', 'new-gesture', 'dispose'] as const)(
+    'keeps a shell pointer gesture stable through focusout and handles %s', (completion) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      const scope = effectScope()
+      const shell = document.createElement('header')
+      shell.className = 'shell'
+      const rail = document.createElement('div')
+      const home = document.createElement('button')
+      const action = document.createElement('button')
+      rail.append(home)
+      shell.append(rail, action)
+      document.body.append(shell)
+      try {
+        const controller = scope.run(() => useAppearancePresentationController({
+          settings: ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const }),
+          systemTheme: ref('light'), detachedWindow: false
+        }))!
+        controller.updateViewportWidth(760)
+        controller.revealVerticalTabRail()
+        rail.addEventListener('focusout', controller.handleVerticalTabRailFocusOut)
+        home.focus()
+        action.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, isPrimary: true, button: 0 }))
+        action.focus()
+        expect(controller.tabRailWidth.value).toBe(280)
+        const clickWidths: number[] = []
+        action.addEventListener('click', () => clickWidths.push(controller.tabRailWidth.value))
+
+        if (completion === 'cancel') {
+          action.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }))
+          expect(controller.tabRailWidth.value).toBe(56)
+        } else if (completion === 'native-blur') {
+          window.dispatchEvent(new Event('blur'))
+          expect(controller.tabRailWidth.value).toBe(56)
+          action.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }))
+        } else {
+          action.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 }))
+          action.click()
+          expect(clickWidths).toEqual([280])
+          if (completion === 'new-gesture') {
+            action.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 2, isPrimary: true, button: 0 }))
+            vi.runAllTimers()
+            expect(controller.tabRailWidth.value).toBe(280)
+            action.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 2 }))
+            action.click()
+            expect(clickWidths).toEqual([280, 280])
+          }
+          if (completion === 'new-reveal') controller.revealVerticalTabRail()
+          if (completion === 'dispose') scope.stop()
+        }
+        vi.runAllTimers()
+        expect(controller.tabRailWidth.value).toBe(
+          completion === 'new-reveal' || completion === 'dispose' ? 280 : 56
+        )
+        if (completion === 'dispose') {
+          window.dispatchEvent(new Event('blur'))
+          expect(controller.tabRailWidth.value).toBe(280)
+        }
+      } finally {
+        scope.stop()
+        shell.remove()
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('applies system theme and plays the selected attention cue', () => {
     const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, attentionSoundCue: 'chime' as const })
     const systemTheme = ref<'light' | 'dark'>('dark')
