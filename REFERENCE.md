@@ -171,6 +171,8 @@ Full-page previews preserve the live page's viewport and scroll position. They a
 
 Use the split-view button beside the address bar to choose another open website, or right-click a tab and choose **Open in Split View**. Hronaut puts the second page on the right by default and keeps both websites live and interactive. Click either page or either marked tab to make it the active pane; the address bar and page tools follow that focus without closing the other page.
 
+Drag the divider between the pages to resize them directly. Focus the divider and use the arrows along its axis for 1% steps, or hold Shift for 5% steps. Home and End select the 25% and 75% limits; Enter or double-click restores equal panes. Escape cancels an active drag. A canceled drag does not replace the saved proportion.
+
 The split control can switch between side-by-side and stacked layouts, allocate 25–75% of the available space to the first pane, swap pane positions, or return to one page. Docked Page tools and Bookmarks resize both panes inside the remaining website area. The pair, layout, order, and proportion survive application restarts. Selecting a third tab exits the pair instead of silently replacing one side, and closing either pane returns the remaining tab to the full website area.
 
 ## Find local pages from the address bar

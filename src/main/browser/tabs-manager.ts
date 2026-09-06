@@ -153,6 +153,7 @@ import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, t
 import { compareBgraBitmaps, normalizeVisualCompareThreshold } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
 import {
+  SPLIT_VIEW_GAP,
   isBrowserSplitOrientation,
   normalizeSplitViewRatio,
   splitViewBounds,
@@ -6676,7 +6677,7 @@ export class BrowserTabsManager {
     if (!first || !second || first.sleeping || second.sleeping
       || first.webContents.isDestroyed() || second.webContents.isDestroyed()
       || this.toolbarHeight >= this.window.getContentBounds().height - 1) return null
-    const gap = Math.round(12 * scale)
+    const gap = Math.round(SPLIT_VIEW_GAP * scale)
     const length = this.splitView.orientation === 'vertical' ? area.width : area.height
     if (length < gap + 2 || area.width < 1 || area.height < 1) return null
     const { divider } = splitViewGeometry(area, this.splitView.orientation, this.splitView.ratio, gap)
@@ -6715,7 +6716,7 @@ export class BrowserTabsManager {
       const firstTab = this.tabs.get(this.splitView.firstTabId)
       const secondTab = this.tabs.get(this.splitView.secondTabId)
       if (firstTab && secondTab) {
-        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(12 * (this.window.webContents.getZoomFactor?.() ?? 1)))
+        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
         firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
         secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
         firstTab.view.setBounds(splitBounds.first)

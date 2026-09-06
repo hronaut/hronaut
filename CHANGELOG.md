@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Resize split panes by dragging their divider, with keyboard adjustment and an equal-size reset. Canceled gestures restore the previous size; committed sizes survive restarts.
+
 ### Fixed
 
 - Keep split pages usable when opening docked Page tools by closing the competing Split view menu.

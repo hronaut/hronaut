@@ -2,7 +2,8 @@ import type { Rectangle } from 'electron'
 
 export const SPLIT_VIEW_MIN_RATIO = 0.25
 export const SPLIT_VIEW_MAX_RATIO = 0.75
-export const SPLIT_VIEW_GAP = 6
+// CSS pixels; main converts once to native coordinates at the shell zoom.
+export const SPLIT_VIEW_GAP = 12
 
 export type BrowserSplitOrientation = 'vertical' | 'horizontal'
 
