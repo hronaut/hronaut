@@ -79,7 +79,9 @@ for (const compact of [false, true]) for (const scale of [1, 1.25]) for (const o
     await expect(divider).toHaveAttribute('aria-valuenow', '75')
     await divider.press(orientation === 'vertical' ? 'Shift+ArrowLeft' : 'Shift+ArrowUp')
     await expect(divider).toHaveAttribute('aria-valuenow', '70')
-    await divider.press('Enter')
+    const resetPoint = await currentPoint()
+    await physical('--click', resetPoint.x, resetPoint.y)
+    await physical('--click', resetPoint.x, resetPoint.y)
     await expect(divider).toHaveAttribute('aria-valuenow', '50')
     for (const page of await views()) {
       await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(origin.x + page.bounds.x + Math.round(page.bounds.width / 2)), String(origin.y + page.bounds.y + Math.round(page.bounds.height / 2)), '--click'])

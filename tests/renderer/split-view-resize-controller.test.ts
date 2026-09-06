@@ -133,6 +133,45 @@ describe('direct split divider resizing', () => {
     expect(h.api.setRatio).toHaveBeenCalledTimes(1)
     if (change === 'revision' || change === 'layout') expect(h.controller.geometry.value).toEqual(next)
   })
+  it('queues double-click reset after the preceding pointer commit acknowledges its revision', async () => {
+    const h = harness({ ...initial, ratio: .65 })
+    const finish = deferred<SplitDividerGeometry | null>()
+    h.api.finish.mockReturnValueOnce(finish.promise)
+    h.api.setRatio.mockImplementation(async (revision, ratio) => revision === 2
+      ? { ...initial, revision: 3, ratio } : null)
+    await flush()
+    h.start()
+    await flush()
+    h.pointer('pointerup', 503)
+    h.controller.resetSize()
+    expect(h.api.setRatio).not.toHaveBeenCalled()
+    const committed = { ...initial, revision: 2, ratio: .65 }
+    h.notify(committed)
+    finish.resolve(committed)
+    await flush()
+    expect(h.api.setRatio).toHaveBeenCalledWith(2, .5)
+    expect(h.controller.geometry.value?.ratio).toBe(.5)
+  })
+
+  it.each(['replacement', 'blur', 'dispose', 'invalidated'])('discards a queued reset after %s while the pointer commit is pending', async change => {
+    const h = harness({ ...initial, ratio: .65 })
+    const finish = deferred<SplitDividerGeometry | null>()
+    h.api.finish.mockReturnValueOnce(finish.promise)
+    await flush()
+    h.start()
+    await flush()
+    h.pointer('pointerup', 503)
+    h.controller.resetSize()
+    const newer = { ...initial, revision: 3, ratio: .7 }
+    if (change === 'replacement') h.notify(newer)
+    else if (change === 'blur') window.dispatchEvent(new Event('blur'))
+    else if (change === 'dispose') h.scope.stop()
+    finish.resolve(change === 'invalidated' ? null : { ...initial, revision: 2, ratio: .65 })
+    await flush()
+    expect(h.api.setRatio).not.toHaveBeenCalled()
+    if (change === 'replacement') expect(h.controller.geometry.value).toEqual(newer)
+  })
+
   it('does not let initial fetch overwrite a newer visibility notification', async () => {
     const h = harness(); h.notify(null); await flush(); expect(h.controller.geometry.value).toBeNull()
   })
