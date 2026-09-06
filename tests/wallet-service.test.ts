@@ -338,7 +338,7 @@ describe('WalletService', () => {
 
   it('requires a dedicated EVM agent wallet and complete limits for mainnet Bypass Approve mode', async () => {
     const path = await directory()
-    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage(), now: () => new Date('2026-09-04T12:00:00.000Z') })
     await service.initialize()
     const common = {
       name: 'Mainnet', chainFamily: 'evm' as const,

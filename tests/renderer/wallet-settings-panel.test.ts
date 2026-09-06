@@ -2,11 +2,13 @@
 import { ref } from 'vue'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import WalletsSettingsPanel from '../../src/renderer/src/components/WalletsSettingsPanel.vue'
 import type { WalletsController } from '../../src/renderer/src/composables/useWalletsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { WalletDescriptor, WalletPolicy } from '../../src/shared/wallet.js'
+
+afterEach(() => vi.useRealTimers())
 
 const global = { plugins: [createHronautI18n('en-US')] }
 
@@ -780,6 +782,9 @@ describe('WalletsSettingsPanel', () => {
   })
 
   it('configures Bypass Approve mode only with explicit mainnet agent-wallet limits', async () => {
+    // Freeze Date only: user-event and Vue retain their real asynchronous timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-04T12:00:00.000Z'))
     const mainnetAgent: WalletDescriptor = {
       ...wallet('mainnet-agent', 'Mainnet agent', ['workspace-1']),
       kind: 'agent',

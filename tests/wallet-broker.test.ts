@@ -38,10 +38,10 @@ function safeStorage(): WalletSafeStorage {
   }
 }
 
-async function setup(environment: 'local' | 'testnet' | 'mainnet' = 'testnet', dedicatedAgent = false) {
+async function setup(environment: 'local' | 'testnet' | 'mainnet' = 'testnet', dedicatedAgent = false, now?: () => Date) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-wallet-broker-test-'))
   directories.push(directory)
-  const service = new WalletService({ directory, platform: 'linux', safeStorage: safeStorage() })
+  const service = new WalletService({ directory, platform: 'linux', safeStorage: safeStorage(), now })
   await service.initialize()
   const generated = await service.generate({
     name: 'Wallet', chainFamily: 'evm',
@@ -340,9 +340,10 @@ describe('WalletBroker', () => {
   })
 
   it('lets a dedicated agent wallet use an explicitly bounded Bypass Approve mode on EVM mainnet', async () => {
-    const { service, wallet } = await setup('mainnet', true)
+    const now = () => new Date('2026-09-04T12:00:00.000Z')
+    const { service, wallet } = await setup('mainnet', true, now)
     const chain = adapter()
-    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, now })
     const agent = context({ requester: { type: 'agent', id: 'agent-mainnet-bypass', name: 'Agent' } })
     const permission = await broker.agentBalance(agent, wallet.id)
     await broker.approve((permission.request as { id: string }).id)
@@ -368,9 +369,10 @@ describe('WalletBroker', () => {
   })
 
   it('keeps websites on trusted approval even when an agent wallet has Bypass Approve mode', async () => {
-    const { service, wallet } = await setup('mainnet', true)
+    const now = () => new Date('2026-09-04T12:00:00.000Z')
+    const { service, wallet } = await setup('mainnet', true, now)
     const chain = adapter()
-    const broker = new WalletBroker(service, { adapters: { evm: chain } })
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, now })
     await connect(broker)
     await service.setPolicy({
       id: 'mainnet-agent-only', name: 'Agent only', mode: 'bounded-auto', walletId: wallet.id,
