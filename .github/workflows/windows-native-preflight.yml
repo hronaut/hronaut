@@ -1,0 +1,43 @@
+name: Windows native preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-native-preflight-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install locked dependencies and audit
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm audit --audit-level=high
+      - name: Build unsigned native app without publishing
+        run: |
+          npm run build:app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npx --no-install electron-builder --win dir --x64 --publish never
+      - name: Exercise packaged clipboard and native notification area
+        run: node scripts/windows-native-preflight.ts dist/win-unpacked/Hronaut.exe
+      - name: Upload native evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-native-x64-${{ github.sha }}
+          path: test-results/windows-native/
+          if-no-files-found: error
+          retention-days: 14
