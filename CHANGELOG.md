@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep split pages usable when opening docked Page tools by closing the competing Split view menu.
+
 ## [1.11.57] - 2026-09-06
 
 ### Fixed

@@ -38,7 +38,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     tabSearch: BooleanState
     downloads: BooleanState
     history: BooleanState
-    splitMenu: BooleanState
+    splitMenu: Ref<boolean>
     siteControls: BooleanState
     siteStorage: BooleanState
     bookmarks: BooleanState
@@ -81,6 +81,8 @@ export function useAppShellLayoutFeatureController(
     fullModalOpen
   })
   const overlayCoordination = useShellOverlayCoordinationController({
+    activePanel: overlays.activePanel,
+    splitMenu: overlays.splitMenu,
     layoutSources: [
       modals.settings,
       overlays.updateNotice,

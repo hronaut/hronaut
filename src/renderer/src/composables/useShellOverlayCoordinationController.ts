@@ -7,6 +7,8 @@ export interface PreservedOverlayPanel {
 }
 
 export interface ShellOverlayCoordinationControllerOptions {
+  activePanel: Readonly<Ref<DetachablePanelId | null>>
+  splitMenu: Ref<boolean>
   layoutSources: WatchSource<unknown>[]
   competingOverlayStates: Readonly<Ref<boolean>>[]
   preservedPanels: PreservedOverlayPanel[]
@@ -23,6 +25,16 @@ export function useShellOverlayCoordinationController(
 ) {
   let disposed = false
   const preservedPanelStates = new Set(options.preservedPanels.map(({ open }) => open))
+
+  // A panel opened after Split view must release the menu's native content inset.
+  // Detached panels do not consume browser space; docking one back does.
+  const stopPanelWatch = watch(
+    [options.activePanel, options.keepsSeparatePanelOpen],
+    ([panel, separate]) => {
+      if (panel && !separate) options.splitMenu.value = false
+    },
+    { flush: 'sync' }
+  )
 
   const stopLayoutWatch = watch(options.layoutSources, async () => {
     await nextTick()
@@ -60,6 +72,7 @@ export function useShellOverlayCoordinationController(
   function dispose(): void {
     if (disposed) return
     disposed = true
+    stopPanelWatch()
     stopLayoutWatch()
     stopOverlayWatch()
     stopFullModalWatch()

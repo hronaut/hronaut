@@ -1,8 +1,12 @@
+import type { DetachablePanelId } from '../../src/shared/types.js'
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useShellOverlayCoordinationController } from '../../src/renderer/src/composables/useShellOverlayCoordinationController.js'
 
 function createHarness(separatePanel = false) {
+  const activePanel = ref<DetachablePanelId | null>(null)
+  const splitMenu = ref(false)
+  const separate = ref(separatePanel)
   const settingsOpen = ref(false)
   const siteControlsOpen = ref(false)
   const siteStorageOpen = ref(false)
@@ -14,6 +18,8 @@ function createHarness(separatePanel = false) {
   const setBrowserContentOccluded = vi.fn()
   const reportLayout = vi.fn()
   const controller = useShellOverlayCoordinationController({
+    activePanel,
+    splitMenu,
     layoutSources: [settingsOpen, siteControlsOpen, downloadsOpen],
     competingOverlayStates: [settingsOpen, siteControlsOpen, siteStorageOpen, bookmarksOpen, downloadsOpen],
     preservedPanels: [
@@ -22,13 +28,14 @@ function createHarness(separatePanel = false) {
       { panel: 'bookmarks', open: bookmarksOpen }
     ],
     fullModalOpen,
-    keepsSeparatePanelOpen: () => separatePanel,
+    keepsSeparatePanelOpen: () => separate.value,
     closePanelsExcept,
     closeAddressSuggestions,
     setBrowserContentOccluded,
     reportLayout
   })
   return {
+    activePanel, splitMenu, separate,
     bookmarksOpen,
     closeAddressSuggestions,
     closePanelsExcept,
@@ -44,6 +51,29 @@ function createHarness(separatePanel = false) {
 }
 
 describe('shell overlay coordination controller', () => {
+  it('releases Split view space when a docked panel opens and permits reopening after close', () => {
+    const harness = createHarness()
+    harness.splitMenu.value = true
+    harness.activePanel.value = 'page-tools'
+    expect(harness.splitMenu.value).toBe(false)
+    harness.activePanel.value = null
+    harness.splitMenu.value = true
+    expect(harness.splitMenu.value).toBe(true)
+    harness.controller.dispose()
+    harness.activePanel.value = 'page-tools'
+    expect(harness.splitMenu.value).toBe(true)
+  })
+
+  it('preserves Split view with a detached panel and closes it when the panel docks', () => {
+    const harness = createHarness(true)
+    harness.splitMenu.value = true
+    harness.activePanel.value = 'page-tools'
+    expect(harness.splitMenu.value).toBe(true)
+    harness.separate.value = false
+    expect(harness.splitMenu.value).toBe(false)
+    harness.controller.dispose()
+  })
+
   it('preserves the registered panel represented by a newly opened overlay', async () => {
     const harness = createHarness()
 
