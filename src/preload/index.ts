@@ -1,3 +1,4 @@
+import type { HronautSplitDividerApi, SplitDividerGeometry } from '../shared/split-view.js'
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppSettings,
@@ -502,3 +503,17 @@ const shellApi: HronautShellApi = {
   }
 }
 contextBridge.exposeInMainWorld('hronautShell', shellApi)
+
+const splitDividerApi: HronautSplitDividerApi = {
+  get: () => ipcRenderer.invoke('split-divider:get'),
+  begin: (revision) => ipcRenderer.invoke('split-divider:begin', revision),
+  update: (token, ratio) => ipcRenderer.invoke('split-divider:update', token, ratio),
+  finish: (token, commit, ratio) => ipcRenderer.invoke('split-divider:finish', token, commit, ratio),
+  setRatio: (revision, ratio) => ipcRenderer.invoke('split-divider:set-ratio', revision, ratio),
+  onChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, geometry: SplitDividerGeometry | null): void => listener(geometry)
+    ipcRenderer.on('split-divider:changed', handler)
+    return () => ipcRenderer.removeListener('split-divider:changed', handler)
+  }
+}
+contextBridge.exposeInMainWorld('hronautSplitDivider', splitDividerApi)

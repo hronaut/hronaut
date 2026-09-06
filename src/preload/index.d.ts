@@ -1,9 +1,11 @@
+import type { HronautSplitDividerApi } from '../shared/split-view'
 import type { HronautApi, HronautBookmarksApi, HronautBrowsingDataApi, HronautCredentialsApi, HronautDownloadsApi, HronautHistoryApi, HronautLicenseApi, HronautMcpApi, HronautPanelWindowApi, HronautPermissionsApi, HronautSettingsApi, HronautShellApi, HronautUpdatesApi, HronautWalletsApi } from '../shared/types'
 import type { AddressSuggestionOverlayRequest } from '../shared/address-suggestions'
 
 declare global {
   interface Window {
     hronaut: HronautApi
+    hronautSplitDivider: HronautSplitDividerApi
     hronautBookmarks: HronautBookmarksApi
     hronautHistory: HronautHistoryApi
     hronautBrowsingData: HronautBrowsingDataApi

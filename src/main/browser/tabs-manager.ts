@@ -1,3 +1,4 @@
+import { SplitDividerController } from './split-divider-controller.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { existsSync, readFileSync } from 'node:fs'
@@ -155,6 +156,9 @@ import {
   isBrowserSplitOrientation,
   normalizeSplitViewRatio,
   splitViewBounds,
+  splitViewGeometry,
+  type SplitDividerGeometry,
+  type SplitDividerSession,
   type BrowserSplitOrientation,
   type BrowserSplitViewState
 } from '../../shared/split-view.js'
@@ -963,6 +967,21 @@ export class BrowserTabsManager {
   private tabSelectionGeneration = 0
   private splitView: BrowserSplitViewState | null = null
   private splitViewGeneration = 0
+  private lastSplitDividerGeometry = ''
+  private readonly splitDivider = new SplitDividerController({
+    read: () => this.getSplitDivider(),
+    owns: (geometry) => this.splitViewGeneration === geometry.revision
+      && this.splitView?.firstTabId === geometry.firstTabId
+      && this.splitView?.secondTabId === geometry.secondTabId
+      && this.splitView?.orientation === geometry.orientation,
+    apply: (ratio, mode) => {
+      if (!this.splitView) return
+      this.splitView.ratio = ratio
+      if (mode === 'commit') this.splitViewGeneration += 1
+      this.layout()
+      if (mode !== 'preview') this.changed(mode === 'commit')
+    }
+  })
   private allHumanInteractionLocked = false
   private readonly agentInputWebContents = new Map<number, number>()
   private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
@@ -3336,6 +3355,7 @@ export class BrowserTabsManager {
       throw new TypeError('Split orientation must be vertical or horizontal.')
     }
     if (updates.ratio !== undefined && !Number.isFinite(updates.ratio)) throw new TypeError('Split ratio must be a finite number.')
+    this.splitDivider.cancel()
     this.splitViewGeneration += 1
     if (updates.orientation !== undefined) this.splitView.orientation = updates.orientation
     if (updates.ratio !== undefined) this.splitView.ratio = normalizeSplitViewRatio(updates.ratio)
@@ -3955,6 +3975,7 @@ export class BrowserTabsManager {
   async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
     const previousLocked = this.allHumanInteractionLocked
     this.allHumanInteractionLocked = locked
+    this.layout()
     if (locked) {
       for (const tab of this.tabs.values()) {
         if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
@@ -3968,6 +3989,7 @@ export class BrowserTabsManager {
       .map((result) => result.reason)
     if (errors.length) {
       this.allHumanInteractionLocked = previousLocked
+      this.layout()
       const rollbackResults = await Promise.allSettled(
         [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
       )
@@ -6644,8 +6666,43 @@ export class BrowserTabsManager {
     }
   }
 
+  getSplitDivider(): SplitDividerGeometry | null {
+    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()
+      || !this.activeTabId || !this.splitView || this.allHumanInteractionLocked || this.browserContentOccluded) return null
+    const area = this.browserViewBounds()
+    const scale = this.window.webContents.getZoomFactor?.() ?? 1
+    const first = this.tabs.get(this.splitView.firstTabId)
+    const second = this.tabs.get(this.splitView.secondTabId)
+    if (!first || !second || first.sleeping || second.sleeping
+      || first.webContents.isDestroyed() || second.webContents.isDestroyed()
+      || this.toolbarHeight >= this.window.getContentBounds().height - 1) return null
+    const gap = Math.round(12 * scale)
+    const length = this.splitView.orientation === 'vertical' ? area.width : area.height
+    if (length < gap + 2 || area.width < 1 || area.height < 1) return null
+    const { divider } = splitViewGeometry(area, this.splitView.orientation, this.splitView.ratio, gap)
+    const cssBounds = (rect: Rectangle): Rectangle => ({
+      x: rect.x / scale, y: rect.y / scale, width: rect.width / scale, height: rect.height / scale
+    })
+    return { ...this.splitView, revision: this.splitViewGeneration, bounds: cssBounds(divider), area: cssBounds(area), gap: gap / scale, scale }
+  }
+
+  cancelSplitDivider(): void { this.splitDivider.cancel() }
+  beginSplitDivider(revision: number): SplitDividerSession | null { return this.splitDivider.begin(revision) }
+  updateSplitDivider(token: string, ratio: number): SplitDividerGeometry | null { return this.splitDivider.update(token, ratio) }
+  finishSplitDivider(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null { return this.splitDivider.finish(token, commit, ratio) }
+  setSplitDividerRatio(revision: number, ratio: number): SplitDividerGeometry | null { return this.splitDivider.setRatio(revision, ratio) }
+
+  private publishSplitDivider(): void {
+    const geometry = this.getSplitDivider()
+    const serialized = JSON.stringify(geometry)
+    if (serialized === this.lastSplitDividerGeometry) return
+    this.lastSplitDividerGeometry = serialized
+    if (!this.window.webContents.isDestroyed()) this.window.webContents.send('split-divider:changed', geometry)
+  }
+
   layout(): void {
     if (this.destroyed || this.window.isDestroyed() || !this.activeTabId) return
+    this.splitDivider.reconcile()
     const tab = this.tabs.get(this.activeTabId)
     if (!tab) return
     const bounds = this.window.getContentBounds()
@@ -6658,13 +6715,14 @@ export class BrowserTabsManager {
       const firstTab = this.tabs.get(this.splitView.firstTabId)
       const secondTab = this.tabs.get(this.splitView.secondTabId)
       if (firstTab && secondTab) {
-        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio)
-        firstTab.view.setVisible(browserContentVisible)
-        secondTab.view.setVisible(browserContentVisible)
+        const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(12 * (this.window.webContents.getZoomFactor?.() ?? 1)))
+        firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
+        secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
         firstTab.view.setBounds(splitBounds.first)
         secondTab.view.setBounds(splitBounds.second)
         this.scheduleTabOverviewPreview(firstTab)
         this.scheduleTabOverviewPreview(secondTab)
+        this.publishSplitDivider()
         return
       }
       this.splitView = null
@@ -6672,6 +6730,7 @@ export class BrowserTabsManager {
     tab.view.setVisible(browserContentVisible)
     tab.view.setBounds(viewBounds)
     this.scheduleTabOverviewPreview(tab)
+    this.publishSplitDivider()
   }
 
   async flushPersist(): Promise<void> {
@@ -6735,6 +6794,7 @@ export class BrowserTabsManager {
 
   destroy(): void {
     if (this.destroyed) return
+    this.splitDivider.cancel()
     this.destroyed = true
     this.mcpActivityFollower.dispose()
     if (this.persistTimer) clearTimeout(this.persistTimer)
@@ -10460,7 +10520,7 @@ export class BrowserTabsManager {
     return {
       version: TAB_STATE_VERSION,
       activeTabId: this.activeTabId,
-      ...(this.splitView ? { splitView: { ...this.splitView } } : {}),
+      ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
       allHumanInteractionLocked: this.allHumanInteractionLocked,
       ...(this.defaultHumanGroupId ? { defaultHumanGroupId: this.defaultHumanGroupId } : {}),
       mcpTabGroups: [...this.mcpTabGroups.values()].map((group) => ({ ...group })),

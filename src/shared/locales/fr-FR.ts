@@ -839,7 +839,7 @@ export const frFR = {
       "bookmarkSaved": "Favoris — page actuelle enregistrée (Ctrl/Cmd+D pour la supprimer)",
       "bookmarkSave": "Favoris (Ctrl/Cmd+D pour enregistrer la page actuelle)",
       "splitWith": "Vue fractionnée avec {title}",
-      "splitOther": "un autre onglet",
+      splitResize: "Redimensionner la vue partagée", splitResizeValue: "{percent}% pour le premier volet", splitResizeHint: "Faites glisser pour redimensionner. Utilisez les flèches ; Maj augmente le pas. Double-cliquez ou appuyez sur Entrée pour égaliser les volets.", "splitOther": "un autre onglet",
       "splitOpen": "Ouvrir deux onglets en vue fractionnée",
       "siteStorage": "Stockage du site {host}",
       "siteStorageUnavailable": "Le stockage du site est indisponible",

@@ -839,7 +839,7 @@ export const plPL = {
       "bookmarkSaved": "Zakładki — bieżąca strona zapisana (Ctrl/Cmd+D, aby usunąć)",
       "bookmarkSave": "Zakładki (Ctrl/Cmd+D, aby zapisać bieżącą stronę)",
       "splitWith": "Widok dzielony z {title}",
-      "splitOther": "inna karta",
+      splitResize: "Zmień rozmiar podzielonego widoku", splitResizeValue: "{percent}% dla pierwszego panelu", splitResizeHint: "Przeciągnij, aby zmienić rozmiar. Strzałki dostosowują rozmiar; Shift zwiększa krok. Dwukrotne kliknięcie lub Enter przywraca równe panele.", "splitOther": "inna karta",
       "splitOpen": "Otwórz dwie karty w widoku dzielonym",
       "siteStorage": "Pamięć witryny {host}",
       "siteStorageUnavailable": "Pamięć witryny jest niedostępna",

@@ -2304,6 +2304,29 @@ function registerIpc(): void {
       ...(candidate.swap === true ? { swap: true } : {})
     })
   })
+  ipcMain.handle('split-divider:get', (event) => { assertMainShellSender(event); return tabsManager!.getSplitDivider() })
+  ipcMain.handle('split-divider:begin', (event, revision: unknown) => {
+    assertMainShellSender(event)
+    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0) throw new TypeError('Invalid split revision')
+    return tabsManager!.beginSplitDivider(revision)
+  })
+  ipcMain.handle('split-divider:update', (event, token: unknown, ratio: unknown) => {
+    assertMainShellSender(event)
+    if (typeof token !== 'string' || token.length > 64 || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split gesture update')
+    return tabsManager!.updateSplitDivider(token, ratio)
+  })
+  ipcMain.handle('split-divider:finish', (event, token: unknown, commit: unknown, ratio: unknown) => {
+    assertMainShellSender(event)
+    if (typeof token !== 'string' || token.length > 64 || typeof commit !== 'boolean'
+      || (ratio !== undefined && (typeof ratio !== 'number' || !Number.isFinite(ratio)))) throw new TypeError('Invalid split gesture completion')
+    return tabsManager!.finishSplitDivider(token, commit, ratio as number | undefined)
+  })
+  ipcMain.handle('split-divider:set-ratio', (event, revision: unknown, ratio: unknown) => {
+    assertMainShellSender(event)
+    if (typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 0
+      || typeof ratio !== 'number' || !Number.isFinite(ratio)) throw new TypeError('Invalid split divider ratio')
+    return tabsManager!.setSplitDividerRatio(revision, ratio)
+  })
   ipcMain.handle('browser:close-split-view', (event) => {
     assertTrustedShellSender(event)
     return tabsManager!.closeSplitView()
@@ -3554,6 +3577,8 @@ async function createWindow(): Promise<void> {
   })
   registerIpc()
 
+  mainWindow.on('blur', () => tabsManager?.cancelSplitDivider())
+  mainWindow.webContents.on('render-process-gone', () => tabsManager?.cancelSplitDivider())
   mainWindow.on('resize', () => tabsManager?.layout())
   mainWindow.on('resize', scheduleWindowStateSave)
   mainWindow.on('move', scheduleWindowStateSave)

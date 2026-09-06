@@ -839,7 +839,7 @@ export const deDE = {
       "bookmarkSaved": "Lesezeichen — aktuelle Seite gespeichert (Ctrl/Cmd+D zum Entfernen)",
       "bookmarkSave": "Lesezeichen (Ctrl/Cmd+D zum Speichern der aktuellen Seite)",
       "splitWith": "Geteilte Ansicht mit {title}",
-      "splitOther": "ein anderer Tab",
+      splitResize: "Geteilte Ansicht skalieren", splitResizeValue: "{percent}% für den ersten Bereich", splitResizeHint: "Zum Skalieren ziehen. Pfeiltasten passen die Größe an; Umschalt beschleunigt. Doppelklick oder Eingabe stellt gleich große Bereiche wieder her.", "splitOther": "ein anderer Tab",
       "splitOpen": "Zwei Tabs in geteilter Ansicht öffnen",
       "siteStorage": "Website-Speicher für {host}",
       "siteStorageUnavailable": "Website-Speicher ist nicht verfügbar",

@@ -839,7 +839,7 @@ export const esES = {
       "bookmarkSaved": "Marcadores — página actual guardada (Ctrl/Cmd+D para quitarla)",
       "bookmarkSave": "Marcadores (Ctrl/Cmd+D para guardar la página actual)",
       "splitWith": "Vista dividida con {title}",
-      "splitOther": "otra pestaña",
+      splitResize: "Cambiar tamaño de la vista dividida", splitResizeValue: "{percent}% para el primer panel", splitResizeHint: "Arrastra para cambiar el tamaño. Usa las flechas; Mayús aumenta el paso. Doble clic o Intro restaura paneles iguales.", "splitOther": "otra pestaña",
       "splitOpen": "Abrir dos pestañas en vista dividida",
       "siteStorage": "Almacenamiento del sitio {host}",
       "siteStorageUnavailable": "El almacenamiento del sitio no está disponible",

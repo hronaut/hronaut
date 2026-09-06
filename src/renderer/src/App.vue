@@ -7,6 +7,7 @@ import { BrowserState } from '../../shared/types'
 import AppToastRegion from './components/AppToastRegion.vue'
 import PageProblemBar from './components/PageProblemBar.vue'
 import PanelResizeHandle from './components/PanelResizeHandle.vue'
+import SplitViewDivider from './components/SplitViewDivider.vue'
 import DetachedPanelUnavailableState from './components/DetachedPanelUnavailableState.vue'
 import AppBrowserChromeLayer from './components/AppBrowserChromeLayer.vue'
 import AppPageToolsLayer from './components/AppPageToolsLayer.vue'
@@ -731,6 +732,7 @@ useAppLifecycleController({
 </script>
 
 <template>
+  <SplitViewDivider v-if="!isDetachedPanelWindow" />
   <header
     ref="shell"
     class="shell"
