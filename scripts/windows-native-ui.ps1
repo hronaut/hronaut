@@ -65,7 +65,13 @@ function Click-Native($element, [bool]$right) {
 }
 if ($Action -eq 'tray') {
   $trayCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Shell_TrayWnd')
-  $tray = $root.FindFirst($scope, $trayCondition)
+  $tray = $null
+  $deadline = [DateTime]::UtcNow.AddSeconds(5)
+  do {
+    $root = [System.Windows.Automation.AutomationElement]::RootElement
+    $tray = $root.FindFirst($scope, $trayCondition)
+    if ($null -eq $tray) { Start-Sleep -Milliseconds 200 }
+  } while ($null -eq $tray -and [DateTime]::UtcNow -lt $deadline)
   if ($null -eq $tray) { throw 'No interactive Explorer notification area; native tray gate unavailable' }
   Save-Elements $tray $OutputPath
   $icon = Find-Named $tray 'Hronaut'
