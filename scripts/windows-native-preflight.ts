@@ -24,7 +24,7 @@ const app = await _electron.launch({ executablePath, args: [], env: {
 const checks: string[] = []
 const save = async (): Promise<void> => { await writeFile(join(proof, 'checks.json'), JSON.stringify(checks, null, 2)) }
 const screenshot = (name: string): void => { native('screenshot', '', join(proof, `${name}.png`)) }
-const nativeMenu = (label: string): void => { native('tray'); native('menu', label) }
+const nativeMenu = (label: string): void => { native('tray', '', join(proof, 'tray-elements.json')); native('menu', label) }
 
 try {
   const identity = await app.evaluate(({ app }) => ({ packaged: app.isPackaged, version: app.getVersion(), electron: process.versions.electron, arch: process.arch, path: app.getAppPath() }))

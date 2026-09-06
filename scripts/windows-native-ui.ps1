@@ -39,8 +39,14 @@ public static class NativePointer {
 $root = [System.Windows.Automation.AutomationElement]::RootElement
 $scope = [System.Windows.Automation.TreeScope]::Descendants
 function Find-Named($parent, [string]$name) {
-  $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+  $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name, [System.Windows.Automation.PropertyConditionFlags]::IgnoreCase)
   return $parent.FindFirst($scope, $condition)
+}
+function Save-Elements($parent, [string]$path) {
+  if (-not $path) { return }
+  $parent.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition) | Select-Object -First 150 | ForEach-Object {
+    @{ Name=$_.Current.Name; Class=$_.Current.ClassName; Id=$_.Current.AutomationId; Offscreen=$_.Current.IsOffscreen }
+  } | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 $path
 }
 function Click-Native($element, [bool]$right) {
   if ($null -eq $element) { throw 'Required native desktop element was not found; GUI coverage cannot be skipped' }
@@ -55,6 +61,7 @@ if ($Action -eq 'tray') {
   $trayCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Shell_TrayWnd')
   $tray = $root.FindFirst($scope, $trayCondition)
   if ($null -eq $tray) { throw 'No interactive Explorer notification area; native tray gate unavailable' }
+  Save-Elements $tray $OutputPath
   $icon = Find-Named $tray 'Hronaut'
   if ($null -eq $icon -or $icon.Current.IsOffscreen) {
     Click-Native (Find-Named $tray 'Show hidden icons') $false
@@ -62,6 +69,7 @@ if ($Action -eq 'tray') {
     $overflowCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ClassNameProperty, 'NotifyIconOverflowWindow')
     $overflow = $root.FindFirst($scope, $overflowCondition)
     if ($null -eq $overflow) { throw 'Notification overflow unavailable' }
+    Save-Elements $overflow ($OutputPath + '.overflow.json')
     $icon = Find-Named $overflow 'Hronaut'
   }
   Click-Native $icon $true
