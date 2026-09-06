@@ -2890,8 +2890,11 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     await expect(visualPanel.getByRole('img', { name: /Visual difference/ })).toBeVisible()
     await visualPanel.getByRole('button', { name: 'Copy diff PNG' }).click()
     await expect(visualPanel.getByRole('button', { name: 'Copied' })).toBeVisible()
-    const copiedVisualDiff = await electronApp.evaluate(({ clipboard }) => {
-      const image = clipboard.readImage()
+    const copiedVisualDiff = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const items = await clipboard.read()
+      const png = items.find((item) => item.types.includes('image/png'))
+      const data = png ? await ((await png.getType('image/png')) as Blob).arrayBuffer() : new ArrayBuffer(0)
+      const image = nativeImage.createFromBuffer(Buffer.from(data))
       return { empty: image.isEmpty(), size: image.getSize(), signature: [...image.toPNG().subarray(0, 8)] }
     })
     expect(copiedVisualDiff).toMatchObject({

@@ -336,6 +336,14 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Install locked release tooling dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Protect macOS updater feeds from unsupported operating systems
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/macos-update-manifests.ts release-assets "$VERSION"
+
       - name: Generate complete Linux updater manifests
         env:
           VERSION: ${{ needs.prepare-release.outputs.version }}

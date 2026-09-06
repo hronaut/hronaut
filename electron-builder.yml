@@ -41,6 +41,7 @@ portable:
   artifactName: hronaut-${version}-${arch}-windows-portable.${ext}
 
 mac:
+  minimumSystemVersion: "13.0"
   icon: build/icon.png
   category: public.app-category.utilities
   identity: null

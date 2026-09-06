@@ -68,7 +68,12 @@ test('finds global and website commands from the accessible command palette', as
   await palette.getByRole('combobox', { name: 'Search commands' }).fill('visible screen')
   await palette.getByRole('option', { name: /Capture viewport screenshot/ }).click()
   await expect(appWindow.getByRole('button', { name: 'Viewport screenshot copied — paste it into agent chat' })).toBeVisible()
-  expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().isEmpty())).toBe(false)
+  expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).isEmpty()
+    })).toBe(false)
 
   await electronApp.evaluate(({ clipboard }) => clipboard.clear())
   await commandButton.click()

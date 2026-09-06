@@ -151,7 +151,12 @@ function revealTab(activeTab: HTMLElement, behavior?: ScrollBehavior): void {
   const leadingEdge = vertical.value ? tabBounds.top : tabBounds.left
   const trailingEdge = vertical.value ? tabBounds.bottom : tabBounds.right
   const headerBounds = header?.getBoundingClientRect()
-  const headerSpace = headerBounds && !isHeader ? (vertical.value ? headerBounds.height : headerBounds.width) + 4 : 0
+  const headerExtent = headerBounds && !isHeader ? (vertical.value ? headerBounds.height : headerBounds.width) : 0
+  // A tight horizontal strip may fit the header, tab and trailing clearance
+  // only with a smaller gap. Keep at least two pixels of header separation
+  // instead of spending those pixels at the expense of the trailing edge.
+  const headerGap = vertical.value ? 4 : Math.min(4, Math.max(2, availableSpan - headerExtent - margin))
+  const headerSpace = headerExtent > 0 ? headerExtent + headerGap : 0
   const leadingMargin = Math.max(margin, Math.min(headerSpace, Math.max(0, availableSpan)))
   const trailingMargin = Math.min(margin, Math.max(0, availableSpan - leadingMargin))
   const visibleLeadingEdge = (vertical.value ? stripBounds.top : stripBounds.left) + leadingMargin

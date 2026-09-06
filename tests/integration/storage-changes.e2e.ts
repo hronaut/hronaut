@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -10,21 +11,32 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-async function connectClient(port: number, token: string): Promise<Client> {
-  await expect.poll(async () => {
-    try {
-      return (await fetch(`http://127.0.0.1:${port}/healthz`, {
-        headers: { authorization: `Bearer ${token}` }
-      })).ok
-    } catch {
-      return false
-    }
-  }).toBe(true)
+async function connectClient(port: number, token: string, page: Page): Promise<Client> {
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${port}/healthz`, {
+          headers: { authorization: `Bearer ${token}` }
+        })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+  } catch (error) {
+    // Capture only startup status/error; never attach token, tool payloads or page data.
+    const state = await page.evaluate('window.hronautMcp.getState()') as { status: string; error?: string }
+    throw new Error(`MCP health check failed (status: ${state.status}; startup: ${state.error?.slice(0, 300) ?? 'no startup error'})`, { cause: error })
+  }
   const client = new Client({ name: 'storage-changes-test', version: '1.0.0' })
-  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
-    requestInit: { headers: { authorization: `Bearer ${token}` } }
-  }))
-  return client
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${token}` } }
+    }))
+    return client
+  } catch (error) {
+    await client.close().catch(() => undefined)
+    throw error
+  }
 }
 
 test('compares bounded browser storage changes for people and grouped agents', async ({
@@ -67,8 +79,9 @@ test('compares bounded browser storage changes for people and grouped agents', a
   })
   await new Promise<void>((resolve) => server.listen(0, resolve))
   const address = server.address() as AddressInfo
-  const client = await connectClient(mcpPort, mcpToken)
+  let client: Client | undefined
   try {
+    client = await connectClient(mcpPort, mcpToken, appWindow)
     const tools = await client.listTools()
     expect(tools.tools.find((tool) => tool.name === 'browser_storage_changes')?.description).toContain('Values are omitted by default')
 
@@ -198,7 +211,10 @@ test('compares bounded browser storage changes for people and grouped agents', a
       changeCount: 0
     })
   } finally {
-    await client.close()
-    await closeFixtureServer(server)
+    try {
+      await client?.close()
+    } finally {
+      await closeFixtureServer(server)
+    }
   }
 })

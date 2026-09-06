@@ -7,8 +7,8 @@ import {
 function clipboardFixture(readValues: string[]) {
   return {
     clear: vi.fn(() => undefined),
-    writeText: vi.fn((_text: string) => undefined),
-    readText: vi.fn(() => readValues.shift() ?? '')
+    writeText: vi.fn(async (_text: string): Promise<void> => undefined),
+    readText: vi.fn(async () => readValues.shift() ?? '')
   }
 }
 
@@ -41,6 +41,35 @@ describe('verified text clipboard writes', () => {
 
     await expect(writeVerifiedClipboardText('agent context', clipboard, async () => undefined))
       .rejects.toThrow('system clipboard did not accept it')
+  })
+
+  it('waits for the write to settle before reading, and for readback before completing', async () => {
+    let finishWrite!: () => void
+    let finishRead!: (value: string) => void
+    const clipboard = clipboardFixture([])
+    clipboard.writeText.mockImplementation(() => new Promise<void>((resolve) => { finishWrite = resolve }))
+    clipboard.readText.mockImplementation(() => new Promise<string>((resolve) => { finishRead = resolve }))
+    const delay = vi.fn(async () => undefined)
+    const completed = vi.fn()
+    const pending = writeVerifiedClipboardText('new text', clipboard, delay).then(completed)
+    expect(delay).not.toHaveBeenCalled()
+    expect(clipboard.readText).not.toHaveBeenCalled()
+    finishWrite()
+    await vi.waitFor(() => expect(clipboard.readText).toHaveBeenCalledOnce())
+    expect(completed).not.toHaveBeenCalled()
+    finishRead('new text')
+    await pending
+    expect(completed).toHaveBeenCalledOnce()
+  })
+
+  it.each(['writeText', 'readText'] as const)('propagates asynchronous %s rejection without retrying or reporting success', async (method) => {
+    const clipboard = clipboardFixture(['new text'])
+    clipboard[method].mockRejectedValueOnce(new Error('backend rejected operation'))
+    await expect(writeVerifiedClipboardText('new text', clipboard, async () => undefined))
+      .rejects.toThrow('backend rejected operation')
+    expect(clipboard.clear).toHaveBeenCalledOnce()
+    expect(clipboard[method]).toHaveBeenCalledOnce()
+    if (method === 'writeText') expect(clipboard.readText).not.toHaveBeenCalled()
   })
 
   it('rejects unexpectedly large shell payloads before touching the clipboard', async () => {

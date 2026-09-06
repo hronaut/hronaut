@@ -1,0 +1,11 @@
+version: 1.11.59
+files:
+  - url: Hronaut-1.11.59-mac.zip
+    sha512: H8luMHE1lZ0r84Cf8IRiKW6Mt0qX8moz/ONhSGefMioCncWCzKZwIC6yUwiml8mALozf6Fz4huToTs9jzUiX3Q==
+    size: 411794507
+  - url: Hronaut-1.11.59-arm64-mac.zip
+    sha512: Eagy3bFeFq0FqCfRbX3l2w0tKgNqEn1yDxXtmabcyzIZWU7guvU0pqDpqge4/kdgZWDTfslgnF2eMGP5bvlukg==
+    size: 400767406
+path: Hronaut-1.11.59-mac.zip
+sha512: H8luMHE1lZ0r84Cf8IRiKW6Mt0qX8moz/ONhSGefMioCncWCzKZwIC6yUwiml8mALozf6Fz4huToTs9jzUiX3Q==
+releaseDate: '2026-09-06T20:11:22.508Z'

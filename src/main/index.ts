@@ -6,6 +6,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  ClipboardItem,
   dialog,
   ipcMain,
   Menu,
@@ -326,6 +327,15 @@ function runNativeBrowserAction(action: string, callback: () => unknown): void {
   }
 }
 
+async function readClipboardImage(): Promise<NativeImage> {
+  const items = await clipboard.read()
+  const item = items.find((entry) => entry.types.includes('image/png'))
+  if (!item) return nativeImage.createEmpty()
+  const blob = await item.getType('image/png')
+  if (!(blob instanceof Blob)) throw new Error('The clipboard PNG payload was not an image')
+  return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()))
+}
+
 async function writePngToClipboard(data: Buffer): Promise<{ width: number; height: number }> {
   const image = nativeImage.createFromBuffer(data)
   if (image.isEmpty()) throw new Error(text('native.errors.screenshotCreate'))
@@ -336,9 +346,11 @@ async function writePngToClipboard(data: Buffer): Promise<{ width: number; heigh
     // Do not let a previous image with the same dimensions masquerade as a
     // successful write when the platform clipboard silently rejects this one.
     clipboard.clear()
-    clipboard.writeImage(image)
+    await clipboard.write([new ClipboardItem({
+      'image/png': new Blob([new Uint8Array(data)], { type: 'image/png' })
+    })])
     await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-    const copied = clipboard.readImage()
+    const copied = await readClipboardImage()
     const copiedSize = copied.getSize()
     if (
       !copied.isEmpty()
@@ -364,7 +376,7 @@ async function copyPageImageToClipboard(webContents: WebContents, x: number, y: 
       clipboard.clear()
       webContents.copyImageAt(x, y)
       await new Promise<void>((resolve) => setTimeout(resolve, 40 * (attempt + 1)))
-      const image = clipboard.readImage()
+      const image = await readClipboardImage()
       if (!image.isEmpty()) {
         const png = image.toPNG()
         if (png.byteLength > 0) {

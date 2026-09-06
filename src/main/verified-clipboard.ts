@@ -2,8 +2,8 @@ export const MAX_CLIPBOARD_TEXT_BYTES = 8 * 1024 * 1024
 
 export interface TextClipboard {
   clear(): void
-  writeText(text: string): void
-  readText(): string
+  writeText(text: string): Promise<void>
+  readText(): Promise<string>
 }
 
 type Wait = (milliseconds: number) => Promise<void>
@@ -21,9 +21,9 @@ export async function writeVerifiedClipboardText(
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     target.clear()
-    target.writeText(text)
+    await target.writeText(text)
     await delay(30 * (attempt + 1))
-    if (target.readText() === text) return
+    if (await target.readText() === text) return
   }
 
   throw new Error('The text was prepared, but the system clipboard did not accept it')

@@ -68,6 +68,8 @@ Use a task-owned headless browser or automation library when the browser should 
 
 Download the latest package for Windows, macOS, or Linux from [GitHub Releases](https://github.com/hronaut/hronaut/releases/latest).
 
+**Mac requirements:** macOS 13 Ventura or later, on either Apple Silicon or Intel. Check your macOS version in **Apple menu → About This Mac** before downloading.
+
 On Windows x64, install the verified portable build and Start Menu shortcut with Scoop:
 
 ```powershell

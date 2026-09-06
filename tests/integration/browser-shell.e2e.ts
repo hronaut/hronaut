@@ -6735,7 +6735,7 @@ test('shows a native webpage context menu and suppresses it while human interact
       ;(globalThis as typeof globalThis & {
         __hronautOriginalClipboardReadText?: typeof clipboard.readText
       }).__hronautOriginalClipboardReadText = clipboard.readText
-      clipboard.readText = () => ''
+      clipboard.readText = async () => ''
       ;(item.click as unknown as () => void)()
     })
     const copyFailure = appWindow.getByRole('alert', { name: 'Copy failed' })
@@ -6790,8 +6790,11 @@ test('shows a native webpage context menu and suppresses it while human interact
       if (!item?.click) throw new Error('Copy Image context action was not found')
       ;(item.click as unknown as () => void)()
     })
-    await expect.poll(() => electronApp.evaluate(({ clipboard }) => {
-      const image = clipboard.readImage()
+    await expect.poll(() => electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const items = await clipboard.read()
+      const png = items.find((item) => item.types.includes('image/png'))
+      const data = png ? await ((await png.getType('image/png')) as Blob).arrayBuffer() : new ArrayBuffer(0)
+      const image = nativeImage.createFromBuffer(Buffer.from(data))
       return { empty: image.isEmpty(), size: image.getSize(), pngBytes: image.toPNG().byteLength }
     })).toEqual({ empty: false, size: { width: 1, height: 1 }, pngBytes: expect.any(Number) })
     // Seeing pixels on the native clipboard happens before copyImageAt has
@@ -6804,14 +6807,14 @@ test('shows a native webpage context menu and suppresses it while human interact
     await expect.poll(contextMenuItems).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'copy-image', label: 'Copy Image' })
     ]))
-    await electronApp.evaluate(({ clipboard, nativeImage }) => {
+    await electronApp.evaluate(({ clipboard }) => {
       const menu = (globalThis as typeof globalThis & { __hronautContextMenu?: Electron.Menu }).__hronautContextMenu
       const item = menu?.getMenuItemById('copy-image')
       if (!item?.click) throw new Error('Copy Image context action was not found')
       ;(globalThis as typeof globalThis & {
-        __hronautOriginalClipboardReadImage?: typeof clipboard.readImage
-      }).__hronautOriginalClipboardReadImage = clipboard.readImage
-      clipboard.readImage = () => nativeImage.createEmpty()
+        __hronautOriginalClipboardReadImage?: typeof clipboard.read
+      }).__hronautOriginalClipboardReadImage = clipboard.read
+      clipboard.read = async () => []
       ;(item.click as unknown as () => void)()
     })
     const imageCopyFailure = appWindow.getByRole('alert', { name: 'Copy failed' })
@@ -6819,10 +6822,10 @@ test('shows a native webpage context menu and suppresses it while human interact
     await expect(imageCopyFailure).toContainText('system clipboard did not accept it')
     await electronApp.evaluate(({ clipboard }) => {
       const testState = globalThis as typeof globalThis & {
-        __hronautOriginalClipboardReadImage?: typeof clipboard.readImage
+        __hronautOriginalClipboardReadImage?: typeof clipboard.read
       }
       if (!testState.__hronautOriginalClipboardReadImage) throw new Error('Clipboard readImage test double was not installed')
-      clipboard.readImage = testState.__hronautOriginalClipboardReadImage
+      clipboard.read = testState.__hronautOriginalClipboardReadImage
       delete testState.__hronautOriginalClipboardReadImage
     })
 
@@ -8540,7 +8543,12 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
       page.sendInputEvent({ type: 'mouseUp', x: 40, y: 30, button: 'left', clickCount: 1 })
     })
     await expect(appWindow.getByRole('button', { name: 'Element screenshot copied — paste it into agent chat' })).toBeVisible()
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())).toEqual({ width: 140, height: 44 })
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })).toEqual({ width: 140, height: 44 })
     expect(await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/picker?mode=test'))
       return page?.executeJavaScript('window.fixtureClicks')
@@ -8670,8 +8678,11 @@ test('drags a page area and copies the screenshot image for agent chat', async (
       }
     })
     expect(captureFeedbackPlacement).toEqual({ insideAddress: false, toolbarOverflow: 0, topWindowOverlay: true })
-    const clipboardImage = await electronApp.evaluate(({ clipboard }) => {
-      const image = clipboard.readImage()
+    const clipboardImage = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const items = await clipboard.read()
+      const png = items.find((item) => item.types.includes('image/png'))
+      const data = png ? await ((await png.getType('image/png')) as Blob).arrayBuffer() : new ArrayBuffer(0)
+      const image = nativeImage.createFromBuffer(Buffer.from(data))
       return { empty: image.isEmpty(), size: image.getSize(), pngBytes: image.toPNG().byteLength }
     })
     expect(clipboardImage).toEqual({ empty: false, size: { width: 180, height: 90 }, pngBytes: expect.any(Number) })
@@ -8710,7 +8721,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
       webContents.getAllWebContents().find((contents) => contents.getURL().includes('/area-capture'))?.getURL()
     ))).toContain('changed=during-selection')
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())).toEqual({ width: 170, height: 80 })
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })).toEqual({ width: 170, height: 80 })
 
     await expect(appWindow.getByRole('button', { name: 'Capture an area to the clipboard' })).toBeVisible({ timeout: 4_000 })
     const activeTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.activeTabId)`)
@@ -8757,7 +8773,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     })
 
     await expect(appWindow.getByRole('button', { name: 'Area screenshot copied — paste it into agent chat' })).toBeVisible()
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())).toEqual({ width: 160, height: 80 })
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })).toEqual({ width: 160, height: 80 })
     expect(await electronApp.evaluate(async ({ webContents }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('/area-capture'))
       return page?.executeJavaScript('window.fixtureClicks')
@@ -8798,9 +8819,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
 
     await expect(appWindow.getByRole('button', { name: 'Area screenshot copied — paste it into agent chat' })).toBeVisible()
     await new Promise((resolve) => setTimeout(resolve, 250))
-    expect(await electronApp.evaluate(({ clipboard }) => {
-      const image = clipboard.readImage()
-      return { empty: image.isEmpty(), size: image.getSize(), formats: clipboard.availableFormats() }
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const items = await clipboard.read()
+      const png = items.find((item) => item.types.includes('image/png'))
+      const data = png ? await ((await png.getType('image/png')) as Blob).arrayBuffer() : new ArrayBuffer(0)
+      const image = nativeImage.createFromBuffer(Buffer.from(data))
+      return { empty: image.isEmpty(), size: image.getSize(), formats: items.flatMap((item) => item.types) }
     })).toEqual({
       empty: false,
       size: { width: 180, height: 90 },
@@ -8809,7 +8833,7 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     const externalClipboard = await execFileAsync(
       join(process.cwd(), 'node_modules/electron/dist/electron'),
       ['--no-sandbox', join(process.cwd(), 'tests/integration/clipboard-reader.cjs')],
-      { env: process.env, timeout: 8_000 }
+      { env: process.env, timeout: 8_000, killSignal: 'SIGKILL' }
     )
     expect(JSON.parse(externalClipboard.stdout.trim())).toMatchObject({
       empty: false,
@@ -8834,7 +8858,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
       page.sendInputEvent({ type: 'mouseUp', x: 220, y: 140, button: 'left', clickCount: 1 })
     })
     await expect(appWindow.getByRole('button', { name: 'Area screenshot copied — paste it into agent chat' })).toBeVisible()
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())).toEqual({ width: 140, height: 70 })
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })).toEqual({ width: 140, height: 70 })
     await appWindow.evaluate(`window.hronaut.toggleDevTools(${JSON.stringify(activeTabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(activeTabId)})?.devToolsOpen)`)).toBe(false)
 
@@ -8876,7 +8905,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
       page.sendInputEvent({ type: 'mouseUp', x: 240, y: 150, button: 'left', clickCount: 1 })
     })
     await expect(appWindow.getByRole('button', { name: 'Area screenshot copied — paste it into agent chat' })).toBeVisible()
-    expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())).toEqual({ width: 150, height: 75 })
+    expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })).toEqual({ width: 150, height: 75 })
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(mcpTabId)})?.humanInteractionLocked)`)).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Open command palette' }).click()
@@ -8884,7 +8918,12 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     await palette.getByRole('combobox', { name: 'Search commands' }).fill('entire long screenshot')
     await palette.getByRole('option', { name: /Capture full-page screenshot/ }).click()
     await expect(appWindow.getByRole('button', { name: 'Full-page screenshot copied — paste it into agent chat' })).toBeVisible()
-    const fullPageSize = await electronApp.evaluate(({ clipboard }) => clipboard.readImage().getSize())
+    const fullPageSize = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).getSize()
+    })
     expect(fullPageSize.height).toBeGreaterThanOrEqual(1_800)
     expect(fullPageSize.width).toBeGreaterThan(0)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(mcpTabId)})?.humanInteractionLocked)`)).toBe(true)

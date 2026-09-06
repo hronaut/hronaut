@@ -119,7 +119,12 @@ for (const theme of ['cyberpunk-turbo', 'light', 'dark']) {
       await expect(capture).toHaveCSS('color', await colorToken(capture, '--success'))
       await expect(capture).toBeEnabled()
       await expect(picker).toBeEnabled()
-      expect(await electronApp.evaluate(({ clipboard }) => clipboard.readImage().isEmpty())).toBe(false)
+      expect(await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
+      const item = (await clipboard.read()).find((entry) => entry.types.includes('image/png'))
+      const blob = item ? await item.getType('image/png') : undefined
+      const data = blob instanceof Blob ? await blob.arrayBuffer() : new ArrayBuffer(0)
+      return nativeImage.createFromBuffer(Buffer.from(data)).isEmpty()
+    })).toBe(false)
     } finally {
       await electronApp.evaluate(() => {
         const scope = globalThis as typeof globalThis & { releaseActionCapture?: () => void; restoreActionCapture?: () => void }

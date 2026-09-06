@@ -753,8 +753,33 @@ describe('BrowserTabsBar', () => {
     await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowRight' })
     await vi.waitFor(() => {
       expect(secondControl).toHaveFocus()
-      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: -68 }))
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: -66 }))
     })
+  })
+
+  it.each([
+    { width: 231, expectedLeft: 88, trailing: 31 },
+    { width: 230, expectedLeft: 88, trailing: 30 },
+    { width: 220, expectedLeft: 88, trailing: 20 },
+    { width: 250, expectedLeft: 90, trailing: 48 }
+  ])('keeps sticky header separation and available trailing clearance in a $width pixel strip', async ({ width, expectedLeft, trailing }) => {
+    const first = tab('first', { active: true })
+    const second = tab('second')
+    renderTabs(browserState({ tabs: [first, second], activeTabId: first.id }))
+    const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+    const target = screen.getByRole('tab', { name: second.title })
+    const header = screen.getByRole('button', { name: /Collapse workspace Research/ })
+    await fireEvent.scroll(strip)
+    let left = 5
+    Object.defineProperty(strip, 'scrollBy', { configurable: true, value: ({ left: delta }: { left: number }) => { left -= delta } })
+    vi.spyOn(strip, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, width, 37))
+    vi.spyOn(header, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 4, 86, 29))
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(() => new DOMRect(left, 4, 112, 29))
+    await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowRight' })
+    await vi.waitFor(() => expect(target).toHaveFocus())
+    expect(left).toBe(expectedLeft)
+    expect(left).toBeGreaterThanOrEqual(88)
+    expect(width - left - 112).toBeGreaterThanOrEqual(trailing)
   })
 
   it('reserves vertical workspace header height when revealing a keyboard tab', async () => {
