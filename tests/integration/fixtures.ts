@@ -86,6 +86,19 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
+  await app.evaluate(({ app }) => {
+    const exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] = []
+    const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
+      let type = 'destroyed'
+      try { type = contents.getType() } catch { /* Renderer may already be destroyed. */ }
+      exits.push({ reason: details.reason, exitCode: details.exitCode, webContentsId: contents.id, type })
+      if (exits.length > 16) exits.shift()
+    }
+    app.on('render-process-gone', listener)
+    ;(globalThis as typeof globalThis & {
+      __hronautQaRendererExits?: { exits: typeof exits; listener: typeof listener }
+    }).__hronautQaRendererExits = { exits, listener }
+  })
   const window = await app.firstWindow()
   window.on('pageerror', (error) => console.error(`[renderer] ${error.message}`))
   window.on('console', (message) => {
@@ -102,6 +115,13 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
   } catch {
     return
   }
+  await app.evaluate(({ app }) => {
+    const scope = globalThis as typeof globalThis & {
+      __hronautQaRendererExits?: { listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void }
+    }
+    if (scope.__hronautQaRendererExits) app.off('render-process-gone', scope.__hronautQaRendererExits.listener)
+    delete scope.__hronautQaRendererExits
+  }).catch(() => undefined)
   const closePromise = app.close().catch(() => undefined)
   await settleWithin(closePromise, 3_000)
   if (child.exitCode === null) {
@@ -153,10 +173,25 @@ export const test = base.extend<HronautFixtures>({
     await use(integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex))
   },
 
-  electronApp: async ({ profileDirectory, mcpPort }, use) => {
+  electronApp: async ({ profileDirectory, mcpPort }, use, testInfo) => {
     const instance = await launchHronaut(profileDirectory, mcpPort)
-    await use(instance.app)
-    await closeHronaut(instance.app)
+    try {
+      await use(instance.app)
+    } finally {
+      try {
+        if (testInfo.status !== testInfo.expectedStatus) {
+          const diagnostics = await instance.app.evaluate(() => {
+            const scope = globalThis as typeof globalThis & {
+              __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
+            }
+            return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [] }
+          }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
+          await testInfo.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
+        }
+      } finally {
+        await closeHronaut(instance.app)
+      }
+    }
   },
 
   mcpToken: async ({ electronApp: _electronApp, profileDirectory }, use) => {
