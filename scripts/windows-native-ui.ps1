@@ -45,12 +45,18 @@ function Find-Named($parent, [string]$name) {
 function Save-Elements($parent, [string]$path) {
   if (-not $path) { return }
   $parent.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition) | Select-Object -First 150 | ForEach-Object {
-    @{ Name=$_.Current.Name; Class=$_.Current.ClassName; Id=$_.Current.AutomationId; Offscreen=$_.Current.IsOffscreen }
+    @{ Name=$_.Current.Name; Class=$_.Current.ClassName; Id=$_.Current.AutomationId; Offscreen=$_.Current.IsOffscreen; Bounds=$_.Current.BoundingRectangle.ToString() }
   } | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 $path
 }
 function Click-Native($element, [bool]$right) {
   if ($null -eq $element) { throw 'Required native desktop element was not found; GUI coverage cannot be skipped' }
-  $point = $element.GetClickablePoint()
+  $point = New-Object System.Windows.Point
+  if (-not $element.TryGetClickablePoint([ref]$point)) {
+    $bounds = $element.Current.BoundingRectangle
+    if ($element.Current.IsOffscreen -or $bounds.IsEmpty -or $bounds.Width -le 0 -or $bounds.Height -le 0) { throw 'Native element has no visible input bounds' }
+    $point.X = $bounds.Left + $bounds.Width / 2
+    $point.Y = $bounds.Top + $bounds.Height / 2
+  }
   if (-not [NativePointer]::SetCursorPos([int]$point.X, [int]$point.Y)) { throw 'Cannot move native pointer' }
   Start-Sleep -Milliseconds 100
   if ($right) { $down=8; $up=16 } else { $down=2; $up=4 }
