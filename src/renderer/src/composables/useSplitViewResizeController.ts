@@ -6,6 +6,8 @@ interface Gesture {
   handle: HTMLElement
   initial: SplitDividerGeometry
   coordinate: number
+  latestCoordinate: number
+  afterGesture: Gesture | null
   ratio: number
   pending: number | null
   session: SplitDividerSession | null
@@ -103,7 +105,8 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     if (!current || current.pointerId !== event.pointerId) return
     const span = (current.initial.orientation === 'vertical' ? current.initial.area.width : current.initial.area.height) - current.initial.gap
     if (span <= 0) return
-    current.ratio = normalizeSplitViewRatio(current.initial.ratio + (position(event, current) - current.coordinate) / span)
+    current.latestCoordinate = position(event, current)
+    current.ratio = normalizeSplitViewRatio(current.initial.ratio + (current.latestCoordinate - current.coordinate) / span)
     current.pending = current.ratio
     void pump(current)
   }
@@ -130,7 +133,7 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     try { handle.setPointerCapture(event.pointerId) } catch { return }
     let resolveCompleted!: Gesture['resolveCompleted']
     const completed = new Promise<SplitDividerGeometry | null>(resolve => { resolveCompleted = resolve })
-    const current: Gesture = { completed, resolveCompleted, pointerId: event.pointerId, handle, initial, coordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, ratio: initial.ratio, pending: null, session: null, running: false, ended: false, commit: false }
+    const current: Gesture = { completed, resolveCompleted, pointerId: event.pointerId, handle, initial, afterGesture: settling, latestCoordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, coordinate: initial.orientation === 'vertical' ? event.clientX : event.clientY, ratio: initial.ratio, pending: null, session: null, running: false, ended: false, commit: false }
     gesture.value = current
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -138,12 +141,44 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     window.addEventListener('keydown', escape, true)
     window.addEventListener('blur', cancel)
     handle.addEventListener('lostpointercapture', cancel)
-    void api.begin(initial.revision).then(session => {
+    void beginGesture(current)
+  }
+  function rebase(current: Gesture, authoritative: SplitDividerGeometry): void {
+    current.initial = authoritative
+    const span = (authoritative.orientation === 'vertical' ? authoritative.area.width : authoritative.area.height) - authoritative.gap
+    current.ratio = normalizeSplitViewRatio(authoritative.ratio + (span > 0 ? (current.latestCoordinate - current.coordinate) / span : 0))
+    if (current.pending !== null) current.pending = current.ratio
+  }
+  async function beginGesture(current: Gesture): Promise<void> {
+    if (!api) return
+    try {
+      if (current.afterGesture) {
+        const previous = await current.afterGesture.completed
+        const observed = geometry.value
+        if (disposed || !previous || !observed || !sameLayout(current.initial, previous)
+          || !sameLayout(observed, previous)
+          || (observed.revision !== current.initial.revision && observed.revision !== previous.revision)) {
+          end(current, false)
+          current.resolveCompleted(null)
+          return
+        }
+        current.afterGesture = null
+        // Retain pointer movement made while waiting, rebased on the ratio
+        // actually committed by the preceding drag rather than its last preview.
+        rebase(current, previous)
+        geometry.value = previous
+        if (current.ended && !current.commit) { current.resolveCompleted(previous); return }
+      }
+      const session = await api.begin(current.initial.revision)
       current.session = session
       if (!session) { end(current, false); current.resolveCompleted(null); return }
+      const observed = geometry.value
+      if (!observed || !sameStructure(observed, session.geometry) || !sameLayout(current.initial, session.geometry)) end(current, false)
+      else rebase(current, session.geometry)
       void pump(current)
-    }).catch(() => { end(current, false); current.resolveCompleted(null) })
+    } catch { end(current, false); current.resolveCompleted(null) }
   }
+
   async function pumpKeyboard(current: KeyboardResize): Promise<void> {
     if (!api) return
     try {
@@ -196,8 +231,8 @@ export function useSplitViewResizeController(api?: HronautSplitDividerApi) {
     notification++
     if (disposed) return
     if (keyboard && (!next || !sameLayout(keyboard.layout, next))) cancelKeyboard()
-    const initial = gesture.value?.initial
-    if (initial && (!next || !sameStructure(initial, next))) cancel()
+    const active = gesture.value
+    if (active && (!next || !(active.afterGesture ? sameLayout(active.initial, next) : sameStructure(active.initial, next)))) cancel()
     geometry.value = next
   })
   const initialNotification = notification

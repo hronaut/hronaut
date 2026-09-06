@@ -172,6 +172,89 @@ describe('direct split divider resizing', () => {
     if (change === 'replacement') expect(h.controller.geometry.value).toEqual(newer)
   })
 
+  it.each(['cancel', 'commit', 'blur', 'dispose', 'replacement', 'third-commit'] as const)('retains the preceding pointer-up commit with a queued second drag: %s', async action => {
+    const h = harness()
+    let authoritative = structuredClone(initial)
+    let session: SplitDividerSession | null = null
+    let sequence = 0
+    const publish = (ratio: number, commit = false) => {
+      authoritative = { ...authoritative, ratio, revision: authoritative.revision + Number(commit) }
+      h.notify(structuredClone(authoritative))
+      return structuredClone(authoritative)
+    }
+    // Model the bridge contract: begin supersedes an owned preview, updates
+    // retain revision, commit advances it, and obsolete tokens cannot finish.
+    // The native regression separately exercises the real privileged handler.
+    const main = {
+      begin(revision: number): SplitDividerSession | null {
+        if (revision !== authoritative.revision) return null
+        if (session?.geometry.revision === authoritative.revision) publish(session.geometry.ratio)
+        session = { token: String(++sequence), geometry: structuredClone(authoritative) }
+        return session
+      },
+      update(token: string, ratio: number): SplitDividerGeometry | null {
+        return session?.token === token && session.geometry.revision === authoritative.revision ? publish(ratio) : null
+      },
+      finish(token: string, commit: boolean, ratio?: number): SplitDividerGeometry | null {
+        if (session?.token !== token || session.geometry.revision !== authoritative.revision) return null
+        const target = commit ? ratio ?? authoritative.ratio : session.geometry.ratio
+        session = null
+        return publish(target, commit)
+      },
+      persistedRatio(ratio: number): number { return session?.geometry.revision === authoritative.revision ? session.geometry.ratio : ratio }
+    }
+    h.api.begin.mockImplementation(async revision => main.begin(revision))
+    h.api.finish.mockImplementation(async (token, commit, ratio) => main.finish(token, commit, ratio))
+    const delayed = deferred<SplitDividerGeometry | null>()
+    let updateReply: SplitDividerGeometry | null = null
+    h.api.update.mockImplementation((token, ratio) => {
+      updateReply = main.update(token, ratio)
+      return delayed.promise
+    })
+    await flush()
+    h.start()
+    await flush()
+    h.pointer('pointermove', 623)
+    expect(authoritative.ratio).toBe(.62)
+    h.pointer('pointerup', 643)
+    // The native preview is visible, but the first gesture is still waiting
+    // for its update acknowledgement before it can send the final commit.
+    h.start(623)
+    await flush()
+    expect(h.api.begin).toHaveBeenCalledTimes(1)
+    if (action === 'blur') window.dispatchEvent(new Event('blur'))
+    else if (action === 'dispose') h.scope.stop()
+    else if (action === 'replacement') {
+      authoritative = { ...authoritative, revision: 3, ratio: .7 }
+      h.notify(structuredClone(authoritative))
+    } else if (action === 'commit') h.pointer('pointerup', 653)
+    else if (action === 'third-commit') {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      h.start(623)
+      h.pointer('pointerup', 663)
+    }
+    delayed.resolve(updateReply)
+    await flush()
+    if (action === 'cancel') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flush()
+    const expected = action === 'replacement' ? .7 : action === 'commit' ? .67 : action === 'third-commit' ? .68 : .64
+    expect(authoritative.ratio).toBeCloseTo(expected)
+    expect(main.persistedRatio(authoritative.ratio)).toBeCloseTo(expected)
+    if (['blur', 'dispose', 'replacement'].includes(action)) expect(h.api.begin).toHaveBeenCalledTimes(1)
+  })
+
+  it('rebases early movement against the geometry acknowledged by begin', async () => {
+    const h = harness()
+    const begin = deferred<SplitDividerSession | null>()
+    h.api.begin.mockReturnValueOnce(begin.promise)
+    await flush()
+    h.start()
+    h.pointer('pointermove', 553)
+    begin.resolve({ token: 'authoritative', geometry: { ...initial, ratio: .6 } })
+    await flush()
+    expect(h.api.update).toHaveBeenLastCalledWith('authoritative', .65)
+  })
+
   it('does not let initial fetch overwrite a newer visibility notification', async () => {
     const h = harness(); h.notify(null); await flush(); expect(h.controller.geometry.value).toBeNull()
   })
