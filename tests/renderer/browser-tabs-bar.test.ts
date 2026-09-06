@@ -738,6 +738,69 @@ describe('BrowserTabsBar', () => {
     }
   })
 
+  it.each(['resize', 'title update'] as const)('preserves the actual keyboard target after a passive %s', async (change) => {
+    let resize: (() => void) | undefined
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    try {
+      const first = tab('first')
+      const focused = tab('focused')
+      const active = tab('active', { active: true })
+      const initial = browserState({ tabs: [first, focused, active], activeTabId: active.id })
+      const view = renderTabs(initial, true, 'vertical', false)
+      await nextTick()
+      const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+      const focusedControl = screen.getByRole('tab', { name: focused.title })
+      const activeControl = screen.getByRole('tab', { name: active.title })
+      const revealFocused = vi.fn()
+      const scrollBy = vi.fn()
+      Object.defineProperty(focusedControl, 'scrollIntoView', { configurable: true, value: revealFocused })
+      Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+      vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 280, 200))
+      vi.spyOn(focusedControl, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 50, 240, 29))
+      // A partly visible active tab must not displace the actual keyboard target.
+      vi.spyOn(activeControl, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 190, 240, 29))
+      await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowDown' })
+      expect(focusedControl).toHaveFocus()
+      revealFocused.mockClear()
+      scrollBy.mockClear()
+      if (change === 'resize') resize!()
+      else await view.rerender({ state: { ...initial, tabs: [first, { ...focused, title: 'Loaded document title' }, active] } })
+      await nextTick()
+      expect(focusedControl).toHaveFocus()
+      expect(revealFocused).toHaveBeenCalled()
+      expect(scrollBy).not.toHaveBeenCalled()
+
+      // A genuine selection change must still reveal the selected page even
+      // while the keyboard target remains focused.
+      vi.spyOn(screen.getByRole('tab', { name: first.title }), 'getBoundingClientRect').mockReturnValue(new DOMRect(10, 50, 240, 29))
+      const revealSelection = vi.fn()
+      Object.defineProperty(screen.getByRole('tab', { name: first.title }), 'scrollIntoView', { configurable: true, value: revealSelection })
+      await view.rerender({ state: { ...initial, activeTabId: first.id, tabs: [{ ...first, active: true }, focused, { ...active, active: false }] } })
+      await nextTick()
+      expect(revealSelection).toHaveBeenCalled()
+      revealSelection.mockClear()
+      resize!()
+      expect(revealSelection).toHaveBeenCalled()
+
+      // Move focus away and back so the focus handler records a fresh keyboard
+      // target distinct from the active tab before the native window blurs.
+      screen.getByRole('tab', { name: first.title }).focus()
+      focusedControl.focus()
+      hasFocus.mockReturnValue(false)
+      revealSelection.mockClear()
+      resize!()
+      expect(revealSelection).toHaveBeenCalled()
+    } finally {
+      hasFocus.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('keeps keyboard-focused tabs clear of their sticky workspace name', async () => {
     const first = tab('first', { active: true })
     const second = tab('second')
@@ -942,6 +1005,7 @@ describe('BrowserTabsBar', () => {
   })
 
   it.each(['tab', 'add', 'workspace'] as const)('keeps the focused %s visible when the vertical rail resizes', async (target) => {
+    const hasFocus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     let resizeCallback: ResizeObserverCallback | undefined
     const scrollIntoView = vi.fn()
     const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -971,6 +1035,7 @@ describe('BrowserTabsBar', () => {
       expect(control).toHaveFocus()
       expect(screen.getByRole('tab', { name: active.title })).toHaveAttribute('aria-selected', 'true')
     } finally {
+      hasFocus.mockRestore()
       vi.unstubAllGlobals()
       if (originalScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScroll)
       else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')

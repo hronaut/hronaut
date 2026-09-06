@@ -200,7 +200,10 @@ function revealAfterLayout(revealActive = true): void {
   // Expanding the rail can resize it after keyboard navigation has revealed a
   // different tab. Preserve the user's current control through that layout pass.
   const focused = focusedStripControl()
-  if (focused) revealTab(focused, 'auto')
+  // A newer selection supersedes stale DOM focus, and an unfocused window
+  // must follow its active page rather than a previously focused control.
+  const focusedTab = focused?.dataset.tabId
+  if (document.hasFocus() && focused && (!focusedTab || focusedTab === focusedTabId.value)) revealTab(focused, 'auto')
   else if (revealActive) revealActiveTab('auto')
 }
 

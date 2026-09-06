@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep the selected tab visible after a resize when an older tab retains DOM focus or the browser window is unfocused.
+
 - Prevent macOS updates from offering the new runtime to systems older than macOS 13.
 
 - Keep active tabs clear of the trailing scroll control in narrow horizontal workspace strips while preserving separation from their sticky workspace label.
