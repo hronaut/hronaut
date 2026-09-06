@@ -74,8 +74,6 @@ if ($Action -eq 'tray') {
     Start-Sleep -Milliseconds 500
     # Server 2025 uses a XAML overflow host rather than the legacy window class.
     # Identify the actual Hronaut icon by its accessible name and visible popup bounds.
-    $nameCondition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Hronaut', [System.Windows.Automation.PropertyConditionFlags]::IgnoreCase)
-    $condition = $nameCondition
     $nearby = @($root.FindAll($scope, [System.Windows.Automation.Condition]::TrueCondition) | Where-Object {
       $box = $_.Current.BoundingRectangle
       -not $_.Current.IsOffscreen -and -not $box.IsEmpty -and $box.Width -gt 0 -and $box.Width -lt 300 -and $box.Height -gt 0 -and $box.Height -lt 200 -and $box.Bottom -le $tray.Current.BoundingRectangle.Top -and $box.Top -ge ($tray.Current.BoundingRectangle.Top - 200) -and $box.Right -ge ($tray.Current.BoundingRectangle.Right - 300)
@@ -83,9 +81,7 @@ if ($Action -eq 'tray') {
     if ($OutputPath) {
       @($nearby | ForEach-Object { @{ Name=$_.Current.Name; Class=$_.Current.ClassName; ProcessId=$_.Current.ProcessId; Bounds=$_.Current.BoundingRectangle.ToString() } }) | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 ($OutputPath + '.popup.json')
     }
-    $icons = @($root.FindAll($scope, $condition) | Where-Object {
-      -not $_.Current.IsOffscreen -and -not $_.Current.BoundingRectangle.IsEmpty -and $_.Current.BoundingRectangle.Width -lt 100 -and $_.Current.BoundingRectangle.Height -lt 100 -and $_.Current.BoundingRectangle.Bottom -le $tray.Current.BoundingRectangle.Top
-    })
+    $icons = @($nearby | Where-Object { $_.Current.Name.Trim() -ieq 'Hronaut' })
     if ($OutputPath) {
       @($icons | ForEach-Object { @{ Name=$_.Current.Name; Class=$_.Current.ClassName; Bounds=$_.Current.BoundingRectangle.ToString() } }) | ConvertTo-Json -Depth 3 | Set-Content -Encoding UTF8 ($OutputPath + '.overflow.json')
     }
