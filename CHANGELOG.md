@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-09-07
+
 ### Changed
 
 - Upgrade the browser runtime to Electron 44.2.0. macOS builds now require macOS 13 Ventura or later on both Apple Silicon and Intel.
@@ -11,11 +13,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Restore the browser on Linux tray left-click, including desktops where activation does not display a menu. Right-click still opens tray actions.
-
 - Keep the selected tab visible after a resize when an older tab retains DOM focus or the browser window is unfocused.
-
 - Prevent macOS updates from offering the new runtime to systems older than macOS 13.
-
 - Keep active tabs clear of the trailing scroll control in narrow horizontal workspace strips while preserving separation from their sticky workspace label.
 - Preserve verified text and image copying with Electron 44’s asynchronous system clipboard API, including failure reporting and recovery after rejected writes.
 
