@@ -238,7 +238,7 @@ test('keeps the vertical rail on the left and confines Home and navigation surfa
       addressWidth: Math.round(address?.width ?? 0)
     }
   })
-  expect(expandedToolbar.x).toBe(56)
+  expect(expandedToolbar.x).toBe(280)
   expect(expandedToolbar.scrollWidth).toBeLessThanOrEqual(expandedToolbar.clientWidth)
   expect(expandedToolbar.addressWidth).toBeGreaterThanOrEqual(120)
   await toolbar.hover()

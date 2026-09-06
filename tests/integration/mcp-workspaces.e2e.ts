@@ -389,7 +389,7 @@ test('keeps many open tabs reachable without covering the fixed topbar actions',
     const window = BrowserWindow.getAllWindows()[0]
     const websiteView = window?.contentView.children[0]
     return websiteView?.getBounds().x
-  })).toBe(56)
+  })).toBe(280)
 
   await appWindow.getByRole('combobox', { name: 'Address' }).hover()
   await expect(verticalNavigation).toHaveClass(/rail-collapsed/)

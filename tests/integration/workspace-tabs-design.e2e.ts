@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { VERTICAL_TAB_RAIL_COLLAPSED_WIDTH } from '../../src/shared/tab-position.js'
+import { VERTICAL_TAB_RAIL_WIDTH } from '../../src/shared/tab-position.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
@@ -122,7 +122,7 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
           const bounds = view.getBounds()
           return bounds.width > 0 && bounds.height > 0 && bounds.x === expected.x && bounds.y >= expected.y && bounds.y <= expected.y + 1
         })
-      }, { x: orientation === 'vertical' ? VERTICAL_TAB_RAIL_COLLAPSED_WIDTH : 0, y: Math.ceil(toolbar!.y + toolbar!.height) })).toBe(true)
+      }, { x: orientation === 'vertical' ? VERTICAL_TAB_RAIL_WIDTH : 0, y: Math.ceil(toolbar!.y + toolbar!.height) })).toBe(true)
       if (orientation === 'vertical') {
         await appWindow.locator('input.address').focus()
         await appWindow.mouse.move(600, 450)
