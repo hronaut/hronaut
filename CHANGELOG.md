@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.58] - 2026-09-06
+
 ### Added
 
 - Resize split panes by dragging their divider, with keyboard adjustment and an equal-size reset. Canceled gestures restore the previous size; committed sizes survive restarts.
