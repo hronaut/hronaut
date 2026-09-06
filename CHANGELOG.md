@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Restore the browser on Linux tray left-click, including desktops where activation does not display a menu. Right-click still opens tray actions.
+
 - Keep the selected tab visible after a resize when an older tab retains DOM focus or the browser window is unfocused.
 
 - Prevent macOS updates from offering the new runtime to systems older than macOS 13.

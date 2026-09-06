@@ -1,3 +1,4 @@
+import { bindTrayActivation } from './tray-activation.js'
 import { mkdir, open, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -1441,9 +1442,7 @@ function createTray(): void {
     tray = new Tray(trayIcon)
     tray.setToolTip('Hronaut')
     setTrayContextMenu()
-    tray.on('click', () => tray?.popUpContextMenu())
-    tray.on('right-click', () => tray?.popUpContextMenu())
-    if (process.platform !== 'linux') tray.on('double-click', showWindow)
+    bindTrayActivation(tray, showWindow, process.platform)
   } catch (error) {
     if (tray && !tray.isDestroyed()) tray.destroy()
     tray = null
