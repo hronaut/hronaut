@@ -29,6 +29,16 @@ A successful run stays visible in Hronaut, creates an isolated workspace, and re
 
 Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.md) for authenticated handoff, localhost QA, and responsive review without weakening Hronaut's workspace and privacy boundaries.
 
+### Keep personal and agent work separate
+
+Hronaut starts on Home without creating a Default workspace. Opening your first tab creates a workspace; existing Default workspaces keep their browser data and can be renamed, archived, or deleted.
+
+- **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions.
+- **Disable direct agent access** when a workspace should stay under your control. Agents can still fork it, but cannot browse or change its original tabs. The fork receives a copy of its site data, so this setting does not prevent agents from reusing copied sign-ins.
+- **Copy or Move site data** with explicit source and destination controls. Move requires both workspaces archived and verifies the destination before removing transferred data from the source. Profiles with background site-worker storage cannot currently be moved.
+
+Transfers include cookies and local storage, not history, saved passwords, IndexedDB, cache, or downloaded files. They are one-time copies, not ongoing synchronization. Deleting a workspace permanently removes its browser profile; archiving keeps it for later.
+
 ### Works with your coding agent
 
 Connect through Hronaut's local Streamable HTTP MCP endpoint. Choose the focused guide for your client, or start with the [generic setup](https://hronaut.dev/setup):
@@ -149,7 +159,7 @@ Skill-aware coding agents can install Hronaut's portable workflow guidance direc
 npx skills add hronaut/hronaut --skill hronaut
 ```
 
-The skill teaches the agent to create its own isolated workspace, prefer semantic page interactions, preserve the user's Default workspace, and request a safe human handoff for CAPTCHA, 2FA, or credential entry. It does not configure the MCP connection or contain an authentication token; start Hronaut and copy the current client setup from Hronaut Home first.
+The skill teaches the agent to create its own isolated workspace, prefer semantic page interactions, preserve the user's original workspaces, and request a safe human handoff for CAPTCHA, 2FA, or credential entry. It does not configure the MCP connection or contain an authentication token; start Hronaut and copy the current client setup from Hronaut Home first.
 
 After trying it, share a short [setup report](https://github.com/hronaut/hronaut/issues/new?template=setup-feedback.yml)—successful connections are useful too. The structured form asks for the client, operating system, Hronaut version, and outcome. Never include credentials, MCP tokens, private page data, or personal browser-session information in a public issue.
 
