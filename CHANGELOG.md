@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-09-07
+
+### Fixed
+
+- Preserve website viewports while Settings and other full-screen dialogs are open, and restore page geometry before revealing content. This prevents one-pixel page layouts and addresses a cause of blank content requiring a window resize, including in split view.
+
 ## [1.12.0] - 2026-09-07
 
 ### Changed

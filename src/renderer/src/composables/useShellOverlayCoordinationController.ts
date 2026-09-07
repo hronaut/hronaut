@@ -58,13 +58,17 @@ export function useShellOverlayCoordinationController(
     if (open) options.closeAddressSuggestions()
   }, { flush: 'sync' })
 
-  const stopBrowserContentOcclusionWatch = watch(options.fullModalOpen, async (open) => {
+  const stopBrowserContentOcclusionWatch = watch(options.fullModalOpen, async (open, wasOpen) => {
     // Hide a native WebContentsView before renderer-owned trusted chrome can
     // be obscured. On close, wait until the modal has left the DOM before
     // allowing website content to return.
     if (!open) {
       await nextTick()
       if (options.fullModalOpen.value) return
+      // This synchronous watch queues its nextTick before the layout watch.
+      // Publish current toolbar/insets before revealing the native page so it
+      // never paints with the modal's stale layout, even for a single frame.
+      if (!disposed && wasOpen) options.reportLayout()
     }
     if (!disposed) options.setBrowserContentOccluded(open)
   }, { flush: 'sync', immediate: true })

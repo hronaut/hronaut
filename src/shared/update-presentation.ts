@@ -17,6 +17,7 @@ interface ShellHeightOptions {
 }
 
 export function shellHeightForBrowserContent(options: ShellHeightOptions): number {
-  if (options.modalOpen) return Math.ceil(options.viewportHeight)
+  // Native view occlusion owns modal visibility. Reserving the full window as
+  // toolbar space collapses the website viewport and disrupts its compositor.
   return Math.ceil(options.shellHeight)
 }

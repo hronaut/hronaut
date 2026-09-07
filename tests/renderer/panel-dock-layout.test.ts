@@ -141,7 +141,7 @@ describe('usePanelDockLayout', () => {
 
     harness.modalOpen.value = true
     harness.controller.reportShellHeight()
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(800)
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({ top: 0, right: 0, bottom: 0, left: 0 })
     harness.wrapper.unmount()
   })

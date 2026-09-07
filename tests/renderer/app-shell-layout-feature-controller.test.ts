@@ -140,7 +140,7 @@ describe('useAppShellLayoutFeatureController', () => {
 
     harness.modals.settings.value = true
     harness.controller.reportShellHeight()
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({
       top: 0,
       right: 0,
@@ -209,7 +209,7 @@ describe('useAppShellLayoutFeatureController', () => {
     await nextTick()
     await nextTick()
 
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({
       top: 0,
       right: 0,
@@ -227,7 +227,7 @@ describe('useAppShellLayoutFeatureController', () => {
     await nextTick()
 
     expect(harness.controller.fullModalOpen.value).toBe(true)
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({
       top: 0,
       right: 0,
@@ -248,7 +248,7 @@ describe('useAppShellLayoutFeatureController', () => {
     await nextTick()
     await nextTick()
 
-    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(window.innerHeight)
+    expect(harness.setToolbarHeight).toHaveBeenLastCalledWith(105)
     expect(harness.setContentInsets).toHaveBeenLastCalledWith({
       top: 0,
       right: 0,

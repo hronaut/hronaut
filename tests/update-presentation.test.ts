@@ -32,11 +32,11 @@ describe('update notification presentation', () => {
     })).toBe(104)
   })
 
-  it('reserves the full surface for a modal shell overlay', () => {
+  it('preserves the website viewport when a modal hides its native view', () => {
     expect(shellHeightForBrowserContent({
       shellHeight: 104,
       viewportHeight: 900,
       modalOpen: true
-    })).toBe(900)
+    })).toBe(104)
   })
 })

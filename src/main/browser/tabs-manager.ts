@@ -6710,6 +6710,7 @@ export class BrowserTabsManager {
     // Renderer-owned trusted modals cannot be placed above a native
     // WebContentsView. Hiding the page is more reliable than collapsing it to
     // a one-pixel bound, which may not repaint until the BrowserWindow resizes.
+    // Preserve hidden view bounds, then restore geometry before showing them.
     const browserContentVisible = !this.browserContentOccluded && this.toolbarHeight < bounds.height - 1
     const viewBounds = this.browserViewBounds()
     if (this.splitView) {
@@ -6717,10 +6718,12 @@ export class BrowserTabsManager {
       const secondTab = this.tabs.get(this.splitView.secondTabId)
       if (firstTab && secondTab) {
         const splitBounds = splitViewBounds(viewBounds, this.splitView.orientation, this.splitView.ratio, Math.round(SPLIT_VIEW_GAP * (this.window.webContents.getZoomFactor?.() ?? 1)))
+        if (browserContentVisible) {
+          firstTab.view.setBounds(splitBounds.first)
+          secondTab.view.setBounds(splitBounds.second)
+        }
         firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
         secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
-        firstTab.view.setBounds(splitBounds.first)
-        secondTab.view.setBounds(splitBounds.second)
         this.scheduleTabOverviewPreview(firstTab)
         this.scheduleTabOverviewPreview(secondTab)
         this.publishSplitDivider()
@@ -6728,8 +6731,8 @@ export class BrowserTabsManager {
       }
       this.splitView = null
     }
+    if (browserContentVisible) tab.view.setBounds(viewBounds)
     tab.view.setVisible(browserContentVisible)
-    tab.view.setBounds(viewBounds)
     this.scheduleTabOverviewPreview(tab)
     this.publishSplitDivider()
   }

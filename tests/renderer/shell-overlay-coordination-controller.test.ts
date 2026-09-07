@@ -155,4 +155,18 @@ describe('shell overlay coordination controller', () => {
     expect(harness.closePanelsExcept).toHaveBeenCalledTimes(1)
     expect(harness.closeAddressSuggestions).not.toHaveBeenCalled()
   })
+
+  it('restores page geometry before revealing native content after a modal closes', async () => {
+    const harness = createHarness()
+    await nextTick()
+    harness.fullModalOpen.value = true
+    const transitions: string[] = []
+    harness.reportLayout.mockImplementation(() => transitions.push('layout'))
+    harness.setBrowserContentOccluded.mockImplementation((occluded: boolean) => transitions.push(occluded ? 'hide' : 'show'))
+    harness.fullModalOpen.value = false
+    expect(transitions).toEqual([])
+    await nextTick()
+    expect(transitions).toEqual(['layout', 'show'])
+    harness.controller.dispose()
+  })
 })
