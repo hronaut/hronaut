@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-09-07
+
+### Fixed
+
+- Recover Linux pages whose native view is visible but Chromium remains hidden after presentation changes in Electron 44, without reloading the page or stealing focus.
+
 ## [1.12.2] - 2026-09-07
 
 ### Fixed

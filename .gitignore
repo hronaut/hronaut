@@ -232,6 +232,7 @@ docs/*
 !docs/WALLETS.md
 !docs/WORKSPACE_SITE_ACCESS.md
 !docs/RELEASE_HISTORY.md
+!docs/LINUX_PAGE_PRESENTATION.md
 playwright-report/
 storybook-static/
 test-results/

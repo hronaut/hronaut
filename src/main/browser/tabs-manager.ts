@@ -1,3 +1,4 @@
+import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -6724,6 +6725,8 @@ export class BrowserTabsManager {
         }
         firstTab.view.setVisible(browserContentVisible && splitBounds.first.width > 0 && splitBounds.first.height > 0)
         secondTab.view.setVisible(browserContentVisible && splitBounds.second.width > 0 && splitBounds.second.height > 0)
+        reconcilePresentedViewVisibility(this.window, firstTab.view)
+        reconcilePresentedViewVisibility(this.window, secondTab.view)
         this.scheduleTabOverviewPreview(firstTab)
         this.scheduleTabOverviewPreview(secondTab)
         this.publishSplitDivider()
@@ -6733,6 +6736,7 @@ export class BrowserTabsManager {
     }
     if (browserContentVisible) tab.view.setBounds(viewBounds)
     tab.view.setVisible(browserContentVisible)
+    reconcilePresentedViewVisibility(this.window, tab.view)
     this.scheduleTabOverviewPreview(tab)
     this.publishSplitDivider()
   }
@@ -7491,6 +7495,7 @@ export class BrowserTabsManager {
     })
     webContents.on('did-stop-loading', () => {
       if (tab.sleeping) return
+      reconcilePresentedViewVisibility(this.window, tab.view)
       syncNavigation()
       this.scheduleTabOverviewPreview(tab)
       if (tab.suppressInitialHistory) {
@@ -9104,6 +9109,7 @@ export class BrowserTabsManager {
     } finally {
       releaseQueue()
       if (this.renderQueues.get(webContentsId) === tail) this.renderQueues.delete(webContentsId)
+      if (tabIsLive()) reconcilePresentedViewVisibility(this.window, tab.view)
     }
   }
 
