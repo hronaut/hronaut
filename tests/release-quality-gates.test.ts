@@ -322,7 +322,7 @@ describe('release quality gates', () => {
     }
     expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
     expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
-    expect(playwright).toContain("trace: process.env.CI ? 'on-first-retry' : 'off'")
+    expect(playwright).toContain("trace: process.env.CI ? 'retain-on-failure' : 'off'")
     expect(runner).toContain('compose_build_arguments+=(--build)')
     expect(runner).not.toContain('--no-build')
     expect(runner).toContain('docker compose --file compose.test.ci.yaml run "${compose_build_arguments[@]}" --name "$container_name" integration')

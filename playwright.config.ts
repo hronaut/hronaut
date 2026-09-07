@@ -17,6 +17,7 @@ export default defineConfig({
     ? [['line'], ['html', { open: 'never', outputFolder: artifactShard ? `playwright-report/${artifactShard}` : 'playwright-report' }]]
     : [['list'], ['html', { open: 'never', outputFolder: artifactShard ? `playwright-report/${artifactShard}` : 'playwright-report' }]],
   outputDir: artifactShard ? `test-results/integration/${artifactShard}` : 'test-results/integration',
-  use: { trace: process.env.CI ? 'on-first-retry' : 'off' },
+  // Keep the failing first attempt: a successful retry cannot explain its failure.
+  use: { trace: process.env.CI ? 'retain-on-failure' : 'off' },
   projects: [{ name: 'electron' }]
 })
