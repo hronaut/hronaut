@@ -6,19 +6,17 @@ test('offers regular and cinematic themes in Settings', async ({ appWindow, elec
   const initialNativeTheme = await electronApp.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme-preference', 'system')
   await expect(appWindow.locator('html')).toHaveAttribute('data-theme', initialNativeTheme)
+  const readWebsiteView = () => electronApp.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0]?.contentView.children[0]
+    return view ? { bounds: view.getBounds(), visible: view.getVisible() } : undefined
+  })
+  await expect.poll(async () => (await readWebsiteView())?.visible).toBe(true)
+  const initialWebsiteView = await readWebsiteView()
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
   const panelBounds = await appWindow.getByRole('dialog', { name: 'Settings' }).boundingBox()
-  const websiteView = await electronApp.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getAllWindows()[0]
-    return {
-      bounds: window?.contentView.children[0]?.getBounds(),
-      contentHeight: window?.getContentBounds().height
-    }
-  })
   expect(panelBounds).not.toBeNull()
-  expect(websiteView.bounds?.y).toBeGreaterThanOrEqual((websiteView.contentHeight ?? 1) - 1)
-  expect(websiteView.bounds?.y).toBeGreaterThanOrEqual(Math.ceil(panelBounds!.y + panelBounds!.height))
+  await expect.poll(readWebsiteView).toEqual({ ...initialWebsiteView, visible: false })
 
   for (const section of [/MCP security/, /Passwords/, /Commercial license/]) {
     await appWindow.getByRole('button', { name: section }).click()

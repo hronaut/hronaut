@@ -225,9 +225,10 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
     const view = main?.contentView.children.find((candidate) => (
       candidate instanceof WebContentsView && candidate.webContents.getURL() === requestedUrl
     ))
-    return view?.getBounds()
+    return view ? { ...view.getBounds(), visible: view.getVisible() } : undefined
   }, fixtureUrl)
   await expect.poll(async () => (await websiteBounds())?.height ?? 0).toBeGreaterThan(1)
+  const initialWebsiteBounds = await websiteBounds()
 
   const settingsButton = appWindow.getByRole('button', { name: 'Settings' })
   await settingsButton.click()
@@ -238,7 +239,7 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   const releaseHistory = appWindow.getByRole('dialog', { name: "What's new" })
   await expect(settings).toBeHidden()
   await expect(releaseHistory).toBeVisible()
-  await expect.poll(async () => (await websiteBounds())?.height).toBe(1)
+  await expect.poll(websiteBounds).toEqual({ ...initialWebsiteBounds, visible: false })
   await expect(releaseHistory).toHaveAttribute('aria-busy', 'false', { timeout: 15_000 })
   const desktopBounds = await releaseHistory.boundingBox()
   expect(desktopBounds).not.toBeNull()
@@ -263,6 +264,7 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   await appWindow.keyboard.press('Escape')
   await expect(releaseHistory).toBeHidden()
   await expect(settingsButton).toBeFocused()
+  await expect.poll(async () => (await websiteBounds())?.visible).toBe(true)
   await expect.poll(async () => (await websiteBounds())?.height ?? 0).toBeGreaterThan(1)
 })
 
@@ -3761,9 +3763,10 @@ test('suggests a committed address before every page resource finishes loading',
 })
 
 test('searches open and recently closed tabs, then restores any selected page', async ({ appWindow, electronApp }) => {
-  const browserViewBounds = (): Promise<{ x: number; y: number; width: number; height: number } | undefined> => electronApp.evaluate(({ BrowserWindow }) => (
-    BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getBounds()
-  ))
+  const browserViewBounds = () => electronApp.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0]?.contentView.children[0]
+    return view ? { ...view.getBounds(), visible: view.getVisible() } : undefined
+  })
   const alphaUrl = 'data:text/html,<title>Tab search alpha</title><main>Alpha</main>'
   const betaUrl = 'data:text/html,<title>Tab search beta</title><main>Beta</main>'
   const clipboardBefore = await electronApp.evaluate(({ clipboard }) => clipboard.readText())
@@ -3771,6 +3774,8 @@ test('searches open and recently closed tabs, then restores any selected page', 
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search alpha')
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search beta')
+  await expect.poll(async () => (await browserViewBounds())?.visible).toBe(true)
+  const initialBrowserViewBounds = await browserViewBounds()
 
   await electronApp.evaluate(({ webContents }, requestedUrl) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
@@ -3785,7 +3790,7 @@ test('searches open and recently closed tabs, then restores any selected page', 
   const search = panel.getByRole('searchbox', { name: 'Search tabs' })
   await expect(panel).toBeVisible()
   await expect(panel).toHaveAttribute('aria-modal', 'true')
-  await expect.poll(async () => (await browserViewBounds())?.height).toBe(1)
+  await expect.poll(browserViewBounds).toEqual({ ...initialBrowserViewBounds, visible: false })
   await expect(search).toBeFocused()
   await expect(panel).toContainText('2 open')
   expect(await electronApp.evaluate(({ clipboard }) => clipboard.readText())).toBe(clipboardBefore)
@@ -3803,7 +3808,7 @@ test('searches open and recently closed tabs, then restores any selected page', 
   await expect(panel.locator('.tab-overview-card.selected')).toContainText('Tab search alpha')
   await search.press('Enter')
   await expect(panel).toBeHidden()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth') })
+  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: await appWindow.evaluate('window.innerWidth'), visible: true })
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Tab search alpha')
 
   const searchTabsButton = appWindow.getByRole('button', { name: 'Search tabs' })
