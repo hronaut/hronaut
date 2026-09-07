@@ -47,19 +47,18 @@ async function createWorkspace(client: Client, name: string, color?: string): Pr
   return (await createWorkspaceAccess(client, name, color)).id
 }
 
-test('uses UUIDv7 for tabs and puts the last-tab replacement in Default', async ({ appWindow }) => {
+test('uses UUIDv7 for tabs and returns to Home without creating Default', async ({ appWindow }) => {
   const initial = await appWindow.evaluate(`window.hronaut.getState()`) as BrowserState
   expect(initial.tabs).toHaveLength(1)
   expect(initial.tabs[0]!.id).toMatch(UUID_V7_PATTERN)
   await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(initial.tabs[0]!.id)})`)
   const replacement = await appWindow.evaluate(`window.hronaut.getState()`) as BrowserState
-  const defaultWorkspace = replacement.mcpTabGroups.find((workspace) => workspace.isDefault)
-  expect(defaultWorkspace?.id).toMatch(UUID_V7_PATTERN)
+  expect(initial.mcpTabGroups).toEqual([])
+  expect(replacement.mcpTabGroups).toEqual([])
   expect(replacement.tabs).toEqual([
     expect.objectContaining({
       id: expect.stringMatching(UUID_V7_PATTERN),
-      url: 'about:blank',
-      mcpGroupId: defaultWorkspace?.id
+      url: 'hronaut://home/'
     })
   ])
 })
@@ -115,7 +114,7 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
       workspaceTabIds: [expect.stringMatching(UUID_V7_PATTERN)]
     })
     await expect(workspaceControl).toHaveAccessibleName('Collapse workspace Empty investigation, 1 tab')
-    await expect(appWindow.getByRole('button', { name: 'New tab in Default workspace' })).toBeVisible()
+    await expect(appWindow.getByRole('button', { name: 'New tab in Default workspace' })).toHaveCount(0)
   } finally {
     await client.close()
   }
@@ -123,9 +122,10 @@ test('keeps empty workspaces visible and opens a tab from each workspace action'
 
 test('keeps many open tabs reachable without covering the fixed topbar actions', async ({ appWindow, electronApp }) => {
   const lastTabId = await appWindow.evaluate(`(async () => {
-    const initial = await window.hronaut.getState();
-    const workspaceId = initial.mcpTabGroups.find((workspace) => workspace.isDefault)?.id;
-    if (!workspaceId) throw new Error('Default workspace was not found');
+    const initial = await window.hronaut.createWorkspace({ name: 'Overflow workspace', storage: 'scratch' });
+    const workspaceId = initial.mcpTabGroups.find((workspace) => workspace.name === 'Overflow workspace')?.id;
+    if (!workspaceId) throw new Error('Overflow workspace was not found');
+    await window.hronaut.closeTab(initial.activeTabId);
     let lastTabId = '';
     for (let index = 1; index <= 12; index += 1) {
       const url = 'data:text/html,<title>Overflow tab ' + index + '</title><main>Overflow ' + index + '</main>';
@@ -467,8 +467,9 @@ test('keeps destructive tab cleanup actions inside the selected workspace', asyn
   const defaultRightUrl = 'data:text/html,<title>Default cleanup right</title><main>Default right</main>'
   const isolatedOtherUrl = 'data:text/html,<title>Isolated cleanup survivor</title><main>Isolated survivor</main>'
   const defaultOtherUrl = 'data:text/html,<title>Default cleanup other</title><main>Default other</main>'
-  const initial = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
-  const defaultWorkspaceId = initial.mcpTabGroups.find((workspace) => workspace.isDefault)?.id
+  const initial = await appWindow.evaluate("window.hronaut.createWorkspace({ name: 'Human cleanup', storage: 'scratch' })") as BrowserState
+  const defaultWorkspaceId = initial.mcpTabGroups.find((workspace) => workspace.name === 'Human cleanup')?.id
+  await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(initial.activeTabId)})`)
   expect(defaultWorkspaceId).toMatch(UUID_V7_PATTERN)
 
   const defaultSourceId = await appWindow.evaluate(`window.hronaut.newTab({
@@ -601,11 +602,11 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(groupsTool?.description).toContain('Use list-origins first when you want to select origins')
     expect(groupsTool?.description).toContain('Pass the stable UUIDv7 id returned by your own create call as workspaceId')
     expect(groupsTool?.description).toContain('Create also returns a private resumeKey')
-    expect(groupsTool?.description).toContain('Listing returns only workspaces authorized for this MCP connection')
+    expect(groupsTool?.description).toContain('action=list returns only owned or resumed workspaces whose direct agent access remains enabled')
     expect(groupsTool?.inputSchema).toMatchObject({
       properties: {
         action: {
-          description: expect.stringContaining('For create, choose storage=scratch or storage=fork-default')
+          description: expect.stringContaining('For create, choose storage=scratch, storage=fork-workspace with sourceWorkspaceId')
         },
         workspaceId: {
           description: expect.stringContaining('Stable UUIDv7 id returned by your own create call')
@@ -614,7 +615,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
           description: expect.stringContaining('Private resume key returned')
         },
         storage: {
-          enum: ['scratch', 'fork-default'],
+          enum: ['scratch', 'fork-default', 'fork-workspace'],
           description: expect.stringContaining('scratch (the default when omitted) starts from a clean isolated profile')
         },
         origins: {
@@ -625,7 +626,12 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     })
     const initialWorkspaces = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(initialWorkspaces))).toEqual([])
-    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id)`) as string
+    const defaultWorkspaceId = await appWindow.evaluate(`(async () => {
+      const state = await window.hronaut.createWorkspace({ name: 'Human workspace', storage: 'scratch' });
+      const id = state.mcpTabGroups.find((workspace) => workspace.name === 'Human workspace')?.id;
+      await window.hronaut.closeTab(state.activeTabId);
+      return id;
+    })()`) as string
     expect(defaultWorkspaceId).toMatch(UUID_V7_PATTERN)
     const defaultStatus = await first.callTool({
       name: 'browser_status',
@@ -697,13 +703,9 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
       name: 'browser_workspaces',
       arguments: { action: 'import-default', workspaceId: firstGroupId, origins: [] }
     }) as CallToolResult
-    expect(imported.isError, text(imported)).not.toBe(true)
-    expect(JSON.parse(text(imported))).toMatchObject({
-      workspaceId: firstGroupId,
-      direction: 'from-default',
-      cookieCount: 0,
-      localStorageItemCount: 0
-    })
+    expect(imported.isError).toBe(true)
+    expect(text(imported)).toContain('Default workspace is unavailable')
+    expect((await appWindow.evaluate('window.hronaut.getState()') as BrowserState).mcpTabGroups.some((group) => group.isDefault)).toBe(false)
 
     const firstOpened = await first.callTool({
       name: 'browser_new_tab',
@@ -726,13 +728,13 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     }) as CallToolResult
     const secondTabId = (JSON.parse(text(secondOpened)) as { activeTabId: string }).activeTabId
 
-    await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Human default tab</title><h1>Human</h1>', active: true })`)
-    await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Another human tab</title><h1>Human two</h1>', active: false })`)
+    await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Human default tab</title><h1>Human</h1>', active: true, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
+    await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Another human tab</title><h1>Human two</h1>', active: false, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
     const humanState = await appWindow.evaluate(`window.hronaut.getState()`) as BrowserState
-    const defaultGroup = humanState.mcpTabGroups.find((group) => group.isDefault)
-    expect(defaultGroup).toMatchObject({ name: 'Default', color: 'gray', isDefault: true, tabCount: 2 })
+    const defaultGroup = humanState.mcpTabGroups.find((group) => group.id === defaultWorkspaceId)
+    expect(defaultGroup).toMatchObject({ name: 'Human workspace', isDefault: false, tabCount: 2 })
     expect(humanState.tabs.filter((tab) => tab.mcpGroupId === defaultGroup?.id)).toHaveLength(2)
-    await expect(appWindow.locator('.tab-group-label', { hasText: 'Default' })).toContainText('Default')
+    await expect(appWindow.locator('.tab-group-label', { hasText: 'Human workspace' })).toContainText('Human workspace')
 
     const firstTabs = await first.callTool({ name: 'browser_tabs', arguments: { workspaceId: firstGroupId } }) as CallToolResult
     expect(JSON.parse(text(firstTabs))).toEqual([expect.objectContaining({ id: firstTabId })])
@@ -873,7 +875,7 @@ test('caps new and restored workspaces so profiles cannot grow without bound', a
     expect(archiveResult.isError, text(archiveResult)).not.toBe(true)
     const archivedWorkspace = JSON.parse(text(archiveResult)) as { id: string }
 
-    for (let index = 1; index < 50; index += 1) {
+    for (let index = 1; index <= 50; index += 1) {
       const result = await client.callTool({
         name: 'browser_workspaces',
         arguments: { action: 'create', name: `Bounded workspace ${index}` }
@@ -1153,8 +1155,13 @@ test('restores workspace identity and tabs after an application restart', async 
     arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
   }) as CallToolResult
   const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
-  await instance.window.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>', active: false })`)
-  const defaultGroupId = await instance.window.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((group) => group.isDefault)?.id)`) as string
+  const defaultGroupId = await instance.window.evaluate(`(async () => {
+    const state = await window.hronaut.createWorkspace({ name: 'Persistent human workspace', storage: 'scratch' });
+    const group = state.mcpTabGroups.find((workspace) => workspace.name === 'Persistent human workspace');
+    await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
+    return group.id;
+  })()`) as string
+  await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
   const groupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
   await expect(groupControl).toHaveAttribute('aria-expanded', 'true')
   await expect(groupControl).toHaveAccessibleName('Collapse workspace Persistent investigation, 1 tab')
@@ -1170,10 +1177,10 @@ test('restores workspace identity and tabs after an application restart', async 
   try {
     const restoredGroupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
     await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then((state) => ({
-      defaultGroup: state.mcpTabGroups.find((group) => group.isDefault),
+      defaultGroup: state.mcpTabGroups.find((group) => group.id === ${JSON.stringify(defaultGroupId)}),
       humanGroupId: state.tabs.find((tab) => tab.title === 'Persistent human tab')?.mcpGroupId
     }))`)).toMatchObject({
-      defaultGroup: { id: defaultGroupId, name: 'Default', isDefault: true },
+      defaultGroup: { id: defaultGroupId, name: 'Persistent human workspace', isDefault: false },
       humanGroupId: defaultGroupId
     })
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
@@ -1279,8 +1286,8 @@ test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', a
       splitView?: { firstTabId: string; secondTabId: string }
       tabs: Array<{ id: string; title: string; url: string }>
     }
-    expect(fresh.defaultWorkspaceId).toMatch(UUID_V7_PATTERN)
-    expect(fresh.workspaceNames).toEqual(['Default'])
+    expect(fresh.defaultWorkspaceId).toBeUndefined()
+    expect(fresh.workspaceNames).toEqual([])
     expect(fresh.splitView).toBeUndefined()
     expect(fresh.tabs).toEqual([expect.objectContaining({
       id: expect.stringMatching(UUID_V7_PATTERN),
@@ -1296,9 +1303,9 @@ test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', a
       }
       return persisted
     }).toMatchObject({
-      version: 2,
+      version: 3,
       tabs: [expect.objectContaining({ id: expect.stringMatching(UUID_V7_PATTERN), title: 'Hronaut Home' })],
-      mcpTabGroups: [expect.objectContaining({ id: expect.stringMatching(UUID_V7_PATTERN), name: 'Default' })]
+      mcpTabGroups: []
     })
   } finally {
     await closeHronaut(instance.app)

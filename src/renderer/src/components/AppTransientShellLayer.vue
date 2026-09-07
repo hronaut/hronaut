@@ -78,6 +78,7 @@ interface ZoomSurface {
 }
 
 interface WorkspaceEditorSurface {
+  openTransfer: () => Promise<void>
   openExisting: (groupId: string) => Promise<void>
   openNew: () => Promise<void>
   close: () => void
@@ -97,6 +98,11 @@ const commandPalette = ref<PickerSurface | null>(null)
 
 async function openTabSearch(): Promise<void> {
   await tabSearchPanel.value?.openPanel()
+}
+
+async function openWorkspaceTransfer(): Promise<void> {
+  closeTabSearch()
+  await workspaceEditor.value?.openTransfer()
 }
 
 function closeTabSearch(): void {
@@ -184,6 +190,7 @@ defineExpose({
     :format-error="formatError"
     :show-error="showError"
     @new-tab="emit('newTab')"
+    @transfer-workspace-data="openWorkspaceTransfer"
   />
   <FindInPageBar ref="findBar" v-model:open="findOpen" :active-tab="activeTab" :browser="browser" />
   <ZoomBar

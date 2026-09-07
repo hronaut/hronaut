@@ -37,7 +37,7 @@ const props = defineProps<{
   showError: (title: string, message: string) => void
 }>()
 
-const emit = defineEmits<{ newTab: [] }>()
+const emit = defineEmits<{ newTab: []; transferWorkspaceData: [] }>()
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
@@ -341,6 +341,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
           </section>
         </div>
         <section v-if="filteredSavedTabGroups.length" class="tab-search-section compact-results saved-groups" aria-labelledby="saved-groups-title">
+          <UiButton appearance="application" type="button" :disabled="actionPending" @click="emit('transferWorkspaceData')">{{ t('workspaceEditor.transferData') }}</UiButton>
           <h3 id="saved-groups-title">{{ t('tabSearch.archived') }} <span>{{ formatNumber(filteredSavedTabGroups.length) }}</span></h3>
           <div class="tab-search-compact-grid" role="list" :aria-label="t('tabSearch.archivedAria')">
             <article

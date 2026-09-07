@@ -41,7 +41,8 @@ export function useNewTabShellController(options: NewTabShellControllerOptions) 
     return open()
   }
 
-  async function openInWorkspace(groupId: string): Promise<boolean> {
+  async function openInWorkspace(groupId?: string): Promise<boolean> {
+    if (groupId === undefined) return openDefault()
     const workspace = options.state.value.mcpTabGroups.find((candidate) => candidate.id === groupId)
     if (!workspace) return false
     try {

@@ -29,7 +29,7 @@ import ShellTitleBarSurface from './ShellTitleBarSurface.vue'
 
 export interface AppBrowserChromeLayerActions {
   openHome: () => unknown
-  newTabInWorkspace: (groupId: string) => unknown
+  newTabInWorkspace: (groupId?: string) => unknown
   openNewWorkspaceEditor: () => unknown
   toggleCommandPalette: () => unknown
   toggleTabSearch: () => unknown

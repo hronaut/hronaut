@@ -46,6 +46,7 @@ describe('MCP user-attention presentation failures', () => {
       requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
       requireTabInMcpGroup: vi.fn(() => tabId),
       wakeTab: vi.fn(async () => undefined),
+      isWorkspaceAgentAccessible: vi.fn(() => true),
       listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
       listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),
@@ -108,6 +109,7 @@ describe('MCP user-attention presentation failures', () => {
         throw new Error('No tab exists in this workspace')
       }),
       wakeTab: vi.fn(async () => undefined),
+      isWorkspaceAgentAccessible: vi.fn(() => true),
       listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
       listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),

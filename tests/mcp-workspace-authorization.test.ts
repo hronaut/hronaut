@@ -43,6 +43,7 @@ describe('MCP workspace authorization recovery', () => {
           `Workspace ${workspaceId} could not be created or cleaned up.`
         )
       }),
+      isWorkspaceAgentAccessible: vi.fn(() => true),
       listMcpTabGroups: vi.fn(() => [workspace]),
       listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => resumeKey),

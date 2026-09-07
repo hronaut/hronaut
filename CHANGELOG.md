@@ -4,6 +4,24 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-09-07
+
+### Added
+
+- Fork any active or archived workspace into an independent profile with copied cookies and local storage and a blank tab. Agents can discover fork sources without receiving access to the original tabs.
+- Allow users to disable direct agent access per workspace while still permitting forks. The choice survives archiving and restart and blocks existing agent ownership and resume keys.
+- Copy browser data between selected workspaces, or Move between archived workspaces after verifying the destination. Move checks for live pages and background site workers before starting and reports any incomplete cleanup without removing the verified destination copy.
+
+### Changed
+
+- Start on Home without automatically creating Default. Existing Default profiles retain their data and can be renamed, archived, restored, or deleted. Deleting the last workspace returns to Home.
+- Clarify workspace creation and data transfer with explicit source, destination, data types, and Copy/Move controls.
+
+### Fixed
+
+- Keep archived workspace metadata recoverable if creating its replacement Home view fails.
+- Bound hidden storage-view initialization and scripts so a stalled renderer cannot hang a workspace transfer indefinitely.
+
 ## [1.12.3] - 2026-09-07
 
 ### Fixed

@@ -113,6 +113,17 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it.each(['horizontal', 'vertical'] as const)('keeps New tab reachable with no workspaces in the %s rail', async orientation => {
+    const initial = browserState()
+    const view = renderTabs({ ...initial, tabs: [initial.tabs[0]], mcpTabGroups: [] }, true, orientation)
+    const create = screen.getByRole('button', { name: /^New tab$/ })
+    await fireEvent.click(create)
+    expect(view.emitted('newTab')).toEqual([[]])
+    await view.rerender({ state: initial })
+    expect(screen.queryByRole('button', { name: /^New tab$/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^New tab in Research workspace$/ })).toBeTruthy()
+  })
+
   it('exposes horizontal tablist semantics with the matching arrow-key behavior', () => {
     renderTabs()
 

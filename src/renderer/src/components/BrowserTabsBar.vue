@@ -42,7 +42,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   openHome: []
   showWorkspaceContextMenu: [groupId: string]
-  newTab: [groupId: string]
+  newTab: [groupId?: string]
   createWorkspace: []
   selectTab: [tabId: string]
   showTabContextMenu: [tabId: string]
@@ -584,11 +584,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       >
         <IconKeyboardArrowRight v-if="isTabGroupCollapsed(workspace.id)" aria-hidden="true" />
         <IconKeyboardArrowDown v-else aria-hidden="true" />
-        <IconKeep
-          v-if="workspace.isDefault"
-          class="tab-group-default-badge"
-          :aria-label="t('shell.tabs.defaultWorkspace')"
-        />
         <span>{{ workspace.name }}</span>
         <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
@@ -686,6 +681,13 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         @click="emit('newTab', workspace.id)"
       ><IconAdd aria-hidden="true" /></UiButton>
     </div>
+    <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
+      class="new-tab"
+      type="button"
+      :title="t('tabSearch.newTabTitle')"
+      :aria-label="t('tabSearch.newTabTitle')"
+      @click="emit('newTab')"
+    ><IconAdd aria-hidden="true" /></UiButton>
     <span class="workspace-action-divider" aria-hidden="true" />
     <UiButton appearance="application"
       class="new-workspace"

@@ -23,10 +23,14 @@ describe('MCP workspace guidance', () => {
     expect(examples).toEqual([
       { action: 'create', name: 'Task name', storage: 'scratch' },
       { action: 'create', name: 'Task name', storage: 'fork-default' },
+      { action: 'create', name: 'Task name', storage: 'fork-workspace', sourceWorkspaceId: '<id from list-fork-sources>' },
       { action: 'save-default', workspaceId: '<id returned by create>' }
     ])
     expect(description).toContain('must never pass the workspace marked isDefault to page tools')
     expect(description).not.toContain('Its stable id')
+    expect(description).toContain('Even sources with direct agent access disabled can be forked')
+    expect(description).toContain('inherits source navigation restrictions')
+    expect(description).toContain('Default aliases fail when Default is absent')
   })
 
   it('advertises the cross-tool workflow during MCP initialization', () => {

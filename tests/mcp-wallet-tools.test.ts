@@ -18,6 +18,7 @@ function walletWorkspaceManager(): Record<string, unknown> {
     requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
     requireTabInMcpGroup: vi.fn(() => tabId),
     wakeTab: vi.fn(async () => undefined),
+    isWorkspaceAgentAccessible: vi.fn(() => true),
     listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
     listSavedTabGroups: vi.fn(() => []),
     mcpWorkspaceResumeKey: vi.fn(() => workspaceResumeKey),

@@ -4030,7 +4030,9 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
 
   try {
     const initial = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: false })`) as BrowserState
-    const defaultTabId = initial.tabs.find((tab) => tab.url === defaultUrl)!.id
+    const defaultTab = initial.tabs.find((tab) => tab.url === defaultUrl)!
+    const defaultTabId = defaultTab.id
+    const initialWorkspaceName = initial.mcpTabGroups.find(group => group.id === defaultTab.mcpGroupId)!.name
     const research = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Overview Research', storage: 'scratch' })`) as BrowserState
     const researchWorkspaceId = research.mcpTabGroups.find((group) => group.name === 'Overview Research')!.id
     const researchTabId = research.tabs.find((tab) => tab.mcpGroupId === researchWorkspaceId)!.id
@@ -4107,7 +4109,7 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
 
     const researchGroup = overview.getByRole('list', { name: 'Overview Research' })
     const qaGroup = overview.getByRole('list', { name: 'Overview QA' })
-    const defaultGroup = overview.getByRole('list', { name: 'Default' })
+    const defaultGroup = overview.getByRole('list', { name: initialWorkspaceName, exact: true })
     await expect(researchGroup).toContainText('Overview sleeping research')
     await expect(qaGroup).toContainText('Overview active QA')
     await expect(defaultGroup).toContainText('Overview default target')
@@ -4322,7 +4324,9 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
   const alphaUrl = 'data:text/html,<title>Pin alpha</title><main>Alpha</main>'
   const betaUrl = 'data:text/html,<title>Pin beta</title><main>Beta</main>'
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(alphaUrl)}, active: true })`)
-  await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`)
+  const betaState = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(betaUrl)}, active: true })`) as BrowserState
+  const betaWorkspaceId = betaState.tabs.find(tab => tab.url === betaUrl)!.mcpGroupId
+  const workspaceName = betaState.mcpTabGroups.find(group => group.id === betaWorkspaceId)!.name
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Pin beta')
 
   await electronApp.evaluate(({ Menu }) => {
@@ -4345,7 +4349,7 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
     { id: 'mute-tab', label: 'Mute Tab', enabled: true },
     { id: 'pin-tab', label: 'Pin Tab', enabled: true },
     { id: 'sleep-tab', label: 'Put Tab to Sleep', enabled: false },
-    { id: 'workspace', label: 'Workspace: Default', enabled: true },
+    { id: 'workspace', label: `Workspace: ${workspaceName}`, enabled: true },
     { id: 'move-tab-left', label: 'Move Tab Left', enabled: true },
     { id: 'move-tab-right', label: 'Move Tab Right', enabled: false },
     { id: 'close-tab', label: 'Close Tab', enabled: true },
@@ -6271,9 +6275,27 @@ test('reorders pinned and regular tabs by dragging and saves the new order', asy
     'Drag gamma'
   ])
 
+  await appWindow.evaluate(`window.hronaut.getState().then((state) => window.hronaut.updateTabGroup(state.mcpTabGroups[0].id, { name: 'Long workspace drag regression' }))`)
+  await expect(appWindow.getByRole('button', { name: /^Collapse workspace Long workspace drag regression/ })).toBeVisible()
+
   const alphaTab = appWindow.getByRole('tab', { name: /^Drag alpha/ })
   const gammaTab = appWindow.getByRole('tab', { name: /^Drag gamma/ })
-  await gammaTab.dragTo(alphaTab, { targetPosition: { x: 3, y: 18 } })
+  // dragTo scrolls its target after mousedown, moving another tab under the
+  // pointer before native dragstart. Start from the visible source instead.
+  const strip = appWindow.locator('.tabs-strip')
+  await strip.hover()
+  await appWindow.mouse.wheel(-1000, 0)
+  await expect.poll(() => strip.evaluate((element) => element.scrollLeft)).toBe(0)
+  const sourceBounds = (await gammaTab.boundingBox())!
+  const stripBounds = (await strip.boundingBox())!
+  const sourceX = Math.min(sourceBounds.x + sourceBounds.width / 2, stripBounds.x + stripBounds.width - 8)
+  expect(sourceX).toBeGreaterThan(sourceBounds.x)
+  await appWindow.mouse.move(sourceX, sourceBounds.y + 18)
+  await appWindow.mouse.down()
+  await appWindow.mouse.move(sourceX - 12, sourceBounds.y + 18, { steps: 4 })
+  const targetBounds = (await alphaTab.boundingBox())!
+  await appWindow.mouse.move(targetBounds.x + 3, targetBounds.y + 18, { steps: 8 })
+  await appWindow.mouse.up()
   await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.filter((tab) => !tab.url.startsWith('hronaut://')).map((tab) => tab.title))`)).toEqual([
     'Drag gamma',
     'Drag alpha',

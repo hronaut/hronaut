@@ -291,6 +291,7 @@ export interface BrowserWorkspaceNavigationAuditEntry {
 }
 
 export interface BrowserTabGroupState {
+  agentAccess?: boolean
   id: string
   name: string
   color: BrowserTabGroupColor
@@ -305,6 +306,7 @@ export interface BrowserTabGroupState {
 }
 
 export interface BrowserTabGroupUpdate {
+  agentAccess?: boolean
   name?: string
   color?: BrowserTabGroupColor
 }
@@ -316,6 +318,7 @@ export interface BrowserSavedTabGroupTab {
 }
 
 export interface BrowserSavedTabGroupState {
+  agentAccess?: boolean
   id: string
   name: string
   color: BrowserTabGroupColor
@@ -328,20 +331,31 @@ export interface BrowserSavedTabGroupState {
 export interface BrowserWorkspaceCreateOptions {
   name: string
   color?: BrowserTabGroupColor
-  storage: 'scratch' | 'fork-default'
+  storage: 'scratch' | 'fork-default' | 'fork-workspace'
+  sourceWorkspaceId?: string
+  agentAccess?: boolean
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
 }
 
-export interface BrowserWorkspaceStorageTransferOptions {
+export type BrowserWorkspaceStorageTransferOptions = {
+  sourceWorkspaceId: string
+  targetWorkspaceId: string
+  mode: 'copy' | 'move'
+  origins?: string[]
+} | {
   workspaceId: string
   direction: 'from-default' | 'to-default'
   origins?: string[]
 }
 
 export interface BrowserWorkspaceStorageTransferResult {
-  workspaceId: string
-  direction: 'from-default' | 'to-default'
+  sourceWorkspaceId?: string
+  targetWorkspaceId?: string
+  mode?: 'copy' | 'move'
+  cleanupStatus?: 'complete' | 'incomplete'
+  workspaceId?: string
+  direction?: 'from-default' | 'to-default'
   cookieCount: number
   localStorageOriginCount: number
   localStorageItemCount: number

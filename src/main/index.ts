@@ -50,7 +50,7 @@ import {
   type WalletUpdateInput,
   type WalletWatchOnlyInput
 } from '../shared/wallet.js'
-import { flushBrowserSessionStorage } from './browser/workspace-storage.js'
+import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { BookmarkStore } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
@@ -1204,7 +1204,9 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
 
 function registerHomeProtocol(): void {
   if (!persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
-  persistentSession.protocol.handle('hronaut', (request) => {
+  const homeSession = session.fromPartition(workspacePartition(PARTITION, 'home'), { cache: true })
+  configureBrowserSession(homeSession)
+  homeSession.protocol.handle('hronaut', (request) => {
     const url = new URL(request.url)
     if (url.hostname !== 'home') return new Response('Not found', { status: 404 })
     if (url.pathname === '/api/status') {
@@ -2377,9 +2379,11 @@ function registerIpc(): void {
       throw new TypeError('Invalid workspace update request')
     }
     const candidate = updates as Record<string, unknown>
+    if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
     if (candidate.name !== undefined && typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
     tabsManager!.updateMcpTabGroup(groupId, {
+      ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
       ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {})
     } satisfies BrowserTabGroupUpdate)
@@ -2402,10 +2406,12 @@ function registerIpc(): void {
     const candidate = value as Record<string, unknown>
     if (typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
-    if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-default') throw new TypeError('Invalid workspace storage mode')
+    if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-default' && candidate.storage !== 'fork-workspace') throw new TypeError('Invalid workspace storage mode')
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
       throw new TypeError('Invalid workspace storage origins')
     }
+    if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
+    if (candidate.storage === 'fork-workspace' && typeof candidate.sourceWorkspaceId !== 'string') throw new TypeError('Source workspace is required')
     const navigationPolicy = candidate.navigationPolicy === undefined
       ? undefined
       : normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
@@ -2413,6 +2419,8 @@ function registerIpc(): void {
       name: candidate.name,
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
       storage: candidate.storage,
+      ...(typeof candidate.sourceWorkspaceId === 'string' ? { sourceWorkspaceId: candidate.sourceWorkspaceId } : {}),
+      ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {}),
       ...(navigationPolicy ? { navigationPolicy } : {})
     } satisfies BrowserWorkspaceCreateOptions)
@@ -2426,6 +2434,17 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace storage transfer')
     const candidate = value as Record<string, unknown>
+    if ('sourceWorkspaceId' in candidate || 'targetWorkspaceId' in candidate || 'mode' in candidate) {
+      if (typeof candidate.sourceWorkspaceId !== 'string' || typeof candidate.targetWorkspaceId !== 'string') throw new TypeError('Source and destination workspaces are required')
+      if (candidate.mode !== 'copy' && candidate.mode !== 'move') throw new TypeError('Invalid workspace transfer mode')
+      if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) throw new TypeError('Invalid workspace storage origins')
+      return tabsManager!.transferWorkspaceStorage({
+        sourceWorkspaceId: candidate.sourceWorkspaceId,
+        targetWorkspaceId: candidate.targetWorkspaceId,
+        mode: candidate.mode,
+        ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
+      })
+    }
     if (typeof candidate.workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     if (candidate.direction !== 'from-default' && candidate.direction !== 'to-default') throw new TypeError('Invalid workspace storage direction')
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {

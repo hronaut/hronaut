@@ -11,6 +11,11 @@ import {
 const STORAGE_TRANSFER_TIMEOUT_MS = 8_000
 
 export interface WorkspaceStorageTransferOptions {
+  mode?: 'copy' | 'move'
+  /** Caller must exclude source cookie writers throughout cleanup. Defaults to false. */
+  allowCookieCleanup?: boolean
+  /** Caller must exclude source document writers throughout cleanup. Defaults to false. */
+  allowLocalStorageCleanup?: boolean
   sourcePartition: string
   targetPartition: string
   origins: string[]
@@ -20,6 +25,11 @@ export interface WorkspaceStorageTransferOptions {
 }
 
 export interface WorkspaceStorageTransferResult {
+  cleanupStatus?: 'complete' | 'incomplete'
+  removedCookieCount?: number
+  removedLocalStorageItemCount?: number
+  retainedCookieCount?: number
+  retainedLocalStorageItemCount?: number
   cookieCount: number
   localStorageOriginCount: number
   localStorageItemCount: number
@@ -64,6 +74,19 @@ function cookieIdentity(cookie: Cookie): string {
   return `${cookie.domain ?? ''}\u0000${cookie.path ?? '/'}\u0000${cookie.name}`
 }
 
+function sameCookie(first: Cookie | undefined, second: Cookie): boolean {
+  return first !== undefined && cookieIdentity(first) === cookieIdentity(second)
+    && first.value === second.value && !!first.hostOnly === !!second.hostOnly
+    && !!first.secure === !!second.secure && !!first.httpOnly === !!second.httpOnly
+    && first.sameSite === second.sameSite && first.expirationDate === second.expirationDate
+}
+
+// Expire an exact domain/path/name identity. cookies.remove(url, name) can match
+// another path or domain and must not be used for selective transfer cleanup.
+async function expireCookie(browserSession: Session, cookie: Cookie): Promise<void> {
+  await browserSession.cookies.set({ ...cookieDetails(cookie), expirationDate: 1 })
+}
+
 function cookieUrl(cookie: Cookie): string {
   const hostname = cookie.domain?.replace(/^\./, '')
   if (!hostname) throw new Error(`Cannot copy cookie ${cookie.name} without a domain`)
@@ -105,6 +128,16 @@ async function cookiesForTransfer(
   return [...cookies.values()]
 }
 
+async function storageDeadline<T>(operation: Promise<T>, stage: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined
+  try {
+    return await Promise.race([operation, new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(`Workspace storage ${stage} timed out`)), STORAGE_TRANSFER_TIMEOUT_MS)
+      timer.unref()
+    })])
+  } finally { if (timer) clearTimeout(timer) }
+}
+
 class LocalStorageSurface {
   private readonly view: WebContentsView
   private readonly webContents: WebContents
@@ -114,6 +147,7 @@ class LocalStorageSurface {
     this.view = new WebContentsView({
       webPreferences: {
         partition,
+        backgroundThrottling: false,
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
@@ -151,9 +185,14 @@ class LocalStorageSurface {
   }
 
   async initialize(): Promise<void> {
-    await this.webContents.debugger.sendCommand('Fetch.enable', {
+    // Network-domain commands need an initialized renderer. Bootstrap a safe
+    // opaque page before applying bypass, without contacting a website.
+    await storageDeadline(this.webContents.loadURL('about:blank'), 'renderer initialization')
+    // Storage probes must not wake a site's service worker or run its fetch handler.
+    await storageDeadline(this.webContents.debugger.sendCommand('Network.setBypassServiceWorker', { bypass: true }), 'worker bypass')
+    await storageDeadline(this.webContents.debugger.sendCommand('Fetch.enable', {
       patterns: [{ urlPattern: '*', resourceType: 'Document', requestStage: 'Request' }]
-    })
+    }), 'interception setup')
   }
 
   async loadOrigin(origin: string): Promise<void> {
@@ -168,33 +207,50 @@ class LocalStorageSurface {
       this.pendingRequest = { resolve, reject, timer }
     })
     await Promise.all([
-      this.webContents.loadURL(`${origin}/.well-known/hronaut-workspace-storage-${randomUUID()}`),
+      storageDeadline(this.webContents.loadURL(`${origin}/.well-known/hronaut-workspace-storage-${randomUUID()}`), 'origin load'),
       intercepted
     ])
   }
 
+  private executeScript(script: string): Promise<unknown> {
+    return storageDeadline(this.webContents.executeJavaScript(script, true), 'script execution')
+  }
+
   async read(): Promise<Array<[string, string]>> {
-    return this.webContents.executeJavaScript(`(() => {
+    return this.executeScript(`(() => {
       const items = [];
       for (let index = 0; index < localStorage.length; index += 1) {
         const key = localStorage.key(index);
         if (key !== null) items.push([key, localStorage.getItem(key) ?? '']);
       }
       return items;
-    })()`, true) as Promise<Array<[string, string]>>
+    })()`) as Promise<Array<[string, string]>>
   }
 
   async merge(items: Array<[string, string]>): Promise<void> {
-    await this.webContents.executeJavaScript(`(() => {
+    await this.executeScript(`(() => {
       for (const [key, value] of ${JSON.stringify(items)}) localStorage.setItem(key, value);
-    })()`, true)
+    })()`)
+  }
+
+  async removeUnchanged(items: Array<[string, string]>): Promise<number> {
+    return this.executeScript(`(() => {
+      let removed = 0;
+      for (const [key, value] of ${JSON.stringify(items)}) {
+        if (localStorage.getItem(key) === null) { removed += 1; continue; }
+        if (localStorage.getItem(key) !== value) continue;
+        localStorage.removeItem(key);
+        if (localStorage.getItem(key) === null) removed += 1;
+      }
+      return removed;
+    })()`) as Promise<number>
   }
 
   async restore(entry: LocalStorageRollbackEntry): Promise<void> {
-    await this.webContents.executeJavaScript(`(() => {
+    await this.executeScript(`(() => {
       for (const key of ${JSON.stringify(entry.keys)}) localStorage.removeItem(key);
       for (const [key, value] of ${JSON.stringify(entry.previous)}) localStorage.setItem(key, value);
-    })()`, true)
+    })()`)
   }
 
   close(): void {
@@ -210,6 +266,7 @@ class LocalStorageSurface {
 export async function transferWorkspaceStorage(
   options: WorkspaceStorageTransferOptions
 ): Promise<WorkspaceStorageTransferResult> {
+  if (options.mode !== undefined && options.mode !== 'copy' && options.mode !== 'move') throw new TypeError('Invalid workspace storage transfer mode')
   if (options.sourcePartition === options.targetPartition) {
     throw new Error('Source and target workspace storage must be different')
   }
@@ -223,6 +280,7 @@ export async function transferWorkspaceStorage(
   const cookieIdentities = new Set(cookies.map(cookieIdentity))
   const previousCookies = (await target.cookies.get({})).filter((cookie) => cookieIdentities.has(cookieIdentity(cookie)))
   const localStorageRollback: LocalStorageRollbackEntry[] = []
+  const capturedLocalStorage: Array<{ origin: string; items: Array<[string, string]> }> = []
   let localStorageOriginCount = 0
   let localStorageItemCount = 0
   try {
@@ -237,6 +295,7 @@ export async function transferWorkspaceStorage(
           await Promise.all([sourceSurface.loadOrigin(origin), targetSurface.loadOrigin(origin)])
           const items = await sourceSurface.read()
           if (!items.length) continue
+          capturedLocalStorage.push({ origin, items })
           const targetItems = new Map(await targetSurface.read())
           const keys = items.map(([key]) => key)
           localStorageRollback.push({
@@ -254,11 +313,22 @@ export async function transferWorkspaceStorage(
       }
     }
     await flushBrowserSessionStorage(target)
-    return {
-      cookieCount: cookies.length,
-      localStorageOriginCount,
-      localStorageItemCount,
-      origins
+    const copiedCookies = new Map((await target.cookies.get({})).map((cookie) => [cookieIdentity(cookie), cookie]))
+    if (cookies.some((cookie) => !sameCookie(copiedCookies.get(cookieIdentity(cookie)), cookie))) {
+      throw new Error('Workspace cookie copy verification failed. Source data was not removed.')
+    }
+    if (capturedLocalStorage.length) {
+      const targetSurface = new LocalStorageSurface(options.targetPartition)
+      try {
+        await targetSurface.initialize()
+        for (const entry of capturedLocalStorage) {
+          await targetSurface.loadOrigin(entry.origin)
+          const copied = new Map(await targetSurface.read())
+          if (entry.items.some(([key, value]) => copied.get(key) !== value)) {
+            throw new Error('Workspace local storage copy verification failed. Source data was not removed.')
+          }
+        }
+      } finally { targetSurface.close() }
     }
   } catch (transferError) {
     const rollbackErrors: unknown[] = []
@@ -282,7 +352,7 @@ export async function transferWorkspaceStorage(
     }
     for (const cookie of cookies) {
       try {
-        await target.cookies.remove(cookieUrl(cookie), cookie.name)
+        await expireCookie(target, cookie)
       } catch (error) {
         rollbackErrors.push(error)
       }
@@ -307,6 +377,71 @@ export async function transferWorkspaceStorage(
     }
     throw transferError
   }
+  const result: WorkspaceStorageTransferResult = {
+    cookieCount: cookies.length, localStorageOriginCount, localStorageItemCount, origins
+  }
+  if (options.mode !== 'move') return result
+
+  // Destination has been flushed and verified. Cleanup is deliberately outside
+  // the copy rollback: a cleanup failure must never destroy the verified copy.
+  let removedCookieCount = 0
+  let removedLocalStorageItemCount = 0
+  let cleanupFailed = false
+  if (options.allowCookieCleanup) {
+    for (const cookie of cookies) {
+      try {
+        const current = (await source.cookies.get({})).find((entry) => cookieIdentity(entry) === cookieIdentity(cookie))
+        if (!current) { removedCookieCount += 1; continue }
+        if (!sameCookie(current, cookie)) continue
+        await expireCookie(source, cookie)
+        if (!(await source.cookies.get({})).some((entry) => cookieIdentity(entry) === cookieIdentity(cookie))) removedCookieCount += 1
+      } catch { cleanupFailed = true }
+    }
+  }
+  if (options.allowLocalStorageCleanup && capturedLocalStorage.length) {
+    let sourceSurface: LocalStorageSurface | undefined
+    try {
+      sourceSurface = new LocalStorageSurface(options.sourcePartition)
+      await sourceSurface.initialize()
+      for (const entry of capturedLocalStorage) {
+        try {
+          await sourceSurface.loadOrigin(entry.origin)
+          removedLocalStorageItemCount += await sourceSurface.removeUnchanged(entry.items)
+        } catch { cleanupFailed = true }
+      }
+    } catch { cleanupFailed = true } finally { sourceSurface?.close() }
+  }
+  try { await flushBrowserSessionStorage(source) } catch { cleanupFailed = true }
+  // Confirm the final cleanup state after flushing. A page/session that writes
+  // again must be reported as retained, not as a complete Move.
+  if (options.allowCookieCleanup) {
+    try {
+      const remaining = new Set((await source.cookies.get({})).map(cookieIdentity))
+      removedCookieCount = cookies.filter((cookie) => !remaining.has(cookieIdentity(cookie))).length
+    } catch { cleanupFailed = true }
+  }
+  if (options.allowLocalStorageCleanup && capturedLocalStorage.length) {
+    let sourceSurface: LocalStorageSurface | undefined
+    try {
+      sourceSurface = new LocalStorageSurface(options.sourcePartition)
+      await sourceSurface.initialize()
+      let confirmedRemoved = 0
+      for (const entry of capturedLocalStorage) {
+        await sourceSurface.loadOrigin(entry.origin)
+        const remaining = new Map(await sourceSurface.read())
+        confirmedRemoved += entry.items.filter(([key]) => !remaining.has(key)).length
+      }
+      removedLocalStorageItemCount = confirmedRemoved
+    } catch { cleanupFailed = true } finally { sourceSurface?.close() }
+  }
+  const retainedCookieCount = cookies.length - removedCookieCount
+  const retainedLocalStorageItemCount = localStorageItemCount - removedLocalStorageItemCount
+  return {
+    ...result,
+    cleanupStatus: cleanupFailed || retainedCookieCount || retainedLocalStorageItemCount ? 'incomplete' : 'complete',
+    removedCookieCount, removedLocalStorageItemCount, retainedCookieCount, retainedLocalStorageItemCount
+  }
+
 }
 
 export async function destroyWorkspaceStorage(

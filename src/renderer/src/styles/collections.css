@@ -570,3 +570,9 @@
 .tab-group-editor > footer button.primary { @apply inline-flex items-center justify-center [gap:6px] border-accent [color:#fff] bg-accent; }
 .tab-group-editor > footer button.primary > svg { @apply [width:15px] [height:15px] flex-none; }
 .tab-group-editor > footer button:disabled { @apply [opacity:.4] cursor-default; }
+
+.workspace-transfer-fields { @apply grid [gap:8px]; }
+.workspace-transfer-fields select { @apply w-full min-w-0 [padding:9px] [border:1px_solid_var(--border-soft)] [border-radius:8px] bg-surface text-copy; }
+.workspace-transfer-fields small, .workspace-transfer-help { @apply [margin:0] text-muted [font-size:12px] [line-height:1.5]; }
+
+.workspace-storage-section > output.warning { @apply [color:var(--warning)]; }

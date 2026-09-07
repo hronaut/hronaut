@@ -8,7 +8,8 @@ import type {
   BrowserWorkspaceCreateOptions,
   BrowserWorkspaceNavigationAuditEntry,
   BrowserWorkspaceNavigationPolicy,
-  BrowserWorkspaceStorageTransferOptions
+  BrowserWorkspaceStorageTransferOptions,
+  BrowserWorkspaceStorageTransferResult
 } from '../../src/shared/types.js'
 
 function deferred<Value>() {
@@ -72,9 +73,9 @@ function createController(initialState = browserState()) {
     listWorkspaceStorageOrigins: vi.fn(async (id: string) => id === 'default'
       ? ['https://default.example', 'https://shared.example']
       : ['https://agent.example']),
-    transferWorkspaceStorage: vi.fn(async (options: BrowserWorkspaceStorageTransferOptions) => ({
-      workspaceId: options.workspaceId,
-      direction: options.direction,
+    transferWorkspaceStorage: vi.fn(async (options: BrowserWorkspaceStorageTransferOptions): Promise<BrowserWorkspaceStorageTransferResult> => ({
+      workspaceId: 'workspaceId' in options ? options.workspaceId : options.targetWorkspaceId,
+      direction: 'direction' in options ? options.direction : 'from-default',
       cookieCount: 2,
       localStorageOriginCount: 1,
       localStorageItemCount: 3,
@@ -99,6 +100,145 @@ function createController(initialState = browserState()) {
 }
 
 describe('workspace editor controller', () => {
+  it('forks any active workspace with independent direct agent access and selected data', async () => {
+    const { controller, browser } = createController()
+    await controller.openNew()
+    controller.storageMode.value = 'fork-workspace'
+    controller.sourceWorkspaceId.value = 'agent'
+    await vi.waitFor(() => expect(controller.originOptions.value).toEqual(['https://agent.example']))
+    controller.agentAccess.value = false
+    await controller.save()
+    expect(browser.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({
+      storage: 'fork-workspace', sourceWorkspaceId: 'agent', agentAccess: false, origins: undefined
+    }))
+    expect(browser.createWorkspace.mock.calls[0][0]).not.toHaveProperty('tabs')
+  })
+
+  it('keeps direct agent access editable and defaults legacy workspaces to allowed', async () => {
+    const { controller, browser, state } = createController()
+    await controller.openExisting('agent')
+    expect(controller.agentAccess.value).toBe(true)
+    controller.agentAccess.value = false
+    await controller.save()
+    expect(browser.updateTabGroup).toHaveBeenCalledWith('agent', expect.objectContaining({ agentAccess: false }))
+    state.value.mcpTabGroups[1].agentAccess = false
+    await controller.openExisting('agent')
+    expect(controller.agentAccess.value).toBe(false)
+    await controller.openNew()
+    expect(controller.agentAccess.value).toBe(true)
+  })
+
+  it('blocks transfers while source inventory is loading and rejects a same or missing destination', async () => {
+    const { controller, browser, state } = createController()
+    await controller.openExisting('agent')
+    const pending = deferred<string[]>()
+    browser.listWorkspaceStorageOrigins.mockReturnValueOnce(pending.promise)
+    controller.sourceWorkspaceId.value = 'agent'
+    controller.targetWorkspaceId.value = 'default'
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+    pending.resolve(['https://agent.example'])
+    await vi.waitFor(() => expect(controller.storageState.value).toBe('idle'))
+    controller.targetWorkspaceId.value = 'agent'
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+    controller.targetWorkspaceId.value = 'default'
+    state.value.mcpTabGroups = state.value.mcpTabGroups.filter(group => group.id !== 'default')
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+  })
+
+  it('requires confirmation before moving data and preserves incomplete cleanup feedback', async () => {
+    const { controller, browser, confirm, state } = createController()
+    state.value.savedTabGroups = [{ id: 'archived', name: 'Archived workspace', color: 'purple', savedAt: '',
+      storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] },
+    { id: 'archived-target', name: 'Archived destination', color: 'blue', savedAt: '',
+      storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }]
+    await controller.openExisting('agent')
+    controller.sourceWorkspaceId.value = 'archived'
+    controller.targetWorkspaceId.value = 'archived-target'
+    await vi.waitFor(() => expect(controller.storageState.value).toBe('idle'))
+    controller.transferMode.value = 'move'
+    confirm.mockReturnValueOnce(false)
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+    browser.transferWorkspaceStorage.mockResolvedValueOnce({ workspaceId: 'agent', direction: 'from-default',
+      cookieCount: 2, localStorageOriginCount: 1, localStorageItemCount: 3, origins: [], cleanupStatus: 'incomplete' })
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({ sourceWorkspaceId: 'archived', targetWorkspaceId: 'archived-target', mode: 'move', origins: undefined })
+    expect(controller.storageState.value).toBe('warning')
+    expect(controller.storageMessage.value).toContain('workspaceEditor.moveIncomplete')
+    expect(controller.storageMessage.value).not.toContain('workspaceEditor.moved')
+    expect(browser.listWorkspaceStorageOrigins).toHaveBeenCalledTimes(3)
+  })
+
+  it('blocks moves from active sources but permits copying the same data', async () => {
+    const { controller, browser } = createController()
+    await controller.openExisting('agent')
+    controller.transferMode.value = 'move'
+    await controller.transferStorage()
+    expect(controller.transferDisabled.value).toBe(true)
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+    controller.transferMode.value = 'copy'
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledOnce()
+  })
+
+  it('opens standalone transfer controls with only archived workspaces and never creates a dummy workspace', async () => {
+    const { controller, browser, state, open } = createController()
+    state.value.mcpTabGroups = []
+    state.value.savedTabGroups = ['source', 'target'].map(id => ({ id, name: id, color: 'purple', savedAt: '',
+      storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }))
+    await controller.openTransfer()
+    expect(open.value).toBe(true)
+    expect(controller.mode.value).toBe('transfer')
+    expect(controller.workspaceId.value).toBeNull()
+    controller.transferMode.value = 'move'
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({ sourceWorkspaceId: 'source', targetWorkspaceId: 'target', mode: 'move', origins: undefined })
+    expect(browser.createWorkspace).not.toHaveBeenCalled()
+    expect(browser.updateTabGroup).not.toHaveBeenCalled()
+  })
+
+  it('shows a standalone transfer initialization error without allowing stale data operations', async () => {
+    const { controller, browser, open } = createController()
+    await controller.openExisting('agent')
+    controller.close()
+    browser.getState.mockRejectedValueOnce(new Error('Workspace state unavailable'))
+    await controller.openTransfer()
+    expect(open.value).toBe(true)
+    expect(controller.mode.value).toBe('transfer')
+    expect(controller.error.value).toBe('Workspace state unavailable')
+    expect(controller.transferDisabled.value).toBe(true)
+    await controller.transferStorage()
+    expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
+  })
+
+  it('allows renaming and closing a legacy Default workspace', async () => {
+    const { controller, browser } = createController()
+    await controller.openExisting('default')
+    controller.name.value = 'Personal browsing'
+    await controller.save()
+    expect(browser.updateTabGroup).toHaveBeenCalledWith('default', expect.objectContaining({ name: 'Personal browsing' }))
+    await controller.openExisting('default')
+    await controller.closeWorkspace()
+    expect(browser.closeWorkspace).toHaveBeenCalledWith('default')
+  })
+
+  it('uses the latest source inventory when an earlier source load finishes late', async () => {
+    const { controller, browser } = createController()
+    const pending = deferred<string[]>()
+    browser.listWorkspaceStorageOrigins.mockReturnValueOnce(pending.promise)
+    const opening = controller.openNew()
+    controller.storageMode.value = 'fork-workspace'
+    controller.sourceWorkspaceId.value = 'agent'
+    await vi.waitFor(() => expect(controller.originOptions.value).toEqual(['https://agent.example']))
+    pending.resolve(['https://stale.example'])
+    await opening
+    expect(controller.originOptions.value).toEqual(['https://agent.example'])
+    expect(controller.selectedOrigins.value).toEqual(['https://agent.example'])
+  })
+
   it('suggests a fresh editable name once per new dialog and preserves edits through async loading', async () => {
     const { state, browser, controller } = createController()
     const pendingOrigins = deferred<string[]>()
@@ -297,6 +437,7 @@ describe('workspace editor controller', () => {
       name: 'Focused fork',
       color: 'purple',
       storage: 'fork-default',
+      agentAccess: true,
       origins: ['https://shared.example'],
       navigationPolicy: { mode: 'unrestricted', rules: [] }
     })
@@ -317,8 +458,9 @@ describe('workspace editor controller', () => {
     await controller.transferStorage()
 
     expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({
-      workspaceId: 'agent',
-      direction: 'to-default',
+      sourceWorkspaceId: 'agent',
+      targetWorkspaceId: 'default',
+      mode: 'copy',
       origins: undefined
     })
     expect(controller.storageState.value).toBe('saved')

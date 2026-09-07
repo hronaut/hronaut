@@ -96,6 +96,17 @@ function createController() {
 }
 
 describe('useNewTabShellController', () => {
+  it('opens and focuses an automatic workspace tab when the empty rail supplies no group', async () => {
+    const harness = createController()
+    harness.state.value.mcpTabGroups = []
+    await harness.controller.openInWorkspace()
+    expect(harness.browser.newTab).toHaveBeenCalledWith(undefined)
+    expect(harness.focusAddress).toHaveBeenCalledWith('current')
+    expect(harness.expandTabGroup).not.toHaveBeenCalled()
+    expect(harness.settingsOpen.value).toBe(false)
+    expect(harness.tabSearchOpen.value).toBe(false)
+  })
+
   it('focuses and reveals a newly created workspace tab while closing conflicting overlays', async () => {
     const harness = createController()
     const created = {

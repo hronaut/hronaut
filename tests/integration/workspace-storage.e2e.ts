@@ -1,7 +1,15 @@
 import { createServer } from 'node:http'
+import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-test('isolates workspace profiles and explicitly forks or saves data through Default', async ({
+const legacyProfileTest = test.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    await seedLegacyWorkspaceProfile(profileDirectory)
+    await use(profileDirectory)
+  }
+})
+
+legacyProfileTest('isolates workspace profiles and explicitly forks or saves data through Default', async ({
   appWindow,
   electronApp
 }) => {
@@ -40,7 +48,9 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
     const forkUrl = `${origin}/inspect-fork`
     const freshUrl = `${origin}/inspect-fresh`
 
-    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: true })`)
+    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id)`) as string
+    expect(defaultWorkspaceId).toBeTruthy()
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: true, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === url)
     ), defaultUrl)).toBe(true)
@@ -50,7 +60,7 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
       await contents.executeJavaScript("localStorage.setItem('workspace-key', 'default-value')")
     }, defaultUrl)
 
-    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(secondaryDefaultUrl)}, active: true })`)
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(secondaryDefaultUrl)}, active: true, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === url)
     ), secondaryDefaultUrl)).toBe(true)
@@ -60,7 +70,6 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
       await contents.executeJavaScript("localStorage.setItem('secondary-key', 'secondary-default')")
     }, secondaryDefaultUrl)
 
-    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id)`) as string
     const scratchState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Scratch isolation', storage: 'scratch' })`) as {
       activeTabId: string
       mcpTabGroups: Array<{ id: string; name: string; storageKind: string }>
@@ -225,7 +234,8 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
     })
     const transferEditor = appWindow.getByRole('dialog', { name: 'Edit workspace' })
     await expect(transferEditor.getByText(secondaryOrigin, { exact: true })).toBeVisible()
-    await transferEditor.getByRole('radio', { name: 'Save to Default' }).click()
+    await transferEditor.getByLabel('Source workspace', { exact: true }).selectOption(directionWorkspace.id)
+    await transferEditor.getByLabel('Destination workspace', { exact: true }).selectOption(defaultWorkspaceId)
     await expect(transferEditor.getByText(secondaryOrigin, { exact: true })).toBeHidden()
     await expect(transferEditor.getByText(origin, { exact: true })).toBeVisible()
     await transferEditor.getByRole('button', { name: 'Cancel' }).click()
@@ -282,11 +292,11 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
         (globalThis as typeof globalThis & { __workspaceTransferStarted?: boolean }).__workspaceTransferStarted
       ))).toBe(true)
       const closeWhileCopying = await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(forkWorkspace.id)}).then(() => 'closed', (error) => String(error.message ?? error))`)
-      expect(closeWhileCopying).toContain('is busy copying workspace storage')
+      expect(closeWhileCopying).toContain('is busy copying workspace data')
       const secondCopy = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ workspaceId: ${JSON.stringify(forkWorkspace.id)}, direction: 'to-default' }).then(() => 'copied', (error) => String(error.message ?? error))`)
-      expect(secondCopy).toContain('Workspace storage is busy copying workspace storage')
+      expect(secondCopy).toContain('Workspace storage is busy copying workspace data')
       const forkWhileCopying = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Blocked fork', storage: 'fork-default' }).then(() => 'created', (error) => String(error.message ?? error))`)
-      expect(forkWhileCopying).toContain('Workspace storage is busy copying workspace storage')
+      expect(forkWhileCopying).toContain('Workspace storage is busy copying workspace data')
       await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.some((workspace) => workspace.name === 'Blocked fork'))`)).toBe(false)
       const tabOpenedWhileCopying = await appWindow.evaluate(`window.hronaut.newTab({ url: 'about:blank', active: false, mcpGroupId: ${JSON.stringify(forkWorkspace.id)} })`) as {
         mcpTabGroups: Array<{ id: string; tabCount: number }>
@@ -328,8 +338,27 @@ test('isolates workspace profiles and explicitly forks or saves data through Def
     expect(defaultData.localStorage).toBe('saved-from-fork')
     expect(defaultData.cookies).toContain('fork-only=saved')
 
-    const defaultClose = await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(defaultWorkspaceId)}).then(() => 'closed', (error) => String(error.message ?? error))`)
-    expect(defaultClose).toContain('Default workspace cannot be closed or deleted')
+    await electronApp.evaluate(({ webContents }, url) => {
+      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)
+      if (!contents) throw new Error('Legacy workspace source must still exist before deletion')
+      ;(globalThis as typeof globalThis & { __legacyWorkspaceSession?: Electron.Session }).__legacyWorkspaceSession = contents.session
+    }, defaultUrl)
+    await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(defaultWorkspaceId)})`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.mcpTabGroups.some(group => group.id === ${JSON.stringify(defaultWorkspaceId)}))`)).toBe(false)
+    const deletedLegacyData = await electronApp.evaluate(async ({ WebContentsView }, url) => {
+      const globals = globalThis as typeof globalThis & { __legacyWorkspaceSession?: Electron.Session }
+      const browserSession = globals.__legacyWorkspaceSession
+      if (!browserSession) throw new Error('Legacy workspace session was not retained for deletion verification')
+      const view = new WebContentsView({ webPreferences: { session: browserSession, sandbox: true, contextIsolation: true } })
+      try {
+        await view.webContents.loadURL(url)
+        return { cookies: await browserSession.cookies.get({}), localStorage: await view.webContents.executeJavaScript("localStorage.getItem('workspace-key')") }
+      } finally {
+        view.webContents.close()
+        delete globals.__legacyWorkspaceSession
+      }
+    }, `${origin}/inspect-deleted-legacy`)
+    expect(deletedLegacyData).toEqual({ cookies: [], localStorage: null })
 
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(forkWorkspace.id)})`)
     const freshState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Fresh after close', storage: 'scratch' })`) as { activeTabId: string }
@@ -456,7 +485,7 @@ test('restores the only workspace without leaving a phantom Default tab when pro
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(workspaceId)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => ({ tabCount: state.tabs.length, workspaceCount: state.mcpTabGroups.length }))')).toEqual({
       tabCount: 1,
-      workspaceCount: 1
+      workspaceCount: 0
     })
   } finally {
     await closeFixtureServer(server)

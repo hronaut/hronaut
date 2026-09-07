@@ -1,3 +1,4 @@
+import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
@@ -280,6 +281,7 @@ test('waits for an in-flight workspace storage transfer before exiting', async (
   profileDirectory,
   mcpPort
 }) => {
+  await seedLegacyWorkspaceProfile(profileDirectory)
   const cookieUrl = 'https://shutdown-transfer.example/'
   const cookieName = 'shutdown-transfer-cookie'
   const tabsPath = join(profileDirectory, 'tabs.json')

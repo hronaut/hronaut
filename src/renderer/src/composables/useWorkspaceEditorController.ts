@@ -35,16 +35,20 @@ export interface WorkspaceEditorControllerOptions {
 }
 
 export function useWorkspaceEditorController(options: WorkspaceEditorControllerOptions) {
-  const mode = ref<'create' | 'edit'>('edit')
+  const mode = ref<'create' | 'edit' | 'transfer'>('edit')
   const workspaceId = ref<string | null>(null)
   const name = ref('')
   const color = ref<BrowserTabGroupColor>('purple')
   const error = ref('')
-  const storageMode = ref<'scratch' | 'fork-default'>('scratch')
+  const storageMode = ref<'scratch' | 'fork-default' | 'fork-workspace'>('scratch')
+  const sourceWorkspaceId = ref('')
+  const targetWorkspaceId = ref('')
+  const transferMode = ref<'copy' | 'move'>('copy')
+  const agentAccess = ref(true)
   const transferDirection = ref<'from-default' | 'to-default'>('from-default')
   const originOptions = ref<string[]>([])
   const selectedOrigins = ref<string[]>([])
-  const storageState = ref<'idle' | 'loading' | 'saving' | 'saved' | 'error'>('idle')
+  const storageState = ref<'idle' | 'loading' | 'saving' | 'saved' | 'warning' | 'error'>('idle')
   const storageMessage = ref('')
   const actionState = ref<'idle' | 'saving' | 'closing'>('idle')
   const navigationMode = ref<BrowserWorkspaceNavigationPolicy['mode']>('unrestricted')
@@ -57,6 +61,15 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   let lastSuggestedName = ''
 
   const workspace = computed(() => options.state.value.mcpTabGroups.find((candidate) => candidate.id === workspaceId.value))
+  const availableWorkspaces = computed(() => [
+    ...options.state.value.mcpTabGroups.map(group => ({ ...group, archived: false })),
+    ...options.state.value.savedTabGroups.map(group => ({ ...group, archived: true }))
+  ])
+  const targetWorkspaces = availableWorkspaces
+  const targetArchived = computed(() => availableWorkspaces.value.find(group => group.id === targetWorkspaceId.value)?.archived === true)
+  const sourceArchived = computed(() => availableWorkspaces.value.find(group => group.id === sourceWorkspaceId.value)?.archived === true)
+  const validSource = computed(() => availableWorkspaces.value.some(group => group.id === sourceWorkspaceId.value))
+  const validTarget = computed(() => targetWorkspaces.value.some(group => group.id === targetWorkspaceId.value))
   const isDefault = computed(() => workspace.value?.isDefault === true)
   const actionPending = computed(() => actionState.value !== 'idle')
   const dismissBlocked = computed(() => actionPending.value || storageState.value === 'saving')
@@ -65,9 +78,13 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     || !name.value.trim()
     || (navigationMode.value === 'restricted' && navigationRules().length === 0)
     || (mode.value === 'create'
-      && storageMode.value === 'fork-default'
-      && (storageState.value === 'loading' || storageState.value === 'error'))
+      && storageMode.value !== 'scratch'
+      && (!validSource.value || storageState.value === 'loading' || storageState.value === 'error'))
   ))
+
+  const transferDisabled = computed(() => dismissBlocked.value || storageState.value === 'loading' || storageState.value === 'error'
+    || !validSource.value || !validTarget.value || sourceWorkspaceId.value === targetWorkspaceId.value
+    || (transferMode.value === 'move' && (!sourceArchived.value || !targetArchived.value)))
 
   function beginPresentation(): number {
     presentationGeneration += 1
@@ -97,10 +114,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   }
 
   async function loadOrigins(browserState = options.state.value): Promise<void> {
-    const defaultWorkspace = browserState.mcpTabGroups.find((candidate) => candidate.isDefault)
-    const sourceId = mode.value === 'create' || transferDirection.value === 'from-default'
-      ? defaultWorkspace?.id
-      : workspaceId.value ?? undefined
+    const sourceId = [...browserState.mcpTabGroups, ...browserState.savedTabGroups].find(candidate => candidate.id === sourceWorkspaceId.value)?.id
     if (!sourceId) {
       originLoader.invalidate()
       originOptions.value = []
@@ -142,18 +156,20 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     workspaceId.value = id
     name.value = group.name
     color.value = group.color
+    agentAccess.value = group.agentAccess !== false
     navigationMode.value = group.navigationPolicy.mode
     navigationRulesText.value = group.navigationPolicy.rules.join('\n')
     navigationAudit.value = []
-    navigationAuditState.value = group.isDefault ? 'idle' : 'loading'
+    navigationAuditState.value = 'loading'
     error.value = ''
     suppressDirectionReload = true
     transferDirection.value = 'from-default'
+    transferMode.value = 'copy'
+    sourceWorkspaceId.value = next.mcpTabGroups.find(candidate => candidate.id !== id)?.id ?? ''
+    targetWorkspaceId.value = id
     suppressDirectionReload = false
     storageMessage.value = ''
-    const auditPromise = group.isDefault
-      ? Promise.resolve()
-      : options.browser.listWorkspaceNavigationAudit(id)
+    const auditPromise = options.browser.listWorkspaceNavigationAudit(id)
           .then((entries) => {
             if (!isPresentationCurrent(presentation)) return
             navigationAudit.value = entries
@@ -178,6 +194,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     ])
     lastSuggestedName = name.value
     color.value = 'purple'
+    agentAccess.value = true
     navigationMode.value = 'unrestricted'
     navigationRulesText.value = ''
     navigationAudit.value = []
@@ -186,9 +203,50 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     storageMode.value = 'scratch'
     suppressDirectionReload = true
     transferDirection.value = 'from-default'
+    transferMode.value = 'copy'
+    sourceWorkspaceId.value = options.state.value.mcpTabGroups.find(group => group.isDefault)?.id
+      ?? availableWorkspaces.value[0]?.id ?? ''
+    targetWorkspaceId.value = ''
     suppressDirectionReload = false
     storageMessage.value = ''
     await loadOrigins()
+  }
+
+  async function openTransfer(): Promise<void> {
+    const presentation = beginPresentation()
+    options.open.value = false
+    let next: BrowserState
+    try {
+      next = await options.browser.getState()
+    } catch (cause) {
+      if (!isPresentationCurrent(presentation) || !options.canPresent()) return
+      mode.value = 'transfer'
+      workspaceId.value = null
+      sourceWorkspaceId.value = ''
+      targetWorkspaceId.value = ''
+      storageState.value = 'error'
+      storageMessage.value = ''
+      error.value = cause instanceof Error ? cause.message : String(cause)
+      options.open.value = true
+      return
+    }
+    if (!isPresentationCurrent(presentation)) return
+    await options.syncState(next)
+    if (!isPresentationCurrent(presentation) || !options.canPresent()) return
+    mode.value = 'transfer'
+    workspaceId.value = null
+    name.value = ''
+    error.value = ''
+    storageState.value = 'idle'
+    storageMessage.value = ''
+    transferMode.value = 'copy'
+    suppressDirectionReload = true
+    sourceWorkspaceId.value = next.savedTabGroups[0]?.id ?? availableWorkspaces.value[0]?.id ?? ''
+    targetWorkspaceId.value = next.savedTabGroups.find(group => group.id !== sourceWorkspaceId.value)?.id
+      ?? availableWorkspaces.value.find(group => group.id !== sourceWorkspaceId.value)?.id ?? ''
+    suppressDirectionReload = false
+    options.open.value = true
+    await loadOrigins(next)
   }
 
   function transferOrigins(): string[] | undefined {
@@ -231,13 +289,16 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           name: name.value,
           color: color.value,
           storage: storageMode.value,
-          ...(storageMode.value === 'fork-default' ? { origins: transferOrigins() } : {}),
+          ...(storageMode.value !== 'scratch' ? { origins: transferOrigins() } : {}),
+          ...(storageMode.value === 'fork-workspace' ? { sourceWorkspaceId: sourceWorkspaceId.value } : {}),
+          agentAccess: agentAccess.value,
           navigationPolicy: navigationPolicy()
         }))
       } else if (currentWorkspaceId) {
         const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
-          color: color.value
+          color: color.value,
+          agentAccess: agentAccess.value
         })
         if (!isPresentationCurrent(presentation)) return
         const currentPolicy = workspace.value?.navigationPolicy
@@ -258,18 +319,24 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   }
 
   async function transferStorage(): Promise<void> {
-    if (!workspaceId.value || storageState.value === 'saving' || actionPending.value) return
+    if ((mode.value !== 'transfer' && !workspaceId.value) || transferDisabled.value) return
     const presentation = presentationGeneration
-    const currentWorkspaceId = workspaceId.value
-    const currentDirection = transferDirection.value
+    const currentSource = sourceWorkspaceId.value
+    const currentTarget = targetWorkspaceId.value
+    const currentMode = transferMode.value
+    if (currentMode === 'move' && !options.confirm(options.translate('workspaceEditor.moveConfirm', {
+      source: availableWorkspaces.value.find(group => group.id === currentSource)!.name,
+      target: availableWorkspaces.value.find(group => group.id === currentTarget)!.name
+    }))) return
     const currentOrigins = transferOrigins()
     storageState.value = 'saving'
     storageMessage.value = ''
     let result: Awaited<ReturnType<WorkspaceEditorBrowserApi['transferWorkspaceStorage']>>
     try {
       result = await options.browser.transferWorkspaceStorage({
-        workspaceId: currentWorkspaceId,
-        direction: currentDirection,
+        sourceWorkspaceId: currentSource,
+        targetWorkspaceId: currentTarget,
+        mode: currentMode,
         origins: currentOrigins
       })
     } catch (cause) {
@@ -279,7 +346,9 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       return
     }
     if (!isPresentationCurrent(presentation)) return
-    const successMessage = options.translate('runtimeActions.workspace.copied', {
+    const successMessage = options.translate(result.cleanupStatus === 'incomplete'
+      ? 'workspaceEditor.moveIncomplete'
+      : currentMode === 'move' ? 'workspaceEditor.moved' : 'runtimeActions.workspace.copied', {
       cookies: options.formatNumber(result.cookieCount),
       items: options.formatNumber(result.localStorageItemCount)
     })
@@ -290,13 +359,21 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       // report the already-completed operation as failed.
     }
     if (!isPresentationCurrent(presentation)) return
-    storageState.value = 'saved'
+    if (currentMode === 'move') {
+      const refreshed = await originLoader.load(currentSource)
+      if (!isPresentationCurrent(presentation)) return
+      if (refreshed.status === 'ready') {
+        originOptions.value = refreshed.origins
+        selectedOrigins.value = [...refreshed.origins]
+      }
+    }
+    storageState.value = result.cleanupStatus === 'incomplete' ? 'warning' : 'saved'
     storageMessage.value = successMessage
   }
 
   async function closeWorkspace(): Promise<void> {
     const current = workspace.value
-    if (!current || current.isDefault || actionPending.value || storageState.value === 'saving') return
+    if (!current || actionPending.value || storageState.value === 'saving') return
     if (options.state.value.allHumanInteractionLocked) {
       error.value = options.translate('runtime.workspace.unlock')
       return
@@ -317,7 +394,14 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   }
 
   watch(transferDirection, () => {
-    if (!suppressDirectionReload && options.open.value && mode.value === 'edit') void loadOrigins()
+    if (suppressDirectionReload || !options.open.value || mode.value !== 'edit') return
+    const defaultId = options.state.value.mcpTabGroups.find(group => group.isDefault)?.id ?? ''
+    sourceWorkspaceId.value = transferDirection.value === 'from-default' ? defaultId : workspaceId.value ?? ''
+    targetWorkspaceId.value = transferDirection.value === 'from-default' ? workspaceId.value ?? '' : defaultId
+  }, { flush: 'sync' })
+
+  watch(sourceWorkspaceId, () => {
+    if (!suppressDirectionReload && options.open.value) void loadOrigins()
   }, { flush: 'sync' })
 
   function dispose(): void {
@@ -331,6 +415,15 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     color,
     error,
     storageMode,
+    sourceWorkspaceId,
+    targetWorkspaceId,
+    transferMode,
+    agentAccess,
+    availableWorkspaces,
+    targetWorkspaces,
+    sourceArchived,
+    targetArchived,
+    transferDisabled,
     transferDirection,
     originOptions,
     selectedOrigins,
@@ -348,6 +441,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     isDefault,
     openExisting,
     openNew,
+    openTransfer,
     close,
     save,
     transferStorage,
