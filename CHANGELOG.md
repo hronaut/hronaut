@@ -4,7 +4,7 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [1.13.0] - 2026-09-07
+## [1.13.1] - 2026-09-08
 
 ### Added
 
@@ -19,6 +19,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent agent site-data cleanup from racing workspace copies, archiving, or deletion. Conflicting operations report that the workspace is busy before modifying data.
 - Keep archived workspace metadata recoverable if creating its replacement Home view fails.
 - Bound hidden storage-view initialization and scripts so a stalled renderer cannot hang a workspace transfer indefinitely.
 

@@ -1689,6 +1689,18 @@ export class BrowserTabsManager {
     return browserSession
   }
 
+  async withWorkspaceSiteDataCleanup<T>(
+    workspaceId: string,
+    operation: (browserSession: Session) => Promise<T>
+  ): Promise<T> {
+    return this.withWorkspaceStorageOperation(
+      workspaceId,
+      'clearing website data',
+      () => operation(this.workspaceSession(workspaceId)),
+      true
+    )
+  }
+
   async transferWorkspaceStorage(
     options: BrowserWorkspaceStorageTransferOptions
   ): Promise<BrowserWorkspaceStorageTransferResult> {

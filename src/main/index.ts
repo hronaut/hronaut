@@ -606,33 +606,35 @@ async function clearWorkspaceSiteData(
   dataTypes: SiteDataType[]
 ): Promise<{ origin: string; cleared: SiteDataType[]; remaining: BrowsingDataSiteSummary }> {
   if (!tabsManager || !historyStore) throw new Error('Workspace browser storage is unavailable')
-  const site = await currentBrowsingDataSiteSummary(value, tabsManager.workspaceSession(workspaceId))
-  const browserSession = tabsManager.workspaceSession(workspaceId)
-  const selected = new Set(dataTypes)
-  const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
-  if (selected.has('history')) {
-    await historyStore.clearOrigin(site.origin)
-    publishVisitHistory()
-  }
-  if (selected.has('cookies-and-storage') && selected.has('cache')) {
-    await browserSession.clearData({
-      dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-      ...originScope
-    })
-  } else if (selected.has('cookies-and-storage')) {
-    await browserSession.clearData({
-      dataTypes: ['backgroundFetch', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-      ...originScope
-    })
-    await browserSession.clearStorageData({ storages: ['cachestorage'], origin: site.origin })
-  } else if (selected.has('cache')) {
-    await browserSession.clearData({ dataTypes: ['cache'], ...originScope })
-  }
-  return {
-    origin: site.origin,
-    cleared: dataTypes,
-    remaining: await currentBrowsingDataSiteSummary(site.origin, browserSession)
-  }
+  const store = historyStore
+  return tabsManager.withWorkspaceSiteDataCleanup(workspaceId, async (browserSession) => {
+    const site = await currentBrowsingDataSiteSummary(value, browserSession)
+    const selected = new Set(dataTypes)
+    const originScope = { origins: [site.origin], originMatchingMode: 'origin-in-all-contexts' as const }
+    if (selected.has('history')) {
+      await store.clearOrigin(site.origin)
+      publishVisitHistory()
+    }
+    if (selected.has('cookies-and-storage') && selected.has('cache')) {
+      await browserSession.clearData({
+        dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
+        ...originScope
+      })
+    } else if (selected.has('cookies-and-storage')) {
+      await browserSession.clearData({
+        dataTypes: ['backgroundFetch', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
+        ...originScope
+      })
+      await browserSession.clearStorageData({ storages: ['cachestorage'], origin: site.origin })
+    } else if (selected.has('cache')) {
+      await browserSession.clearData({ dataTypes: ['cache'], ...originScope })
+    }
+    return {
+      origin: site.origin,
+      cleared: dataTypes,
+      remaining: await currentBrowsingDataSiteSummary(site.origin, browserSession)
+    }
+  })
 }
 
 async function currentBrowsingDataWebsites(): Promise<BrowsingDataWebsiteSummary[]> {
