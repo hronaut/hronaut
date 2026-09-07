@@ -59,10 +59,18 @@ test('uses the selected search engine for address-bar and MCP searches', async (
     await expect(searchSettings.getByTestId('search-engine-duckduckgo')).toHaveAttribute('aria-checked', 'true')
     await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).searchEngine).toBe('duckduckgo')
 
-    await electronApp.evaluate(({ session }, localRedirectUrl) => {
+    await appWindow.getByRole('button', { name: 'Close settings' }).click()
+    await expect(settingsButton).toBeFocused()
+    await appWindow.getByRole('button', { name: 'New tab' }).click()
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().filter((contents) => contents.getURL() === 'about:blank').length
+    ))).toBe(1)
+    await electronApp.evaluate(({ webContents }, localRedirectUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === 'about:blank')
+      if (!page) throw new Error('New search tab was not found')
       const globalState = globalThis as typeof globalThis & { __hronautCapturedSearchUrls?: string[] }
       globalState.__hronautCapturedSearchUrls = []
-      session.fromPartition('persist:hronaut').webRequest.onBeforeRequest(
+      page.session.webRequest.onBeforeRequest(
         { urls: ['https://duckduckgo.com/*'] },
         (details, callback) => {
           globalState.__hronautCapturedSearchUrls?.push(details.url)
@@ -71,9 +79,6 @@ test('uses the selected search engine for address-bar and MCP searches', async (
       )
     }, redirectUrl)
 
-    await appWindow.getByRole('button', { name: 'Close settings' }).click()
-    await expect(settingsButton).toBeFocused()
-    await appWindow.getByRole('button', { name: 'New tab' }).click()
     const addressBar = appWindow.getByRole('combobox', { name: 'Address' })
     await addressBar.fill('human search phrase')
     await addressBar.press('Enter')

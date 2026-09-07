@@ -1,7 +1,17 @@
 import { createServer } from 'node:http'
+import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('summarizes and selectively clears browsing data without removing retained profile data', async ({
+// This regression exercises retained legacy-profile data, including explicit
+// cookies planted in persist:hronaut. Fresh workspaces use isolated partitions.
+const legacyProfileTest = test.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    await seedLegacyWorkspaceProfile(profileDirectory)
+    await use(profileDirectory)
+  }
+})
+
+legacyProfileTest('summarizes and selectively clears browsing data without removing retained profile data', async ({
   appWindow,
   electronApp
 }) => {

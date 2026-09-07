@@ -2784,7 +2784,7 @@ test('keeps shell state usable when Electron destroys a tab WebContents independ
     stale: state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})
   }))`)).toMatchObject({
     active: {
-      url: 'about:blank'
+      url: 'hronaut://home/'
     },
     stale: {
       devToolsOpen: false,
@@ -2803,7 +2803,7 @@ test('keeps shell state usable when Electron destroys a tab WebContents independ
     state.tabs.some((tab) => tab.id === ${JSON.stringify(tabId)})
   ))`)).toBe(false)
 
-  const recovery = await appWindow.evaluate(`window.hronaut.newTab({ url: 'about:blank', active: true })`) as BrowserState
+  const recovery = await appWindow.evaluate(`window.hronaut.newTab({ url: 'hronaut://home/', active: true })`) as BrowserState
   expect(recovery.tabs.some((tab) => tab.id === recovery.activeTabId)).toBe(true)
 })
 
@@ -4107,9 +4107,9 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     expect(desktopBounds!.width).toBeGreaterThanOrEqual(desktopViewport.width - 40)
     expect(desktopBounds!.height).toBeGreaterThanOrEqual(desktopViewport.height - 40)
 
-    const researchGroup = overview.getByRole('list', { name: 'Overview Research' })
-    const qaGroup = overview.getByRole('list', { name: 'Overview QA' })
-    const defaultGroup = overview.getByRole('list', { name: initialWorkspaceName, exact: true })
+    const researchGroup = overview.getByRole('list', { name: 'Overview Research 1', exact: true })
+    const qaGroup = overview.getByRole('list', { name: 'Overview QA 1', exact: true })
+    const defaultGroup = overview.getByRole('list', { name: `${initialWorkspaceName} 1`, exact: true })
     await expect(researchGroup).toContainText('Overview sleeping research')
     await expect(qaGroup).toContainText('Overview active QA')
     await expect(defaultGroup).toContainText('Overview default target')
@@ -7066,8 +7066,10 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
     await expect(settingsDialog.getByText(
       'Hronaut will ask where to save each new website download.'
     )).toBeVisible()
-    await electronApp.evaluate(({ session }) => {
-      session.fromPartition('persist:hronaut').once('will-download', (_event, item) => {
+    await electronApp.evaluate(({ webContents }, fixtureUrl) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === fixtureUrl)
+      if (!page) throw new Error('Download fixture web contents was not found')
+      page.session.once('will-download', (_event, item) => {
         ;(globalThis as typeof globalThis & {
           __hronautDownloadDialog?: { savePath: string; defaultPath?: string }
         }).__hronautDownloadDialog = {
@@ -7076,7 +7078,7 @@ test('shows live download progress with cancel, clear, and reveal-in-folder acti
         }
         item.cancel()
       })
-    })
+    }, url)
     await clickPageLink('#complete')
     await expect.poll(() => electronApp.evaluate(() => (
       globalThis as typeof globalThis & {
@@ -7579,7 +7581,12 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     const websiteTabCount = (): Promise<number> => appWindow.evaluate(
       `window.hronaut.getState().then((state) => state.tabs.filter((tab) => !tab.url.startsWith('hronaut://')).length)`
     )
-    await appWindow.getByRole('button', { name: 'New tab in Default workspace' }).click()
+    const currentWorkspaceName = await appWindow.evaluate(`window.hronaut.getState().then(state => {
+      const tab = state.tabs.find(candidate => candidate.active)
+      return state.mcpTabGroups.find(group => group.id === tab?.mcpGroupId)?.name
+    })`) as string
+    expect(currentWorkspaceName).toBeTruthy()
+    await appWindow.getByRole('button', { name: `New tab in ${currentWorkspaceName} workspace`, exact: true }).click()
     await expect.poll(websiteTabCount).toBe(3)
     const lockedCreatedPath = '/interaction-lock-created'
     const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
