@@ -7,6 +7,7 @@ import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
+import type { AuditReceiptService } from './audit-receipt-service.js'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -193,6 +194,7 @@ class WalletAgentSessionRegistry {
 }
 
 export interface McpHttpServerOptions {
+  auditReceipts?: AuditReceiptService
   host: string
   port: number
   token?: string
@@ -371,6 +373,7 @@ const destructiveTool = (
 })
 
 const BROWSER_TOOL_METADATA = {
+  browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
   browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
   browser_status: readOnlyTool('Show browser status'),
@@ -447,6 +450,10 @@ const BROWSER_TOOL_METADATA = {
 type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
+  {
+    name: 'browser_audit_receipts', category: 'Session',
+    description: 'Explicitly start or stop privacy-bounded action receipts for your authorized workspace, list retained runs, or read a sanitized JSON report. Recording is off by default. Keeps three runs of at most 1 MiB / 1000 entries each; starting a fourth retires the oldest whole run. Reports contain tool names, opaque identifiers, access decisions and outcomes, never raw tool arguments, results, URLs or page contents. Native events may be uncorrelated; omitted evidence is counted. Interrupted actions are never replayed. Audit-control, workspace-lifecycle and wallet tools are outside this recording scope.'
+  },
   {
     name: 'browser_workspaces',
     category: 'Session',
@@ -598,6 +605,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
+  'browser_audit_receipts',
   'browser_element_inspect',
   'browser_generate_locator',
   'browser_emulate',
@@ -710,15 +718,16 @@ function createBrowserMcpServer(
   client: McpClientActivity,
   wallets?: WalletAgentOperations,
   walletSessions?: WalletAgentSessionRegistry,
-  onTabActivity?: (activity: McpTabActivity) => void
+  onTabActivity?: (activity: McpTabActivity) => void,
+  auditReceipts?: AuditReceiptService
 ): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
     { instructions: BROWSER_SERVER_INSTRUCTIONS }
   )
-  const tool = <T>(handler: (input: T) => Promise<CallToolResult> | CallToolResult) => async (input: T): Promise<CallToolResult> => {
+  const tool = <T>(handler: (input: T, extra?: { signal?: AbortSignal }) => Promise<CallToolResult> | CallToolResult) => async (input: T, extra?: { signal?: AbortSignal }): Promise<CallToolResult> => {
     try {
-      return await handler(input)
+      return await handler(input, extra)
     } catch (error) {
       return errorResult(error)
     }
@@ -973,7 +982,7 @@ function createBrowserMcpServer(
           ...(config.inputSchema ?? {})
         }
       },
-      tool(async (input: Record<string, unknown>) => {
+      tool(async (input: Record<string, unknown>, extra) => {
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
@@ -988,47 +997,102 @@ function createBrowserMcpServer(
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
-        if (activityId && activityToolName && resolvedTabId) {
-          onTabActivity?.({
-            activityId,
-            tabId: resolvedTabId,
-            toolName: activityToolName,
-            phase: 'started',
-            occurredAt: Date.now()
-          })
-        }
-        let phase: McpTabActivity['phase'] = 'finished'
-        try {
-          if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
-            await manager.wakeTab(resolvedTabId)
-          }
-          // Waking a sleeping page is asynchronous; the human may revoke access while it wakes.
-          requireAgentWorkspace(workspaceId)
-          const result = toolsWithoutWorkspaceTabTarget.has(name)
-            ? await handler(input as unknown as T)
-            : await handler({
-              ...input,
-              tabId: resolvedTabId
-            } as unknown as T)
-          if (result.isError) phase = 'failed'
-          return scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
-        } catch (error) {
-          phase = 'failed'
-          throw error
-        } finally {
+        const operation = async (): Promise<CallToolResult> => {
           if (activityId && activityToolName && resolvedTabId) {
             onTabActivity?.({
               activityId,
               tabId: resolvedTabId,
               toolName: activityToolName,
-              phase,
+              phase: 'started',
               occurredAt: Date.now()
             })
           }
+          let phase: McpTabActivity['phase'] = 'finished'
+          try {
+            if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
+              await manager.wakeTab(resolvedTabId)
+            }
+            // Waking a sleeping page is asynchronous; the human may revoke access while it wakes.
+            requireAgentWorkspace(workspaceId)
+            const result = toolsWithoutWorkspaceTabTarget.has(name)
+              ? await handler(input as unknown as T)
+              : await handler({
+                ...input,
+                tabId: resolvedTabId
+              } as unknown as T)
+            if (result.isError) phase = 'failed'
+            return scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
+          } catch (error) {
+            phase = 'failed'
+            throw error
+          } finally {
+            if (activityId && activityToolName && resolvedTabId) {
+              onTabActivity?.({
+                activityId,
+                tabId: resolvedTabId,
+                toolName: activityToolName,
+                phase,
+                occurredAt: Date.now()
+              })
+            }
+          }
         }
+        if (!auditReceipts || !name.startsWith('browser_')) return operation()
+        let initialOrigin: string | undefined
+        return auditReceipts.execute(workspaceId, {
+          toolName: name,
+          readOnly: toolDefinition(name).annotations.readOnlyHint,
+          signal: extra?.signal,
+          isErrorResult: result => result.isError === true,
+          observeState: () => {
+            const state = manager.getMcpGroupState(workspaceId)
+            const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
+            if (!tab) return null
+            const url = new URL(tab.url)
+            const origin = url.origin === 'null' ? url.protocol : url.origin
+            initialOrigin ??= origin
+            return { tabId: tab.id, navigationGeneration: tab.navigationGeneration, originChanged: origin !== initialOrigin }
+          },
+          operation
+        })
       })
     )
   }
+
+  registerTool(
+    'browser_audit_receipts',
+    {
+      description: toolDescription('browser_audit_receipts'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema.describe('Your active or archived workspace UUID. Resume ownership before reading after reconnecting.'),
+        action: z.enum(['start', 'stop', 'list', 'read']).default('list'),
+        runId: z.uuid().optional().describe('Retained run ID required for read. The JSON response is a sanitized export.')
+      }
+    },
+    tool(async ({ workspaceId, action, runId }: { workspaceId: string; action: 'start' | 'stop' | 'list' | 'read'; runId?: string }) => {
+      const authorize = (): void => {
+        if (action === 'start') {
+          requireAgentWorkspace(workspaceId)
+          return
+        }
+        if ((!activeWorkspaceIds.has(workspaceId) && !savedWorkspaceIds.has(workspaceId))
+          || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
+      }
+      authorize()
+      if (!auditReceipts) throw new Error('Action audit receipt storage is unavailable')
+      let result: unknown
+      if (action === 'start') result = await auditReceipts.start(workspaceId)
+      else if (action === 'stop') result = await auditReceipts.stop(workspaceId)
+      else if (action === 'list') result = await auditReceipts.list(workspaceId)
+      else {
+        if (!runId) throw new TypeError('runId is required to read a retained audit run')
+        result = await auditReceipts.read(workspaceId, runId)
+      }
+      // A user can revoke agent access while bounded disk I/O is pending.
+      authorize()
+      return textResult(result)
+    })
+  )
 
   registerWorkspaceTool(
     'browser_status',
@@ -2697,7 +2761,8 @@ export class McpHttpServer {
             client,
             this.options.wallets,
             this.walletSessions,
-            (activity) => this.trackTabActivity(activity)
+            (activity) => this.trackTabActivity(activity),
+            this.options.auditReceipts
           )
           session.server = mcp.server
           session.transport = transport

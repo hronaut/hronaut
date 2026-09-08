@@ -33,6 +33,24 @@ and shared audit contracts. These are proposals, not shipped features.
 
 ## Rotating QA review
 
+### Electron upgrade evidence (issue #1)
+
+Rechecked 2026-09-08. The upstream stable-release prerequisite is now satisfied:
+[Electron 44.1.0 release notes](https://github.com/electron/electron/releases/tag/v44.1.0)
+explicitly include the Linux tray fix from
+[backport #53214](https://github.com/electron/electron/pull/53214).
+[Electron 44.2.0](https://github.com/electron/electron/releases/tag/v44.2.0),
+published September 4, is the latest stable release observed in this check.
+The [commit comparison](https://github.com/electron/electron/compare/bb27a30d9262e4ad6e1eb12921d5792fa7175e96...v44.2.0)
+places its tag 47 commits ahead and zero behind the tray backport merge, with
+that merge as the merge base. This verifies inclusion, not only issue closure.
+
+Keep the current pin until the remaining packaged-app checks in
+[Hronaut #1](https://github.com/hronaut/hronaut/issues/1) are fulfilled: GNOME with
+AppIndicator, KDE plus Xfce or Cinnamon evidence, icon/click/menu/attention/quit
+behavior, Windows/macOS lifecycle smoke, dependency audit, and full Docker gates.
+Do this as a separate dependency batch after the audit receipt feature is verified.
+
 Next code-review lead: `useDiagnosticsController` also identifies its active
 document by tab ID and URL. Reproduce same-URL reload behavior for pending audits
 and completed reports before deciding how navigation should affect docked versus
