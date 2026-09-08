@@ -7629,6 +7629,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
     await appWindow.getByRole('button', { name: 'Close settings' }).click()
+    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).not.toBeVisible()
 
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).locator('.tab-close').evaluate((element) => {
       ;(element as unknown as { click: () => void }).click()
