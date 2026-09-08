@@ -79,6 +79,7 @@ import {
   type UserAttentionRequest
 } from './mcp/server.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
+import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import {
   stageMcpRuntimeCandidate,
@@ -222,6 +223,7 @@ let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
+let auditReceipts: AuditReceiptService | null = null
 let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
 let walletUnavailableStatus = walletStartupFailureStatus(undefined)
@@ -3554,6 +3556,10 @@ async function createWindow(): Promise<void> {
   mainWindow.webContents.setZoomFactor(settings.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
+  auditReceipts ??= new AuditReceiptService(
+    join(app.getPath('userData'), 'audit-receipts'),
+    new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
+  )
   tabsManager = new BrowserTabsManager(mainWindow, {
     partition: PARTITION,
     storePath: join(app.getPath('userData'), 'tabs.json'),
@@ -3569,6 +3575,16 @@ async function createWindow(): Promise<void> {
     getTabPosition: () => settings.tabPosition,
     configureSession: configureBrowserSession,
     onUserInteraction: acknowledgeUserAttention,
+    onWorkspaceNavigationDecision: (workspaceId, decision, source) => {
+      auditReceipts?.recordSiteAccess(workspaceId, decision, source)
+    },
+    onWorkspaceClosed: (workspaceId) => {
+      // Closing can itself be part of an active browser operation. Finalize
+      // asynchronously so that operation can write its reserved outcome first.
+      void Promise.resolve().then(() => auditReceipts?.stop(workspaceId)).catch(() => {
+        console.error('[audit] Failed to finalize receipts for a closed workspace.')
+      })
+    },
     onShortcutRequested: (action) => {
       if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('browser:shortcut-requested', action)
     },
@@ -3837,6 +3853,7 @@ async function releaseRuntimeResources(): Promise<void> {
   runtimeShutdown = (async () => {
     const results = [
       ...await Promise.allSettled([server?.stop()]),
+      ...await Promise.allSettled([auditReceipts?.stopAll()]),
       ...await Promise.allSettled([manager?.drainWorkspaceOperations()]),
       ...await Promise.allSettled([broker?.shutdown()]),
       ...await Promise.allSettled([
@@ -3916,6 +3933,7 @@ function createRuntimeMcpServer(
 ): McpHttpServer {
   if (!tabsManager || !mcpTokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
+    auditReceipts: auditReceipts ?? undefined,
     host: MCP_HOST,
     port,
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
