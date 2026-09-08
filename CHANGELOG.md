@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-09-09
+
 ### Fixed
 
 - Preserve uncertain write and stale observation outcomes in audit receipts after a human-agent handoff.
