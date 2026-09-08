@@ -23,13 +23,16 @@ const {
 const statusLabel = computed(() => {
   if (copied.value) return t('runtime.mcp.copied')
   if (state.value.status === 'starting') return t('runtime.mcp.starting')
-  if (state.value.status === 'paused') return t('runtime.mcp.paused')
+  if (state.value.status === 'paused') return (state.value.activeCommands ?? 0) > 0
+    ? t('runtime.mcp.settling', { count: state.value.activeCommands! })
+    : t('runtime.mcp.paused')
   if (state.value.status === 'error') return t('runtime.mcp.error')
   return t('runtime.mcp.ready')
 })
 const statusTitle = computed(() => {
   if (state.value.status === 'error') return t('runtime.mcp.failed', { error: state.value.error ?? t('runtime.mcp.unknown') })
   if (state.value.status === 'starting') return t('runtime.mcp.startingAt', { url: endpoint.value })
+  if (state.value.paused) return t('runtime.mcp.pauseGuidance')
   return t('runtime.mcp.title', { url: endpoint.value })
 })
 </script>

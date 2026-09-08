@@ -40,6 +40,15 @@ function renderControls(initial = control()) {
 }
 
 describe('McpStatusControls', () => {
+  it('distinguishes blocked admission from commands still settling and updates on completion', async () => {
+    const { controller } = renderControls(control({ status: 'paused', paused: true, activeCommands: 2 }))
+    expect(screen.getByRole('button', { name: 'Agents paused · 2 settling' })).toHaveAttribute('title', expect.stringContaining('Pause does not undo'))
+    controller.accept(control({ status: 'paused', paused: true, activeCommands: 0 }))
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Agents paused' })).toBeVisible())
+    expect(screen.getByRole('button', { name: 'Resume agents' })).toHaveAttribute('title', expect.stringContaining('fresh snapshot'))
+    controller.dispose()
+  })
+
   it('renders ready state and pauses agents through an accessible control', async () => {
     const { controller, setPaused } = renderControls()
     const user = userEvent.setup()

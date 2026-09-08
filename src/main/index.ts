@@ -232,7 +232,10 @@ let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
 let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
-const mcpActionTracker = new McpActionTracker()
+const mcpActionTracker = new McpActionTracker(() => {
+  // Command progress updates the shell without reloading a visible Home tab.
+  sendToShellWindows('mcp:changed', currentMcpControlState())
+})
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
 let tray: Tray | null = null
@@ -528,6 +531,7 @@ function currentMcpControlState(): McpControlState {
   return {
     status: mcpRuntimeStatus === 'ready' && paused ? 'paused' : mcpRuntimeStatus,
     paused,
+    activeCommands: mcpActionTracker.activeCount,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }
 }

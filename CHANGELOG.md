@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show the number of MCP commands still settling during a pause, with guidance to inspect fresh page state before resuming.
+
 ### Fixed
 
 - Discard workspace tool results when pause or ownership changes invalidate them while the handler runs, reporting stale observations or unknown write outcomes without returning the obsolete result.
