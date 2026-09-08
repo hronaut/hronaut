@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Report structured snapshot completeness and search-source limits, and use measured truncation for clipboard copies, while preserving snapshot text, redaction, and workspace isolation.
 
+### Fixed
+
+- Recheck pause state, workspace access, and target membership after asynchronous audit admission and tab wake so stale requests cannot dispatch after control or ownership changes.
+
 ## [1.15.0] - 2026-09-08
 
 ### Added
