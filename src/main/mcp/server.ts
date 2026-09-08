@@ -8,6 +8,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
+import { workspacePreflight } from './workspace-preflight.js'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -373,6 +374,7 @@ const destructiveTool = (
 })
 
 const BROWSER_TOOL_METADATA = {
+  browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
   browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
@@ -450,6 +452,10 @@ const BROWSER_TOOL_METADATA = {
 type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
+  {
+    name: 'browser_preflight', category: 'Session',
+    description: 'Check your workspace before navigation or a consequential action. Returns bounded PASS, WARN or BLOCKED checks for ownership, tab readiness, expected origin, site policy and human attention. Does not wake tabs or navigate. Session identity is unverified and write safety is never established by this check. No page contents, origins, policy rules or account data are returned. Recheck fresh state before acting; nothing is retried automatically.'
+  },
   {
     name: 'browser_audit_receipts', category: 'Session',
     description: 'Explicitly start or stop privacy-bounded action receipts for your authorized workspace, list retained runs, or read a sanitized JSON report. Recording is off by default. Keeps three runs of at most 1 MiB / 1000 entries each; starting a fourth retires the oldest whole run. Reports contain tool names, opaque identifiers, access decisions and outcomes, never raw tool arguments, results, URLs or page contents. Native events may be uncorrelated; omitted evidence is counted. Interrupted actions are never replayed. Audit-control, workspace-lifecycle and wallet tools are outside this recording scope.'
@@ -605,6 +611,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
+  'browser_preflight',
   'browser_audit_receipts',
   'browser_element_inspect',
   'browser_generate_locator',
@@ -719,7 +726,8 @@ function createBrowserMcpServer(
   wallets?: WalletAgentOperations,
   walletSessions?: WalletAgentSessionRegistry,
   onTabActivity?: (activity: McpTabActivity) => void,
-  auditReceipts?: AuditReceiptService
+  auditReceipts?: AuditReceiptService,
+  getPaused: () => boolean = () => false
 ): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -1058,6 +1066,47 @@ function createBrowserMcpServer(
       })
     )
   }
+
+  registerTool(
+    'browser_preflight',
+    {
+      description: toolDescription('browser_preflight'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema,
+        tabId: z.uuid().optional().describe('A tab in your workspace, or omit to check its active tab.'),
+        expectedOrigin: z.string().max(2048).optional().describe('Expected HTTP or HTTPS origin without credentials, path, query, or fragment.')
+      }
+    },
+    tool(async ({ workspaceId, tabId, expectedOrigin }: { workspaceId: string; tabId?: string; expectedOrigin?: string }, extra) => {
+      const unavailable = (): CallToolResult => textResult(workspacePreflight({
+        authorized: false, tab: null, policy: { mode: 'unrestricted', rules: [] }, paused: false, attentionRequired: false
+      }))
+      try { requireAgentWorkspace(workspaceId) } catch { return unavailable() }
+      const operation = async (): Promise<CallToolResult> => {
+        // Audit admission can await disk I/O. Recheck ownership afterwards.
+        let workspace
+        try { workspace = requireAgentWorkspace(workspaceId) } catch { return unavailable() }
+        const state = manager.getMcpGroupState(workspaceId)
+        const selected = state.tabs.find(tab => tab.id === (tabId ?? state.activeTabId))
+        const attention = getUserAttention()
+        const attentionRequired = !!attention && (
+          attention.workspaceId === workspaceId
+          || (attention.workspaceId === undefined && attention.tabId !== undefined
+            && manager.tabBelongsToMcpGroup(workspaceId, attention.tabId))
+        )
+        return textResult(workspacePreflight({
+          authorized: true,
+          tab: selected ? { url: selected.url, loading: selected.loading, sleeping: selected.sleeping } : null,
+          policy: workspace.navigationPolicy,
+          expectedOrigin, paused: getPaused(), attentionRequired
+        }))
+      }
+      return auditReceipts ? auditReceipts.execute(workspaceId, {
+        toolName: 'browser_preflight', readOnly: true, observeState: () => null, signal: extra?.signal,
+        operation, isErrorResult: result => result.isError === true
+      }) : operation()
+    })
+  )
 
   registerTool(
     'browser_audit_receipts',
@@ -2683,7 +2732,13 @@ export class McpHttpServer {
         return
       }
       if (this.paused && request.method !== 'DELETE') {
-        response.status(503).json({ error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.' })
+        response.status(503).json({
+          error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',
+          preflight: {
+            status: 'BLOCKED', reason: 'USER_PAUSED', writeSafety: 'NOT_ESTABLISHED',
+            nextAction: 'Ask the operator to inspect the page and resume agents, then obtain a fresh snapshot. Pause does not roll back an action already dispatched.'
+          }
+        })
         return
       }
       if (request.method !== 'DELETE' && this.activeRequests >= McpHttpServer.MAX_ACTIVE_REQUESTS) {
@@ -2762,7 +2817,8 @@ export class McpHttpServer {
             this.options.wallets,
             this.walletSessions,
             (activity) => this.trackTabActivity(activity),
-            this.options.auditReceipts
+            this.options.auditReceipts,
+            () => this.paused
           )
           session.server = mcp.server
           session.transport = transport

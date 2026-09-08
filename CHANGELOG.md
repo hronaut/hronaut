@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add `browser_preflight` to the QA and Complete MCP tool sets for bounded workspace, origin, site-policy, and human-attention readiness checks, with explicit unverified session evidence and no automatic retries.
+
 ### Fixed
 
 - Suppress credential-fill success and error notifications from the previous document after a same-URL reload.

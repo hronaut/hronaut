@@ -327,6 +327,33 @@ their existing contracts and need no migration. This first receipt format does
 not retain references to those separate evidence streams; its state summary is
 limited to the tab identifier, navigation generation, and origin-change flag.
 
+## Check workspace readiness
+
+The QA and Complete tool sets include `browser_preflight`. Supply your
+`workspaceId`, an optional workspace `tabId`, and an optional `expectedOrigin`
+(HTTP or HTTPS origin only). The response contains `PASS`, `WARN`, or `BLOCKED`
+checks with fixed reasons and next actions for connection ownership, tab
+readiness, expected origin, site policy, and pending human attention. It does
+not wake a sleeping tab, navigate, inspect page content, or retry an action.
+
+Missing, foreign, or revoked workspace access returns the same bounded blocked
+result. After reconnecting, resume your workspace using its private resume key
+before checking it. Normal workspace authorization still applies to subsequent
+actions. If receipt recording is active, preflight itself is recorded as a
+read-only action.
+
+Hronaut currently has no verified identity-evidence source. Session evidence is
+therefore explicitly `UNAVAILABLE`, with unknown verification time and age, and
+the session check is `WARN`. The response does not claim that cookies, a matching
+origin, or browser reachability establish sign-in. Reports exclude raw URLs,
+policy rules, account identifiers, credentials, and page content. Even passing
+checks never establish write safety; obtain fresh state and make a new decision
+before consequential work.
+
+A human pause still blocks MCP requests with HTTP 503. That response includes a
+bounded `preflight` blocked reason and next action; preflight cannot bypass the
+pause. Pause does not roll back an action already dispatched.
+
 ## MCP tools
 
 Hronaut includes concise workflow instructions in the MCP initialization response. Compatible clients learn to create a fresh isolated workspace before browsing, prefer semantic snapshots and refs over coordinates, bring the visible browser forward for observation or takeover, and request attention only for a manual step. Client behavior is never treated as a security boundary: Hronaut still validates workspace ownership, tab identities, input bounds, authorization, and interaction locks in the server.
