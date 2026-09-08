@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Report structured snapshot completeness and search-source limits, and use measured truncation for clipboard copies, while preserving snapshot text, redaction, and workspace isolation.
 
+### Fixed
+
+- Prevent admitted workspace tools from dispatching after pause or pause/resume while tab wake or audit admission is pending.
+
 ## [1.15.0] - 2026-09-08
 
 ### Added

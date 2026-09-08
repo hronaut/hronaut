@@ -14,7 +14,7 @@ describe('MCP workspace fork sources and direct access', () => {
   let client: Client
   afterEach(async () => { await client?.close(); await server?.stop() })
 
-  async function setup() {
+  async function setup(beforeAuditOperation?: () => void) {
     let accessible = true
     const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
@@ -28,6 +28,7 @@ describe('MCP workspace fork sources and direct access', () => {
       requireMcpTabGroup: vi.fn(() => workspace),
       requireTabInMcpGroup: vi.fn(() => 'tab'),
       wakeTab: vi.fn(async () => undefined),
+      click: vi.fn(async () => 'Clicked'),
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
@@ -38,6 +39,13 @@ describe('MCP workspace fork sources and direct access', () => {
       saveAndCloseTabGroup: vi.fn(async () => workspace)
     }
     server = new McpHttpServer(manager as never, {
+      ...(beforeAuditOperation ? { auditReceipts: {
+        execute: async (_workspaceId: string, options: { operation: () => Promise<unknown> }) => {
+          await Promise.resolve()
+          beforeAuditOperation()
+          return options.operation()
+        }
+      } as never } : {}),
       host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
       showWindowInactive: () => undefined, getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
@@ -113,6 +121,29 @@ describe('MCP workspace fork sources and direct access', () => {
     manager.wakeTab.mockImplementationOnce(async () => { disable() })
     expect((await call('browser_snapshot', { workspaceId: ownId })).isError).toBe(true)
     expect(manager.snapshotDetails).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([false, true])('does not dispatch an admitted click after pause during page wake (resumed: %s)', async (resume) => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.wakeTab.mockImplementationOnce(async () => {
+      server.setPaused(true)
+      if (resume) server.setPaused(false)
+    })
+    const result = await call('browser_click', { workspaceId: ownId, selector: 'button' })
+    expect(result.isError).toBe(true)
+    expect(manager.click).not.toHaveBeenCalled()
+    server.setPaused(false)
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
+    expect(manager.click).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not wake or dispatch after control changes during asynchronous audit admission', async () => {
+    const { manager, call } = await setup(() => { server.setPaused(true); server.setPaused(false) })
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.wakeTab).not.toHaveBeenCalled()
+    expect(manager.click).not.toHaveBeenCalled()
   })
 
   it('rejects ambiguous or missing fork sources before creating anything', async () => {

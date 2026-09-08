@@ -996,6 +996,12 @@ function createBrowserMcpServer(
         }
       },
       tool(async (input: Record<string, unknown>, extra) => {
+        const controlRevision = actionTracker.controlRevision
+        const requireCurrentControl = (): void => {
+          if (getPaused() || actionTracker.controlRevision !== controlRevision) {
+            throw new Error('MCP control changed before tool dispatch. Inspect the page and obtain fresh state before continuing; earlier page wake or navigation is not rolled back.')
+          }
+        }
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
@@ -1011,6 +1017,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const operation = async (): Promise<CallToolResult> => {
+          requireCurrentControl()
           if (activityId && activityToolName && resolvedTabId) {
             onTabActivity?.({
               activityId,
@@ -1027,6 +1034,7 @@ function createBrowserMcpServer(
             }
             // Waking a sleeping page is asynchronous; the human may revoke access while it wakes.
             requireAgentWorkspace(workspaceId)
+            requireCurrentControl()
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(input as unknown as T)
               : await handler({
@@ -2667,6 +2675,7 @@ export class McpHttpServer {
   }
 
   setPaused(paused: boolean): void {
+    if (this.paused !== paused) this.actionTracker.invalidatePendingDispatches()
     this.paused = paused
   }
 
