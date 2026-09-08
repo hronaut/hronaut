@@ -4,9 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-09-08
+
 ### Added
 
-- Opt-in workspace action audit receipts through MCP, with bounded private journals, correlated site decisions, explicit partial outcomes, and sanitized JSON reports that survive reconnects.
+- Opt-in workspace action audit receipts using `browser_audit_receipts` in the QA and Complete MCP tool sets, with bounded private journals, correlated site decisions, explicit partial outcomes, and sanitized JSON reports that survive reconnects.
 
 ### Fixed
 
