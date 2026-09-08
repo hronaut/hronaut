@@ -9246,7 +9246,13 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   })
   expect(pausedResponse.status).toBe(503)
   await expect(pausedResponse.json()).resolves.toEqual({
-    error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.'
+    error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',
+    preflight: {
+      status: 'BLOCKED',
+      reason: 'USER_PAUSED',
+      writeSafety: 'NOT_ESTABLISHED',
+      nextAction: 'Ask the operator to inspect the page and resume agents, then obtain a fresh snapshot. Pause does not roll back an action already dispatched.'
+    }
   })
   const pausedDashboard = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
