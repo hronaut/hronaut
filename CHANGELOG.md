@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Suppress credential-fill success and error notifications from the previous document after a same-URL reload.
+
 ## [1.14.0] - 2026-09-08
 
 ### Added
