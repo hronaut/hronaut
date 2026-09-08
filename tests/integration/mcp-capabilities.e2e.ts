@@ -48,6 +48,10 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
   mcpPort,
   profileDirectory
 }) => {
+  // This end-to-end capability tour performs hundreds of assertions across
+  // independent tools. Keep normal expect deadlines, but allow the
+  // complete workflow more time than a single-feature Electron scenario.
+  test.slow()
   let memorySaverTicks = 0
   let cacheProbeRequests = 0
   const openPageTool = async (name: string | RegExp): Promise<void> => {

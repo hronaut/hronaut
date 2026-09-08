@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-09-08
+
+### Fixed
+
+- Ignore snapshot and PDF export feedback from a previous document after reloading the same URL, and allow a new export immediately without waiting for the older request.
+
 ## [1.13.1] - 2026-09-08
 
 ### Added

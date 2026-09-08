@@ -4,7 +4,7 @@ import { usePageExportController } from '../../src/renderer/src/composables/useP
 import type { BrowserPdfExport, BrowserSnapshotCopyResult, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(url = 'https://example.test/start'): BrowserTabState {
-  return { id: 'tab-1', title: 'Example', url } as BrowserTabState
+  return { id: 'tab-1', title: 'Example', url, navigationGeneration: 1 } as BrowserTabState
 }
 
 function deferred<Value>() {
@@ -39,6 +39,65 @@ function createController() {
 }
 
 describe('page export controller', () => {
+  it('allows a new snapshot immediately after reload and ignores the older completion', async () => {
+    const old = deferred<BrowserSnapshotCopyResult>()
+    const latest = deferred<BrowserSnapshotCopyResult>()
+    const { activeTab, browser, controller, snapshotCopied } = createController()
+    browser.copySnapshot.mockImplementationOnce(() => old.promise).mockImplementationOnce(() => latest.promise)
+
+    const first = controller.copySnapshot()
+    activeTab.value = { ...tab(), navigationGeneration: 2 }
+    const second = controller.copySnapshot()
+    await nextTick()
+    old.resolve({ copied: true, characters: 10, truncated: false })
+    await first
+    expect(controller.snapshotState.value).toBe('copying')
+    expect(snapshotCopied).not.toHaveBeenCalled()
+
+    latest.resolve({ copied: true, characters: 20, truncated: false })
+    await second
+    expect(browser.copySnapshot).toHaveBeenCalledTimes(2)
+    expect(snapshotCopied).toHaveBeenCalledExactlyOnceWith({ copied: true, characters: 20, truncated: false })
+    controller.dispose()
+  })
+
+  it.each(['resolve', 'reject'] as const)('ignores snapshot %s after a same-URL reload', async (outcome) => {
+    const pending = deferred<BrowserSnapshotCopyResult>()
+    const { activeTab, browser, controller, snapshotCopied, snapshotFailed } = createController()
+    browser.copySnapshot.mockImplementationOnce(() => pending.promise)
+
+    const copying = controller.copySnapshot()
+    activeTab.value = { ...tab(), navigationGeneration: 2 }
+    await nextTick()
+    if (outcome === 'resolve') pending.resolve({ copied: true, characters: 99, truncated: false })
+    else pending.reject(new Error('Previous document closed'))
+    await copying
+
+    expect(controller.snapshotState.value).toBe('idle')
+    expect(snapshotCopied).not.toHaveBeenCalled()
+    expect(snapshotFailed).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it.each(['resolve', 'reject'] as const)('ignores PDF %s after a same-URL reload', async (outcome) => {
+    const pending = deferred<BrowserPdfExport>()
+    const { activeTab, browser, controller, pdfSaved, pdfFailed } = createController()
+    browser.savePdf.mockImplementationOnce(() => pending.promise)
+
+    const saving = controller.savePdf()
+    activeTab.value = { ...tab(), navigationGeneration: 2 }
+    await nextTick()
+    if (outcome === 'resolve') pending.resolve({ filename: 'old.pdf', path: '/tmp/old.pdf', bytes: 42 })
+    else pending.reject(new Error('Previous document closed'))
+    await saving
+
+    expect(controller.pdfState.value).toBe('idle')
+    expect(controller.pdfExport.value).toBeNull()
+    expect(pdfSaved).not.toHaveBeenCalled()
+    expect(pdfFailed).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
   it('ignores a snapshot completion after the same tab navigates', async () => {
     const pending = deferred<BrowserSnapshotCopyResult>()
     const { activeTab, browser, controller, snapshotCopied } = createController()

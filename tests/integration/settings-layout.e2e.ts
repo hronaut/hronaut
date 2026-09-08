@@ -1,14 +1,14 @@
 import { writeFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.js'
 
-test('keeps settings controls and dialog actions reachable across narrow and wide layouts', async ({ appWindow, electronApp }, testInfo) => {
-  await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
-  const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
-  const navigation = dialog.locator('.settings-sidebar')
-  for (const theme of ['light', 'dark'] as const) {
-    await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
-    await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
-    for (const width of [1200, 760, 640]) {
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [1200, 760, 640]) {
+    test(`keeps settings controls and dialog actions reachable in ${theme} at ${width}px`, async ({ appWindow, electronApp }, testInfo) => {
+      await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+      const dialog = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
+      const navigation = dialog.locator('.settings-sidebar')
+      await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
+      await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
       await electronApp.evaluate(({ BrowserWindow }, value) => {
         const window = BrowserWindow.getAllWindows()[0]!
         window.setMinimumSize(600, 600)
@@ -40,11 +40,11 @@ test('keeps settings controls and dialog actions reachable across narrow and wid
           expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport!.x + viewport!.width + 1)
         }
       }
-    }
+      await dialog.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(dialog).not.toBeVisible()
+    })
   }
-  await dialog.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
-  await expect(dialog).not.toBeVisible()
-})
+}
 
 test('keeps Close visible when Large interface size reduces the available Settings height', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()

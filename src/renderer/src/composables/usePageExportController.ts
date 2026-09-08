@@ -20,6 +20,7 @@ export interface PageExportControllerOptions {
 interface PageRequest {
   tabId: string
   url: string
+  navigationGeneration: number
   generation: number
 }
 
@@ -38,6 +39,7 @@ export function usePageExportController(options: PageExportControllerOptions) {
     return {
       tabId: tab.id,
       url: tab.url,
+      navigationGeneration: tab.navigationGeneration,
       generation: kind === 'snapshot' ? ++snapshotGeneration : ++pdfGeneration
     }
   }
@@ -47,6 +49,7 @@ export function usePageExportController(options: PageExportControllerOptions) {
     return request.generation === (kind === 'snapshot' ? snapshotGeneration : pdfGeneration)
       && tab?.id === request.tabId
       && tab.url === request.url
+      && tab.navigationGeneration === request.navigationGeneration
   }
 
   function reset(): void {
@@ -113,12 +116,13 @@ export function usePageExportController(options: PageExportControllerOptions) {
   }
 
   const stopContextWatcher = watch(
-    () => [options.activeTab.value?.id, options.activeTab.value?.url] as const,
-    ([tabId, url], previousContext) => {
-      if (previousContext && tabId === previousContext[0] && url === previousContext[1]) return
+    () => [options.activeTab.value?.id, options.activeTab.value?.url, options.activeTab.value?.navigationGeneration] as const,
+    ([tabId, url, navigationGeneration], previousContext) => {
+      if (previousContext && tabId === previousContext[0] && url === previousContext[1]
+        && navigationGeneration === previousContext[2]) return
       reset()
     },
-    { immediate: true }
+    { immediate: true, flush: 'sync' }
   )
 
   function dispose(): void {
