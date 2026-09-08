@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { McpHttpServer } from '../src/main/mcp/server.js'
 
 const ownId = '01912345-6789-7abc-8def-0123456789ab'
+const targetId = '01912345-6790-7abc-8def-0123456789ab'
 const sourceId = '01912345-6789-7abc-8def-0123456789ac'
 const key = `hrw1_${'R'.repeat(43)}`
 const parsed = (result: CallToolResult): unknown => JSON.parse(result.content.find((entry) => entry.type === 'text')!.text)
@@ -26,10 +27,11 @@ describe('MCP workspace fork sources and direct access', () => {
       isWorkspaceAgentAccessible: vi.fn((id: string) => id === ownId && accessible),
       mcpWorkspaceResumeKey: vi.fn(() => key),
       requireMcpTabGroup: vi.fn(() => workspace),
-      requireTabInMcpGroup: vi.fn(() => 'tab'),
+      requireTabInMcpGroup: vi.fn(() => targetId),
       tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
       click: vi.fn(async () => 'Clicked'),
+      closeTab: vi.fn(async () => 'Closed'),
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
@@ -166,6 +168,39 @@ describe('MCP workspace fork sources and direct access', () => {
     })
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
     expect(manager.click).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { write: false, change: 'pause' }, { write: true, change: 'pause' },
+    { write: false, change: 'access' }, { write: true, change: 'access' },
+    { write: false, change: 'membership' }, { write: true, change: 'membership' }
+  ])('discards a result after $change changes during the handler (write: $write)', async ({ write, change }) => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    const invalidate = () => {
+      if (change === 'pause') { server.setPaused(true); server.setPaused(false) }
+      else if (change === 'access') disable()
+      else manager.tabBelongsToMcpGroup.mockReturnValue(false)
+    }
+    if (write) manager.click.mockImplementationOnce(async () => { invalidate(); return 'stale-result-canary' })
+    else manager.snapshotDetails.mockImplementationOnce(async () => {
+      invalidate()
+      return { text: 'stale-result-canary', returnedChars: 19, maxChars: 30000,
+        truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } }
+    })
+    const result = await call(write ? 'browser_click' : 'browser_snapshot', { workspaceId: ownId, ...(write ? { selector: 'button' } : {}) })
+    expect(result.isError).toBe(true)
+    expect(result.structuredContent).toMatchObject({ status: write ? 'OUTCOME_UNKNOWN' : 'STALE_OBSERVATION', retrySafe: false })
+    expect(JSON.stringify(result)).not.toContain('stale-result-canary')
+  })
+
+  it('allows a successful close to retire its target without inventing an unknown outcome', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.closeTab.mockImplementationOnce(async () => { manager.tabBelongsToMcpGroup.mockReturnValue(false); return 'Closed' })
+    const result = await call('browser_close_tab', { workspaceId: ownId, tabId: targetId })
+    expect(result.isError).not.toBe(true)
+    expect(manager.closeTab).toHaveBeenCalledWith(targetId)
   })
 
   it('rejects ambiguous or missing fork sources before creating anything', async () => {

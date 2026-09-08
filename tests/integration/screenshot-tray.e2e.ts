@@ -244,7 +244,7 @@ test('captures hidden pages and survives tab teardown during offscreen rendering
     await shellWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
     const closedDuringCapture = await comparison
     expect(closedDuringCapture.isError).toBe(true)
-    expect(text(closedDuringCapture)).toContain('tab closed while rendering its page')
+    expect(closedDuringCapture.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false })
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
       BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed()).length
     ))).toBe(1)
