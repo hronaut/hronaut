@@ -208,7 +208,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
       })
     ])
     expect(closedElementWait.isError).toBe(true)
-    expect(text(closedElementWait)).toContain('tab closed while waiting for the page element')
+    expect(closedElementWait.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false })
 
     const urlTab = await client.callTool({
       name: 'browser_new_tab',
@@ -292,7 +292,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
       })
     ])
     expect(closedUrlWait.isError).toBe(true)
-    expect(text(closedUrlWait)).toContain('tab closed while waiting for the page URL')
+    expect(closedUrlWait.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false })
 
     const ambiguous = await client.callTool({
       name: 'browser_wait',
@@ -398,7 +398,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
       })
     ])
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('tab closed while waiting for the page')
+    expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false })
     await expect(appWindow.locator('[role="tab"].mcp-active')).toHaveCount(0)
 
     const openedTextTab = await client.callTool({
@@ -419,7 +419,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
       })
     ])
     expect(textResult.isError).toBe(true)
-    expect(text(textResult)).toContain('tab closed while waiting for page text')
+    expect(textResult.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false })
 
     const expectNetworkWaitToFailOnRendererLoss = async (
       path: string,
