@@ -22,6 +22,7 @@ it.each([
   const manager = {
     requireMcpTabGroup: () => ({ id: workspaceId, isDefault: false }),
     requireTabInMcpGroup: () => tabId,
+    tabBelongsToMcpGroup: (groupId: string, id: string) => groupId === workspaceId && id === tabId,
     wakeTab: async () => undefined,
     isWorkspaceAgentAccessible: () => true,
     listMcpTabGroups: () => [{ id: workspaceId, isDefault: false }],

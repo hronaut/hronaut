@@ -45,6 +45,7 @@ describe('MCP user-attention presentation failures', () => {
     const manager = {
       requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
       requireTabInMcpGroup: vi.fn(() => tabId),
+      tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
       isWorkspaceAgentAccessible: vi.fn(() => true),
       listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),

@@ -27,6 +27,7 @@ describe('MCP workspace fork sources and direct access', () => {
       mcpWorkspaceResumeKey: vi.fn(() => key),
       requireMcpTabGroup: vi.fn(() => workspace),
       requireTabInMcpGroup: vi.fn(() => 'tab'),
+      tabBelongsToMcpGroup: vi.fn(() => true),
       wakeTab: vi.fn(async () => undefined),
       click: vi.fn(async () => 'Clicked'),
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
@@ -143,6 +144,27 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
     expect(manager.wakeTab).not.toHaveBeenCalled()
+    expect(manager.click).not.toHaveBeenCalled()
+  })
+
+  it('does not wake a tab after access is revoked during audit admission', async () => {
+    let revoke: () => void = () => undefined
+    const { manager, call, disable } = await setup(() => revoke())
+    revoke = disable
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.wakeTab).not.toHaveBeenCalled()
+    expect(manager.click).not.toHaveBeenCalled()
+  })
+
+  it('does not dispatch to a tab moved out of the workspace while waking', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.wakeTab.mockImplementationOnce(async () => {
+      manager.requireTabInMcpGroup.mockImplementation(() => { throw new Error('Tab is no longer in this workspace') })
+      manager.tabBelongsToMcpGroup.mockReturnValue(false)
+    })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
     expect(manager.click).not.toHaveBeenCalled()
   })
 

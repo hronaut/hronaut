@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Prevent admitted workspace tools from dispatching after pause or pause/resume while tab wake or audit admission is pending.
+- Recheck pause state, workspace access, and target membership after asynchronous audit admission and tab wake so stale requests cannot dispatch after control or ownership changes.
 
 ## [1.15.0] - 2026-09-08
 

@@ -1016,8 +1016,15 @@ function createBrowserMcpServer(
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
-        const operation = async (): Promise<CallToolResult> => {
+        const requireCurrentTarget = (): void => {
           requireCurrentControl()
+          requireAgentWorkspace(workspaceId)
+          if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) {
+            throw workspaceAuthorizationError()
+          }
+        }
+        const operation = async (): Promise<CallToolResult> => {
+          requireCurrentTarget()
           if (activityId && activityToolName && resolvedTabId) {
             onTabActivity?.({
               activityId,
@@ -1032,9 +1039,9 @@ function createBrowserMcpServer(
             if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
             }
-            // Waking a sleeping page is asynchronous; the human may revoke access while it wakes.
-            requireAgentWorkspace(workspaceId)
-            requireCurrentControl()
+            // Audit admission and tab wake can outlive pause, access revocation,
+            // or a human moving the target into a different workspace.
+            requireCurrentTarget()
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(input as unknown as T)
               : await handler({
