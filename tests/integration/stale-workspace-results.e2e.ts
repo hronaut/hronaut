@@ -85,6 +85,13 @@ test('discards delayed read and write results across a real pause/resume without
       await (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp.setPaused(true)
     })
     await expect(appWindow.getByRole('button', { name: 'Agents paused · 1 settling' })).toBeVisible()
+    const pausedResponse = await fetch(`http://127.0.0.1:${mcpPort}/mcp`, {
+      headers: { authorization: `Bearer ${mcpToken}` }
+    })
+    expect(pausedResponse.status).toBe(503)
+    expect(await pausedResponse.json()).toMatchObject({ handoff: {
+      state: 'PAUSED_WITH_ACTIVE_COMMANDS', activeCommands: 1, priorActionOutcome: 'NOT_ESTABLISHED'
+    } })
     held.get('/hold-disconnect')!.end('release')
     await expect(appWindow.getByRole('button', { name: 'Agents paused', exact: true })).toBeVisible()
     await expect.poll(() => appWindow.evaluate(async () => (

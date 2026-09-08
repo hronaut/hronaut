@@ -9247,6 +9247,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
   expect(pausedResponse.status).toBe(503)
   await expect(pausedResponse.json()).resolves.toEqual({
     error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',
+    handoff: { state: 'PAUSED', activeCommands: 0, priorActionOutcome: 'NOT_ESTABLISHED' },
     preflight: {
       status: 'BLOCKED',
       reason: 'USER_PAUSED',

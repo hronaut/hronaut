@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Include active command counts and explicit unknown prior outcomes in paused MCP responses, including after client disconnects.
+
 ## [1.17.0] - 2026-09-08
 
 ### Added

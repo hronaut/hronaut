@@ -2775,8 +2775,14 @@ export class McpHttpServer {
         return
       }
       if (this.paused && request.method !== 'DELETE') {
+        const activeCommands = this.actionTracker.activeCount
         response.status(503).json({
           error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',
+          handoff: {
+            state: activeCommands > 0 ? 'PAUSED_WITH_ACTIVE_COMMANDS' : 'PAUSED',
+            activeCommands,
+            priorActionOutcome: 'NOT_ESTABLISHED'
+          },
           preflight: {
             status: 'BLOCKED', reason: 'USER_PAUSED', writeSafety: 'NOT_ESTABLISHED',
             nextAction: 'Ask the operator to inspect the page and resume agents, then obtain a fresh snapshot. Pause does not roll back an action already dispatched.'

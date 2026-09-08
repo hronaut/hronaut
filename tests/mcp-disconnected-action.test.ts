@@ -48,7 +48,7 @@ it.each([
   const client = new Client({ name: 'disconnected-command-test', version: '1' })
   let command: Promise<unknown> | undefined
   try {
-    const endpoint = await server.start()
+    let endpoint = await server.start()
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
     await client.callTool({ name: 'browser_workspaces', arguments: { action: 'resume', workspaceId, resumeKey } })
     command = client.callTool({ name: 'browser_show', arguments: { workspaceId } }).catch(() => undefined)
@@ -59,7 +59,7 @@ it.each([
     if (replaceEndpoint) {
       await server.stop()
       replacement = makeServer()
-      await replacement.start()
+      endpoint = await replacement.start()
     }
     const currentServer = replacement ?? server
     const fill = vi.fn(async () => true)
@@ -71,8 +71,16 @@ it.each([
     }
     await expect(fillCredentialWhileMcpPaused(options)).rejects.toThrow('MCP command was still active')
     expect(fill).not.toHaveBeenCalled()
+    const paused = await fetch(endpoint)
+    expect(paused.status).toBe(503)
+    expect(await paused.json()).toMatchObject({ handoff: {
+      state: 'PAUSED_WITH_ACTIVE_COMMANDS', activeCommands: 1, priorActionOutcome: 'NOT_ESTABLISHED'
+    } })
     settle()
     await expect.poll(() => actionTracker.activeCount).toBe(0)
+    expect(await (await fetch(endpoint)).json()).toMatchObject({ handoff: {
+      state: 'PAUSED', activeCommands: 0, priorActionOutcome: 'NOT_ESTABLISHED'
+    } })
     await expect(fillCredentialWhileMcpPaused(options)).resolves.toBe(true)
   } finally {
     settle()
