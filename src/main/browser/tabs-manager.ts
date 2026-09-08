@@ -38,6 +38,7 @@ import { translate, type MessageKey, type MessageParameters } from '../../shared
 import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
+import type { BrowserSnapshot } from '../../shared/snapshot.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController } from './mcp-activity-follow-controller.js'
 import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
@@ -4099,16 +4100,22 @@ export class BrowserTabsManager {
   }
 
   async snapshot(tabId?: string, maxChars = 30_000): Promise<string> {
-    const tab = this.getTab(tabId)
-    return tab.webContents.executeJavaScript(snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000)), true)
+    return (await this.snapshotDetails(tabId, maxChars)).text
   }
 
-  async findSnapshot(options: SnapshotSearchOptions & { tabId?: string }): Promise<SnapshotSearchResult & { tabId: string }> {
+  async snapshotDetails(tabId?: string, maxChars = 30_000): Promise<BrowserSnapshot> {
+    const tab = this.getTab(tabId)
+    return tab.webContents.executeJavaScript(snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true), true)
+  }
+
+  async findSnapshot(options: SnapshotSearchOptions & { tabId?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
     const tab = this.getTab(options.tabId)
-    const snapshot = await tab.webContents.executeJavaScript(snapshotScript(100_000), true) as string
+    const snapshot = await this.snapshotDetails(tab.id, 100_000)
+    const { text, ...sourceSnapshot } = snapshot
     return {
       tabId: tab.id,
-      ...searchSnapshot(snapshot, {
+      sourceSnapshot,
+      ...searchSnapshot(text, {
         query: options.query,
         caseSensitive: options.caseSensitive,
         maxMatches: options.maxMatches,
