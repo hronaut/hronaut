@@ -950,6 +950,8 @@ export interface TabsManagerOptions {
   onActionFailed?: (action: string, error: unknown) => void
   onPageVisited?: (visit: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
+  onWorkspaceNavigationDecision?: (workspaceId: string, decision: WorkspaceNavigationDecision, source: BrowserWorkspaceNavigationAuditSource) => void
+  onWorkspaceClosed?: (workspaceId: string) => void
   onDownloadsChanged?: (downloads: BrowserDownloadState[]) => void
   onWalletNavigation?: (tabId: string, navigationGeneration: number) => void | Promise<void>
   onWalletTabClosed?: (tabId: string) => void | Promise<void>
@@ -1554,6 +1556,7 @@ export class BrowserTabsManager {
     for (const tab of this.tabs.values()) {
       if (tab.mcpGroupId !== groupId) continue
       const decision = this.workspaceNavigationDecision(groupId, tab.url)
+      this.options.onWorkspaceNavigationDecision?.(groupId, decision, 'policy-change')
       if (decision.allowed) continue
       this.recordWorkspaceNavigationDenied(groupId, decision, 'policy-change')
       this.prepareDiagnosticNavigation(tab)
@@ -1616,6 +1619,7 @@ export class BrowserTabsManager {
     source: BrowserWorkspaceNavigationAuditSource
   ): boolean {
     const decision = this.workspaceNavigationDecision(groupId, url)
+    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
     if (decision.allowed) return true
     this.recordWorkspaceNavigationDenied(groupId, decision, source)
     return false
@@ -1627,6 +1631,7 @@ export class BrowserTabsManager {
     source: BrowserWorkspaceNavigationAuditSource
   ): void {
     const decision = this.workspaceNavigationDecision(groupId, url)
+    this.options.onWorkspaceNavigationDecision?.(groupId, decision, source)
     if (decision.allowed) return
     this.recordWorkspaceNavigationDenied(groupId, decision, source)
     if (decision.reason !== 'no-match') throw new Error(AGENT_NAVIGATION_SCHEME_ERROR)
@@ -1911,6 +1916,7 @@ export class BrowserTabsManager {
     }
     removeClosedWorkspaceTabs()
     this.mcpTabGroups.delete(groupId)
+    this.options.onWorkspaceClosed?.(groupId)
     if (!preserveStorage && groupId === this.defaultHumanGroupId) this.defaultHumanGroupId = null
     this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
       this.options.onWalletWorkspaceClosed?.(groupId)

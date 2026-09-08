@@ -289,6 +289,44 @@ For screenshots, humans can drag an area from the toolbar, pick one complete ele
 
 For text-first context, choose **Page tools → Copy page snapshot** or search the Command Palette for `page context`. Hronaut copies a bounded 30,000-character view of the current headings, interactive controls, and visible text through the same verified native clipboard bridge. Live form values are excluded, and URLs remove credentials, fragments, and recognized secret-bearing query values before the snapshot reaches the clipboard. Visible page-authored text can still be private, so review it before sharing outside the trusted agent session.
 
+## Record action audit receipts
+
+The QA and Complete tool sets include `browser_audit_receipts`. Recording is off
+until an authorized client calls `start` with its `workspaceId`. Call `stop` to
+drain pending actions, `list` to find retained runs, and `read` with a `runId` to
+obtain a sanitized JSON report. After reconnecting, resume the workspace with its
+private resume key before accessing its runs. Audit-control calls are excluded
+from recording, so stopping a run does not wait for itself.
+
+Archiving or closing a workspace finalizes its active run asynchronously. An
+authorized archived workspace can still list and read its receipts; after
+reconnecting, resume the archive with `browser_saved_workspaces` first. Starting
+a new recording requires an active workspace. Reports include their recording
+scope and interpretation caveats so exported JSON can be reviewed independently.
+
+Each workspace retains at most three runs, each capped at 1 MiB and 1,000 journal
+entries. Starting a fourth run retires the oldest whole run. Accepted actions
+reserve space for their outcomes; site observations have a bounded write queue,
+and omitted observations are counted. An interrupted run is reported as such and
+never automatically resumed or replayed. Failed metadata persistence leaves the
+run in a stopping state until stop succeeds. Unindexed journals are preserved for
+recovery instead of silently discarded.
+
+Receipts cover workspace-scoped browser tools, workspace admission, observed
+site-policy decisions, and bounded before/after state. Workspace lifecycle and
+wallet tools are outside this stream; wallet actions retain their separate audit
+contract. Native page events may have no action correlation. Unavailable state is
+`null`, and possible effects after failure or cancellation do not imply rollback.
+Site identities are opaque and stable only within one live run. Reports contain
+no raw URLs, titles, tool arguments, tool results, error text, form values, page
+content, cookies, resume keys, or MCP tokens. The journal hash chain detects
+inconsistent history; it is not proof against someone who can rewrite local files.
+
+Existing network, console, DOM-change, and storage-change evidence tools keep
+their existing contracts and need no migration. This first receipt format does
+not retain references to those separate evidence streams; its state summary is
+limited to the tab identifier, navigation generation, and origin-change flag.
+
 ## MCP tools
 
 Hronaut includes concise workflow instructions in the MCP initialization response. Compatible clients learn to create a fresh isolated workspace before browsing, prefer semantic snapshots and refs over coordinates, bring the visible browser forward for observation or takeover, and request attention only for a manual step. Client behavior is never treated as a security boundary: Hronaut still validates workspace ownership, tab identities, input bounds, authorization, and interaction locks in the server.
