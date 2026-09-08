@@ -78,6 +78,22 @@ function create(
 }
 
 describe('credential fill controller', () => {
+  it.each(['success', 'rejected', 'error'] as const)('suppresses delayed %s feedback after a same-URL reload', async (outcome) => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementationOnce(() => pending.promise)
+    const fill = harness.controller.fillSelectedCredential(credential())
+    harness.activeTab.value!.navigationGeneration += 1
+    if (outcome === 'error') pending.reject(new Error('Previous document failed'))
+    else pending.resolve(outcome === 'success')
+    await fill
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
+    expect(harness.controller.state.value).toBe('idle')
+    await harness.controller.fillSelectedCredential(credential())
+    expect(harness.onFilled).toHaveBeenCalledOnce()
+  })
+
   it('fills the only matching credential or opens the account picker for multiple matches', async () => {
     const single = create()
     await single.controller.fillSavedPassword()

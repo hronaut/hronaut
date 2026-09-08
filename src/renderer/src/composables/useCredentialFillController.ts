@@ -18,10 +18,11 @@ export function useCredentialFillController(options: CredentialFillControllerOpt
   async function fillSelectedCredential(credential: CredentialSummary): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || state.value === 'filling') return
-    const requestContext = { tabId: tab.id, url: tab.url }
+    const requestContext = { tabId: tab.id, url: tab.url, navigationGeneration: tab.navigationGeneration }
     const isRequestContextActive = () => {
       const activeTab = options.activeTab.value
       return activeTab?.id === requestContext.tabId && activeTab.url === requestContext.url
+        && activeTab.navigationGeneration === requestContext.navigationGeneration
     }
     options.pickerOpen.value = false
     state.value = 'filling'
