@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.17.0] - 2026-09-08
+
 ### Added
 
 - Show the number of MCP commands still settling during a pause, with guidance to inspect fresh page state before resuming.
