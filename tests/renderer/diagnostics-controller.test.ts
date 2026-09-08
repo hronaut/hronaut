@@ -147,6 +147,54 @@ afterEach(() => {
 })
 
 describe('diagnostics controller', () => {
+  it('invalidates a pending report after a same-URL reload', async () => {
+    const pending = deferred<BrowserPerformanceReport>()
+    const { activeTab, browser, controller } = createController()
+    browser.measurePerformance.mockImplementationOnce(() => pending.promise)
+    const loading = controller.runPerformanceReport()
+    activeTab.value = { ...tab(), navigationGeneration: 1 }
+    await nextTick()
+    pending.resolve(performanceReport())
+    await loading
+    expect(controller.performanceReport.value).toBeNull()
+    expect(controller.performanceState.value).toBe('idle')
+    controller.dispose()
+  })
+
+  it('clears a completed report on reload without stopping recorders or clearing baselines', async () => {
+    const { activeTab, browser, controller } = createController()
+    await controller.runPerformanceReport()
+    expect(controller.performanceReport.value).not.toBeNull()
+    activeTab.value!.navigationGeneration += 1
+    await nextTick()
+    expect(controller.performanceReport.value).toBeNull()
+    expect(controller.performancePanelOpen.value).toBe(false)
+    expect(browser.measurePerformance).toHaveBeenCalledTimes(1)
+    expect(browser.manageRepro).not.toHaveBeenCalled()
+    expect(browser.manageCodeCoverage).not.toHaveBeenCalled()
+    expect(browser.manageCpuProfile).not.toHaveBeenCalled()
+    expect(browser.measureMemory).not.toHaveBeenCalled()
+    expect(browser.visualCompare).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('does not reuse a pending DOM read from before a same-URL reload', async () => {
+    const oldRead = deferred<BrowserDomChangesReport>()
+    const { activeTab, browser, controller } = createController()
+    browser.manageDomChanges.mockImplementationOnce(() => oldRead.promise)
+    const loading = controller.manageDomChanges('get', true)
+    activeTab.value = { ...tab(), navigationGeneration: 1 }
+    await nextTick()
+    const fresh = { ...domReport(false), changeCount: 2 }
+    browser.manageDomChanges.mockResolvedValueOnce(fresh)
+    const refreshed = controller.manageDomChanges('get', true)
+    oldRead.resolve(domReport())
+    await Promise.all([loading, refreshed])
+    expect(browser.manageDomChanges).toHaveBeenCalledTimes(2)
+    expect(controller.domChangesReport.value).toEqual(fresh)
+    controller.dispose()
+  })
+
   it('invalidates an in-flight report after a same-tab reset', async () => {
     const pending = deferred<BrowserPerformanceReport>()
     const { browser, controller } = createController()

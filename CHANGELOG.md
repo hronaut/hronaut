@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear stale diagnostics after same-URL reloads and prevent new DOM reads from reusing requests for the previous document, while preserving active recorders and baselines.
+
 ## [1.13.2] - 2026-09-08
 
 ### Fixed
