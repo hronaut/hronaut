@@ -429,6 +429,8 @@ export type McpServerStatus = 'starting' | 'ready' | 'paused' | 'error'
 export interface McpControlState {
   status: McpServerStatus
   paused: boolean
+  /** Actual tool callbacks still settling, independent of HTTP connections. */
+  activeCommands?: number
   error?: string
 }
 

@@ -97,6 +97,8 @@ Visible split-view panes, pinned or loading tabs, audio playback, active downloa
 
 Use the pause button beside **MCP ready** to reject new MCP commands immediately while keeping Hronaut, its tabs, logins, and browser profile open. Resume from the same control when you are ready. This runtime safety switch is intentionally separate from MCP authentication and resets when Hronaut restarts.
 
+While paused, the status pill shows how many tool callbacks are still settling, including work whose HTTP client disconnected. When the count reaches zero, the callbacks have finished; this does not establish whether every browser side effect succeeded or whether later page events have stopped. Pause does not undo dispatched actions. Inspect the visible page and obtain a fresh snapshot before continuing, and do not automatically repeat a possible write whose outcome is unknown.
+
 ## Saved passwords
 
 When you manually submit a website password form, Hronaut can ask whether to save or update that login. Passwords are encrypted asynchronously by the operating system through macOS Keychain, Windows DPAPI, or a supported Linux secret store. Hronaut refuses to enable password saving when Linux would fall back to Electron's unprotected `basic_text` backend.

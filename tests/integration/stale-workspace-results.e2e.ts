@@ -24,11 +24,17 @@ test('discards delayed read and write results across a real pause/resume without
     expect(result.isError).not.toBe(true)
     return JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as T
   }
-  const pauseAndResume = () => appWindow.evaluate(async () => {
-    const api = (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp
-    await api.setPaused(true)
-    await api.setPaused(false)
-  })
+  const pauseAndResume = async () => {
+    await appWindow.evaluate(async () => {
+      const api = (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp
+      await api.setPaused(true)
+    })
+    await expect(appWindow.getByRole('button', { name: 'Agents paused · 1 settling' })).toBeVisible()
+    await appWindow.evaluate(async () => {
+      const api = (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp
+      await api.setPaused(false)
+    })
+  }
   try {
     await expect.poll(async () => {
       try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false }
@@ -67,6 +73,23 @@ test('discards delayed read and write results across a real pause/resume without
     const fresh = await call('browser_evaluate', { ...args, script: 'document.body.dataset.effect' })
     expect(fresh.isError).not.toBe(true)
     expect(fresh.content).toContainEqual({ type: 'text', text: 'applied' })
+    await expect.poll(() => appWindow.evaluate(async () => (
+      (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp.getState()
+    ))).toMatchObject({ activeCommands: 0, paused: false })
+
+    const disconnected = call('browser_evaluate', { ...args, script: "fetch('/hold-disconnect').then(() => 'finished')" })
+    void disconnected.catch(() => undefined)
+    await expect.poll(() => held.has('/hold-disconnect')).toBe(true)
+    await client.close()
+    await appWindow.evaluate(async () => {
+      await (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp.setPaused(true)
+    })
+    await expect(appWindow.getByRole('button', { name: 'Agents paused · 1 settling' })).toBeVisible()
+    held.get('/hold-disconnect')!.end('release')
+    await expect(appWindow.getByRole('button', { name: 'Agents paused', exact: true })).toBeVisible()
+    await expect.poll(() => appWindow.evaluate(async () => (
+      (window as unknown as { hronautMcp: HronautMcpApi }).hronautMcp.getState()
+    ))).toMatchObject({ activeCommands: 0, paused: true })
   } finally {
     for (const response of held.values()) response.end()
     await client.close()
