@@ -154,6 +154,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   let domChangesReadRequest: {
     tabId: string
     url: string
+    navigationGeneration: number
     promise: Promise<BrowserDomChangesReport>
   } | undefined
   const feedbackTimers = new Map<CopyFeedback, number>()
@@ -161,7 +162,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
     const tab = options.activeTab.value
     if (!tab || tab.url.startsWith('hronaut://home')) return null
-    return { tab, generation, sequence: ++sequences[domain] }
+    return { tab: { ...tab }, generation, sequence: ++sequences[domain] }
   }
 
   function current(domain: Domain, request: { tab: BrowserTabState; generation: number; sequence: number }): boolean {
@@ -169,6 +170,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       && request.sequence === sequences[domain]
       && options.activeTab.value?.id === request.tab.id
       && options.activeTab.value.url === request.tab.url
+      && options.activeTab.value.navigationGeneration === request.tab.navigationGeneration
   }
 
   function scheduleFeedbackReset(key: CopyFeedback, callback: () => void): void {
@@ -513,9 +515,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     try {
       if (action !== 'get') domChangesReadRequest = undefined
       let operation = domChangesReadRequest
-      if (action !== 'get' || operation?.tabId !== request.tab.id || operation.url !== request.tab.url) {
+      if (action !== 'get' || operation?.tabId !== request.tab.id || operation.url !== request.tab.url
+        || operation.navigationGeneration !== request.tab.navigationGeneration) {
         const promise = options.browser.manageDomChanges(action, request.tab.id)
-        operation = { tabId: request.tab.id, url: request.tab.url, promise }
+        operation = { tabId: request.tab.id, url: request.tab.url, navigationGeneration: request.tab.navigationGeneration, promise }
         if (action === 'get') {
           domChangesReadRequest = operation
           void promise.then(
@@ -757,9 +760,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   const stopTabWatcher = watch(
-    () => [options.activeTab.value?.id, options.activeTab.value?.url] as const,
-    ([tabId, url], previousContext) => {
-      if (previousContext && tabId === previousContext[0] && url === previousContext[1]) return
+    () => [options.activeTab.value?.id, options.activeTab.value?.url, options.activeTab.value?.navigationGeneration] as const,
+    ([tabId, url, navigationGeneration], previousContext) => {
+      if (previousContext && tabId === previousContext[0] && url === previousContext[1]
+        && navigationGeneration === previousContext[2]) return
       resetForContext()
     },
     { immediate: true }

@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Opt-in workspace action audit receipts through MCP, with bounded private journals, correlated site decisions, explicit partial outcomes, and sanitized JSON reports that survive reconnects.
 
+### Fixed
+
+- Clear stale diagnostics after same-URL reloads and prevent new DOM reads from reusing requests for the previous document, while preserving active recorders and baselines.
+
 ## [1.13.2] - 2026-09-08
 
 ### Fixed
