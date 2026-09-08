@@ -10,6 +10,8 @@ import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
 import { workspacePreflight } from './workspace-preflight.js'
 import { McpActionTracker } from './action-tracker.js'
+import type { McpToolActivity, McpToolMetric } from './activity-history.js'
+export type { McpToolActivity, McpToolMetric } from './activity-history.js'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -245,24 +247,6 @@ export interface McpClientActivity {
   lastSeenAt: string
   requestCount: number
   activeRequests: number
-}
-
-export interface McpToolActivity {
-  activityId: string
-  tabId: string
-  toolName: string
-  startedAt: string
-  completedAt: string
-  durationMs: number
-  outcome: 'finished' | 'failed'
-}
-
-export interface McpToolMetric {
-  toolName: string
-  count: number
-  failures: number
-  totalDurationMs: number
-  lastUsedAt: string
 }
 
 export interface McpDashboardState {
@@ -2665,14 +2649,10 @@ export class McpHttpServer {
   private activeRequests = 0
   private totalRequests = 0
   private paused = false
-  private completedToolCalls = 0
   private token: string | undefined
   private toolSet: McpToolSet
   private readonly clients = new Map<string, McpClientActivity>()
   private readonly transportSessions = new Map<string, McpTransportSession>()
-  private readonly activityStarts = new Map<string, McpTabActivity>()
-  private readonly recentActivity: McpToolActivity[] = []
-  private readonly toolMetrics = new Map<string, McpToolMetric>()
   private readonly walletSessions: WalletAgentSessionRegistry
   private readonly actionTracker: McpActionTracker
 
@@ -2723,15 +2703,11 @@ export class McpHttpServer {
       totalRequests: this.totalRequests,
       paused: this.paused,
       status: this.startedAt ? (this.paused ? 'paused' : 'ready') : 'starting',
-      completedToolCalls: this.completedToolCalls,
+      ...this.actionTracker.activityHistory.snapshot(),
       clients: [...this.clients.values()]
         .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))
         .slice(0, 12)
         .map((client) => ({ ...client })),
-      recentActivity: this.recentActivity.map((activity) => ({ ...activity })),
-      toolMetrics: [...this.toolMetrics.values()]
-        .sort((left, right) => right.count - left.count || right.lastUsedAt.localeCompare(left.lastUsedAt))
-        .map((metric) => ({ ...metric })),
       tools: mcpToolCatalogForSet(this.toolSet)
     }
   }
@@ -2971,38 +2947,6 @@ export class McpHttpServer {
 
   private trackTabActivity(activity: McpTabActivity): void {
     this.options.onTabActivity?.(activity)
-    if (activity.phase === 'started') {
-      this.activityStarts.set(activity.activityId, activity)
-      return
-    }
-    const started = this.activityStarts.get(activity.activityId)
-    if (!started) return
-    this.activityStarts.delete(activity.activityId)
-    const completedAt = new Date(activity.occurredAt).toISOString()
-    const durationMs = Math.max(0, activity.occurredAt - started.occurredAt)
-    const completed: McpToolActivity = {
-      activityId: activity.activityId,
-      tabId: activity.tabId,
-      toolName: activity.toolName,
-      startedAt: new Date(started.occurredAt).toISOString(),
-      completedAt,
-      durationMs,
-      outcome: activity.phase
-    }
-    this.completedToolCalls += 1
-    this.recentActivity.unshift(completed)
-    if (this.recentActivity.length > 40) this.recentActivity.length = 40
-    const metric = this.toolMetrics.get(activity.toolName) ?? {
-      toolName: activity.toolName,
-      count: 0,
-      failures: 0,
-      totalDurationMs: 0,
-      lastUsedAt: completedAt
-    }
-    metric.count += 1
-    if (activity.phase === 'failed') metric.failures += 1
-    metric.totalDurationMs += durationMs
-    metric.lastUsedAt = completedAt
-    this.toolMetrics.set(activity.toolName, metric)
+    this.actionTracker.activityHistory.track(activity)
   }
 }

@@ -1,7 +1,10 @@
+import { McpActivityHistory } from './activity-history.js'
+
 /** Main-process lifetime, independent of transport sessions or endpoint moves.
- * Retains only counters; command arguments and results are never stored here.
+ * Retains counters and bounded activity metadata, never arguments or results.
  */
 export class McpActionTracker {
+  readonly activityHistory = new McpActivityHistory()
   private active = 0
   private revision = 0
 

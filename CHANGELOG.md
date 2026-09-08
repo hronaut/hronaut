@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve bounded MCP activity history and metrics across endpoint replacement, including commands that finish after their client disconnects.
+
 ### Added
 
 - Include active command counts and explicit unknown prior outcomes in paused MCP responses, including after client disconnects.
