@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Discard workspace tool results when pause or ownership changes invalidate them while the handler runs, reporting stale observations or unknown write outcomes without returning the obsolete result.
+
 ## [1.16.0] - 2026-09-08
 
 ### Added

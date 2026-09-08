@@ -1048,6 +1048,22 @@ function createBrowserMcpServer(
                 ...input,
                 tabId: resolvedTabId
               } as unknown as T)
+            try {
+              requireCurrentControl()
+              requireAgentWorkspace(workspaceId)
+              // Closing a tab intentionally retires its target. Other tools
+              // must still belong to the authorized workspace when they settle.
+              if (resolvedTabId && name !== 'browser_close_tab'
+                && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+            } catch {
+              phase = 'failed'
+              const outcome = {
+                status: toolDefinition(name).annotations.readOnlyHint ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
+                retrySafe: false,
+                nextAction: 'The workspace context changed while this tool was running. Its result was discarded. Inspect the visible page and obtain fresh state before deciding what to do next; do not automatically repeat a possible side effect.'
+              }
+              return { ...textResult(outcome), structuredContent: outcome, isError: true }
+            }
             if (result.isError) phase = 'failed'
             return scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
           } catch (error) {
