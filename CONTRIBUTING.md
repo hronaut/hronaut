@@ -4,7 +4,7 @@ Thank you for helping improve Hronaut. Bug reports, focused design proposals, do
 
 ## Code contributions are temporarily paused
 
-Hronaut uses PolyForm Noncommercial and separate commercial licensing. Hronaut must therefore have sufficient rights to distribute accepted contributions under both models.
+Hronaut uses a proprietary Subscription and Trial License with inspectable source. Hronaut must have sufficient rights to distribute accepted contributions under these terms.
 
 Do not open a code pull request until this repository publishes a contributor agreement and reopens code contributions. A Developer Certificate of Origin sign-off alone does not provide the relicensing rights required by this model. Unsolicited patches cannot be accepted or incorporated.
 

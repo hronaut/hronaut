@@ -27,10 +27,11 @@ function license(overrides: Partial<CommercialLicenseState> = {}): CommercialLic
 
 function renderPanel(initial = license()) {
   const activate = vi.fn(async () => license({ status: 'active', active: true, maskedKey: '••••-TEST' }))
+  const refresh = vi.fn(async () => initial)
   const api: HronautLicenseApi = {
     getState: vi.fn(async () => initial),
     activate,
-    refresh: vi.fn(async () => initial),
+    refresh,
     deactivate: vi.fn(async () => license()),
     openPurchase: vi.fn(async () => undefined),
     onChanged: vi.fn(() => () => undefined)
@@ -38,7 +39,7 @@ function renderPanel(initial = license()) {
   const controller = useCommercialLicenseController({
     api,
     confirmDeactivate: () => true,
-    emptyKeyMessage: () => 'Enter a commercial license key.',
+    emptyKeyMessage: () => 'Enter a license key.',
     formatError: (error) => error instanceof Error ? error.message : String(error)
   })
   controller.accept(initial)
@@ -50,10 +51,31 @@ function renderPanel(initial = license()) {
       formatDateTime: (value: string) => `formatted:${value}`
     }
   })
-  return { activate, controller, rendered }
+  return { activate, refresh, controller, rendered }
 }
 
 describe('SupportSettingsPanel', () => {
+  it.each([
+    ['not-started', 'Your 10-day trial starts with the first agent tool call.'],
+    ['active', 'Trial ends formatted:2026-09-19T12:00:00.000Z.'],
+    ['expired', 'Your trial has ended. Subscribe to continue agent automation.']
+  ] as const)('shows %s trial status with an available purchase action', (trialStatus, message) => {
+    const { controller } = renderPanel(license({ trialStatus, trialExpiresAt: '2026-09-19T12:00:00.000Z' }))
+    expect(screen.getByRole('status')).toHaveTextContent(message)
+    expect(screen.getByRole('button', { name: 'Buy license ↗' })).toBeEnabled()
+    controller.dispose()
+  })
+
+  it('allows revalidation of a retained expired key without activating another device', async () => {
+    const { controller, activate, refresh } = renderPanel(license({ status: 'expired', maskedKey: '••••-TEST', trialStatus: 'not-started' }))
+    expect(screen.queryByText('Your 10-day trial starts with the first agent tool call.')).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Check license' }))
+    expect(activate).not.toHaveBeenCalled()
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Manage subscription ↗' })).toBeEnabled()
+    controller.dispose()
+  })
+
   it('renders active license metadata and formats validation details', () => {
     const { controller } = renderPanel(license({
       status: 'active',
@@ -75,10 +97,10 @@ describe('SupportSettingsPanel', () => {
     const { activate, controller } = renderPanel()
     activate.mockImplementationOnce(() => activating.promise)
     const user = userEvent.setup()
-    const key = screen.getByLabelText('Commercial license key')
+    const key = screen.getByLabelText('License key')
 
     await user.type(key, 'ABCD-EFGH-IJKL-MNOP')
-    await user.click(screen.getByRole('button', { name: 'Activate commercial license' }))
+    await user.click(screen.getByRole('button', { name: 'Activate license' }))
 
     expect(key).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Activating…' })).toBeDisabled()
@@ -95,18 +117,18 @@ describe('SupportSettingsPanel', () => {
     controller.keyDraft.value = 'ABCD-EFGH-IJKL-MNOP'
 
     const operation = controller.activate()
-    controller.accept(license({ message: 'Commercial license service unavailable' }))
-    activating.reject(new Error('Commercial license service unavailable'))
+    controller.accept(license({ message: 'License service unavailable' }))
+    activating.reject(new Error('License service unavailable'))
     await expect(operation).resolves.toBe(false)
 
-    expect(screen.getAllByText('Commercial license service unavailable')).toHaveLength(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('Commercial license service unavailable')
+    expect(screen.getAllByText('License service unavailable')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('License service unavailable')
     controller.dispose()
   })
 
   it('emits external support links without navigating inside the component', async () => {
     const { controller, rendered } = renderPanel()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'PolyForm Noncommercial license ↗' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Hronaut License ↗' }))
 
     expect(rendered.emitted().openUrl).toEqual([['https://github.com/hronaut/hronaut/blob/main/LICENSE']])
     controller.dispose()
@@ -114,7 +136,7 @@ describe('SupportSettingsPanel', () => {
 
   it('routes commercial purchase separately from Hronaut tab links', async () => {
     const { controller, rendered } = renderPanel()
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Buy commercial license ↗' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Buy license ↗' }))
 
     expect(rendered.emitted().purchase).toEqual([[]])
     expect(rendered.emitted().openUrl).toBeUndefined()

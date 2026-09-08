@@ -199,6 +199,7 @@ class WalletAgentSessionRegistry {
 
 export interface McpHttpServerOptions {
   actionTracker?: McpActionTracker
+  authorizeAutomation?: () => Promise<void>
   auditReceipts?: AuditReceiptService
   host: string
   port: number
@@ -714,7 +715,8 @@ function createBrowserMcpServer(
   onTabActivity?: (activity: McpTabActivity) => void,
   auditReceipts?: AuditReceiptService,
   getPaused: () => boolean = () => false,
-  actionTracker = new McpActionTracker()
+  actionTracker = new McpActionTracker(),
+  authorizeAutomation?: () => Promise<void>
 ): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -758,9 +760,14 @@ function createBrowserMcpServer(
       ...(config as Record<string, unknown>),
       title: definition.title,
       annotations: definition.annotations
-    } as never, ((...args: unknown[]) => actionTracker.run(() => (
-      (handler as (...values: unknown[]) => unknown)(...args)
-    ))) as never)
+    } as never, (async (...args: unknown[]) => {
+      try {
+        await authorizeAutomation?.()
+        return await actionTracker.run(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
+      } catch (error) {
+        return errorResult(error)
+      }
+    }) as never)
     registeredTools.set(name, registered)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
@@ -2847,7 +2854,8 @@ export class McpHttpServer {
             (activity) => this.trackTabActivity(activity),
             this.options.auditReceipts,
             () => this.paused,
-            this.actionTracker
+            this.actionTracker,
+            this.options.authorizeAutomation
           )
           session.server = mcp.server
           session.transport = transport

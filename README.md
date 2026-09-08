@@ -6,7 +6,7 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 [![CI](https://github.com/hronaut/hronaut/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/hronaut/hronaut/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/hronaut/hronaut/actions/workflows/codeql.yml)
 [![Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-6866e9)](https://hronaut.dev/download)
-[![Source-available: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-source--available%20PolyForm%20Noncommercial%201.0.0-4b5563)](LICENSE)
+[![License: Paid with 10-day trial](https://img.shields.io/badge/license-paid%20with%2010--day%20trial-4b5563)](LICENSE)
 [![skills.sh](https://skills.sh/b/hronaut/hronaut)](https://skills.sh/hronaut/hronaut)
 
 [Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
@@ -257,7 +257,7 @@ Release packaging and publishing are centralized in [`.github/workflows/release.
 
 ## License
 
-Hronaut is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Uses not permitted by that license require an active [commercial subscription license](COMMERCIAL-LICENSE.md).
+Hronaut is source-available under the [Subscription and Trial License](LICENSE). All users receive one 10-day trial starting with their first agent tool call, with no credit card required. Afterward, all ongoing use requires an active subscription: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.
 
 Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow the [security policy](.github/SECURITY.md).
 

@@ -36,6 +36,11 @@ const {
       <h3>{{ state.active ? t('settings.support.thanks') : t('settings.support.heading') }}</h3>
       <p>{{ t('settings.support.description') }}</p>
     </div>
+    <UiNotice v-if="!state.active && state.trialStatus && (state.trialStatus !== 'not-started' || !state.maskedKey)" :tone="state.trialStatus === 'expired' ? 'danger' : 'neutral'" role="status">
+      {{ state.trialStatus === 'active' && state.trialExpiresAt
+        ? t('settings.support.trialActive', { time: formatDateTime(state.trialExpiresAt) })
+        : t(state.trialStatus === 'expired' ? 'settings.support.trialExpired' : 'settings.support.trialNotStarted') }}
+    </UiNotice>
     <div v-if="state.active" class="support-card commercial-license-card active">
       <span class="support-heart" aria-hidden="true"><IconCheck /></span>
       <strong>{{ t('settings.support.active', { key: state.maskedKey }) }}</strong>
@@ -60,6 +65,17 @@ const {
       <strong>{{ t('settings.support.activateDescription') }}</strong>
       <small v-if="state.secureStorageAvailable">{{ t('settings.support.secure') }}</small>
       <small v-else>{{ t('settings.support.unavailable') }}</small>
+      <div v-if="state.maskedKey" class="commercial-license-actions">
+        <UiButton :busy="action === 'refreshing'" :disabled="busy || !state.secureStorageAvailable" @click="refresh">
+          {{ action === 'refreshing' ? t('settings.support.checking') : t('settings.support.check') }}
+        </UiButton>
+        <UiButton :disabled="busy" @click="emit('openUrl', 'https://www.creem.io/my-orders/login')">
+          {{ t('settings.support.manage') }}
+        </UiButton>
+        <UiButton variant="danger" :busy="action === 'deactivating'" :disabled="busy || !state.secureStorageAvailable" @click="deactivate">
+          {{ action === 'deactivating' ? t('settings.support.deactivating') : t('settings.support.deactivate') }}
+        </UiButton>
+      </div>
       <form class="commercial-license-form" @submit.prevent="activate">
         <UiField :label="t('settings.support.key')" for-id="commercial-license-key">
           <UiInput

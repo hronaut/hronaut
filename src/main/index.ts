@@ -856,7 +856,6 @@ async function configureCredentialStore(): Promise<void> {
 
 async function configureCommercialLicenseStore(): Promise<void> {
   commercialLicenseClient = new CommercialLicenseClient(COMMERCIAL_LICENSE_API_BASE)
-  if (!credentialStorageStatus.available) return
   commercialLicenseStore = new CommercialLicenseStore(join(app.getPath('userData'), 'commercial-license.json'), {
     encrypt: (value) => safeStorage.encryptStringAsync(value),
     decrypt: (value) => safeStorage.decryptStringAsync(value)
@@ -873,7 +872,7 @@ function currentCommercialLicenseState(): CommercialLicenseState {
       message: credentialStorageStatus.reason || text('native.errors.secureStorage')
     }
   }
-  return commercialLicenseStore.summary(true, commercialLicenseMessage)
+  return commercialLicenseStore.summary(credentialStorageStatus.available, commercialLicenseMessage)
 }
 
 function publishCommercialLicenseState(): CommercialLicenseState {
@@ -904,7 +903,7 @@ async function activateCommercialLicenseNow(value: unknown): Promise<CommercialL
   if (typeof value !== 'string') throw new TypeError('Commercial license key must be a string')
   const licenseKey = value.trim().toUpperCase()
   if (!/^[A-Z0-9][A-Z0-9-]{15,127}$/.test(licenseKey)) throw new TypeError('Enter the complete commercial license key from your Creem receipt')
-  if (!commercialLicenseStore || !commercialLicenseClient) throw new Error('Secure license storage is unavailable')
+  if (!credentialStorageStatus.available || !commercialLicenseStore || !commercialLicenseClient) throw new Error('Secure license storage is unavailable')
   try {
     const result = await commercialLicenseClient.activate(licenseKey, commercialLicenseStore.installationName())
     if (!result.valid || result.status !== 'active') throw new CommercialLicenseError('license_inactive')
@@ -3940,6 +3939,14 @@ function createRuntimeMcpServer(
   if (!tabsManager || !mcpTokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
     actionTracker: mcpActionTracker,
+    authorizeAutomation: async () => {
+      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
+      try {
+        await commercialLicenseStore.authorizeAutomation()
+      } finally {
+        publishCommercialLicenseState()
+      }
+    },
     auditReceipts: auditReceipts ?? undefined,
     host: MCP_HOST,
     port,
@@ -4191,12 +4198,16 @@ app.whenReady().then(async () => {
   if (settings.checkForUpdatesOnStartup) {
     setTimeout(() => void checkForUpdates(), 5_000)
   }
-  if (commercialLicenseStore?.hasActivation()) {
-    setTimeout(() => {
+  {
+    const refreshLicense = (): void => {
+      publishCommercialLicenseState()
+      if (!commercialLicenseStore?.hasActivation() || !credentialStorageStatus.available) return
       void refreshCommercialLicense().catch((error: unknown) => {
         console.error('[license] Background refresh failed:', error)
       })
-    }, 7_500)
+    }
+    setTimeout(refreshLicense, 7_500).unref()
+    setInterval(refreshLicense, 60 * 60 * 1000).unref()
   }
 })
 

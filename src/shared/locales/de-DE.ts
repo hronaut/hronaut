@@ -254,10 +254,13 @@ export const deDE = {
       exclusions: "Lesezeichen ({bookmarks}), gespeicherte Passwörter ({passwords}), Berechtigungen ({permissions}), Downloads, Einstellungen und offene Tabs bleiben erhalten. Seiten werden nicht neu geladen. Neue MCP-Befehle pausieren während des Löschens. Cookies, Cache und Website-Daten gehören hier zum bisherigen Browserprofil; der Verlauf gilt anwendungsweit. Einzelne Arbeitsbereiche verwalten Sie über Arbeitsbereichs- oder Seitensteuerung. Chromium zeigt nicht alle reinen Speicherursprünge. Subdomains können Cookies teilen."
     },
     "support": {
+      "trialNotStarted": "Die 10 Testtage beginnen mit dem ersten Werkzeugaufruf eines Agenten.",
+      "trialActive": "Testphase endet {time}.",
+      "trialExpired": "Die Testphase ist beendet. Für weitere Agentenautomatisierung ist ein Abo erforderlich.",
       "kicker": "Kommerzielle Lizenz",
       "thanks": "Vielen Dank für die Lizenzierung von Hronaut",
-      "heading": "Hronaut für die kommerzielle Nutzung aktivieren",
-      "description": "Der Quellcode von Hronaut ist unter PolyForm Noncommercial 1.0.0 verfügbar. Kommerzielle Nutzung erfordert ein aktives kostenpflichtiges Abonnement.",
+      "heading": "Hronaut aktivieren",
+      "description": "Nach 10 Testtagen benötigen alle Nutzer ein Abo: $4/Monat oder $24/Jahr (50% Rabatt gegenüber $48).",
       "active": "Die kommerzielle Lizenz {key} ist auf diesem Gerät aktiv.",
       "activations": "{used} von {limit} Geräteaktivierungen verwendet.",
       "unlimited": "unbegrenzt",
@@ -276,7 +279,7 @@ export const deDE = {
       "activate": "Kommerzielle Lizenz aktivieren",
       "support": "Kommerzielle Lizenz kaufen ↗",
       "alternatives": "Lizenz und Community",
-      "license": "PolyForm-Noncommercial-Lizenz ↗",
+      "license": "Hronaut-Lizenz ↗",
       "contributing": "Mitwirkungsleitfaden ↗",
       "issue": "Problem melden ↗"
     }
@@ -582,7 +585,7 @@ export const deDE = {
     "developmentBuild": "Entwicklungs-Build",
     "description": "Ein dauerhafter, sichtbarer Browser, in dem Coding-Agenten gemeinsam mit Ihnen über MCP navigieren können.",
     "repository": "GitHub-Repository",
-    "license": "PolyForm-Noncommercial-Lizenz",
+    "license": "Hronaut-Lizenz",
     "contribute": "Mitwirken",
     "support": "Kommerzielle Lizenz"
   },

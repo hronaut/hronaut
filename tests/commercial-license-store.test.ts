@@ -1,8 +1,8 @@
 import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { CommercialLicenseStore, type CommercialLicenseEncryption } from '../src/main/commercial-license-store.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CommercialLicenseStore, TRIAL_DURATION_MS, LICENSE_OFFLINE_GRACE_MS, type CommercialLicenseEncryption } from '../src/main/commercial-license-store.js'
 
 const temporaryDirectories: string[] = []
 const encryption: CommercialLicenseEncryption = {
@@ -11,6 +11,7 @@ const encryption: CommercialLicenseEncryption = {
 }
 
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -204,4 +205,79 @@ describe('CommercialLicenseStore', () => {
     await restored.load()
     expect(restored.summary(true)).toEqual(before)
   })
+})
+
+
+describe('paid automation access', () => {
+  it('starts once at first use and expires exactly after ten days across restarts and deactivation', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-09T12:00:00Z'))
+    const { path, store } = await createStore()
+    expect(store.summary(true)).toMatchObject({ trialStatus: 'not-started', accessAllowed: false })
+    await store.authorizeAutomation()
+    const expiry = store.summary(true).trialExpiresAt
+    expect(expiry).toBe('2026-09-19T12:00:00.000Z')
+    vi.setSystemTime(Date.now() + TRIAL_DURATION_MS - 1)
+    const restarted = new CommercialLicenseStore(path, encryption)
+    await restarted.load()
+    await restarted.clear()
+    await expect(restarted.authorizeAutomation()).resolves.toBeUndefined()
+    expect(restarted.summary(true).trialExpiresAt).toBe(expiry)
+    vi.setSystemTime(Date.now() + 1)
+    await expect(restarted.authorizeAutomation()).rejects.toThrow('active subscription')
+    expect(restarted.summary(true)).toMatchObject({ trialStatus: 'expired', accessAllowed: false })
+  })
+
+  it('does not grant a fresh trial from a corrupt persisted license file', async () => {
+    const { path } = await createStore()
+    await writeFile(path, '{broken')
+    const restarted = new CommercialLicenseStore(path, encryption)
+    await restarted.load()
+    await expect(restarted.authorizeAutomation()).rejects.toThrow('active subscription')
+  })
+
+  it('bounds offline paid access and restores it only after successful validation', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-09T12:00:00Z'))
+    const { store } = await createStore()
+    const grant = { valid: true, status: 'active', productId: 'prod_hronaut', instanceId: 'inst_paid' }
+    await store.saveActivation('ABCD-EFGH-IJKL-MNOP', grant)
+    await expect(store.authorizeAutomation()).resolves.toBeUndefined()
+    expect(store.summary(true).trialStatus).toBe('not-started')
+    vi.setSystemTime(Date.now() + LICENSE_OFFLINE_GRACE_MS)
+    await expect(store.authorizeAutomation()).rejects.toThrow('active subscription')
+    await store.saveValidation(grant)
+    await expect(store.authorizeAutomation()).resolves.toBeUndefined()
+    await store.markInactive()
+    await expect(store.authorizeAutomation()).rejects.toThrow('active subscription')
+  })
+
+  it('does not reopen an expired trial when the clock moves backwards', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.parse('2026-09-09T12:00:00Z')
+    vi.setSystemTime(start)
+    const { path, store } = await createStore()
+    await store.authorizeAutomation()
+    vi.setSystemTime(start + TRIAL_DURATION_MS)
+    await expect(store.authorizeAutomation()).rejects.toThrow()
+    vi.setSystemTime(start)
+    const restarted = new CommercialLicenseStore(path, encryption)
+    await restarted.load()
+    await expect(restarted.authorizeAutomation()).rejects.toThrow()
+  })
+  it('does not reopen an expired subscription when the clock moves backwards', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const start = Date.parse('2026-09-09T12:00:00Z')
+    vi.setSystemTime(start)
+    const { store } = await createStore()
+    await store.saveActivation('ABCD-EFGH-IJKL-MNOP', {
+      valid: true, status: 'active', productId: 'prod_hronaut', instanceId: 'inst_paid',
+      expiresAt: new Date(start + 60_000).toISOString()
+    })
+    vi.setSystemTime(start + 60_000)
+    await expect(store.authorizeAutomation()).rejects.toThrow()
+    vi.setSystemTime(start)
+    await expect(store.authorizeAutomation()).rejects.toThrow()
+  })
+
 })

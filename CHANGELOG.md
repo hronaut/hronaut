@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-09-09
+
+### Changed
+
+- Require a paid subscription for all ongoing use after a 10-day trial starting with the first agent tool call. Enforce expiry before agent tools run, preserve manual data recovery, and limit offline paid access to seven days since validation.
+- Align licensing and pricing at $4/month or $24/year per user (the annual price already includes 50% off $48), with three devices per seat. Earlier releases retain their original terms.
+
+### Security
+
+- Update js-yaml and Hono to patched versions identified by the production dependency audit.
+
 ## [1.18.0] - 2026-09-09
 
 ### Fixed

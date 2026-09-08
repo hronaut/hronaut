@@ -1,4 +1,14 @@
-import { expect, test } from './fixtures.js'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { expect, test as base } from './fixtures.js'
+
+const test = base.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    // This test injects update states; the automatic check would overwrite them.
+    await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({ checkForUpdatesOnStartup: false }))
+    await use(profileDirectory)
+  }
+})
 
 test('keeps busy update indicators distinct and visible across themes', async ({ appWindow, electronApp }, testInfo) => {
   await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()

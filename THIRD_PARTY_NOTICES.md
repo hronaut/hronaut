@@ -1,6 +1,6 @@
 # Third-party notices
 
-Hronaut depends on and bundles third-party open-source software. Each dependency remains under its own license; the PolyForm Noncommercial license for Hronaut does not replace those terms. Complete dependency names, versions, and integrity hashes are recorded in `package-lock.json`.
+Hronaut depends on and bundles third-party open-source software. Each dependency remains under its own license; the Subscription and Trial License for Hronaut does not replace those terms. Complete dependency names, versions, and integrity hashes are recorded in `package-lock.json`.
 
 Notable code and assets compiled into the desktop application include:
 

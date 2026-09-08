@@ -58,7 +58,7 @@ describe('HelpDialog', () => {
     expect(releaseHistoryController.openDialog).toHaveBeenCalledOnce()
     await userEvent.setup().click(screen.getByRole('button', { name: 'GitHub repository' }))
     expect(openUrl).toHaveBeenCalledWith('https://github.com/hronaut/hronaut')
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Commercial license' }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'License' }))
     expect(openSupportSettings).toHaveBeenCalledOnce()
     controller.dispose()
   })

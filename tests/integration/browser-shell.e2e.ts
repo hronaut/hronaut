@@ -2870,15 +2870,15 @@ test('puts Help in the native application menu and opens shell dialogs above eve
   const aboutDialog = appWindow.getByRole('dialog', { name: 'About Hronaut' })
   await expect(aboutDialog).toBeVisible()
   await expect(aboutDialog).toContainText('A persistent, visible browser')
-  await expect(aboutDialog.getByRole('button', { name: 'PolyForm Noncommercial license' })).toBeVisible()
+  await expect(aboutDialog.getByRole('button', { name: 'Hronaut License' })).toBeVisible()
   await expect(aboutDialog.getByRole('button', { name: 'Contribute' })).toBeVisible()
-  await aboutDialog.getByRole('button', { name: 'Commercial license', exact: true }).click()
+  await aboutDialog.getByRole('button', { name: 'License', exact: true }).click()
   await expect(aboutDialog).toBeHidden()
-  await expect(appWindow.locator('.settings-dialog')).toContainText('Commercial license')
+  await expect(appWindow.locator('.settings-dialog')).toContainText('License')
   await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
   await clickMenuItem('Help', 'Commercial License')
-  await expect(appWindow.locator('.settings-dialog')).toContainText('Commercial license')
+  await expect(appWindow.locator('.settings-dialog')).toContainText('License')
   await appWindow.locator('.settings-dialog').getByRole('button', { name: 'Close', exact: true }).click()
 
   await appWindow.getByRole('button', { name: 'New tab' }).click()
@@ -7629,6 +7629,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.getByRole('button', { name: 'Settings' }).click()
     await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
     await appWindow.getByRole('button', { name: 'Close settings' }).click()
+    await expect(appWindow.getByRole('dialog', { name: 'Settings' })).not.toBeVisible()
 
     await appWindow.getByRole('tab', { name: /Interaction lock second/ }).locator('.tab-close').evaluate((element) => {
       ;(element as unknown as { click: () => void }).click()

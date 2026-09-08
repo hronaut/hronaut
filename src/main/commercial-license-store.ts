@@ -6,6 +6,9 @@ import { writeTextFileAtomically } from './atomic-file.js'
 interface PersistedCommercialLicense {
   version: 1
   installationId: string
+  trialStartedAt?: string
+  lastSeenAt?: string
+  trialInvalid?: boolean
   encryptedLicenseKey?: string
   keySuffix?: string
   instanceId?: string
@@ -25,11 +28,14 @@ function validDate(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value))
 }
 
-function licenseGrantIsActive(status: string | undefined, expiresAt: string | null | undefined): boolean {
+export const TRIAL_DURATION_MS = 10 * 24 * 60 * 60 * 1000
+export const LICENSE_OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000
+
+function licenseGrantIsActive(status: string | undefined, expiresAt: string | null | undefined, now: number): boolean {
   if (status !== 'active') return false
   if (expiresAt == null) return true
   const expiration = Date.parse(expiresAt)
-  return Number.isFinite(expiration) && expiration > Date.now()
+  return Number.isFinite(expiration) && expiration > now
 }
 
 function parsedState(value: unknown): PersistedCommercialLicense | null {
@@ -38,6 +44,8 @@ function parsedState(value: unknown): PersistedCommercialLicense | null {
   if (entry.version !== 1 || typeof entry.installationId !== 'string' || entry.installationId.length < 16) return null
   if (entry.encryptedLicenseKey !== undefined && (typeof entry.encryptedLicenseKey !== 'string' || !entry.encryptedLicenseKey)) return null
   if (entry.instanceId !== undefined && (typeof entry.instanceId !== 'string' || !entry.instanceId)) return null
+  if (entry.trialStartedAt !== undefined && !validDate(entry.trialStartedAt)) return null
+  if (entry.lastSeenAt !== undefined && !validDate(entry.lastSeenAt)) return null
   if (entry.lastValidatedAt !== undefined && !validDate(entry.lastValidatedAt)) return null
   return { ...entry, version: 1, installationId: entry.installationId }
 }
@@ -59,9 +67,11 @@ export class CommercialLicenseStore {
         this.value = parsed
         return
       }
+      this.value.trialInvalid = true
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
+      if (error instanceof SyntaxError) this.value.trialInvalid = true
     }
     await this.persist()
   }
@@ -141,7 +151,11 @@ export class CommercialLicenseStore {
 
   async clear(): Promise<void> {
     await this.queueMutation(async () => {
-      const nextValue = { version: 1 as const, installationId: this.value.installationId }
+      const nextValue = {
+        version: 1 as const, installationId: this.value.installationId,
+        trialStartedAt: this.value.trialStartedAt, lastSeenAt: this.value.lastSeenAt,
+        trialInvalid: this.value.trialInvalid
+      }
       await this.persist(nextValue)
       this.value = nextValue
     })
@@ -149,11 +163,21 @@ export class CommercialLicenseStore {
 
   summary(secureStorageAvailable: boolean, message?: string): CommercialLicenseState {
     const hasActivation = this.hasActivation()
-    const active = hasActivation && licenseGrantIsActive(this.value.status, this.value.expiresAt)
+    const now = Math.max(Date.now(), Date.parse(this.value.lastSeenAt ?? '') || 0)
+    const validatedAt = Date.parse(this.value.lastValidatedAt ?? '')
+    const active = hasActivation && licenseGrantIsActive(this.value.status, this.value.expiresAt, now)
+      && Number.isFinite(validatedAt) && now >= validatedAt && now - validatedAt < LICENSE_OFFLINE_GRACE_MS
+    const startedAt = Date.parse(this.value.trialStartedAt ?? '')
+    const trialExpiresAt = Number.isFinite(startedAt) ? new Date(startedAt + TRIAL_DURATION_MS).toISOString() : undefined
+    const trialActive = !this.value.trialInvalid && Number.isFinite(startedAt)
+      && now >= startedAt && now < startedAt + TRIAL_DURATION_MS
     const status = this.value.status === 'active' && !active && hasActivation ? 'expired' : this.value.status
     return {
       status: hasActivation ? (status ?? 'validation-required') : 'not-activated',
       active,
+      accessAllowed: active || trialActive,
+      trialStatus: this.value.trialInvalid ? 'expired' : !trialExpiresAt ? 'not-started' : trialActive ? 'active' : 'expired',
+      trialExpiresAt,
       secureStorageAvailable,
       maskedKey: this.value.keySuffix ? `••••-${this.value.keySuffix}` : undefined,
       activations: this.value.activations,
@@ -161,6 +185,21 @@ export class CommercialLicenseStore {
       expiresAt: this.value.expiresAt,
       lastValidatedAt: this.value.lastValidatedAt,
       message
+    }
+  }
+
+  async authorizeAutomation(): Promise<void> {
+    await this.queueMutation(async () => {
+      const now = Math.max(Date.now(), Date.parse(this.value.lastSeenAt ?? '') || 0)
+      const nextValue = { ...this.value, lastSeenAt: new Date(now).toISOString() }
+      if (!nextValue.trialStartedAt && !nextValue.trialInvalid && !this.hasActivation()) {
+        nextValue.trialStartedAt = new Date(now).toISOString()
+      }
+      await this.persist(nextValue)
+      this.value = nextValue
+    })
+    if (!this.summary(true).accessAllowed) {
+      throw new Error('Hronaut requires an active subscription after the 10-day trial. Open Settings → License to activate or renew. $4/month or $24/year (50% off). Saved browser data remains accessible.')
     }
   }
 
