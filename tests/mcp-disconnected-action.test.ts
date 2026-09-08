@@ -33,6 +33,7 @@ it.each([
       await pending
       operationFinished = true
       if (rejectAction) throw new Error('Synthetic delayed selection failure')
+      return { activeTabId: tabId, tabs: [{ id: tabId }] }
     },
     getMcpGroupState: () => ({ activeTabId: tabId, tabs: [{ id: tabId }] })
   }
@@ -51,7 +52,7 @@ it.each([
     let endpoint = await server.start()
     await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
     await client.callTool({ name: 'browser_workspaces', arguments: { action: 'resume', workspaceId, resumeKey } })
-    command = client.callTool({ name: 'browser_show', arguments: { workspaceId } }).catch(() => undefined)
+    command = client.callTool({ name: 'browser_select_tab', arguments: { workspaceId, tabId } }).catch(() => undefined)
     await started
     await client.close()
     await expect.poll(() => server.getDashboardState().activeRequests).toBe(0)
@@ -78,6 +79,10 @@ it.each([
     } })
     settle()
     await expect.poll(() => actionTracker.activeCount).toBe(0)
+    expect(currentServer.getDashboardState().recentActivity).toMatchObject([
+      { toolName: 'browser_select_tab', tabId, outcome: 'failed' }
+    ])
+    expect(currentServer.getDashboardState().completedToolCalls).toBe(1)
     expect(await (await fetch(endpoint)).json()).toMatchObject({ handoff: {
       state: 'PAUSED', activeCommands: 0, priorActionOutcome: 'NOT_ESTABLISHED'
     } })
