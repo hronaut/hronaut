@@ -1,11 +1,11 @@
 {
   "name": "hronaut",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "description": "A visible local Browser MCP for coding agents with persistent tabs and isolated workspaces",
   "desktopName": "Hronaut",
   "author": "Hronaut",
   "homepage": "https://hronaut.dev",
-  "license": "PolyForm-Noncommercial-1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hronaut/hronaut.git"

@@ -254,10 +254,13 @@ export const plPL = {
       exclusions: "Zakładki ({bookmarks}), hasła ({passwords}), uprawnienia ({permissions}), pobrane pliki, ustawienia i otwarte karty pozostają. Strony nie są przeładowywane. Nowe polecenia MCP czekają podczas usuwania. Cookies, pamięć podręczna i dane witryn dotyczą tutaj wcześniejszego profilu; historia jest wspólna dla aplikacji. Dane poszczególnych obszarów obsługuj przez obszar lub stronę. Chromium nie pokazuje wszystkich źródeł zawierających tylko dane pamięci. Subdomeny mogą współdzielić cookies."
     },
     "support": {
+      "trialNotStarted": "10-dniowa próba zaczyna się od pierwszego wywołania narzędzia przez agenta.",
+      "trialActive": "Próba kończy się {time}.",
+      "trialExpired": "Okres próbny dobiegł końca. Subskrybuj, aby kontynuować automatyzację agentami.",
       "kicker": "Licencja komercyjna",
       "thanks": "Dziękujemy za zakup licencji Hronaut",
-      "heading": "Aktywuj Hronaut do użytku komercyjnego",
-      "description": "Kod źródłowy Hronaut jest dostępny na licencji PolyForm Noncommercial 1.0.0. Użytek komercyjny wymaga aktywnej płatnej subskrypcji.",
+      "heading": "Aktywuj Hronaut",
+      "description": "Po 10 dniach próby każdy potrzebuje subskrypcji: $4/miesiąc lub $24/rok (50% zniżki względem $48).",
       "active": "Licencja komercyjna {key} jest aktywna na tym urządzeniu.",
       "activations": "Użyto {used} z {limit} aktywacji urządzeń.",
       "unlimited": "bez ograniczeń",
@@ -276,7 +279,7 @@ export const plPL = {
       "activate": "Aktywuj licencję komercyjną",
       "support": "Kup licencję komercyjną ↗",
       "alternatives": "Licencja i społeczność",
-      "license": "Licencja PolyForm Noncommercial ↗",
+      "license": "Licencja Hronaut ↗",
       "contributing": "Przewodnik współtworzenia ↗",
       "issue": "Zgłoś problem ↗"
     }
@@ -582,7 +585,7 @@ export const plPL = {
     "developmentBuild": "Kompilacja deweloperska",
     "description": "Trwała, widoczna przeglądarka, po której agenci programistyczni mogą poruszać się razem z Tobą przez MCP.",
     "repository": "Repozytorium GitHub",
-    "license": "Licencja PolyForm Noncommercial",
+    "license": "Licencja Hronaut",
     "contribute": "Współtwórz",
     "support": "Licencja komercyjna"
   },

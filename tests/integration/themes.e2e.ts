@@ -18,7 +18,7 @@ test('offers regular and cinematic themes in Settings', async ({ appWindow, elec
   expect(panelBounds).not.toBeNull()
   await expect.poll(readWebsiteView).toEqual({ ...initialWebsiteView, visible: false })
 
-  for (const section of [/MCP security/, /Passwords/, /Commercial license/]) {
+  for (const section of [/MCP security/, /Passwords/, /License/]) {
     await appWindow.getByRole('button', { name: section }).click()
     const sectionBounds = await appWindow.getByRole('dialog', { name: 'Settings' }).boundingBox()
     expect(sectionBounds?.height).toBeCloseTo(panelBounds!.height)
@@ -165,7 +165,7 @@ test('keeps supporting text readable in Settings and page tools', async ({ appWi
   expect(pageToolDescription).toBe(12)
 })
 
-test('explains commercial license requirements and buys in the system browser', async ({ appWindow, electronApp }) => {
+test('explains license requirements and buys in the system browser', async ({ appWindow, electronApp }) => {
   await electronApp.evaluate(({ shell }) => {
     shell.openExternal = async (url): Promise<void> => {
       ;(globalThis as typeof globalThis & { __hronautExternalPurchaseUrl?: string })
@@ -173,14 +173,14 @@ test('explains commercial license requirements and buys in the system browser', 
     }
   })
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByRole('button', { name: /Commercial license/ }).click()
-  await expect(appWindow.getByText('Activate Hronaut for commercial use')).toBeVisible()
-  await expect(appWindow.getByText(/commercial use requires an active paid subscription/i)).toBeVisible()
-  await expect(appWindow.getByLabel('Commercial license key')).toBeVisible()
-  await expect(appWindow.getByRole('button', { name: 'Activate commercial license' })).toBeVisible()
-  const purchase = appWindow.getByRole('button', { name: 'Buy commercial license ↗' })
+  await appWindow.getByRole('button', { name: /License/ }).click()
+  await expect(appWindow.getByText('Activate Hronaut', { exact: true })).toBeVisible()
+  await expect(appWindow.getByText(/All users need a subscription after a 10-day trial/i)).toBeVisible()
+  await expect(appWindow.getByLabel('License key')).toBeVisible()
+  await expect(appWindow.getByRole('button', { name: 'Activate license' })).toBeVisible()
+  const purchase = appWindow.getByRole('button', { name: 'Buy license ↗' })
   await expect(purchase).toBeVisible()
-  await expect(appWindow.getByRole('button', { name: 'PolyForm Noncommercial license ↗' })).toBeVisible()
+  await expect(appWindow.getByRole('button', { name: 'Hronaut License ↗' })).toBeVisible()
   await expect(appWindow.getByRole('button', { name: 'Contributing guide ↗' })).toBeVisible()
 
   const tabCount = await appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)')

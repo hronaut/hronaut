@@ -2,7 +2,7 @@
 
 Hronaut is a visible, multi-tab Electron browser that exposes its live tabs to AI clients through MCP. It is deliberately not headless and is not tied to the lifetime of an AI session.
 
-Hronaut 1.0 is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Permitted noncommercial uses are defined by that license. Any use that PolyForm Noncommercial does not permit requires an active [commercial subscription license](COMMERCIAL-LICENSE.md).
+Hronaut is source-available under the [Subscription and Trial License](LICENSE). All users need a paid subscription after one 10-day trial from the first agent tool call: $4/month or $24/year per named user (50% off $48), with three devices per seat. Earlier releases retain their original terms.
 
 Project home: https://github.com/hronaut/hronaut
 
@@ -464,7 +464,7 @@ The website toolbar keeps navigation, the address field, find, zoom, bookmarks, 
 
 ## License and contributions
 
-Hronaut is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Any use that PolyForm Noncommercial does not permit requires an active [Commercial Subscription License](COMMERCIAL-LICENSE.md). Bundled dependencies retain their own terms as documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Hronaut uses the [Subscription and Trial License](LICENSE). Agent tools check access in the main process before execution. The local trial survives restart and license deactivation; invalid persisted trial data fails closed. Offline paid access is limited to seven days after successful validation, or earlier stored subscription expiry. Manual recovery, export, deletion, and license management remain available. Local enforcement cannot prevent a modified source build or deliberate profile deletion; those actions do not grant a new trial under the license. Bundled dependencies retain their own terms as documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Bug reports, documentation suggestions, and private security reports are welcome. Code contributions remain paused until a contributor agreement supplies the relicensing rights required by the dual-license model; see [CONTRIBUTING.md](CONTRIBUTING.md).
 

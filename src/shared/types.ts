@@ -38,6 +38,9 @@ export interface CommercialLicenseProviderResult {
 }
 
 export interface CommercialLicenseState {
+  accessAllowed?: boolean
+  trialStatus?: 'not-started' | 'active' | 'expired'
+  trialExpiresAt?: string
   status: string
   active: boolean
   secureStorageAvailable: boolean

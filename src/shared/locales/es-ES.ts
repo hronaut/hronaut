@@ -254,10 +254,13 @@ export const esES = {
       exclusions: "Se conservan marcadores ({bookmarks}), contraseñas ({passwords}), permisos ({permissions}), descargas, ajustes y pestañas abiertas. Las páginas no se recargan. Los nuevos comandos MCP esperan durante el borrado. Las cookies, la caché y los datos de sitios pertenecen aquí al perfil anterior; el historial es global. Gestione cada espacio desde sus controles o los de la página. Chromium no enumera todos los orígenes que solo tienen almacenamiento. Los subdominios pueden compartir cookies."
     },
     "support": {
+      "trialNotStarted": "La prueba de 10 días empieza con la primera llamada a una herramienta del agente.",
+      "trialActive": "La prueba termina {time}.",
+      "trialExpired": "La prueba ha terminado. Suscríbete para continuar la automatización con agentes.",
       "kicker": "Licencia comercial",
       "thanks": "Gracias por obtener una licencia de Hronaut",
-      "heading": "Activa Hronaut para uso comercial",
-      "description": "El código fuente de Hronaut está disponible bajo PolyForm Noncommercial 1.0.0. El uso comercial requiere una suscripción de pago activa.",
+      "heading": "Activar Hronaut",
+      "description": "Tras 10 días de prueba, todos necesitan una suscripción: $4/mes o $24/año (50% de descuento sobre $48).",
       "active": "La licencia comercial {key} está activa en este dispositivo.",
       "activations": "{used} de {limit} activaciones de dispositivo usadas.",
       "unlimited": "sin límite",
@@ -276,7 +279,7 @@ export const esES = {
       "activate": "Activar licencia comercial",
       "support": "Comprar licencia comercial ↗",
       "alternatives": "Licencia y comunidad",
-      "license": "Licencia PolyForm Noncommercial ↗",
+      "license": "Licencia de Hronaut ↗",
       "contributing": "Guía de contribución ↗",
       "issue": "Informar de un problema ↗"
     }
@@ -582,7 +585,7 @@ export const esES = {
     "developmentBuild": "Compilación de desarrollo",
     "description": "Un navegador persistente y visible por el que los agentes de programación pueden navegar contigo mediante MCP.",
     "repository": "Repositorio de GitHub",
-    "license": "Licencia PolyForm Noncommercial",
+    "license": "Licencia de Hronaut",
     "contribute": "Colaborar",
     "support": "Licencia comercial"
   },

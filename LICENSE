@@ -1,77 +1,41 @@
-# PolyForm Noncommercial License 1.0.0
+# Hronaut Subscription and Trial License
 
-<https://polyformproject.org/licenses/noncommercial/1.0.0>
+Copyright 2026 Hronaut. All rights reserved except as expressly granted below.
 
-Required Notice: Copyright 2026 Hronaut.
+## 1. Scope and acceptance
 
-## Acceptance
+This license applies to Hronaut releases distributed with these terms, including source code and binaries. By installing, running, or modifying these releases, you agree to these terms. Earlier releases remain governed by the license supplied with them; this license does not revoke previously granted rights. Third-party components remain under their own licenses, as described in THIRD_PARTY_NOTICES.md.
 
-In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
+The source may be inspected. Source visibility does not grant unrestricted use, redistribution, sublicensing, or the right to provide Hronaut as a hosted service.
 
-## Copyright License
+## 2. Ten-day evaluation
 
-The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose. However, you may only distribute the software according to [Distribution License](#distribution-license) and make changes or new works based on the software according to [Changes and New Works License](#changes-and-new-works-license).
+Each named user may evaluate Hronaut for personal or business purposes for one period of 10 consecutive days, starting with their first agent tool call. No payment card is required for this local trial, and it does not automatically convert into a paid subscription. Reinstallation, additional profiles, devices, or modified builds do not grant another evaluation period. You may not bypass or reset licensing controls.
 
-## Distribution License
+## 3. Paid subscription
 
-The licensor grants you an additional copyright license to distribute copies of the software. Your license to distribute covers distributing the software with changes and new works permitted by [Changes and New Works License](#changes-and-new-works-license).
+After the trial, all ongoing use requires an active paid subscription, including personal, educational, nonprofit, and commercial use. Each named-user seat permits that person to install, run, and internally modify Hronaut on up to three active devices. Seats cannot be shared concurrently and may be reassigned when the former user permanently stops using them. Internal modifications remain subject to these terms.
 
-## Notices
+The price is USD $4 per named user per month or USD $24 per named user per year. The annual plan saves 50% compared with twelve monthly payments totaling $48, and is equivalent to $2/month billed annually. Applicable taxes and the final total are shown at checkout. Creem acts as Merchant of Record and handles payment, tax, invoices, renewals, and the billing portal.
 
-You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with the software. For example:
+## 4. Activation and validation
 
-> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+Creem supplies a license key after successful payment. Activate it in Hronaut Settings. The key is protected using operating-system secure storage. Hronaut periodically validates the subscription. A previously validated activation can remain usable offline for up to seven days after its last successful validation, subject to any earlier recorded subscription expiry. A confirmed invalid or revoked activation loses access when that result is processed.
 
-## Changes and New Works License
+## 5. Expiry and cancellation
 
-The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
+Subscriptions renew automatically until canceled through https://www.creem.io/my-orders/login or support@hronaut.dev. Cancellation stops future renewal; access lasts until the effective date shown by Creem. An immediate cancellation or refund ends the paid grant immediately, while scheduled cancellation preserves it through the paid period, subject to mandatory law.
 
-## Patent License
+After trial or subscription expiry, agent automation is blocked. You retain limited permission to access existing local browser data manually for recovery, export, and deletion, and to manage licensing. Expiry does not delete your data. This recovery permission is not a free ongoing-use tier.
 
-The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+## 6. Restrictions and termination
 
-## Noncommercial Purposes
+You may not redistribute, resell, sublicense, publish copies of, or provide Hronaut itself as a hosted or managed service to third parties without separate written permission. You may not remove licensing controls or required notices. OEM distribution and embedded resale require separate written terms. These restrictions do not limit rights granted independently by third-party licenses or mandatory law.
 
-Any noncommercial purpose is a permitted purpose.
+Hronaut may suspend or terminate this grant for material breach, fraud, unlawful use, or payment failure. Where practical, notice and an opportunity to cure will be provided.
 
-## Personal Uses
+## 7. Updates, support, refunds, and liability
 
-Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+An active subscription includes generally available updates during the paid period, but not custom development or a guaranteed service level. Website Terms of Service and Refund Policy apply to purchases. To the maximum extent permitted by law, Hronaut is provided as is without warranties, and Hronaut is not liable for indirect, incidental, special, consequential, or punitive damages. Mandatory consumer rights are unaffected.
 
-## Noncommercial Organizations
-
-Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
-
-## Fair Use
-
-You may have "fair use" rights for the software under the law. These terms do not limit them.
-
-## No Other Rights
-
-These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else. These terms do not imply any other licenses.
-
-## Patent Defense
-
-If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
-
-## Violations
-
-The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice. Otherwise, all your licenses end immediately.
-
-## No Liability
-
-As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.
-
-## Definitions
-
-The **licensor** is the individual or entity offering these terms, and the **software** is the software the licensor makes available under these terms.
-
-**You** refers to the individual or entity agreeing to these terms.
-
-**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization. **Control** means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise. Control can be direct or indirect.
-
-**Your licenses** are all the licenses granted to you for the software under these terms.
-
-**Use** means anything you do with the software requiring one of your licenses.
-
-© PolyForm Project Inc.
+Licensing, billing, activation, cancellation, and refund questions: support@hronaut.dev.

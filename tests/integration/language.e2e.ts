@@ -181,7 +181,7 @@ test('keeps late Settings sections reachable by mouse wheel at large interface s
   for (let index = 0; index < 4; index += 1) await appWindow.mouse.wheel(0, 700)
   await expect.poll(() => navigation.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
 
-  const support = appWindow.getByRole('button', { name: /Commercial license/ })
+  const support = appWindow.getByRole('button', { name: /License/ })
   await expect.poll(async () => {
     const [navigationBox, supportBox] = await Promise.all([navigation.boundingBox(), support.boundingBox()])
     return Boolean(
@@ -192,6 +192,6 @@ test('keeps late Settings sections reachable by mouse wheel at large interface s
     )
   }).toBe(true)
   await support.click()
-  await expect(appWindow.getByRole('heading', { name: 'Activate Hronaut for commercial use' })).toBeVisible()
+  await expect(appWindow.getByRole('heading', { name: 'Activate Hronaut' })).toBeVisible()
   await appWindow.screenshot({ path: testInfo.outputPath('settings-large-scale-wheel.png') })
 })

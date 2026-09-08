@@ -254,10 +254,13 @@ export const frFR = {
       exclusions: "Les favoris ({bookmarks}), mots de passe ({passwords}), autorisations ({permissions}), téléchargements, réglages et onglets ouverts sont conservés. Les pages ne sont pas rechargées. Les nouvelles commandes MCP attendent pendant l’effacement. Les cookies, le cache et les données de sites appartiennent ici à l’ancien profil ; l’historique est global. Gérez les espaces individuels via leurs commandes d’espace ou de page. Chromium ne recense pas toutes les origines contenant uniquement du stockage. Des sous-domaines peuvent partager des cookies."
     },
     "support": {
+      "trialNotStarted": "L’essai de 10 jours commence au premier appel d’outil par un agent.",
+      "trialActive": "Fin de l’essai : {time}.",
+      "trialExpired": "Votre essai est terminé. Abonnez-vous pour poursuivre l’automatisation par les agents.",
       "kicker": "Licence commerciale",
       "thanks": "Merci d’avoir obtenu une licence Hronaut",
-      "heading": "Activer Hronaut pour un usage commercial",
-      "description": "Le code source de Hronaut est disponible sous PolyForm Noncommercial 1.0.0. Toute utilisation commerciale nécessite un abonnement payant actif.",
+      "heading": "Activer Hronaut",
+      "description": "Après 10 jours d’essai, un abonnement est requis pour tous : 4 $/mois ou 24 $/an (50 % de réduction sur 48 $).",
       "active": "La licence commerciale {key} est active sur cet appareil.",
       "activations": "{used} activations d’appareils utilisées sur {limit}.",
       "unlimited": "illimité",
@@ -276,7 +279,7 @@ export const frFR = {
       "activate": "Activer la licence commerciale",
       "support": "Acheter une licence commerciale ↗",
       "alternatives": "Licence et communauté",
-      "license": "Licence PolyForm Noncommercial ↗",
+      "license": "Licence Hronaut ↗",
       "contributing": "Guide de contribution ↗",
       "issue": "Signaler un problème ↗"
     }
@@ -582,7 +585,7 @@ export const frFR = {
     "developmentBuild": "Version de développement",
     "description": "Un navigateur persistant et visible dans lequel les agents de programmation peuvent naviguer avec vous via MCP.",
     "repository": "Dépôt GitHub",
-    "license": "Licence PolyForm Noncommercial",
+    "license": "Licence Hronaut",
     "contribute": "Contribuer",
     "support": "Licence commerciale"
   },
