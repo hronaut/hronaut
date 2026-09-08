@@ -81,6 +81,7 @@ import {
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
+import { McpActionTracker } from './mcp/action-tracker.js'
 import {
   stageMcpRuntimeCandidate,
   synchronizeMcpRuntimeCandidate
@@ -231,6 +232,7 @@ let mcpPort = DEFAULT_MCP_PORT
 let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
 let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
+const mcpActionTracker = new McpActionTracker()
 let mcpRuntimeStatus: Exclude<McpServerStatus, 'paused'> = 'starting'
 let mcpStartupError: string | undefined
 let tray: Tray | null = null
@@ -681,10 +683,10 @@ async function clearBrowsingData(
   const releaseMcpPause = acquireTemporaryMcpPause()
   try {
     const deadline = Date.now() + 5_000
-    while ((mcpServer?.getActiveRequestCount() ?? 0) > activeMcpRequestAllowance && Date.now() < deadline) {
+    while ((mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount) > activeMcpRequestAllowance && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 25))
     }
-    if ((mcpServer?.getActiveRequestCount() ?? 0) > activeMcpRequestAllowance) {
+    if ((mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount) > activeMcpRequestAllowance) {
       throw new Error('Could not clear browsing data while an MCP command was still active')
     }
     if (options.history) {
@@ -3385,7 +3387,7 @@ function registerIpc(): void {
     return fillCredentialWhileMcpPaused({
       pausePersistently: () => { setMcpPaused(true) },
       acquireTemporaryPause: acquireTemporaryMcpPause,
-      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? 0,
+      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
       fill: async () => {
         const password = await activeCredentialStore.password(selected.id)
         return activeTabsManager.fillCredential(tabId, context, selected.username, password)
@@ -3933,6 +3935,7 @@ function createRuntimeMcpServer(
 ): McpHttpServer {
   if (!tabsManager || !mcpTokenConfiguration) throw new Error('MCP runtime is not initialized')
   return new McpHttpServer(tabsManager, {
+    actionTracker: mcpActionTracker,
     auditReceipts: auditReceipts ?? undefined,
     host: MCP_HOST,
     port,

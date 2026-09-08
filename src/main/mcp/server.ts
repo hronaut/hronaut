@@ -9,6 +9,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
 import { workspacePreflight } from './workspace-preflight.js'
+import { McpActionTracker } from './action-tracker.js'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -195,6 +196,7 @@ class WalletAgentSessionRegistry {
 }
 
 export interface McpHttpServerOptions {
+  actionTracker?: McpActionTracker
   auditReceipts?: AuditReceiptService
   host: string
   port: number
@@ -727,7 +729,8 @@ function createBrowserMcpServer(
   walletSessions?: WalletAgentSessionRegistry,
   onTabActivity?: (activity: McpTabActivity) => void,
   auditReceipts?: AuditReceiptService,
-  getPaused: () => boolean = () => false
+  getPaused: () => boolean = () => false,
+  actionTracker = new McpActionTracker()
 ): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -771,7 +774,9 @@ function createBrowserMcpServer(
       ...(config as Record<string, unknown>),
       title: definition.title,
       annotations: definition.annotations
-    } as never, handler as never)
+    } as never, ((...args: unknown[]) => actionTracker.run(() => (
+      (handler as (...values: unknown[]) => unknown)(...args)
+    ))) as never)
     registeredTools.set(name, registered)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
@@ -2637,12 +2642,14 @@ export class McpHttpServer {
   private readonly recentActivity: McpToolActivity[] = []
   private readonly toolMetrics = new Map<string, McpToolMetric>()
   private readonly walletSessions: WalletAgentSessionRegistry
+  private readonly actionTracker: McpActionTracker
 
   constructor(
     private readonly manager: BrowserTabsManager,
     private readonly options: McpHttpServerOptions
   ) {
     this.token = options.token
+    this.actionTracker = options.actionTracker ?? new McpActionTracker()
     this.toolSet = options.toolSet ?? 'complete'
     this.walletSessions = new WalletAgentSessionRegistry((requesterId) => (
       this.options.wallets?.cancelRequester?.(requesterId)
@@ -2667,7 +2674,10 @@ export class McpHttpServer {
   }
 
   getActiveRequestCount(): number {
-    return this.activeRequests
+    // Quiescence checks must include commands whose response socket closed.
+    // Use max rather than sum so the caller's own live command is counted once
+    // when a browsing-data operation permits exactly one active command.
+    return Math.max(this.activeRequests, this.actionTracker.activeCount)
   }
 
   getDashboardState(): McpDashboardState {
@@ -2741,7 +2751,7 @@ export class McpHttpServer {
         })
         return
       }
-      if (request.method !== 'DELETE' && this.activeRequests >= McpHttpServer.MAX_ACTIVE_REQUESTS) {
+      if (request.method !== 'DELETE' && this.getActiveRequestCount() >= McpHttpServer.MAX_ACTIVE_REQUESTS) {
         response.status(429).json({ error: 'Too many active MCP requests' })
         return
       }
@@ -2818,7 +2828,8 @@ export class McpHttpServer {
             this.walletSessions,
             (activity) => this.trackTabActivity(activity),
             this.options.auditReceipts,
-            () => this.paused
+            () => this.paused,
+            this.actionTracker
           )
           session.server = mcp.server
           session.transport = transport
