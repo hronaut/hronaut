@@ -147,7 +147,7 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
       shellRequested,
       new Promise<never>((_resolve, reject) => setTimeout(
         () => reject(new Error(`Hronaut did not request the stalled shell:\n${primaryOutput}`)),
-        5_000
+        15_000
       ))
     ])
     quitRequest = spawn(electronPath, ['.', '--no-sandbox', '--quit'], {

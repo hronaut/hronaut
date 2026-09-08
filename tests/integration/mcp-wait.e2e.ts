@@ -279,11 +279,18 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     expect(text(timedOutUrlWait)).toContain('Timed out waiting for the page URL pattern')
     expect(text(timedOutUrlWait)).not.toContain('timeout-secret')
 
+    const urlWaitListenerCount = () => electronApp.evaluate(({ webContents }) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL().includes('/url-wait/ready'))?.listenerCount('did-navigate') ?? 0
+    ))
+    const idleUrlListeners = await urlWaitListenerCount()
     const waitingForUrl = client.callTool({
       name: 'browser_wait',
       arguments: { tabId: urlTabId, urlPattern: '*://*/never-matches*', timeoutMs: 10_000 }
     }) as Promise<CallToolResult>
     await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    // The activity badge can still show the preceding timed-out request.
+    // Wait for this handler's navigation listener before testing teardown.
+    await expect.poll(urlWaitListenerCount).toBeGreaterThan(idleUrlListeners)
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(urlTabId)})`)
     const closedUrlWait = await Promise.race([
       waitingForUrl,
