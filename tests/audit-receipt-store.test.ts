@@ -101,7 +101,7 @@ describe('action audit receipt journal', () => {
     await expect(store.append(denied())).rejects.toThrow('capacity reached')
     const end = outcome(start.actionId)
     if (end.phase !== 'outcome') throw new Error('Expected outcome fixture')
-    end.status = 'interrupted'
+    end.status = 'stale-observation'
     end.effects = 'confirmed'
     end.siteAccessDropped = Number.MAX_SAFE_INTEGER
     end.state = { tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER, originChanged: false }

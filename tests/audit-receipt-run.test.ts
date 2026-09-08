@@ -34,6 +34,22 @@ function action<T>(operation: () => Promise<T>) {
 }
 
 describe('audit receipt run lifecycle', () => {
+  it.each(['outcome-unknown', 'stale-observation'] as const)('retains %s even when the transport is cancelled', async (status) => {
+    const { run } = await fixture()
+    const abort = new AbortController()
+    const result = { isError: true, private: 'private-handoff-canary' }
+    expect(await run.execute({
+      ...action(async () => { abort.abort(); return result }),
+      readOnly: status === 'stale-observation', signal: abort.signal,
+      isErrorResult: value => value.isError, classifyErrorResult: () => status
+    })).toBe(result)
+    const report = await run.report()
+    expect(report.receipts.at(-1)!.event).toMatchObject({
+      status, effects: status === 'stale-observation' ? 'none' : 'possible'
+    })
+    expect(JSON.stringify(report)).not.toContain('private-handoff-canary')
+  })
+
   it('recognizes cancellation when the MCP handler converts it into an error result', async () => {
     const { run } = await fixture()
     const abort = new AbortController()

@@ -2,6 +2,7 @@ import { createServer, type ServerResponse } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import type { AuditReceipt } from '../../src/main/mcp/audit-receipt-store.js'
 import type { BrowserState, HronautMcpApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
@@ -44,6 +45,7 @@ test('discards delayed read and write results across a real pause/resume without
     }))
     const workspace = parse<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Handoff fixture' }))
     const state = parse<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url: `http://127.0.0.1:${address.port}` }))
+    const audit = parse<{ id: string }>(await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'start' }))
     const args = { workspaceId: workspace.id, tabId: state.activeTabId! }
     expect((await call('browser_evaluate', { ...args, script: `(() => {
       const getter = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText').get;
@@ -70,6 +72,17 @@ test('discards delayed read and write results across a real pause/resume without
     expect(writeResult.isError).toBe(true)
     expect(writeResult.structuredContent).toMatchObject({ status: 'OUTCOME_UNKNOWN', retrySafe: false })
     expect(JSON.stringify(writeResult)).not.toContain('late-write-canary')
+    const report = parse<{ receipts: AuditReceipt[] }>(await call('browser_audit_receipts', {
+      workspaceId: workspace.id, action: 'read', runId: audit.id
+    }))
+    const outcomes = report.receipts.filter(receipt => receipt.event.phase === 'outcome').map(receipt => receipt.event)
+    expect(outcomes).toMatchObject([
+      { status: 'succeeded', effects: 'possible' },
+      { status: 'stale-observation', effects: 'none' },
+      { status: 'outcome-unknown', effects: 'possible' }
+    ])
+    expect(JSON.stringify(report)).not.toContain('late-write-canary')
+    expect(JSON.stringify(report)).not.toContain('late-read-canary')
     const fresh = await call('browser_evaluate', { ...args, script: 'document.body.dataset.effect' })
     expect(fresh.isError).not.toBe(true)
     expect(fresh.content).toContainEqual({ type: 'text', text: 'applied' })

@@ -1007,6 +1007,7 @@ function createBrowserMcpServer(
             throw workspaceAuthorizationError()
           }
         }
+        let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | undefined
         const operation = async (): Promise<CallToolResult> => {
           requireCurrentTarget()
           if (activityId && activityToolName && resolvedTabId) {
@@ -1041,6 +1042,7 @@ function createBrowserMcpServer(
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch {
               phase = 'failed'
+              invalidatedOutcome = toolDefinition(name).annotations.readOnlyHint ? 'stale-observation' : 'outcome-unknown'
               const outcome = {
                 status: toolDefinition(name).annotations.readOnlyHint ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
                 retrySafe: false,
@@ -1072,6 +1074,7 @@ function createBrowserMcpServer(
           readOnly: toolDefinition(name).annotations.readOnlyHint,
           signal: extra?.signal,
           isErrorResult: result => result.isError === true,
+          classifyErrorResult: () => invalidatedOutcome,
           observeState: () => {
             const state = manager.getMcpGroupState(workspaceId)
             const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))

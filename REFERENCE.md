@@ -321,6 +321,9 @@ site-policy decisions, and bounded before/after state. Workspace lifecycle and
 wallet tools are outside this stream; wallet actions retain their separate audit
 contract. Native page events may have no action correlation. Unavailable state is
 `null`, and possible effects after failure or cancellation do not imply rollback.
+Handoff-invalidated reads have outcome status `stale-observation`; uncertain
+writes have `outcome-unknown`, including when their transport was cancelled.
+These statuses do not authorize a retry or establish whether a write took effect.
 Site identities are opaque and stable only within one live run. Reports contain
 no raw URLs, titles, tool arguments, tool results, error text, form values, page
 content, cookies, resume keys, or MCP tokens. The journal hash chain detects
