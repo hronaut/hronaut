@@ -1,4 +1,4 @@
-import { createServer } from 'node:http'
+import { createServer, type ServerResponse } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -12,6 +12,55 @@ function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
   return content?.type === 'text' ? content.text : ''
 }
+
+test('does not publish attention when its sleeping target closes during wake', async ({ appWindow, mcpPort, mcpToken }) => {
+  let holdWake = false
+  let held: ServerResponse | undefined
+  const fixture = createServer((_request, response) => {
+    if (holdWake) { held = response; return }
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Attention wake fixture</title><main>Ready</main>')
+  })
+  await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const address = fixture.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture port')
+  const client = new Client({ name: 'attention-wake-close-test', version: '1' })
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+    }))
+    await useMcpWorkspace(client, 'Attention wake close')
+    const navigated = await client.callTool({ name: 'browser_navigate', arguments: { url: `http://127.0.0.1:${address.port}` } }) as CallToolResult
+    expect(navigated.isError).not.toBe(true)
+    const tabId = (JSON.parse(text(navigated)) as { activeTabId: string }).activeTabId
+    await client.callTool({ name: 'browser_new_tab', arguments: { url: 'about:blank', active: true } })
+    await appWindow.evaluate(`window.hronaut.setTabSleeping(${JSON.stringify(tabId)}, true)`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(true)
+    await appWindow.evaluate(`(() => {
+      window.__lateAttentionCount = 0;
+      window.__lateAttentionUnsubscribe = window.hronaut.onUserAttentionRequested(() => { window.__lateAttentionCount += 1; });
+    })()`)
+    holdWake = true
+    const pending = client.callTool({ name: 'browser_request_user_attention', arguments: { tabId, reason: 'Review the wake fixture.' } }) as Promise<CallToolResult>
+    void pending.catch(() => undefined)
+    await expect.poll(() => Boolean(held)).toBe(true)
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
+    held!.end()
+    expect((await pending).isError).toBe(true)
+    const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+    expect(status.isError).not.toBe(true)
+    expect(JSON.parse(text(status)).userAttention).toBeNull()
+    expect(await appWindow.evaluate('window.__lateAttentionCount')).toBe(0)
+  } finally {
+    held?.end()
+    await appWindow.evaluate('window.__lateAttentionUnsubscribe?.()').catch(() => undefined)
+    await client.close()
+    await closeFixtureServer(fixture)
+  }
+})
 
 test('previews and plays the selected Foley cue for user attention', async ({
   appWindow,
