@@ -1,4 +1,4 @@
-export function snapshotScript(maxChars: number): string {
+export function snapshotScript(maxChars: number, includeMetadata = false): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
     const interactive = 'a,button,input,textarea,select,summary,[role="button"],[role="link"],[role="checkbox"],[role="radio"],[role="tab"],[contenteditable="true"]';
@@ -27,29 +27,40 @@ export function snapshotScript(maxChars: number): string {
     let refIndex = 0;
     for (const element of document.querySelectorAll('[data-hronaut-ref]')) element.removeAttribute('data-hronaut-ref');
     const lines = [];
+    const omitted = { headings: false, controls: false, bodyText: false, characters: false };
     const add = (line) => {
+      if (lines.join('\\n').length + (lines.length ? 1 : 0) + line.length > MAX_CHARS) omitted.characters = true;
       if (lines.join('\\n').length < MAX_CHARS) lines.push(line);
     };
     add('URL: ' + safeUrl(location.href));
     add('TITLE: ' + document.title);
-    const headings = [...document.querySelectorAll('h1,h2,h3')].filter(visible).slice(0, 80);
+    const visibleHeadings = [...document.querySelectorAll('h1,h2,h3')].filter(visible);
+    omitted.headings = visibleHeadings.length > 80;
+    const headings = visibleHeadings.slice(0, 80);
     for (const heading of headings) {
       const text = (heading.innerText || '').replace(/\\s+/g, ' ').trim();
+      if (text.length > 300) omitted.headings = true;
       if (text) add(heading.tagName.toLowerCase() + ': ' + text.slice(0, 300));
     }
-    const elements = [...document.querySelectorAll(interactive)].filter(visible).slice(0, 500);
+    const visibleElements = [...document.querySelectorAll(interactive)].filter(visible);
+    omitted.controls = visibleElements.length > 500;
+    const elements = visibleElements.slice(0, 500);
     for (const element of elements) {
       const ref = 'e' + (++refIndex);
       element.setAttribute('data-hronaut-ref', ref);
       const role = element.getAttribute('role') || element.tagName.toLowerCase();
       const label = element.getAttribute('aria-label') || element.getAttribute('title') || element.getAttribute('placeholder') || element.innerText || '';
+      if (String(label).replace(/\\s+/g, ' ').trim().length > 300) omitted.controls = true;
       const href = element instanceof HTMLAnchorElement ? ' href=' + JSON.stringify(safeUrl(element.href)) : '';
       const state = element.disabled ? ' disabled' : element.checked ? ' checked' : '';
       add('[' + ref + '] ' + role + ' ' + JSON.stringify(String(label).replace(/\\s+/g, ' ').trim().slice(0, 300)) + href + state);
     }
     const bodyText = (document.body?.innerText || '').replace(/\\s+/g, ' ').trim();
+    omitted.bodyText = bodyText.length > Math.max(0, MAX_CHARS - lines.join('\\n').length - (lines.length ? 1 : 0) - 6);
     if (bodyText) add('TEXT: ' + bodyText.slice(0, Math.max(0, MAX_CHARS - lines.join('\\n').length)));
-    return lines.join('\\n').slice(0, MAX_CHARS);
+    const text = lines.join('\\n').slice(0, MAX_CHARS);
+    return ${includeMetadata} ? { text, maxChars: MAX_CHARS, returnedChars: text.length,
+      truncated: Object.values(omitted).some(Boolean), omitted } : text;
   })()`
 }
 

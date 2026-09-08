@@ -1457,9 +1457,10 @@ function createBrowserMcpServer(
       description: toolDescription('browser_snapshot'),
       inputSchema: { tabId: tabIdSchema.optional(), maxChars: z.number().int().min(1_000).max(100_000).optional() }
     },
-    tabTool('browser_snapshot', async ({ tabId, maxChars }: { tabId?: string; maxChars?: number }) =>
-      textResult(await manager.snapshot(tabId, maxChars))
-    )
+    tabTool('browser_snapshot', async ({ tabId, maxChars }: { tabId?: string; maxChars?: number }) => {
+      const snapshot = await manager.snapshotDetails(tabId, maxChars)
+      return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
+    })
   )
   registerWorkspaceTool(
     'browser_find',

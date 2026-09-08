@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Report structured snapshot completeness and search-source limits, and use measured truncation for clipboard copies, while preserving snapshot text, redaction, and workspace isolation.
+
 ## [1.15.0] - 2026-09-08
 
 ### Added

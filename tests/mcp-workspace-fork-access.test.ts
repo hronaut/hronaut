@@ -28,7 +28,8 @@ describe('MCP workspace fork sources and direct access', () => {
       requireMcpTabGroup: vi.fn(() => workspace),
       requireTabInMcpGroup: vi.fn(() => 'tab'),
       wakeTab: vi.fn(async () => undefined),
-      snapshot: vi.fn(async () => ({ title: 'Healthy page' })),
+      snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
+        truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
       getMcpGroupState: vi.fn(() => ({ tabs: [] })),
       deleteSavedTabGroup: vi.fn(),
@@ -111,7 +112,7 @@ describe('MCP workspace fork sources and direct access', () => {
     expect((await call('browser_snapshot', { workspaceId: ownId })).isError).not.toBe(true)
     manager.wakeTab.mockImplementationOnce(async () => { disable() })
     expect((await call('browser_snapshot', { workspaceId: ownId })).isError).toBe(true)
-    expect(manager.snapshot).toHaveBeenCalledTimes(1)
+    expect(manager.snapshotDetails).toHaveBeenCalledTimes(1)
   })
 
   it('rejects ambiguous or missing fork sources before creating anything', async () => {
