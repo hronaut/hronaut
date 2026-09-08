@@ -2807,9 +2807,9 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid snapshot tab ID')
     const maxChars = 30_000
-    const snapshot = await tabsManager!.snapshot(tabId, maxChars)
-    await copyTextToClipboard(snapshot)
-    return { copied: true, characters: snapshot.length, truncated: snapshot.length >= maxChars }
+    const snapshot = await tabsManager!.snapshotDetails(tabId, maxChars)
+    await copyTextToClipboard(snapshot.text)
+    return { copied: true, characters: snapshot.returnedChars, truncated: snapshot.truncated }
   })
   ipcMain.handle('browser:pick-element', async (event, tabId) => {
     assertTrustedShellSender(event)

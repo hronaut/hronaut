@@ -2,13 +2,13 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { BrowserState } from '../../src/shared/types.js'
+import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('reports snapshot and search source limits through MCP without exposing form values or foreign tabs', async ({ mcpPort, mcpToken }) => {
+test('reports snapshot and search source limits through MCP without exposing form values or foreign tabs', async ({ appWindow, mcpPort, mcpToken }) => {
   const fixture = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end(`<!doctype html><title>Snapshot bounds</title><input value="form-value-canary"><main>${request.url?.startsWith('/long') ? 'word '.repeat(25000) + 'omitted-tail-canary' : 'Short visible page'}</main>`)
+    response.end(`<!doctype html><title>Snapshot bounds</title><input value="form-value-canary"><main>${request.url?.startsWith('/caps') ? '<h1>Heading</h1>'.repeat(81) : request.url?.startsWith('/long') ? 'word '.repeat(25000) + 'omitted-tail-canary' : 'Short visible page'}</main>`)
   })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -29,6 +29,9 @@ test('reports snapshot and search source limits through MCP without exposing for
     return JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as T
   }
   try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false }
+    }).toBe(true)
     const client = await connect()
     const workspace = parse<{ id: string }>(await call(client, 'browser_workspaces', { action: 'create', name: 'Snapshot bounds', storage: 'scratch' }))
     let longTabId = ''
@@ -50,6 +53,10 @@ test('reports snapshot and search source limits through MCP without exposing for
     }))
     expect(search.truncated).toBe(false)
     expect(search.sourceSnapshot).toMatchObject({ truncated: true, maxChars: 100000, returnedChars: 100000 })
+    const capped = parse<BrowserState>(await call(client, 'browser_new_tab', { workspaceId: workspace.id, url: `${origin}/caps` }))
+    const copied = await appWindow.evaluate(tabId => (window as unknown as { hronaut: HronautApi }).hronaut.copySnapshot(tabId), capped.activeTabId!)
+    expect(copied.characters).toBeLessThan(30000)
+    expect(copied.truncated).toBe(true)
     const foreign = await connect()
     expect((await call(foreign, 'browser_snapshot', { workspaceId: workspace.id, tabId: longTabId })).isError).toBe(true)
   } finally {
