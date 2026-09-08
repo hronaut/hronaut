@@ -33,7 +33,7 @@ const eventSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('outcome'),
     actionId: identifier,
-    status: z.enum(['succeeded', 'failed', 'cancelled', 'interrupted']),
+    status: z.enum(['succeeded', 'failed', 'cancelled', 'interrupted', 'outcome-unknown', 'stale-observation']),
     // Failure or cancellation does not establish that a write was rolled back.
     effects: z.enum(['none', 'possible', 'confirmed']),
     siteAccessDropped: z.number().int().nonnegative().safe(),
@@ -107,7 +107,7 @@ export class AuditReceiptStore {
       runId: options.runId,
       timestamp: '9999-12-31T23:59:59.999Z',
       event: {
-        phase: 'outcome', actionId: options.runId, status: 'interrupted', effects: 'confirmed',
+        phase: 'outcome', actionId: options.runId, status: 'stale-observation', effects: 'confirmed',
         siteAccessDropped: Number.MAX_SAFE_INTEGER,
         state: { tabId: options.runId, navigationGeneration: Number.MAX_SAFE_INTEGER, originChanged: false }
       },

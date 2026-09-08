@@ -138,6 +138,7 @@ export class AuditReceiptService {
         scope: 'Workspace-scoped browser tools and observed site-policy decisions; audit-control, workspace-lifecycle and wallet tools are excluded.',
         caveats: [
           'Native site events without exact action context are uncorrelated, not attributed by timing.',
+          'Handoff-invalidated reads are stale-observation; uncertain writes are outcome-unknown. Neither authorizes an automatic retry.',
           'Possible effects do not establish rollback after failure or cancellation; none describes the invoked tool write classification.',
           'Null observations or completeness fields are unknown. Omitted site evidence is counted; interrupted actions are not replayed.',
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',

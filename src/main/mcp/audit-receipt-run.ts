@@ -15,6 +15,8 @@ export interface AuditReceiptActionOptions<T> {
   observeState: () => ObservedState
   operation: () => Promise<T>
   isErrorResult: (result: T) => boolean
+  /** Trusted dispatch classification; never infer it from page text. */
+  classifyErrorResult?: (result: T) => 'outcome-unknown' | 'stale-observation' | undefined
   signal?: AbortSignal
 }
 
@@ -55,7 +57,7 @@ export class AuditReceiptRun {
       })
       const action: ActiveAction = { acceptingSites: true, dropped: 0, writes: new Set() }
       this.actions.set(actionId, action)
-      let status: 'succeeded' | 'failed' | 'cancelled' = 'failed'
+      let status: Extract<AuditReceiptEvent, { phase: 'outcome' }>['status'] = 'failed'
       let invoked = false
       let settled: { ok: true; value: T } | { ok: false; error: unknown }
       try {
@@ -66,7 +68,7 @@ export class AuditReceiptRun {
         invoked = true
         const result = await options.operation()
         status = options.isErrorResult(result)
-          ? options.signal?.aborted ? 'cancelled' : 'failed'
+          ? options.classifyErrorResult?.(result) ?? (options.signal?.aborted ? 'cancelled' : 'failed')
           : 'succeeded'
         settled = { ok: true, value: result }
       } catch (error) {

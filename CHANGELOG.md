@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve uncertain write and stale observation outcomes in audit receipts after a human-agent handoff.
+
 - Preserve bounded MCP activity history and metrics across endpoint replacement, including commands that finish after their client disconnects.
 
 ### Added
