@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep the temporary PDF print host hidden so exporting from a tray-hidden browser does not interrupt foreground focus on Wayland.
+
 ## [1.21.0] - 2026-09-09
 
 ### Added

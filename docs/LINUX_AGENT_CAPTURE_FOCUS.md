@@ -15,7 +15,10 @@ clear of the toolbar and visible pages; window-manager positioning is not needed
 Hidden/minimized hosts still use the existing temporary capture host. Focus
 preservation for that path on Wayland is not established by this fix. Keeping
 that host hidden failed to produce a renderable surface in the tested runtime;
-removing it unconditionally would break tray screenshots.
+removing it unconditionally would break tray screenshots. PDF export keeps its
+temporary print host hidden because printing does not require a presented
+compositor surface. A native Wayland regression verifies PDF output, retained
+page state, and zero foreground blur events during hidden export.
 
 ## Regression coverage
 

@@ -1485,7 +1485,7 @@ export class BrowserTabsManager {
       nativeCapture = runCapture()
       return Promise.race([nativeCapture, deadline])
     }
-    const capture = this.withRenderableTab(tab, captureOperation, false)
+    const capture = this.withRenderableTab(tab, captureOperation, 'surface')
     const request = Promise.race([capture, deadline])
     this.tabOverviewPageCaptures.set(tabId, request)
     // The deadline releases an offscreen host promptly, but cannot cancel CDP.
@@ -6648,7 +6648,7 @@ export class BrowserTabsManager {
     // Full-page capture uses the DevTools protocol, which presents and captures
     // the page itself. Waiting for a separate compositor subscription first can
     // strand an otherwise healthy capture when Chromium omits that notification.
-    }, !options.fullPage)
+    }, options.fullPage ? 'surface' : 'presented-frame')
   }
 
   async savePdf(options: BrowserPdfOptions = {}): Promise<BrowserPdfExport> {
@@ -6659,7 +6659,7 @@ export class BrowserTabsManager {
       pageSize: options.pageSize ?? 'Letter',
       printBackground: true,
       preferCSSPageSize: false
-    }), false)
+    }), 'print')
     const path = await this.writeUniqueDownload(filename, data)
     return { filename: basename(path), path, bytes: data.length }
   }
@@ -9299,7 +9299,7 @@ export class BrowserTabsManager {
   private async withRenderableTab<T>(
     tab: BrowserTab,
     operation: () => Promise<T>,
-    requiresPresentedFrame = true
+    mode: 'presented-frame' | 'surface' | 'print' = 'presented-frame'
   ): Promise<T> {
     const webContents = tab.webContents
     const webContentsId = webContents.id
@@ -9325,7 +9325,8 @@ export class BrowserTabsManager {
         // A visible host already has a compositor surface. Position the capture
         // view outside its viewport so it cannot cover the UI or activate another
         // native window. Wayland can activate even a non-focusable showInactive
-        // window. Hidden hosts still need a separate presented capture surface.
+        // window. Hidden screenshots still need a separate presented surface;
+        // PDF printing can use an attached host without mapping its window.
         const reuseHost = this.window.isVisible() && !this.window.isMinimized()
         const captureWindow = reuseHost ? this.window : new BrowserWindow({
           x: -32_000,
@@ -9343,11 +9344,13 @@ export class BrowserTabsManager {
           const height = Math.max(1, originalBounds.height)
           tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
           captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
-          if (!reuseHost) captureWindow.showInactive()
+          // Printing works with an attached hidden host. Mapping it on Wayland
+          // can interrupt another application's focus even with showInactive.
+          if (!reuseHost && mode !== 'print') captureWindow.showInactive()
           // Electron's print pipeline does not consume a compositor screenshot.
           // Waiting for a subscribed frame before printToPDF can stall forever
           // under renderer pressure even though PDF generation is ready.
-          if (requiresPresentedFrame) await this.waitForPresentation(webContents)
+          if (mode === 'presented-frame') await this.waitForPresentation(webContents)
           return await operation()
         } finally {
           let cleanupError: unknown

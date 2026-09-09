@@ -7646,7 +7646,8 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => electronApp.evaluate(() => {
       const menu = (globalThis as typeof globalThis & { __hronautLockedTabMenu?: Electron.Menu }).__hronautLockedTabMenu
       return ['close-tab', 'close-other-tabs', 'close-tabs-to-right', 'close-duplicate-tabs']
-        .map((id) => ({ id, enabled: menu?.getMenuItemById(id)?.enabled }))
+        .map((id) => ({ id, enabled: menu?.getMenuItemById(id)?.enabled,
+          ...(menu?.getMenuItemById(id) ? {} : { observedMenuIds: menu?.items.map(item => item.id) ?? [] }) }))
     })).toEqual([
       { id: 'close-tab', enabled: false },
       { id: 'close-other-tabs', enabled: false },
