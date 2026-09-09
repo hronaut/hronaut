@@ -17,6 +17,7 @@ describe('MCP workspace fork sources and direct access', () => {
 
   async function setup(beforeAuditOperation?: () => void) {
     let accessible = true
+    let humanInteractionGeneration = 0
     const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
@@ -35,7 +36,7 @@ describe('MCP workspace fork sources and direct access', () => {
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
-      getMcpGroupState: vi.fn(() => ({ tabs: [] })),
+      getMcpGroupState: vi.fn(() => ({ tabs: [{ id: targetId, humanInteractionGeneration }] })),
       deleteSavedTabGroup: vi.fn(),
       restoreSavedTabGroup: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
@@ -57,7 +58,7 @@ describe('MCP workspace fork sources and direct access', () => {
     client = new Client({ name: 'fork-access-test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
     const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
-    return { manager, source, call, disable: () => { accessible = false } }
+    return { manager, source, call, interact: () => { humanInteractionGeneration += 1 }, disable: () => { accessible = false } }
   }
 
   it('allows a disabled archived source to be discovered and forked without granting source access', async () => {
@@ -159,6 +160,29 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).not.toHaveBeenCalled()
   })
 
+  it.each(['audit', 'wake'])('rejects dispatch after human input during %s', async (stage) => {
+    let change: () => void = () => undefined
+    const { manager, call, interact } = await setup(stage === 'audit' ? () => change() : undefined)
+    change = interact
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    if (stage === 'wake') manager.wakeTab.mockImplementationOnce(async () => { interact() })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.click).not.toHaveBeenCalled()
+    if (stage === 'audit') expect(manager.wakeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps results valid when human input changes a different tab', async () => {
+    const { manager, call } = await setup()
+    let otherGeneration = 0
+    manager.getMcpGroupState.mockImplementation(() => ({ tabs: [
+      { id: targetId, humanInteractionGeneration: 0 },
+      { id: sourceId, humanInteractionGeneration: otherGeneration }
+    ] }))
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.click.mockImplementationOnce(async () => { otherGeneration += 1; return 'Clicked' })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
+  })
+
   it('does not dispatch to a tab moved out of the workspace while waking', async () => {
     const { manager, call } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })
@@ -173,13 +197,15 @@ describe('MCP workspace fork sources and direct access', () => {
   it.each([
     { write: false, change: 'pause' }, { write: true, change: 'pause' },
     { write: false, change: 'access' }, { write: true, change: 'access' },
-    { write: false, change: 'membership' }, { write: true, change: 'membership' }
+    { write: false, change: 'membership' }, { write: true, change: 'membership' },
+    { write: false, change: 'human-input' }, { write: true, change: 'human-input' }
   ])('discards a result after $change changes during the handler (write: $write)', async ({ write, change }) => {
-    const { manager, call, disable } = await setup()
+    const { manager, call, disable, interact } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     const invalidate = () => {
       if (change === 'pause') { server.setPaused(true); server.setPaused(false) }
       else if (change === 'access') disable()
+      else if (change === 'human-input') interact()
       else manager.tabBelongsToMcpGroup.mockReturnValue(false)
     }
     if (write) manager.click.mockImplementationOnce(async () => { invalidate(); return 'stale-result-canary' })

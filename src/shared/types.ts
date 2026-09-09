@@ -195,6 +195,8 @@ export interface BrowserTabState {
   url: string
   loading: boolean
   navigationGeneration: number
+  /** Runtime marker for direct human keyboard/mouse input; not page content. */
+  humanInteractionGeneration?: number
   canGoBack: boolean
   canGoForward: boolean
   active: boolean
