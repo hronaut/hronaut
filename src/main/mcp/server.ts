@@ -908,11 +908,37 @@ function createBrowserMcpServer(
           const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
           if (!target || !manager.isWorkspaceAgentAccessible(target.id)) throw workspaceAuthorizationError()
         }
-        return textResult(await manager.transferWorkspaceStorage({
-          workspaceId,
-          direction: action === 'import-default' ? 'from-default' : 'to-default',
-          ...(origins !== undefined ? { origins } : {})
-        }))
+        const revision = actionTracker.controlRevision
+        const affectedIds = [...new Set([workspaceId, ...(defaultWorkspace ? [defaultWorkspace.id] : [])])]
+        const finishes = affectedIds.map(id => manager.beginWorkspaceContinuityAction(id, false))
+        const contextStillCurrent = (): boolean => {
+          try {
+            if (getPaused() || actionTracker.controlRevision !== revision) return false
+            requireAgentWorkspace(workspaceId)
+            for (const id of affectedIds) manager.requireWorkspaceContinuityDispatch(id)
+            if (action === 'save-default' && defaultWorkspace && !manager.isWorkspaceAgentAccessible(defaultWorkspace.id)) return false
+            return true
+          } catch { return false }
+        }
+        try {
+          const settled = await manager.transferWorkspaceStorage({
+            workspaceId,
+            direction: action === 'import-default' ? 'from-default' : 'to-default',
+            ...(origins !== undefined ? { origins } : {})
+          }).then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }))
+          if (!contextStillCurrent()) {
+            for (const id of affectedIds) manager.suspendWorkspaceContinuity(id, 'OUTCOME_UNKNOWN')
+            const outcome = {
+              status: 'OUTCOME_UNKNOWN', effects: 'possible',
+              nextAction: 'Inspect current workspace storage and obtain fresh review. Do not automatically repeat the transfer.'
+            }
+            return { ...textResult(outcome), structuredContent: outcome, isError: true }
+          }
+          if (!settled.ok) throw settled.error
+          return textResult(settled.value)
+        } finally {
+          for (const finish of finishes) finish()
+        }
       }
       await manager.closeMcpTabGroup(workspaceId)
       activeWorkspaceIds.delete(workspaceId)

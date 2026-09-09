@@ -161,6 +161,23 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
   })
 
+  it.each([false, true])('reports unknown storage effects when control changes during transfer (reject: %s)', async reject => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.transferWorkspaceStorage.mockImplementationOnce(async () => {
+      server.setPaused(true); server.setPaused(false)
+      if (reject) throw new Error('Private transfer detail')
+      return { copied: true }
+    })
+    const result = await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })
+    expect(result.isError).toBe(true)
+    expect(parsed(result)).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible' })
+    expect(JSON.stringify(result)).not.toContain('Private transfer detail')
+    expect(manager.transferWorkspaceStorage).toHaveBeenCalledTimes(1)
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(ownId, false)
+    expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
+  })
+
   it('does not copy a suspended source into a new unguarded workspace', async () => {
     const { manager, call } = await setup()
     manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
