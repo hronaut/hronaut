@@ -12,7 +12,7 @@ import { integrationMcpPort } from './port-allocation.js'
 // process, leaving renderer visibility and desktop composition untouched.
 // The test intentionally requests no browser fixture (see above).
 // eslint-disable-next-line no-empty-pattern
-test('recovers a presented native view left hidden by Chromium', async ({}, testInfo) => {
+test('recovers an idle presented native view without resizing or taking focus', async ({}, testInfo) => {
   test.skip(process.platform !== 'linux')
   const profile = await mkdtemp(join(tmpdir(), 'hronaut-presentation-'))
   const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -77,11 +77,10 @@ test('recovers a presented native view left hidden by Chromium', async ({}, test
         await debuggerSession.sendCommand('Page.setWebLifecycleState', { state: 'active' });
       } finally { if (!attached) debuggerSession.detach(); }
     `)
-    await expect.poll(() => evaluate("return {native: view.getVisible(), page: await view.webContents.executeJavaScript('document.visibilityState')}")).toEqual({ native: true, page: 'hidden' })
+    expect(await evaluate('return view.getVisible()')).toBe(true)
     await evaluate(`
       await view.webContents.executeJavaScript("window.presentationIdentity = 'preserved'; document.querySelector('main').style.background = 'rgb(32,96,224)'");
       window.webContents.focus();
-      window.emit('resize');
     `)
     await expect.poll(() => evaluate("return view.webContents.executeJavaScript('document.visibilityState')")).toBe('visible')
     await expect.poll(() => evaluate(`
@@ -100,6 +99,30 @@ test('recovers a presented native view left hidden by Chromium', async ({}, test
       shellFocused: window.webContents.isFocused(),
       throttled: view.webContents.getBackgroundThrottling()
     }`)).toEqual({ identity: 'preserved', shellFocused: true, throttled: true })
+    // Repair also runs while a different native window owns keyboard focus.
+    const humanWindowId = await evaluate(`
+      const human = new BrowserWindow({ width: 160, height: 100, show: false });
+      await human.loadURL('data:text/html,<title>Human focus owner</title>');
+      human.show(); human.focus();
+      return human.id;
+    `)
+    await expect.poll(() => evaluate('return BrowserWindow.getFocusedWindow()?.id')).toBe(humanWindowId)
+    await evaluate(`
+      window.presentationUnexpectedFocus = 0;
+      window.presentationFocusListener = () => { window.presentationUnexpectedFocus += 1; };
+      window.on('focus', window.presentationFocusListener);
+      const debuggerSession = view.webContents.debugger;
+      const attached = debuggerSession.isAttached();
+      if (!attached) debuggerSession.attach('1.3');
+      try {
+        await debuggerSession.sendCommand('Page.setWebLifecycleState', { state: 'frozen' });
+        await debuggerSession.sendCommand('Page.setWebLifecycleState', { state: 'active' });
+      } finally { if (!attached) debuggerSession.detach(); }
+    `)
+    await expect.poll(() => evaluate("return view.webContents.executeJavaScript('document.visibilityState')")).toBe('visible')
+    expect(await evaluate('return {owner: BrowserWindow.getFocusedWindow()?.id, activations: window.presentationUnexpectedFocus}'))
+      .toEqual({ owner: humanWindowId, activations: 0 })
+    await evaluate(`window.removeListener('focus', window.presentationFocusListener); BrowserWindow.fromId(${humanWindowId})?.destroy();`)
     // A deliberately hidden host must stay hidden through layout reconciliation.
     await evaluate("window.hide(); window.emit('resize')")
     await expect.poll(() => evaluate("return view.webContents.executeJavaScript('document.visibilityState')")).toBe('hidden')

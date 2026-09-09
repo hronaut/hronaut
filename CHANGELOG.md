@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover visible Linux pages whose compositor stops presenting frames without requiring a window resize.
+
 ## [1.19.0] - 2026-09-09
 
 ### Changed
