@@ -1,3 +1,6 @@
+import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
+import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
+import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
@@ -966,6 +969,42 @@ export interface TabsManagerOptions {
 }
 
 export class BrowserTabsManager {
+  private readonly workspaceContinuity = new WorkspaceContinuityStore()
+  private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
+
+  private currentWorkspaceContinuity(workspaceId: string) {
+    const state = this.getMcpGroupState(workspaceId)
+    const tab = state.tabs.find(candidate => candidate.id === state.activeTabId) ?? null
+    return {
+      evidence: this.continuityEvidence.capture({ workspaceId, tab, policy: this.requireMcpTabGroup(workspaceId).navigationPolicy }),
+      pageSettled: !!tab && !tab.loading && !tab.sleeping
+    }
+  }
+
+  armWorkspaceContinuity(workspaceId: string): string {
+    const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
+    if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
+    return this.workspaceContinuity.arm(evidence)
+  }
+
+  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome']): void {
+    this.workspaceContinuity.suspend(workspaceId, outcome)
+  }
+
+  inspectWorkspaceContinuity(workspaceId: string) {
+    const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
+    return this.workspaceContinuity.inspect(workspaceId, evidence, pageSettled)
+  }
+
+  reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean): void {
+    const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
+    this.workspaceContinuity.reconcile(workspaceId, reviewId, evidence, pageSettled, acknowledgeUnknownOutcome)
+  }
+
+  requireWorkspaceContinuityDispatch(workspaceId: string): void {
+    this.workspaceContinuity.requireDispatch(workspaceId)
+  }
+
   private readonly tabs = new Map<string, BrowserTab>()
   private readonly mcpTabGroups = new Map<string, BrowserTabGroup>()
   private readonly savedTabGroups = new Map<string, BrowserSavedTabGroupInternal>()
