@@ -971,6 +971,22 @@ export interface TabsManagerOptions {
 export class BrowserTabsManager {
   private readonly workspaceContinuity = new WorkspaceContinuityStore()
   private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
+  private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
+
+  beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
+    const pending = this.continuityActions.get(workspaceId) ?? { reads: 0, writes: 0 }
+    this.continuityActions.set(workspaceId, pending)
+    const field = readOnly ? 'reads' : 'writes'
+    pending[field] += 1
+    let finished = false
+    return () => {
+      if (finished) return
+      finished = true
+      pending[field] -= 1
+      if (!pending.reads && !pending.writes && this.continuityActions.get(workspaceId) === pending) this.continuityActions.delete(workspaceId)
+    }
+  }
+
 
   private currentWorkspaceContinuity(workspaceId: string) {
     const state = this.getMcpGroupState(workspaceId)
@@ -982,13 +998,15 @@ export class BrowserTabsManager {
   }
 
   armWorkspaceContinuity(workspaceId: string): string {
+    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before creating a checkpoint')
     const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
     if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
     return this.workspaceContinuity.arm(evidence)
   }
 
-  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome']): void {
-    this.workspaceContinuity.suspend(workspaceId, outcome)
+  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): void {
+    const pending = this.continuityActions.get(workspaceId)
+    this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
   }
 
   inspectWorkspaceContinuity(workspaceId: string) {
@@ -997,6 +1015,7 @@ export class BrowserTabsManager {
   }
 
   reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean): void {
+    if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before reconciling continuity')
     const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
     this.workspaceContinuity.reconcile(workspaceId, reviewId, evidence, pageSettled, acknowledgeUnknownOutcome)
   }

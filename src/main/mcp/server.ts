@@ -361,6 +361,7 @@ const destructiveTool = (
 })
 
 const BROWSER_TOOL_METADATA = {
+  browser_continuity: nonDestructiveTool('Review workspace continuity', false, false),
   browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
@@ -439,6 +440,10 @@ const BROWSER_TOOL_METADATA = {
 type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
+  {
+    name: 'browser_continuity', category: 'Session',
+    description: 'Create an explicit continuity checkpoint, inspect changes after a pause or reconnect, or reconcile an exact fresh review. A checkpoint handle never grants workspace access. Reconciliation does not replay a tool or resolve unknown prior side effects. Requires the workspace private resume capability after reconnect.'
+  },
   {
     name: 'browser_preflight', category: 'Session',
     description: 'Check your workspace before navigation or a consequential action. Returns bounded PASS, WARN or BLOCKED checks for ownership, tab readiness, expected origin, site policy and human attention. Does not wake tabs or navigate. Session identity is unverified and write safety is never established by this check. No page contents, origins, policy rules or account data are returned. Recheck fresh state before acting; nothing is retried automatically.'
@@ -599,6 +604,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
   'browser_preflight',
+  'browser_continuity',
   'browser_audit_receipts',
   'browser_element_inspect',
   'browser_generate_locator',
@@ -876,6 +882,7 @@ function createBrowserMcpServer(
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
         authorizeResume(workspaceId, resumeKey, false)
+        manager.suspendWorkspaceContinuity(workspaceId)
         return textResult(withResumeKey(manager.requireMcpTabGroup(workspaceId)))
       }
       requireAgentWorkspace(workspaceId)
@@ -973,6 +980,9 @@ function createBrowserMcpServer(
   const toolsThatPermitAnEmptyWorkspace = new Set([
     'browser_show'
   ])
+  // Explicit inspection operations remain available for reconciliation. Do not
+  // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
+  const continuityInspectionTools = new Set(['browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
@@ -996,6 +1006,11 @@ function createBrowserMcpServer(
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
+        const requireContinuity = (): void => {
+          if (!continuityInspectionTools.has(name)) manager.requireWorkspaceContinuityDispatch(workspaceId)
+        }
+        // Target resolution can change the group's selected tab. Check first.
+        requireContinuity()
         const requestedTabId = typeof input.tabId === 'string' ? input.tabId : undefined
         const skipsTabTarget = toolsWithoutWorkspaceTabTarget.has(name)
           || (toolsWithOptionalWorkspaceTabTarget.has(name) && requestedTabId === undefined)
@@ -1017,6 +1032,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
+          requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
           requireAgentWorkspace(workspaceId)
@@ -1036,6 +1052,7 @@ function createBrowserMcpServer(
               occurredAt: Date.now()
             })
           }
+          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, toolDefinition(name).annotations.readOnlyHint)
           let phase: McpTabActivity['phase'] = 'finished'
           try {
             if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
@@ -1074,6 +1091,7 @@ function createBrowserMcpServer(
             phase = 'failed'
             throw error
           } finally {
+            finishContinuityAction()
             if (activityId && activityToolName && resolvedTabId) {
               onTabActivity?.({
                 activityId,
@@ -1107,6 +1125,28 @@ function createBrowserMcpServer(
       })
     )
   }
+
+  registerTool(
+    'browser_continuity',
+    {
+      description: toolDescription('browser_continuity'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema,
+        action: z.enum(['checkpoint', 'status', 'reconcile']),
+        reviewId: z.uuid().optional(),
+        acknowledgeUnknownOutcome: z.boolean().optional()
+      }
+    },
+    tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean }) => {
+      requireAgentWorkspace(workspaceId)
+      if (action === 'checkpoint') return textResult({ checkpointId: manager.armWorkspaceContinuity(workspaceId) })
+      if (action === 'reconcile') {
+        if (!reviewId) throw new TypeError('reviewId is required to reconcile continuity')
+        manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true)
+      }
+      return textResult(manager.inspectWorkspaceContinuity(workspaceId))
+    })
+  )
 
   registerTool(
     'browser_preflight',
@@ -2648,6 +2688,12 @@ function createBrowserMcpServer(
     }) => textResult(await requireWallets().cancelRequest(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
   )
 
+  const previousClose = server.server.onclose
+  server.server.onclose = () => {
+    for (const workspaceId of activeWorkspaceIds) manager.suspendWorkspaceContinuity(workspaceId)
+    previousClose?.()
+  }
+
   assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
   assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
   return {
@@ -2700,6 +2746,9 @@ export class McpHttpServer {
 
   setPaused(paused: boolean): void {
     if (this.paused !== paused) this.actionTracker.invalidatePendingDispatches()
+    if (paused && !this.paused) {
+      for (const workspace of this.manager.listMcpTabGroups()) this.manager.suspendWorkspaceContinuity(workspace.id)
+    }
     this.paused = paused
   }
 
