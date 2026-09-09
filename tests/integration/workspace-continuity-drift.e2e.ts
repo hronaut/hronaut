@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-for (const change of ['tab', 'policy', 'input', 'archive'] as const) {
+for (const change of ['tab', 'policy', 'input', 'archive', 'archive-resume'] as const) {
   test(`requires fresh continuity review after a human ${change} change`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const fixture = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -24,7 +24,7 @@ for (const change of ['tab', 'policy', 'input', 'archive'] as const) {
     try {
       await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
       await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
-      const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Continuity drift' }))
+      const workspace = decode<{ id: string; resumeKey: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Continuity drift' }))
       const args = { workspaceId: workspace.id }
       const first = decode<BrowserState>(await call('browser_new_tab', { ...args, url: `${origin}/first` }))
       decode(await call('browser_new_tab', { ...args, url: `${origin}/second` }))
@@ -39,9 +39,18 @@ for (const change of ['tab', 'policy', 'input', 'archive'] as const) {
       } else if (change === 'policy') {
         await appWindow.evaluate(`window.hronaut.updateWorkspaceNavigationPolicy(${JSON.stringify(workspace.id)}, { mode: 'restricted', rules: [${JSON.stringify(origin)}] })`)
       }
-      if (change === 'archive') {
+      if (change === 'archive' || change === 'archive-resume') {
         await appWindow.evaluate(`window.hronaut.saveAndCloseTabGroup(${JSON.stringify(workspace.id)})`)
-        await appWindow.evaluate(`window.hronaut.restoreSavedTabGroup(${JSON.stringify(workspace.id)})`)
+        if (change === 'archive-resume') {
+          await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+          const resumed = decode<{ continuity: unknown }>(await call('browser_saved_workspaces', { action: 'resume', savedWorkspaceId: workspace.id, resumeKey: workspace.resumeKey }))
+          expect(resumed.continuity).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+          const opened = decode<{ continuity: unknown }>(await call('browser_saved_workspaces', { action: 'open', savedWorkspaceId: workspace.id }))
+          expect(opened.continuity).toMatchObject({ status: 'BLOCKED', suspended: true })
+          expect(JSON.stringify(opened.continuity)).not.toContain(origin)
+        } else {
+          await appWindow.evaluate(`window.hronaut.restoreSavedTabGroup(${JSON.stringify(workspace.id)})`)
+        }
         await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => {
           const pages = webContents.getAllWebContents().filter(page => page.getURL().startsWith(origin))
           return pages.length === 2 && pages.every(page => !page.isLoading())
@@ -63,7 +72,7 @@ for (const change of ['tab', 'policy', 'input', 'archive'] as const) {
       await appWindow.evaluate('window.hronautMcp.setPaused(false)')
       const report = decode<{ reviewId: string; reasons: string[] }>(await call('browser_continuity', { ...args, action: 'status' }))
       expect(report).toMatchObject({ status: 'BLOCKED', suspended: true })
-      expect(report.reasons).toContain(change === 'tab' || change === 'archive' ? 'TAB_CHANGED' : change === 'policy' ? 'POLICY_CHANGED' : 'HUMAN_INPUT_CHANGED')
+      expect(report.reasons).toContain(change === 'tab' || change === 'archive' || change === 'archive-resume' ? 'TAB_CHANGED' : change === 'policy' ? 'POLICY_CHANGED' : 'HUMAN_INPUT_CHANGED')
       expect(JSON.stringify(report)).not.toContain(origin)
       expect((await call('browser_evaluate', { ...args, script: 'window.driftWrites = 1' })).isError).toBe(true)
       const writes = await electronApp.evaluate(async ({ webContents }, origin) => Promise.all(

@@ -1002,7 +1002,10 @@ function createBrowserMcpServer(
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume an archived workspace')
         authorizeResume(savedWorkspaceId, resumeKey, true)
-        return textResult(withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!))
+        const guarded = manager.suspendWorkspaceContinuity(savedWorkspaceId)
+        const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
+        requireSavedWorkspace(savedWorkspaceId)
+        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), ...(continuity ? { continuity } : {}) })
       }
       requireSavedWorkspace(savedWorkspaceId)
       if (action === 'open') {
@@ -1010,7 +1013,10 @@ function createBrowserMcpServer(
           const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)
-          return textResult(withResumeKey(opened))
+          const guarded = manager.suspendWorkspaceContinuity(opened.id)
+          const continuity = guarded ? await manager.inspectWorkspaceContinuity(opened.id) : undefined
+          requireAgentWorkspace(opened.id)
+          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), ...(continuity ? { continuity } : {}) })
         } catch (error) {
           if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
             savedWorkspaceIds.delete(savedWorkspaceId)

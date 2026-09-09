@@ -405,7 +405,9 @@ An explicit replacement checkpoint without `markerSelector` removes the opt-in.
 Pausing or reconnecting suspends a checkpointed workspace. After reconnecting,
 resume with the private workspace key. A checkpointed workspace returns its
 current report in the resume response’s `continuity` field; uncheckpointed
-workspaces keep their existing response shape. Request `action: "status"` for
+workspaces keep their existing response shape. Archived resume reports unavailable
+evidence without a review handle; opening the archive returns a new continuity
+report and keeps the guard until an explicit fresh review. Request `action: "status"` for
 a fresh report before reconciliation. The report contains bounded reason codes, `status`, `suspended`, `reviewId`, and
 `nextAction`. `PASS` means the compared evidence matches; when `suspended` is
 true, an explicit review is still required before consequential tools can run.

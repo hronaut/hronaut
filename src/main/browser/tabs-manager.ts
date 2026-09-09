@@ -1074,6 +1074,9 @@ export class BrowserTabsManager {
   }
 
   async inspectWorkspaceContinuity(workspaceId: string) {
+    // An archive has no live page to review. Preserve its guard and report
+    // unavailable evidence until it is opened and inspected afresh.
+    if (this.savedTabGroups.has(workspaceId)) return this.workspaceContinuity.inspect(workspaceId, null, false)
     const { evidence, pageSettled } = await this.currentWorkspaceContinuity(workspaceId, this.continuityMarkers.get(workspaceId))
     return this.workspaceContinuity.inspect(workspaceId, evidence, pageSettled)
   }

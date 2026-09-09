@@ -106,6 +106,24 @@ describe('MCP workspace fork sources and direct access', () => {
     expect((await call('browser_tabs', { workspaceId: ownId })).isError).toBe(true)
   })
 
+  it.each(['resume', 'open'])('rejects a saved workspace %s report after access is revoked during capture', async action => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    await call('browser_saved_workspaces', { action: 'save', workspaceId: ownId })
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    manager.inspectWorkspaceContinuity.mockImplementation(async () => {
+      await Promise.resolve()
+      disable()
+      return { status: 'BLOCKED', suspended: true }
+    })
+    const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
+    expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain(key)
+    expect(JSON.stringify(result)).not.toContain('continuity')
+    expect((await call('browser_tabs', { workspaceId: ownId })).isError).toBe(true)
+  })
+
   it('revokes existing ownership and valid resume keys when direct access is disabled', async () => {
     const { manager, call, disable } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })
