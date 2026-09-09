@@ -48,6 +48,7 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     decode(await call(second, 'browser_workspaces', { ...args, action: 'resume', resumeKey: workspace.resumeKey }))
     expect((await call(second, 'browser_evaluate', { ...args, script: 'window.writes = 1; "written"' })).isError).toBe(true)
     expect(await electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))?.executeJavaScript('window.writes ?? 0'), origin)).toBe(0)
+    decode(await call(second, 'browser_status', args))
     expect((await call(second, 'browser_snapshot', args)).isError).not.toBe(true)
     const review = decode<{ reviewId: string; reasons: string[] }>(await call(second, 'browser_continuity', { ...args, action: 'status' }))
     expect(review.reasons).toContain('NAVIGATION_CHANGED')

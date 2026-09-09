@@ -859,6 +859,11 @@ function createBrowserMcpServer(
         if (origins !== undefined && storage !== 'fork-default' && storage !== 'fork-workspace') {
           throw new TypeError('origins can be selected only when forking workspace storage')
         }
+        if (storage === 'fork-workspace' && sourceWorkspaceId) manager.requireWorkspaceContinuityDispatch(sourceWorkspaceId)
+        if (storage === 'fork-default') {
+          const source = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
+          if (source) manager.requireWorkspaceContinuityDispatch(source.id)
+        }
         try {
           const created = await manager.createMcpTabGroup(name, color, storage, origins, true, undefined, sourceWorkspaceId)
           activeWorkspaceIds.add(created.id)
@@ -896,6 +901,9 @@ function createBrowserMcpServer(
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       if (action === 'import-default' || action === 'save-default') {
+        manager.requireWorkspaceContinuityDispatch(workspaceId)
+        const defaultWorkspace = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
+        if (defaultWorkspace) manager.requireWorkspaceContinuityDispatch(defaultWorkspace.id)
         if (action === 'save-default') {
           const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
           if (!target || !manager.isWorkspaceAgentAccessible(target.id)) throw workspaceAuthorizationError()
@@ -982,7 +990,7 @@ function createBrowserMcpServer(
   ])
   // Explicit inspection operations remain available for reconciliation. Do not
   // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
-  const continuityInspectionTools = new Set(['browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
+  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>

@@ -153,6 +153,31 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).not.toHaveBeenCalled()
   })
 
+  it('blocks storage import while continuity is suspended', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    expect((await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })).isError).toBe(true)
+    expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
+  })
+
+  it('does not copy a suspended source into a new unguarded workspace', async () => {
+    const { manager, call } = await setup()
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    expect((await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })).isError).toBe(true)
+    expect(manager.createMcpTabGroup).not.toHaveBeenCalled()
+  })
+
+  it('keeps bounded browser status available while continuity is suspended', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    const state = manager.getMcpGroupState()
+    manager.getMcpGroupState.mockImplementation(() => ({ ...state, closedTabs: [], mcpTabGroups: [], savedTabGroups: [] }))
+    const status = await call('browser_status', { workspaceId: ownId })
+    expect(status.isError, JSON.stringify(status.content)).not.toBe(true)
+  })
+
   it.each(['before-target', 'audit', 'wake'])('blocks a suspended continuity checkpoint at %s', async stage => {
     let suspend: () => void = () => undefined
     const { manager, call } = await setup(stage === 'audit' ? () => suspend() : undefined)
