@@ -4,6 +4,33 @@ import { readBrowserPostcondition } from '../src/main/mcp/post-write-browser-rea
 const condition = { expectedOrigin: 'https://example.invalid', accountSelector: '#account', expectedAccount: 'fixture', stateSelector: '#state', expectedText: 'saved' }
 afterEach(() => vi.useRealTimers())
 
+it('does not start a read cancelled before its evaluator microtask', async () => {
+  const controller = new AbortController()
+  const evaluate = vi.fn(async () => 'matches')
+  const result = readBrowserPostcondition({ condition, evaluate, validateCurrent: () => undefined, signal: controller.signal })
+  controller.abort(new Error('Private cancellation detail'))
+  expect(await result).toBe('unavailable')
+  expect(evaluate).not.toHaveBeenCalled()
+})
+
+it('releases the read timer immediately on cancellation and ignores late success', async () => {
+  vi.useFakeTimers()
+  const controller = new AbortController()
+  const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+  let finish!: (value: unknown) => void
+  const result = readBrowserPostcondition({ condition, validateCurrent: () => undefined, signal: controller.signal,
+    evaluate: () => new Promise(resolve => { finish = resolve }) })
+  await Promise.resolve()
+  controller.abort()
+  // Flush promise reactions without advancing the two-second deadline.
+  await vi.advanceTimersByTimeAsync(0)
+  expect(vi.getTimerCount()).toBe(0)
+  expect(await result).toBe('unavailable')
+  expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+  finish('matches')
+  expect(await result).toBe('unavailable')
+})
+
 it('retains the original authorization callback when the caller reuses its options object', async () => {
   let authorized = true
   const evaluate = vi.fn(async () => 'matches')

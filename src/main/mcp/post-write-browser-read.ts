@@ -11,15 +11,17 @@ export async function readBrowserPostcondition(options: {
   condition: BrowserPostcondition
   validateCurrent: () => void
   evaluate: (script: string) => Promise<unknown>
+  signal?: AbortSignal
 }): Promise<PostconditionReadResult> {
-  const { condition, validateCurrent, evaluate } = options
+  const { condition, validateCurrent, evaluate, signal } = options
   validateCurrent()
   const script = browserPostconditionScript(condition)
   const result = await readContinuityMarker(() => {
     // Evaluator invocation runs in a microtask; recheck after that boundary.
     validateCurrent()
     return evaluate(script)
-  })
+  }, signal)
   validateCurrent()
+  if (signal?.aborted) return 'unavailable'
   return result === 'matches' || result === 'not-yet-visible' || result === 'context-changed' ? result : 'unavailable'
 }

@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { browserPostconditionScript } from '../../src/shared/post-write-postcondition.js'
+import { readBrowserPostcondition } from '../../src/main/mcp/post-write-browser-read.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 test('reads delayed postconditions in an isolated world without replaying the write or invoking page hooks', async ({ electronApp, mcpPort, mcpToken }) => {
@@ -24,12 +24,14 @@ test('reads delayed postconditions in an isolated world without replaying the wr
     expect(result.isError, value).not.toBe(true)
     return JSON.parse(value) as T
   }
-  const script = browserPostconditionScript({ expectedOrigin: origin, accountSelector: '#account', expectedAccount: 'Account fixture', stateSelector: '#state', expectedText: 'Saved fixture' })
-  const inspect = () => electronApp.evaluate(async ({ webContents }, input) => {
-    const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(input.origin))
-    if (!page) throw new Error('Missing postcondition page')
-    return page.executeJavaScriptInIsolatedWorld(1012, [{ code: input.script }])
-  }, { origin, script })
+  const condition = { expectedOrigin: origin, accountSelector: '#account', expectedAccount: 'Account fixture', stateSelector: '#state', expectedText: 'Saved fixture' }
+  const inspect = (signal?: AbortSignal) => readBrowserPostcondition({ condition, signal, validateCurrent: () => undefined,
+    evaluate: script => electronApp.evaluate(async ({ webContents }, input) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(input.origin))
+      if (!page) throw new Error('Missing postcondition page')
+      return page.executeJavaScriptInIsolatedWorld(1012, [{ code: input.script }])
+    }, { origin, script })
+  })
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
@@ -47,6 +49,10 @@ test('reads delayed postconditions in an isolated world without replaying the wr
       await page.executeJavaScript(`document.getElementById('state').textContent = 'Saved fixture'`)
     }, origin)
     expect(await inspect()).toBe('matches')
+    const controller = new AbortController()
+    const cancelledRead = inspect(controller.signal)
+    controller.abort()
+    expect(await cancelledRead).toBe('unavailable')
     await electronApp.evaluate(async ({ webContents }, origin) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
       await page.executeJavaScript(`document.getElementById('account').textContent = 'Another account'`)
