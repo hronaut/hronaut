@@ -37,6 +37,12 @@ describe('workspace continuity lifecycle', () => {
     store.arm(evidence); store.suspend('workspace', 'NONE'); store.suspend('workspace', 'NONE')
     expect(() => store.requireDispatch('workspace')).toThrow('fresh review')
     expect(() => store.arm(evidence)).toThrow('Reconcile')
+    expect(store.inspect('workspace', evidence, true)).toMatchObject({
+      status: 'PASS', suspended: true, nextAction: 'INSPECT_AND_RECONCILE'
+    })
+    expect(store.inspect('workspace', evidence, false)).toMatchObject({
+      status: 'WARN', suspended: true, nextAction: 'WAIT_AND_READ_FRESH_STATE', reviewId: null
+    })
   })
   it('binds reconciliation to the reviewed browser state', () => {
     const store = new WorkspaceContinuityStore()

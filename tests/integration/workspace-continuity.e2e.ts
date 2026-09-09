@@ -41,6 +41,12 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
       return state.tabs.find(tab => tab.id === id)?.loading
     }, state.activeTabId)).toBe(false)
     decode(await call(first, 'browser_continuity', { ...args, action: 'checkpoint' }))
+    await appWindow.evaluate('window.hronautMcp.setPaused(true)')
+    await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+    const unchanged = decode<{ reviewId: string }>(await call(first, 'browser_continuity', { ...args, action: 'status' }))
+    expect(unchanged).toMatchObject({ status: 'PASS', suspended: true, nextAction: 'INSPECT_AND_RECONCILE' })
+    expect((await call(first, 'browser_evaluate', { ...args, script: 'window.writes = 1' })).isError).toBe(true)
+    decode(await call(first, 'browser_continuity', { ...args, action: 'reconcile', reviewId: unchanged.reviewId }))
     await first.close()
     await navigate('changed')
     const second = await connect()
@@ -139,6 +145,11 @@ test(`retains a guarded fork when pause occurs during native cookie copy (save f
     expect((await call('browser_new_tab', { workspaceId: source.id, url: origin })).isError).not.toBe(true)
     await expect.poll(() => electronApp.evaluate(({ webContents }, origin) =>
       webContents.getAllWebContents().some(page => page.getURL().startsWith(origin) && !page.isLoading()), origin)).toBe(true)
+    if (failPersistence) {
+      await expect.poll(async () => {
+        try { return (await readFile(statePath, 'utf8')).includes(source.id) } catch { return false }
+      }).toBe(true)
+    }
     await electronApp.evaluate(async ({ webContents }, origin) => {
       const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
       if (!page) throw new Error('Missing source page')

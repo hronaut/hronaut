@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add explicit agent workspace continuity checkpoints and fresh review after pause, reconnect, or restart, with guarded dispatch and separate reporting for stale observations and unknown prior outcomes.
+
 ### Fixed
 
 - Avoid duplicate suggested workspace names when adding template entries after removing or renaming entries.

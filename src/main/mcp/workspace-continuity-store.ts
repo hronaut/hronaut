@@ -78,6 +78,9 @@ export class WorkspaceContinuityStore {
         record.review = { id: randomUUID(), evidence: structuredClone(current), priorOutcome: record.priorOutcome }
       }
     }
+    // Matching evidence is a comparison result, not permission to skip the
+    // explicit review required by a suspended run.
+    if (record?.suspended && record.review) result.nextAction = 'INSPECT_AND_RECONCILE'
     return { ...result, priorOutcome, priorOutcomeAcknowledged, checkpointId: record?.id ?? null, reviewId: record?.review?.id ?? null, suspended: record?.suspended ?? true }
   }
 
