@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.20.0] - 2026-09-09
+
 ### Added
 
 - Preview, edit, import, and export portable workspace setup templates with fresh isolated profiles, explicit review, collision checks, and partial-failure cleanup. Browser sign-ins and credentials are excluded.
