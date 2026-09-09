@@ -94,6 +94,10 @@ function transition(actions: Map<string, AuditReceiptEvent>, event: AuditReceipt
       if (event.status === 'unknown') {
         if (['awaiting-read', 'postcondition-matched', 'postcondition-not-visible'].includes(event.reason)
           || event.attempt < previous.attempt || event.attempt > previous.attempt + 1) invalid()
+        // A read-side failure must not recast a successful transport as failed
+        // or ambiguous. Keep those two kinds of evidence distinct.
+        if (['transport-ambiguous', 'transport-failed'].includes(event.reason)
+          && (action?.phase !== 'outcome' || action.status === 'succeeded' || event.attempt !== 0)) invalid()
       } else {
         if (action?.phase !== 'outcome' || action.status !== 'succeeded' || event.attempt !== previous.attempt + 1
           || event.reason !== (event.status === 'verified' ? 'postcondition-matched' : 'postcondition-not-visible')) invalid()

@@ -51,6 +51,16 @@ it('requires verification admission before transport and rejects a verified ambi
   await second.store.append({ ...second.start, status: 'unknown', reason: 'transport-ambiguous', attempt: 0 })
 })
 
+it('rejects verification reasons that contradict the recorded transport outcome', async () => {
+  const { store, start, outcome } = await setup()
+  await store.append(start)
+  await store.append(outcome)
+  for (const reason of ['transport-ambiguous', 'transport-failed'] as const) {
+    await expect(store.append({ ...start, status: 'unknown', reason })).rejects.toThrow(/transition/)
+  }
+  await store.append({ ...start, status: 'unknown', reason: 'cancelled' })
+})
+
 it('preserves byte reservations across reopen when site evidence fills available space', async () => {
   const { store, options, start, outcome } = await setup(100, 4000)
   await store.append(start)
