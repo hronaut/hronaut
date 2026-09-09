@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Report retained workspace identity and cleanup guidance when initial tab creation and workspace cleanup both fail.
+
 ### Documentation
 
 - Clarify browser versus native desktop testing scope and distinguish browser approval from downstream authorization, with disposable-fixture and synthetic policy examples.

@@ -1679,7 +1679,15 @@ export class BrowserTabsManager {
       else await this.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
       return this.getState()
     } catch (error) {
-      await this.closeMcpTabGroup(workspace.id).catch(() => undefined)
+      try {
+        await this.closeMcpTabGroup(workspace.id)
+      } catch (cleanupError) {
+        throw new RetainedBrowserWorkspaceError(
+          [error, cleanupError],
+          workspace.id,
+          `Workspace ${workspace.id} could not be created or cleaned up. It remains listed so its isolated data can be deleted safely.`
+        )
+      }
       throw error
     }
   }
