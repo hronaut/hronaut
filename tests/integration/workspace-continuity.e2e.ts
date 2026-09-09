@@ -243,6 +243,49 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
     expect(JSON.stringify(changed)).not.toContain('Synthetic')
     expect(JSON.stringify(changed)).not.toContain('#marker')
     expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
+    for (const interruption of ['navigation', 'pause'] as const) {
+      let pendingRead: Promise<CallToolResult> | undefined
+      try {
+        await electronApp.evaluate(({ webContents }, origin) => {
+          const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
+          if (!page) throw new Error('Missing marker fixture page')
+          const original = page.executeJavaScriptInIsolatedWorld
+          const state = globalThis as typeof globalThis & { __markerWaiting?: boolean; __markerRelease?: () => void; __markerRestore?: () => void }
+          state.__markerRestore = () => { page.executeJavaScriptInIsolatedWorld = original }
+          page.executeJavaScriptInIsolatedWorld = async function (...args) {
+            const value = await original.apply(this, args)
+            if (args[0] !== 1010) return value
+            page.executeJavaScriptInIsolatedWorld = original
+            state.__markerWaiting = true
+            await new Promise<void>(resolve => { state.__markerRelease = resolve })
+            return value
+          }
+        }, origin)
+        pendingRead = call('browser_continuity', { ...args, action: 'status' })
+        await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerWaiting?: boolean }).__markerWaiting)).toBe(true)
+        if (interruption === 'navigation') {
+          await electronApp.evaluate(async ({ webContents }, origin) => {
+            const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
+            if (!page) throw new Error('Missing marker fixture page')
+            await page.loadURL(`${origin}/changed-during-marker`)
+          }, origin)
+        } else {
+          await appWindow.evaluate('window.hronautMcp.setPaused(true)')
+          await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+        }
+        await electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerRelease?: () => void }).__markerRelease?.())
+        const interruptedReport = decode(await pendingRead)
+        expect(interruptedReport, `${interruption}: ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+        expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
+      } finally {
+        await electronApp.evaluate(() => {
+          const state = globalThis as typeof globalThis & { __markerWaiting?: boolean; __markerRelease?: () => void; __markerRestore?: () => void }
+          state.__markerRelease?.(); state.__markerRestore?.()
+          delete state.__markerWaiting; delete state.__markerRelease; delete state.__markerRestore
+        })
+        await pendingRead?.catch(() => undefined)
+      }
+    }
     for (const unavailable of [null, 'é'.repeat(257)]) {
       await changeMarker(unavailable)
       expect(decode(await call('browser_continuity', { ...args, action: 'status' }))).toMatchObject({ status: 'BLOCKED', reviewId: null })
