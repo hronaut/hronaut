@@ -296,6 +296,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
     for (const interruption of ['navigation', 'pause', 'access', 'reconcile-access'] as const) {
       const readStartedAt = performance.now()
       let pendingRead: Promise<CallToolResult> | undefined
+      let navigationTrace: unknown
       const review = interruption === 'reconcile-access'
         ? decode<{ reviewId: string }>(await call('browser_continuity', { ...args, action: 'status' })) : undefined
       try {
@@ -317,10 +318,17 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
         pendingRead = call('browser_continuity', { ...args, action: review ? 'reconcile' : 'status', ...(review ? { reviewId: review.reviewId } : {}) })
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerWaiting?: boolean }).__markerWaiting)).toBe(true)
         if (interruption === 'navigation') {
-          await electronApp.evaluate(async ({ webContents }, origin) => {
-            const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
+          navigationTrace = await electronApp.evaluate(async ({ webContents }, origin) => {
+            const pages = webContents.getAllWebContents().filter(page => page.getURL().startsWith(origin))
+            const page = pages[0]
             if (!page) throw new Error('Missing marker fixture page')
-            await page.loadURL(`${origin}/changed-during-marker`)
+            const events: Array<{ sameDocument: boolean; mainFrame: boolean }> = []
+            const onStart = (_event: unknown, _url: string, sameDocument: boolean, mainFrame: boolean) => { events.push({ sameDocument, mainFrame }) }
+            page.on('did-start-navigation', onStart)
+            try {
+              await page.loadURL(`${origin}/changed-during-marker`)
+              return { candidates: pages.map(page => page.id), events, reachedTarget: page.getURL() === `${origin}/changed-during-marker` }
+            } finally { page.removeListener('did-start-navigation', onStart) }
           }, origin)
         } else if (interruption === 'access' || interruption === 'reconcile-access') {
           await appWindow.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspace.id)}, { agentAccess: false })`)
@@ -337,7 +345,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
           expect(humanReport).toMatchObject({ suspended: true })
         } else {
           const interruptedReport = decode(result)
-          expect(interruptedReport, `${interruption} (${readElapsedMs} ms): ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+          expect(interruptedReport, `${interruption} (${readElapsedMs} ms), native=${JSON.stringify(navigationTrace)}: ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
         }
         expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
       } finally {
