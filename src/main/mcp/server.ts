@@ -859,19 +859,39 @@ function createBrowserMcpServer(
         if (origins !== undefined && storage !== 'fork-default' && storage !== 'fork-workspace') {
           throw new TypeError('origins can be selected only when forking workspace storage')
         }
-        if (storage === 'fork-workspace' && sourceWorkspaceId) manager.requireWorkspaceContinuityDispatch(sourceWorkspaceId)
-        if (storage === 'fork-default') {
-          const source = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
-          if (source) manager.requireWorkspaceContinuityDispatch(source.id)
+        const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId
+          : storage === 'fork-default' ? manager.listMcpTabGroups().find(workspace => workspace.isDefault)?.id : undefined
+        if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
+        const forkRevision = actionTracker.controlRevision
+        const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
+        const forkContextCurrent = (): boolean => {
+          if (!forkSourceId) return true
+          try {
+            if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
+            manager.requireWorkspaceContinuityDispatch(forkSourceId)
+            return true
+          } catch { return false }
+        }
+        const interruptedFork = async (id: string): Promise<CallToolResult> => {
+          if (forkSourceId) manager.suspendWorkspaceContinuity(forkSourceId, 'OUTCOME_UNKNOWN')
+          const guardPersisted = await manager.requireWorkspaceContinuityReview(id)
+          const outcome = {
+            status: 'OUTCOME_UNKNOWN', effects: 'possible', workspaceId: id,
+            resumeKey: manager.mcpWorkspaceResumeKey(id), retained: true, reviewRequired: true, guardPersisted,
+            nextAction: 'Inspect and recover the retained workspace before continuing. Do not automatically repeat the fork.'
+          }
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         try {
           const created = await manager.createMcpTabGroup(name, color, storage, origins, true, undefined, sourceWorkspaceId)
           activeWorkspaceIds.add(created.id)
+          if (!forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
         } catch (error) {
           if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
           const retained = manager.requireMcpTabGroup(error.workspaceId)
           activeWorkspaceIds.add(retained.id)
+          if (!forkContextCurrent()) return await interruptedFork(retained.id)
           return {
             ...textResult({
               error: error.message,
@@ -881,6 +901,8 @@ function createBrowserMcpServer(
             }),
             isError: true
           }
+        } finally {
+          finishFork?.()
         }
       }
       if (!workspaceId) throw new TypeError(`workspaceId is required to ${action} a workspace`)

@@ -116,3 +116,59 @@ test('retains the continuity guard across application restart until explicit fre
     await closeFixtureServer(fixture)
   }
 })
+
+test('retains a guarded fork when pause occurs during native cookie copy', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><title>Fork source</title>Ready') })
+  await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const address = fixture.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture address')
+  const origin = `http://127.0.0.1:${address.port}`
+  const client = new Client({ name: 'continuity-fork', version: '1' })
+  let pendingFork: Promise<CallToolResult> | undefined
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+  const decode = <T>(result: CallToolResult): T => JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as T
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const source = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', name: 'Native fork source', storage: 'scratch' }))
+    expect((await call('browser_new_tab', { workspaceId: source.id, url: origin })).isError).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, origin) =>
+      webContents.getAllWebContents().some(page => page.getURL().startsWith(origin) && !page.isLoading()), origin)).toBe(true)
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
+      if (!page) throw new Error('Missing source page')
+      const cookies = page.session.cookies
+      await cookies.set({ url: origin, name: 'fixture', value: 'synthetic' })
+      const original = cookies.get
+      const state = globalThis as typeof globalThis & { __continuityForkWaiting?: boolean; __continuityForkRelease?: () => void; __continuityForkRestore?: () => void }
+      state.__continuityForkRestore = () => { cookies.get = original }
+      cookies.get = async function (filter) {
+        cookies.get = original
+        state.__continuityForkWaiting = true
+        await new Promise<void>(resolve => { state.__continuityForkRelease = resolve })
+        return original.call(this, filter)
+      }
+    }, origin)
+    pendingFork = call('browser_workspaces', { action: 'create', name: 'Interrupted fork', storage: 'fork-workspace', sourceWorkspaceId: source.id })
+    await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __continuityForkWaiting?: boolean }).__continuityForkWaiting)).toBe(true)
+    await appWindow.evaluate('window.hronautMcp.setPaused(true)')
+    await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+    await electronApp.evaluate(() => (globalThis as typeof globalThis & { __continuityForkRelease?: () => void }).__continuityForkRelease?.())
+    const result = await pendingFork
+    expect(result.isError).toBe(true)
+    const retained = decode<{ status: string; workspaceId: string; guardPersisted: boolean; retained: boolean }>(result)
+    expect(retained).toMatchObject({ status: 'OUTCOME_UNKNOWN', guardPersisted: true, retained: true })
+    expect((await call('browser_new_tab', { workspaceId: retained.workspaceId, url: origin })).isError).toBe(true)
+    const status = decode<{ suspended: boolean }>(await call('browser_continuity', { action: 'status', workspaceId: retained.workspaceId }))
+    expect(status.suspended).toBe(true)
+  } finally {
+    await electronApp.evaluate(() => {
+      const state = globalThis as typeof globalThis & { __continuityForkWaiting?: boolean; __continuityForkRelease?: () => void; __continuityForkRestore?: () => void }
+      state.__continuityForkRelease?.(); state.__continuityForkRestore?.()
+      delete state.__continuityForkWaiting; delete state.__continuityForkRelease; delete state.__continuityForkRestore
+    })
+    await pendingFork?.catch(() => undefined)
+    await client.close()
+    await closeFixtureServer(fixture)
+  }
+})

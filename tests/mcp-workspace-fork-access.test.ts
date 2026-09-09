@@ -1,3 +1,4 @@
+import { RetainedBrowserWorkspaceError } from '../src/main/browser/workspace-errors.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -22,6 +23,7 @@ describe('MCP workspace fork sources and direct access', () => {
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
       suspendWorkspaceContinuity: vi.fn(),
+      requireWorkspaceContinuityReview: vi.fn(async () => true),
       requireWorkspaceContinuityDispatch: vi.fn(),
       beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
       createMcpTabGroup: vi.fn(async () => workspace),
@@ -183,6 +185,23 @@ describe('MCP workspace fork sources and direct access', () => {
     manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
     expect((await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })).isError).toBe(true)
     expect(manager.createMcpTabGroup).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('guards a retained fork after control changes during copy (copy failure: %s)', async failed => {
+    const { manager, call } = await setup()
+    manager.createMcpTabGroup.mockImplementationOnce(async () => {
+      server.setPaused(true); server.setPaused(false)
+      if (failed) throw new RetainedBrowserWorkspaceError([], ownId, 'Private fork failure detail')
+      return { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
+    })
+    const result = await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
+    expect(result.isError).toBe(true)
+    expect(parsed(result)).toMatchObject({ status: 'OUTCOME_UNKNOWN', workspaceId: ownId, retained: true, reviewRequired: true, resumeKey: key })
+    expect(JSON.stringify(result)).not.toContain('Private fork failure detail')
+    expect(manager.requireWorkspaceContinuityReview).toHaveBeenCalledWith(ownId)
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(sourceId, false)
+    expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
+    expect(manager.createMcpTabGroup).toHaveBeenCalledTimes(1)
   })
 
   it('keeps bounded browser status available while continuity is suspended', async () => {

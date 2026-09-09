@@ -1011,6 +1011,21 @@ export class BrowserTabsManager {
     return checkpointId
   }
 
+  async requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
+    this.requireMcpTabGroup(workspaceId)
+    if (this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
+    else this.workspaceContinuity.restoreStale(workspaceId)
+    try {
+      await this.store.save(this.persistedState())
+      return true
+    } catch {
+      // Keep the in-memory guard and revoke direct agent access when its durable
+      // marker cannot be acknowledged. Recovery remains available to the operator.
+      this.updateMcpTabGroup(workspaceId, { agentAccess: false })
+      return false
+    }
+  }
+
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): void {
     const pending = this.continuityActions.get(workspaceId)
     this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
