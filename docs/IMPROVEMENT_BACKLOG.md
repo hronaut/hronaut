@@ -35,21 +35,23 @@ and shared audit contracts. These are proposals, not shipped features.
 
 ### Electron upgrade evidence (issue #1)
 
-Rechecked 2026-09-08. The upstream stable-release prerequisite is now satisfied:
+Rechecked 2026-09-09. The upstream stable-release prerequisite is satisfied:
 [Electron 44.1.0 release notes](https://github.com/electron/electron/releases/tag/v44.1.0)
 explicitly include the Linux tray fix from
 [backport #53214](https://github.com/electron/electron/pull/53214).
-[Electron 44.2.0](https://github.com/electron/electron/releases/tag/v44.2.0),
-published September 4, is the latest stable release observed in this check.
-The [commit comparison](https://github.com/electron/electron/compare/bb27a30d9262e4ad6e1eb12921d5792fa7175e96...v44.2.0)
-places its tag 47 commits ahead and zero behind the tray backport merge, with
-that merge as the merge base. This verifies inclusion, not only issue closure.
+[Electron 44.3.0](https://github.com/electron/electron/releases/tag/v44.3.0),
+published September 8, is the latest stable release observed in this check.
+The [commit comparison](https://github.com/electron/electron/compare/bb27a30d9262e4ad6e1eb12921d5792fa7175e96...v44.3.0)
+places its tag 90 commits ahead and zero behind the tray backport merge.
+This verifies inclusion, not only issue closure.
 
-Keep the current pin until the remaining packaged-app checks in
-[Hronaut #1](https://github.com/hronaut/hronaut/issues/1) are fulfilled: GNOME with
-AppIndicator, KDE plus Xfce or Cinnamon evidence, icon/click/menu/attention/quit
-behavior, Windows/macOS lifecycle smoke, dependency audit, and full Docker gates.
-Do this as a separate dependency batch after the audit receipt feature is verified.
+The maintenance update advances the existing 44-series pin to 44.3.0 for its
+upstream crash and permission fixes, including a separate Linux sandbox tray
+fix. Keep [Hronaut #1](https://github.com/hronaut/hronaut/issues/1) open until its
+remaining packaged-app evidence is complete: GNOME with AppIndicator, KDE plus
+Xfce or Cinnamon, icon/click/menu/attention/quit behavior, and Windows/macOS
+lifecycle smoke. Dependency audit and automated Docker gates do not substitute
+for those desktop checks.
 
 Next code-review lead: `useDiagnosticsController` also identifies its active
 document by tab ID and URL. Reproduce same-URL reload behavior for pending audits
