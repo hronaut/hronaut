@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.21.0] - 2026-09-09
+
 ### Added
 
 - Add explicit agent workspace continuity checkpoints and fresh review after pause, reconnect, or restart, with localized workspace-editor controls, continuity reports on guarded workspace resume, guarded dispatch, and separate reporting for stale observations and unknown prior outcomes.
