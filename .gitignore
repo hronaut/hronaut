@@ -233,6 +233,7 @@ docs/*
 !docs/WORKSPACE_SITE_ACCESS.md
 !docs/RELEASE_HISTORY.md
 !docs/LINUX_PAGE_PRESENTATION.md
+!docs/LINUX_AGENT_CAPTURE_FOCUS.md
 !docs/IMPROVEMENT_BACKLOG.md
 playwright-report/
 storybook-static/

@@ -9157,10 +9157,12 @@ export class BrowserTabsManager {
         if (this.window.isVisible() && (tab.id === this.activeTabId || this.splitViewContains(tab.id))) return await operation()
 
         const originalBounds = tab.view.getBounds()
-        const wasAttached = tab.id === this.activeTabId || this.splitViewContains(tab.id)
-        // Chromium releases a WebContentsView's compositor surface when its host is hidden or detached.
-        // Present the same live tab offscreen so screenshots retain its current DOM, scroll, and session state.
-        const captureWindow = new BrowserWindow({
+        // A visible host already has a compositor surface. Position the capture
+        // view outside its viewport so it cannot cover the UI or activate another
+        // native window. Wayland can activate even a non-focusable showInactive
+        // window. Hidden hosts still need a separate presented capture surface.
+        const reuseHost = this.window.isVisible() && !this.window.isMinimized()
+        const captureWindow = reuseHost ? this.window : new BrowserWindow({
           x: -32_000,
           y: -32_000,
           width: Math.max(1, originalBounds.width),
@@ -9170,12 +9172,13 @@ export class BrowserTabsManager {
           focusable: false,
           skipTaskbar: true
         })
-        if (wasAttached) this.window.contentView.removeChildView(tab.view)
-        captureWindow.contentView.addChildView(tab.view)
-        tab.view.setBounds({ x: 0, y: 0, width: Math.max(1, originalBounds.width), height: Math.max(1, originalBounds.height) })
 
         try {
-          captureWindow.showInactive()
+          const width = Math.max(1, originalBounds.width)
+          const height = Math.max(1, originalBounds.height)
+          tab.view.setBounds({ x: reuseHost ? -width : 0, y: 0, width, height })
+          captureWindow.contentView.addChildView(tab.view, reuseHost ? 0 : undefined)
+          if (!reuseHost) captureWindow.showInactive()
           // Electron's print pipeline does not consume a compositor screenshot.
           // Waiting for a subscribed frame before printToPDF can stall forever
           // under renderer pressure even though PDF generation is ready.
@@ -9183,13 +9186,17 @@ export class BrowserTabsManager {
           return await operation()
         } finally {
           let cleanupError: unknown
+          // Human selection can make this the presented view while capture is
+          // pending. Detaching it from the shared host would discard that focus.
+          const keepPresented = reuseHost && tabIsLive()
+            && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
           try {
-            if (!captureWindow.isDestroyed()) captureWindow.contentView.removeChildView(tab.view)
+            if (!keepPresented && !captureWindow.isDestroyed()) captureWindow.contentView.removeChildView(tab.view)
           } catch (error) {
             cleanupError = error
           }
           try {
-            if (!captureWindow.isDestroyed()) captureWindow.destroy()
+            if (!reuseHost && !captureWindow.isDestroyed()) captureWindow.destroy()
           } catch (error) {
             cleanupError ??= error
           }
@@ -9201,7 +9208,7 @@ export class BrowserTabsManager {
               // Restore the current visible layout rather than stale ownership
               // or bounds from when the capture began.
               if (tab.id === this.activeTabId || this.splitViewContains(tab.id)) {
-                this.window.contentView.addChildView(tab.view)
+                if (!this.window.contentView.children.includes(tab.view)) this.window.contentView.addChildView(tab.view)
                 this.layout()
               } else {
                 tab.view.setBounds(originalBounds)

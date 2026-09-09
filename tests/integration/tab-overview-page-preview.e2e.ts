@@ -48,6 +48,26 @@ async function waitForCapture(app: ElectronApplication) {
   ).__pagePreviewGate?.started)).toBe(true)
 }
 
+async function expectCaptureOutsideViewport(app: ElectronApplication, url: string) {
+  expect(await app.evaluate(({ BrowserWindow, WebContentsView }, url) => {
+    const windows = BrowserWindow.getAllWindows()
+    const shell = windows[0]!
+    const children = shell.contentView.children
+    const target = children[0]
+    return {
+      windows: windows.length,
+      attached: target instanceof WebContentsView && target.webContents.getURL() === url,
+      outsideViewport: target !== undefined && target.getBounds().width > 0 && target.getBounds().x + target.getBounds().width <= 0
+    }
+  }, url)).toEqual({ windows: 1, attached: true, outsideViewport: true })
+}
+
+async function captureIsAttached(app: ElectronApplication, url: string) {
+  return app.evaluate(({ BrowserWindow, WebContentsView }, url) => BrowserWindow.getAllWindows().some(window => (
+    window.contentView.children.some(child => child instanceof WebContentsView && !child.webContents.isDestroyed() && child.webContents.getURL() === url)
+  )), url)
+}
+
 for (const change of ['navigation', 'close'] as const) {
   test(`rejects a full-page preview completed after tab ${change}`, async ({ appWindow, electronApp }) => {
     const initial = await openFixture(appWindow)
@@ -56,7 +76,7 @@ for (const change of ['navigation', 'close'] as const) {
     try {
       await startCapture(appWindow, target.id)
       await waitForCapture(electronApp)
-      if (change === 'close') expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+      if (change === 'close') await expectCaptureOutsideViewport(electronApp, target.url)
       if (change === 'navigation') {
         await appWindow.evaluate(`window.hronaut.navigate({tabId:${JSON.stringify(target.id)},url:${JSON.stringify(fixtureUrl('Navigated page'))}})`)
         await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(target.id)})?.title)`)).toBe('Navigated page')
@@ -234,7 +254,7 @@ for (const resize of [false, true]) {
     try {
       await startCapture(appWindow, target.id)
       await waitForCapture(electronApp)
-      expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+      await expectCaptureOutsideViewport(electronApp, target.url)
       await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(target.id)})`)
       if (resize) await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id)!.setSize(1040, 780), mainWindowId)
       const targetState = () => electronApp.evaluate(async ({ webContents }, url) => {
@@ -257,16 +277,17 @@ for (const resize of [false, true]) {
   })
 }
 
-test('removes the cold offscreen host at the response deadline while retaining the in-flight capture slot', async ({ appWindow, electronApp }) => {
+test('detaches the cold capture view at the response deadline while retaining the in-flight capture slot', async ({ appWindow, electronApp }) => {
   const selected = await openFixture(appWindow, 'Original selected page')
   const target = await openColdTarget(appWindow)
   await holdCapture(electronApp, target.url)
   try {
     await startCapture(appWindow, target.id)
     await waitForCapture(electronApp)
-    expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+    await expectCaptureOutsideViewport(electronApp, target.url)
     const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }
     expect(result.error).toMatch(/timed out/i)
+    await expect.poll(() => captureIsAttached(electronApp, target.url)).toBe(false)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     expect(await appWindow.evaluate('window.hronaut.getState().then(state => state.activeTabId)')).toBe(selected.id)
     await expect(appWindow.evaluate(`window.hronaut.getTabOverviewPagePreview(${JSON.stringify(target.id)})`)).rejects.toThrow(/timed out/i)

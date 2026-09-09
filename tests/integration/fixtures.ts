@@ -77,7 +77,7 @@ export async function launchHronaut(
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT
   else environment.HRONAUT_MCP_PORT = String(mcpPort)
   const app = await electron.launch({
-    args: ['.'],
+    args: ['.', ...(process.env.HRONAUT_TEST_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])],
     cwd: repositoryRoot,
     env: {
       ...environment,
