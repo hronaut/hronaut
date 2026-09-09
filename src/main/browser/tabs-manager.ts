@@ -1,6 +1,6 @@
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
-import { reconcilePresentedViewVisibility } from './presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
@@ -1009,6 +1009,7 @@ export class BrowserTabsManager {
   private destroyed = false
   private restoringLayout = false
   private persistTimer: NodeJS.Timeout | null = null
+  private stopPresentationWatcher: (() => void) | undefined
   private memorySaverTimer: NodeJS.Timeout | null = null
   private initialized = false
   private readonly memorySaverSweeps = new MemorySaverSweepQueue()
@@ -1160,6 +1161,15 @@ export class BrowserTabsManager {
       const activeTab = this.tabs.get(this.activeTabId)
       if (activeTab) this.focusTabOrTrustedChrome(activeTab)
     }
+    this.stopPresentationWatcher = watchPresentedViewVisibility(this.window, () => {
+      const ids = this.splitView
+        ? [this.splitView.firstTabId, this.splitView.secondTabId]
+        : this.activeTabId ? [this.activeTabId] : []
+      return ids.flatMap(id => {
+        const tab = this.tabs.get(id)
+        return tab ? [tab.view] : []
+      })
+    })
     this.memorySaverTimer = setInterval(() => {
       void this.sweepMemorySaver(false).catch((error) => console.error('[browser] Memory Saver sweep failed:', error))
     }, MEMORY_SAVER_SWEEP_MS)
@@ -6898,6 +6908,7 @@ export class BrowserTabsManager {
     this.splitDivider.cancel()
     this.destroyed = true
     this.mcpActivityFollower.dispose()
+    this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
     if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)

@@ -32,3 +32,19 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
     .catch(() => undefined)
     .finally(() => pending.delete(view))
 }
+
+/** Check idle presented pages too: compositor visibility can drift without a
+ * navigation or layout event. Only the caller's displayed views are inspected. */
+export function watchPresentedViewVisibility(
+  window: BrowserWindow,
+  displayedViews: () => readonly WebContentsView[]
+): () => void {
+  if (process.platform !== 'linux' || process.versions.electron?.split('.')[0] !== '44') return () => undefined
+  const timer = setInterval(() => {
+    if (window.isDestroyed()) { clearInterval(timer); return }
+    if (!window.isVisible() || window.isMinimized()) return
+    for (const view of displayedViews().slice(0, 2)) reconcilePresentedViewVisibility(window, view)
+  }, 1_000)
+  timer.unref()
+  return () => clearInterval(timer)
+}

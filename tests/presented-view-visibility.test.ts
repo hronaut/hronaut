@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrowserWindow, WebContentsView } from 'electron'
-import { reconcilePresentedViewVisibility } from '../src/main/browser/presented-view-visibility.js'
+import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from '../src/main/browser/presented-view-visibility.js'
 
 function fixture() {
   vi.stubGlobal('process', { ...process, platform: 'linux', versions: { ...process.versions, electron: '44.2.0' } })
@@ -20,9 +20,28 @@ function fixture() {
     reconcile: () => reconcilePresentedViewVisibility(window as unknown as BrowserWindow, view as unknown as WebContentsView) }
 }
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('presented view visibility', () => {
+  it('checks idle visible pages, skips hidden hosts and stops cleanly', async () => {
+    vi.useFakeTimers()
+    const f = fixture()
+    const views = vi.fn(() => [f.view as unknown as WebContentsView])
+    const stop = watchPresentedViewVisibility(f.window as unknown as BrowserWindow, views)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(f.contents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(1)
+    f.resolve('hidden')
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.contents.setEmbedder).toHaveBeenCalledTimes(1)
+    f.window.isVisible.mockReturnValue(false)
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(views).toHaveBeenCalledTimes(1)
+    f.window.isVisible.mockReturnValue(true)
+    stop()
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(views).toHaveBeenCalledTimes(1)
+  })
+
   it('coalesces checks and repairs only a hidden renderer', async () => {
     const f = fixture()
     f.reconcile()
