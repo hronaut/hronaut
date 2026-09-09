@@ -5,6 +5,20 @@ import type { WorkspaceContinuityEvidence } from '../src/main/mcp/workspace-cont
 const evidence: WorkspaceContinuityEvidence = { epoch: 'epoch', workspaceId: 'workspace', tabId: 'tab', originDigest: 'origin', policyDigest: 'policy', navigationGeneration: 0, humanInteractionGeneration: 0 }
 
 describe('workspace continuity lifecycle', () => {
+  it('clears a stale observation only after successful fresh reconciliation', () => {
+    const store = new WorkspaceContinuityStore()
+    store.arm(evidence); store.suspend('workspace', 'STALE_OBSERVATION')
+    const review = store.inspect('workspace', evidence, true)
+    expect(review.priorOutcome).toBe('STALE_OBSERVATION')
+    const changed = { ...evidence, humanInteractionGeneration: 1 }
+    expect(() => store.reconcile('workspace', review.reviewId!, changed, true, false)).toThrow('changed')
+    const fresh = store.inspect('workspace', changed, true)
+    expect(fresh.priorOutcome).toBe('STALE_OBSERVATION')
+    store.reconcile('workspace', fresh.reviewId!, changed, true, false)
+    expect(store.inspect('workspace', changed, true)).toMatchObject({
+      status: 'PASS', priorOutcome: 'NONE', suspended: false, nextAction: 'RECHECK_BEFORE_DISPATCH'
+    })
+  })
   it('restores guarded identities without treating missing runtime evidence as safe', () => {
     const original = new WorkspaceContinuityStore(); original.arm(evidence)
     const restarted = new WorkspaceContinuityStore()

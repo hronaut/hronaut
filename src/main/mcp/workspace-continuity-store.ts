@@ -91,6 +91,9 @@ export class WorkspaceContinuityStore {
     }
     if (review.priorOutcome === 'OUTCOME_UNKNOWN' && !acknowledgeUnknownOutcome) throw new Error('Explicitly acknowledge the unresolved prior outcome')
     record.evidence = structuredClone(current)
+    // A fresh reviewed observation replaces a stale read. Unknown write effects
+    // cannot be resolved by observing the current page and remain recorded.
+    if (record.priorOutcome === 'STALE_OBSERVATION') record.priorOutcome = 'NONE'
     record.suspended = false
     record.priorOutcomeAcknowledged = record.priorOutcome === 'OUTCOME_UNKNOWN' && acknowledgeUnknownOutcome
     record.review = undefined
