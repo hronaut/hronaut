@@ -1329,7 +1329,18 @@ test('closes an unregistered tab when its initial native layout fails and permit
   })
   try {
     await expect(appWindow.evaluate('window.hronaut.newTab({url:"about:blank",active:false})')).rejects.toThrow('Injected initial native layout failure')
-    expect(await appWindow.evaluate('window.hronaut.getState()')).toEqual(before)
+    const withoutAsyncInspectorCount = (state: BrowserState): BrowserState => ({
+      ...state,
+      tabs: state.tabs.map(tab => {
+        const snapshot = { ...tab }
+        // CDP issues can arrive after loading settles, independently of the
+        // attempted allocation. Preserve every other state/lifecycle assertion.
+        delete snapshot.inspectorIssueCount
+        return snapshot
+      })
+    })
+    const after = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+    expect(withoutAsyncInspectorCount(after)).toEqual(withoutAsyncInspectorCount(before))
     await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.id).sort((a, b) => a - b))).toEqual(contentsBefore)
   } finally {
     await electronApp.evaluate(() => {
