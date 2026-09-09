@@ -1,5 +1,6 @@
 export const enUS = {
   workspaceTemplates: {
+    remove: "Remove workspace {number}",
     title: "Portable workspace templates",
     scope: "Templates contain only names, colors, and selected start pages. They exclude cookies, local storage, passwords, tokens, workspace identities, site-access rules, and browser permissions.",
     privacy: "Names and URLs can still contain private information. Review every entry before saving or importing. Export starts with a generic name and no pages.",

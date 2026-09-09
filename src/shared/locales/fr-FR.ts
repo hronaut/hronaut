@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
   workspaceTemplates: {
+    remove: "Retirer l’espace de travail {number}",
     title: "Modèles portables d’espaces de travail",
     scope: "Les modèles contiennent uniquement les noms, couleurs et pages de démarrage sélectionnées. Ils excluent cookies, stockage local, mots de passe, jetons, identités des espaces, règles d’accès aux sites et autorisations du navigateur.",
     privacy: "Les noms et URL peuvent contenir des informations privées. Vérifiez chaque entrée avant d’enregistrer ou d’importer. L’export commence avec un nom générique et aucune page.",

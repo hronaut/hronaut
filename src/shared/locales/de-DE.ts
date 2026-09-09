@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
   workspaceTemplates: {
+    remove: "Arbeitsbereich {number} entfernen",
     title: "Tragbare Arbeitsbereichsvorlagen",
     scope: "Vorlagen enthalten nur Namen, Farben und ausgewählte Startseiten. Cookies, lokaler Speicher, Passwörter, Token, Arbeitsbereichsidentitäten, Website-Zugriffsregeln und Browserberechtigungen sind ausgeschlossen.",
     privacy: "Namen und URLs können private Informationen enthalten. Prüfen Sie jeden Eintrag vor dem Speichern oder Importieren. Ein Export beginnt mit einem allgemeinen Namen und ohne Seiten.",

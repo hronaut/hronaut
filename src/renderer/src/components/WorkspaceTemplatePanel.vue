@@ -120,6 +120,7 @@ async function cleanup(): Promise<void> {
       <p>{{ t('workspaceTemplates.source', { platform: draft.sourcePlatform }) }}</p>
       <fieldset v-for="(entry, index) in draft.workspaces" :key="index" :disabled="busy || completed || retained.length > 0">
         <legend>{{ t('workspaceTemplates.entry', { number: index + 1 }) }}</legend>
+        <UiButton type="button" :disabled="draft.workspaces.length <= 1" @click="draft.workspaces.splice(index, 1)">{{ t('workspaceTemplates.remove', { number: index + 1 }) }}</UiButton>
         <label>{{ t('workspaceEditor.name') }}<input v-model="entry.name" maxlength="80" autocomplete="off" /></label>
         <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ color }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>

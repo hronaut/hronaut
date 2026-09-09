@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
   workspaceTemplates: {
+    remove: "Eliminar espacio de trabajo {number}",
     title: "Plantillas portátiles de espacios de trabajo",
     scope: "Las plantillas solo contienen nombres, colores y páginas iniciales seleccionadas. Excluyen cookies, almacenamiento local, contraseñas, tokens, identidades de espacios, reglas de acceso a sitios y permisos del navegador.",
     privacy: "Los nombres y las URL pueden contener información privada. Revisa cada entrada antes de guardar o importar. La exportación comienza con un nombre genérico y sin páginas.",

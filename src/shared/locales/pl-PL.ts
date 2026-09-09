@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
   workspaceTemplates: {
+    remove: "Usuń obszar roboczy {number}",
     title: "Przenośne szablony obszarów roboczych",
     scope: "Szablony zawierają tylko nazwy, kolory i wybrane strony startowe. Nie zawierają plików cookie, pamięci lokalnej, haseł, tokenów, tożsamości obszarów, reguł dostępu do witryn ani uprawnień przeglądarki.",
     privacy: "Nazwy i adresy URL mogą zawierać prywatne informacje. Sprawdź każdy wpis przed zapisem lub importem. Eksport zaczyna się od ogólnej nazwy i bez stron.",
