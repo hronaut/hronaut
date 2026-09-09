@@ -979,6 +979,9 @@ export class BrowserTabsManager {
   private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
 
   beginWorkspaceContinuityAction(workspaceId: string, readOnly: boolean): () => void {
+    // A completed write can disappear from the pending map before an older
+    // marker read returns. Retain its invalidation across that async interval.
+    if (!readOnly) this.continuityRevision += 1
     const pending = this.continuityActions.get(workspaceId) ?? { reads: 0, writes: 0 }
     this.continuityActions.set(workspaceId, pending)
     const field = readOnly ? 'reads' : 'writes'
