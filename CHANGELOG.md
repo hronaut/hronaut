@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Durable workspace human-decision records with responsible and fallback owners, bounded deadlines and notification attempts, reconnect discovery, and trusted local review controls. Acknowledgement does not resolve an unknown action outcome, replay work, or unpause agents.
+
 ## [1.21.0] - 2026-09-09
 
 ### Added

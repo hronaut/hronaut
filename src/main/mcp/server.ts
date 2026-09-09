@@ -8,6 +8,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
+import type { HumanWaitingService } from './human-waiting-service.js'
 import { workspacePreflight } from './workspace-preflight.js'
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
@@ -198,6 +199,7 @@ class WalletAgentSessionRegistry {
 }
 
 export interface McpHttpServerOptions {
+  humanWaiting?: HumanWaitingService
   actionTracker?: McpActionTracker
   authorizeAutomation?: () => Promise<void>
   auditReceipts?: AuditReceiptService
@@ -218,6 +220,8 @@ export interface McpHttpServerOptions {
 
 export interface UserAttentionInput {
   reason: string
+  humanWaitingDecisionId?: string
+  expiresAt?: number
   workspaceId?: string
   tabId?: string
 }
@@ -361,6 +365,7 @@ const destructiveTool = (
 })
 
 const BROWSER_TOOL_METADATA = {
+  browser_human_waiting: nonDestructiveTool('Manage human waiting', false, false),
   browser_continuity: nonDestructiveTool('Review workspace continuity', false, false),
   browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
@@ -440,6 +445,10 @@ const BROWSER_TOOL_METADATA = {
 type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
+  {
+    name: 'browser_human_waiting', category: 'Session',
+    description: 'Request, list, or cancel a bounded human decision in your workspace, including when no tab is open. Supply only non-secret local owner labels and a decision kind. Acknowledgment and resolution require the trusted local UI. Waiting blocks consequential dispatch; cancellation does not clear continuity review or replay an action. IDs are correlation handles, never capabilities.'
+  },
   {
     name: 'browser_continuity', category: 'Session',
     description: 'Create an explicit continuity checkpoint, inspect changes after a pause or reconnect, or reconcile an exact fresh review. Review handles expire after 30 seconds; read status again before confirming an expired review. Checkpoint-only markerSelector is optional (at most 256 UTF-8 bytes): it must match exactly one element with at most 512 UTF-8 bytes of text. Marker text is compared privately and never returned or persisted. A new checkpoint without markerSelector removes the marker check. A checkpoint handle never grants workspace access. Reconciliation does not replay a tool or resolve unknown prior side effects. After explicit acknowledgement, an unknown prior outcome remains WARN with priorOutcomeAcknowledged true; recheck before making a fresh decision. A later interruption requires review again. Requires the workspace private resume capability after reconnect.'
@@ -603,6 +612,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
+  'browser_human_waiting',
   'browser_preflight',
   'browser_continuity',
   'browser_audit_receipts',
@@ -722,7 +732,8 @@ function createBrowserMcpServer(
   auditReceipts?: AuditReceiptService,
   getPaused: () => boolean = () => false,
   actionTracker = new McpActionTracker(),
-  authorizeAutomation?: () => Promise<void>
+  authorizeAutomation?: () => Promise<void>,
+  humanWaiting?: HumanWaitingService
 ): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -861,12 +872,14 @@ function createBrowserMcpServer(
         }
         const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId
           : storage === 'fork-default' ? manager.listMcpTabGroups().find(workspace => workspace.isDefault)?.id : undefined
+        if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
         if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
         const forkRevision = actionTracker.controlRevision
         const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
-        const forkContextCurrent = (): boolean => {
+        const forkContextCurrent = async (): Promise<boolean> => {
           if (!forkSourceId) return true
           try {
+            if (humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
             if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
             manager.requireWorkspaceContinuityDispatch(forkSourceId)
             return true
@@ -885,13 +898,13 @@ function createBrowserMcpServer(
         try {
           const created = await manager.createMcpTabGroup(name, color, storage, origins, true, undefined, sourceWorkspaceId)
           activeWorkspaceIds.add(created.id)
-          if (!forkContextCurrent()) return await interruptedFork(created.id)
+          if (!await forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
         } catch (error) {
           if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
           const retained = manager.requireMcpTabGroup(error.workspaceId)
           activeWorkspaceIds.add(retained.id)
-          if (!forkContextCurrent()) return await interruptedFork(retained.id)
+          if (!await forkContextCurrent()) return await interruptedFork(retained.id)
           return {
             ...textResult({
               error: error.message,
@@ -927,8 +940,12 @@ function createBrowserMcpServer(
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       if (action === 'import-default' || action === 'save-default') {
+        if (humanWaiting) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
         manager.requireWorkspaceContinuityDispatch(workspaceId)
         const defaultWorkspace = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
+        if (defaultWorkspace && humanWaiting) await humanWaiting.requireDispatch(defaultWorkspace.id, () => { requireAgentWorkspace(workspaceId) })
+        requireAgentWorkspace(workspaceId)
+        manager.requireWorkspaceContinuityDispatch(workspaceId)
         if (defaultWorkspace) manager.requireWorkspaceContinuityDispatch(defaultWorkspace.id)
         if (action === 'save-default') {
           const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
@@ -937,8 +954,9 @@ function createBrowserMcpServer(
         const revision = actionTracker.controlRevision
         const affectedIds = [...new Set([workspaceId, ...(defaultWorkspace ? [defaultWorkspace.id] : [])])]
         const finishes = affectedIds.map(id => manager.beginWorkspaceContinuityAction(id, false))
-        const contextStillCurrent = (): boolean => {
+        const contextStillCurrent = async (): Promise<boolean> => {
           try {
+            if (humanWaiting) for (const id of affectedIds) await humanWaiting.requireDispatch(id, () => { requireAgentWorkspace(workspaceId) })
             if (getPaused() || actionTracker.controlRevision !== revision) return false
             requireAgentWorkspace(workspaceId)
             for (const id of affectedIds) manager.requireWorkspaceContinuityDispatch(id)
@@ -952,7 +970,7 @@ function createBrowserMcpServer(
             direction: action === 'import-default' ? 'from-default' : 'to-default',
             ...(origins !== undefined ? { origins } : {})
           }).then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }))
-          if (!contextStillCurrent()) {
+          if (!await contextStillCurrent()) {
             for (const id of affectedIds) manager.suspendWorkspaceContinuity(id, 'OUTCOME_UNKNOWN')
             const outcome = {
               status: 'OUTCOME_UNKNOWN', effects: 'possible',
@@ -1072,6 +1090,11 @@ function createBrowserMcpServer(
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
+        const requireHumanDecision = async (): Promise<void> => {
+          if (humanWaiting && !continuityInspectionTools.has(name)) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
+        }
+        await requireHumanDecision()
+        requireAgentWorkspace(workspaceId)
         const requireContinuity = (): void => {
           if (!continuityInspectionTools.has(name)) manager.requireWorkspaceContinuityDispatch(workspaceId)
         }
@@ -1126,6 +1149,7 @@ function createBrowserMcpServer(
             }
             // Audit admission and tab wake can outlive pause, access revocation,
             // or a human moving the target into a different workspace.
+            await requireHumanDecision()
             requireCurrentTarget()
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(input as unknown as T)
@@ -1134,6 +1158,7 @@ function createBrowserMcpServer(
                 tabId: resolvedTabId
               } as unknown as T)
             try {
+              await requireHumanDecision()
               requireCurrentControl()
               requireAgentWorkspace(workspaceId)
               if (name !== 'browser_close_tab') requireCurrentHumanInput()
@@ -1191,6 +1216,46 @@ function createBrowserMcpServer(
       })
     )
   }
+
+  registerTool(
+    'browser_human_waiting',
+    {
+      description: toolDescription('browser_human_waiting'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema,
+        action: z.enum(['request', 'list', 'cancel']).default('list'),
+        runId: z.uuid().optional(),
+        decision: z.enum(['review-page', 'approve-action', 'provide-input', 'resolve-unknown']).optional(),
+        owner: z.string().trim().min(1).max(128).default('local-operator'),
+        fallbackOwner: z.string().trim().min(1).max(128).default('local-operator'),
+        timeoutMs: z.number().int().min(1).max(86_400_000).default(900_000),
+        id: z.uuid().optional(), revision: z.uuid().optional()
+      }
+    },
+    tool(async (input: { workspaceId: string; action: 'request' | 'list' | 'cancel'; runId?: string; decision?: 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'; owner: string; fallbackOwner: string; timeoutMs: number; id?: string; revision?: string }) => {
+      const authorize = (): void => {
+        if ((!activeWorkspaceIds.has(input.workspaceId) && !savedWorkspaceIds.has(input.workspaceId)) || !manager.isWorkspaceAgentAccessible(input.workspaceId)) throw workspaceAuthorizationError()
+      }
+      authorize()
+      if (!humanWaiting) throw new Error('Human waiting storage is unavailable')
+      if (input.action === 'list') return textResult(await humanWaiting.list(input.workspaceId, authorize))
+      if (input.action === 'cancel') {
+        if (!input.id || !input.revision) throw new Error('Decision ID and revision are required')
+        return textResult(await humanWaiting.change(input.workspaceId, input.id, input.revision, 'cancel', authorize))
+      }
+      requireAgentWorkspace(input.workspaceId)
+      if (!input.runId || !input.decision) throw new Error('Run ID and decision kind are required')
+      // Establish durable continuity recovery before asking for a human decision.
+      if (!await manager.requireWorkspaceContinuityReview(input.workspaceId)) throw new Error('Workspace recovery could not be saved')
+      authorize()
+      const record = await humanWaiting.create({ workspaceId: input.workspaceId, runId: input.runId, decision: input.decision,
+        owner: input.owner, fallbackOwner: input.fallbackOwner, timeoutMs: input.timeoutMs, priorOutcome: 'OUTCOME_UNKNOWN' }, authorize)
+      if (record.state !== 'WAITING_FOR_HUMAN') return textResult(record)
+      return textResult(await humanWaiting.notify(input.workspaceId, record.id, authorize, async () => {
+        await requestUserAttention({ workspaceId: input.workspaceId, reason: `Human decision required: ${input.decision}`, expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })
+      }))
+    })
+  )
 
   registerTool(
     'browser_continuity',
@@ -2985,7 +3050,8 @@ export class McpHttpServer {
             this.options.auditReceipts,
             () => this.paused,
             this.actionTracker,
-            this.options.authorizeAutomation
+            this.options.authorizeAutomation,
+            this.options.humanWaiting
           )
           session.server = mcp.server
           session.transport = transport

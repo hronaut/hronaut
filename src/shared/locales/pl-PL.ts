@@ -1,6 +1,44 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  humanWaiting: {
+    "title": "Decyzje człowieka",
+    "help": "Przed zakończeniem sprawdź ciągłość obszaru roboczego powyżej. Te działania nie powtarzają operacji ani nie wznawiają agentów.",
+    "refresh": "Odśwież decyzje",
+    "empty": "Brak decyzji człowieka w tym obszarze roboczym.",
+    "error": "Nie udało się zaktualizować decyzji. Odśwież i sprawdź bieżący stan.",
+    "owner": "Osoba odpowiedzialna",
+    "fallback": "Zastępstwo",
+    "deadline": "Termin",
+    "notification": "Powiadomienie",
+    "attempts": "Próby",
+    "handle": "Identyfikator decyzji",
+    "unknown": "Wynik wcześniejszego działania pozostaje nieznany.",
+    "reviewed": "Sprawdzono tę decyzję i bieżący stan obszaru roboczego.",
+    "acknowledge": "Potwierdź odbiór",
+    "resolve": "Zakończ przegląd",
+    "cancel": "Anuluj decyzję",
+    "unavailable": "Niedostępne",
+    "states": {
+      "WAITING_FOR_HUMAN": "Oczekuje na człowieka",
+      "ACKNOWLEDGED": "Potwierdzono; przegląd oczekuje",
+      "RESOLVED": "Przegląd zakończony",
+      "EXPIRED": "Termin minął",
+      "CANCELLED": "Anulowano"
+    },
+    "decisions": {
+      "review-page": "Sprawdź stronę",
+      "approve-action": "Sprawdź proponowane działanie",
+      "provide-input": "Podaj dane",
+      "resolve-unknown": "Sprawdź nieznany wynik"
+    },
+    "notifications": {
+      "not-attempted": "Nie podjęto próby",
+      "pending": "Oczekuje",
+      "delivered": "Wysłano do lokalnych mechanizmów powiadamiania",
+      "failed": "Nie dostarczono"
+    }
+  },
   workspaceContinuity: {
     "title": "Ciągłość obszaru roboczego",
     "help": "Sprawdź bieżącą stronę przed kontynuacją. Te czynności nie powtarzają operacji ani nie wznawiają wstrzymanych agentów.",

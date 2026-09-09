@@ -2274,6 +2274,8 @@ export interface HronautApi {
   renameTabGroup(groupId: string, name: string): Promise<BrowserState>
   updateTabGroup(groupId: string, updates: BrowserTabGroupUpdate): Promise<BrowserState>
   reviewWorkspaceContinuity(workspaceId: string): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
+  listHumanWaiting(workspaceId: string): Promise<import('./human-waiting.js').HumanWaitingRecord[]>
+  changeHumanWaiting(workspaceId: string, id: string, revision: string, action: 'acknowledge' | 'cancel' | 'resolve'): Promise<import('./human-waiting.js').HumanWaitingRecord>
   checkpointWorkspaceContinuity(workspaceId: string, markerSelector?: string): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
   reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
   updateWorkspaceNavigationPolicy(groupId: string, policy: BrowserWorkspaceNavigationPolicy): Promise<BrowserState>

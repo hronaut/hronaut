@@ -1,6 +1,44 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
+  humanWaiting: {
+    "title": "Décisions humaines",
+    "help": "Vérifiez la continuité de l’espace de travail ci-dessus avant de terminer. Ces commandes ne répètent aucune action et ne relancent pas les agents.",
+    "refresh": "Actualiser les décisions",
+    "empty": "Aucune décision humaine dans cet espace de travail.",
+    "error": "Impossible de mettre à jour la décision. Actualisez et vérifiez l’état actuel.",
+    "owner": "Responsable",
+    "fallback": "Responsable suppléant",
+    "deadline": "Échéance",
+    "notification": "Notification",
+    "attempts": "Tentatives",
+    "handle": "Identifiant de décision",
+    "unknown": "Le résultat de l’action précédente reste inconnu.",
+    "reviewed": "J’ai vérifié cette décision et l’état actuel de l’espace de travail.",
+    "acknowledge": "Accuser réception",
+    "resolve": "Terminer la vérification",
+    "cancel": "Annuler la décision",
+    "unavailable": "Indisponible",
+    "states": {
+      "WAITING_FOR_HUMAN": "En attente d’une personne",
+      "ACKNOWLEDGED": "Reçue ; vérification en attente",
+      "RESOLVED": "Vérification terminée",
+      "EXPIRED": "Expirée",
+      "CANCELLED": "Annulée"
+    },
+    "decisions": {
+      "review-page": "Vérifier la page",
+      "approve-action": "Vérifier l’action proposée",
+      "provide-input": "Fournir des données",
+      "resolve-unknown": "Vérifier un résultat inconnu"
+    },
+    "notifications": {
+      "not-attempted": "Aucune tentative",
+      "pending": "En attente",
+      "delivered": "Envoyée aux commandes d’attention locales",
+      "failed": "Non remise"
+    }
+  },
   workspaceContinuity: {
     "title": "Continuité de l’espace de travail",
     "help": "Vérifiez la page actuelle avant de continuer. Ces actions ne répètent aucune opération et ne réactivent pas les agents en pause.",

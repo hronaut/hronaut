@@ -1,6 +1,44 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
+  humanWaiting: {
+    "title": "Decisiones humanas",
+    "help": "Revisa la continuidad del espacio de trabajo arriba antes de finalizar. Estos controles no repiten acciones ni reanudan agentes.",
+    "refresh": "Actualizar decisiones",
+    "empty": "No hay decisiones humanas en este espacio de trabajo.",
+    "error": "No se pudo actualizar la decisión. Actualiza y revisa el estado actual.",
+    "owner": "Responsable",
+    "fallback": "Responsable suplente",
+    "deadline": "Plazo",
+    "notification": "Notificación",
+    "attempts": "Intentos",
+    "handle": "Identificador de decisión",
+    "unknown": "El resultado de la acción anterior sigue siendo desconocido.",
+    "reviewed": "He revisado esta decisión y el estado actual del espacio de trabajo.",
+    "acknowledge": "Confirmar recepción",
+    "resolve": "Completar revisión",
+    "cancel": "Cancelar decisión",
+    "unavailable": "No disponible",
+    "states": {
+      "WAITING_FOR_HUMAN": "Esperando a una persona",
+      "ACKNOWLEDGED": "Recibida; revisión pendiente",
+      "RESOLVED": "Revisión completada",
+      "EXPIRED": "Caducada",
+      "CANCELLED": "Cancelada"
+    },
+    "decisions": {
+      "review-page": "Revisar la página",
+      "approve-action": "Revisar la acción propuesta",
+      "provide-input": "Proporcionar datos",
+      "resolve-unknown": "Revisar un resultado desconocido"
+    },
+    "notifications": {
+      "not-attempted": "Sin intentos",
+      "pending": "Pendiente",
+      "delivered": "Enviada a los controles de atención locales",
+      "failed": "No entregada"
+    }
+  },
   workspaceContinuity: {
     "title": "Continuidad del espacio de trabajo",
     "help": "Revise la página actual antes de continuar. Estas acciones no repiten operaciones ni reanudan agentes en pausa.",
