@@ -65,6 +65,7 @@ export interface PersistedBrowserState {
   tabs: PersistedTab[]
   mcpTabGroups?: PersistedTabGroup[]
   savedTabGroups?: PersistedSavedTabGroup[]
+  continuityWorkspaceIds?: string[]
 }
 
 const WORKSPACE_STORAGE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -434,6 +435,15 @@ export class TabStateStore {
         : undefined
       if (data.splitView !== undefined && !splitView) return null
 
+      const workspaceIds = new Set([...mcpTabGroups, ...savedTabGroups].map(group => group.id))
+      const continuityWorkspaceIds = data.continuityWorkspaceIds === undefined ? undefined
+        : Array.isArray(data.continuityWorkspaceIds)
+          && data.continuityWorkspaceIds.length <= MAX_ACTIVE_WORKSPACES + MAX_SAVED_WORKSPACES
+          && data.continuityWorkspaceIds.every(id => typeof id === 'string' && workspaceIds.has(id))
+          ? [...new Set(data.continuityWorkspaceIds as string[])]
+          // Preserve recoverable profiles while failing closed on malformed guard metadata.
+          : [...workspaceIds]
+
       const restored: PersistedBrowserState = {
         version: TAB_STATE_VERSION,
         activeTabId: typeof data.activeTabId === 'string' ? data.activeTabId : null,
@@ -442,6 +452,7 @@ export class TabStateStore {
         ...(typeof data.defaultHumanGroupId === 'string' ? { defaultHumanGroupId: data.defaultHumanGroupId } : {}),
         mcpTabGroups,
         savedTabGroups,
+        ...(continuityWorkspaceIds ? { continuityWorkspaceIds } : {}),
         tabs
       }
       if (repairedPersistedState) await this.save(restored)

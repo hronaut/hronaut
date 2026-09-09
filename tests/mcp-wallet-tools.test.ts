@@ -15,6 +15,9 @@ function text(result: CallToolResult): string {
 
 function walletWorkspaceManager(): Record<string, unknown> {
   return {
+    suspendWorkspaceContinuity: vi.fn(),
+    requireWorkspaceContinuityDispatch: vi.fn(),
+    beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
     requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
     requireTabInMcpGroup: vi.fn(() => tabId),
     tabBelongsToMcpGroup: vi.fn(() => true),

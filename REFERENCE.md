@@ -377,6 +377,61 @@ A human pause still blocks MCP requests with HTTP 503. That response includes a
 bounded `preflight` blocked reason and next action; preflight cannot bypass the
 pause. Pause does not roll back an action already dispatched.
 
+## Review workspace continuity
+
+People can open **Edit workspace → Workspace continuity** to read current
+state, create a checkpoint, or confirm an exact reviewed state. Unknown prior
+outcomes require an explicit acknowledgment. These controls do not unpause
+agents, enable agent access, or repeat browser actions. If review fails because
+the page changed, read current state again before confirming it.
+
+The QA and Complete tool sets include `browser_continuity`. Create an explicit
+checkpoint with `action: "checkpoint"` and your `workspaceId` once the active web
+page has settled. The checkpoint compares workspace and tab identities,
+navigation, origin, site policy, and human-interaction generations. Its handle
+does not grant access or establish account identity.
+
+To opt into a page marker, supply `markerSelector` only when creating the
+checkpoint. It must select exactly one element and fit within 256 UTF-8 bytes.
+Hronaut compares its text using a private, process-local fingerprint. Missing,
+ambiguous, oversized, or timed-out markers cannot produce a usable review.
+Text is limited to 512 UTF-8 bytes and the read has a two-second deadline; no
+truncated prefix is accepted. A navigation or control change during the read
+invalidates it. Page text is untrusted evidence, never identity or authority.
+The selector and text are not persisted or included in reports. After restart,
+review the unknown state and create a new checkpoint to opt into a marker again.
+An explicit replacement checkpoint without `markerSelector` removes the opt-in.
+
+Pausing or reconnecting suspends a checkpointed workspace. After reconnecting,
+resume with the private workspace key. A checkpointed workspace returns its
+current report in the resume response’s `continuity` field; uncheckpointed
+workspaces keep their existing response shape. Archived resume reports unavailable
+evidence without a review handle; opening the archive returns a new continuity
+report and keeps the guard until an explicit fresh review. Request `action: "status"` for
+a fresh report before reconciliation. The report contains bounded reason codes, `status`, `suspended`, `reviewId`, and
+`nextAction`. `PASS` means the compared evidence matches; when `suspended` is
+true, an explicit review is still required before consequential tools can run.
+Inspect with status, snapshots, find, screenshots, or the visible browser. A
+loading page cannot produce a usable review. General JavaScript evaluation is
+not an inspection bypass.
+
+After reviewing the current browser state, send `action: "reconcile"` with the
+latest `reviewId`. A review expires after 30 seconds; read current state again
+if it expires. Reconciliation rejects changes since that review and rejects
+requests while workspace actions are pending. It does not execute or repeat a tool.
+An `OUTCOME_UNKNOWN` additionally requires `acknowledgeUnknownOutcome: true`;
+afterward the old outcome remains a warning with `priorOutcomeAcknowledged: true`.
+This permits a fresh decision without claiming the earlier action succeeded.
+A later interruption requires another review. Successful fresh reconciliation
+clears a stale-read warning, which is distinct from unknown write effects.
+
+Only guarded workspace IDs are persisted. After restart, missing runtime
+evidence requires fresh review and acknowledgment of an unknown outcome.
+Reports exclude raw origins, policy rules, page content, and resume keys.
+If a fork is interrupted, inspect its retained workspace instead of repeating
+the copy. If the required guard cannot be saved, direct agent access is revoked
+and the human operator must recover the workspace.
+
 ## MCP tools
 
 Hronaut includes concise workflow instructions in the MCP initialization response. Compatible clients learn to create a fresh isolated workspace before browsing, prefer semantic snapshots and refs over coordinates, bring the visible browser forward for observation or takeover, and request attention only for a manual step. Client behavior is never treated as a security boundary: Hronaut still validates workspace ownership, tab identities, input bounds, authorization, and interaction locks in the server.
@@ -384,6 +439,7 @@ Hronaut includes concise workflow instructions in the MCP initialization respons
 Every advertised tool includes a human-readable title and explicit MCP safety annotations. Hronaut marks a tool read-only only when every supported mode is observational; a combined list/edit/clear tool remains non-read-only even when its default action only reads. Browser-facing reads retain the open-world hint because sanitized page, network, and storage evidence still originates outside Hronaut. These annotations help compatible clients present tools and approval choices, but they are advisory metadata rather than enforcement: Hronaut's authorization, workspace isolation, input validation, human approval, and side-effect confirmations remain the security boundary.
 
 - `browser_workspaces`, `browser_saved_workspaces`
+- `browser_continuity`
 - `browser_status`, `browser_show`, `browser_tabs`
 - `browser_request_user_attention`
 - `browser_new_tab`, `browser_select_tab`, `browser_close_tab`, `browser_bookmarks`, `browser_visit_history`, `browser_site_data`, `browser_storage`, `browser_storage_changes`, `browser_storage_usage`, `browser_indexeddb`, `browser_pwa`

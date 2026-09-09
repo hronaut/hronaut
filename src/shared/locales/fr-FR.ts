@@ -1,6 +1,36 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
+  workspaceContinuity: {
+    "title": "Continuité de l’espace de travail",
+    "help": "Vérifiez la page actuelle avant de continuer. Ces actions ne répètent aucune opération et ne réactivent pas les agents en pause.",
+    "loading": "Lecture de l’état actuel…",
+    "error": "La vérification a échoué. Relisez l’état actuel avant de continuer.",
+    "unavailable": "Aucun point de contrôle",
+    "suspended": "Vérification requise avant les actions de l’agent",
+    "ready": "Blocage levé ; revérifiez avant une nouvelle action",
+    "ack": "J’ai vérifié la page et je comprends que l’action précédente a peut-être déjà eu un effet.",
+    "marker": "Sélecteur facultatif de marqueur de page",
+    "markerHelp": "Un élément, jusqu’à 512 octets de texte. Un nouveau point de contrôle avec ce champ vide supprime la vérification du marqueur.",
+    "refresh": "Lire l’état actuel",
+    "checkpoint": "Créer un point de contrôle",
+    "reconcile": "Confirmer l’état vérifié",
+    "reasons": {
+      "CHECKPOINT_UNAVAILABLE": "Point de contrôle indisponible",
+      "EVIDENCE_UNAVAILABLE": "Données actuelles indisponibles",
+      "RUNTIME_CHANGED": "Application redémarrée",
+      "WORKSPACE_CHANGED": "Espace de travail modifié",
+      "TAB_CHANGED": "Onglet actif modifié",
+      "ORIGIN_CHANGED": "Origine du site modifiée",
+      "POLICY_CHANGED": "Règles du site modifiées",
+      "NAVIGATION_CHANGED": "Navigation de la page modifiée",
+      "HUMAN_INPUT_CHANGED": "Interaction humaine détectée",
+      "MARKER_CHANGED": "Marqueur de page modifié",
+      "PRIOR_WRITE_OUTCOME_UNKNOWN": "Résultat de l’action précédente toujours inconnu",
+      "PRIOR_OBSERVATION_STALE": "Observation précédente obsolète",
+      "PAGE_NOT_SETTLED": "Attendez la fin du chargement de la page"
+    }
+  },
   workspaceTemplates: {
     remove: "Retirer l’espace de travail {number}",
     title: "Modèles portables d’espaces de travail",

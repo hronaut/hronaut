@@ -1,6 +1,36 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  workspaceContinuity: {
+    "title": "Kontinuität des Arbeitsbereichs",
+    "help": "Prüfen Sie die aktuelle Seite, bevor Sie fortfahren. Diese Aktionen wiederholen keine Vorgänge und heben keine Agentenpause auf.",
+    "loading": "Aktuellen Zustand lesen…",
+    "error": "Die Prüfung ist fehlgeschlagen. Lesen Sie den aktuellen Zustand erneut.",
+    "unavailable": "Noch kein Prüfpunkt",
+    "suspended": "Vor Agentenaktionen ist eine Prüfung erforderlich",
+    "ready": "Prüfsperre aufgehoben; vor einer neuen Aktion erneut prüfen",
+    "ack": "Ich habe die Seite geprüft und verstehe, dass die vorherige Aktion bereits Auswirkungen haben kann.",
+    "marker": "Optionaler Selektor für eine Seitenmarkierung",
+    "markerHelp": "Ein Element, bis zu 512 Byte Text. Ein neuer Prüfpunkt mit leerem Feld entfernt die Markierungsprüfung.",
+    "refresh": "Aktuellen Zustand lesen",
+    "checkpoint": "Prüfpunkt erstellen",
+    "reconcile": "Geprüften Zustand bestätigen",
+    "reasons": {
+      "CHECKPOINT_UNAVAILABLE": "Prüfpunkt nicht verfügbar",
+      "EVIDENCE_UNAVAILABLE": "Aktuelle Nachweise nicht verfügbar",
+      "RUNTIME_CHANGED": "Anwendung neu gestartet",
+      "WORKSPACE_CHANGED": "Arbeitsbereich geändert",
+      "TAB_CHANGED": "Aktiver Tab geändert",
+      "ORIGIN_CHANGED": "Website-Ursprung geändert",
+      "POLICY_CHANGED": "Website-Regeln geändert",
+      "NAVIGATION_CHANGED": "Seitennavigation geändert",
+      "HUMAN_INPUT_CHANGED": "Menschliche Interaktion erkannt",
+      "MARKER_CHANGED": "Seitenmarkierung geändert",
+      "PRIOR_WRITE_OUTCOME_UNKNOWN": "Ergebnis der vorherigen Aktion weiterhin unbekannt",
+      "PRIOR_OBSERVATION_STALE": "Vorherige Beobachtung veraltet",
+      "PAGE_NOT_SETTLED": "Warten Sie, bis die Seite fertig geladen ist"
+    }
+  },
   workspaceTemplates: {
     remove: "Arbeitsbereich {number} entfernen",
     title: "Tragbare Arbeitsbereichsvorlagen",

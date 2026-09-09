@@ -2400,6 +2400,23 @@ function registerIpc(): void {
     } satisfies BrowserTabGroupUpdate)
     return tabsManager!.getState()
   })
+  ipcMain.handle('browser:review-workspace-continuity', (event, workspaceId: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
+    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
+  })
+  ipcMain.handle('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof workspaceId !== 'string' || (markerSelector !== undefined && typeof markerSelector !== 'string')) throw new TypeError('Invalid continuity checkpoint')
+    await tabsManager!.armWorkspaceContinuity(workspaceId, markerSelector)
+    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
+  })
+  ipcMain.handle('browser:reconcile-workspace-continuity', async (event, workspaceId: unknown, reviewId: unknown, acknowledge: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof workspaceId !== 'string' || typeof reviewId !== 'string' || typeof acknowledge !== 'boolean') throw new TypeError('Invalid continuity review')
+    await tabsManager!.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledge)
+    return tabsManager!.inspectWorkspaceContinuity(workspaceId)
+  })
   ipcMain.handle('browser:update-workspace-navigation-policy', (event, groupId: unknown, policy: unknown) => {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')

@@ -43,6 +43,9 @@ describe('MCP user-attention presentation failures', () => {
       throw new Error('simulated async attention rejection')
     })
     const manager = {
+      suspendWorkspaceContinuity: vi.fn(),
+      requireWorkspaceContinuityDispatch: vi.fn(),
+      beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
       requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
       requireTabInMcpGroup: vi.fn(() => tabId),
       tabBelongsToMcpGroup: vi.fn(() => true),
@@ -105,6 +108,9 @@ describe('MCP user-attention presentation failures', () => {
       return nextAttention
     })
     const manager = {
+      suspendWorkspaceContinuity: vi.fn(),
+      requireWorkspaceContinuityDispatch: vi.fn(),
+      beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
       requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
       requireTabInMcpGroup: vi.fn(() => {
         throw new Error('No tab exists in this workspace')

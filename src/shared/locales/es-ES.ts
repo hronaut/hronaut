@@ -1,6 +1,36 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
+  workspaceContinuity: {
+    "title": "Continuidad del espacio de trabajo",
+    "help": "Revise la página actual antes de continuar. Estas acciones no repiten operaciones ni reanudan agentes en pausa.",
+    "loading": "Leyendo el estado actual…",
+    "error": "No se pudo completar la revisión. Vuelva a leer el estado actual.",
+    "unavailable": "Todavía no hay punto de control",
+    "suspended": "Se requiere revisión antes de las acciones del agente",
+    "ready": "Bloqueo de revisión retirado; vuelva a comprobar antes de una acción nueva",
+    "ack": "He revisado la página y entiendo que la acción anterior puede haber surtido efecto.",
+    "marker": "Selector opcional de marcador de página",
+    "markerHelp": "Un elemento, hasta 512 bytes de texto. Un nuevo punto de control con este campo vacío elimina la comprobación del marcador.",
+    "refresh": "Leer estado actual",
+    "checkpoint": "Crear punto de control",
+    "reconcile": "Confirmar estado revisado",
+    "reasons": {
+      "CHECKPOINT_UNAVAILABLE": "Punto de control no disponible",
+      "EVIDENCE_UNAVAILABLE": "Datos actuales no disponibles",
+      "RUNTIME_CHANGED": "Aplicación reiniciada",
+      "WORKSPACE_CHANGED": "Espacio de trabajo cambiado",
+      "TAB_CHANGED": "Pestaña activa cambiada",
+      "ORIGIN_CHANGED": "Origen del sitio cambiado",
+      "POLICY_CHANGED": "Política del sitio cambiada",
+      "NAVIGATION_CHANGED": "Navegación de la página cambiada",
+      "HUMAN_INPUT_CHANGED": "Interacción humana detectada",
+      "MARKER_CHANGED": "Marcador de página cambiado",
+      "PRIOR_WRITE_OUTCOME_UNKNOWN": "El resultado de la acción anterior sigue siendo desconocido",
+      "PRIOR_OBSERVATION_STALE": "La observación anterior está desactualizada",
+      "PAGE_NOT_SETTLED": "Espere a que termine de cargar la página"
+    }
+  },
   workspaceTemplates: {
     remove: "Eliminar espacio de trabajo {number}",
     title: "Plantillas portátiles de espacios de trabajo",

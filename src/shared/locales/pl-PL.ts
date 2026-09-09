@@ -1,6 +1,36 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  workspaceContinuity: {
+    "title": "Ciągłość obszaru roboczego",
+    "help": "Sprawdź bieżącą stronę przed kontynuacją. Te czynności nie powtarzają operacji ani nie wznawiają wstrzymanych agentów.",
+    "loading": "Odczytywanie bieżącego stanu…",
+    "error": "Nie udało się zakończyć sprawdzania. Odczytaj bieżący stan ponownie.",
+    "unavailable": "Brak punktu kontrolnego",
+    "suspended": "Przed działaniami agenta wymagane jest sprawdzenie",
+    "ready": "Blokada sprawdzania zdjęta; sprawdź ponownie przed nową czynnością",
+    "ack": "Sprawdziłem stronę i rozumiem, że poprzednia czynność mogła już odnieść skutek.",
+    "marker": "Opcjonalny selektor znacznika strony",
+    "markerHelp": "Jeden element, do 512 bajtów tekstu. Nowy punkt kontrolny z pustym polem usuwa sprawdzanie znacznika.",
+    "refresh": "Odczytaj bieżący stan",
+    "checkpoint": "Utwórz punkt kontrolny",
+    "reconcile": "Potwierdź sprawdzony stan",
+    "reasons": {
+      "CHECKPOINT_UNAVAILABLE": "Punkt kontrolny niedostępny",
+      "EVIDENCE_UNAVAILABLE": "Bieżące dane niedostępne",
+      "RUNTIME_CHANGED": "Aplikacja uruchomiona ponownie",
+      "WORKSPACE_CHANGED": "Obszar roboczy zmieniony",
+      "TAB_CHANGED": "Aktywna karta zmieniona",
+      "ORIGIN_CHANGED": "Pochodzenie witryny zmienione",
+      "POLICY_CHANGED": "Zasady witryny zmienione",
+      "NAVIGATION_CHANGED": "Nawigacja strony zmieniona",
+      "HUMAN_INPUT_CHANGED": "Wykryto działanie człowieka",
+      "MARKER_CHANGED": "Znacznik strony zmieniony",
+      "PRIOR_WRITE_OUTCOME_UNKNOWN": "Wynik poprzedniej czynności pozostaje nieznany",
+      "PRIOR_OBSERVATION_STALE": "Poprzednia obserwacja jest nieaktualna",
+      "PAGE_NOT_SETTLED": "Poczekaj na zakończenie ładowania strony"
+    }
+  },
   workspaceTemplates: {
     remove: "Usuń obszar roboczy {number}",
     title: "Przenośne szablony obszarów roboczych",

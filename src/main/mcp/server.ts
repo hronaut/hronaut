@@ -361,6 +361,7 @@ const destructiveTool = (
 })
 
 const BROWSER_TOOL_METADATA = {
+  browser_continuity: nonDestructiveTool('Review workspace continuity', false, false),
   browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
@@ -439,6 +440,10 @@ const BROWSER_TOOL_METADATA = {
 type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
+  {
+    name: 'browser_continuity', category: 'Session',
+    description: 'Create an explicit continuity checkpoint, inspect changes after a pause or reconnect, or reconcile an exact fresh review. Review handles expire after 30 seconds; read status again before confirming an expired review. Checkpoint-only markerSelector is optional (at most 256 UTF-8 bytes): it must match exactly one element with at most 512 UTF-8 bytes of text. Marker text is compared privately and never returned or persisted. A new checkpoint without markerSelector removes the marker check. A checkpoint handle never grants workspace access. Reconciliation does not replay a tool or resolve unknown prior side effects. After explicit acknowledgement, an unknown prior outcome remains WARN with priorOutcomeAcknowledged true; recheck before making a fresh decision. A later interruption requires review again. Requires the workspace private resume capability after reconnect.'
+  },
   {
     name: 'browser_preflight', category: 'Session',
     description: 'Check your workspace before navigation or a consequential action. Returns bounded PASS, WARN or BLOCKED checks for ownership, tab readiness, expected origin, site policy and human attention. Does not wake tabs or navigate. Session identity is unverified and write safety is never established by this check. No page contents, origins, policy rules or account data are returned. Recheck fresh state before acting; nothing is retried automatically.'
@@ -599,6 +604,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
 const QA_TOOL_NAMES = new Set([
   ...ESSENTIALS_TOOL_NAMES,
   'browser_preflight',
+  'browser_continuity',
   'browser_audit_receipts',
   'browser_element_inspect',
   'browser_generate_locator',
@@ -853,14 +859,39 @@ function createBrowserMcpServer(
         if (origins !== undefined && storage !== 'fork-default' && storage !== 'fork-workspace') {
           throw new TypeError('origins can be selected only when forking workspace storage')
         }
+        const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId
+          : storage === 'fork-default' ? manager.listMcpTabGroups().find(workspace => workspace.isDefault)?.id : undefined
+        if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
+        const forkRevision = actionTracker.controlRevision
+        const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
+        const forkContextCurrent = (): boolean => {
+          if (!forkSourceId) return true
+          try {
+            if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
+            manager.requireWorkspaceContinuityDispatch(forkSourceId)
+            return true
+          } catch { return false }
+        }
+        const interruptedFork = async (id: string): Promise<CallToolResult> => {
+          if (forkSourceId) manager.suspendWorkspaceContinuity(forkSourceId, 'OUTCOME_UNKNOWN')
+          const guardPersisted = await manager.requireWorkspaceContinuityReview(id)
+          const outcome = {
+            status: 'OUTCOME_UNKNOWN', effects: 'possible', workspaceId: id,
+            resumeKey: manager.mcpWorkspaceResumeKey(id), retained: true, reviewRequired: true, guardPersisted,
+            nextAction: 'Inspect and recover the retained workspace before continuing. Do not automatically repeat the fork.'
+          }
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
         try {
           const created = await manager.createMcpTabGroup(name, color, storage, origins, true, undefined, sourceWorkspaceId)
           activeWorkspaceIds.add(created.id)
+          if (!forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
         } catch (error) {
           if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
           const retained = manager.requireMcpTabGroup(error.workspaceId)
           activeWorkspaceIds.add(retained.id)
+          if (!forkContextCurrent()) return await interruptedFork(retained.id)
           return {
             ...textResult({
               error: error.message,
@@ -870,13 +901,20 @@ function createBrowserMcpServer(
             }),
             isError: true
           }
+        } finally {
+          finishFork?.()
         }
       }
       if (!workspaceId) throw new TypeError(`workspaceId is required to ${action} a workspace`)
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
         authorizeResume(workspaceId, resumeKey, false)
-        return textResult(withResumeKey(manager.requireMcpTabGroup(workspaceId)))
+        const guarded = manager.suspendWorkspaceContinuity(workspaceId)
+        const continuity = guarded ? await manager.inspectWorkspaceContinuity(workspaceId) : undefined
+        // Marker reads cross an async boundary. A resume key cannot override
+        // access revoked while the report was being captured.
+        requireAgentWorkspace(workspaceId)
+        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), ...(continuity ? { continuity } : {}) })
       }
       requireAgentWorkspace(workspaceId)
       if (action === 'rename') {
@@ -889,15 +927,44 @@ function createBrowserMcpServer(
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       if (action === 'import-default' || action === 'save-default') {
+        manager.requireWorkspaceContinuityDispatch(workspaceId)
+        const defaultWorkspace = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
+        if (defaultWorkspace) manager.requireWorkspaceContinuityDispatch(defaultWorkspace.id)
         if (action === 'save-default') {
           const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
           if (!target || !manager.isWorkspaceAgentAccessible(target.id)) throw workspaceAuthorizationError()
         }
-        return textResult(await manager.transferWorkspaceStorage({
-          workspaceId,
-          direction: action === 'import-default' ? 'from-default' : 'to-default',
-          ...(origins !== undefined ? { origins } : {})
-        }))
+        const revision = actionTracker.controlRevision
+        const affectedIds = [...new Set([workspaceId, ...(defaultWorkspace ? [defaultWorkspace.id] : [])])]
+        const finishes = affectedIds.map(id => manager.beginWorkspaceContinuityAction(id, false))
+        const contextStillCurrent = (): boolean => {
+          try {
+            if (getPaused() || actionTracker.controlRevision !== revision) return false
+            requireAgentWorkspace(workspaceId)
+            for (const id of affectedIds) manager.requireWorkspaceContinuityDispatch(id)
+            if (action === 'save-default' && defaultWorkspace && !manager.isWorkspaceAgentAccessible(defaultWorkspace.id)) return false
+            return true
+          } catch { return false }
+        }
+        try {
+          const settled = await manager.transferWorkspaceStorage({
+            workspaceId,
+            direction: action === 'import-default' ? 'from-default' : 'to-default',
+            ...(origins !== undefined ? { origins } : {})
+          }).then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }))
+          if (!contextStillCurrent()) {
+            for (const id of affectedIds) manager.suspendWorkspaceContinuity(id, 'OUTCOME_UNKNOWN')
+            const outcome = {
+              status: 'OUTCOME_UNKNOWN', effects: 'possible',
+              nextAction: 'Inspect current workspace storage and obtain fresh review. Do not automatically repeat the transfer.'
+            }
+            return { ...textResult(outcome), structuredContent: outcome, isError: true }
+          }
+          if (!settled.ok) throw settled.error
+          return textResult(settled.value)
+        } finally {
+          for (const finish of finishes) finish()
+        }
       }
       await manager.closeMcpTabGroup(workspaceId)
       activeWorkspaceIds.delete(workspaceId)
@@ -935,7 +1002,10 @@ function createBrowserMcpServer(
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume an archived workspace')
         authorizeResume(savedWorkspaceId, resumeKey, true)
-        return textResult(withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!))
+        const guarded = manager.suspendWorkspaceContinuity(savedWorkspaceId)
+        const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
+        requireSavedWorkspace(savedWorkspaceId)
+        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), ...(continuity ? { continuity } : {}) })
       }
       requireSavedWorkspace(savedWorkspaceId)
       if (action === 'open') {
@@ -943,7 +1013,10 @@ function createBrowserMcpServer(
           const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)
-          return textResult(withResumeKey(opened))
+          const guarded = manager.suspendWorkspaceContinuity(opened.id)
+          const continuity = guarded ? await manager.inspectWorkspaceContinuity(opened.id) : undefined
+          requireAgentWorkspace(opened.id)
+          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), ...(continuity ? { continuity } : {}) })
         } catch (error) {
           if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
             savedWorkspaceIds.delete(savedWorkspaceId)
@@ -973,6 +1046,9 @@ function createBrowserMcpServer(
   const toolsThatPermitAnEmptyWorkspace = new Set([
     'browser_show'
   ])
+  // Explicit inspection operations remain available for reconciliation. Do not
+  // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
+  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
@@ -996,6 +1072,11 @@ function createBrowserMcpServer(
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
         requireAgentWorkspace(workspaceId)
+        const requireContinuity = (): void => {
+          if (!continuityInspectionTools.has(name)) manager.requireWorkspaceContinuityDispatch(workspaceId)
+        }
+        // Target resolution can change the group's selected tab. Check first.
+        requireContinuity()
         const requestedTabId = typeof input.tabId === 'string' ? input.tabId : undefined
         const skipsTabTarget = toolsWithoutWorkspaceTabTarget.has(name)
           || (toolsWithOptionalWorkspaceTabTarget.has(name) && requestedTabId === undefined)
@@ -1017,6 +1098,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
+          requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
           requireAgentWorkspace(workspaceId)
@@ -1036,6 +1118,7 @@ function createBrowserMcpServer(
               occurredAt: Date.now()
             })
           }
+          const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, toolDefinition(name).annotations.readOnlyHint)
           let phase: McpTabActivity['phase'] = 'finished'
           try {
             if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
@@ -1074,6 +1157,7 @@ function createBrowserMcpServer(
             phase = 'failed'
             throw error
           } finally {
+            finishContinuityAction()
             if (activityId && activityToolName && resolvedTabId) {
               onTabActivity?.({
                 activityId,
@@ -1107,6 +1191,32 @@ function createBrowserMcpServer(
       })
     )
   }
+
+  registerTool(
+    'browser_continuity',
+    {
+      description: toolDescription('browser_continuity'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema,
+        action: z.enum(['checkpoint', 'status', 'reconcile']),
+        reviewId: z.uuid().optional(),
+        acknowledgeUnknownOutcome: z.boolean().optional(),
+        markerSelector: z.string().min(1).max(256).optional()
+      }
+    },
+    tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome, markerSelector }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean; markerSelector?: string }) => {
+      requireAgentWorkspace(workspaceId)
+      if (markerSelector !== undefined && action !== 'checkpoint') throw new TypeError('markerSelector is only accepted when creating a checkpoint')
+      if (action === 'checkpoint') return textResult({ checkpointId: await manager.armWorkspaceContinuity(workspaceId, markerSelector, () => requireAgentWorkspace(workspaceId)) })
+      if (action === 'reconcile') {
+        if (!reviewId) throw new TypeError('reviewId is required to reconcile continuity')
+        await manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true, () => requireAgentWorkspace(workspaceId))
+      }
+      const report = await manager.inspectWorkspaceContinuity(workspaceId)
+      requireAgentWorkspace(workspaceId)
+      return textResult(report)
+    })
+  )
 
   registerTool(
     'browser_preflight',
@@ -2648,6 +2758,12 @@ function createBrowserMcpServer(
     }) => textResult(await requireWallets().cancelRequest(walletTarget(walletSessionId, workspaceId, tabId), requestId)))
   )
 
+  const previousClose = server.server.onclose
+  server.server.onclose = () => {
+    for (const workspaceId of activeWorkspaceIds) manager.suspendWorkspaceContinuity(workspaceId)
+    previousClose?.()
+  }
+
   assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
   assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
   return {
@@ -2700,6 +2816,9 @@ export class McpHttpServer {
 
   setPaused(paused: boolean): void {
     if (this.paused !== paused) this.actionTracker.invalidatePendingDispatches()
+    if (paused && !this.paused) {
+      for (const workspace of this.manager.listMcpTabGroups()) this.manager.suspendWorkspaceContinuity(workspace.id)
+    }
     this.paused = paused
   }
 

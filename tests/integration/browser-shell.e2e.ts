@@ -6127,7 +6127,7 @@ test('keeps the workspace editor trustworthy while a save is pending', async ({ 
 
   await editor.getByRole('button', { name: 'Save changes' }).click()
   await expect(editor).toHaveAttribute('aria-busy', 'true')
-  await expect(editor.getByRole('status')).toHaveText('Saving workspace…')
+  await expect(editor.locator('header').getByRole('status')).toHaveText('Saving workspace…')
   await expect(editor.getByRole('button', { name: 'Close workspace editor' })).toBeDisabled()
   await expect(editor.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   await expect(editor.getByRole('button', { name: 'Save changes' })).toBeDisabled()

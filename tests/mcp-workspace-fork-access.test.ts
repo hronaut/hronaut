@@ -1,3 +1,4 @@
+import { RetainedBrowserWorkspaceError } from '../src/main/browser/workspace-errors.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -21,6 +22,11 @@ describe('MCP workspace fork sources and direct access', () => {
     const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
+      suspendWorkspaceContinuity: vi.fn(),
+      inspectWorkspaceContinuity: vi.fn(async () => ({ status: 'BLOCKED', suspended: true })),
+      requireWorkspaceContinuityReview: vi.fn(async () => true),
+      requireWorkspaceContinuityDispatch: vi.fn(),
+      beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
       createMcpTabGroup: vi.fn(async () => workspace),
       listWorkspaceForkSources: vi.fn(() => [source]),
       listMcpTabGroups: vi.fn(() => [workspace]),
@@ -72,6 +78,50 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId)
     expect((await call('browser_tabs', { workspaceId: sourceId })).isError).toBe(true)
     expect((await call('browser_workspaces', { action: 'resume', workspaceId: sourceId, resumeKey: key })).isError).toBe(true)
+  })
+
+  it('includes continuity only for a guarded resume', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    const args = { action: 'resume', workspaceId: ownId, resumeKey: key }
+    expect(parsed(await call('browser_workspaces', args))).not.toHaveProperty('continuity')
+    expect(manager.inspectWorkspaceContinuity).not.toHaveBeenCalled()
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    expect(parsed(await call('browser_workspaces', args))).toHaveProperty('continuity', { status: 'BLOCKED', suspended: true })
+  })
+
+  it('rejects a resumed continuity report when access is revoked during its read', async () => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    manager.inspectWorkspaceContinuity.mockImplementation(async () => {
+      await Promise.resolve()
+      disable()
+      return { status: 'BLOCKED', suspended: true }
+    })
+    const result = await call('browser_workspaces', { action: 'resume', workspaceId: ownId, resumeKey: key })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain(key)
+    expect(JSON.stringify(result)).not.toContain('continuity')
+    expect((await call('browser_tabs', { workspaceId: ownId })).isError).toBe(true)
+  })
+
+  it.each(['resume', 'open'])('rejects a saved workspace %s report after access is revoked during capture', async action => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    await call('browser_saved_workspaces', { action: 'save', workspaceId: ownId })
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    manager.inspectWorkspaceContinuity.mockImplementation(async () => {
+      await Promise.resolve()
+      disable()
+      return { status: 'BLOCKED', suspended: true }
+    })
+    const result = await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, ...(action === 'resume' ? { resumeKey: key } : {}) })
+    expect(manager.inspectWorkspaceContinuity).toHaveBeenCalledWith(ownId)
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain(key)
+    expect(JSON.stringify(result)).not.toContain('continuity')
+    expect((await call('browser_tabs', { workspaceId: ownId })).isError).toBe(true)
   })
 
   it('revokes existing ownership and valid resume keys when direct access is disabled', async () => {
@@ -148,6 +198,81 @@ describe('MCP workspace fork sources and direct access', () => {
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
     expect(manager.wakeTab).not.toHaveBeenCalled()
     expect(manager.click).not.toHaveBeenCalled()
+  })
+
+  it('blocks storage import while continuity is suspended', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    expect((await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })).isError).toBe(true)
+    expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('reports unknown storage effects when control changes during transfer (reject: %s)', async reject => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.transferWorkspaceStorage.mockImplementationOnce(async () => {
+      server.setPaused(true); server.setPaused(false)
+      if (reject) throw new Error('Private transfer detail')
+      return { copied: true }
+    })
+    const result = await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })
+    expect(result.isError).toBe(true)
+    expect(parsed(result)).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible' })
+    expect(JSON.stringify(result)).not.toContain('Private transfer detail')
+    expect(manager.transferWorkspaceStorage).toHaveBeenCalledTimes(1)
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(ownId, false)
+    expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not copy a suspended source into a new unguarded workspace', async () => {
+    const { manager, call } = await setup()
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    expect((await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })).isError).toBe(true)
+    expect(manager.createMcpTabGroup).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('guards a retained fork after control changes during copy (copy failure: %s)', async failed => {
+    const { manager, call } = await setup()
+    manager.createMcpTabGroup.mockImplementationOnce(async () => {
+      server.setPaused(true); server.setPaused(false)
+      if (failed) throw new RetainedBrowserWorkspaceError([], ownId, 'Private fork failure detail')
+      return { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
+    })
+    const result = await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
+    expect(result.isError).toBe(true)
+    expect(parsed(result)).toMatchObject({ status: 'OUTCOME_UNKNOWN', workspaceId: ownId, retained: true, reviewRequired: true, resumeKey: key })
+    expect(JSON.stringify(result)).not.toContain('Private fork failure detail')
+    expect(manager.requireWorkspaceContinuityReview).toHaveBeenCalledWith(ownId)
+    expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(sourceId, false)
+    expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
+    expect(manager.createMcpTabGroup).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps bounded browser status available while continuity is suspended', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
+    const state = manager.getMcpGroupState()
+    manager.getMcpGroupState.mockImplementation(() => ({ ...state, closedTabs: [], mcpTabGroups: [], savedTabGroups: [] }))
+    const status = await call('browser_status', { workspaceId: ownId })
+    expect(status.isError, JSON.stringify(status.content)).not.toBe(true)
+  })
+
+  it.each(['before-target', 'audit', 'wake'])('blocks a suspended continuity checkpoint at %s', async stage => {
+    let suspend: () => void = () => undefined
+    const { manager, call } = await setup(stage === 'audit' ? () => suspend() : undefined)
+    suspend = () => { manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') }) }
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    if (stage === 'before-target') suspend()
+    if (stage === 'wake') manager.wakeTab.mockImplementationOnce(async () => { suspend() })
+    const result = await call('browser_click', { workspaceId: ownId, selector: 'button' })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).toContain('Continuity suspended')
+    expect(manager.click).not.toHaveBeenCalled()
+    if (stage === 'before-target') expect(manager.requireTabInMcpGroup).not.toHaveBeenCalled()
+    if (stage !== 'wake') expect(manager.wakeTab).not.toHaveBeenCalled()
+    else expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
   })
 
   it('does not wake a tab after access is revoked during audit admission', async () => {
