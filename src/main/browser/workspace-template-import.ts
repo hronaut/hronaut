@@ -1,4 +1,4 @@
-import { previewWorkspaceTemplate, type WorkspaceTemplateEntry } from '../../shared/workspace-template.js'
+import { previewWorkspaceTemplate, type WorkspaceTemplateEntry, type WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
 
 export interface WorkspaceTemplateImportPort {
@@ -6,11 +6,6 @@ export interface WorkspaceTemplateImportPort {
   create(entry: WorkspaceTemplateEntry): Promise<string>
   openStartPages(workspaceId: string, urls: string[]): Promise<void>
   remove(workspaceId: string): Promise<void>
-}
-
-export interface WorkspaceTemplateImportResult {
-  status: 'completed' | 'rolled-back' | 'partial'
-  workspaceIds: string[]
 }
 
 /** Owns only this batch's newly allocated profiles. Never accepts imported IDs. */

@@ -89,3 +89,8 @@ export function previewWorkspaceTemplate(text: string, existingNames: Iterable<s
   const collisions = template.workspaces.filter(entry => occupied.has(nameKey(entry.name))).map(entry => entry.name)
   return { template, collisions, canImport: collisions.length === 0 }
 }
+
+export interface WorkspaceTemplateImportResult {
+  status: 'completed' | 'rolled-back' | 'partial'
+  workspaceIds: string[]
+}

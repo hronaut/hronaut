@@ -2268,6 +2268,7 @@ export interface HronautApi {
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>
+  importWorkspaceTemplate(text: string): Promise<import('./workspace-template.js').WorkspaceTemplateImportResult & { state: BrowserState }>
   renameTabGroup(groupId: string, name: string): Promise<BrowserState>
   updateTabGroup(groupId: string, updates: BrowserTabGroupUpdate): Promise<BrowserState>
   updateWorkspaceNavigationPolicy(groupId: string, policy: BrowserWorkspaceNavigationPolicy): Promise<BrowserState>

@@ -2409,6 +2409,12 @@ function registerIpc(): void {
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.listWorkspaceNavigationAudit(groupId)
   })
+  ipcMain.handle('browser:import-workspace-template', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
+    const result = await tabsManager!.importWorkspaceTemplate(value)
+    return { ...result, state: tabsManager!.getState() }
+  })
   ipcMain.handle('browser:create-workspace', async (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
