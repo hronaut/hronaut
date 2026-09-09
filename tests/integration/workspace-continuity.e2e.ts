@@ -54,6 +54,43 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     await continuity.scrollIntoViewIfNeeded()
     expect(await continuity.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
     await appWindow.screenshot({ path: testInfo.outputPath('human-continuity-review.png') })
+    const panel = appWindow.locator('.workspace-continuity')
+    for (const locale of ['en-US', 'uk-UA']) {
+      await appWindow.evaluate(`window.hronautSettings.setLanguagePreference(${JSON.stringify(locale)})`)
+      await expect(appWindow.locator('html')).toHaveAttribute('lang', locale)
+      for (const theme of ['light', 'dark']) {
+        await appWindow.evaluate(`window.hronautSettings.setTheme(${JSON.stringify(theme)})`)
+        await expect(appWindow.locator('html')).toHaveAttribute('data-theme', theme)
+        for (const width of [1200, 640]) {
+          await electronApp.evaluate(({ BrowserWindow }, width) => {
+            const window = BrowserWindow.getAllWindows()[0]!
+            window.setMinimumSize(600, 600)
+            window.setSize(width, 800)
+          }, width)
+          await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(width)
+          await panel.scrollIntoViewIfNeeded()
+          const layout = await panel.evaluate(element => {
+            const bounds = element.getBoundingClientRect()
+            return {
+              overflow: element.scrollWidth - element.clientWidth,
+              controlsInside: [...element.querySelectorAll('button,input')].every(control => {
+                const rect = control.getBoundingClientRect()
+                return rect.left >= bounds.left && rect.right <= bounds.right
+              })
+            }
+          })
+          expect(layout, `${locale}/${theme}/${width}`).toMatchObject({ controlsInside: true })
+          expect(layout.overflow, `${locale}/${theme}/${width}`).toBeLessThanOrEqual(1)
+          await appWindow.screenshot({ path: testInfo.outputPath(`continuity-${locale}-${theme}-${width}.png`), animations: 'disabled' })
+        }
+      }
+    }
+    await appWindow.evaluate("window.hronautSettings.setLanguagePreference('en-US')")
+    await appWindow.evaluate("window.hronautSettings.setTheme('light')")
+    await expect(appWindow.locator('html')).toHaveAttribute('lang', 'en-US')
+    // A visual review may outlive the bounded confirmation handle.
+    await continuity.getByRole('button', { name: 'Read current state' }).click()
+    await expect(continuity.getByRole('button', { name: 'Confirm reviewed state' })).toBeEnabled()
     await continuity.getByRole('button', { name: 'Confirm reviewed state' }).click()
     await expect(continuity.getByText('Review guard cleared; recheck before a fresh action', { exact: true })).toBeVisible()
     await continuity.getByRole('button', { name: 'Create checkpoint' }).click()
