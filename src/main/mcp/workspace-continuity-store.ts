@@ -1,3 +1,4 @@
+import type { WorkspaceContinuityReport } from '../../shared/workspace-continuity.js'
 import { randomUUID } from 'node:crypto'
 import { compareWorkspaceContinuity, type WorkspaceContinuityEvidence, type WorkspaceContinuityResult } from './workspace-continuity.js'
 
@@ -59,7 +60,7 @@ export class WorkspaceContinuityStore {
     record.review = undefined
   }
 
-  inspect(workspaceId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean): WorkspaceContinuityResult & { checkpointId: string | null; reviewId: string | null; suspended: boolean; priorOutcomeAcknowledged: boolean } {
+  inspect(workspaceId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean): WorkspaceContinuityReport {
     const record = this.records.get(workspaceId)
     const priorOutcome = record?.priorOutcome ?? 'NONE'
     const priorOutcomeAcknowledged = record?.priorOutcomeAcknowledged === true

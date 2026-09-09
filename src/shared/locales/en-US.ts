@@ -1,4 +1,34 @@
 export const enUS = {
+  workspaceContinuity: {
+    "title": "Workspace continuity",
+    "help": "Review the current page before continuing. These controls never repeat an action or unpause agents.",
+    "loading": "Reading current state…",
+    "error": "Could not complete the review. Read the current state again before continuing.",
+    "unavailable": "No checkpoint yet",
+    "suspended": "Review required before agent actions",
+    "ready": "Review guard cleared; recheck before a fresh action",
+    "ack": "I reviewed the page and understand that the earlier action may already have taken effect.",
+    "marker": "Optional page marker selector",
+    "markerHelp": "One element, up to 512 bytes of text. A new checkpoint with this field empty removes the marker check.",
+    "refresh": "Read current state",
+    "checkpoint": "Create checkpoint",
+    "reconcile": "Confirm reviewed state",
+    "reasons": {
+      "CHECKPOINT_UNAVAILABLE": "Checkpoint unavailable",
+      "EVIDENCE_UNAVAILABLE": "Current evidence unavailable",
+      "RUNTIME_CHANGED": "Application restarted",
+      "WORKSPACE_CHANGED": "Workspace changed",
+      "TAB_CHANGED": "Active tab changed",
+      "ORIGIN_CHANGED": "Website origin changed",
+      "POLICY_CHANGED": "Site policy changed",
+      "NAVIGATION_CHANGED": "Page navigation changed",
+      "HUMAN_INPUT_CHANGED": "Human interaction detected",
+      "MARKER_CHANGED": "Page marker changed",
+      "PRIOR_WRITE_OUTCOME_UNKNOWN": "Earlier action outcome remains unknown",
+      "PRIOR_OBSERVATION_STALE": "Earlier observation is stale",
+      "PAGE_NOT_SETTLED": "Wait for the page to settle"
+    }
+  },
   workspaceTemplates: {
     remove: "Remove workspace {number}",
     title: "Portable workspace templates",

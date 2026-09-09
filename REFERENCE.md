@@ -379,6 +379,12 @@ pause. Pause does not roll back an action already dispatched.
 
 ## Review workspace continuity
 
+People can open **Edit workspace → Workspace continuity** to read current
+state, create a checkpoint, or confirm an exact reviewed state. Unknown prior
+outcomes require an explicit acknowledgment. These controls do not unpause
+agents, enable agent access, or repeat browser actions. If review fails because
+the page changed, read current state again before confirming it.
+
 The QA and Complete tool sets include `browser_continuity`. Create an explicit
 checkpoint with `action: "checkpoint"` and your `workspaceId` once the active web
 page has settled. The checkpoint compares workspace and tab identities,

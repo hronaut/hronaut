@@ -2273,6 +2273,9 @@ export interface HronautApi {
   importWorkspaceTemplate(text: string): Promise<import('./workspace-template.js').WorkspaceTemplateImportResult & { state: BrowserState }>
   renameTabGroup(groupId: string, name: string): Promise<BrowserState>
   updateTabGroup(groupId: string, updates: BrowserTabGroupUpdate): Promise<BrowserState>
+  reviewWorkspaceContinuity(workspaceId: string): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
+  checkpointWorkspaceContinuity(workspaceId: string, markerSelector?: string): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
+  reconcileWorkspaceContinuity(workspaceId: string, reviewId: string, acknowledgeUnknownOutcome: boolean): Promise<import('./workspace-continuity.js').WorkspaceContinuityReport>
   updateWorkspaceNavigationPolicy(groupId: string, policy: BrowserWorkspaceNavigationPolicy): Promise<BrowserState>
   listWorkspaceNavigationAudit(groupId: string): Promise<BrowserWorkspaceNavigationAuditEntry[]>
   listWorkspaceStorageOrigins(workspaceId: string): Promise<string[]>

@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, launchHronaut, expect, test } from './fixtures.js'
 
-test('blocks a resumed write after navigation and rejects stale continuity reconciliation', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+test('blocks a resumed write after navigation and rejects stale continuity reconciliation', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
   const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><title>Continuity fixture</title><main>Private fixture</main>') })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -46,7 +46,20 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     const unchanged = decode<{ reviewId: string }>(await call(first, 'browser_continuity', { ...args, action: 'status' }))
     expect(unchanged).toMatchObject({ status: 'PASS', suspended: true, nextAction: 'INSPECT_AND_RECONCILE' })
     expect((await call(first, 'browser_evaluate', { ...args, script: 'window.writes = 1' })).isError).toBe(true)
-    decode(await call(first, 'browser_continuity', { ...args, action: 'reconcile', reviewId: unchanged.reviewId }))
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), workspace.id)
+    const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+    const continuity = editor.getByRole('region', { name: 'Workspace continuity' })
+    await expect(continuity.getByText('Review required before agent actions', { exact: true })).toBeVisible()
+    await expect(continuity.getByRole('button', { name: 'Confirm reviewed state' })).toBeEnabled()
+    await continuity.scrollIntoViewIfNeeded()
+    expect(await continuity.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+    await appWindow.screenshot({ path: testInfo.outputPath('human-continuity-review.png') })
+    await continuity.getByRole('button', { name: 'Confirm reviewed state' }).click()
+    await expect(continuity.getByText('Review guard cleared; recheck before a fresh action', { exact: true })).toBeVisible()
+    await continuity.getByRole('button', { name: 'Create checkpoint' }).click()
+    await expect(continuity.getByRole('button', { name: 'Read current state' })).toBeEnabled()
+    await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+    expect(decode(await call(first, 'browser_continuity', { ...args, action: 'status' }))).toMatchObject({ suspended: false })
     await first.close()
     await navigate('changed')
     const second = await connect()
