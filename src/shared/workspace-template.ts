@@ -34,6 +34,14 @@ function nameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
+/** Match the parser's collision rules when suggesting an editable default name. */
+export function nextWorkspaceTemplateName(entries: Pick<WorkspaceTemplateEntry, 'name'>[]): string {
+  const occupied = new Set(entries.map(entry => nameKey(entry.name)))
+  let number = entries.length + 1
+  while (occupied.has(nameKey(`Workspace ${number}`))) number += 1
+  return `Workspace ${number}`
+}
+
 function startPage(value: unknown): string {
   if (typeof value !== 'string' || value.length > 2048 || /[\u0000-\u0020\u007f]/u.test(value)) {
     throw new TypeError('Invalid template start page.')

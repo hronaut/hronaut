@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import { BROWSER_TAB_GROUP_COLORS } from '../../../shared/tab-groups.js'
-import { parseWorkspaceTemplate, previewWorkspaceTemplate, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
+import { nextWorkspaceTemplateName, parseWorkspaceTemplate, previewWorkspaceTemplate, type WorkspaceTemplate } from '../../../shared/workspace-template.js'
 import type { BrowserState, HronautApi } from '../../../shared/types.js'
 
 const props = defineProps<{
@@ -31,7 +31,7 @@ const sourcePages = computed(() => {
 })
 function addSource(): void {
   if (busy.value || !draft.value || !selectedSource.value || draft.value.workspaces.length >= 20) return
-  draft.value.workspaces.push({ name: `Workspace ${draft.value.workspaces.length + 1}`, color: selectedSource.value.color, startPages: [] })
+  draft.value.workspaces.push({ name: nextWorkspaceTemplateName(draft.value.workspaces), color: selectedSource.value.color, startPages: [] })
 }
 let disposed = false
 onBeforeUnmount(() => { disposed = true })
@@ -125,7 +125,7 @@ async function cleanup(): Promise<void> {
         <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ color }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>
       </fieldset>
-      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: `Workspace ${draft.workspaces.length + 1}`, color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
+      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces), color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
       <p v-if="validation.error" role="alert">{{ validation.error }}</p>
       <p v-if="validation.collisions.length && !completed" role="alert">{{ t('workspaceTemplates.collisions', { names: validation.collisions.join(', ') }) }}</p>
       <p v-if="mode === 'import'">{{ t('workspaceTemplates.importEffect') }}</p>
