@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Update Electron to 44.3.0 with upstream crash, permission-handling, and Linux sandbox tray fixes.
+
 - Recover visible Linux pages whose compositor stops presenting frames without requiring a window resize.
 - Invalidate delayed MCP results after direct human keyboard or mouse input in the target page, without requiring a pause.
 - Capture background tabs outside the viewport of the existing visible browser window, avoiding a temporary window that can interrupt foreground focus on Wayland.
