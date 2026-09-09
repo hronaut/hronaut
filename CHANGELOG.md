@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- Explain when a dedicated persistent browser profile is sufficient and when Hronaut workspaces help, with first-run persistence and visible-handoff checks.
+
 ### Fixed
 
 - Recover visible Linux pages whose compositor stops presenting frames without requiring a window resize.

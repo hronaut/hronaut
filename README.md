@@ -29,6 +29,14 @@ A successful run stays visible in Hronaut, creates an isolated workspace, and re
 
 Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.md) for authenticated handoff, localhost QA, and responsive review without weakening Hronaut's workspace and privacy boundaries.
 
+### Choose a persistent profile or Hronaut workspaces
+
+A dedicated persistent browser profile can be enough for one project and one identity. Playwright MCP supports this through `--user-data-dir`; persistence does not require Hronaut. Its [profile documentation](https://github.com/microsoft/playwright-mcp#user-profile) also explains separate profiles for concurrent browser instances.
+
+Choose Hronaut when you want named profiles managed together in a desktop browser, visible pause and takeover, or deliberate workspace resumption across compatible MCP clients. Each new workspace has separate website storage; bookmarks, history, download records, and remembered permissions remain application-wide. See the [workspace contract](REFERENCE.md#mcp-tools) for the exact boundaries. Hronaut adds a desktop application to run and maintain; its terms are in [License](#license).
+
+Try the [short first-run checks for both paths](STARTER_WORKFLOWS.md#choose-and-check-your-browser-setup) before committing to a workflow. Hronaut's [client connection guide](#connect-an-mcp-client) and Playwright MCP's [client setup instructions](https://github.com/microsoft/playwright-mcp#getting-started) cover their respective connections.
+
 ### Keep personal and agent work separate
 
 Hronaut starts on Home without creating a Default workspace. Opening your first tab creates a workspace; existing Default workspaces keep their browser data and can be renamed, archived, or deleted.

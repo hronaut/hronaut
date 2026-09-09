@@ -9,6 +9,32 @@ Once Hronaut is connected, use these prompts to move from the connection smoke t
 - Tool titles and safety annotations help MCP clients describe actions, but they are advisory. Review the [MCP tool reference](REFERENCE.md#mcp-tools) before granting broad permissions.
 - Keep the private resume capability returned for a workspace private. It grants access to that workspace; it is not a public workspace identifier.
 
+## Choose and check your browser setup
+
+### One persistent project profile
+
+If one project and one browser identity cover your task, try a dedicated persistent profile first. Follow [Playwright MCP's client setup](https://github.com/microsoft/playwright-mcp#getting-started), adding `--user-data-dir` and an absolute path to a new project-specific directory to its server arguments. Use the same directory on the next run. A profile supports one browser instance at a time; use separate directories for concurrent instances ([profile documentation](https://github.com/microsoft/playwright-mcp#user-profile)).
+
+1. Ask the connected agent to open `https://example.com`, set `localStorage.setItem('browser-first-run', 'ready')`, and read that value back.
+2. Stop that browser/server cleanly and reconnect with the same directory. Open the same URL and read `localStorage.getItem('browser-first-run')`. Expect `ready`; this checks stored site state, not restoration of the old live tab.
+3. Remove the test marker with `localStorage.removeItem('browser-first-run')`.
+
+Use a dedicated test profile for this check, keeping your everyday browser profile separate.
+
+### Named Hronaut workspaces and visible takeover
+
+[Connect your client to Hronaut](README.md#connect-an-mcp-client), then ask:
+
+```text
+Using Hronaut, create a new isolated workspace named “Workspace first run” with scratch storage. Open https://example.com in that workspace, take a semantic snapshot, report the heading, and wait. Do not use or copy any existing workspace.
+```
+
+1. Confirm the named workspace and Example Domain page are visible. Use **Pause agents** beside **MCP ready** before taking over. Pause blocks new commands; it does not undo dispatched actions or stop later page events. Inspect the current page before continuing.
+2. Manually click the page's **More information** link in Hronaut. Resume agent access, then ask the agent to take a fresh snapshot in the same workspace and report the current page. Expect it to observe your navigation.
+3. End the agent conversation while leaving Hronaut open. The workspace remains available in the desktop browser. A different MCP session needs the workspace's private resume capability; its name alone does not grant access. Keep that capability private, and use the [workspace reference](REFERENCE.md#mcp-tools) for resumption and archive behavior.
+
+This checks the visible handoff and independently running browser. Choose it when managing several project identities or continuing scoped work across clients is useful. Website storage is isolated per workspace; application-wide history and bookmarks are not. Pricing and trial terms live in the canonical [License section](README.md#license).
+
 ## Authenticated QA with human handoff
 
 Use this when the target requires a login, CAPTCHA, consent, payment approval, or another step that only a person should complete.
