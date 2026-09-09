@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import WorkspaceContinuityPanel from './WorkspaceContinuityPanel.vue'
+import HumanWaitingPanel from './HumanWaitingPanel.vue'
 import WorkspaceTemplatePanel from './WorkspaceTemplatePanel.vue'
 import UiButton from "../ui/UiButton.vue"
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
@@ -208,6 +209,7 @@ onBeforeUnmount(dispose)
         </section>
         </template>
         <WorkspaceContinuityPanel v-if="mode === 'edit' && workspaceId" :key="workspaceId" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
+        <HumanWaitingPanel v-if="mode === 'edit' && workspaceId" :key="`waiting-${workspaceId}`" :workspace-id="workspaceId" :browser="templateBrowser" :disabled="dismissBlocked" />
         <section v-if="mode === 'create'" class="workspace-storage-section">
           <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>
           <label class="workspace-storage-choice">

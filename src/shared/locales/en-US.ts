@@ -1,4 +1,14 @@
 export const enUS = {
+  humanWaiting: {
+    title: 'Human decisions', help: 'Review workspace continuity above before completing a decision. These controls never replay an action or unpause agents.',
+    refresh: 'Refresh decisions', empty: 'No human decisions in this workspace.', error: 'Could not update the decision. Refresh and review current state.',
+    owner: 'Owner', fallback: 'Fallback owner', deadline: 'Deadline', notification: 'Notification', attempts: 'Attempts', handle: 'Decision handle',
+    unknown: 'The earlier action outcome remains unknown.', reviewed: 'I reviewed this decision and the current workspace state.',
+    acknowledge: 'Acknowledge', resolve: 'Complete review', cancel: 'Cancel decision', unavailable: 'Unavailable',
+    states: { WAITING_FOR_HUMAN: 'Waiting for a human', ACKNOWLEDGED: 'Acknowledged; review pending', RESOLVED: 'Review completed', EXPIRED: 'Expired', CANCELLED: 'Cancelled' },
+    decisions: { 'review-page': 'Review the page', 'approve-action': 'Review the proposed action', 'provide-input': 'Provide input', 'resolve-unknown': 'Review an unknown outcome' },
+    notifications: { 'not-attempted': 'Not attempted', pending: 'Pending', delivered: 'Sent to local attention controls', failed: 'Not delivered' }
+  },
   workspaceContinuity: {
     "title": "Workspace continuity",
     "help": "Review the current page before continuing. These controls never repeat an action or unpause agents.",

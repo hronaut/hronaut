@@ -1,6 +1,44 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  humanWaiting: {
+    "title": "Menschliche Entscheidungen",
+    "help": "Prüfen Sie vor Abschluss die Kontinuität des Arbeitsbereichs oben. Diese Aktionen wiederholen keine Vorgänge und heben keine Agentenpause auf.",
+    "refresh": "Entscheidungen aktualisieren",
+    "empty": "Keine menschlichen Entscheidungen in diesem Arbeitsbereich.",
+    "error": "Die Entscheidung konnte nicht aktualisiert werden. Aktualisieren und prüfen Sie den aktuellen Zustand.",
+    "owner": "Verantwortlich",
+    "fallback": "Vertretung",
+    "deadline": "Frist",
+    "notification": "Benachrichtigung",
+    "attempts": "Versuche",
+    "handle": "Entscheidungskennung",
+    "unknown": "Das Ergebnis der früheren Aktion bleibt unbekannt.",
+    "reviewed": "Ich habe diese Entscheidung und den aktuellen Arbeitsbereich geprüft.",
+    "acknowledge": "Bestätigen",
+    "resolve": "Prüfung abschließen",
+    "cancel": "Entscheidung abbrechen",
+    "unavailable": "Nicht verfügbar",
+    "states": {
+      "WAITING_FOR_HUMAN": "Wartet auf einen Menschen",
+      "ACKNOWLEDGED": "Bestätigt; Prüfung ausstehend",
+      "RESOLVED": "Prüfung abgeschlossen",
+      "EXPIRED": "Abgelaufen",
+      "CANCELLED": "Abgebrochen"
+    },
+    "decisions": {
+      "review-page": "Seite prüfen",
+      "approve-action": "Vorgeschlagene Aktion prüfen",
+      "provide-input": "Eingabe bereitstellen",
+      "resolve-unknown": "Unbekanntes Ergebnis prüfen"
+    },
+    "notifications": {
+      "not-attempted": "Nicht versucht",
+      "pending": "Ausstehend",
+      "delivered": "An lokale Aufmerksamkeitsanzeige gesendet",
+      "failed": "Nicht zugestellt"
+    }
+  },
   workspaceContinuity: {
     "title": "Kontinuität des Arbeitsbereichs",
     "help": "Prüfen Sie die aktuelle Seite, bevor Sie fortfahren. Diese Aktionen wiederholen keine Vorgänge und heben keine Agentenpause auf.",
