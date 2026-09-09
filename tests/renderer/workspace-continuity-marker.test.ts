@@ -35,6 +35,18 @@ describe('opt-in continuity marker', () => {
     await Promise.resolve()
     expect(vi.getTimerCount()).toBe(0)
   })
+  it('discards a successful result after the deadline without contaminating the next read', async () => {
+    vi.useFakeTimers()
+    let complete!: (value: string) => void
+    const expired = readContinuityMarker(() => new Promise(resolve => { complete = resolve }))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(await expired).toBeNull()
+    const fresh = readContinuityMarker(async () => 'fresh marker')
+    complete('stale marker')
+    expect(await fresh).toBe('fresh marker')
+    expect(await expired).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('rejects malformed results and clears its deadline after completion', async () => {
     vi.useFakeTimers()
     for (const value of [undefined, 1, {}, 'x'.repeat(513)]) expect(await readContinuityMarker(async () => value)).toBeNull()

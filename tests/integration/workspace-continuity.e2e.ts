@@ -294,6 +294,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
     expect(JSON.stringify(changed)).not.toContain('#marker')
     expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
     for (const interruption of ['navigation', 'pause', 'access', 'reconcile-access'] as const) {
+      const readStartedAt = performance.now()
       let pendingRead: Promise<CallToolResult> | undefined
       const review = interruption === 'reconcile-access'
         ? decode<{ reviewId: string }>(await call('browser_continuity', { ...args, action: 'status' })) : undefined
@@ -329,13 +330,14 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
         }
         await electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerRelease?: () => void }).__markerRelease?.())
         const result = await pendingRead
+        const readElapsedMs = Math.round(performance.now() - readStartedAt)
         if (interruption === 'access' || interruption === 'reconcile-access') {
           expect(result.isError).toBe(true)
           const humanReport = await appWindow.evaluate(`window.hronaut.reviewWorkspaceContinuity(${JSON.stringify(workspace.id)})`)
           expect(humanReport).toMatchObject({ suspended: true })
         } else {
           const interruptedReport = decode(result)
-          expect(interruptedReport, `${interruption}: ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+          expect(interruptedReport, `${interruption} (${readElapsedMs} ms): ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
         }
         expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
       } finally {
