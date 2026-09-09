@@ -2,6 +2,8 @@
 
 Once Hronaut is connected, use these prompts to move from the connection smoke test to a real browser task. Replace each `TARGET_...` placeholder before pasting a prompt. Every recipe starts in a task-owned scratch workspace; do not paste credentials, tokens, or private page data into the agent conversation.
 
+These recipes test web pages in Hronaut. For native desktop tests and consequential writes, read the [automation and enforcement boundaries](AUTOMATION_BOUNDARIES.md).
+
 ## Before you start
 
 - Create a fresh scratch workspace for each task with `browser_workspaces`. Do not use or inspect the Default workspace, and do not reuse a workspace created by another task.

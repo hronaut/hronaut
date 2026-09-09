@@ -29,6 +29,8 @@ A successful run stays visible in Hronaut, creates an isolated workspace, and re
 
 Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.md) for authenticated handoff, localhost QA, and responsive review without weakening Hronaut's workspace and privacy boundaries.
 
+Hronaut automates **web pages in its own browser**, not native desktop applications or other application windows. See [browser and native testing boundaries](AUTOMATION_BOUNDARIES.md#browser-pages-and-native-desktop-applications) to choose the right test surface, and [approval boundaries](AUTOMATION_BOUNDARIES.md#browser-approval-and-downstream-authorization) before consequential actions.
+
 ### Choose a persistent profile or Hronaut workspaces
 
 A dedicated persistent browser profile can be enough for one project and one identity. Playwright MCP supports this through `--user-data-dir`; persistence does not require Hronaut. Its [profile documentation](https://github.com/microsoft/playwright-mcp#user-profile) also explains separate profiles for concurrent browser instances.
