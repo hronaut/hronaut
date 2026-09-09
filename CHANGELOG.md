@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Clarify full and partial refund effects on access and renewals, and default support-assisted cancellations to the end of the paid period.
+
 ### Fixed
 
 - Avoid duplicate suggested workspace names when adding template entries after removing or renaming entries.
