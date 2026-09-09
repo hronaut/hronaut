@@ -20,6 +20,9 @@ it.each([
   const started = new Promise<void>(resolve => { entered = resolve })
   let operationFinished = false
   const manager = {
+    suspendWorkspaceContinuity: vi.fn(),
+    requireWorkspaceContinuityDispatch: vi.fn(),
+    beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
     requireMcpTabGroup: () => ({ id: workspaceId, isDefault: false }),
     requireTabInMcpGroup: () => tabId,
     tabBelongsToMcpGroup: (groupId: string, id: string) => groupId === workspaceId && id === tabId,

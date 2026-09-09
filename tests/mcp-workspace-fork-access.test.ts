@@ -21,6 +21,9 @@ describe('MCP workspace fork sources and direct access', () => {
     const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
+      suspendWorkspaceContinuity: vi.fn(),
+      requireWorkspaceContinuityDispatch: vi.fn(),
+      beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
       createMcpTabGroup: vi.fn(async () => workspace),
       listWorkspaceForkSources: vi.fn(() => [source]),
       listMcpTabGroups: vi.fn(() => [workspace]),
@@ -148,6 +151,22 @@ describe('MCP workspace fork sources and direct access', () => {
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
     expect(manager.wakeTab).not.toHaveBeenCalled()
     expect(manager.click).not.toHaveBeenCalled()
+  })
+
+  it.each(['before-target', 'audit', 'wake'])('blocks a suspended continuity checkpoint at %s', async stage => {
+    let suspend: () => void = () => undefined
+    const { manager, call } = await setup(stage === 'audit' ? () => suspend() : undefined)
+    suspend = () => { manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') }) }
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    if (stage === 'before-target') suspend()
+    if (stage === 'wake') manager.wakeTab.mockImplementationOnce(async () => { suspend() })
+    const result = await call('browser_click', { workspaceId: ownId, selector: 'button' })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).toContain('Continuity suspended')
+    expect(manager.click).not.toHaveBeenCalled()
+    if (stage === 'before-target') expect(manager.requireTabInMcpGroup).not.toHaveBeenCalled()
+    if (stage !== 'wake') expect(manager.wakeTab).not.toHaveBeenCalled()
+    else expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
   })
 
   it('does not wake a tab after access is revoked during audit admission', async () => {

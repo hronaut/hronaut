@@ -65,6 +65,7 @@ describe('MCP tool sets', () => {
     expect(qa).toContain('browser_accessibility_audit')
     expect(qa).toContain('browser_audit_receipts')
     expect(qa).toContain('browser_preflight')
+    expect(qa).toContain('browser_continuity')
     expect(qa).toContain('browser_network_request')
     expect(qa).not.toContain('browser_evaluate')
     expect(all).toEqual(BROWSER_TOOL_CATALOG.map(({ name }) => name))
@@ -73,7 +74,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(73)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(74)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
