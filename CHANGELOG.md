@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid duplicate suggested workspace names when adding template entries after removing or renaming entries.
+
 ## [1.20.0] - 2026-09-09
 
 ### Added

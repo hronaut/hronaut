@@ -23,6 +23,31 @@ function setup() {
 }
 
 describe('workspace template review', () => {
+  it.each(['Add workspace', 'Add source color as a new entry'])('allocates a unique default name after removal via %s', async (action) => {
+    const { wrapper, browser, button } = setup()
+    await wrapper.setProps({ state: { ...state, savedTabGroups: [{ id: 'source', name: 'Source', color: 'purple', savedAt: '', storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }] } })
+    await button('Prepare export').trigger('click')
+    await button('Add workspace').trigger('click')
+    await button('Remove workspace 1').trigger('click')
+    await wrapper.get('.template-source select').setValue('source')
+    await button(action).trigger('click')
+    expect(wrapper.find('[role=alert]').exists()).toBe(false)
+    await wrapper.get('.template-review input').setValue(true)
+    await button('Save workspace template').trigger('click'); await flushPromises()
+    expect(browser.saveWorkspaceTemplateFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('avoids normalized default-name collisions with edited names', async () => {
+    const { wrapper, browser, button } = setup()
+    await button('Prepare export').trigger('click')
+    await wrapper.get('fieldset input').setValue('  ｗｏｒｋｓｐａｃｅ ２  ')
+    await button('Add workspace').trigger('click')
+    expect(wrapper.find('[role=alert]').exists()).toBe(false)
+    await wrapper.get('.template-review input').setValue(true)
+    await button('Save workspace template').trigger('click'); await flushPromises()
+    expect(browser.saveWorkspaceTemplateFile).toHaveBeenCalledTimes(1)
+  })
+
   it('removes unwanted entries and invalidates approval without writing profiles', async () => {
     const { wrapper, browser, button } = setup()
     await button('Prepare export').trigger('click')
