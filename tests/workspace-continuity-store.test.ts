@@ -46,6 +46,24 @@ describe('workspace continuity lifecycle', () => {
     store.reconcile('workspace', review.reviewId!, evidence, true, true)
     expect(store.inspect('workspace', evidence, true).priorOutcome).toBe('OUTCOME_UNKNOWN')
   })
+  it('distinguishes an acknowledged unknown outcome from a pending review without claiming success', () => {
+    const store = new WorkspaceContinuityStore()
+    store.arm(evidence); store.suspend('workspace', 'OUTCOME_UNKNOWN')
+    const review = store.inspect('workspace', evidence, true)
+    expect(review).toMatchObject({ status: 'BLOCKED', priorOutcomeAcknowledged: false })
+    store.reconcile('workspace', review.reviewId!, evidence, true, true)
+    expect(store.inspect('workspace', evidence, true)).toMatchObject({
+      status: 'WARN', suspended: false, priorOutcome: 'OUTCOME_UNKNOWN',
+      priorOutcomeAcknowledged: true, reasons: ['PRIOR_WRITE_OUTCOME_UNKNOWN'], nextAction: 'RECHECK_BEFORE_DISPATCH'
+    })
+    expect(store.inspect('workspace', { ...evidence, navigationGeneration: 1 }, true)).toMatchObject({
+      status: 'BLOCKED', priorOutcomeAcknowledged: true, nextAction: 'INSPECT_AND_RECONCILE'
+    })
+    store.suspend('workspace', 'NONE')
+    const nextReview = store.inspect('workspace', evidence, true)
+    expect(nextReview).toMatchObject({ status: 'BLOCKED', priorOutcomeAcknowledged: false })
+    expect(() => store.reconcile('workspace', nextReview.reviewId!, evidence, true, false)).toThrow('acknowledge')
+  })
   it('does not issue review handles for unavailable or cross-workspace evidence', () => {
     const store = new WorkspaceContinuityStore(); store.arm(evidence)
     for (const current of [null, { ...evidence, workspaceId: 'other' }, { ...evidence, originDigest: '' }]) {

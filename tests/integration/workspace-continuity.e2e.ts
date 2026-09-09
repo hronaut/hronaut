@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createServer } from 'node:http'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -108,7 +108,8 @@ test('retains the continuity guard across application restart until explicit fre
     const review = decode<{ reviewId: string; status: string; priorOutcome: string }>(await call(second, 'browser_continuity', { ...args, action: 'status' }))
     expect(review).toMatchObject({ status: 'BLOCKED', priorOutcome: 'OUTCOME_UNKNOWN' })
     expect((await call(second, 'browser_continuity', { ...args, action: 'reconcile', reviewId: review.reviewId })).isError).toBe(true)
-    decode(await call(second, 'browser_continuity', { ...args, action: 'reconcile', reviewId: review.reviewId, acknowledgeUnknownOutcome: true }))
+    const reconciled = decode(await call(second, 'browser_continuity', { ...args, action: 'reconcile', reviewId: review.reviewId, acknowledgeUnknownOutcome: true }))
+    expect(reconciled).toMatchObject({ status: 'WARN', priorOutcome: 'OUTCOME_UNKNOWN', priorOutcomeAcknowledged: true, suspended: false, nextAction: 'RECHECK_BEFORE_DISPATCH' })
     expect((await call(second, 'browser_evaluate', { ...args, script: 'window.restartedWrite = 1' })).isError).not.toBe(true)
   } finally {
     await Promise.allSettled(clients.map(client => client.close()))
@@ -117,7 +118,8 @@ test('retains the continuity guard across application restart until explicit fre
   }
 })
 
-test('retains a guarded fork when pause occurs during native cookie copy', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+for (const failPersistence of [false, true]) {
+test(`retains a guarded fork when pause occurs during native cookie copy (save failure: ${failPersistence})`, async ({ appWindow, electronApp, mcpPort, mcpToken, profileDirectory }) => {
   const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><title>Fork source</title>Ready') })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -125,6 +127,9 @@ test('retains a guarded fork when pause occurs during native cookie copy', async
   const origin = `http://127.0.0.1:${address.port}`
   const client = new Client({ name: 'continuity-fork', version: '1' })
   let pendingFork: Promise<CallToolResult> | undefined
+  const statePath = join(profileDirectory, 'tabs.json')
+  const backupPath = join(profileDirectory, 'continuity-test-tabs-backup.json')
+  let stateMoved = false
   const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
   const decode = <T>(result: CallToolResult): T => JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as T
   try {
@@ -151,16 +156,31 @@ test('retains a guarded fork when pause occurs during native cookie copy', async
     }, origin)
     pendingFork = call('browser_workspaces', { action: 'create', name: 'Interrupted fork', storage: 'fork-workspace', sourceWorkspaceId: source.id })
     await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __continuityForkWaiting?: boolean }).__continuityForkWaiting)).toBe(true)
+    if (failPersistence) {
+      await rename(statePath, backupPath)
+      stateMoved = true
+      // A directory at the atomic rename destination makes every state save fail.
+      await mkdir(statePath)
+    }
     await appWindow.evaluate('window.hronautMcp.setPaused(true)')
     await appWindow.evaluate('window.hronautMcp.setPaused(false)')
     await electronApp.evaluate(() => (globalThis as typeof globalThis & { __continuityForkRelease?: () => void }).__continuityForkRelease?.())
     const result = await pendingFork
     expect(result.isError).toBe(true)
     const retained = decode<{ status: string; workspaceId: string; guardPersisted: boolean; retained: boolean }>(result)
-    expect(retained).toMatchObject({ status: 'OUTCOME_UNKNOWN', guardPersisted: true, retained: true })
+    expect(retained).toMatchObject({ status: 'OUTCOME_UNKNOWN', guardPersisted: !failPersistence, retained: true })
     expect((await call('browser_new_tab', { workspaceId: retained.workspaceId, url: origin })).isError).toBe(true)
-    const status = decode<{ suspended: boolean }>(await call('browser_continuity', { action: 'status', workspaceId: retained.workspaceId }))
-    expect(status.suspended).toBe(true)
+    const statusResult = await call('browser_continuity', { action: 'status', workspaceId: retained.workspaceId })
+    if (failPersistence) {
+      expect(statusResult.isError).toBe(true)
+      const accessible = await appWindow.evaluate(async id => {
+        const state = await (window as unknown as { hronaut: { getState(): Promise<BrowserState> } }).hronaut.getState()
+        return state.mcpTabGroups.find(group => group.id === id)?.agentAccess
+      }, retained.workspaceId)
+      expect(accessible).toBe(false)
+    } else {
+      expect(decode<{ suspended: boolean }>(statusResult).suspended).toBe(true)
+    }
   } finally {
     await electronApp.evaluate(() => {
       const state = globalThis as typeof globalThis & { __continuityForkWaiting?: boolean; __continuityForkRelease?: () => void; __continuityForkRestore?: () => void }
@@ -168,7 +188,12 @@ test('retains a guarded fork when pause occurs during native cookie copy', async
       delete state.__continuityForkWaiting; delete state.__continuityForkRelease; delete state.__continuityForkRestore
     })
     await pendingFork?.catch(() => undefined)
+    if (stateMoved) {
+      await rm(statePath, { recursive: true, force: true })
+      await rename(backupPath, statePath)
+    }
     await client.close()
     await closeFixtureServer(fixture)
   }
 })
+}

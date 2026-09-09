@@ -12,6 +12,7 @@ interface Checkpoint {
   evidence: WorkspaceContinuityEvidence | null
   suspended: boolean
   priorOutcome: PriorOutcome
+  priorOutcomeAcknowledged?: boolean
   review?: Review
 }
 
@@ -51,15 +52,24 @@ export class WorkspaceContinuityStore {
     const record = this.records.get(workspaceId)
     if (!record) return
     record.suspended = true
+    record.priorOutcomeAcknowledged = false
     // Unknown write effects survive later reads, repeated pauses, and reconnects.
     if (outcome === 'OUTCOME_UNKNOWN' || record.priorOutcome === 'OUTCOME_UNKNOWN') record.priorOutcome = 'OUTCOME_UNKNOWN'
     else if (outcome === 'STALE_OBSERVATION' || record.priorOutcome === 'STALE_OBSERVATION') record.priorOutcome = 'STALE_OBSERVATION'
     record.review = undefined
   }
 
-  inspect(workspaceId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean): WorkspaceContinuityResult & { checkpointId: string | null; reviewId: string | null; suspended: boolean } {
+  inspect(workspaceId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean): WorkspaceContinuityResult & { checkpointId: string | null; reviewId: string | null; suspended: boolean; priorOutcomeAcknowledged: boolean } {
     const record = this.records.get(workspaceId)
-    const result = compareWorkspaceContinuity({ checkpoint: record?.evidence ?? null, current, pageSettled, priorOutcome: record?.priorOutcome ?? 'NONE' })
+    const priorOutcome = record?.priorOutcome ?? 'NONE'
+    const priorOutcomeAcknowledged = record?.priorOutcomeAcknowledged === true
+    const result = compareWorkspaceContinuity({ checkpoint: record?.evidence ?? null, current, pageSettled, priorOutcome: priorOutcomeAcknowledged ? 'NONE' : priorOutcome })
+    if (priorOutcomeAcknowledged && priorOutcome === 'OUTCOME_UNKNOWN') {
+      // An explicit fresh decision does not establish whether the earlier write
+      // succeeded. Keep that warning without asking for the same review again.
+      result.reasons.push('PRIOR_WRITE_OUTCOME_UNKNOWN')
+      if (result.status === 'PASS') result.status = 'WARN'
+    }
     if (record) {
       record.review = undefined
       // A review may reconcile drift, but cannot acknowledge a missing, malformed,
@@ -68,7 +78,7 @@ export class WorkspaceContinuityStore {
         record.review = { id: randomUUID(), evidence: structuredClone(current), priorOutcome: record.priorOutcome }
       }
     }
-    return { ...result, checkpointId: record?.id ?? null, reviewId: record?.review?.id ?? null, suspended: record?.suspended ?? true }
+    return { ...result, priorOutcome, priorOutcomeAcknowledged, checkpointId: record?.id ?? null, reviewId: record?.review?.id ?? null, suspended: record?.suspended ?? true }
   }
 
   reconcile(workspaceId: string, reviewId: string, current: WorkspaceContinuityEvidence | null, pageSettled: boolean, acknowledgeUnknownOutcome: boolean): void {
@@ -82,6 +92,7 @@ export class WorkspaceContinuityStore {
     if (review.priorOutcome === 'OUTCOME_UNKNOWN' && !acknowledgeUnknownOutcome) throw new Error('Explicitly acknowledge the unresolved prior outcome')
     record.evidence = structuredClone(current)
     record.suspended = false
+    record.priorOutcomeAcknowledged = record.priorOutcome === 'OUTCOME_UNKNOWN' && acknowledgeUnknownOutcome
     record.review = undefined
     // Reconciliation permits a fresh decision, never claims the old write succeeded.
     // Keep the unknown outcome visible until an explicit new checkpoint is armed.

@@ -442,7 +442,7 @@ type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
   {
     name: 'browser_continuity', category: 'Session',
-    description: 'Create an explicit continuity checkpoint, inspect changes after a pause or reconnect, or reconcile an exact fresh review. A checkpoint handle never grants workspace access. Reconciliation does not replay a tool or resolve unknown prior side effects. Requires the workspace private resume capability after reconnect.'
+    description: 'Create an explicit continuity checkpoint, inspect changes after a pause or reconnect, or reconcile an exact fresh review. A checkpoint handle never grants workspace access. Reconciliation does not replay a tool or resolve unknown prior side effects. After explicit acknowledgement, an unknown prior outcome remains WARN with priorOutcomeAcknowledged true; recheck before making a fresh decision. A later interruption requires review again. Requires the workspace private resume capability after reconnect.'
   },
   {
     name: 'browser_preflight', category: 'Session',
