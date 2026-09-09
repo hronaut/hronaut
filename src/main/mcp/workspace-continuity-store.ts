@@ -5,6 +5,7 @@ import { compareWorkspaceContinuity, type WorkspaceContinuityEvidence, type Work
 type PriorOutcome = WorkspaceContinuityResult['priorOutcome']
 interface Review {
   id: string
+  capturedAt: number
   evidence: WorkspaceContinuityEvidence
   priorOutcome: PriorOutcome
 }
@@ -22,7 +23,7 @@ interface Checkpoint {
 export class WorkspaceContinuityStore {
   private readonly records = new Map<string, Checkpoint>()
 
-  constructor(private readonly capacity = 100) {
+  constructor(private readonly capacity = 100, private readonly now: () => number = () => performance.now()) {
     if (!Number.isSafeInteger(capacity) || capacity < 1) throw new TypeError('Invalid continuity capacity')
   }
 
@@ -76,7 +77,7 @@ export class WorkspaceContinuityStore {
       // A review may reconcile drift, but cannot acknowledge a missing, malformed,
       // cross-workspace or still-loading observation as a fresh baseline.
       if (current?.workspaceId === workspaceId && pageSettled && compareWorkspaceContinuity({ checkpoint: current, current, pageSettled, priorOutcome: 'NONE' }).status === 'PASS') {
-        record.review = { id: randomUUID(), evidence: structuredClone(current), priorOutcome: record.priorOutcome }
+        record.review = { id: randomUUID(), capturedAt: this.now(), evidence: structuredClone(current), priorOutcome: record.priorOutcome }
       }
     }
     // Matching evidence is a comparison result, not permission to skip the
@@ -89,6 +90,11 @@ export class WorkspaceContinuityStore {
     const record = this.records.get(workspaceId)
     const review = record?.review
     if (!record || !review || review.id !== reviewId || current?.workspaceId !== workspaceId) throw new Error('Continuity review is unavailable or stale')
+    const age = this.now() - review.capturedAt
+    if (!Number.isFinite(age) || age < 0 || age >= 30_000) {
+      record.review = undefined
+      throw new Error('Continuity review expired; inspect current state again')
+    }
     if (compareWorkspaceContinuity({ checkpoint: review.evidence, current, pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
       record.review = undefined
       throw new Error('Browser state changed after continuity review')

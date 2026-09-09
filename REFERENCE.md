@@ -412,7 +412,8 @@ loading page cannot produce a usable review. General JavaScript evaluation is
 not an inspection bypass.
 
 After reviewing the current browser state, send `action: "reconcile"` with the
-latest `reviewId`. Reconciliation rejects changes since that review and rejects
+latest `reviewId`. A review expires after 30 seconds; read current state again
+if it expires. Reconciliation rejects changes since that review and rejects
 requests while workspace actions are pending. It does not execute or repeat a tool.
 An `OUTCOME_UNKNOWN` additionally requires `acknowledgeUnknownOutcome: true`;
 afterward the old outcome remains a warning with `priorOutcomeAcknowledged: true`.

@@ -5,6 +5,31 @@ import type { WorkspaceContinuityEvidence } from '../src/main/mcp/workspace-cont
 const evidence: WorkspaceContinuityEvidence = { epoch: 'epoch', workspaceId: 'workspace', tabId: 'tab', originDigest: 'origin', policyDigest: 'policy', navigationGeneration: 0, humanInteractionGeneration: 0 }
 
 describe('workspace continuity lifecycle', () => {
+  it('expires a review after thirty seconds without clearing the guard or unknown outcome', () => {
+    let now = 1000
+    const store = new WorkspaceContinuityStore(100, () => now)
+    store.arm(evidence); store.suspend('workspace', 'OUTCOME_UNKNOWN')
+    const review = store.inspect('workspace', evidence, true)
+    now += 30_000
+    expect(() => store.reconcile('workspace', review.reviewId!, evidence, true, true)).toThrow('expired')
+    expect(() => store.requireDispatch('workspace')).toThrow()
+    const fresh = store.inspect('workspace', evidence, true)
+    expect(fresh.priorOutcome).toBe('OUTCOME_UNKNOWN')
+    now += 29_999
+    store.reconcile('workspace', fresh.reviewId!, evidence, true, true)
+    expect(() => store.requireDispatch('workspace')).not.toThrow()
+  })
+  it('rejects an invalid or backwards review clock', () => {
+    for (const next of [999, Number.NaN, Number.POSITIVE_INFINITY]) {
+      let now = 1000
+      const store = new WorkspaceContinuityStore(100, () => now)
+      store.arm(evidence); store.suspend('workspace', 'NONE')
+      const review = store.inspect('workspace', evidence, true)
+      now = next
+      expect(() => store.reconcile('workspace', review.reviewId!, evidence, true, false)).toThrow('expired')
+      expect(() => store.requireDispatch('workspace')).toThrow()
+    }
+  })
   it('clears a stale observation only after successful fresh reconciliation', () => {
     const store = new WorkspaceContinuityStore()
     store.arm(evidence); store.suspend('workspace', 'STALE_OBSERVATION')
