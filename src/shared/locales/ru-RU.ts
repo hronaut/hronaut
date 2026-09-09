@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const ruRU = {
   workspaceTemplates: {
+    ...enUS.workspaceTemplates,
     openFile: "Открыть шаблон рабочего пространства",
     saveFile: "Сохранить шаблон рабочего пространства",
     readFailed: "Не удалось прочитать шаблон. Выберите корректный JSON-шаблон в UTF-8 размером до 256 КиБ.",

@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
   workspaceTemplates: {
+    ...enUS.workspaceTemplates,
     openFile: "Ouvrir un modèle d’espace de travail",
     saveFile: "Enregistrer le modèle d’espace de travail",
     readFailed: "Impossible de lire le modèle. Choisissez un modèle JSON UTF-8 valide de 256 Kio maximum.",

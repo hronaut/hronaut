@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
   workspaceTemplates: {
+    ...enUS.workspaceTemplates,
     openFile: "Abrir plantilla de espacio de trabajo",
     saveFile: "Guardar plantilla de espacio de trabajo",
     readFailed: "No se pudo leer la plantilla. Elige una plantilla JSON UTF-8 válida de hasta 256 KiB.",

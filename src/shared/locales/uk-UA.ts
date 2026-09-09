@@ -2,6 +2,7 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const ukUA = {
   workspaceTemplates: {
+    ...enUS.workspaceTemplates,
     openFile: "Відкрити шаблон робочого простору",
     saveFile: "Зберегти шаблон робочого простору",
     readFailed: "Не вдалося прочитати шаблон. Виберіть коректний JSON-шаблон у UTF-8 розміром до 256 КіБ.",
