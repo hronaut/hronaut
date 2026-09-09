@@ -208,3 +208,54 @@ test(`retains a guarded fork when pause occurs during native cookie copy (save f
   }
 })
 }
+
+test('detects opt-in marker changes without navigation and rejects unavailable markers', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const fixture = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<!doctype html><main id="marker">Synthetic initial marker</main>') })
+  await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const address = fixture.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture address')
+  const origin = `http://127.0.0.1:${address.port}`
+  const client = new Client({ name: 'continuity-marker', version: '1' })
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+  const decode = <T>(result: CallToolResult): T => {
+    expect(result.isError).not.toBe(true)
+    return JSON.parse(result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as T
+  }
+  const changeMarker = (value: string | null) => electronApp.evaluate(async ({ webContents }, { origin, value }) => {
+    const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
+    if (!page) throw new Error('Missing marker fixture page')
+    await page.executeJavaScript(`document.querySelector('main').textContent = ${JSON.stringify(value ?? '')}; document.querySelector('main').id = ${JSON.stringify(value === null ? 'missing' : 'marker')}`)
+  }, { origin, value })
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Marker continuity' }))
+    const args = { workspaceId: workspace.id }
+    decode(await call('browser_new_tab', { ...args, url: origin }))
+    await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents().some(page => page.getURL().startsWith(origin) && !page.isLoading()), origin)).toBe(true)
+    decode(await call('browser_continuity', { ...args, action: 'checkpoint', markerSelector: '#marker' }))
+    await appWindow.evaluate('window.hronautMcp.setPaused(true)')
+    await changeMarker('Synthetic changed marker')
+    await appWindow.evaluate('window.hronautMcp.setPaused(false)')
+    const changed = decode<{ reasons: string[] }>(await call('browser_continuity', { ...args, action: 'status' }))
+    expect(changed.reasons).toContain('MARKER_CHANGED')
+    expect(changed.reasons).not.toContain('NAVIGATION_CHANGED')
+    expect(JSON.stringify(changed)).not.toContain('Synthetic')
+    expect(JSON.stringify(changed)).not.toContain('#marker')
+    expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
+    for (const unavailable of [null, 'é'.repeat(257)]) {
+      await changeMarker(unavailable)
+      expect(decode(await call('browser_continuity', { ...args, action: 'status' }))).toMatchObject({ status: 'BLOCKED', reviewId: null })
+    }
+    await changeMarker('Synthetic reviewed marker')
+    const review = decode<{ reviewId: string }>(await call('browser_continuity', { ...args, action: 'status' }))
+    decode(await call('browser_continuity', { ...args, action: 'reconcile', reviewId: review.reviewId }))
+    // Explicitly replacing the checkpoint without a selector removes the opt-in.
+    decode(await call('browser_continuity', { ...args, action: 'checkpoint' }))
+    await changeMarker(null)
+    expect(decode(await call('browser_continuity', { ...args, action: 'status' }))).toMatchObject({ status: 'PASS' })
+  } finally {
+    await client.close()
+    await closeFixtureServer(fixture)
+  }
+})

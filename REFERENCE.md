@@ -385,6 +385,17 @@ page has settled. The checkpoint compares workspace and tab identities,
 navigation, origin, site policy, and human-interaction generations. Its handle
 does not grant access or establish account identity.
 
+To opt into a page marker, supply `markerSelector` only when creating the
+checkpoint. It must select exactly one element and fit within 256 UTF-8 bytes.
+Hronaut compares its text using a private, process-local fingerprint. Missing,
+ambiguous, oversized, or timed-out markers cannot produce a usable review.
+Text is limited to 512 UTF-8 bytes and the read has a two-second deadline; no
+truncated prefix is accepted. A navigation or control change during the read
+invalidates it. Page text is untrusted evidence, never identity or authority.
+The selector and text are not persisted or included in reports. After restart,
+review the unknown state and create a new checkpoint to opt into a marker again.
+An explicit replacement checkpoint without `markerSelector` removes the opt-in.
+
 Pausing or reconnecting suspends a checkpointed workspace. After reconnecting,
 resume with the private workspace key, then request `action: "status"`. The
 response contains bounded reason codes, `status`, `suspended`, `reviewId`, and

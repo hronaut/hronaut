@@ -1190,17 +1190,21 @@ function createBrowserMcpServer(
         workspaceId: workspaceIdSchema,
         action: z.enum(['checkpoint', 'status', 'reconcile']),
         reviewId: z.uuid().optional(),
-        acknowledgeUnknownOutcome: z.boolean().optional()
+        acknowledgeUnknownOutcome: z.boolean().optional(),
+        markerSelector: z.string().min(1).max(256).optional()
       }
     },
-    tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean }) => {
+    tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome, markerSelector }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean; markerSelector?: string }) => {
       requireAgentWorkspace(workspaceId)
-      if (action === 'checkpoint') return textResult({ checkpointId: await manager.armWorkspaceContinuity(workspaceId) })
+      if (markerSelector !== undefined && action !== 'checkpoint') throw new TypeError('markerSelector is only accepted when creating a checkpoint')
+      if (action === 'checkpoint') return textResult({ checkpointId: await manager.armWorkspaceContinuity(workspaceId, markerSelector, () => requireAgentWorkspace(workspaceId)) })
       if (action === 'reconcile') {
         if (!reviewId) throw new TypeError('reviewId is required to reconcile continuity')
-        manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true)
+        await manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true, () => requireAgentWorkspace(workspaceId))
       }
-      return textResult(manager.inspectWorkspaceContinuity(workspaceId))
+      const report = await manager.inspectWorkspaceContinuity(workspaceId)
+      requireAgentWorkspace(workspaceId)
+      return textResult(report)
     })
   )
 
