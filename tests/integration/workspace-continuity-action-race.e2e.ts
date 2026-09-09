@@ -34,7 +34,7 @@ test('rejects a checkpoint when a write starts and finishes during its marker re
       state.__checkpointRestore = () => { page.executeJavaScriptInIsolatedWorld = original }
       page.executeJavaScriptInIsolatedWorld = async function (...args) {
         const value = await original.apply(this, args)
-        if (args[0] !== 1010) return value
+        if (args[0] !== 1011) return value
         page.executeJavaScriptInIsolatedWorld = original
         state.__checkpointHeld = true
         await new Promise<void>(resolve => { state.__checkpointRelease = resolve })

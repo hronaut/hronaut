@@ -400,7 +400,8 @@ const ELEMENT_INSPECTION_WORLD_ID = 1006
 const INDEXED_DB_WORLD_ID = 1007
 const PWA_INSPECTOR_WORLD_ID = 1008
 const STORAGE_USAGE_WORLD_ID = 1009
-const CONTINUITY_MARKER_WORLD_ID = 1010
+// 1010 is reserved by the Linux presented-view visibility probe.
+const CONTINUITY_MARKER_WORLD_ID = 1011
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -7746,9 +7747,6 @@ export class BrowserTabsManager {
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
-      // Invalidate continuity captures at navigation start, before URL/loading
-      // state settles and before an async marker read can return.
-      if (tab.mcpGroupId) this.continuityRevision += 1
       this.invalidateTabOverviewPreview(tab)
       this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)

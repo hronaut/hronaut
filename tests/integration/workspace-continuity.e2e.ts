@@ -300,6 +300,9 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
     for (const interruption of ['navigation', 'pause', 'access', 'reconcile-access'] as const) {
       const readStartedAt = performance.now()
       let pendingRead: Promise<CallToolResult> | undefined
+      let readSettled = false
+      let settledResult: CallToolResult | undefined
+      let settledAfterMs: number | undefined
       let navigationTrace: unknown
       const review = interruption === 'reconcile-access'
         ? decode<{ reviewId: string }>(await call('browser_continuity', { ...args, action: 'status' })) : undefined
@@ -312,7 +315,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
           state.__markerRestore = () => { page.executeJavaScriptInIsolatedWorld = original }
           page.executeJavaScriptInIsolatedWorld = async function (...args) {
             const value = await original.apply(this, args)
-            if (args[0] !== 1010) return value
+            if (args[0] !== 1011) return value
             page.executeJavaScriptInIsolatedWorld = original
             state.__markerWaiting = true
             await new Promise<void>(resolve => { state.__markerRelease = resolve })
@@ -320,7 +323,13 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
           }
         }, origin)
         pendingRead = call('browser_continuity', { ...args, action: review ? 'reconcile' : 'status', ...(review ? { reviewId: review.reviewId } : {}) })
+        void pendingRead.then(result => {
+          readSettled = true
+          settledResult = result
+          settledAfterMs = Math.round(performance.now() - readStartedAt)
+        }, () => { readSettled = true })
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerWaiting?: boolean }).__markerWaiting)).toBe(true)
+        expect(readSettled, `${interruption}: response settled while marker is held`).toBe(false)
         if (interruption === 'navigation') {
           navigationTrace = await electronApp.evaluate(async ({ webContents }, origin) => {
             const pages = webContents.getAllWebContents().filter(page => page.getURL().startsWith(origin))
@@ -335,6 +344,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
           await appWindow.evaluate('window.hronautMcp.setPaused(true)')
           await appWindow.evaluate('window.hronautMcp.setPaused(false)')
         }
+        expect(readSettled, `${interruption}: response settled before marker release after ${settledAfterMs} ms: ${JSON.stringify(settledResult)}`).toBe(false)
         await electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerRelease?: () => void }).__markerRelease?.())
         const result = await pendingRead
         const readElapsedMs = Math.round(performance.now() - readStartedAt)
