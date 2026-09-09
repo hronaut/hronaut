@@ -4,9 +4,7 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-### Documentation
-
-- Explain when a dedicated persistent browser profile is sufficient and when Hronaut workspaces help, with first-run persistence and visible-handoff checks.
+## [1.19.1] - 2026-09-09
 
 ### Fixed
 
@@ -15,6 +13,10 @@ All notable changes to Hronaut are documented in this file.
 - Recover visible Linux pages whose compositor stops presenting frames without requiring a window resize.
 - Invalidate delayed MCP results after direct human keyboard or mouse input in the target page, without requiring a pause.
 - Capture background tabs outside the viewport of the existing visible browser window, avoiding a temporary window that can interrupt foreground focus on Wayland.
+
+### Documentation
+
+- Explain when a dedicated persistent browser profile is sufficient and when Hronaut workspaces help, with first-run persistence and visible-handoff checks.
 
 ## [1.19.0] - 2026-09-09
 
