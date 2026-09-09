@@ -403,8 +403,10 @@ review the unknown state and create a new checkpoint to opt into a marker again.
 An explicit replacement checkpoint without `markerSelector` removes the opt-in.
 
 Pausing or reconnecting suspends a checkpointed workspace. After reconnecting,
-resume with the private workspace key, then request `action: "status"`. The
-response contains bounded reason codes, `status`, `suspended`, `reviewId`, and
+resume with the private workspace key. A checkpointed workspace returns its
+current report in the resume response’s `continuity` field; uncheckpointed
+workspaces keep their existing response shape. Request `action: "status"` for
+a fresh report before reconciliation. The report contains bounded reason codes, `status`, `suspended`, `reviewId`, and
 `nextAction`. `PASS` means the compared evidence matches; when `suspended` is
 true, an explicit review is still required before consequential tools can run.
 Inspect with status, snapshots, find, screenshots, or the visible browser. A

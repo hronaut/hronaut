@@ -23,6 +23,7 @@ describe('MCP workspace fork sources and direct access', () => {
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
       suspendWorkspaceContinuity: vi.fn(),
+      inspectWorkspaceContinuity: vi.fn(async () => ({ status: 'BLOCKED', suspended: true })),
       requireWorkspaceContinuityReview: vi.fn(async () => true),
       requireWorkspaceContinuityDispatch: vi.fn(),
       beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
@@ -77,6 +78,32 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId)
     expect((await call('browser_tabs', { workspaceId: sourceId })).isError).toBe(true)
     expect((await call('browser_workspaces', { action: 'resume', workspaceId: sourceId, resumeKey: key })).isError).toBe(true)
+  })
+
+  it('includes continuity only for a guarded resume', async () => {
+    const { manager, call } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    const args = { action: 'resume', workspaceId: ownId, resumeKey: key }
+    expect(parsed(await call('browser_workspaces', args))).not.toHaveProperty('continuity')
+    expect(manager.inspectWorkspaceContinuity).not.toHaveBeenCalled()
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    expect(parsed(await call('browser_workspaces', args))).toHaveProperty('continuity', { status: 'BLOCKED', suspended: true })
+  })
+
+  it('rejects a resumed continuity report when access is revoked during its read', async () => {
+    const { manager, call, disable } = await setup()
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.suspendWorkspaceContinuity.mockReturnValue(true)
+    manager.inspectWorkspaceContinuity.mockImplementation(async () => {
+      await Promise.resolve()
+      disable()
+      return { status: 'BLOCKED', suspended: true }
+    })
+    const result = await call('browser_workspaces', { action: 'resume', workspaceId: ownId, resumeKey: key })
+    expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).not.toContain(key)
+    expect(JSON.stringify(result)).not.toContain('continuity')
+    expect((await call('browser_tabs', { workspaceId: ownId })).isError).toBe(true)
   })
 
   it('revokes existing ownership and valid resume keys when direct access is disabled', async () => {

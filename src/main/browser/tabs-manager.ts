@@ -1066,10 +1066,11 @@ export class BrowserTabsManager {
     }
   }
 
-  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): void {
+  suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
     this.continuityRevision += 1
     const pending = this.continuityActions.get(workspaceId)
     this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
+    return this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)
   }
 
   async inspectWorkspaceContinuity(workspaceId: string) {

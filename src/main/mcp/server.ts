@@ -909,8 +909,12 @@ function createBrowserMcpServer(
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
         authorizeResume(workspaceId, resumeKey, false)
-        manager.suspendWorkspaceContinuity(workspaceId)
-        return textResult(withResumeKey(manager.requireMcpTabGroup(workspaceId)))
+        const guarded = manager.suspendWorkspaceContinuity(workspaceId)
+        const continuity = guarded ? await manager.inspectWorkspaceContinuity(workspaceId) : undefined
+        // Marker reads cross an async boundary. A resume key cannot override
+        // access revoked while the report was being captured.
+        requireAgentWorkspace(workspaceId)
+        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), ...(continuity ? { continuity } : {}) })
       }
       requireAgentWorkspace(workspaceId)
       if (action === 'rename') {
