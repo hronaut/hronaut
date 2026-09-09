@@ -56,11 +56,13 @@ async function openFile(): Promise<void> {
   await run(async () => {
     const text = await props.browser.openWorkspaceTemplateFile()
     if (disposed || text === null) return
+    reviewed.value = false
     draft.value = parseWorkspaceTemplate(text); mode.value = 'import'; retained.value = []; completed.value = false
   })
 }
 function newExport(): void {
   if (busy.value || retained.value.length) return
+  reviewed.value = false
   const platform = window.hronautShell?.windowChrome.platform
   draft.value = { format: 'hronaut-workspace-template', version: 1, sourcePlatform: platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : 'linux', workspaces: [{ name: 'Workspace 1', color: 'blue', startPages: [] }] }
   mode.value = 'export'; error.value = ''; message.value = ''; completed.value = false
@@ -102,16 +104,16 @@ async function cleanup(): Promise<void> {
     <p>{{ t('workspaceTemplates.scope') }}</p>
     <p>{{ t('workspaceTemplates.privacy') }}</p>
     <div class="template-actions">
-      <UiButton appearance="application" type="button" :disabled="busy || retained.length > 0" @click="openFile">{{ t('workspaceTemplates.openFile') }}</UiButton>
-      <UiButton appearance="application" type="button" :disabled="busy || retained.length > 0" @click="newExport">{{ t('workspaceTemplates.newExport') }}</UiButton>
+      <UiButton type="button" :disabled="busy || retained.length > 0" @click="openFile">{{ t('workspaceTemplates.openFile') }}</UiButton>
+      <UiButton type="button" :disabled="busy || retained.length > 0" @click="newExport">{{ t('workspaceTemplates.newExport') }}</UiButton>
     </div>
     <template v-if="draft">
       <div v-if="mode === 'export' && !completed" class="template-source">
         <label>{{ t('workspaceTemplates.sourceWorkspace') }}<select v-model="sourceId" :disabled="busy"><option value="">—</option><option v-for="source in sources" :key="source.id" :value="source.id">{{ source.name }}</option></select></label>
-        <UiButton appearance="application" type="button" :disabled="busy || !selectedSource || draft.workspaces.length >= 20" @click="addSource">{{ t('workspaceTemplates.addSource') }}</UiButton>
+        <UiButton type="button" :disabled="busy || !selectedSource || draft.workspaces.length >= 20" @click="addSource">{{ t('workspaceTemplates.addSource') }}</UiButton>
         <template v-if="selectedSource">
           <p>{{ t('workspaceTemplates.chooseDetails') }}</p>
-          <UiButton appearance="application" type="button" :disabled="busy" @click="draft.workspaces[draft.workspaces.length - 1]!.name = selectedSource.name">{{ t('workspaceTemplates.includeName') }}</UiButton>
+          <UiButton type="button" :disabled="busy" @click="draft.workspaces[draft.workspaces.length - 1]!.name = selectedSource.name">{{ t('workspaceTemplates.includeName') }}</UiButton>
           <label v-for="url in sourcePages" :key="url"><input v-model="draft.workspaces[draft.workspaces.length - 1]!.startPages" type="checkbox" :value="url" :disabled="busy" />{{ url }}</label>
         </template>
       </div>
@@ -122,18 +124,18 @@ async function cleanup(): Promise<void> {
         <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ color }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>
       </fieldset>
-      <UiButton v-if="mode === 'export'" appearance="application" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: `Workspace ${draft.workspaces.length + 1}`, color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
+      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: `Workspace ${draft.workspaces.length + 1}`, color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
       <p v-if="validation.error" role="alert">{{ validation.error }}</p>
       <p v-if="validation.collisions.length && !completed" role="alert">{{ t('workspaceTemplates.collisions', { names: validation.collisions.join(', ') }) }}</p>
       <p v-if="mode === 'import'">{{ t('workspaceTemplates.importEffect') }}</p>
       <label class="template-review"><input v-model="reviewed" type="checkbox" :disabled="busy || completed || retained.length > 0" />{{ t('workspaceTemplates.review') }}</label>
-      <UiButton appearance="application" variant="primary" type="button" :disabled="!canCommit" @click="commit">{{ t(mode === 'import' ? 'workspaceTemplates.import' : 'workspaceTemplates.saveFile') }}</UiButton>
+      <UiButton variant="primary" type="button" :disabled="!canCommit" @click="commit">{{ t(mode === 'import' ? 'workspaceTemplates.import' : 'workspaceTemplates.saveFile') }}</UiButton>
     </template>
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="message" role="status">{{ message }}</p>
     <template v-if="retained.length">
       <ul><li v-for="id in retained" :key="id">{{ state.mcpTabGroups.find(group => group.id === id)?.name ?? id }}</li></ul>
-      <UiButton appearance="application" type="button" :disabled="busy" @click="cleanup">{{ t('workspaceTemplates.cleanup') }}</UiButton>
+      <UiButton type="button" :disabled="busy" @click="cleanup">{{ t('workspaceTemplates.cleanup') }}</UiButton>
     </template>
   </section>
 </template>

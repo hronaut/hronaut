@@ -55,6 +55,20 @@ For the current page, click the controls icon at the left of the address. The co
 
 Website-scoped history matches the exact origin; storage and cache use Chromium's origin matching; cookies may also be removed from related subdomains because browsers store them at domain boundaries. Clearing site data covers cookies, local storage, IndexedDB, file-system data, service workers, offline caches, Web SQL, and background fetch data. Hronaut temporarily rejects new MCP commands and waits for active commands to finish while the operation runs, then restores the previous pause state. Open pages are deliberately not reloaded, so unsaved page state is not discarded; reload a page when you want it to observe the cleared session. Bookmarks, downloaded files, the encrypted password vault, site-permission decisions, settings, and open tabs are never removed by this action.
 
+## Portable workspace templates
+
+Open **Create workspace → Portable workspace templates** to prepare an export or review a selected JSON template before import. File selection and preview create no profiles and open no pages.
+
+An export starts with a generic name and no start pages. You can edit names and colors, enter HTTP(S) start pages, or choose a source workspace. Adding a source copies only its color into a new entry; including its name or individual page URLs requires an explicit selection. Review every entry, remove sensitive information, check the review box, and choose **Save workspace template**. Names and URLs can contain secrets even without URL credentials; this is a reviewed setup template, not an automatic redaction guarantee.
+
+Templates contain only schema version, source platform, workspace names, colors, and start pages. They exclude cookies, local storage, passwords, tokens, workspace IDs and resume capabilities, site-access rules, remembered permissions, and machine-specific profile paths. Full profile migration and automatic cloud synchronization are not supported by this flow.
+
+To import, choose **Open workspace template**, review its entries, and rename any entries that collide with an active or archived workspace. Changes to the entries, or selecting a file again, require fresh review. **Import and open pages** creates fresh isolated profiles with direct agent access disabled and opens the listed pages without selecting their tabs. It never merges with an existing profile or copies a sign-in. Existing site-access rules and browser permissions are not imported; review the new workspaces' settings before enabling agent access.
+
+Files use format `hronaut-workspace-template`, version `1`, and UTF-8 JSON, limited to 256 KiB, 20 workspaces, and 20 start pages per workspace. Unknown fields, unsupported versions, duplicate names, non-HTTP(S) start pages, and URL credentials are rejected. The same format works across Windows, macOS, and Linux.
+
+If an import fails, Hronaut attempts to remove only profiles created by that import. If cleanup also fails, the panel lists the retained profiles and offers **Retry cleanup**. Removing a profile does not undo effects caused by loading a start page in an external service. Inspect any uncertain external outcome before repeating an operation. Pricing and trial terms remain in [License](README.md#license).
+
 ## Site permissions
 
 When a website requests access such as location, notifications, clipboard, camera, or microphone, Hronaut asks before granting it and remembers the Allow or Deny decision for that exact website origin. Open **Settings → Site permissions** to change a saved decision, forget one so Hronaut asks again, or reset the section to clear all saved decisions.

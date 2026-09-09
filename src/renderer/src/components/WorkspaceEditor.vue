@@ -263,7 +263,7 @@ onBeforeUnmount(dispose)
         </section>
         <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
       </div>
-      <footer><UiButton appearance="application" type="button" :disabled="dismissBlocked || templateBusy" @click="close">{{ mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!templateView && mode !== 'transfer'" appearance="application" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
+      <footer><UiButton appearance="application" type="button" :disabled="dismissBlocked || templateBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!templateView && mode !== 'transfer'" appearance="application" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
     </form>
   </div>
 </template>

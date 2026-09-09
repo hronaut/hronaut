@@ -23,6 +23,15 @@ function setup() {
 }
 
 describe('workspace template review', () => {
+  it('requires fresh review when reopening an identical file', async () => {
+    const { wrapper, button } = setup()
+    await button('Open workspace template').trigger('click'); await flushPromises()
+    await wrapper.get('.template-review input').setValue(true)
+    await button('Open workspace template').trigger('click'); await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('.template-review input').element.checked).toBe(false)
+    expect(button('Import and open pages').attributes('disabled')).toBeDefined()
+  })
+
   it('requires review and invalidates it after changing a name', async () => {
     const { wrapper, browser, button } = setup()
     await button('Open workspace template').trigger('click'); await flushPromises()

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Preview, edit, import, and export portable workspace setup templates with fresh isolated profiles, explicit review, collision checks, and partial-failure cleanup. Browser sign-ins and credentials are excluded.
+
 ### Fixed
 
 - Report retained workspace identity and cleanup guidance when initial tab creation and workspace cleanup both fail.
