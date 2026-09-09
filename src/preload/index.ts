@@ -101,6 +101,8 @@ const api: HronautApi = {
   reorderTab: (tabId: string, targetTabId: string, placement: 'before' | 'after') =>
     ipcRenderer.invoke('browser:reorder-tab', tabId, targetTabId, placement),
   createWorkspace: (options: BrowserWorkspaceCreateOptions) => ipcRenderer.invoke('browser:create-workspace', options),
+  openWorkspaceTemplateFile: () => ipcRenderer.invoke('browser:open-workspace-template-file'),
+  saveWorkspaceTemplateFile: (reviewedText: string) => ipcRenderer.invoke('browser:save-workspace-template-file', reviewedText),
   importWorkspaceTemplate: (text: string) => ipcRenderer.invoke('browser:import-workspace-template', text),
   renameTabGroup: (groupId: string, name: string) => ipcRenderer.invoke('browser:rename-tab-group', groupId, name),
   updateTabGroup: (groupId: string, updates: BrowserTabGroupUpdate) => ipcRenderer.invoke('browser:update-tab-group', groupId, updates),

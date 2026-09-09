@@ -1,6 +1,12 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  workspaceTemplates: {
+    openFile: "Otwórz szablon obszaru roboczego",
+    saveFile: "Zapisz szablon obszaru roboczego",
+    readFailed: "Nie można odczytać szablonu. Wybierz poprawny szablon JSON UTF-8 o rozmiarze do 256 KiB.",
+    writeFailed: "Nie można zapisać szablonu obszaru roboczego.",
+  },
   "common": {
     "hronaut": "Hronaut",
     "close": "Zamknij",

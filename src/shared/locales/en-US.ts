@@ -1,4 +1,10 @@
 export const enUS = {
+  workspaceTemplates: {
+    openFile: "Open workspace template",
+    saveFile: "Save workspace template",
+    readFailed: "The selected template could not be read. Choose a valid UTF-8 JSON template of at most 256 KiB.",
+    writeFailed: "The workspace template could not be saved.",
+  },
   common: {
     hronaut: 'Hronaut',
     close: 'Close',

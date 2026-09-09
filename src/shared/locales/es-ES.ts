@@ -1,6 +1,12 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
+  workspaceTemplates: {
+    openFile: "Abrir plantilla de espacio de trabajo",
+    saveFile: "Guardar plantilla de espacio de trabajo",
+    readFailed: "No se pudo leer la plantilla. Elige una plantilla JSON UTF-8 válida de hasta 256 KiB.",
+    writeFailed: "No se pudo guardar la plantilla de espacio de trabajo.",
+  },
   "common": {
     "hronaut": "Hronaut",
     "close": "Cerrar",

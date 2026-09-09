@@ -1,6 +1,12 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  workspaceTemplates: {
+    openFile: "Arbeitsbereichsvorlage öffnen",
+    saveFile: "Arbeitsbereichsvorlage speichern",
+    readFailed: "Die Vorlage konnte nicht gelesen werden. Wählen Sie eine gültige UTF-8-JSON-Vorlage mit höchstens 256 KiB.",
+    writeFailed: "Die Arbeitsbereichsvorlage konnte nicht gespeichert werden.",
+  },
   "common": {
     "hronaut": "Hronaut",
     "close": "Schließen",

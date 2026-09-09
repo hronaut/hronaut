@@ -78,3 +78,49 @@ test('rejects collisions and rolls back new profiles when initial tab rendering 
   const after = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
   expect(after.mcpTabGroups.map(group => group.id)).toEqual(created.state.mcpTabGroups.map(group => group.id))
 })
+
+test('native file selection previews without profile changes and export writes only reviewed metadata', async ({ appWindow, electronApp, profileDirectory }) => {
+  const { writeFile, readFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const source = join(profileDirectory, 'selected-template.json')
+  const destination = join(profileDirectory, 'exported-template.json')
+  const manifest = template(['Portable'])
+  await writeFile(source, manifest)
+  const before = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
+  await electronApp.evaluate(({ dialog }, paths) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [paths.source] })
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath: paths.destination })
+  }, { source, destination })
+  expect(await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.openWorkspaceTemplateFile())).toBe(manifest)
+  expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())).mcpTabGroups).toEqual(before.mcpTabGroups)
+  expect(await appWindow.evaluate(text => (window as unknown as { hronaut: HronautApi }).hronaut.saveWorkspaceTemplateFile(text), manifest)).toBe(true)
+  expect(JSON.parse(await readFile(destination, 'utf8'))).toEqual(JSON.parse(manifest))
+  await electronApp.evaluate(({ dialog }) => {
+    dialog.showOpenDialog = async () => ({ canceled: true, filePaths: [] })
+    dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' })
+  })
+  expect(await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.openWorkspaceTemplateFile())).toBeNull()
+  expect(await appWindow.evaluate(text => (window as unknown as { hronaut: HronautApi }).hronaut.saveWorkspaceTemplateFile(text), manifest)).toBe(false)
+  expect((await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())).mcpTabGroups).toEqual(before.mcpTabGroups)
+})
+
+test('invalid file selection hides filesystem paths and invalid export preserves its destination', async ({ appWindow, electronApp, profileDirectory }) => {
+  const { writeFile, readFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const destination = join(profileDirectory, 'keep-template.json')
+  await writeFile(destination, 'keep existing file')
+  await electronApp.evaluate(({ dialog }, path) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [path + '.missing'] })
+    dialog.showSaveDialog = async () => { throw new Error('Invalid input must not open a save dialog') }
+  }, destination)
+  const error = await appWindow.evaluate(async () => {
+    try { await (window as unknown as { hronaut: HronautApi }).hronaut.openWorkspaceTemplateFile(); return '' } catch (error) { return String(error) }
+  })
+  expect(error).toContain('could not be read')
+  expect(error).not.toContain(profileDirectory)
+  const invalid = await appWindow.evaluate(async () => {
+    try { await (window as unknown as { hronaut: HronautApi }).hronaut.saveWorkspaceTemplateFile('{'); return '' } catch (error) { return String(error) }
+  })
+  expect(invalid).toContain('not valid JSON')
+  expect(await readFile(destination, 'utf8')).toBe('keep existing file')
+})
