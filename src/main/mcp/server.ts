@@ -1005,10 +1005,20 @@ function createBrowserMcpServer(
         const resolvedTabId = skipsTabTarget
           ? undefined
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+        const currentHumanInteractionGeneration = (): number | undefined => resolvedTabId
+          ? manager.getMcpGroupState(workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
+          : undefined
+        const humanInteractionGeneration = currentHumanInteractionGeneration()
+        const requireCurrentHumanInput = (): void => {
+          if (currentHumanInteractionGeneration() !== humanInteractionGeneration) {
+            throw new Error('Human input changed the target page during this tool. Obtain fresh state before continuing; earlier effects are not rolled back.')
+          }
+        }
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
           requireCurrentControl()
+          requireCurrentHumanInput()
           requireAgentWorkspace(workspaceId)
           if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) {
             throw workspaceAuthorizationError()
@@ -1043,6 +1053,7 @@ function createBrowserMcpServer(
             try {
               requireCurrentControl()
               requireAgentWorkspace(workspaceId)
+              if (name !== 'browser_close_tab') requireCurrentHumanInput()
               // Closing a tab intentionally retires its target. Other tools
               // must still belong to the authorized workspace when they settle.
               if (resolvedTabId && name !== 'browser_close_tab'

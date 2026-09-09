@@ -576,6 +576,7 @@ interface BrowserTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  humanInteractionGeneration: number
   overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
   pinned: boolean
@@ -7021,6 +7022,7 @@ export class BrowserTabsManager {
       url,
       loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
+      humanInteractionGeneration: 0,
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
@@ -7371,6 +7373,7 @@ export class BrowserTabsManager {
       }
       this.observeReproKeyboard(tab, input)
       if ((input.type === 'keyDown' || input.type === 'rawKeyDown') && !this.agentInputWebContents.has(webContents.id)) {
+        tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
         this.options.onUserInteraction?.()
@@ -7407,6 +7410,7 @@ export class BrowserTabsManager {
       }
       this.observeReproMouse(tab, mouse)
       if ((mouse.type === 'mouseDown' || mouse.type === 'contextMenu') && !this.agentInputWebContents.has(webContents.id)) {
+        tab.humanInteractionGeneration += 1
         tab.lastHumanInteractionAt = Date.now()
         tab.lastActiveAt = tab.lastHumanInteractionAt
         if (this.splitViewContains(tab.id) && this.activeTabId !== tab.id) {
@@ -8170,6 +8174,7 @@ export class BrowserTabsManager {
       url: tab.url,
       loading: tab.loading,
       navigationGeneration: tab.navigationGeneration,
+      humanInteractionGeneration: tab.humanInteractionGeneration,
       canGoBack: navigation.index > 0,
       canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
       active: tab.id === this.activeTabId,
