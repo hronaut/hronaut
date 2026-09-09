@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Documentation
+
+- Clarify browser versus native desktop testing scope and distinguish browser approval from downstream authorization, with disposable-fixture and synthetic policy examples.
+
 ## [1.19.1] - 2026-09-09
 
 ### Fixed

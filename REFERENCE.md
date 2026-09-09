@@ -99,6 +99,8 @@ Use the pause button beside **MCP ready** to reject new MCP commands immediately
 
 While paused, the status pill shows how many tool callbacks are still settling, including work whose HTTP client disconnected. When the count reaches zero, the callbacks have finished; this does not establish whether every browser side effect succeeded or whether later page events have stopped. Pause does not undo dispatched actions. Inspect the visible page and obtain a fresh snapshot before continuing, and do not automatically repeat a possible write whose outcome is unknown.
 
+Human approval is not a substitute for the target service's authorization and business-rule checks. See [browser approval and downstream authorization](AUTOMATION_BOUNDARIES.md#browser-approval-and-downstream-authorization) for a synthetic example, receipt requirements, and negative tests.
+
 Paused MCP requests receive HTTP 503 with a `handoff` snapshot: `state` is `PAUSED_WITH_ACTIVE_COMMANDS` or `PAUSED`, and `activeCommands` counts tool callbacks rather than open HTTP connections. `priorActionOutcome` remains `NOT_ESTABLISHED` in both states. This process-wide count contains no command contents or workspace identifiers and does not authorize retries.
 
 ## Saved passwords
