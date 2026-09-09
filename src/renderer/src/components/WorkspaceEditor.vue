@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import WorkspaceTemplatePanel from './WorkspaceTemplatePanel.vue'
 import UiButton from "../ui/UiButton.vue"
-import { computed, onBeforeUnmount, ref, toRef } from 'vue'
+import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -31,6 +32,11 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
+const templateView = ref(false)
+const templateBusy = ref(false)
+const templateBrowser = window.hronaut
+watch(open, () => { templateView.value = false })
+function close(): void { if (!templateBusy.value) closeEditor() }
 const {
   mode,
   name,
@@ -58,10 +64,10 @@ const {
   navigationAuditState,
   dismissBlocked,
   saveDisabled,
-  openExisting,
-  openNew,
-  openTransfer,
-  close,
+  openExisting: openExistingEditor,
+  openNew: openNewEditor,
+  openTransfer: openTransferEditor,
+  close: closeEditor,
   save,
   transferStorage,
   closeWorkspace,
@@ -114,21 +120,39 @@ function auditSourceLabel(source: BrowserWorkspaceNavigationAuditSource): string
   return t('workspaceNavigationAudit.sourceRestore')
 }
 
+async function openExisting(id: string): Promise<void> {
+  if (templateBusy.value) return
+  templateView.value = false
+  await openExistingEditor(id)
+}
+async function openNew(): Promise<void> {
+  if (templateBusy.value) return
+  templateView.value = false
+  await openNewEditor()
+}
+async function openTransfer(): Promise<void> {
+  if (templateBusy.value) return
+  templateView.value = false
+  await openTransferEditor()
+}
+
 defineExpose({ openExisting, openNew, openTransfer, close })
 onBeforeUnmount(dispose)
 </script>
 
 <template>
   <div v-if="open" class="tab-group-editor-overlay">
-    <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked" @submit.prevent="mode === 'transfer' ? transferStorage() : save()">
+    <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy" @submit.prevent="!templateView && (mode === 'transfer' ? transferStorage() : save())">
       <header>
-        <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
+        <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
         <div class="workspace-editor-header-actions">
           <span v-if="pendingMessage" class="workspace-editor-pending" role="status"><IconProgress class="state-spinner" aria-hidden="true" />{{ pendingMessage }}</span>
-          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked" @click="close"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked || templateBusy" @click="close"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
-      <div class="workspace-editor-body">
+      <WorkspaceTemplatePanel v-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
+      <div v-else class="workspace-editor-body">
+        <UiButton v-if="mode !== 'transfer'" appearance="application" type="button" :disabled="dismissBlocked" @click="templateView = true">{{ t('workspaceTemplates.title') }}</UiButton>
         <template v-if="mode !== 'transfer'">
         <label for="tab-group-name">{{ t('workspaceEditor.name') }}</label>
         <input id="tab-group-name" v-model="name" type="text" maxlength="80" autocomplete="off" autofocus :disabled="dismissBlocked" />
@@ -239,7 +263,7 @@ onBeforeUnmount(dispose)
         </section>
         <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
       </div>
-      <footer><UiButton appearance="application" type="button" :disabled="dismissBlocked" @click="close">{{ mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="mode !== 'transfer'" appearance="application" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
+      <footer><UiButton appearance="application" type="button" :disabled="dismissBlocked || templateBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!templateView && mode !== 'transfer'" appearance="application" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
     </form>
   </div>
 </template>

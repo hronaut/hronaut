@@ -69,6 +69,8 @@ import {
 } from '../../shared/code-coverage.js'
 import { summarizeCpuProfile, type CdpCpuProfile } from '../../shared/cpu-profile.js'
 import { RetainedBrowserWorkspaceError } from './workspace-errors.js'
+import { WorkspaceTemplateImporter } from './workspace-template-import.js'
+import type { WorkspaceTemplateImportResult } from '../../shared/workspace-template.js'
 import { summarizeAllocationProfile, type CdpSamplingHeapProfile } from '../../shared/allocation-profile.js'
 import {
   buildPerformanceComparison,
@@ -1039,6 +1041,7 @@ export class BrowserTabsManager {
   private readonly devToolsOpening = new Set<number>()
   private readonly recoveringRenderers = new Set<number>()
   private readonly renderQueues = new Map<number, Promise<void>>()
+  private workspaceTemplateImporter?: WorkspaceTemplateImporter
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
   private readonly tabOverviewPageCaptures = new Map<string, Promise<BrowserTabOverviewPreview>>()
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
@@ -1660,6 +1663,25 @@ export class BrowserTabsManager {
       .update('Hronaut MCP workspace resume key v1\0', 'utf8')
       .update(storageId, 'utf8')
       .digest('base64url')}`
+  }
+
+  async importWorkspaceTemplate(text: string): Promise<WorkspaceTemplateImportResult> {
+    this.workspaceTemplateImporter ??= new WorkspaceTemplateImporter({
+      existingWorkspaces: () => [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
+        .map(({ id, name }) => ({ id, name })),
+      create: async (entry) => {
+        const workspace = await this.createMcpTabGroup(entry.name, entry.color, 'scratch')
+        this.updateMcpTabGroup(workspace.id, { agentAccess: false })
+        return workspace.id
+      },
+      openStartPages: async (workspaceId, urls) => {
+        for (const url of urls.length ? urls : ['about:blank']) {
+          await this.createTab({ url, active: false, focus: false, mcpGroupId: workspaceId })
+        }
+      },
+      remove: async (workspaceId) => { await this.closeMcpTabGroup(workspaceId) }
+    })
+    return this.workspaceTemplateImporter.import(text)
   }
 
   async createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState> {

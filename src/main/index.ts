@@ -1,3 +1,5 @@
+import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
+import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
 import { bindTrayActivation } from './tray-activation.js'
 import { mkdir, open, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -2408,6 +2410,46 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (typeof groupId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.listWorkspaceNavigationAudit(groupId)
+  })
+  ipcMain.handle('browser:open-workspace-template-file', async (event) => {
+    assertTrustedShellSender(event)
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
+    const selection = await dialog.showOpenDialog(mainWindow, {
+      title: text('workspaceTemplates.openFile'),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile', 'dontAddToRecent']
+    })
+    if (selection.canceled || !selection.filePaths[0]) return null
+    try {
+      return await readWorkspaceTemplateFile(selection.filePaths[0])
+    } catch {
+      throw new Error(text('workspaceTemplates.readFailed'))
+    }
+  })
+  ipcMain.handle('browser:save-workspace-template-file', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
+    parseWorkspaceTemplate(value)
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error(text('native.errors.actionFailed'))
+    const selection = await dialog.showSaveDialog(mainWindow, {
+      title: text('workspaceTemplates.saveFile'),
+      defaultPath: 'hronaut-workspace-template.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['showOverwriteConfirmation', 'dontAddToRecent']
+    })
+    if (selection.canceled || !selection.filePath) return false
+    try {
+      await writeWorkspaceTemplateFile(selection.filePath, value)
+      return true
+    } catch {
+      throw new Error(text('workspaceTemplates.writeFailed'))
+    }
+  })
+  ipcMain.handle('browser:import-workspace-template', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof value !== 'string') throw new TypeError('Invalid workspace template.')
+    const result = await tabsManager!.importWorkspaceTemplate(value)
+    return { ...result, state: tabsManager!.getState() }
   })
   ipcMain.handle('browser:create-workspace', async (event, value: unknown) => {
     assertTrustedShellSender(event)

@@ -39,6 +39,8 @@ Choose Hronaut when you want named profiles managed together in a desktop browse
 
 Try the [short first-run checks for both paths](STARTER_WORKFLOWS.md#choose-and-check-your-browser-setup) before committing to a workflow. Hronaut's [client connection guide](#connect-an-mcp-client) and Playwright MCP's [client setup instructions](https://github.com/microsoft/playwright-mcp#getting-started) cover their respective connections.
 
+Move reviewed setup between machines with [portable workspace templates](REFERENCE.md#portable-workspace-templates), without copying browser sign-ins.
+
 ### Keep personal and agent work separate
 
 Hronaut starts on Home without creating a Default workspace. Opening your first tab creates a workspace; existing Default workspaces keep their browser data and can be renamed, archived, or deleted.
