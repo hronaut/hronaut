@@ -13,6 +13,15 @@ const stateSchema = z.object({
 }).strict()
 const eventSchema = z.discriminatedUnion('phase', [
   z.object({
+    phase: z.literal('verification'),
+    actionId: identifier,
+    verificationId: identifier,
+    maxAttempts: z.number().int().min(1).max(20),
+    attempt: z.number().int().min(0).max(20),
+    status: z.enum(['pending', 'not-yet-visible', 'verified', 'unknown']),
+    reason: z.enum(['awaiting-read', 'postcondition-matched', 'postcondition-not-visible', 'read-unavailable', 'transport-ambiguous', 'transport-failed', 'deadline', 'attempt-limit', 'context-changed', 'clock-invalid', 'cancelled'])
+  }).strict(),
+  z.object({
     phase: z.literal('decision'),
     scope: z.literal('workspace'),
     actionId: identifier,
@@ -51,6 +60,7 @@ const entrySchema = z.object({
 }).strict()
 
 export type AuditReceiptEvent = z.infer<typeof eventSchema>
+export type AuditObservedState = z.infer<typeof stateSchema> | null
 export type AuditReceipt = z.infer<typeof entrySchema>
 
 export interface AuditReceiptStoreOptions {
@@ -68,6 +78,30 @@ function digest(body: Omit<AuditReceipt, 'hash'>): string {
 }
 
 function transition(actions: Map<string, AuditReceiptEvent>, event: AuditReceiptEvent): void {
+  if (event.phase === 'verification') {
+    const key = `verification:${event.actionId}`
+    const previous = actions.get(key)
+    const action = actions.get(event.actionId)
+    const invalid = (): never => { throw new Error('Invalid audit receipt transition') }
+    if (event.attempt > event.maxAttempts) invalid()
+    if (!previous) {
+      if (action?.phase !== 'decision' || action.decision !== 'allowed' || event.status !== 'pending' || event.reason !== 'awaiting-read' || event.attempt !== 0) invalid()
+    } else {
+      if (previous.phase !== 'verification') return invalid()
+      if (previous.status === 'verified' || previous.status === 'unknown'
+        || event.verificationId !== previous.verificationId || event.maxAttempts !== previous.maxAttempts
+        || event.status === 'pending') invalid()
+      if (event.status === 'unknown') {
+        if (['awaiting-read', 'postcondition-matched', 'postcondition-not-visible'].includes(event.reason)
+          || event.attempt < previous.attempt || event.attempt > previous.attempt + 1) invalid()
+      } else {
+        if (action?.phase !== 'outcome' || action.status !== 'succeeded' || event.attempt !== previous.attempt + 1
+          || event.reason !== (event.status === 'verified' ? 'postcondition-matched' : 'postcondition-not-visible')) invalid()
+      }
+    }
+    actions.set(key, event)
+    return
+  }
   if (event.phase === 'site-access') {
     if (event.actionId === null) return
     const action = actions.get(event.actionId)
@@ -91,6 +125,7 @@ export class AuditReceiptStore {
   private readonly maxEntries: number
   private readonly maxBytes: number
   private readonly outcomeReservationBytes: number
+  private readonly verificationReservationBytes: number
 
   constructor(options: AuditReceiptStoreOptions) {
     identifier.parse(options.workspaceId)
@@ -113,6 +148,12 @@ export class AuditReceiptStore {
       },
       previousHash: 'f'.repeat(64), hash: 'f'.repeat(64)
     }) + '\n')
+    this.verificationReservationBytes = Buffer.byteLength(JSON.stringify({
+      sequence: this.maxEntries, workspaceId: options.workspaceId, runId: options.runId,
+      timestamp: '9999-12-31T23:59:59.999Z',
+      event: { phase: 'verification', actionId: options.runId, verificationId: options.runId, maxAttempts: 20, attempt: 20, status: 'verified', reason: 'postcondition-matched' },
+      previousHash: 'f'.repeat(64), hash: 'f'.repeat(64)
+    }) + '\n')
   }
 
   append(input: AuditReceiptEvent): Promise<AuditReceipt> {
@@ -129,7 +170,8 @@ export class AuditReceiptStore {
       const { entries, bytes, actions } = await this.readVerified()
       transition(actions, event)
       const pending = [...actions.values()].filter(action => action.phase === 'decision' && action.decision === 'allowed').length
-      if (entries.length + 1 + pending > this.maxEntries) throw new Error('Audit receipt capacity reached')
+      const pendingVerification = [...actions.values()].filter(action => action.phase === 'verification' && (action.status === 'pending' || action.status === 'not-yet-visible')).length
+      if (entries.length + 1 + pending + pendingVerification > this.maxEntries) throw new Error('Audit receipt capacity reached')
       const body = {
         sequence: entries.length + 1,
         workspaceId: this.options.workspaceId,
@@ -140,7 +182,7 @@ export class AuditReceiptStore {
       }
       const entry = { ...body, hash: digest(body) }
       const line = `${JSON.stringify(entry)}\n`
-      if (bytes + Buffer.byteLength(line) + pending * this.outcomeReservationBytes > this.maxBytes) {
+      if (bytes + Buffer.byteLength(line) + pending * this.outcomeReservationBytes + pendingVerification * this.verificationReservationBytes > this.maxBytes) {
         throw new Error('Audit receipt capacity reached')
       }
       await mkdir(dirname(this.options.path), { recursive: true, mode: 0o700 })

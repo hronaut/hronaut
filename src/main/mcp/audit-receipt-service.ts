@@ -169,7 +169,7 @@ export class AuditReceiptService {
   }
 
   recordSiteAccess(workspaceId: string, decision: WorkspaceNavigationDecision,
-    source: BrowserWorkspaceNavigationAuditSource, state: AuditReceiptEvent['state'] = null): boolean {
+    source: BrowserWorkspaceNavigationAuditSource, state: Extract<AuditReceiptEvent, { phase: 'site-access' }>['state'] = null): boolean {
     const parsed = idSchema.safeParse(workspaceId)
     if (!parsed.success) return false
     const id = parsed.data

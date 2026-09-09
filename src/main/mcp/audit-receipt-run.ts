@@ -1,7 +1,7 @@
 import { currentAuditAction, withAuditAction } from './audit-action-context.js'
 import type { AuditReceipt, AuditReceiptEvent, AuditReceiptStore } from './audit-receipt-store.js'
 
-type ObservedState = AuditReceiptEvent['state']
+type ObservedState = Extract<AuditReceiptEvent, { phase: 'decision' }>['state']
 type SiteAccessInput = Omit<Extract<AuditReceiptEvent, { phase: 'site-access' }>, 'phase' | 'actionId'>
 interface ActiveAction {
   acceptingSites: boolean
