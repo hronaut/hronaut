@@ -242,7 +242,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
   try {
     await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
-    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Marker continuity' }))
+    const workspace = decode<{ id: string; resumeKey: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Marker continuity' }))
     const args = { workspaceId: workspace.id }
     decode(await call('browser_new_tab', { ...args, url: origin }))
     await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents().some(page => page.getURL().startsWith(origin) && !page.isLoading()), origin)).toBe(true)
@@ -256,8 +256,10 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
     expect(JSON.stringify(changed)).not.toContain('Synthetic')
     expect(JSON.stringify(changed)).not.toContain('#marker')
     expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
-    for (const interruption of ['navigation', 'pause'] as const) {
+    for (const interruption of ['navigation', 'pause', 'access', 'reconcile-access'] as const) {
       let pendingRead: Promise<CallToolResult> | undefined
+      const review = interruption === 'reconcile-access'
+        ? decode<{ reviewId: string }>(await call('browser_continuity', { ...args, action: 'status' })) : undefined
       try {
         await electronApp.evaluate(({ webContents }, origin) => {
           const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(origin))
@@ -274,7 +276,7 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
             return value
           }
         }, origin)
-        pendingRead = call('browser_continuity', { ...args, action: 'status' })
+        pendingRead = call('browser_continuity', { ...args, action: review ? 'reconcile' : 'status', ...(review ? { reviewId: review.reviewId } : {}) })
         await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerWaiting?: boolean }).__markerWaiting)).toBe(true)
         if (interruption === 'navigation') {
           await electronApp.evaluate(async ({ webContents }, origin) => {
@@ -282,13 +284,22 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
             if (!page) throw new Error('Missing marker fixture page')
             await page.loadURL(`${origin}/changed-during-marker`)
           }, origin)
+        } else if (interruption === 'access' || interruption === 'reconcile-access') {
+          await appWindow.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspace.id)}, { agentAccess: false })`)
         } else {
           await appWindow.evaluate('window.hronautMcp.setPaused(true)')
           await appWindow.evaluate('window.hronautMcp.setPaused(false)')
         }
         await electronApp.evaluate(() => (globalThis as typeof globalThis & { __markerRelease?: () => void }).__markerRelease?.())
-        const interruptedReport = decode(await pendingRead)
-        expect(interruptedReport, `${interruption}: ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+        const result = await pendingRead
+        if (interruption === 'access' || interruption === 'reconcile-access') {
+          expect(result.isError).toBe(true)
+          const humanReport = await appWindow.evaluate(`window.hronaut.reviewWorkspaceContinuity(${JSON.stringify(workspace.id)})`)
+          expect(humanReport).toMatchObject({ suspended: true })
+        } else {
+          const interruptedReport = decode(result)
+          expect(interruptedReport, `${interruption}: ${JSON.stringify(interruptedReport)}`).toMatchObject({ status: 'BLOCKED', suspended: true, reviewId: null })
+        }
         expect((await call('browser_evaluate', { ...args, script: 'window.markerWrite = 1' })).isError).toBe(true)
       } finally {
         await electronApp.evaluate(() => {
@@ -297,6 +308,10 @@ test('detects opt-in marker changes without navigation and rejects unavailable m
           delete state.__markerWaiting; delete state.__markerRelease; delete state.__markerRestore
         })
         await pendingRead?.catch(() => undefined)
+        if (interruption === 'access' || interruption === 'reconcile-access') {
+          await appWindow.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspace.id)}, { agentAccess: true })`)
+          decode(await call('browser_workspaces', { ...args, action: 'resume', resumeKey: workspace.resumeKey }))
+        }
       }
     }
     for (const unavailable of [null, 'é'.repeat(257)]) {
