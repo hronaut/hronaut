@@ -160,6 +160,29 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).not.toHaveBeenCalled()
   })
 
+  it.each(['audit', 'wake'])('rejects dispatch after human input during %s', async (stage) => {
+    let change: () => void = () => undefined
+    const { manager, call, interact } = await setup(stage === 'audit' ? () => change() : undefined)
+    change = interact
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    if (stage === 'wake') manager.wakeTab.mockImplementationOnce(async () => { interact() })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.click).not.toHaveBeenCalled()
+    if (stage === 'audit') expect(manager.wakeTab).not.toHaveBeenCalled()
+  })
+
+  it('keeps results valid when human input changes a different tab', async () => {
+    const { manager, call } = await setup()
+    let otherGeneration = 0
+    manager.getMcpGroupState.mockImplementation(() => ({ tabs: [
+      { id: targetId, humanInteractionGeneration: 0 },
+      { id: sourceId, humanInteractionGeneration: otherGeneration }
+    ] }))
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.click.mockImplementationOnce(async () => { otherGeneration += 1; return 'Clicked' })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
+  })
+
   it('does not dispatch to a tab moved out of the workspace while waking', async () => {
     const { manager, call } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })

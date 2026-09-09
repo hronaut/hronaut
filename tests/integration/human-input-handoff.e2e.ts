@@ -4,12 +4,13 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('discards an in-flight write result after direct human page input without requiring a pause', async ({ electronApp, mcpPort, mcpToken }) => {
+for (const inputKind of ['mouse', 'keyboard'] as const) {
+test(`discards an in-flight write result after direct human ${inputKind} input without requiring a pause`, async ({ electronApp, mcpPort, mcpToken }) => {
   let held: ServerResponse | undefined
   const fixture = createServer((request, response) => {
     if (request.url === '/hold') { held = response; return }
     response.writeHead(200, { 'content-type': 'text/html' })
-    response.end('<!doctype html><style>button{width:300px;height:200px}</style><button onmousedown="document.body.dataset.human=\'yes\'">Human action</button>')
+    response.end('<!doctype html><style>button{width:300px;height:200px}</style><body onkeydown="document.body.dataset.human=\'yes\'"><button onmousedown="document.body.dataset.human=\'yes\'">Human action</button>')
   })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -31,16 +32,25 @@ test('discards an in-flight write result after direct human page input without r
     const workspace = parse(await call('browser_workspaces', { action: 'create', name: 'Human input', storage: 'scratch' }))
     const args = { workspaceId: workspace.id }
     expect((await call('browser_new_tab', { ...args, url: origin })).isError).not.toBe(true)
+    // MCP-generated input must not be mistaken for a human takeover.
+    expect((await call('browser_click', { ...args, selector: 'button' })).isError).not.toBe(true)
+    expect((await call('browser_evaluate', { ...args, script: 'delete document.body.dataset.human' })).isError).not.toBe(true)
     const pending = call('browser_evaluate', { ...args, script: "fetch('/hold').then(() => { document.body.dataset.effect = 'applied'; return 'stale-human-input-canary'; })" })
     void pending.catch(() => undefined)
     await expect.poll(() => Boolean(held)).toBe(true)
-    await electronApp.evaluate(({ webContents }, expectedOrigin) => {
+    await electronApp.evaluate(({ webContents }, { expectedOrigin, kind }) => {
       const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(expectedOrigin))
       if (!page) throw new Error('Missing fixture page')
       page.focus()
+      if (kind === 'keyboard') {
+        page.sendInputEvent({ type: 'keyDown', keyCode: 'X' })
+        page.sendInputEvent({ type: 'char', keyCode: 'X' })
+        page.sendInputEvent({ type: 'keyUp', keyCode: 'X' })
+      } else {
       page.sendInputEvent({ type: 'mouseDown', x: 80, y: 80, button: 'left', clickCount: 1 })
       page.sendInputEvent({ type: 'mouseUp', x: 80, y: 80, button: 'left', clickCount: 1 })
-    }, origin)
+      }
+    }, { expectedOrigin: origin, kind: inputKind })
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, expectedOrigin) => {
       const page = webContents.getAllWebContents().find(page => page.getURL().startsWith(expectedOrigin))
       return page?.executeJavaScript('document.body.dataset.human')
@@ -59,3 +69,4 @@ test('discards an in-flight write result after direct human page input without r
     await closeFixtureServer(fixture)
   }
 })
+}

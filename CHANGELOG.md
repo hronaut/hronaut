@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Recover visible Linux pages whose compositor stops presenting frames without requiring a window resize.
+- Invalidate delayed MCP results after direct human keyboard or mouse input in the target page, without requiring a pause.
 
 ## [1.19.0] - 2026-09-09
 
