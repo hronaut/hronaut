@@ -9,7 +9,7 @@ interface Review {
 }
 interface Checkpoint {
   id: string
-  evidence: WorkspaceContinuityEvidence
+  evidence: WorkspaceContinuityEvidence | null
   suspended: boolean
   priorOutcome: PriorOutcome
   review?: Review
@@ -22,6 +22,16 @@ export class WorkspaceContinuityStore {
 
   constructor(private readonly capacity = 100) {
     if (!Number.isSafeInteger(capacity) || capacity < 1) throw new TypeError('Invalid continuity capacity')
+  }
+
+  guardedWorkspaceIds(): string[] {
+    return [...this.records.keys()]
+  }
+
+  restoreStale(workspaceId: string): void {
+    if (this.records.has(workspaceId)) throw new Error('Continuity checkpoint already exists')
+    if (this.records.size >= this.capacity) throw new Error('Continuity checkpoint capacity reached')
+    this.records.set(workspaceId, { id: randomUUID(), evidence: null, suspended: true, priorOutcome: 'OUTCOME_UNKNOWN' })
   }
 
   arm(evidence: WorkspaceContinuityEvidence): string {

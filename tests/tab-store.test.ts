@@ -472,3 +472,25 @@ describe('optional legacy workspace profile ownership', () => {
     expect(await store.load()).toBeNull()
   })
 })
+
+
+describe('continuity checkpoint persistence', () => {
+  it('round-trips guarded workspace identities without storing runtime evidence', async () => {
+    const { store, path } = await createStore()
+    const state = currentState()
+    state.continuityWorkspaceIds = [DEFAULT_WORKSPACE_ID]
+    await store.save(state)
+    expect((await store.load())?.continuityWorkspaceIds).toEqual([DEFAULT_WORKSPACE_ID])
+    expect(await readFile(path, 'utf8')).not.toContain('originDigest')
+  })
+  it('preserves profiles and guards them conservatively when checkpoint metadata is malformed', async () => {
+    const { store, path } = await createStore()
+    await store.save(currentState())
+    const raw = JSON.parse(await readFile(path, 'utf8')) as Record<string, unknown>
+    raw.continuityWorkspaceIds = ['unrecognized-workspace']
+    await writeFile(path, JSON.stringify(raw))
+    const restored = await store.load()
+    expect(restored).not.toBeNull()
+    expect(restored?.continuityWorkspaceIds?.sort()).toEqual([...(restored?.mcpTabGroups ?? []), ...(restored?.savedTabGroups ?? [])].map(group => group.id).sort())
+  })
+})

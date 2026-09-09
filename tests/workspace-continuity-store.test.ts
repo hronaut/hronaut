@@ -5,6 +5,19 @@ import type { WorkspaceContinuityEvidence } from '../src/main/mcp/workspace-cont
 const evidence: WorkspaceContinuityEvidence = { epoch: 'epoch', workspaceId: 'workspace', tabId: 'tab', originDigest: 'origin', policyDigest: 'policy', navigationGeneration: 0, humanInteractionGeneration: 0 }
 
 describe('workspace continuity lifecycle', () => {
+  it('restores guarded identities without treating missing runtime evidence as safe', () => {
+    const original = new WorkspaceContinuityStore(); original.arm(evidence)
+    const restarted = new WorkspaceContinuityStore()
+    original.guardedWorkspaceIds().forEach(id => restarted.restoreStale(id))
+    expect(() => restarted.requireDispatch('workspace')).toThrow()
+    const review = restarted.inspect('workspace', evidence, true)
+    expect(review).toMatchObject({ status: 'BLOCKED', priorOutcome: 'OUTCOME_UNKNOWN', reasons: ['CHECKPOINT_UNAVAILABLE', 'PRIOR_WRITE_OUTCOME_UNKNOWN'] })
+    expect(() => restarted.arm(evidence)).toThrow('Reconcile')
+    expect(() => restarted.reconcile('workspace', review.reviewId!, evidence, true, false)).toThrow('acknowledge')
+    restarted.reconcile('workspace', review.reviewId!, evidence, true, true)
+    expect(() => restarted.requireDispatch('workspace')).not.toThrow()
+  })
+
   it('retains a suspended guard across repeated reconnects and rejects replacement', () => {
     const store = new WorkspaceContinuityStore()
     store.arm(evidence); store.suspend('workspace', 'NONE'); store.suspend('workspace', 'NONE')

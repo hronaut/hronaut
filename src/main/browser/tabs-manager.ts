@@ -997,11 +997,18 @@ export class BrowserTabsManager {
     }
   }
 
-  armWorkspaceContinuity(workspaceId: string): string {
+  async armWorkspaceContinuity(workspaceId: string): Promise<string> {
     if (this.continuityActions.has(workspaceId)) throw new Error('Wait for pending workspace actions before creating a checkpoint')
     const { evidence, pageSettled } = this.currentWorkspaceContinuity(workspaceId)
     if (!evidence || !pageSettled) throw new Error('Inspect a settled web page before creating a continuity checkpoint')
-    return this.workspaceContinuity.arm(evidence)
+    const checkpointId = this.workspaceContinuity.arm(evidence)
+    try {
+      await this.store.save(this.persistedState())
+    } catch {
+      this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
+      throw new Error('Could not save the continuity checkpoint; inspect before retrying')
+    }
+    return checkpointId
   }
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): void {
@@ -1152,6 +1159,7 @@ export class BrowserTabsManager {
   async initialize(): Promise<void> {
     this.restoringLayout = true
     const saved = await this.store.load()
+    for (const workspaceId of saved?.continuityWorkspaceIds ?? []) this.workspaceContinuity.restoreStale(workspaceId)
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
     const persistedTabs = saved?.tabs ?? []
     for (const group of saved?.mcpTabGroups ?? []) {
@@ -2016,6 +2024,8 @@ export class BrowserTabsManager {
     }
     removeClosedWorkspaceTabs()
     this.mcpTabGroups.delete(groupId)
+    if (preserveStorage) this.suspendWorkspaceContinuity(groupId)
+    else this.workspaceContinuity.retire(groupId)
     this.options.onWorkspaceClosed?.(groupId)
     if (!preserveStorage && groupId === this.defaultHumanGroupId) this.defaultHumanGroupId = null
     this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
@@ -2162,6 +2172,7 @@ export class BrowserTabsManager {
         )
       }
       this.savedTabGroups.delete(savedGroupId)
+      this.workspaceContinuity.retire(savedGroupId)
       if (savedGroupId === this.defaultHumanGroupId) this.defaultHumanGroupId = null
       this.changed()
       return this.listSavedTabGroups()
@@ -10734,6 +10745,7 @@ export class BrowserTabsManager {
   private persistedState(): PersistedBrowserState {
     return {
       version: TAB_STATE_VERSION,
+      continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
       activeTabId: this.activeTabId,
       ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
       allHumanInteractionLocked: this.allHumanInteractionLocked,

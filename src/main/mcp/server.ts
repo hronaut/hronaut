@@ -1139,7 +1139,7 @@ function createBrowserMcpServer(
     },
     tool(async ({ workspaceId, action, reviewId, acknowledgeUnknownOutcome }: { workspaceId: string; action: 'checkpoint' | 'status' | 'reconcile'; reviewId?: string; acknowledgeUnknownOutcome?: boolean }) => {
       requireAgentWorkspace(workspaceId)
-      if (action === 'checkpoint') return textResult({ checkpointId: manager.armWorkspaceContinuity(workspaceId) })
+      if (action === 'checkpoint') return textResult({ checkpointId: await manager.armWorkspaceContinuity(workspaceId) })
       if (action === 'reconcile') {
         if (!reviewId) throw new TypeError('reviewId is required to reconcile continuity')
         manager.reconcileWorkspaceContinuity(workspaceId, reviewId, acknowledgeUnknownOutcome === true)
