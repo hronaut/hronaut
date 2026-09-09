@@ -227,6 +227,7 @@ let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
 let auditReceipts: AuditReceiptService | null = null
+let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
 let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
 let walletUnavailableStatus = walletStartupFailureStatus(undefined)
@@ -275,8 +276,10 @@ let runtimeShutdown: Promise<void> | null = null
 let shutdownExitScheduled = false
 let mcpTokenConfiguration: McpTokenConfiguration | null = null
 let userAttention: UserAttentionRequest | null = null
+let attentionDecisionId: string | undefined
 let attentionRequestGeneration = 0
 let attentionPulseTimer: NodeJS.Timeout | null = null
+let attentionExpiryTimer: NodeJS.Timeout | null = null
 let attentionPulseOn = false
 let trayIcon: NativeImage | null = null
 let trayAttentionIcon: NativeImage | null = null
@@ -1381,6 +1384,9 @@ function renderAttentionPulse(): void {
 
 function clearUserAttention(): void {
   attentionRequestGeneration += 1
+  attentionDecisionId = undefined
+  if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
+  attentionExpiryTimer = null
   if (!userAttention && !attentionPulseTimer) return
   userAttention = null
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
@@ -1424,7 +1430,17 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   if (requestGeneration !== attentionRequestGeneration) {
     throw new Error('User attention request was superseded by a newer request.')
   }
+  if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
   userAttention = request
+  attentionDecisionId = input.humanWaitingDecisionId
+  if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
+  attentionExpiryTimer = null
+  if (input.expiresAt !== undefined) {
+    attentionExpiryTimer = setTimeout(() => {
+      if (userAttention?.id === request.id) clearUserAttention()
+    }, Math.min(86_400_000, Math.max(1, input.expiresAt - Date.now())))
+    attentionExpiryTimer.unref()
+  }
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
   attentionPulseTimer = setInterval(renderAttentionPulse, 650)
   attentionPulseTimer.unref()
@@ -2404,6 +2420,35 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
     return tabsManager!.inspectWorkspaceContinuity(workspaceId)
+  })
+  ipcMain.handle('browser:list-human-waiting', (event, workspaceId: unknown) => {
+    const authorize = (): void => { assertTrustedShellSender(event) }
+    authorize()
+    if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !humanWaiting) throw new Error('Waiting workspace unavailable')
+    return humanWaiting.list(workspaceId, authorize)
+  })
+  ipcMain.handle('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown) => {
+    const authorize = (): void => { assertTrustedShellSender(event) }
+    authorize()
+    if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
+      || workspaceId.length > 128 || id.length > 128 || revision.length > 128
+      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'resolve') || !humanWaiting) throw new Error('Waiting decision unavailable')
+    let checkpointId: string | null | undefined
+    const validateFresh = async (): Promise<void> => {
+      const report = await tabsManager!.inspectWorkspaceContinuity(workspaceId)
+      authorize()
+      if (report.suspended || report.status === 'BLOCKED' || !report.checkpointId
+        || (checkpointId !== undefined && checkpointId !== report.checkpointId)
+        || (report.priorOutcome === 'OUTCOME_UNKNOWN' && !report.priorOutcomeAcknowledged)) {
+        tabsManager!.suspendWorkspaceContinuity(workspaceId)
+        throw new Error('Review current workspace continuity before resolving the human decision')
+      }
+      checkpointId = report.checkpointId
+    }
+    const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
+    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh)
+    if (attentionId && userAttention?.id === attentionId) clearUserAttention()
+    return record
   })
   ipcMain.handle('browser:checkpoint-workspace-continuity', async (event, workspaceId: unknown, markerSelector: unknown) => {
     assertTrustedShellSender(event)
@@ -3620,6 +3665,11 @@ async function createWindow(): Promise<void> {
   mainWindow.webContents.setZoomFactor(settings.interfaceScale)
 
   const walletLifecycleCallbacks = createWalletLifecycleCallbacks(() => walletBroker)
+  if (!humanWaiting) {
+    const { HumanWaitingService } = await import('./mcp/human-waiting-service.js')
+    const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
+    humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
+  }
   auditReceipts ??= new AuditReceiptService(
     join(app.getPath('userData'), 'audit-receipts'),
     new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
@@ -4007,6 +4057,7 @@ function createRuntimeMcpServer(
       }
     },
     auditReceipts: auditReceipts ?? undefined,
+    humanWaiting: humanWaiting ?? undefined,
     host: MCP_HOST,
     port,
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
