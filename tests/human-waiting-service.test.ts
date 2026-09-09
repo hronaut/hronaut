@@ -10,6 +10,33 @@ const input = {
 const authorize = () => undefined
 
 describe('durable waiting owner', () => {
+  it('does not admit dispatch when expiry cannot be saved', async () => {
+    let now = 0
+    let saves = 0
+    const service = new HumanWaitingService({ load: async () => null, save: async () => { if (++saves === 2) throw new Error('disk unavailable') } }, new HumanWaitingStore({ monotonicNow: () => now }))
+    await service.create({ ...input, timeoutMs: 1000 }, authorize)
+    now = 1000
+    await expect(service.requireDispatch(input.workspaceId, authorize)).rejects.toThrow(/could not be saved/i)
+    await expect(service.requireDispatch(input.workspaceId, authorize)).rejects.toThrow(/unavailable/i)
+  })
+
+  it('persists expiry observed by dispatch without rewriting unchanged history', async () => {
+    let now = 0
+    let saved: ReturnType<HumanWaitingStore['snapshot']> | undefined
+    const save = vi.fn(async (snapshot: ReturnType<HumanWaitingStore['snapshot']>) => { saved = structuredClone(snapshot) })
+    const service = new HumanWaitingService({ load: async () => null, save }, new HumanWaitingStore({ monotonicNow: () => now, wallNow: () => 1_000_000 }))
+    await service.create({ ...input, timeoutMs: 1000 }, authorize)
+    await expect(service.requireDispatch(input.workspaceId, authorize)).rejects.toThrow(/waiting for a human/i)
+    expect(save).toHaveBeenCalledTimes(1)
+    now = 1000
+    await service.requireDispatch(input.workspaceId, authorize)
+    const restored = new HumanWaitingStore({ monotonicNow: () => 0, wallNow: () => 1_000_000 })
+    restored.restore(saved)
+    expect(restored.list(input.workspaceId)[0]?.state).toBe('EXPIRED')
+    await service.requireDispatch(input.workspaceId, authorize)
+    expect(save).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps waiting when browser state changes while resolution is persisted', async () => {
     let saves = 0
     let changed = false

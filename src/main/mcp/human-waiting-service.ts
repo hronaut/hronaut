@@ -12,6 +12,7 @@ export class HumanWaitingService {
   private queue: Promise<unknown> = Promise.resolve()
   private initialization: Promise<void> | undefined
   private unavailable = false
+  private persistedRecords = '[]'
 
   constructor(
     private readonly persistence: Pick<HumanWaitingPersistence, 'load' | 'save'>,
@@ -24,7 +25,7 @@ export class HumanWaitingService {
         const snapshot = await this.persistence.load()
         if (snapshot) {
           this.store.restore(snapshot)
-          await this.persistence.save(this.store.snapshot())
+          await this.save()
         }
       } catch {
         this.unavailable = true
@@ -45,7 +46,11 @@ export class HumanWaitingService {
   }
 
   private async save(): Promise<void> {
-    try { await this.persistence.save(this.store.snapshot()) } catch {
+    try {
+      const snapshot = this.store.snapshot()
+      await this.persistence.save(snapshot)
+      this.persistedRecords = JSON.stringify(snapshot.records)
+    } catch {
       this.unavailable = true
       throw new Error('Human waiting change could not be saved; inspect recovery before retrying')
     }
@@ -108,7 +113,12 @@ export class HumanWaitingService {
   requireDispatch(workspaceId: string, authorize: Authorization): Promise<void> {
     return this.serialize(async () => {
       authorize()
-      if (this.store.list(workspaceId).some(record => record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED')) {
+      // Dispatch checks also observe expiry. Persist that transition before
+      // admitting work, without rewriting unchanged history on every action.
+      const snapshot = this.store.snapshot()
+      if (JSON.stringify(snapshot.records) !== this.persistedRecords) await this.save()
+      authorize()
+      if (snapshot.records.some(record => record.workspaceId === workspaceId && (record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED'))) {
         throw new Error('Workspace is waiting for a human decision')
       }
       // Terminal waiting status grants no permission. The caller still checks
