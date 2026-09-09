@@ -7746,6 +7746,9 @@ export class BrowserTabsManager {
     webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
+      // Invalidate continuity captures at navigation start, before URL/loading
+      // state settles and before an async marker read can return.
+      if (tab.mcpGroupId) this.continuityRevision += 1
       this.invalidateTabOverviewPreview(tab)
       this.runWalletLifecycleAction('cancel wallet requests after tab navigation', () => (
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
