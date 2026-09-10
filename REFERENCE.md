@@ -500,6 +500,15 @@ Hronaut includes concise workflow instructions in the MCP initialization respons
 
 Every advertised tool includes a human-readable title and explicit MCP safety annotations. Hronaut marks a tool read-only only when every supported mode is observational; a combined list/edit/clear tool remains non-read-only even when its default action only reads. Browser-facing reads retain the open-world hint because sanitized page, network, and storage evidence still originates outside Hronaut. These annotations help compatible clients present tools and approval choices, but they are advisory metadata rather than enforcement: Hronaut's authorization, workspace isolation, input validation, human approval, and side-effect confirmations remain the security boundary.
 
+For tab-targeted consequential tools, Hronaut also captures a bounded
+[browser action authority](docs/UNTRUSTED_PAGE_CONTENT.md) before audit admission
+and checks it again immediately before dispatch. A changed origin, navigation
+generation, observation or human-interaction generation, workspace permission,
+site policy, or requested target fails closed with a machine-readable result.
+Audit receipts retain operation and target classes, an opaque target ID, and the
+reason; they exclude selectors, refs, page text, entered values, credentials,
+paths, and raw origins.
+
 - `browser_workspaces`, `browser_saved_workspaces`
 - `browser_continuity`
 - `browser_status`, `browser_show`, `browser_tabs`

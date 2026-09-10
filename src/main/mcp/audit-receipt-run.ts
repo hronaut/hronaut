@@ -28,7 +28,7 @@ export interface AuditReceiptActionOptions<T> {
   operation: () => Promise<T>
   isErrorResult: (result: T) => boolean
   /** Trusted dispatch classification; never infer it from page text. */
-  classifyErrorResult?: (result: T) => 'outcome-unknown' | 'stale-observation' | undefined
+  classifyErrorResult?: (result: T) => 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
   signal?: AbortSignal
   verification?: AuditReceiptVerificationOptions
 }
@@ -115,7 +115,7 @@ export class AuditReceiptRun {
       try {
         await this.store.append({
           phase: 'outcome', actionId, status,
-          effects: !invoked || options.readOnly ? 'none' : 'possible',
+          effects: !invoked || options.readOnly || status === 'provenance-rejected' ? 'none' : 'possible',
           siteAccessDropped: action.dropped, state: observe()
         })
       } catch {

@@ -54,6 +54,26 @@ describe('action audit receipt journal', () => {
     expect(entries[2]!.event).toMatchObject({ state: null, effects: 'possible', siteAccessDropped: 2 })
   })
 
+  it('retains bounded action-authority facts without raw page content or target values', async () => {
+    const { store } = await fixture()
+    const start = decision()
+    start.state = {
+      ...start.state!, operationClass: 'page-interaction', targetKind: 'element-ref',
+      targetId: randomUUID()
+    }
+    await store.append(start)
+    await store.append({
+      ...outcome(start.actionId), status: 'provenance-rejected', effects: 'none',
+      state: { ...start.state!, originChanged: true, authorityReason: 'ORIGIN_CHANGED' }
+    })
+    const report = await store.read()
+    expect(report.map(entry => entry.event)).toEqual([
+      expect.objectContaining({ state: expect.objectContaining({ operationClass: 'page-interaction', targetKind: 'element-ref' }) }),
+      expect.objectContaining({ status: 'provenance-rejected', effects: 'none', state: expect.objectContaining({ authorityReason: 'ORIGIN_CHANGED' }) })
+    ])
+    expect(JSON.stringify(report)).not.toMatch(/trusted\.example|Ignore previous instructions|element-selector-canary/)
+  })
+
   it('keeps uncorrelated native decisions explicit and rejects false action attribution', async () => {
     const { store } = await fixture()
     const native: AuditReceiptEvent = {
@@ -92,7 +112,7 @@ describe('action audit receipt journal', () => {
   })
 
   it('reserves enough bytes for the largest pending outcome while rejecting new decisions', async () => {
-    const { store, options } = await fixture({ maxBytes: 1800 })
+    const { store, options } = await fixture({ maxBytes: 2300 })
     const start = decision()
     await store.append(start)
     // A denial is terminal but must not consume a running action's reservation.
@@ -104,9 +124,15 @@ describe('action audit receipt journal', () => {
     end.status = 'stale-observation'
     end.effects = 'confirmed'
     end.siteAccessDropped = Number.MAX_SAFE_INTEGER
-    end.state = { tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER, originChanged: false }
+    end.state = {
+      tabId: randomUUID(), navigationGeneration: Number.MAX_SAFE_INTEGER,
+      observationGeneration: Number.MAX_SAFE_INTEGER, humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
+      originChanged: false,
+      operationClass: 'page-interaction', targetKind: 'coordinates', targetId: randomUUID(),
+      authorityReason: 'EXPECTED_STATE_CHANGED'
+    }
     await store.append(end)
-    expect((await stat(options.path)).size).toBeLessThanOrEqual(1800)
+    expect((await stat(options.path)).size).toBeLessThanOrEqual(2300)
     expect((await store.read()).at(-1)!.event).toEqual(end)
   })
 
@@ -196,6 +222,17 @@ describe('action audit receipt journal', () => {
     await store.append(denied)
     await expect(store.append(outcome(denied.actionId))).rejects.toThrow('transition')
     expect(await store.read()).toHaveLength(3)
+  })
+
+  it('rejects a provenance outcome that claims possible or confirmed effects', async () => {
+    const { store } = await fixture()
+    for (const effects of ['possible', 'confirmed'] as const) {
+      const start = decision()
+      await store.append(start)
+      await expect(store.append({ ...outcome(start.actionId), status: 'provenance-rejected', effects }))
+        .rejects.toThrow('transition')
+      await store.append({ ...outcome(start.actionId), status: 'provenance-rejected', effects: 'none' })
+    }
   })
 
   it.each(['workspaceId', 'runId'] as const)('rejects reading or extending a different %s', async (field) => {

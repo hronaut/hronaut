@@ -143,6 +143,18 @@ describe('audit receipt run lifecycle', () => {
     expect(JSON.stringify(report)).not.toContain('private-handoff-canary')
   })
 
+  it('records a pre-dispatch provenance rejection with no possible effects', async () => {
+    const { run } = await fixture()
+    const result = { isError: true }
+    expect(await run.execute({
+      ...action(async () => result), isErrorResult: value => value.isError,
+      classifyErrorResult: () => 'provenance-rejected'
+    })).toBe(result)
+    expect((await run.report()).receipts.at(-1)!.event).toMatchObject({
+      status: 'provenance-rejected', effects: 'none'
+    })
+  })
+
   it('recognizes cancellation when the MCP handler converts it into an error result', async () => {
     const { run } = await fixture()
     const abort = new AbortController()

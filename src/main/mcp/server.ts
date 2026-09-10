@@ -15,6 +15,13 @@ import type { HumanWaitingService } from './human-waiting-service.js'
 import type { TaskRunService } from './task-run-service.js'
 import type { TaskRunCheckDefinition } from './task-run-store.js'
 import { workspacePreflight } from './workspace-preflight.js'
+import {
+  browserActionAuthorityReason,
+  browserActionOperationClass,
+  browserActionTarget,
+  captureBrowserActionAuthority,
+  type BrowserActionAuthorityReason
+} from './browser-action-authority.js'
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
@@ -1139,6 +1146,14 @@ function createBrowserMcpServer(
         const resolvedTabId = skipsTabTarget
           ? undefined
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+        const definition = toolDefinition(name)
+        const actionTarget = browserActionTarget(input)
+        const actionAuthority = definition.annotations.destructiveHint && resolvedTabId
+          ? captureBrowserActionAuthority({
+              state: manager.getMcpGroupState(workspaceId), workspaceId, tabId: resolvedTabId,
+              operationClass: browserActionOperationClass(name), target: actionTarget, targetId: randomUUID()
+            })
+          : undefined
         const postWrite = name === 'browser_click' && input.postcondition
           ? input.postcondition as PostWriteRequest : undefined
         if (postWrite && (!resolvedTabId || !auditReceipts?.isRecording(workspaceId))) {
@@ -1179,8 +1194,38 @@ function createBrowserMcpServer(
             throw workspaceAuthorizationError()
           }
         }
-        let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | undefined
+        let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
+        let authorityReason: BrowserActionAuthorityReason | undefined
+        const authorityRejection = (): CallToolResult | undefined => {
+          if (!actionAuthority || !resolvedTabId) return undefined
+          let state: BrowserState
+          try {
+            state = manager.getMcpGroupState(workspaceId)
+          } catch {
+            authorityReason = 'WORKSPACE_CHANGED'
+          }
+          if (!authorityReason) {
+            let permitted = true
+            try { requireAgentWorkspace(workspaceId) } catch { permitted = false }
+            authorityReason = browserActionAuthorityReason({
+              expected: actionAuthority, state: state!, workspaceId, tabId: resolvedTabId,
+              target: browserActionTarget(input), permitted
+            })
+          }
+          if (!authorityReason) return undefined
+          invalidatedOutcome = 'provenance-rejected'
+          const status = authorityReason === 'TARGET_CHANGED' ? 'UNTRUSTED_TARGET'
+            : authorityReason === 'WORKSPACE_CHANGED' || authorityReason === 'PERMISSION_CHANGED'
+                || authorityReason === 'SITE_POLICY_CHANGED' ? 'POLICY_REJECTED' : 'STALE_PRECONDITION'
+          const outcome = {
+            status, reason: authorityReason, effects: 'none', retrySafe: true,
+            nextAction: 'Inspect the current visible page and obtain fresh runtime state before issuing a new action.'
+          }
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
         const operation = async (): Promise<CallToolResult> => {
+          const admissionRejection = authorityRejection()
+          if (admissionRejection) return admissionRejection
           requireCurrentTarget()
           requirePostWriteContext()
           if (activityId && activityToolName && resolvedTabId) {
@@ -1201,6 +1246,8 @@ function createBrowserMcpServer(
             // Audit admission and tab wake can outlive pause, access revocation,
             // or a human moving the target into a different workspace.
             await requireHumanDecision()
+            const dispatchRejection = authorityRejection()
+            if (dispatchRejection) return dispatchRejection
             requireCurrentTarget()
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(input as unknown as T)
@@ -1246,7 +1293,7 @@ function createBrowserMcpServer(
           }
         }
         if (!auditReceipts || !name.startsWith('browser_')) return operation()
-        let initialOrigin: string | undefined
+        let initialOrigin: string | undefined = actionAuthority?.topLevelOrigin
         let verificationResult: { status: string; reason: string; attempt: number } | undefined
         const result = await auditReceipts.execute(workspaceId, {
           toolName: name,
@@ -1265,7 +1312,14 @@ function createBrowserMcpServer(
               tabId: tab.id,
               navigationGeneration: tab.navigationGeneration,
               observationGeneration: tab.observationGeneration ?? 0,
-              originChanged: origin !== initialOrigin
+              humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
+              originChanged: origin !== initialOrigin,
+              ...(actionAuthority ? {
+                operationClass: actionAuthority.operationClass,
+                targetKind: actionAuthority.targetKind,
+                targetId: actionAuthority.targetId,
+                ...(authorityReason ? { authorityReason } : {})
+              } : {})
             }
           },
           ...(postWrite && postWriteCondition && postWriteFingerprint && resolvedTabId ? {
