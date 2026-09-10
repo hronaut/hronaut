@@ -67,6 +67,7 @@ Hronaut fits when you already have a coding agent and want the browser to remain
 - Watch work as it happens, pause agent access, lock website interaction, or take over the same tab for CAPTCHA, 2FA, payment, and other human-only steps.
 - Resume one deliberately scoped browser workspace across compatible local MCP sessions with its private task capability, without exposing it to other connected clients or connecting the agent to your everyday browser profile.
 - Preserve tabs and evidence between coding sessions for debugging, authenticated QA, and multi-agent handoffs.
+- Track long browser workflows with bounded deadlines, heartbeats, and runtime-checked completion evidence instead of relying on a model message alone.
 
 Explore the source-backed workflows for [authenticated browser handoff](https://hronaut.dev/authenticated-browser-agents), [parallel agent workspaces](https://hronaut.dev/parallel-agent-browser-workspaces), [localhost QA](https://hronaut.dev/coding-agent-localhost-browser), [local Web3 wallets](https://hronaut.dev/local-web3-wallets-for-coding-agents), and [security and release trust](https://hronaut.dev/security).
 

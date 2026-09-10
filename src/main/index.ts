@@ -228,6 +228,7 @@ let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
 let auditReceipts: AuditReceiptService | null = null
 let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
+let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
 let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
 let walletUnavailableStatus = walletStartupFailureStatus(undefined)
@@ -3675,6 +3676,11 @@ async function createWindow(): Promise<void> {
     const { HumanWaitingPersistence } = await import('./mcp/human-waiting-persistence.js')
     humanWaiting = new HumanWaitingService(new HumanWaitingPersistence(join(app.getPath('userData'), 'human-waiting.json')))
   }
+  if (!taskRuns) {
+    const { TaskRunService } = await import('./mcp/task-run-service.js')
+    const { TaskRunPersistence } = await import('./mcp/task-run-persistence.js')
+    taskRuns = new TaskRunService(new TaskRunPersistence(join(app.getPath('userData'), 'task-runs.json')))
+  }
   auditReceipts ??= new AuditReceiptService(
     join(app.getPath('userData'), 'audit-receipts'),
     new Set(mcpToolCatalogForSet('complete').filter(tool => tool.name.startsWith('browser_')).map(tool => tool.name))
@@ -4063,6 +4069,7 @@ function createRuntimeMcpServer(
     },
     auditReceipts: auditReceipts ?? undefined,
     humanWaiting: humanWaiting ?? undefined,
+    taskRuns: taskRuns ?? undefined,
     host: MCP_HOST,
     port,
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,

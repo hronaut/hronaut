@@ -12,6 +12,8 @@ import type { AuditVerificationUpdate } from './audit-receipt-run.js'
 import { runPostWriteVerification } from './post-write-verification-runner.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import type { HumanWaitingService } from './human-waiting-service.js'
+import type { TaskRunService } from './task-run-service.js'
+import type { TaskRunCheckDefinition } from './task-run-store.js'
 import { workspacePreflight } from './workspace-preflight.js'
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
@@ -203,6 +205,7 @@ class WalletAgentSessionRegistry {
 
 export interface McpHttpServerOptions {
   humanWaiting?: HumanWaitingService
+  taskRuns?: TaskRunService
   actionTracker?: McpActionTracker
   authorizeAutomation?: () => Promise<void>
   auditReceipts?: AuditReceiptService
@@ -371,6 +374,7 @@ const BROWSER_TOOL_METADATA = {
   browser_continuity: nonDestructiveTool('Review workspace continuity', false, false),
   browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
+  browser_task_runs: destructiveTool('Manage task-run contracts', false, false),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
   browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
   browser_status: readOnlyTool('Show browser status'),
@@ -462,6 +466,10 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   {
     name: 'browser_audit_receipts', category: 'Session',
     description: 'Explicitly start or stop privacy-bounded action receipts for your authorized workspace, list retained runs, or read a sanitized JSON report. Recording is off by default. Keeps three runs of at most 1 MiB / 1000 entries each; starting a fourth retires the oldest whole run. Reports contain tool names, opaque identifiers, access decisions and outcomes, never raw tool arguments, results, URLs or page contents. Native events may be uncorrelated; omitted evidence is counted. Interrupted actions are never replayed. Audit-control, workspace-lifecycle and wallet tools are outside this recording scope.'
+  },
+  {
+    name: 'browser_task_runs', category: 'Session',
+    description: 'Register, heartbeat, inspect, or complete a bounded browser-workflow contract. Hronaut derives success from configured current-page or retained-audit checks; a caller message alone cannot mark success. Missing heartbeats, deadlines, unavailable evidence, restarts, and evidence drift remain explicit terminal states. Stores no prompt, page text, result body, credentials, or arbitrary artifact contents. This workflow contract is separate from the MCP Tasks extension for deferred execution of one tool call.'
   },
   {
     name: 'browser_workspaces',
@@ -618,6 +626,7 @@ const QA_TOOL_NAMES = new Set([
   'browser_preflight',
   'browser_continuity',
   'browser_audit_receipts',
+  'browser_task_runs',
   'browser_element_inspect',
   'browser_generate_locator',
   'browser_emulate',
@@ -754,7 +763,8 @@ function createBrowserMcpServer(
   getPaused: () => boolean = () => false,
   actionTracker = new McpActionTracker(),
   authorizeAutomation?: () => Promise<void>,
-  humanWaiting?: HumanWaitingService
+  humanWaiting?: HumanWaitingService,
+  taskRuns?: TaskRunService
 ): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -1436,6 +1446,127 @@ function createBrowserMcpServer(
       // A user can revoke agent access while bounded disk I/O is pending.
       authorize()
       return textResult(result)
+    })
+  )
+
+  registerTool(
+    'browser_task_runs',
+    {
+      description: toolDescription('browser_task_runs'),
+      inputSchema: {
+        workspaceId: workspaceIdSchema.describe('Authorized workspace UUID. Start and heartbeat require an active workspace; retained runs may be inspected after archiving and resuming ownership.'),
+        action: z.enum(['start', 'heartbeat', 'get', 'list', 'complete']).default('list'),
+        taskRunId: z.uuid().optional(),
+        revision: z.uuid().optional().describe('Latest optimistic revision returned by start, heartbeat, get, or list.'),
+        deadlineMs: z.number().int().min(1_000).max(604_800_000).optional().describe('Overall run deadline, from one second through seven days.'),
+        heartbeatTimeoutMs: z.number().int().min(1_000).max(86_400_000).optional().describe('Maximum silence between heartbeats, capped by the overall deadline.'),
+        checks: z.array(z.discriminatedUnion('type', [
+          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('page-settled'), tabId: tabIdSchema }).strict(),
+          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('expected-origin'), tabId: tabIdSchema, expectedOrigin: z.string().url() }).strict(),
+          z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('audit-run'), runId: z.uuid() }).strict()
+        ])).max(8).optional().describe('Typed completion checks. Expected origins are persisted only as fingerprints; audit references contain no artifact body.'),
+        outcome: z.enum(['SUCCEEDED', 'FAILED', 'BLOCKED', 'OUTCOME_UNKNOWN']).optional()
+      }
+    },
+    tool(async ({ workspaceId, action, taskRunId, revision, deadlineMs, heartbeatTimeoutMs, checks, outcome }: {
+      workspaceId: string
+      action: 'start' | 'heartbeat' | 'get' | 'list' | 'complete'
+      taskRunId?: string
+      revision?: string
+      deadlineMs?: number
+      heartbeatTimeoutMs?: number
+      checks?: Array<
+        { id: string; type: 'page-settled'; tabId: string }
+        | { id: string; type: 'expected-origin'; tabId: string; expectedOrigin: string }
+        | { id: string; type: 'audit-run'; runId: string }
+      >
+      outcome?: 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'OUTCOME_UNKNOWN'
+    }) => {
+      if (!taskRuns) throw new Error('Task-run storage is unavailable')
+      const authorizeActive = (): void => { requireAgentWorkspace(workspaceId) }
+      const authorizeRetained = (): void => {
+        if ((!activeWorkspaceIds.has(workspaceId) && !savedWorkspaceIds.has(workspaceId))
+          || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
+      }
+      if (action === 'start') {
+        authorizeActive()
+        const definitions: TaskRunCheckDefinition[] = (checks ?? []).map(check => {
+          if (check.type === 'audit-run') return { id: check.id, type: check.type, artifactId: check.runId }
+          manager.requireTabInMcpGroup(workspaceId, check.tabId)
+          if (check.type === 'page-settled') return check
+          const parsed = new URL(check.expectedOrigin)
+          if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
+            || check.expectedOrigin !== parsed.origin) throw new TypeError('Expected origin must be an exact HTTP(S) origin')
+          return {
+            id: check.id, type: check.type, tabId: check.tabId,
+            fingerprint: createHash('sha256').update(parsed.origin, 'utf8').digest('hex')
+          }
+        })
+        return textResult(await taskRuns.create({
+          workspaceId,
+          deadlineMs: deadlineMs ?? 3_600_000,
+          heartbeatTimeoutMs: heartbeatTimeoutMs ?? 60_000,
+          checks: definitions
+        }, authorizeActive))
+      }
+      if (action === 'list') return textResult(await taskRuns.list(workspaceId, authorizeRetained))
+      if (!taskRunId) throw new TypeError(`taskRunId is required to ${action} a task run`)
+      if (action === 'get') return textResult(await taskRuns.get(workspaceId, taskRunId, authorizeRetained))
+      if (!revision) throw new TypeError(`revision is required to ${action} a task run`)
+      if (action === 'heartbeat') return textResult(await taskRuns.heartbeat(workspaceId, taskRunId, revision, authorizeActive))
+      if (!outcome) throw new TypeError('outcome is required to complete a task run')
+      const evaluate = async (definitions: TaskRunCheckDefinition[]) => {
+        const results: Array<{ id: string; status: 'PASS' | 'FAIL' | 'UNAVAILABLE' }> = []
+        const context: unknown[] = []
+        for (const check of definitions) {
+          if (check.type === 'audit-run') {
+            try {
+              if (!auditReceipts) throw new Error('Audit storage unavailable')
+              const report = await auditReceipts.read(workspaceId, check.artifactId)
+              const status = report.run.status === 'stopped' && report.run.persistenceFailed === false
+                ? 'PASS' : report.run.status === 'recording' || report.run.status === 'stopping' ? 'FAIL' : 'UNAVAILABLE'
+              results.push({ id: check.id, status })
+              context.push([check.id, check.type, check.artifactId, report.run.status,
+                report.run.stoppedAt, report.run.persistenceFailed, report.receipts.length])
+            } catch {
+              results.push({ id: check.id, status: 'UNAVAILABLE' })
+              context.push([check.id, check.type, check.artifactId, 'unavailable'])
+            }
+            continue
+          }
+          let tab
+          try {
+            manager.requireTabInMcpGroup(workspaceId, check.tabId)
+            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === check.tabId)
+          } catch { /* Report bounded unavailability below. */ }
+          if (!tab) {
+            results.push({ id: check.id, status: 'UNAVAILABLE' })
+            context.push([check.id, check.type, check.tabId, 'unavailable'])
+            continue
+          }
+          let originFingerprint = 'unavailable'
+          try {
+            const current = new URL(tab.url)
+            if (['http:', 'https:'].includes(current.protocol)) {
+              originFingerprint = createHash('sha256').update(current.origin, 'utf8').digest('hex')
+            }
+          } catch { /* Keep the bounded unavailable marker. */ }
+          const settled = !tab.loading && !tab.sleeping
+          results.push({
+            id: check.id,
+            status: check.type === 'page-settled' ? (settled ? 'PASS' : 'FAIL')
+              : originFingerprint === 'unavailable' ? 'UNAVAILABLE'
+                : originFingerprint === check.fingerprint ? 'PASS' : 'FAIL'
+          })
+          context.push([check.id, check.type, check.tabId, tab.navigationGeneration,
+            tab.observationGeneration ?? 0, tab.loading, tab.sleeping, originFingerprint])
+        }
+        return {
+          results,
+          contextToken: createHash('sha256').update(JSON.stringify(context), 'utf8').digest('hex')
+        }
+      }
+      return textResult(await taskRuns.complete(workspaceId, taskRunId, revision, outcome, authorizeActive, evaluate))
     })
   )
 
@@ -3131,7 +3262,8 @@ export class McpHttpServer {
             () => this.paused,
             this.actionTracker,
             this.options.authorizeAutomation,
-            this.options.humanWaiting
+            this.options.humanWaiting,
+            this.options.taskRuns
           )
           session.server = mcp.server
           session.transport = transport

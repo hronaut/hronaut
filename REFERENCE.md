@@ -311,6 +311,41 @@ For screenshots, humans can drag an area from the toolbar, pick one complete ele
 
 For text-first context, choose **Page tools → Copy page snapshot** or search the Command Palette for `page context`. Hronaut copies a bounded 30,000-character view of the current headings, interactive controls, and visible text through the same verified native clipboard bridge. Live form values are excluded, and URLs remove credentials, fragments, and recognized secret-bearing query values before the snapshot reaches the clipboard. Visible page-authored text can still be private, so review it before sharing outside the trusted agent session.
 
+## Track bounded task runs
+
+The QA and Complete tool sets include `browser_task_runs` for workflows that
+span several browser actions. Call `start` with an authorized active workspace,
+an overall deadline, a heartbeat timeout, and up to eight typed completion
+checks. The returned opaque run ID and revision are correlation handles, not
+authorization. Send the latest revision with each `heartbeat` or `complete`.
+Stale revisions are rejected, and heartbeats never extend the overall deadline.
+
+Completion checks can require a fixed tab to be settled, require its current
+HTTP(S) origin to match the exact origin supplied at start, or require a retained
+action-audit run to be stopped without a persistence failure. Expected origins
+are stored as SHA-256 fingerprints and are not returned. A `SUCCEEDED` claim
+requires at least one check. Hronaut durably records an intermediate verification
+admission, then every check must pass again before success is published. A failed check becomes `BLOCKED`; unavailable evidence becomes
+`OUTCOME_UNKNOWN`; evidence drift while success is saved becomes
+`OUTCOME_UNKNOWN` with `COMPLETION_CONTEXT_CHANGED`.
+
+Missing heartbeats or the overall deadline produce `TIMED_OUT` with a fixed
+reason. An unfinished run restored after application restart becomes
+`OUTCOME_UNKNOWN`; Hronaut never resumes work or infers success. Callers may
+also explicitly finish with `FAILED`, `BLOCKED`, or `OUTCOME_UNKNOWN`. The
+profile retains at most 100 runs and evicts only the oldest terminal record when
+full. Corrupt or oversized history makes the service unavailable rather than
+silently resetting it.
+
+Task-run files contain only workspace, tab, run and revision IDs, timestamps,
+typed check state, origin fingerprints, and opaque audit-run references. They do
+not contain prompts, page text, URLs, tool arguments or results, credentials,
+uploads, or artifact bodies. Workspace ownership is checked before and after
+disk or browser work, and must be resumed after reconnect. This Hronaut workflow
+contract is separate from the version-negotiated
+[MCP Tasks extension](https://modelcontextprotocol.io/extensions/tasks/overview),
+which represents deferred execution of a single protocol request.
+
 ## Record action audit receipts
 
 The QA and Complete tool sets include `browser_audit_receipts`. Recording is off
