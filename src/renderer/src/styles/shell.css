@@ -209,7 +209,10 @@
   .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
 }
-@media (max-width: 800px) {
+@media (max-width: 900px) {
+  .shell:not(.vertical-tabs-shell) .history-button { @apply hidden; }
+}
+@media (max-width: 720px) {
   .shell:not(.vertical-tabs-shell) .topbar,
   .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
     @apply flex-wrap [height:auto] [row-gap:3px];
