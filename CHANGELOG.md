@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Pin the complete MCP tool catalog and server instructions for each live connection, so a Settings change applies only after reconnect and cannot silently alter model-facing metadata mid-session.
+- Fence retained Console, Network, and in-progress download evidence by an opaque observation generation that advances on pause, reconnect, and workspace resume, preventing delayed requests, redirects, and downloads from becoming actionable after a handoff while recording the boundary in tab state and audit receipts.
 
 ## [1.22.0] - 2026-09-09
 

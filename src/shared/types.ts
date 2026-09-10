@@ -195,6 +195,8 @@ export interface BrowserTabState {
   url: string
   loading: boolean
   navigationGeneration: number
+  /** Opaque boundary advanced when agent control is handed off or re-established. */
+  observationGeneration?: number
   /** Runtime marker for direct human keyboard/mouse input; not page content. */
   humanInteractionGeneration?: number
   canGoBack: boolean
@@ -1245,6 +1247,7 @@ export interface BrowserConsoleStackFrame {
 }
 
 export interface BrowserConsoleMessage {
+  observationGeneration?: number
   timestamp: string
   firstTimestamp?: string
   repeatCount?: number
@@ -1275,6 +1278,7 @@ export type BrowserServiceWorkerResponseSource =
 
 export interface BrowserNetworkRequest {
   id: string
+  observationGeneration?: number
   url: string
   method: string
   resourceType: string
@@ -1896,6 +1900,7 @@ export interface BrowserPdfExport {
 
 export interface BrowserDownloadState {
   id: string
+  observationGeneration?: number
   tabId?: string
   url: string
   filename: string

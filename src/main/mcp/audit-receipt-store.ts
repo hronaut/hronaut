@@ -9,6 +9,8 @@ const identifier = z.uuid()
 const stateSchema = z.object({
   tabId: identifier.nullable(),
   navigationGeneration: z.number().int().nonnegative().safe(),
+  // Optional while reading journals written before observation fencing shipped.
+  observationGeneration: z.number().int().nonnegative().safe().optional(),
   originChanged: z.boolean()
 }).strict()
 const eventSchema = z.discriminatedUnion('phase', [
