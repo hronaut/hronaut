@@ -1,12 +1,24 @@
 import { currentAuditAction, withAuditAction } from './audit-action-context.js'
 import type { AuditReceipt, AuditReceiptEvent, AuditReceiptStore } from './audit-receipt-store.js'
 
-type ObservedState = AuditReceiptEvent['state']
+type ObservedState = Extract<AuditReceiptEvent, { phase: 'decision' }>['state']
 type SiteAccessInput = Omit<Extract<AuditReceiptEvent, { phase: 'site-access' }>, 'phase' | 'actionId'>
 interface ActiveAction {
   acceptingSites: boolean
   dropped: number
   writes: Set<Promise<void>>
+}
+
+type VerificationEvent = Extract<AuditReceiptEvent, { phase: 'verification' }>
+export type AuditVerificationUpdate = Pick<VerificationEvent, 'attempt' | 'status' | 'reason'>
+export interface AuditReceiptVerificationOptions {
+  verificationId: string
+  maxAttempts: number
+  verify: (context: {
+    actionId: string
+    signal?: AbortSignal
+    append: (update: AuditVerificationUpdate) => Promise<void>
+  }) => Promise<void>
 }
 
 export interface AuditReceiptActionOptions<T> {
@@ -18,6 +30,7 @@ export interface AuditReceiptActionOptions<T> {
   /** Trusted dispatch classification; never infer it from page text. */
   classifyErrorResult?: (result: T) => 'outcome-unknown' | 'stale-observation' | undefined
   signal?: AbortSignal
+  verification?: AuditReceiptVerificationOptions
 }
 
 /** A single owner for an explicitly started run, after workspace authorization.
@@ -55,6 +68,27 @@ export class AuditReceiptRun {
         phase: 'decision', scope: 'workspace', actionId, toolName: options.toolName,
         decision: 'allowed', state: observe()
       })
+      if (options.verification) {
+        try {
+          await this.store.append({
+            phase: 'verification', actionId,
+            verificationId: options.verification.verificationId,
+            maxAttempts: options.verification.maxAttempts,
+            attempt: 0, status: 'pending', reason: 'awaiting-read'
+          })
+        } catch {
+          try {
+            await this.store.append({
+              phase: 'outcome', actionId, status: 'failed', effects: 'none',
+              siteAccessDropped: 0, state: observe()
+            })
+          } catch {
+            this.persistenceFailed = true
+            throw new Error('Verification admission and its closing audit outcome could not be saved; the action was not invoked')
+          }
+          throw new Error('Post-write verification admission could not be saved; the action was not invoked')
+        }
+      }
       const action: ActiveAction = { acceptingSites: true, dropped: 0, writes: new Set() }
       this.actions.set(actionId, action)
       let status: Extract<AuditReceiptEvent, { phase: 'outcome' }>['status'] = 'failed'
@@ -89,6 +123,41 @@ export class AuditReceiptRun {
         // Do not attach raw tool errors/results as a cause. The operation may
         // already have changed browser state, so a retry is not appropriate.
         throw new Error('Action settled but its audit outcome could not be saved; do not automatically retry the action')
+      }
+      if (options.verification) {
+        const verification = options.verification
+        let attempt = 0
+        let terminal = false
+        const append = async (update: AuditVerificationUpdate): Promise<void> => {
+          await this.store.append({
+            phase: 'verification', actionId,
+            verificationId: verification.verificationId,
+            maxAttempts: verification.maxAttempts,
+            ...update
+          })
+          attempt = update.attempt
+          terminal = update.status === 'verified' || update.status === 'unknown'
+        }
+        try {
+          if (status === 'succeeded') {
+            await verification.verify({ actionId, signal: options.signal, append })
+            if (!terminal) await append({ attempt, status: 'unknown', reason: options.signal?.aborted ? 'cancelled' : 'read-unavailable' })
+          } else {
+            const reason = status === 'outcome-unknown' ? 'transport-ambiguous'
+              : status === 'failed' ? 'transport-failed'
+                : status === 'cancelled' ? 'cancelled' : 'context-changed'
+            await append({ attempt: 0, status: 'unknown', reason })
+          }
+        } catch {
+          if (!terminal) {
+            try {
+              await append({ attempt, status: 'unknown', reason: options.signal?.aborted ? 'cancelled' : 'read-unavailable' })
+            } catch {
+              this.persistenceFailed = true
+              throw new Error('Action settled but its verification evidence could not be saved; do not automatically retry the action')
+            }
+          }
+        }
       }
       if (!settled.ok) throw settled.error
       return settled.value

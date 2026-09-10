@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import type { BrowserWorkspaceNavigationPolicy } from '../../shared/types.js'
+import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import type { WorkspaceContinuityEvidence } from './workspace-continuity.js'
 
 /** Fingerprints are private, process-local continuity signals, not account proof.
@@ -7,6 +8,17 @@ import type { WorkspaceContinuityEvidence } from './workspace-continuity.js'
 export class WorkspaceContinuityEvidenceFactory {
   private readonly key = randomBytes(32)
   private readonly epoch = randomUUID()
+
+  private digest(domain: string, value: unknown): string {
+    return createHmac('sha256', this.key).update(JSON.stringify([domain, value])).digest('hex')
+  }
+
+  postWriteFingerprint(evidence: WorkspaceContinuityEvidence, condition: BrowserPostcondition): string {
+    return this.digest('post-write', [
+      evidence.epoch, evidence.workspaceId, evidence.tabId,
+      evidence.originDigest, evidence.policyDigest, condition
+    ])
+  }
 
   capture(input: {
     workspaceId: string
@@ -27,17 +39,16 @@ export class WorkspaceContinuityEvidenceFactory {
       origin = url.origin
     } catch { return null }
     if (marker && (typeof marker.value !== 'string' || Buffer.byteLength(marker.value, 'utf8') > 512)) return null
-    const digest = (domain: string, value: unknown): string => createHmac('sha256', this.key).update(JSON.stringify([domain, value])).digest('hex')
     return {
       epoch: this.epoch,
       workspaceId: input.workspaceId,
       tabId: tab.id,
-      originDigest: digest('origin', origin),
+      originDigest: this.digest('origin', origin),
       // Sorting ignores irrelevant rule ordering while preserving every rule.
-      policyDigest: digest('policy', [policy.mode, [...new Set(policy.rules)].sort()]),
+      policyDigest: this.digest('policy', [policy.mode, [...new Set(policy.rules)].sort()]),
       navigationGeneration: tab.navigationGeneration,
       humanInteractionGeneration: tab.humanInteractionGeneration!,
-      ...(marker ? { markerDigest: digest('marker', marker.value) } : {})
+      ...(marker ? { markerDigest: this.digest('marker', marker.value) } : {})
     }
   }
 }

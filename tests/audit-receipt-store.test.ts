@@ -157,9 +157,13 @@ describe('action audit receipt journal', () => {
     const rest = Array.from({ length: 8 }, () => store.append(decision()))
     const entries = await Promise.all([first, ...rest])
     expect(entries.map(entry => entry.sequence)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    expect(entries[0]!.event.state!.navigationGeneration).toBe(1)
-    entries[0]!.event.state!.navigationGeneration = 500
-    expect((await store.read())[0]!.event.state!.navigationGeneration).toBe(1)
+    const firstEvent = entries[0]!.event
+    if (firstEvent.phase !== 'decision') throw new Error('Expected decision receipt')
+    expect(firstEvent.state!.navigationGeneration).toBe(1)
+    firstEvent.state!.navigationGeneration = 500
+    const reloaded = (await store.read())[0]!.event
+    if (reloaded.phase !== 'decision') throw new Error('Expected persisted decision receipt')
+    expect(reloaded.state!.navigationGeneration).toBe(1)
   })
 
   it.each(['arguments', 'result', 'error', 'url', 'password', 'resumeKey'])('rejects unallowlisted %s without writing or echoing its value', async (field) => {

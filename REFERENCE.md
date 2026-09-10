@@ -350,6 +350,31 @@ their existing contracts and need no migration. This first receipt format does
 not retain references to those separate evidence streams; its state summary is
 limited to the tab identifier, navigation generation, and origin-change flag.
 
+### Verify a delayed browser write
+
+`browser_click` accepts an optional `postcondition` when an action-receipt run is
+active. It binds the click to the current workspace, tab, HTTP(S) origin, account
+marker, and expected visible state before dispatch. After the click transport
+succeeds, Hronaut performs up to five isolated-world reads with bounded backoff
+for at most 30 seconds. The click itself runs exactly once.
+
+Supply `expectedOrigin`, a unique `accountSelector` and its exact bounded
+`expectedAccount` text, plus a unique `stateSelector` and exact `expectedText`.
+Optional `timeoutMs`, `maxAttempts`, and `initialDelayMs` tune the bounded read
+window. Selector and expected text values stay local and are excluded from the
+receipt. The tool result includes a safe `postWriteVerification` status; the
+receipt preserves the original transport outcome separately from pending,
+not-yet-visible, verified, or unknown verification events.
+
+A missing delayed state is not treated as permission to click again. Timeout,
+read failure, account or origin change, navigation/control drift, cancellation,
+human takeover, and persistence failure end conservatively. Verification
+requires fresh authorization before each read, never executes page-authored
+query hooks, and never resumes after restart. API-backed integrations can use
+the same internal receipt lifecycle when they have a provider-specific revision
+or idempotency contract; Hronaut does not infer such a contract from generic MCP
+annotations or HTTP success.
+
 ## Check workspace readiness
 
 The QA and Complete tool sets include `browser_preflight`. Supply your

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AuditReceiptService } from '../src/main/mcp/audit-receipt-service.js'
+import { AuditReceiptStore } from '../src/main/mcp/audit-receipt-store.js'
 
 const diskFault = vi.hoisted(() => ({ failTemporaryWrite: false }))
 vi.mock('node:fs/promises', async (importOriginal) => {
@@ -70,6 +71,16 @@ describe('persistent audit receipt service', () => {
     await expect(stat(root)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('does not dispatch a verification-bound mutation after its audit run disappears', async () => {
+    const { service, workspaceId } = await fixture()
+    const operation = vi.fn(async () => 'changed')
+    await expect(service.execute(workspaceId, {
+      ...action(operation),
+      verification: { verificationId: randomUUID(), maxAttempts: 1, verify: async () => undefined }
+    })).rejects.toThrow('active audit receipt run')
+    expect(operation).not.toHaveBeenCalled()
+  })
+
   it('uses one writer for concurrent starts and persists stopped state across restart', async () => {
     const { service, root, toolNames, workspaceId } = await fixture()
     const [first, second] = await Promise.all([service.start(workspaceId), service.start(workspaceId)])
@@ -101,6 +112,28 @@ describe('persistent audit receipt service', () => {
     expect(fresh.id).not.toBe(run.id)
     expect((await reopened.list(workspaceId))[0]!.status).toBe('interrupted')
     await reopened.stop(workspaceId)
+  })
+
+  it('durably resolves verification left pending by a process restart as unknown', async () => {
+    const { service, root, toolNames, workspaceId } = await fixture()
+    const run = await service.start(workspaceId)
+    const store = new AuditReceiptStore({
+      path: join(root, workspaceId, `${run.id}.jsonl`), workspaceId, runId: run.id, toolNames
+    })
+    const actionId = randomUUID()
+    const verificationId = randomUUID()
+    await store.append({ phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click', decision: 'allowed', state: null })
+    await store.append({ phase: 'verification', actionId, verificationId, maxAttempts: 3, attempt: 0, status: 'pending', reason: 'awaiting-read' })
+    await store.append({ phase: 'outcome', actionId, status: 'succeeded', effects: 'possible', siteAccessDropped: 0, state: null })
+
+    const reopened = new AuditReceiptService(root, toolNames)
+    const first = await reopened.read(workspaceId, run.id)
+    expect(first.run.status).toBe('interrupted')
+    expect(first.receipts.at(-1)!.event).toMatchObject({
+      phase: 'verification', actionId, verificationId, status: 'unknown', reason: 'restart', attempt: 0
+    })
+    const second = await reopened.read(workspaceId, run.id)
+    expect(second.receipts).toHaveLength(first.receipts.length)
   })
 
   it('retains exactly three whole runs and never exposes another workspace run', async () => {
