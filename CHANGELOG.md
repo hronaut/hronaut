@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.23.0] - 2026-09-10
+
 ### Added
 
 - Add a versioned canonical public-facts file, publishing checklist, and copy validator to keep pricing, licensing, platform, setup, and supported-client claims synchronized.
