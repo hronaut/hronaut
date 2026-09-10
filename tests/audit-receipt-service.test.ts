@@ -43,6 +43,36 @@ function deferred() {
 }
 
 describe('persistent audit receipt service', () => {
+  it('exports bounded coverage and resolves opaque references only inside their retained workspace run', async () => {
+    const { service, workspaceId } = await fixture()
+    const run = await service.start(workspaceId)
+    const referenceId = randomUUID()
+    const tabId = randomUUID()
+    await service.execute(workspaceId, {
+      ...action(async () => 'done'),
+      observeEvidence: () => ({
+        state: { tabId, navigationGeneration: 2, observationGeneration: 3,
+          humanInteractionGeneration: 0, controlRevision: 5, originChanged: false },
+        artifacts: [
+          { source: 'diagnostic', status: 'available', reason: 'retained', referenceId },
+          { source: 'storage-changes', status: 'not-collected', reason: 'baseline-missing', referenceId: null }
+        ]
+      })
+    })
+    await service.stop(workspaceId)
+    const report = await service.read(workspaceId, run.id)
+    expect(report.formatVersion).toBe(2)
+    expect(report.evidenceCoverage).toMatchObject({ limit: 1_000, omitted: 0 })
+    expect(report.evidenceCoverage.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId: expect.any(String), source: 'diagnostic', status: 'available', referenceId,
+        state: expect.objectContaining({ tabId, observationGeneration: 3, controlRevision: 5 }) }),
+      expect.objectContaining({ source: 'storage-changes', status: 'not-collected', reason: 'baseline-missing', referenceId: null })
+    ]))
+    expect(await service.evidence(workspaceId, run.id, referenceId)).toMatchObject({ source: 'diagnostic', referenceId })
+    await expect(service.evidence(workspaceId, run.id, randomUUID())).rejects.toThrow('not retained')
+    await expect(service.evidence(randomUUID(), run.id, referenceId)).rejects.toThrow('not retained')
+  })
+
   it('drains a start already queued at shutdown and refuses later starts', async () => {
     const { service, workspaceId } = await fixture()
     const starting = service.start(workspaceId)
@@ -134,6 +164,33 @@ describe('persistent audit receipt service', () => {
     })
     const second = await reopened.read(workspaceId, run.id)
     expect(second.receipts).toHaveLength(first.receipts.length)
+    expect(second.evidenceCoverage.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId, source: 'postcondition', status: 'expired', reason: 'restart', referenceId: null })
+    ]))
+  })
+
+  it('exports the exact drop cause and OUTCOME_UNKNOWN transition coverage', async () => {
+    const { service, root, toolNames, workspaceId } = await fixture()
+    const run = await service.start(workspaceId)
+    const store = new AuditReceiptStore({
+      path: join(root, workspaceId, `${run.id}.jsonl`), workspaceId, runId: run.id, toolNames
+    })
+    const actionId = randomUUID()
+    await store.append({
+      phase: 'decision', scope: 'workspace', actionId, toolName: 'browser_click',
+      decision: 'allowed', evidenceExpected: true, state: null
+    })
+    await store.append({
+      phase: 'outcome', actionId, status: 'outcome-unknown', effects: 'possible', siteAccessDropped: 0,
+      evidenceDropped: 1, evidenceDropReason: 'persistence-failed', state: null
+    })
+
+    const report = await new AuditReceiptService(root, toolNames).read(workspaceId, run.id)
+    expect(report.transitionCoverage.outcomeUnknown).toBe(1)
+    expect(report.evidenceCoverage.items.filter(item => item.actionId === actionId)).toHaveLength(5)
+    expect(report.evidenceCoverage.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId, source: 'diagnostic', status: 'dropped', reason: 'persistence-failed' })
+    ]))
   })
 
   it('retains exactly three whole runs and never exposes another workspace run', async () => {
@@ -171,6 +228,10 @@ describe('persistent audit receipt service', () => {
     const later = (await service.read(workspaceId, second.id)).receipts[0]!.event
     expect(later).toMatchObject({ phase: 'site-access', actionId: null })
     expect(later).not.toMatchObject({ originId: origins[0] })
+    const coverage = (await service.read(workspaceId, second.id)).evidenceCoverage.items
+    expect(coverage).toEqual(expect.arrayContaining([
+      expect.objectContaining({ actionId: null, source: 'site-access', status: 'uncorrelated', reason: 'action-context-missing' })
+    ]))
     for (const name of await readdir(join(root, workspaceId))) {
       const contents = await readFile(join(root, workspaceId, name), 'utf8')
       expect(contents).not.toContain('private-origin-canary')

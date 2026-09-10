@@ -7,6 +7,7 @@ out
 dist
 docs/*
 !docs/*.md
+!docs/PUBLIC_FACTS.json
 playwright-report
 test-results
 *.tsbuildinfo

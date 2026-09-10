@@ -5889,6 +5889,32 @@ export class BrowserTabsManager {
     })
   }
 
+  auditEvidenceAvailability(tabId: string): {
+    diagnostic: boolean
+    network: boolean
+    domChanges: boolean
+    storageChanges: boolean
+    storageSupported: boolean
+    reproduction: boolean
+  } {
+    const tab = this.getTab(tabId)
+    let origin: string | undefined
+    try {
+      const url = new URL(tab.url)
+      if (url.protocol === 'http:' || url.protocol === 'https:') origin = url.origin
+    } catch {
+      // Invalid or internal URLs do not support storage-change snapshots.
+    }
+    return {
+      diagnostic: true,
+      network: true,
+      domChanges: tab.domChangesRecording?.observationGeneration === tab.observationGeneration,
+      storageChanges: !!origin && tab.storageComparison?.baseline.origin === origin,
+      storageSupported: origin !== undefined,
+      reproduction: tab.reproRecording !== undefined
+    }
+  }
+
   diagnosticLogState(tabId?: string): BrowserDiagnosticLogState {
     const tab = this.getTab(tabId)
     return {

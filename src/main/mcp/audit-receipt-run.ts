@@ -3,6 +3,7 @@ import type { AuditReceipt, AuditReceiptEvent, AuditReceiptStore } from './audit
 
 type ObservedState = Extract<AuditReceiptEvent, { phase: 'decision' }>['state']
 type SiteAccessInput = Omit<Extract<AuditReceiptEvent, { phase: 'site-access' }>, 'phase' | 'actionId'>
+type EvidenceInput = Omit<Extract<AuditReceiptEvent, { phase: 'evidence' }>, 'phase' | 'actionId'>
 interface ActiveAction {
   acceptingSites: boolean
   dropped: number
@@ -31,6 +32,7 @@ export interface AuditReceiptActionOptions<T> {
   classifyErrorResult?: (result: T) => 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
   signal?: AbortSignal
   verification?: AuditReceiptVerificationOptions
+  observeEvidence?: () => EvidenceInput
 }
 
 /** A single owner for an explicitly started run, after workspace authorization.
@@ -66,7 +68,7 @@ export class AuditReceiptRun {
       // browser operation starts. Failure here cannot trigger an implicit retry.
       await this.store.append({
         phase: 'decision', scope: 'workspace', actionId, toolName: options.toolName,
-        decision: 'allowed', state: observe()
+        decision: 'allowed', ...(options.observeEvidence ? { evidenceExpected: true } : {}), state: observe()
       })
       if (options.verification) {
         try {
@@ -112,11 +114,30 @@ export class AuditReceiptRun {
       action.acceptingSites = false
       await Promise.all([...action.writes])
       this.actions.delete(actionId)
+      let evidenceDropped = 0
+      let evidenceDropReason: 'capacity' | 'observation-failed' | 'persistence-failed' | undefined
+      let evidence: EvidenceInput | undefined
+      try {
+        evidence = options.observeEvidence?.()
+      } catch {
+        evidenceDropped = 1
+        evidenceDropReason = 'observation-failed'
+      }
+      if (evidence) {
+        try {
+          await this.store.append({ phase: 'evidence', actionId, ...structuredClone(evidence) })
+        } catch (error) {
+          evidenceDropped = 1
+          evidenceDropReason = error instanceof Error && /capacity/i.test(error.message)
+            ? 'capacity' : 'persistence-failed'
+        }
+      }
       try {
         await this.store.append({
           phase: 'outcome', actionId, status,
           effects: !invoked || options.readOnly || status === 'provenance-rejected' ? 'none' : 'possible',
-          siteAccessDropped: action.dropped, state: observe()
+          siteAccessDropped: action.dropped, evidenceDropped,
+          ...(evidenceDropReason ? { evidenceDropReason } : {}), state: observe()
         })
       } catch {
         this.persistenceFailed = true

@@ -38,6 +38,65 @@ function verification(verify: NonNullable<Parameters<AuditReceiptRun['execute']>
 }
 
 describe('audit receipt run lifecycle', () => {
+  it('records bounded evidence metadata without storing the action result', async () => {
+    const { run } = await fixture()
+    const tabId = randomUUID()
+    const referenceId = randomUUID()
+    const result = { private: 'private-evidence-result-canary' }
+    expect(await run.execute({
+      ...action(async () => result),
+      observeEvidence: () => ({
+        state: { tabId, navigationGeneration: 4, observationGeneration: 6,
+          humanInteractionGeneration: 1, controlRevision: 8, originChanged: false },
+        artifacts: [
+          { source: 'diagnostic', status: 'available', reason: 'retained', referenceId },
+          { source: 'reproduction', status: 'not-collected', reason: 'recorder-inactive', referenceId: null }
+        ]
+      })
+    })).toBe(result)
+    const report = await run.report()
+    expect(report.receipts.map(receipt => receipt.event.phase)).toEqual(['decision', 'evidence', 'outcome'])
+    expect(report.receipts[1]!.event).toMatchObject({
+      phase: 'evidence', artifacts: [
+        { source: 'diagnostic', status: 'available', referenceId },
+        { source: 'reproduction', status: 'not-collected', referenceId: null }
+      ],
+      state: { tabId, navigationGeneration: 4, observationGeneration: 6, controlRevision: 8 }
+    })
+    expect(JSON.stringify(report)).not.toContain('private-evidence-result-canary')
+  })
+
+  it('returns the operation result and exposes a dropped coverage event when evidence persistence reaches capacity', async () => {
+    const { store, workspaceId } = await fixture()
+    const run = new AuditReceiptRun(workspaceId, {
+      read: () => store.read(),
+      append: event => event.phase === 'evidence' ? Promise.reject(new Error('Capacity reached')) : store.append(event)
+    })
+    expect(await run.execute({
+      ...action(async () => 'done'),
+      observeEvidence: () => ({
+        state: null,
+        artifacts: [{ source: 'diagnostic', status: 'unsupported', reason: 'no-tab', referenceId: null }]
+      })
+    })).toBe('done')
+    expect((await run.report()).receipts.at(-1)!.event).toMatchObject({
+      phase: 'outcome', status: 'succeeded', evidenceDropped: 1, evidenceDropReason: 'capacity'
+    })
+  })
+
+  it('distinguishes evidence observation failures from storage failures without repeating the action', async () => {
+    const { run } = await fixture()
+    const operation = vi.fn(async () => 'done')
+    expect(await run.execute({
+      ...action(operation),
+      observeEvidence: () => { throw new Error('private observation failure') }
+    })).toBe('done')
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect((await run.report()).receipts.at(-1)!.event).toMatchObject({
+      phase: 'outcome', status: 'succeeded', evidenceDropped: 1, evidenceDropReason: 'observation-failed'
+    })
+  })
+
   it('admits verification before the mutation and appends delayed evidence after its transport outcome', async () => {
     const { run, store } = await fixture()
     const verify = vi.fn(async ({ actionId, append }: Parameters<NonNullable<Parameters<AuditReceiptRun['execute']>[0]['verification']>['verify']>[0]) => {

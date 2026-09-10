@@ -382,10 +382,16 @@ no raw URLs, titles, tool arguments, tool results, error text, form values, page
 content, cookies, resume keys, or MCP tokens. The journal hash chain detects
 inconsistent history; it is not proof against someone who can rewrite local files.
 
-Existing network, console, DOM-change, and storage-change evidence tools keep
-their existing contracts and need no migration. This first receipt format does
-not retain references to those separate evidence streams; its state summary is
-limited to the tab identifier, navigation generation, and origin-change flag.
+Format-version-2 reports include a bounded `evidenceCoverage` list before an
+agent opens a separate diagnostic, network, DOM-change, storage-change, or
+reproduction report. Available artifacts have opaque UUID references scoped to
+the retained workspace run. Resolve one with `action=evidence`, its `runId`, and
+`evidenceId`; Hronaut returns the existing tool to open, without copying that
+tool's contents into the journal. Live references expire after process restart,
+control changes, navigation, observation changes, or tab removal. Missing,
+unsupported, dropped, expired, and uncorrelated coverage remains explicit, and
+the list reports a limit and omitted count. Postcondition references locate the
+exact retained verification receipt instead of a live browser surface.
 
 ### Verify a delayed browser write
 

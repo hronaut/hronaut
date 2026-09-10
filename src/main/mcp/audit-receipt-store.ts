@@ -12,6 +12,8 @@ const stateSchema = z.object({
   // Optional while reading journals written before observation fencing shipped.
   observationGeneration: z.number().int().nonnegative().safe().optional(),
   humanInteractionGeneration: z.number().int().nonnegative().safe().optional(),
+  controlRevision: z.number().int().nonnegative().safe().optional(),
+  runtimeId: identifier.optional(),
   originChanged: z.boolean(),
   operationClass: z.enum(['navigation', 'page-interaction', 'browser-state', 'site-data', 'network', 'external-request']).optional(),
   targetKind: z.enum(['tab', 'element-ref', 'selector', 'coordinates', 'drag', 'form', 'origin', 'script', 'request']).optional(),
@@ -21,7 +23,30 @@ const stateSchema = z.object({
     'NAVIGATION_CHANGED', 'EXPECTED_STATE_CHANGED', 'SITE_POLICY_CHANGED'
   ]).optional()
 }).strict()
+const evidenceArtifactSchema = z.object({
+  source: z.enum(['diagnostic', 'network', 'dom-changes', 'storage-changes', 'reproduction']),
+  status: z.enum(['available', 'not-collected', 'unsupported', 'dropped', 'expired', 'uncorrelated']),
+  reason: z.enum([
+    'retained', 'recorder-inactive', 'baseline-missing', 'no-tab', 'unsupported-scheme',
+    'capacity', 'action-context-missing', 'navigation-changed', 'observation-changed',
+    'control-changed', 'runtime-changed', 'run-interrupted', 'outcome-unknown'
+  ]),
+  referenceId: identifier.nullable()
+}).strict().superRefine((artifact, context) => {
+  if ((artifact.status === 'available') !== (artifact.referenceId !== null)) {
+    context.addIssue({ code: 'custom', message: 'Only available evidence has a reference' })
+  }
+  if ((artifact.status === 'available') !== (artifact.reason === 'retained')) {
+    context.addIssue({ code: 'custom', message: 'Available evidence must be retained' })
+  }
+})
 const eventSchema = z.discriminatedUnion('phase', [
+  z.object({
+    phase: z.literal('evidence'),
+    actionId: identifier.nullable(),
+    artifacts: z.array(evidenceArtifactSchema).min(1).max(5),
+    state: stateSchema.nullable()
+  }).strict(),
   z.object({
     phase: z.literal('verification'),
     actionId: identifier,
@@ -37,6 +62,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     actionId: identifier,
     toolName: z.string().regex(/^browser_[a-z_]+$/),
     decision: z.enum(['allowed', 'denied']),
+    evidenceExpected: z.boolean().optional(),
     state: stateSchema.nullable()
   }).strict(),
   z.object({
@@ -56,6 +82,9 @@ const eventSchema = z.discriminatedUnion('phase', [
     // Failure or cancellation does not establish that a write was rolled back.
     effects: z.enum(['none', 'possible', 'confirmed']),
     siteAccessDropped: z.number().int().nonnegative().safe(),
+    // Optional while reading journals written before evidence coverage shipped.
+    evidenceDropped: z.number().int().nonnegative().safe().optional(),
+    evidenceDropReason: z.enum(['capacity', 'observation-failed', 'persistence-failed']).optional(),
     state: stateSchema.nullable()
   }).strict()
 ])
@@ -122,6 +151,25 @@ function transition(actions: Map<string, AuditReceiptEvent>, event: AuditReceipt
     if (action?.phase !== 'decision' || action.decision !== 'allowed') throw new Error('Invalid audit receipt transition')
     return
   }
+  if (event.phase === 'evidence') {
+    if (new Set(event.artifacts.map(artifact => artifact.source)).size !== event.artifacts.length) {
+      throw new Error('Invalid audit receipt transition')
+    }
+    if (event.actionId === null) {
+      if (event.artifacts.some(artifact => artifact.status !== 'uncorrelated'
+        || artifact.reason !== 'action-context-missing')) throw new Error('Invalid audit receipt transition')
+      return
+    }
+    const action = actions.get(event.actionId)
+    if (!action || (action.phase !== 'decision' && action.phase !== 'outcome')
+      || (action.phase === 'decision' && action.decision !== 'allowed')) {
+      throw new Error('Invalid audit receipt transition')
+    }
+    const key = `evidence:${event.actionId}`
+    if (actions.has(key)) throw new Error('Invalid audit receipt transition')
+    actions.set(key, event)
+    return
+  }
   const previous = actions.get(event.actionId)
   if (event.phase === 'decision' ? previous !== undefined : (
     previous?.phase !== 'decision' || previous.decision !== 'allowed'
@@ -142,6 +190,7 @@ export class AuditReceiptStore {
   private readonly maxEntries: number
   private readonly maxBytes: number
   private readonly outcomeReservationBytes: number
+  private readonly evidenceReservationBytes: number
   private readonly verificationReservationBytes: number
 
   constructor(options: AuditReceiptStoreOptions) {
@@ -160,12 +209,41 @@ export class AuditReceiptStore {
       timestamp: '9999-12-31T23:59:59.999Z',
       event: {
         phase: 'outcome', actionId: options.runId, status: 'stale-observation', effects: 'confirmed',
-        siteAccessDropped: Number.MAX_SAFE_INTEGER,
+        siteAccessDropped: Number.MAX_SAFE_INTEGER, evidenceDropped: Number.MAX_SAFE_INTEGER,
+        evidenceDropReason: 'persistence-failed',
         state: {
           tabId: options.runId,
           navigationGeneration: Number.MAX_SAFE_INTEGER,
           observationGeneration: Number.MAX_SAFE_INTEGER,
           humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
+          controlRevision: Number.MAX_SAFE_INTEGER,
+          runtimeId: options.runId,
+          originChanged: false,
+          operationClass: 'page-interaction',
+          targetKind: 'coordinates',
+          targetId: options.runId,
+          authorityReason: 'EXPECTED_STATE_CHANGED'
+        }
+      },
+      previousHash: 'f'.repeat(64), hash: 'f'.repeat(64)
+    }) + '\n')
+    this.evidenceReservationBytes = Buffer.byteLength(JSON.stringify({
+      sequence: this.maxEntries,
+      workspaceId: options.workspaceId,
+      runId: options.runId,
+      timestamp: '9999-12-31T23:59:59.999Z',
+      event: {
+        phase: 'evidence', actionId: options.runId,
+        artifacts: ['diagnostic', 'network', 'dom-changes', 'storage-changes', 'reproduction'].map(source => ({
+          source, status: 'available', reason: 'retained', referenceId: options.runId
+        })),
+        state: {
+          tabId: options.runId,
+          navigationGeneration: Number.MAX_SAFE_INTEGER,
+          observationGeneration: Number.MAX_SAFE_INTEGER,
+          humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
+          controlRevision: Number.MAX_SAFE_INTEGER,
+          runtimeId: options.runId,
           originChanged: false,
           operationClass: 'page-interaction',
           targetKind: 'coordinates',
@@ -198,7 +276,9 @@ export class AuditReceiptStore {
       transition(actions, event)
       const pending = [...actions.values()].filter(action => action.phase === 'decision' && action.decision === 'allowed').length
       const pendingVerification = [...actions.values()].filter(action => action.phase === 'verification' && (action.status === 'pending' || action.status === 'not-yet-visible')).length
-      if (entries.length + 1 + pending + pendingVerification > this.maxEntries) throw new Error('Audit receipt capacity reached')
+      const pendingEvidence = [...actions.entries()].filter(([key, action]) => action.phase === 'decision'
+        && action.decision === 'allowed' && action.evidenceExpected === true && !actions.has(`evidence:${key}`)).length
+      if (entries.length + 1 + pending + pendingEvidence + pendingVerification > this.maxEntries) throw new Error('Audit receipt capacity reached')
       const body = {
         sequence: entries.length + 1,
         workspaceId: this.options.workspaceId,
@@ -209,7 +289,8 @@ export class AuditReceiptStore {
       }
       const entry = { ...body, hash: digest(body) }
       const line = `${JSON.stringify(entry)}\n`
-      if (bytes + Buffer.byteLength(line) + pending * this.outcomeReservationBytes + pendingVerification * this.verificationReservationBytes > this.maxBytes) {
+      if (bytes + Buffer.byteLength(line) + pending * this.outcomeReservationBytes
+        + pendingEvidence * this.evidenceReservationBytes + pendingVerification * this.verificationReservationBytes > this.maxBytes) {
         throw new Error('Audit receipt capacity reached')
       }
       await mkdir(dirname(this.options.path), { recursive: true, mode: 0o700 })
