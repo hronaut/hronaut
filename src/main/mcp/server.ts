@@ -1251,7 +1251,12 @@ function createBrowserMcpServer(
             const url = new URL(tab.url)
             const origin = url.origin === 'null' ? url.protocol : url.origin
             initialOrigin ??= origin
-            return { tabId: tab.id, navigationGeneration: tab.navigationGeneration, originChanged: origin !== initialOrigin }
+            return {
+              tabId: tab.id,
+              navigationGeneration: tab.navigationGeneration,
+              observationGeneration: tab.observationGeneration ?? 0,
+              originChanged: origin !== initialOrigin
+            }
           },
           ...(postWrite && postWriteCondition && postWriteFingerprint && resolvedTabId ? {
             verification: {

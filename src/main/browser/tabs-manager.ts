@@ -580,6 +580,7 @@ type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 
 
 interface BrowserConsoleMessageRecord extends BrowserConsoleMessage {
   captureSources: Set<BrowserConsoleCaptureSource>
+  observationGeneration: number
 }
 
 interface BrowserTab {
@@ -588,6 +589,7 @@ interface BrowserTab {
   url: string
   loading: boolean
   navigationGeneration: number
+  observationGeneration: number
   humanInteractionGeneration: number
   overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
@@ -644,6 +646,7 @@ interface BrowserTab {
     active: boolean
     changeCount: number
     startedAt: string
+    observationGeneration: number
   }
   visualComparison?: BrowserVisualComparisonInternal
   storageComparison?: {
@@ -720,6 +723,7 @@ interface BrowserWorkspaceOperation {
 
 interface BrowserNetworkRequestRecord extends BrowserNetworkRequest {
   captureSequence: number
+  observationGeneration: number
   cdpRequestId?: string
   initiatorRequestCdpId?: string
   requestHeaders?: Record<string, string>
@@ -765,6 +769,7 @@ function applyNetworkResponseMetadata(
 interface BrowserNetworkWaiter {
   options: NormalizedBrowserNetworkWaitOptions
   minCaptureSequence: number
+  observationGeneration: number
   startedAt: number
   timer: NodeJS.Timeout
   resolve: (result: BrowserNetworkWaitResult) => void
@@ -978,6 +983,7 @@ export interface TabsManagerOptions {
 export class BrowserTabsManager {
   private readonly workspaceContinuity = new WorkspaceContinuityStore()
   private readonly continuityMarkers = new Map<string, string>()
+  private readonly workspaceObservationGenerations = new Map<string, number>()
   private continuityRevision = 0
   private readonly continuityEvidence = new WorkspaceContinuityEvidenceFactory()
   private readonly continuityActions = new Map<string, { reads: number; writes: number }>()
@@ -1034,6 +1040,7 @@ export class BrowserTabsManager {
   private retireWorkspaceContinuity(workspaceId: string): void {
     this.workspaceContinuity.retire(workspaceId)
     this.continuityMarkers.delete(workspaceId)
+    this.workspaceObservationGenerations.delete(workspaceId)
   }
 
   postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
@@ -1093,6 +1100,7 @@ export class BrowserTabsManager {
   async requireWorkspaceContinuityReview(workspaceId: string): Promise<boolean> {
     this.continuityRevision += 1
     this.requireMcpTabGroup(workspaceId)
+    this.advanceWorkspaceObservationGeneration(workspaceId)
     if (this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)) this.workspaceContinuity.suspend(workspaceId, 'OUTCOME_UNKNOWN')
     else this.workspaceContinuity.restoreStale(workspaceId)
     try {
@@ -1108,9 +1116,33 @@ export class BrowserTabsManager {
 
   suspendWorkspaceContinuity(workspaceId: string, outcome: WorkspaceContinuityResult['priorOutcome'] = 'NONE'): boolean {
     this.continuityRevision += 1
+    this.advanceWorkspaceObservationGeneration(workspaceId)
     const pending = this.continuityActions.get(workspaceId)
     this.workspaceContinuity.suspend(workspaceId, pending?.writes ? 'OUTCOME_UNKNOWN' : outcome !== 'NONE' ? outcome : pending?.reads ? 'STALE_OBSERVATION' : 'NONE')
     return this.workspaceContinuity.guardedWorkspaceIds().includes(workspaceId)
+  }
+
+  private advanceWorkspaceObservationGeneration(workspaceId: string): void {
+    const observationGeneration = this.workspaceObservationGeneration(workspaceId) + 1
+    this.workspaceObservationGenerations.set(workspaceId, observationGeneration)
+    for (const tab of this.tabs.values()) {
+      if (tab.mcpGroupId !== workspaceId) continue
+      tab.observationGeneration = observationGeneration
+      tab.pendingRuntimeConsoleMessages = []
+      tab.inspectorIssues = []
+      tab.inspectorIssuesTruncated = false
+      tab.securitySnapshot = undefined
+      this.rejectNetworkWaiters(tab.id, 'Workspace control changed while waiting for network activity.')
+    }
+    for (const [downloadId, ownerWorkspaceId] of this.downloadWorkspaceIds) {
+      if (ownerWorkspaceId !== workspaceId) continue
+      const download = this.downloads.get(downloadId)
+      if (download && download.state !== 'progressing') download.observationGeneration = observationGeneration
+    }
+  }
+
+  private workspaceObservationGeneration(workspaceId: string): number {
+    return this.workspaceObservationGenerations.get(workspaceId) ?? 0
   }
 
   async inspectWorkspaceContinuity(workspaceId: string) {
@@ -5572,13 +5604,18 @@ export class BrowserTabsManager {
 
   consoleMessages(tabId?: string, clear = false): BrowserConsoleMessage[] {
     const tab = this.getTab(tabId)
-    const messages = tab.consoleMessages.map((message) => {
-      const { captureSources: _captureSources, ...publicMessage } = message
-      return sanitizeConsoleMessage({
-        ...publicMessage,
-        ...(publicMessage.stack ? { stack: publicMessage.stack.map((frame) => ({ ...frame })) } : {})
+    const messages = tab.consoleMessages
+      .filter(message => message.observationGeneration === tab.observationGeneration)
+      .map((message) => {
+        const { captureSources: _captureSources, ...publicMessage } = message
+        return {
+          ...sanitizeConsoleMessage({
+            ...publicMessage,
+            ...(publicMessage.stack ? { stack: publicMessage.stack.map((frame) => ({ ...frame })) } : {})
+          }),
+          observationGeneration: message.observationGeneration
+        }
       })
-    })
     if (clear) {
       tab.consoleMessages = []
       tab.pendingRuntimeConsoleMessages = []
@@ -5611,6 +5648,7 @@ export class BrowserTabsManager {
     const index = tab.consoleMessages.indexOf(message)
     if (index <= 0) return
     const previous = tab.consoleMessages[index - 1]
+    if (previous?.observationGeneration !== message.observationGeneration) return
     const grouped = mergeRepeatedConsoleMessage(previous, message)
     if (!previous || !grouped) return
     Object.assign(previous, grouped)
@@ -5621,7 +5659,8 @@ export class BrowserTabsManager {
   private retainRuntimeConsoleMessage(tab: BrowserTab, input: BrowserConsoleMessage): void {
     const message = sanitizeConsoleMessage(input)
     const existing = [...tab.consoleMessages].reverse().slice(0, 8).find((candidate) => (
-      candidate.kind === 'console'
+      candidate.observationGeneration === tab.observationGeneration
+      && candidate.kind === 'console'
       && !candidate.captureSources.has('runtime-console')
       && this.consoleCapturesMatch(candidate, message)
     ))
@@ -5676,6 +5715,7 @@ export class BrowserTabsManager {
     if (message.kind === 'exception' || tab.consoleMessages.some((candidate) => candidate.kind === 'exception')) {
       const messageTime = Date.parse(message.timestamp)
       const match = [...tab.consoleMessages].reverse().slice(0, 8).find((candidate) => {
+        if (candidate.observationGeneration !== tab.observationGeneration) return false
         if (message.kind !== 'exception' && candidate.kind !== 'exception') return false
         if (candidate.captureSources.has(source)) return false
         const candidateTime = Date.parse(candidate.timestamp)
@@ -5698,21 +5738,27 @@ export class BrowserTabsManager {
     }
 
     const previous = tab.consoleMessages.at(-1)
-    const grouped = source === 'electron' ? mergeRepeatedConsoleMessage(previous, message) : undefined
+    const grouped = source === 'electron' && previous?.observationGeneration === tab.observationGeneration
+      ? mergeRepeatedConsoleMessage(previous, message)
+      : undefined
     if (grouped && previous) {
       Object.assign(previous, grouped)
       previous.captureSources.add(source)
       return
     }
 
-    tab.consoleMessages.push({ ...message, captureSources: new Set([source]) })
+    tab.consoleMessages.push({
+      ...message,
+      observationGeneration: tab.observationGeneration,
+      captureSources: new Set([source])
+    })
     if (tab.consoleMessages.length > 500) tab.consoleMessages.splice(0, tab.consoleMessages.length - 500)
   }
 
   async networkRequests(tabId?: string, clear = false): Promise<BrowserNetworkRequest[]> {
     const tab = this.getTab(tabId)
     if (!tab.webContents.isDevToolsOpened()) await this.ensureDialogMonitoring(tab)
-    const requests = tab.networkRequests.map((request) => this.networkRequestSummary(request))
+    const requests = this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request))
     if (clear) tab.networkRequests = []
     return requests
   }
@@ -5723,7 +5769,7 @@ export class BrowserTabsManager {
     const normalized = normalizeNetworkWaitOptions(options)
     let minCaptureSequence = normalized.from === 'future' ? tab.networkCaptureSequence : 0
     if (normalized.afterRequestId) {
-      const cursor = tab.networkRequests.find((request) => request.id === normalized.afterRequestId)
+      const cursor = this.currentNetworkRequests(tab).find((request) => request.id === normalized.afterRequestId)
       if (!cursor) {
         throw new Error('The afterRequestId cursor is no longer retained. Call browser_network again for a current request ID.')
       }
@@ -5748,6 +5794,7 @@ export class BrowserTabsManager {
       const waiter: BrowserNetworkWaiter = {
         options: normalized,
         minCaptureSequence,
+        observationGeneration: tab.observationGeneration,
         startedAt: Date.now(),
         timer: setTimeout(() => {
           this.removeNetworkWaiter(tab.id, waiter)
@@ -5768,14 +5815,15 @@ export class BrowserTabsManager {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before searching network content')
     const normalized = normalizeNetworkSearchOptions(options)
-    const selected = tab.networkRequests.slice(-normalized.maxRequests).reverse()
+    const currentRequests = this.currentNetworkRequests(tab)
+    const selected = currentRequests.slice(-normalized.maxRequests).reverse()
     const details: BrowserNetworkRequestDetails[] = []
     for (const request of selected) {
       details.push(await this.networkRequestDetails(tab.id, request.id, normalized.maxBodyChars, true))
     }
     return searchNetworkDetails({
       tabId: tab.id,
-      availableRequestCount: tab.networkRequests.length,
+      availableRequestCount: currentRequests.length,
       details,
       options: normalized
     })
@@ -5786,7 +5834,7 @@ export class BrowserTabsManager {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before exporting a network log')
     const normalized = normalizeNetworkHarOptions(options)
     const filtered = filterNetworkRequests(
-      tab.networkRequests.map((request) => this.networkRequestSummary(request)),
+      this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
       normalized
     )
     const selected = filtered.slice(-normalized.maxRequests)
@@ -5835,8 +5883,8 @@ export class BrowserTabsManager {
       ...(tab.pageProblem ? { pageProblem: { ...tab.pageProblem } } : {}),
       ...(this.hasEmulationOverrides(tab.emulation) ? { emulation: this.cloneEmulationState(tab.emulation) } : {}),
       networkRouteCount: tab.networkRoutes.length,
-      consoleMessages: tab.consoleMessages,
-      networkRequests: tab.networkRequests.map((request) => this.networkRequestSummary(request)),
+      consoleMessages: tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration),
+      networkRequests: this.currentNetworkRequests(tab).map((request) => this.networkRequestSummary(request)),
       options
     })
   }
@@ -5847,8 +5895,8 @@ export class BrowserTabsManager {
       tabId: tab.id,
       url: redactNetworkUrl(tab.url),
       preserveAcrossNavigation: tab.preserveDiagnosticLogs,
-      consoleMessageCount: countConsoleEvents(tab.consoleMessages),
-      networkRequestCount: tab.networkRequests.length
+      consoleMessageCount: countConsoleEvents(tab.consoleMessages.filter(message => message.observationGeneration === tab.observationGeneration)),
+      networkRequestCount: this.currentNetworkRequests(tab).length
     }
   }
 
@@ -5921,16 +5969,26 @@ export class BrowserTabsManager {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before recording DOM changes')
     if (!['start', 'get', 'stop', 'clear'].includes(action)) throw new Error('Unsupported DOM changes action')
 
+    const observationGeneration = tab.observationGeneration
+    const effectiveAction = tab.domChangesRecording
+      && tab.domChangesRecording.observationGeneration !== observationGeneration
+      && action !== 'start'
+      ? 'clear'
+      : action
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       DOM_CHANGES_WORLD_ID,
-      [{ code: domChangesPageScript(action) }],
+      [{ code: domChangesPageScript(effectiveAction) }],
       false
     ) as Omit<BrowserDomChangesReport, 'tabId' | 'title' | 'url' | 'caveats'>
+    if (tab.observationGeneration !== observationGeneration) {
+      throw new Error('Workspace control changed while reading DOM changes')
+    }
     if (result.startedAt) {
       tab.domChangesRecording = {
         active: result.active,
         changeCount: result.changeCount,
-        startedAt: result.startedAt
+        startedAt: result.startedAt,
+        observationGeneration
       }
     } else {
       tab.domChangesRecording = undefined
@@ -6012,7 +6070,7 @@ export class BrowserTabsManager {
     includeBody = true
   ): Promise<BrowserNetworkRequestDetails> {
     const tab = this.getTab(tabId)
-    const request = tab.networkRequests.find((candidate) => candidate.id === requestId)
+    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
     if (!request) throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
     const boundedMaxChars = Math.min(Math.max(Math.round(maxChars), 1_000), 100_000)
     const requestContentType = headerValue(request.requestHeaders, 'content-type')
@@ -6103,7 +6161,7 @@ export class BrowserTabsManager {
   ): Promise<BrowserNetworkReplayResult> {
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before replaying a network request')
-    const request = tab.networkRequests.find((candidate) => candidate.id === requestId)
+    const request = this.currentNetworkRequests(tab).find((candidate) => candidate.id === requestId)
     if (!request) {
       throw new Error(`Network request not found: ${requestId}. Call browser_network again for current request IDs.`)
     }
@@ -6120,7 +6178,7 @@ export class BrowserTabsManager {
       throw new Error(`Replaying ${method} can repeat writes or other side effects. Pass confirmSideEffects: true only after reviewing the request.`)
     }
 
-    const cursor = tab.networkRequests.at(-1)
+    const cursor = this.currentNetworkRequests(tab).at(-1)
     if (!cursor) throw new Error('The captured request is no longer retained. Call browser_network again for a current request ID.')
     try {
       await this.withDebugger(tab.webContents, () =>
@@ -6332,9 +6390,11 @@ export class BrowserTabsManager {
     action: 'list' | 'cancel' | 'clear',
     downloadId?: string
   ): BrowserDownloadState[] {
+    const observationGeneration = this.workspaceObservationGeneration(workspaceId)
     if (action === 'cancel') {
       if (!downloadId) throw new Error('downloadId is required to cancel a download')
       const item = this.downloadWorkspaceIds.get(downloadId) === workspaceId
+        && this.downloads.get(downloadId)?.observationGeneration === observationGeneration
         ? this.downloadItems.get(downloadId)
         : undefined
       if (!item) throw new Error(`Active download not found: ${downloadId}`)
@@ -6342,19 +6402,27 @@ export class BrowserTabsManager {
     } else if (action === 'clear') {
       this.listDownloads()
       for (const [id, download] of this.downloads) {
-        if (this.downloadWorkspaceIds.get(id) !== workspaceId || download.state === 'progressing') continue
+        if (this.downloadWorkspaceIds.get(id) !== workspaceId
+          || download.observationGeneration !== observationGeneration
+          || download.state === 'progressing') continue
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
       }
     }
     const downloads = this.listDownloads()
     if (action !== 'list') this.sendDownloadsChanged(downloads)
-    return downloads.filter((download) => this.downloadWorkspaceIds.get(download.id) === workspaceId)
+    return downloads.filter((download) => (
+      this.downloadWorkspaceIds.get(download.id) === workspaceId
+      && download.observationGeneration === observationGeneration
+    ))
   }
 
   private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
     for (const [downloadId, workspaceId] of this.downloadWorkspaceIds) {
-      if (workspaceId === sourceWorkspaceId) this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
+      if (workspaceId !== sourceWorkspaceId) continue
+      this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
+      const download = this.downloads.get(downloadId)
+      if (download) download.observationGeneration = this.workspaceObservationGeneration(targetWorkspaceId)
     }
   }
 
@@ -7233,6 +7301,9 @@ export class BrowserTabsManager {
       url,
       loading: true,
       navigationGeneration: options.navigationGeneration ?? 0,
+      observationGeneration: options.mcpGroupId
+        ? this.workspaceObservationGeneration(options.mcpGroupId)
+        : 0,
       humanInteractionGeneration: 0,
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
@@ -8385,6 +8456,7 @@ export class BrowserTabsManager {
       url: tab.url,
       loading: tab.loading,
       navigationGeneration: tab.navigationGeneration,
+      observationGeneration: tab.observationGeneration,
       humanInteractionGeneration: tab.humanInteractionGeneration,
       canGoBack: navigation.index > 0,
       canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
@@ -8408,8 +8480,12 @@ export class BrowserTabsManager {
           startedAt: tab.reproRecording.startedAt
         }
       } : {}),
-      ...(tab.domChangesRecording ? {
-        domChangesRecording: { ...tab.domChangesRecording }
+      ...(tab.domChangesRecording?.observationGeneration === tab.observationGeneration ? {
+        domChangesRecording: {
+          active: tab.domChangesRecording.active,
+          changeCount: tab.domChangesRecording.changeCount,
+          startedAt: tab.domChangesRecording.startedAt
+        }
       } : {}),
       ...(tab.codeCoverage?.recording ? {
         codeCoverageRecording: {
@@ -8527,6 +8603,7 @@ export class BrowserTabsManager {
     const timing = deriveNetworkTiming(request.resourceTiming, request.completedMonotonicSeconds)
     return {
       id: request.id,
+      observationGeneration: request.observationGeneration,
       url: redactNetworkUrl(request.url),
       method: request.method,
       resourceType: request.resourceType,
@@ -8547,13 +8624,18 @@ export class BrowserTabsManager {
     }
   }
 
+  private currentNetworkRequests(tab: BrowserTab): BrowserNetworkRequestRecord[] {
+    return tab.networkRequests.filter(request => request.observationGeneration === tab.observationGeneration)
+  }
+
   private matchingNetworkWaitRequest(
     tab: BrowserTab,
     options: NormalizedBrowserNetworkWaitOptions,
     minCaptureSequence: number
   ): BrowserNetworkRequestRecord | undefined {
     return [...tab.networkRequests].reverse().find((request) => (
-      request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
+      request.observationGeneration === tab.observationGeneration
+      && request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
     ))
   }
 
@@ -8568,6 +8650,12 @@ export class BrowserTabsManager {
     const waiters = this.networkWaiters.get(tab.id)
     if (!waiters?.size) return
     for (const waiter of [...waiters]) {
+      if (waiter.observationGeneration !== tab.observationGeneration) {
+        clearTimeout(waiter.timer)
+        this.removeNetworkWaiter(tab.id, waiter)
+        waiter.reject(new Error('Workspace control changed while waiting for network activity.'))
+        continue
+      }
       const request = this.matchingNetworkWaitRequest(tab, waiter.options, waiter.minCaptureSequence)
       if (!request) continue
       clearTimeout(waiter.timer)
@@ -8596,7 +8684,7 @@ export class BrowserTabsManager {
     tab: BrowserTab,
     request: BrowserNetworkRequestRecord
   ): BrowserNetworkRequestRelationships | undefined {
-    const relationships = deriveNetworkRequestRelationships(tab.networkRequests, request)
+    const relationships = deriveNetworkRequestRelationships(this.currentNetworkRequests(tab), request)
     if (!relationships) return undefined
     return {
       ...(relationships.triggeredBy
@@ -10019,7 +10107,9 @@ export class BrowserTabsManager {
     includeCompleted = false
   ): BrowserNetworkRequestRecord | undefined {
     return [...tab.networkRequests].reverse().find((candidate) => (
-      candidate.cdpRequestId === requestId && (includeCompleted || candidate.completedAt === undefined)
+      candidate.observationGeneration === tab.observationGeneration
+      && candidate.cdpRequestId === requestId
+      && (includeCompleted || candidate.completedAt === undefined)
     ))
   }
 
@@ -10090,6 +10180,7 @@ export class BrowserTabsManager {
       tab.networkRequests.push({
         id: randomUUID(),
         captureSequence: ++tab.networkCaptureSequence,
+        observationGeneration: tab.observationGeneration,
         cdpRequestId: details.requestId,
         ...(details.initiator?.requestId ? { initiatorRequestCdpId: details.initiator.requestId } : {}),
         url: details.url,
@@ -10256,6 +10347,11 @@ export class BrowserTabsManager {
         previous.bodyAvailable = false
         previous.resourceTiming = details.redirectResponse.timing
         if (Number.isFinite(details.timestamp)) previous.completedMonotonicSeconds = details.timestamp
+        // Chromium reuses its request ID across redirects. A redirect that
+        // crosses a control handoff belongs to the retired observation chain;
+        // the resulting page remains visible, but it cannot seed fresh agent
+        // diagnostics or request relationships.
+        if (previous.observationGeneration !== tab.observationGeneration) return
       }
       const initiator = normalizeNetworkInitiator(
         details.initiator,
@@ -10265,6 +10361,7 @@ export class BrowserTabsManager {
       tab.networkRequests.push({
         id: randomUUID(),
         captureSequence: ++tab.networkCaptureSequence,
+        observationGeneration: tab.observationGeneration,
         cdpRequestId: requestId,
         ...(details.initiator?.requestId ? { initiatorRequestCdpId: details.initiator.requestId } : {}),
         url: request.url,
@@ -10290,7 +10387,9 @@ export class BrowserTabsManager {
     const requestId = (params as { requestId?: string }).requestId
     if (!requestId) return
     const request = [...tab.networkRequests].reverse().find((candidate) => (
-      candidate.cdpRequestId === requestId && candidate.completedAt === undefined
+      candidate.observationGeneration === tab.observationGeneration
+      && candidate.cdpRequestId === requestId
+      && candidate.completedAt === undefined
     ))
     if (!request) return
 
@@ -10321,7 +10420,8 @@ export class BrowserTabsManager {
       request.protocol = response.protocol
       applyNetworkResponseMetadata(request, response)
       request.resourceTiming = response.timing
-      if (responseDetails.type === 'Document') {
+      if (responseDetails.type === 'Document'
+        && request.observationGeneration === tab.observationGeneration) {
         tab.securitySnapshot = {
           url: String(response.url ?? request.url),
           checkedAt: new Date().toISOString(),
@@ -10472,6 +10572,7 @@ export class BrowserTabsManager {
           tab.networkRequests.push({
             id: `web:${details.id}`,
             captureSequence: ++tab.networkCaptureSequence,
+            observationGeneration: tab.observationGeneration,
             url: details.url,
             method: details.method,
             resourceType: details.resourceType,
@@ -10515,7 +10616,10 @@ export class BrowserTabsManager {
         }
         const id = randomUUID()
         const tabId = webContents ? this.webContentsToTab.get(webContents.id) : undefined
-        const workspaceId = tabId ? this.tabs.get(tabId)?.mcpGroupId : undefined
+        const tab = tabId ? this.tabs.get(tabId) : undefined
+        const workspaceId = tab?.mcpGroupId
+        const downloadUrl = item.getURL()
+        const sourceRequest = tab ? [...tab.networkRequests].reverse().find(request => request.url === downloadUrl) : undefined
         const suggestedPath = this.reserveAvailableDownloadPath(item.getFilename())
         try {
           if (this.options.askWhereToSaveDownloads) {
@@ -10532,8 +10636,9 @@ export class BrowserTabsManager {
         }
         const download: BrowserDownloadState = {
           id,
+          observationGeneration: sourceRequest?.observationGeneration ?? tab?.observationGeneration ?? 0,
           tabId,
-          url: item.getURL(),
+          url: downloadUrl,
           filename: basename(suggestedPath),
           savePath: this.options.askWhereToSaveDownloads ? '' : suggestedPath,
           state: 'progressing',
