@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add `browser_task_runs` for durable, bounded workflow deadlines and heartbeats, with runtime-checked page, origin, and audit evidence before success and explicit blocked, timed-out, restart, or unknown outcomes.
 - Let `browser_click` opt into bounded post-write verification with delayed read-back, explicit account and state predicates, durable receipt events, and conservative unknown outcomes without replaying the click.
 - Add a global tab-audio control that mutes or unmutes every open website tab while preserving the existing per-tab speaker, context-menu, keyboard, and `browser_audio` controls.
 
