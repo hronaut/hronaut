@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "factSetVersion": "2026-09-10.1",
+  "lastReviewedAt": "2026-09-10",
+  "product": {
+    "name": "Hronaut",
+    "sourceAvailability": "source-available",
+    "licenseName": "Hronaut Subscription and Trial License",
+    "licensePath": "LICENSE"
+  },
+  "subscription": {
+    "trialDays": 10,
+    "trialStartsAt": "first agent tool call",
+    "currency": "USD",
+    "monthlyPerNamedUser": 4,
+    "annualPerNamedUser": 24,
+    "annualReferenceTotal": 48,
+    "annualSavingsPercent": 50,
+    "activeDevicesPerSeat": 3
+  },
+  "urls": {
+    "homepage": "https://hronaut.dev",
+    "setup": "https://hronaut.dev/setup",
+    "downloads": "https://github.com/hronaut/hronaut/releases/latest",
+    "repository": "https://github.com/hronaut/hronaut"
+  },
+  "platforms": [
+    { "name": "Windows", "architectures": ["x64"] },
+    { "name": "macOS", "architectures": ["arm64", "x64"] },
+    { "name": "Linux", "architectures": ["arm64", "x64"] }
+  ],
+  "clients": [
+    { "id": "codex", "name": "Codex", "setupUrl": "https://hronaut.dev/codex-browser-mcp" },
+    { "id": "claude-code", "name": "Claude Code", "setupUrl": "https://hronaut.dev/claude-code-browser-mcp" },
+    { "id": "cursor", "name": "Cursor", "setupUrl": "https://hronaut.dev/cursor-browser-mcp" },
+    { "id": "vscode", "name": "VS Code / GitHub Copilot", "setupUrl": "https://hronaut.dev/github-copilot-browser-mcp" },
+    { "id": "opencode", "name": "OpenCode", "setupUrl": "https://hronaut.dev/opencode-browser-mcp" },
+    { "id": "gemini-cli", "name": "Gemini CLI", "setupUrl": "https://hronaut.dev/gemini-cli-browser-mcp" },
+    { "id": "goose", "name": "Goose", "setupUrl": "https://hronaut.dev/goose-browser-mcp" },
+    { "id": "cline", "name": "Cline", "setupUrl": "https://hronaut.dev/cline-browser-mcp" },
+    { "id": "zoo-code", "name": "Zoo Code", "setupUrl": "https://hronaut.dev/zoo-code-browser-mcp" },
+    { "id": "kiro", "name": "Kiro", "setupUrl": "https://hronaut.dev/kiro-browser-mcp" },
+    { "id": "kilo", "name": "Kilo Code", "setupUrl": "https://hronaut.dev/kilo-code-browser-mcp" },
+    { "id": "jetbrains-junie", "name": "JetBrains Junie", "setupUrl": "https://hronaut.dev/jetbrains-junie-browser-mcp" },
+    { "id": "devin-local", "name": "Devin Local", "setupUrl": "https://hronaut.dev/devin-local-browser-mcp" },
+    { "id": "zed", "name": "Zed", "setupUrl": "https://hronaut.dev/zed-browser-mcp" },
+    { "id": "mistral-vibe", "name": "Mistral Vibe", "setupUrl": "https://hronaut.dev/mistral-vibe-browser-mcp" },
+    { "id": "warp", "name": "Warp", "setupUrl": "https://hronaut.dev/warp-browser-mcp" },
+    { "id": "windsurf", "name": "Windsurf", "setupUrl": "https://hronaut.dev/setup#client-configurations" },
+    { "id": "grok-build", "name": "Grok Build", "setupUrl": "https://hronaut.dev/grok-build-browser-mcp" },
+    { "id": "qwen-code", "name": "Qwen Code", "setupUrl": "https://hronaut.dev/qwen-code-browser-mcp" },
+    { "id": "generic", "name": "Generic MCP client", "setupUrl": "https://hronaut.dev/setup#client-configurations" }
+  ],
+  "historicalPublications": [
+    {
+      "url": "https://www.reddit.com/r/mcp/comments/1w9c6hv/hronaut_a_local_browser_mcp_that_keeps_its/",
+      "status": "historical",
+      "correctionPath": "The post may contain superseded pricing. Treat it as historical and direct readers to the current canonical facts and homepage; record an edit only after verifying the public post."
+    }
+  ]
+}

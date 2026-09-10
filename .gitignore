@@ -235,6 +235,8 @@ docs/*
 !docs/LINUX_PAGE_PRESENTATION.md
 !docs/LINUX_AGENT_CAPTURE_FOCUS.md
 !docs/IMPROVEMENT_BACKLOG.md
+!docs/PUBLIC_FACTS.json
+!docs/PUBLISHING_CHECKLIST.md
 playwright-report/
 storybook-static/
 test-results/
