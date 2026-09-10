@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.24.0] - 2026-09-11
+
+### Security
+
+- Bind consequential browser actions to trusted runtime origin, navigation, workspace, permission, policy, human-interaction, observation, and target facts, rejecting stale or replaced pages before dispatch with explicit retry guidance.
+- Record bounded provenance rejections in private audit receipts without retaining selectors, refs, scripts, page text, entered values, credentials, paths, or raw origins.
+
+### Documentation
+
+- Explain why page content is untrusted input, how browser action authority is derived, and why workspace site-access policy does not provide network isolation.
+
 ## [1.23.0] - 2026-09-10
 
 ### Added
