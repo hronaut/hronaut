@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-09-11
+
 ### Added
 
 - Extend opt-in action audit receipts with bounded diagnostic, network, DOM-change, storage-change, reproduction, and postcondition coverage metadata; available artifacts use opaque run-scoped references that reject changed control or navigation generations without copying report contents into the journal.
