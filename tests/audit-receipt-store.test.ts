@@ -37,6 +37,15 @@ function outcome(actionId: string): Extract<AuditReceiptEvent, { phase: 'outcome
   }
 }
 
+function evidence(actionId: string): Extract<AuditReceiptEvent, { phase: 'evidence' }> {
+  return {
+    phase: 'evidence', actionId,
+    artifacts: [{ source: 'diagnostic', status: 'available', reason: 'retained', referenceId: randomUUID() }],
+    state: { tabId: randomUUID(), navigationGeneration: 1, observationGeneration: 2,
+      humanInteractionGeneration: 0, controlRevision: 3, originChanged: false }
+  }
+}
+
 describe('action audit receipt journal', () => {
   it('distinguishes workspace admission, correlated site denials and an unavailable final state', async () => {
     const { store, options } = await fixture()
@@ -99,6 +108,20 @@ describe('action audit receipt journal', () => {
     })).rejects.toThrow('capacity reached')
     await store.append({ ...outcome(start.actionId), siteAccessDropped: 1 })
     expect((await store.read()).at(-1)!.event).toMatchObject({ siteAccessDropped: 1 })
+  })
+
+  it('reserves coverage and outcome capacity before dispatch and accepts delayed evidence for the same action', async () => {
+    const { store } = await fixture({ maxEntries: 3 })
+    const start = { ...decision(), evidenceExpected: true }
+    await store.append(start)
+    await expect(store.append({
+      phase: 'site-access', actionId: start.actionId, decision: 'allowed', reason: 'matched',
+      source: 'direct', originId: randomUUID(), state: null
+    })).rejects.toThrow('capacity reached')
+    await store.append(outcome(start.actionId))
+    await store.append(evidence(start.actionId))
+    expect((await store.read()).map(entry => entry.event.phase)).toEqual(['decision', 'outcome', 'evidence'])
+    await expect(store.append(evidence(start.actionId))).rejects.toThrow('transition')
   })
 
   it('reserves the remaining entry for an accepted action outcome across reopening', async () => {

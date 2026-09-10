@@ -22,6 +22,22 @@ type Index = z.infer<typeof indexSchema>
 export interface AuditRunSummary extends Omit<Metadata, 'status'> {
   status: 'recording' | 'stopping' | 'stopped' | 'interrupted'
 }
+export type AuditEvidenceCoverageItem = {
+  actionId: string | null
+  source: 'diagnostic' | 'network' | 'dom-changes' | 'storage-changes' | 'reproduction' | 'postcondition' | 'site-access' | 'unspecified'
+  status: 'available' | 'not-collected' | 'unsupported' | 'dropped' | 'expired' | 'uncorrelated'
+  reason: string
+  referenceId: string | null
+  eventAt: string
+  eventSequence: number
+  state: Extract<AuditReceiptEvent, { phase: 'decision' }>['state']
+  count?: number
+}
+export interface AuditEvidenceCoverage {
+  items: AuditEvidenceCoverageItem[]
+  omitted: number
+  limit: number
+}
 interface ActiveRun {
   metadata: Metadata
   run: AuditReceiptRun
@@ -125,17 +141,24 @@ export class AuditReceiptService {
   }
 
   read(workspaceId: string, runId: string): Promise<{
-    formatVersion: 1
+    formatVersion: 2
     scope: string
     caveats: string[]
     run: AuditRunSummary
     receipts: Awaited<ReturnType<AuditReceiptStore['read']>>
+    evidenceCoverage: AuditEvidenceCoverage
+    transitionCoverage: {
+      pause: 'outside-collected-coverage'
+      handoff: 'observation-generation'
+      reconnect: 'observation-generation'
+      outcomeUnknown: number
+    }
   }> {
     const id = idSchema.parse(workspaceId)
     const selected = idSchema.parse(runId)
     return this.serialize(id, async () => {
       const details = {
-        formatVersion: 1 as const,
+        formatVersion: 2 as const,
         scope: 'Workspace-scoped browser tools and observed site-policy decisions; audit-control, workspace-lifecycle and wallet tools are excluded.',
         caveats: [
           'Native site events without exact action context are uncorrelated, not attributed by timing.',
@@ -143,6 +166,7 @@ export class AuditReceiptService {
           'Handoff-invalidated reads are stale-observation; uncertain writes are outcome-unknown. Neither authorizes an automatic retry.',
           'Possible effects do not establish rollback after failure or cancellation; none describes the invoked tool write classification.',
           'Null observations or completeness fields are unknown. Omitted site evidence is counted; interrupted actions are not replayed.',
+          'Live evidence references expire after process, control, navigation, observation, or tab changes; they locate existing bounded tools rather than immutable snapshots.',
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',
           'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB.'
         ]
@@ -153,16 +177,113 @@ export class AuditReceiptService {
       const current = this.active.get(id)
       if (current?.metadata.id === selected) {
         const report = await current.run.report()
+        const run = { ...this.summary(id, metadata), persistenceFailed: report.persistenceFailed,
+          uncorrelatedSiteAccessDropped: report.uncorrelatedSiteAccessDropped }
         return {
           ...details,
-          run: { ...this.summary(id, metadata), persistenceFailed: report.persistenceFailed,
-            uncorrelatedSiteAccessDropped: report.uncorrelatedSiteAccessDropped },
-          receipts: report.receipts
+          run,
+          receipts: report.receipts,
+          evidenceCoverage: this.coverage(report.receipts, run),
+          transitionCoverage: this.transitionCoverage(report.receipts)
         }
       }
       await this.finalizeInterruptedVerifications(id, metadata)
-      return { ...details, run: this.summary(id, metadata), receipts: await this.store(id, selected).read() }
+      const run = this.summary(id, metadata)
+      const receipts = await this.store(id, selected).read()
+      return {
+        ...details, run, receipts,
+        evidenceCoverage: this.coverage(receipts, run),
+        transitionCoverage: this.transitionCoverage(receipts)
+      }
     })
+  }
+
+  async evidence(workspaceId: string, runId: string, referenceId: string): Promise<AuditEvidenceCoverageItem> {
+    const reference = idSchema.parse(referenceId)
+    const report = await this.read(workspaceId, runId)
+    const item = report.evidenceCoverage.items.find(candidate => candidate.referenceId === reference)
+    if (!item) throw new Error('Evidence reference is not retained in this audit run')
+    return item
+  }
+
+  private coverage(receipts: Awaited<ReturnType<AuditReceiptStore['read']>>, run: AuditRunSummary): AuditEvidenceCoverage {
+    const all: AuditEvidenceCoverageItem[] = []
+    const actionStates = new Map<string, AuditEvidenceCoverageItem['state']>()
+    const outcomes = new Map<string, Extract<AuditReceiptEvent, { phase: 'outcome' }>>()
+    const evidenceActions = new Set<string>()
+    const verifications = new Map<string, { receipt: (typeof receipts)[number]; event: Extract<AuditReceiptEvent, { phase: 'verification' }> }>()
+    for (const receipt of receipts) {
+      if (receipt.event.phase === 'decision') {
+        actionStates.set(receipt.event.actionId, receipt.event.state)
+      } else if (receipt.event.phase === 'outcome') {
+        outcomes.set(receipt.event.actionId, receipt.event)
+        actionStates.set(receipt.event.actionId, receipt.event.state)
+      } else if (receipt.event.phase === 'evidence' && receipt.event.actionId) {
+        evidenceActions.add(receipt.event.actionId)
+      } else if (receipt.event.phase === 'verification') {
+        verifications.set(receipt.event.verificationId, { receipt, event: receipt.event })
+      }
+    }
+    for (const receipt of receipts) {
+      const event = receipt.event
+      if (event.phase === 'evidence') {
+        all.push(...event.artifacts.map(artifact => ({
+          actionId: event.actionId, ...artifact, eventAt: receipt.timestamp,
+          eventSequence: receipt.sequence, state: event.state
+        })))
+      } else if (event.phase === 'site-access' && event.actionId === null) {
+        all.push({
+          actionId: null, source: 'site-access', status: 'uncorrelated', reason: 'action-context-missing',
+          referenceId: null, eventAt: receipt.timestamp, eventSequence: receipt.sequence, state: event.state
+        })
+      }
+    }
+    const sources = ['diagnostic', 'network', 'dom-changes', 'storage-changes', 'reproduction'] as const
+    for (const receipt of receipts) {
+      const event = receipt.event
+      if (event.phase !== 'decision' || evidenceActions.has(event.actionId)) continue
+      const outcome = outcomes.get(event.actionId)
+      const dropped = (outcome?.evidenceDropped ?? 0) > 0
+      for (const source of sources) {
+        all.push({
+          actionId: event.actionId, source, status: dropped ? 'dropped' : 'not-collected',
+          reason: dropped ? outcome?.evidenceDropReason ?? 'persistence-failed'
+            : run.status === 'interrupted' && !outcome ? 'run-interrupted' : 'coverage-not-recorded',
+          referenceId: null, eventAt: receipt.timestamp, eventSequence: receipt.sequence,
+          state: actionStates.get(event.actionId) ?? null
+        })
+      }
+    }
+    for (const { receipt, event } of verifications.values()) {
+      all.push({
+        actionId: event.actionId, source: 'postcondition',
+        status: event.status === 'verified' || event.status === 'not-yet-visible' ? 'available'
+          : event.status === 'pending' ? 'not-collected' : 'expired',
+        reason: event.reason, referenceId: event.status === 'verified' || event.status === 'not-yet-visible'
+          ? event.verificationId : null,
+        eventAt: receipt.timestamp, eventSequence: receipt.sequence,
+        state: actionStates.get(event.actionId) ?? null
+      })
+    }
+    if ((run.uncorrelatedSiteAccessDropped ?? 0) > 0) {
+      all.push({
+        actionId: null, source: 'site-access', status: 'dropped', reason: 'capacity', referenceId: null,
+        eventAt: run.stoppedAt ?? run.startedAt, eventSequence: 0, state: null,
+        count: run.uncorrelatedSiteAccessDropped ?? undefined
+      })
+    }
+    const limit = 1_000
+    return { items: all.slice(0, limit), omitted: Math.max(0, all.length - limit), limit }
+  }
+
+  private transitionCoverage(receipts: Awaited<ReturnType<AuditReceiptStore['read']>>) {
+    return {
+      pause: 'outside-collected-coverage' as const,
+      handoff: 'observation-generation' as const,
+      reconnect: 'observation-generation' as const,
+      outcomeUnknown: receipts.filter(receipt => receipt.event.phase === 'outcome'
+        && receipt.event.status === 'outcome-unknown').length
+    }
   }
 
   private async finalizeInterruptedVerifications(workspaceId: string, metadata: Metadata): Promise<void> {

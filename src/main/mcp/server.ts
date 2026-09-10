@@ -472,7 +472,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   },
   {
     name: 'browser_audit_receipts', category: 'Session',
-    description: 'Explicitly start or stop privacy-bounded action receipts for your authorized workspace, list retained runs, or read a sanitized JSON report. Recording is off by default. Keeps three runs of at most 1 MiB / 1000 entries each; starting a fourth retires the oldest whole run. Reports contain tool names, opaque identifiers, access decisions and outcomes, never raw tool arguments, results, URLs or page contents. Native events may be uncorrelated; omitted evidence is counted. Interrupted actions are never replayed. Audit-control, workspace-lifecycle and wallet tools are outside this recording scope.'
+    description: 'Explicitly start or stop privacy-bounded action receipts for your authorized workspace, list retained runs, read a sanitized JSON report, or resolve an opaque retained evidence reference to the existing report tool that can open it. Recording is off by default. Keeps three runs of at most 1 MiB / 1000 entries each; starting a fourth retires the oldest whole run. Reports contain tool names, opaque identifiers, access decisions and outcomes, never raw tool arguments, results, URLs or page contents. Live references expire after process, control, navigation, observation, or tab changes. Native events may be uncorrelated; omitted evidence is counted. Interrupted actions are never replayed. Audit-control, workspace-lifecycle and wallet tools are outside this recording scope.'
   },
   {
     name: 'browser_task_runs', category: 'Session',
@@ -750,6 +750,19 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
 export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown }): Omit<T, 'postcondition'> {
   const { postcondition: _postcondition, ...pageInput } = input
   return pageInput
+}
+
+export function auditEvidenceExpiredReason(
+  state: { runtimeId?: string; controlRevision?: number; navigationGeneration: number; observationGeneration?: number },
+  tab: { navigationGeneration: number; observationGeneration?: number } | undefined,
+  tracker: Pick<McpActionTracker, 'runtimeId' | 'controlRevision'>
+): 'no-tab' | 'runtime-changed' | 'control-changed' | 'navigation-changed' | 'observation-changed' | undefined {
+  if (!tab) return 'no-tab'
+  if (state.runtimeId !== tracker.runtimeId) return 'runtime-changed'
+  if (state.controlRevision !== undefined && state.controlRevision !== tracker.controlRevision) return 'control-changed'
+  if (tab.navigationGeneration !== state.navigationGeneration) return 'navigation-changed'
+  if ((tab.observationGeneration ?? 0) !== (state.observationGeneration ?? 0)) return 'observation-changed'
+  return undefined
 }
 
 function createBrowserMcpServer(
@@ -1295,31 +1308,66 @@ function createBrowserMcpServer(
         if (!auditReceipts || !name.startsWith('browser_')) return operation()
         let initialOrigin: string | undefined = actionAuthority?.topLevelOrigin
         let verificationResult: { status: string; reason: string; attempt: number } | undefined
+        const observeAuditState = () => {
+          const state = manager.getMcpGroupState(workspaceId)
+          const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
+          if (!tab) return null
+          const url = new URL(tab.url)
+          const origin = url.origin === 'null' ? url.protocol : url.origin
+          initialOrigin ??= origin
+          return {
+            tabId: tab.id,
+            navigationGeneration: tab.navigationGeneration,
+            observationGeneration: tab.observationGeneration ?? 0,
+            humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
+            controlRevision: actionTracker.controlRevision,
+            runtimeId: actionTracker.runtimeId,
+            originChanged: origin !== initialOrigin,
+            ...(actionAuthority ? {
+              operationClass: actionAuthority.operationClass,
+              targetKind: actionAuthority.targetKind,
+              targetId: actionAuthority.targetId,
+              ...(authorityReason ? { authorityReason } : {})
+            } : {})
+          }
+        }
         const result = await auditReceipts.execute(workspaceId, {
           toolName: name,
           readOnly: toolDefinition(name).annotations.readOnlyHint,
           signal: extra?.signal,
           isErrorResult: result => result.isError === true,
           classifyErrorResult: () => invalidatedOutcome,
-          observeState: () => {
-            const state = manager.getMcpGroupState(workspaceId)
-            const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
-            if (!tab) return null
-            const url = new URL(tab.url)
-            const origin = url.origin === 'null' ? url.protocol : url.origin
-            initialOrigin ??= origin
+          observeState: observeAuditState,
+          observeEvidence: () => {
+            const state = observeAuditState()
+            if (!state?.tabId) {
+              return {
+                state,
+                artifacts: ['diagnostic', 'network', 'dom-changes', 'storage-changes', 'reproduction'].map(source => ({
+                  source: source as 'diagnostic' | 'network' | 'dom-changes' | 'storage-changes' | 'reproduction',
+                  status: 'unsupported' as const, reason: 'no-tab' as const, referenceId: null
+                }))
+              }
+            }
+            const availability = manager.auditEvidenceAvailability(state.tabId)
+            const missingReason = invalidatedOutcome === 'outcome-unknown' ? 'outcome-unknown' as const : undefined
+            const artifact = (source: 'diagnostic' | 'network' | 'dom-changes' | 'storage-changes' | 'reproduction',
+              available: boolean, reason: 'recorder-inactive' | 'baseline-missing' | 'unsupported-scheme') => available ? {
+                source, status: 'available' as const, reason: 'retained' as const, referenceId: randomUUID()
+              } : {
+                source, status: reason === 'unsupported-scheme' ? 'unsupported' as const : 'not-collected' as const,
+                reason: missingReason ?? reason, referenceId: null
+              }
             return {
-              tabId: tab.id,
-              navigationGeneration: tab.navigationGeneration,
-              observationGeneration: tab.observationGeneration ?? 0,
-              humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
-              originChanged: origin !== initialOrigin,
-              ...(actionAuthority ? {
-                operationClass: actionAuthority.operationClass,
-                targetKind: actionAuthority.targetKind,
-                targetId: actionAuthority.targetId,
-                ...(authorityReason ? { authorityReason } : {})
-              } : {})
+              state,
+              artifacts: [
+                artifact('diagnostic', availability.diagnostic, 'recorder-inactive'),
+                artifact('network', availability.network, 'recorder-inactive'),
+                artifact('dom-changes', availability.domChanges, 'recorder-inactive'),
+                artifact('storage-changes', availability.storageChanges,
+                  availability.storageSupported ? 'baseline-missing' : 'unsupported-scheme'),
+                artifact('reproduction', availability.reproduction, 'recorder-inactive')
+              ]
             }
           },
           ...(postWrite && postWriteCondition && postWriteFingerprint && resolvedTabId ? {
@@ -1474,11 +1522,17 @@ function createBrowserMcpServer(
       description: toolDescription('browser_audit_receipts'),
       inputSchema: {
         workspaceId: workspaceIdSchema.describe('Your active or archived workspace UUID. Resume ownership before reading after reconnecting.'),
-        action: z.enum(['start', 'stop', 'list', 'read']).default('list'),
-        runId: z.uuid().optional().describe('Retained run ID required for read. The JSON response is a sanitized export.')
+        action: z.enum(['start', 'stop', 'list', 'read', 'evidence']).default('list'),
+        runId: z.uuid().optional().describe('Retained run ID required for read or evidence lookup. The JSON response is a sanitized export.'),
+        evidenceId: z.uuid().optional().describe('Opaque evidence reference returned by a retained audit read.')
       }
     },
-    tool(async ({ workspaceId, action, runId }: { workspaceId: string; action: 'start' | 'stop' | 'list' | 'read'; runId?: string }) => {
+    tool(async ({ workspaceId, action, runId, evidenceId }: {
+      workspaceId: string
+      action: 'start' | 'stop' | 'list' | 'read' | 'evidence'
+      runId?: string
+      evidenceId?: string
+    }) => {
       const authorize = (): void => {
         if (action === 'start') {
           requireAgentWorkspace(workspaceId)
@@ -1493,9 +1547,37 @@ function createBrowserMcpServer(
       if (action === 'start') result = await auditReceipts.start(workspaceId)
       else if (action === 'stop') result = await auditReceipts.stop(workspaceId)
       else if (action === 'list') result = await auditReceipts.list(workspaceId)
-      else {
+      else if (action === 'read') {
         if (!runId) throw new TypeError('runId is required to read a retained audit run')
         result = await auditReceipts.read(workspaceId, runId)
+      } else {
+        if (!runId || !evidenceId) throw new TypeError('runId and evidenceId are required to resolve retained evidence')
+        const evidence = await auditReceipts.evidence(workspaceId, runId, evidenceId)
+        if (evidence.source === 'postcondition') {
+          result = {
+            ...evidence,
+            openWith: { toolName: 'browser_audit_receipts', arguments: { workspaceId, action: 'read', runId }, receiptSequence: evidence.eventSequence }
+          }
+        } else if (!evidence.state?.tabId || evidence.source === 'site-access' || evidence.source === 'unspecified') {
+          result = { ...evidence, status: 'expired', reason: 'no-tab', referenceId: null }
+        } else {
+          let tab: BrowserState['tabs'][number] | undefined
+          try {
+            tab = manager.getMcpGroupState(workspaceId).tabs.find(candidate => candidate.id === evidence.state!.tabId)
+          } catch {
+            tab = undefined
+          }
+          const expiredReason = auditEvidenceExpiredReason(evidence.state, tab, actionTracker)
+          if (expiredReason) result = { ...evidence, status: 'expired', reason: expiredReason, referenceId: null }
+          else {
+            const open = evidence.source === 'diagnostic' ? { toolName: 'browser_debug_report', arguments: { workspaceId, tabId: tab!.id } }
+              : evidence.source === 'network' ? { toolName: 'browser_network', arguments: { workspaceId, tabId: tab!.id } }
+                : evidence.source === 'dom-changes' ? { toolName: 'browser_dom_changes', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
+                  : evidence.source === 'storage-changes' ? { toolName: 'browser_storage_changes', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
+                    : { toolName: 'browser_repro', arguments: { workspaceId, tabId: tab!.id, action: 'get' } }
+            result = { ...evidence, openWith: open }
+          }
+        }
       }
       // A user can revoke agent access while bounded disk I/O is pending.
       authorize()

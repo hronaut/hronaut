@@ -1,10 +1,12 @@
 import { McpActivityHistory } from './activity-history.js'
+import { randomUUID } from 'node:crypto'
 
 /** Main-process lifetime, independent of transport sessions or endpoint moves.
  * Retains counters and bounded activity metadata, never arguments or results.
  */
 export class McpActionTracker {
   readonly activityHistory = new McpActivityHistory()
+  readonly runtimeId = randomUUID()
   private active = 0
   private revision = 0
 

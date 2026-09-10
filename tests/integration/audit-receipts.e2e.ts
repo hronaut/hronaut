@@ -54,20 +54,44 @@ test('records private bounded browser evidence across MCP reconnects without aut
     expect((await raw(resumed, 'browser_audit_receipts', { workspaceId, action: 'read', runId: run.id })).isError).toBe(true)
     await call(resumed, 'browser_workspaces', { action: 'resume', workspaceId, resumeKey: workspace.resumeKey })
     expect((await call<{ id: string }>(resumed, 'browser_audit_receipts', { workspaceId, action: 'start' })).id).toBe(run.id)
+    const snapshot = await raw(resumed, 'browser_snapshot', { workspaceId })
+    expect(snapshot.isError, text(snapshot)).not.toBe(true)
     const foreign = await call<{ id: string }>(resumed, 'browser_workspaces', { action: 'create', name: 'Other audit fixture', storage: 'scratch' })
     expect((await raw(resumed, 'browser_audit_receipts', { workspaceId: foreign.id, action: 'read', runId: run.id })).isError).toBe(true)
     await call(resumed, 'browser_audit_receipts', { workspaceId, action: 'stop' })
-    const report = await call<{ run: { status: string }; receipts: AuditReceipt[] }>(resumed, 'browser_audit_receipts', {
+    const report = await call<{
+      run: { status: string }
+      receipts: AuditReceipt[]
+      evidenceCoverage: { items: Array<{ actionId: string | null; source: string; status: string; referenceId: string | null }> }
+    }>(resumed, 'browser_audit_receipts', {
       workspaceId, action: 'read', runId: run.id
     })
     expect(report.run.status).toBe('stopped')
     const admissions = report.receipts.filter(receipt => receipt.event.phase === 'decision')
-    expect(admissions.map(receipt => receipt.event.phase === 'decision' ? receipt.event.toolName : '')).toEqual(['browser_new_tab', 'browser_navigate'])
-    const failedId = admissions[1]!.event.actionId
+    expect(admissions.map(receipt => receipt.event.phase === 'decision' ? receipt.event.toolName : '')).toEqual([
+      'browser_new_tab', 'browser_navigate', 'browser_snapshot'
+    ])
+    const failedId = admissions.find(receipt => receipt.event.phase === 'decision'
+      && receipt.event.toolName === 'browser_navigate')!.event.actionId
     expect(report.receipts.some(receipt => receipt.event.phase === 'site-access'
       && receipt.event.actionId === failedId && receipt.event.decision === 'denied' && receipt.event.reason === 'no-match')).toBe(true)
     expect(report.receipts.some(receipt => receipt.event.phase === 'outcome'
       && receipt.event.actionId === failedId && receipt.event.status === 'failed')).toBe(true)
+    const snapshotId = admissions.find(receipt => receipt.event.phase === 'decision'
+      && receipt.event.toolName === 'browser_snapshot')!.event.actionId
+    const diagnostic = report.evidenceCoverage.items.find(item => item.actionId === snapshotId
+      && item.source === 'diagnostic' && item.status === 'available')
+    expect(diagnostic?.referenceId).toEqual(expect.any(String))
+    const resolved = await call<{ status: string; openWith: { toolName: string } }>(resumed, 'browser_audit_receipts', {
+      workspaceId, action: 'evidence', runId: run.id, evidenceId: diagnostic!.referenceId
+    })
+    expect(resolved).toMatchObject({ status: 'available', openWith: { toolName: 'browser_debug_report' } })
+    await call(resumed, 'browser_navigate', { workspaceId, url: `${origin}/generation-changed` })
+    const expired = await call<{ status: string; reason: string; openWith?: unknown }>(resumed, 'browser_audit_receipts', {
+      workspaceId, action: 'evidence', runId: run.id, evidenceId: diagnostic!.referenceId
+    })
+    expect(expired).toMatchObject({ status: 'expired', reason: 'navigation-changed' })
+    expect(expired.openWith).toBeUndefined()
     const exported = JSON.stringify(report)
     for (const privateValue of [origin, 'blocked.example', 'private-path-canary', 'private-query-canary',
       'private-denied-canary', 'Private title canary', 'Private page content canary', workspace.resumeKey, mcpToken]) {
