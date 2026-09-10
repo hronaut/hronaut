@@ -65,3 +65,12 @@ it('keeps cancellation terminal and returned history isolated', () => {
   model.timeline().splice(0)
   expect(model.timeline().at(-1)?.reason).toBe('cancelled')
 })
+
+it('classifies a reader-observed context change without accepting later evidence', () => {
+  const model = new PostWriteVerification(contract, () => 0)
+  const attempt = model.beginRead(context)!
+  model.finishRead(attempt, 'context-changed', context)
+  expect(model.timeline().at(-1)).toMatchObject({ state: 'unknown', reason: 'context-changed' })
+  model.finishRead(attempt, 'matches', context)
+  expect(model.timeline().at(-1)?.reason).toBe('context-changed')
+})

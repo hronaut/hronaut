@@ -53,6 +53,7 @@ export class AuditReceiptService {
         return { ...current.metadata }
       }
       const index = await this.readIndex(id)
+      for (const previous of index.runs) await this.finalizeInterruptedVerifications(id, previous)
       const directory = this.workspacePath(id)
       await mkdir(directory, { recursive: true, mode: 0o700 })
       const known = new Set(index.runs.map(run => `${run.id}.jsonl`))
@@ -158,14 +159,38 @@ export class AuditReceiptService {
           receipts: report.receipts
         }
       }
+      await this.finalizeInterruptedVerifications(id, metadata)
       return { ...details, run: this.summary(id, metadata), receipts: await this.store(id, selected).read() }
     })
+  }
+
+  private async finalizeInterruptedVerifications(workspaceId: string, metadata: Metadata): Promise<void> {
+    if (metadata.status !== 'recording' || this.active.get(workspaceId)?.metadata.id === metadata.id) return
+    const store = this.store(workspaceId, metadata.id)
+    const latest = new Map<string, Extract<AuditReceiptEvent, { phase: 'verification' }>>()
+    for (const receipt of await store.read()) {
+      if (receipt.event.phase === 'verification') latest.set(receipt.event.actionId, receipt.event)
+    }
+    for (const event of latest.values()) {
+      if (event.status !== 'pending' && event.status !== 'not-yet-visible') continue
+      await store.append({ ...event, status: 'unknown', reason: 'restart' })
+    }
   }
 
   execute<T>(workspaceId: string, options: AuditReceiptActionOptions<T>): Promise<T> {
     if (this.shuttingDown) return Promise.reject(new Error('Audit receipt service is shutting down'))
     const current = this.active.get(idSchema.parse(workspaceId))
+    if (!current && options.verification) {
+      return Promise.reject(new Error('Post-write verification requires an active audit receipt run'))
+    }
     return current ? current.run.execute(options) : options.operation()
+  }
+
+  isRecording(workspaceId: string): boolean {
+    const parsed = idSchema.safeParse(workspaceId)
+    if (!parsed.success) return false
+    const current = this.active.get(parsed.data)
+    return !!current && !current.stopping
   }
 
   recordSiteAccess(workspaceId: string, decision: WorkspaceNavigationDecision,

@@ -1,6 +1,8 @@
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
+import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import { readBrowserPostcondition, type PostconditionReadResult } from '../mcp/post-write-browser-read.js'
 import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
@@ -402,6 +404,7 @@ const PWA_INSPECTOR_WORLD_ID = 1008
 const STORAGE_USAGE_WORLD_ID = 1009
 // 1010 is reserved by the Linux presented-view visibility probe.
 const CONTINUITY_MARKER_WORLD_ID = 1011
+const POSTCONDITION_WORLD_ID = 1012
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -1031,6 +1034,39 @@ export class BrowserTabsManager {
   private retireWorkspaceContinuity(workspaceId: string): void {
     this.workspaceContinuity.retire(workspaceId)
     this.continuityMarkers.delete(workspaceId)
+  }
+
+  postWriteContextFingerprint(workspaceId: string, tabId: string, condition: BrowserPostcondition): string {
+    browserPostconditionScript(condition)
+    const snapshot = this.workspaceContinuitySnapshot(workspaceId)
+    if (!snapshot.evidence || snapshot.evidence.tabId !== tabId || !snapshot.pageSettled
+      || !this.tabBelongsToMcpGroup(workspaceId, tabId)) throw new Error('Post-write verification target is unavailable')
+    const tab = this.getTab(tabId)
+    let origin: string
+    try { origin = new URL(tab.url).origin } catch { throw new Error('Post-write verification target is unavailable') }
+    if (origin !== condition.expectedOrigin) throw new Error('Post-write verification origin does not match the target tab')
+    return this.continuityEvidence.postWriteFingerprint(snapshot.evidence, condition)
+  }
+
+  async readPostWritePostcondition(workspaceId: string, tabId: string, condition: BrowserPostcondition, validateCurrent: () => void, signal?: AbortSignal): Promise<PostconditionReadResult> {
+    validateCurrent()
+    const before = this.workspaceContinuitySnapshot(workspaceId)
+    if (!before.evidence || !before.pageSettled) return 'unavailable'
+    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
+    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
+    const revision = this.continuityRevision
+    const tab = this.getTab(tabId)
+    const validate = (): void => {
+      validateCurrent()
+      const after = this.workspaceContinuitySnapshot(workspaceId)
+      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
+        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
+        throw new Error('Browser verification context changed')
+      }
+    }
+    return readBrowserPostcondition({ condition, validateCurrent: validate, signal,
+      evaluate: script => tab.webContents.executeJavaScriptInIsolatedWorld(POSTCONDITION_WORLD_ID, [{ code: script }], false)
+    })
   }
 
   async armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {

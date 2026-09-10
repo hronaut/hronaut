@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
-const evidenceSchema = z.enum(['matches', 'not-yet-visible', 'unavailable'])
+const evidenceSchema = z.enum(['matches', 'not-yet-visible', 'context-changed', 'unavailable'])
 
 const contractSchema = z.object({
   actionId: z.uuid(),
@@ -15,14 +15,14 @@ const contractSchema = z.object({
 }).strict()
 
 export type VerificationContract = z.infer<typeof contractSchema>
-type VerificationState = 'pending' | 'not-yet-visible' | 'verified' | 'unknown'
-type Reason = 'awaiting-read' | 'postcondition-matched' | 'postcondition-not-visible' | 'read-unavailable' | 'transport-ambiguous' | 'transport-failed' | 'deadline' | 'attempt-limit' | 'context-changed' | 'clock-invalid' | 'cancelled'
+export type VerificationState = 'pending' | 'not-yet-visible' | 'verified' | 'unknown'
+export type VerificationReason = 'awaiting-read' | 'postcondition-matched' | 'postcondition-not-visible' | 'read-unavailable' | 'transport-ambiguous' | 'transport-failed' | 'deadline' | 'attempt-limit' | 'context-changed' | 'clock-invalid' | 'cancelled' | 'restart'
 export interface VerificationEvent {
   actionId: string
   sequence: number
   attempt: number
   state: VerificationState
-  reason: Reason
+  reason: VerificationReason
 }
 
 /** Verification lifecycle only. It has no mutation or read callbacks. Runtime
@@ -52,7 +52,7 @@ export class PostWriteVerification {
 
   private terminal(): boolean { return this.state === 'verified' || this.state === 'unknown' }
 
-  private record(state: VerificationState, reason: Reason): void {
+  private record(state: VerificationState, reason: VerificationReason): void {
     this.state = state
     this.events.push({ actionId: this.contract.actionId, sequence: this.events.length + 1, attempt: this.attempts, state, reason })
   }
@@ -77,13 +77,14 @@ export class PostWriteVerification {
     return this.activeAttempt
   }
 
-  finishRead(attemptId: string, evidence: 'matches' | 'not-yet-visible' | 'unavailable', contextFingerprint: string): void {
+  finishRead(attemptId: string, evidence: 'matches' | 'not-yet-visible' | 'context-changed' | 'unavailable', contextFingerprint: string): void {
     evidenceSchema.parse(evidence)
     const time = this.check(contextFingerprint)
     if (this.terminal()) return
     if (!this.activeAttempt || attemptId !== this.activeAttempt) throw new Error('Verification attempt unavailable')
     this.activeAttempt = undefined
     if (evidence === 'matches') this.record('verified', 'postcondition-matched')
+    else if (evidence === 'context-changed') this.record('unknown', 'context-changed')
     else if (evidence === 'unavailable') this.record('unknown', 'read-unavailable')
     else {
       this.record('not-yet-visible', 'postcondition-not-visible')
@@ -93,6 +94,12 @@ export class PostWriteVerification {
   }
 
   cancel(): void { if (!this.terminal()) this.record('unknown', 'cancelled') }
+
+  nextDelayMs(contextFingerprint: string): number | null {
+    const time = this.check(contextFingerprint)
+    if (this.terminal()) return null
+    return Math.max(0, Math.min(this.nextReadAt, this.deadline) - time)
+  }
 
   timeline(): VerificationEvent[] {
     this.check(this.contract.contextFingerprint)

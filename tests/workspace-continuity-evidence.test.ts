@@ -27,6 +27,16 @@ describe('private continuity evidence', () => {
     expect(first?.epoch).not.toBe(second?.epoch)
     expect(first?.originDigest).not.toBe(second?.originDigest)
   })
+  it('privately binds post-write predicates to the originating workspace context', () => {
+    const factory = new WorkspaceContinuityEvidenceFactory()
+    const evidence = factory.capture(input)!
+    const condition = { expectedOrigin: 'https://example.com', accountSelector: '#account', expectedAccount: 'private account', stateSelector: '#state', expectedText: 'private saved value' }
+    const baseline = factory.postWriteFingerprint(evidence, condition)
+    expect(baseline).toMatch(/^[a-f0-9]{64}$/)
+    expect(baseline).not.toMatch(/private|account|saved/)
+    expect(factory.postWriteFingerprint(evidence, { ...condition, expectedText: 'different' })).not.toBe(baseline)
+    expect(factory.postWriteFingerprint({ ...evidence, tabId: 'another-tab' }, condition)).not.toBe(baseline)
+  })
   it.each(['file:///private/path', 'about:blank', 'https://user:secret@example.com', 'invalid'])('rejects unavailable web origin %s', url => {
     expect(new WorkspaceContinuityEvidenceFactory().capture({ ...input, tab: { ...input.tab, url } })).toBeNull()
   })

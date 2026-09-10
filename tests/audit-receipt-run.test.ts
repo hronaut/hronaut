@@ -33,7 +33,100 @@ function action<T>(operation: () => Promise<T>) {
   return { toolName: 'browser_click', readOnly: false, observeState: () => null, operation, isErrorResult: () => false }
 }
 
+function verification(verify: NonNullable<Parameters<AuditReceiptRun['execute']>[0]['verification']>['verify']) {
+  return { verificationId: randomUUID(), maxAttempts: 3, verify }
+}
+
 describe('audit receipt run lifecycle', () => {
+  it('admits verification before the mutation and appends delayed evidence after its transport outcome', async () => {
+    const { run, store } = await fixture()
+    const verify = vi.fn(async ({ actionId, append }: Parameters<NonNullable<Parameters<AuditReceiptRun['execute']>[0]['verification']>['verify']>[0]) => {
+      const receipts = await store.read()
+      expect(receipts.map(receipt => receipt.event.phase)).toEqual(['decision', 'verification', 'outcome'])
+      expect(receipts[0]!.event.actionId).toBe(actionId)
+      await append({ attempt: 1, status: 'not-yet-visible', reason: 'postcondition-not-visible' })
+      await append({ attempt: 2, status: 'verified', reason: 'postcondition-matched' })
+    })
+    const operation = vi.fn(async () => {
+      expect((await store.read()).map(receipt => receipt.event.phase)).toEqual(['decision', 'verification'])
+      return 'done'
+    })
+    expect(await run.execute({ ...action(operation), verification: verification(verify) })).toBe('done')
+    expect(operation).toHaveBeenCalledTimes(1)
+    expect(verify).toHaveBeenCalledTimes(1)
+    expect((await run.report()).receipts.map(receipt => receipt.event.phase)).toEqual([
+      'decision', 'verification', 'outcome', 'verification', 'verification'
+    ])
+  })
+
+  it('does not read after failed transport and records verification as unknown', async () => {
+    const { run } = await fixture()
+    const verify = vi.fn(async () => undefined)
+    const result = { isError: true }
+    await run.execute({ ...action(async () => result), isErrorResult: value => value.isError,
+      verification: verification(verify) })
+    expect(verify).not.toHaveBeenCalled()
+    expect((await run.report()).receipts.map(receipt => receipt.event)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ phase: 'outcome', status: 'failed' }),
+      expect.objectContaining({ phase: 'verification', status: 'unknown', reason: 'transport-failed' })
+    ]))
+  })
+
+  it('closes a saved decision when verification admission fails before the mutation', async () => {
+    const { store, workspaceId } = await fixture()
+    let rejected = false
+    const operation = vi.fn(async () => 'changed')
+    const run = new AuditReceiptRun(workspaceId, {
+      read: () => store.read(),
+      append: event => {
+        if (!rejected && event.phase === 'verification') {
+          rejected = true
+          return Promise.reject(new Error('Capacity reached'))
+        }
+        return store.append(event)
+      }
+    })
+    await expect(run.execute({ ...action(operation), verification: verification(async () => undefined) }))
+      .rejects.toThrow('verification admission could not be saved')
+    expect(operation).not.toHaveBeenCalled()
+    expect((await run.report()).receipts.map(receipt => receipt.event)).toEqual([
+      expect.objectContaining({ phase: 'decision', decision: 'allowed' }),
+      expect.objectContaining({ phase: 'outcome', status: 'failed', effects: 'none' })
+    ])
+    expect(await run.execute(action(async () => 'later'))).toBe('later')
+  })
+
+  it('returns the original result with unknown evidence when a verifier read fails', async () => {
+    const { run } = await fixture()
+    const privateFailure = new Error('private-verifier-error')
+    expect(await run.execute({
+      ...action(async () => 'original result'),
+      verification: verification(async () => { throw privateFailure })
+    })).toBe('original result')
+    const report = await run.report()
+    expect(report.receipts.at(-1)!.event).toMatchObject({
+      phase: 'verification', status: 'unknown', reason: 'read-unavailable'
+    })
+    expect(JSON.stringify(report)).not.toContain(privateFailure.message)
+  })
+
+  it('never returns a successful mutation when terminal verification persistence fails', async () => {
+    const { store, workspaceId } = await fixture()
+    const operation = vi.fn(async () => 'changed')
+    const run = new AuditReceiptRun(workspaceId, {
+      read: () => store.read(),
+      append: event => event.phase === 'verification' && event.status !== 'pending'
+        ? Promise.reject(new Error('private-disk-error')) : store.append(event)
+    })
+    await expect(run.execute({
+      ...action(operation),
+      verification: verification(async ({ append }) => {
+        await append({ attempt: 1, status: 'verified', reason: 'postcondition-matched' })
+      })
+    })).rejects.toThrow('verification evidence could not be saved; do not automatically retry')
+    expect(operation).toHaveBeenCalledTimes(1)
+    await expect(run.execute(action(operation))).rejects.toThrow('persistence is unavailable')
+  })
   it.each(['outcome-unknown', 'stale-observation'] as const)('retains %s even when the transport is cancelled', async (status) => {
     const { run } = await fixture()
     const abort = new AbortController()

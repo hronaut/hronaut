@@ -19,7 +19,7 @@ const eventSchema = z.discriminatedUnion('phase', [
     maxAttempts: z.number().int().min(1).max(20),
     attempt: z.number().int().min(0).max(20),
     status: z.enum(['pending', 'not-yet-visible', 'verified', 'unknown']),
-    reason: z.enum(['awaiting-read', 'postcondition-matched', 'postcondition-not-visible', 'read-unavailable', 'transport-ambiguous', 'transport-failed', 'deadline', 'attempt-limit', 'context-changed', 'clock-invalid', 'cancelled'])
+    reason: z.enum(['awaiting-read', 'postcondition-matched', 'postcondition-not-visible', 'read-unavailable', 'transport-ambiguous', 'transport-failed', 'deadline', 'attempt-limit', 'context-changed', 'clock-invalid', 'cancelled', 'restart'])
   }).strict(),
   z.object({
     phase: z.literal('decision'),

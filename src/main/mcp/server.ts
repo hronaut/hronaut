@@ -8,6 +8,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
+import type { AuditVerificationUpdate } from './audit-receipt-run.js'
+import { runPostWriteVerification } from './post-write-verification-runner.js'
+import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import type { HumanWaitingService } from './human-waiting-service.js'
 import { workspacePreflight } from './workspace-preflight.js'
 import { McpActionTracker } from './action-tracker.js'
@@ -520,7 +523,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
-  { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces.' },
+  { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces. With an active audit run, an optional declarative postcondition performs bounded read-back without repeating the click.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
@@ -711,6 +714,20 @@ function scopeBrowserStateResult(result: CallToolResult, state: BrowserState): C
       } catch {
         return item
       }
+    })
+  }
+}
+
+function withPostWriteVerification(result: CallToolResult, verification: { status: string; reason: string; attempt: number }): CallToolResult {
+  return {
+    ...result,
+    content: result.content.map(item => {
+      if (item.type !== 'text') return item
+      try {
+        const value = JSON.parse(item.text) as unknown
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
+        return { ...item, text: JSON.stringify({ ...value, postWriteVerification: verification }, null, 2) }
+      } catch { return item }
     })
   }
 }
@@ -1067,6 +1084,7 @@ function createBrowserMcpServer(
   // Explicit inspection operations remain available for reconciliation. Do not
   // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
   const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
+  type PostWriteRequest = BrowserPostcondition & { timeoutMs: number; maxAttempts: number; initialDelayMs: number }
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
@@ -1109,6 +1127,26 @@ function createBrowserMcpServer(
         const resolvedTabId = skipsTabTarget
           ? undefined
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
+        const postWrite = name === 'browser_click' && input.postcondition
+          ? input.postcondition as PostWriteRequest : undefined
+        if (postWrite && (!resolvedTabId || !auditReceipts?.isRecording(workspaceId))) {
+          throw new Error('Post-write verification requires an active browser_audit_receipts run and a page tab target')
+        }
+        const postWriteCondition: BrowserPostcondition | undefined = postWrite ? {
+          expectedOrigin: postWrite.expectedOrigin,
+          accountSelector: postWrite.accountSelector,
+          expectedAccount: postWrite.expectedAccount,
+          stateSelector: postWrite.stateSelector,
+          expectedText: postWrite.expectedText
+        } : undefined
+        const postWriteFingerprint = postWriteCondition && resolvedTabId
+          ? manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) : undefined
+        const requirePostWriteContext = (): void => {
+          if (postWriteCondition && resolvedTabId && postWriteFingerprint
+            && manager.postWriteContextFingerprint(workspaceId, resolvedTabId, postWriteCondition) !== postWriteFingerprint) {
+            throw new Error('Post-write verification context changed before tool dispatch')
+          }
+        }
         const currentHumanInteractionGeneration = (): number | undefined => resolvedTabId
           ? manager.getMcpGroupState(workspaceId).tabs.find(tab => tab.id === resolvedTabId)?.humanInteractionGeneration
           : undefined
@@ -1132,6 +1170,7 @@ function createBrowserMcpServer(
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | undefined
         const operation = async (): Promise<CallToolResult> => {
           requireCurrentTarget()
+          requirePostWriteContext()
           if (activityId && activityToolName && resolvedTabId) {
             onTabActivity?.({
               activityId,
@@ -1196,7 +1235,8 @@ function createBrowserMcpServer(
         }
         if (!auditReceipts || !name.startsWith('browser_')) return operation()
         let initialOrigin: string | undefined
-        return auditReceipts.execute(workspaceId, {
+        let verificationResult: { status: string; reason: string; attempt: number } | undefined
+        const result = await auditReceipts.execute(workspaceId, {
           toolName: name,
           readOnly: toolDefinition(name).annotations.readOnlyHint,
           signal: extra?.signal,
@@ -1211,8 +1251,41 @@ function createBrowserMcpServer(
             initialOrigin ??= origin
             return { tabId: tab.id, navigationGeneration: tab.navigationGeneration, originChanged: origin !== initialOrigin }
           },
+          ...(postWrite && postWriteCondition && postWriteFingerprint && resolvedTabId ? {
+            verification: {
+              verificationId: randomUUID(), maxAttempts: postWrite.maxAttempts,
+              verify: async ({ actionId, signal, append }: {
+                actionId: string
+                signal?: AbortSignal
+                append: (update: AuditVerificationUpdate) => Promise<void>
+              }) => {
+                const timeline = await runPostWriteVerification({
+                  contract: {
+                    actionId, transport: 'succeeded', contextFingerprint: postWriteFingerprint,
+                    timeoutMs: postWrite.timeoutMs, maxAttempts: postWrite.maxAttempts,
+                    initialDelayMs: postWrite.initialDelayMs
+                  },
+                  signal,
+                  read: async readSignal => {
+                    await requireHumanDecision()
+                    requireCurrentTarget()
+                    return manager.readPostWritePostcondition(
+                      workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal
+                    )
+                  },
+                  onEvent: async event => {
+                    await append({ attempt: event.attempt, status: event.state, reason: event.reason })
+                    verificationResult = { status: event.state, reason: event.reason, attempt: event.attempt }
+                  }
+                })
+                const final = timeline.at(-1)!
+                verificationResult = { status: final.state, reason: final.reason, attempt: final.attempt }
+              }
+            }
+          } : {}),
           operation
         })
+        return verificationResult ? withPostWriteVerification(result, verificationResult) : result
       })
     )
   }
@@ -1740,7 +1813,17 @@ function createBrowserMcpServer(
         doubleClick: z.boolean().optional()
           .describe('Dispatch two native pointer clicks and a dblclick event instead of one programmatic click.'),
         dialogAction: z.enum(['accept', 'dismiss']).optional(),
-        promptText: z.string().max(4096).optional()
+        promptText: z.string().max(4096).optional(),
+        postcondition: z.object({
+          expectedOrigin: z.string().max(2048).describe('Exact HTTP(S) origin expected after the click.'),
+          accountSelector: z.string().trim().min(1).max(256).describe('Unique selector whose bounded text identifies the expected account.'),
+          expectedAccount: z.string().trim().min(1).max(512).describe('Exact expected account-marker text. Kept local and excluded from receipts.'),
+          stateSelector: z.string().trim().min(1).max(256).describe('Unique selector for the action-relevant state.'),
+          expectedText: z.string().max(512).describe('Exact expected state text. Kept local and excluded from receipts.'),
+          timeoutMs: z.number().int().min(250).max(30_000).default(10_000),
+          maxAttempts: z.number().int().min(1).max(5).default(4),
+          initialDelayMs: z.number().int().min(50).max(5_000).default(250)
+        }).strict().optional().describe('After one click, perform bounded read-only checks with backoff. Requires an active action-receipt run; Hronaut never repeats the click.')
       }
     },
     tabTool('browser_click', async (input: {
@@ -1752,6 +1835,7 @@ function createBrowserMcpServer(
       doubleClick?: boolean
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
+      postcondition?: PostWriteRequest
     }) => textResult(await manager.click(input)))
   )
   registerWorkspaceTool(

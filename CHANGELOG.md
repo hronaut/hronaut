@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Let `browser_click` opt into bounded post-write verification with delayed read-back, explicit account and state predicates, durable receipt events, and conservative unknown outcomes without replaying the click.
+
 ## [1.22.0] - 2026-09-09
 
 ### Added
