@@ -79,7 +79,7 @@ describe('McpSettingsPanel', () => {
 
     expect(setToolSet).toHaveBeenCalledWith('qa')
     expect(screen.getByRole('combobox', { name: 'MCP tool set' })).toHaveValue('qa')
-    expect(screen.getByText(/Reconnect MCP clients that cache the tool catalog/i)).toBeVisible()
+    expect(screen.getByText(/Connected MCP clients keep their current catalog.*Reconnect them to apply this change/i)).toBeVisible()
     controller.dispose()
   })
 
