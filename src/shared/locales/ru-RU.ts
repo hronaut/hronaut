@@ -1153,6 +1153,8 @@ export const ruRU = {
       "searchTabs": "Искать вкладки",
       "historyTitle": "История просмотра (Ctrl+H / Cmd+Y)",
       "history": "История просмотра",
+      "muteAllTabs": "Выключить звук во всех вкладках",
+      "unmuteAllTabs": "Включить звук во всех вкладках",
       "followAgents": "Следить за агентами",
       "followingAgents": "Слежение за агентами",
       "followAgentActivityDescription": "Показывать вкладку, которую использует агент, не забирая фокус клавиатуры или мыши",

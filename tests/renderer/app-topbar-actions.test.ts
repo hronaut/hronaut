@@ -50,6 +50,8 @@ function renderActions(overrides: Record<string, unknown> = {}) {
       downloads,
       activeDownloads: [download(200, 'progressing')],
       downloadButtonLabel: '1 download in progress',
+      hasWebsiteTabs: true,
+      allTabsMuted: false,
       allInteractionLocked: false,
       allInteractionLockLabel: 'Lock all tabs',
       followAgentActivity: false,
@@ -76,6 +78,7 @@ describe('AppTopbarActions', () => {
     await user.click(screen.getByRole('button', { name: 'Search tabs' }))
     await user.click(downloads)
     await user.click(screen.getByRole('button', { name: 'Browsing history' }))
+    await user.click(screen.getByRole('button', { name: 'Mute all tabs' }))
     await user.click(screen.getByRole('button', { name: 'Lock all tabs' }))
     await user.click(screen.getByRole('button', { name: 'Follow agent activity without taking keyboard or mouse focus' }))
     await user.click(screen.getByRole('button', { name: /^Open software updates:/ }))
@@ -86,11 +89,22 @@ describe('AppTopbarActions', () => {
       toggleTabSearch: [[]],
       toggleDownloads: [[]],
       toggleHistory: [[]],
+      toggleAllTabsMuted: [[]],
       toggleAllInteraction: [[]],
       toggleFollowAgentActivity: [[]],
       openUpdateSettings: [[]],
       toggleSettings: [[]]
     })
+    rendered.mcpStatusController.dispose()
+  })
+
+  it('reflects global tab audio state and disables the action without website tabs', async () => {
+    const rendered = renderActions({ allTabsMuted: true })
+    const audio = screen.getByRole('button', { name: 'Unmute all tabs' })
+    expect(audio).toHaveAttribute('aria-pressed', 'true')
+
+    await rendered.rerender({ hasWebsiteTabs: false })
+    expect(screen.getByRole('button', { name: 'Unmute all tabs' })).toBeDisabled()
     rendered.mcpStatusController.dispose()
   })
 

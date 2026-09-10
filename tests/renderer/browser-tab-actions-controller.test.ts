@@ -57,6 +57,7 @@ function createHarness() {
     reload: vi.fn(async (_tabId?: string) => state.value),
     reorderTab: vi.fn(async (_tabId: string, _targetTabId: string, _placement: 'before' | 'after') => state.value),
     selectTab: vi.fn(async (_tabId: string) => state.value),
+    setAllTabsMuted: vi.fn(async (_muted: boolean) => state.value),
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
     setTabHumanInteractionLocked: vi.fn(async (_tabId: string, _locked: boolean) => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
@@ -191,14 +192,63 @@ describe('browser tab actions controller', () => {
     await harness.controller.showWorkspaceContextMenu('workspace')
     await harness.controller.reorderTab({ tabId: 'first', targetTabId: 'second', placement: 'after' })
     await harness.controller.toggleTabMuted(mutedTab)
+    await harness.controller.toggleAllTabsMuted()
     await harness.controller.toggleTabHumanInteraction()
     await harness.controller.toggleAllHumanInteraction()
 
     expect(harness.browser.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace')
     expect(harness.browser.reorderTab).toHaveBeenCalledWith('first', 'second', 'after')
     expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
+    expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(false)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
     expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+
+  it('serializes global audio toggles against mixed and then authoritative tab state', async () => {
+    const harness = createHarness()
+    harness.state.value = {
+      ...harness.state.value,
+      tabs: [tab({ id: 'first', muted: true }), tab({ id: 'second', active: false, muted: false })]
+    }
+    harness.browser.setAllTabsMuted.mockImplementation(async (muted) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map((candidate) => ({ ...candidate, muted }))
+    }))
+
+    await Promise.all([
+      harness.controller.toggleAllTabsMuted(),
+      harness.controller.toggleAllTabsMuted()
+    ])
+
+    expect(harness.browser.setAllTabsMuted.mock.calls.map(([muted]) => muted)).toEqual([true, false])
+    expect(harness.state.value.tabs.every((candidate) => !candidate.muted)).toBe(true)
+  })
+
+  it('serializes a per-tab toggle behind a simultaneous global audio change', async () => {
+    const harness = createHarness()
+    const first = tab({ id: 'first' })
+    const second = tab({ id: 'second', active: false })
+    harness.state.value = { ...harness.state.value, tabs: [first, second] }
+    harness.browser.setAllTabsMuted.mockImplementation(async (muted) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map((candidate) => ({ ...candidate, muted }))
+    }))
+    harness.browser.setTabMuted.mockImplementation(async (tabId, muted) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map((candidate) => candidate.id === tabId ? { ...candidate, muted } : candidate)
+    }))
+
+    await Promise.all([
+      harness.controller.toggleAllTabsMuted(),
+      harness.controller.toggleTabMuted(first)
+    ])
+
+    expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
+    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('first', false)
+    expect(harness.state.value.tabs).toEqual([
+      expect.objectContaining({ id: 'first', muted: false }),
+      expect.objectContaining({ id: 'second', muted: true })
+    ])
   })
 
   it('serializes rapid mute toggles against the latest authoritative tab state', async () => {

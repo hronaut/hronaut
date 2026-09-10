@@ -209,6 +209,9 @@
   .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
 }
+@media (max-width: 900px) {
+  .shell:not(.vertical-tabs-shell) .history-button { @apply hidden; }
+}
 @media (max-width: 720px) {
   .shell:not(.vertical-tabs-shell) .topbar,
   .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
@@ -258,7 +261,7 @@
   @apply flex flex-none [align-items:end] [margin-left:6px];
 }
 .vertical-tabs-shell .topbar-actions {
-  @apply grid w-full flex-none items-center [gap:4px] m-0 [padding:8px] [border-top:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--toolbar)_94%,_var(--shell-bottom))] [grid-template-columns:repeat(5,_minmax(0,_1fr))];
+  @apply grid w-full flex-none items-center [gap:4px] m-0 [padding:8px] [border-top:1px_solid_var(--border-soft)] [background:color-mix(in_srgb,_var(--toolbar)_94%,_var(--shell-bottom))] [grid-template-columns:repeat(6,_minmax(0,_1fr))];
 }
 .vertical-tabs-shell .topbar-actions-divider { @apply hidden; }
 .vertical-tabs-shell .topbar-icon-button {
@@ -268,15 +271,16 @@
 .vertical-tabs-shell .tab-search-button { @apply [grid-column:2] [grid-row:1]; }
 .vertical-tabs-shell .downloads-button { @apply [grid-column:3] [grid-row:1]; }
 .vertical-tabs-shell .history-button { @apply [grid-column:4] [grid-row:1]; }
-.vertical-tabs-shell .settings-button { @apply [grid-column:5] [grid-row:1]; }
+.vertical-tabs-shell .all-tabs-audio-button { @apply [grid-column:5] [grid-row:1]; }
+.vertical-tabs-shell .settings-button { @apply [grid-column:6] [grid-row:1]; }
 .vertical-tabs-shell .browser-lock-button {
   @apply w-full [height:32px] justify-center m-0 [padding:0_8px] [grid-column:1_/_3] [grid-row:2];
 }
 .vertical-tabs-shell .follow-agent-button {
-  @apply [grid-column:3_/_6] [grid-row:2];
+  @apply [grid-column:3_/_7] [grid-row:2];
 }
 .vertical-tabs-shell .mcp-controls {
-  @apply w-full [height:32px] m-0 [grid-column:1_/_6] [grid-row:3];
+  @apply w-full [height:32px] m-0 [grid-column:1_/_7] [grid-row:3];
 }
 .vertical-tabs-shell .mcp-pill { @apply min-w-0 [flex:1] justify-center; }
 .vertical-tabs-shell .update-status-pill {
@@ -305,7 +309,8 @@
   .vertical-tabs-shell .update-status-chevron,
   .vertical-tabs-shell .tab-search-button,
   .vertical-tabs-shell .downloads-button,
-  .vertical-tabs-shell .history-button { @apply hidden; }
+  .vertical-tabs-shell .history-button,
+  .vertical-tabs-shell .all-tabs-audio-button { @apply hidden; }
 }
 
 .tab {
@@ -441,6 +446,7 @@
 }
 .topbar-icon-button:hover,
 .topbar-icon-button[aria-expanded="true"] { @apply text-copy bg-hover; }
+.all-tabs-audio-button[aria-pressed="true"] { @apply text-accent-copy bg-accent-soft; }
 .topbar-icon-button svg { @apply [width:18px] [height:18px]; }
 .tab-search-button { @apply [margin-left:0]; }
 .tab-search-button svg { @apply [width:19px] [height:19px]; }
@@ -617,7 +623,8 @@
   .vertical-tabs-shell .update-status-chevron,
   .vertical-tabs-shell .tab-search-button,
   .vertical-tabs-shell .downloads-button,
-  .vertical-tabs-shell .history-button { @apply hidden; }
+  .vertical-tabs-shell .history-button,
+  .vertical-tabs-shell .all-tabs-audio-button { @apply hidden; }
 }
 
 .vertical-tabs-shell .topbar.rail-collapsing { @apply overflow-hidden; }

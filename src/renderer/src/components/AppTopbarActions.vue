@@ -11,6 +11,8 @@ import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconSettings from '~icons/material-symbols/settings-rounded'
 import IconTabSearch from '~icons/material-symbols/tab-search-rounded'
 import IconVisibility from '~icons/material-symbols/visibility-rounded'
+import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
+import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { AppUpdateState, BrowserDownloadState } from '../../../shared/types.js'
 import type { McpStatusController } from '../composables/useMcpStatusController.js'
 import McpStatusControls from './McpStatusControls.vue'
@@ -25,6 +27,8 @@ defineProps<{
   downloads: BrowserDownloadState[]
   activeDownloads: BrowserDownloadState[]
   downloadButtonLabel: string
+  hasWebsiteTabs: boolean
+  allTabsMuted: boolean
   allInteractionLocked: boolean
   allInteractionLockLabel: string
   followAgentActivity: boolean
@@ -38,6 +42,7 @@ const emit = defineEmits<{
   toggleTabSearch: []
   toggleDownloads: []
   toggleHistory: []
+  toggleAllTabsMuted: []
   toggleAllInteraction: []
   toggleFollowAgentActivity: []
   openUpdateSettings: []
@@ -98,6 +103,18 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleHistory')"
     >
       <IconHistory aria-hidden="true" />
+    </UiButton>
+    <UiButton appearance="application"
+      class="topbar-icon-button all-tabs-audio-button"
+      type="button"
+      :disabled="!hasWebsiteTabs"
+      :title="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
+      :aria-label="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
+      :aria-pressed="allTabsMuted"
+      @click="emit('toggleAllTabsMuted')"
+    >
+      <IconVolumeOff v-if="allTabsMuted" aria-hidden="true" />
+      <IconVolumeUp v-else aria-hidden="true" />
     </UiButton>
     <span class="topbar-actions-divider" aria-hidden="true" />
     <UiButton appearance="application"

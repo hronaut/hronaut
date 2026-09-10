@@ -26,6 +26,7 @@ type SiteNavigationBrowserApi = Pick<
   | 'reload'
   | 'reorderTab'
   | 'selectTab'
+  | 'setAllTabsMuted'
   | 'setAllHumanInteractionLocked'
   | 'setTabHumanInteractionLocked'
   | 'setTabMuted'

@@ -219,7 +219,7 @@ Press **Ctrl+H** on Linux/Windows, **Cmd+Y** on macOS, or use the history button
 
 ## Identify and mute tabs
 
-Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab without changing sound permissions for the entire site. Agents can use `browser_audio`, and `browser_tabs` reports each tab's audible and muted state.
+Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab, press **M** while the tab is focused, or use the tab context menu. The speaker button in the global topbar mutes every currently open website tab and changes to **Unmute all tabs** when all of them are muted. These controls do not change site-wide sound permissions. Agents can use `browser_audio` for a specific tab, and `browser_tabs` reports each tab's audible and muted state.
 
 ## Recover a failed page
 

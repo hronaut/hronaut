@@ -1153,6 +1153,8 @@ export const plPL = {
       "searchTabs": "Szukaj kart",
       "historyTitle": "Historia przeglądania (Ctrl+H / Cmd+Y)",
       "history": "Historia przeglądania",
+      "muteAllTabs": "Wycisz wszystkie karty",
+      "unmuteAllTabs": "Włącz dźwięk wszystkich kart",
       "followAgents": "Śledź agentów",
       "followingAgents": "Śledzenie agentów",
       "followAgentActivityDescription": "Pokazuj kartę używaną przez agenta bez przejmowania fokusu klawiatury lub myszy",

@@ -1153,6 +1153,8 @@ export const esES = {
       "searchTabs": "Buscar pestañas",
       "historyTitle": "Historial de navegación (Ctrl+H / Cmd+Y)",
       "history": "Historial de navegación",
+      "muteAllTabs": "Silenciar todas las pestañas",
+      "unmuteAllTabs": "Activar el sonido de todas las pestañas",
       "followAgents": "Seguir agentes",
       "followingAgents": "Siguiendo agentes",
       "followAgentActivityDescription": "Mostrar la pestaña que usa el agente sin tomar el foco del teclado ni del ratón",
