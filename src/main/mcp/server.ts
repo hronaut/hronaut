@@ -3,7 +3,7 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
-import { McpServer, type RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
@@ -278,7 +278,6 @@ interface McpTransportSession {
   server: McpServer
   transport: StreamableHTTPServerTransport
   client: McpClientActivity
-  setToolSet(toolSet: McpToolSet): void
 }
 
 export function mcpRequestAuthorized(configuredToken: string | undefined, authorization: string | undefined): boolean {
@@ -756,7 +755,7 @@ function createBrowserMcpServer(
   actionTracker = new McpActionTracker(),
   authorizeAutomation?: () => Promise<void>,
   humanWaiting?: HumanWaitingService
-): { server: McpServer; setToolSet: (nextToolSet: McpToolSet) => void } {
+): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
     { instructions: BROWSER_SERVER_INSTRUCTIONS }
@@ -791,7 +790,6 @@ function createBrowserMcpServer(
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
   const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
-  const registeredTools = new Map<string, RegisteredTool>()
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -807,7 +805,6 @@ function createBrowserMcpServer(
         return errorResult(error)
       }
     }) as never)
-    registeredTools.set(name, registered)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
     else registered.disable()
     return registered
@@ -2920,16 +2917,7 @@ function createBrowserMcpServer(
 
   assertMcpToolRegistrationContract(BROWSER_TOOL_CATALOG, implementedToolNames)
   assertMcpToolRegistrationContract(toolSetCatalog, registeredToolNames)
-  return {
-    server,
-    setToolSet(nextToolSet) {
-      const enabledNames = new Set(mcpToolCatalogForSet(nextToolSet).map(({ name }) => name))
-      for (const [name, registered] of registeredTools) {
-        const enabled = enabledNames.has(name)
-        if (registered.enabled !== enabled) registered.update({ enabled })
-      }
-    }
-  }
+  return { server }
 }
 
 export class McpHttpServer {
@@ -2965,7 +2953,6 @@ export class McpHttpServer {
 
   setToolSet(toolSet: McpToolSet): void {
     this.toolSet = toolSet
-    for (const session of this.transportSessions.values()) session.setToolSet(toolSet)
   }
 
   setPaused(paused: boolean): void {
@@ -3105,7 +3092,6 @@ export class McpHttpServer {
               if (this.clients.get(previousClientId) === client) this.clients.delete(previousClientId)
               client.id = sessionId
               this.clients.set(sessionId, client)
-              session.setToolSet?.(this.toolSet)
               this.transportSessions.set(sessionId, session as McpTransportSession)
               while (this.transportSessions.size > McpHttpServer.MAX_CLIENTS) {
                 const oldestSessionId = this.transportSessions.keys().next().value as string | undefined
@@ -3144,7 +3130,6 @@ export class McpHttpServer {
           )
           session.server = mcp.server
           session.transport = transport
-          session.setToolSet = mcp.setToolSet
           transportSession = session as McpTransportSession
           await mcp.server.connect(transport)
         }

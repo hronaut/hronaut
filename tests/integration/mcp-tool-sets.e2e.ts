@@ -6,15 +6,20 @@ import { mcpToolCatalogForSet } from '../../src/main/mcp/server.js'
 import { expect, test } from './fixtures.js'
 
 async function listTools(mcpPort: number, mcpToken: string): Promise<string[]> {
-  const client = new Client({ name: 'hronaut-tool-set-integration', version: '1.0.0' })
+  const client = await connectClient(mcpPort, mcpToken, 'hronaut-tool-set-integration')
   try {
-    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
-      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
-    }))
     return (await client.listTools()).tools.map(({ name }) => name)
   } finally {
     await client.close()
   }
+}
+
+async function connectClient(mcpPort: number, mcpToken: string, name: string): Promise<Client> {
+  const client = new Client({ name, version: '1.0.0' })
+  await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+  }))
+  return client
 }
 
 test('persists a server-wide MCP tool set and applies it to new clients', async ({
@@ -34,25 +39,33 @@ test('persists a server-wide MCP tool set and applies it to new clients', async 
   expect(new Set(await listTools(mcpPort, mcpToken))).toEqual(
     new Set(mcpToolCatalogForSet('complete').map(({ name }) => name))
   )
+  const retainedClient = await connectClient(mcpPort, mcpToken, 'catalog-pinned-before-settings-change')
 
-  await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByRole('button', { name: /MCP security/ }).click()
-  const toolSet = appWindow.getByRole('combobox', { name: 'Tool set' })
-  await expect(toolSet).toHaveValue('complete')
+  try {
+    await appWindow.getByRole('button', { name: 'Settings' }).click()
+    await appWindow.getByRole('button', { name: /MCP security/ }).click()
+    const toolSet = appWindow.getByRole('combobox', { name: 'Tool set' })
+    await expect(toolSet).toHaveValue('complete')
 
-  await toolSet.selectOption('essentials')
-  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).mcpToolSet).toBe('essentials')
-  const essentials = await listTools(mcpPort, mcpToken)
-  expect(new Set(essentials)).toEqual(
-    new Set(mcpToolCatalogForSet('essentials').map(({ name }) => name))
-  )
-  expect(essentials).toContain('browser_downloads')
-  expect(essentials).not.toContain('browser_accessibility_audit')
+    await toolSet.selectOption('essentials')
+    await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).mcpToolSet).toBe('essentials')
+    const essentials = await listTools(mcpPort, mcpToken)
+    expect(new Set(essentials)).toEqual(
+      new Set(mcpToolCatalogForSet('essentials').map(({ name }) => name))
+    )
+    expect(essentials).toContain('browser_downloads')
+    expect(essentials).not.toContain('browser_accessibility_audit')
+    expect(new Set((await retainedClient.listTools()).tools.map(({ name }) => name))).toEqual(
+      new Set(mcpToolCatalogForSet('complete').map(({ name }) => name))
+    )
 
-  await toolSet.selectOption('qa')
-  await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).mcpToolSet).toBe('qa')
-  const qa = await listTools(mcpPort, mcpToken)
-  expect(new Set(qa)).toEqual(new Set(mcpToolCatalogForSet('qa').map(({ name }) => name)))
-  expect(qa).toContain('browser_accessibility_audit')
-  expect(qa).not.toContain('browser_evaluate')
+    await toolSet.selectOption('qa')
+    await expect.poll(async () => JSON.parse(await readFile(settingsPath, 'utf8')).mcpToolSet).toBe('qa')
+    const qa = await listTools(mcpPort, mcpToken)
+    expect(new Set(qa)).toEqual(new Set(mcpToolCatalogForSet('qa').map(({ name }) => name)))
+    expect(qa).toContain('browser_accessibility_audit')
+    expect(qa).not.toContain('browser_evaluate')
+  } finally {
+    await retainedClient.close()
+  }
 })

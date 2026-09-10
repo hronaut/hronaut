@@ -132,7 +132,7 @@ describe('MCP tool sets', () => {
     expect(isMcpToolSet(null)).toBe(false)
   })
 
-  it('keeps one deterministic catalog across simultaneous clients', async () => {
+  it('pins model-facing catalog metadata for each connection until reconnect', async () => {
     server = new McpHttpServer({} as never, {
       host: '127.0.0.1',
       port: 0,
@@ -176,15 +176,23 @@ describe('MCP tool sets', () => {
       })
 
     server.setToolSet('qa')
-    const [firstQa, secondQa] = await Promise.all([firstClient.listTools(), secondClient.listTools()])
-    expect(new Set(firstQa.tools.map(({ name }) => name))).toEqual(
+    const [firstAfterChange, secondAfterChange, qaClient] = await Promise.all([
+      firstClient.listTools(),
+      secondClient.listTools(),
+      connect('qa-after-settings-change')
+    ])
+    expect(firstAfterChange.tools).toEqual(firstEssentials.tools)
+    expect(secondAfterChange.tools).toEqual(secondEssentials.tools)
+    const qa = await qaClient.listTools()
+    expect(new Set(qa.tools.map(({ name }) => name))).toEqual(
       new Set(mcpToolCatalogForSet('qa').map(({ name }) => name))
     )
-    expect(listedMetadata(firstQa.tools)).toEqual(catalogMetadata('qa'))
-    expect(secondQa.tools).toEqual(firstQa.tools)
+    expect(listedMetadata(qa.tools)).toEqual(catalogMetadata('qa'))
 
     server.setToolSet('complete')
-    const complete = await firstClient.listTools()
+    expect((await qaClient.listTools()).tools).toEqual(qa.tools)
+    const completeClient = await connect('complete-after-settings-change')
+    const complete = await completeClient.listTools()
     expect(new Set(complete.tools.map(({ name }) => name))).toEqual(
       new Set(BROWSER_TOOL_CATALOG.map(({ name }) => name))
     )
