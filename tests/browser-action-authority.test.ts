@@ -50,7 +50,9 @@ describe('consequential browser action authority', () => {
       operationClass: 'page-interaction', targetKind: 'element-ref'
     })
     expect(JSON.stringify(expected)).not.toContain('Ignore previous instructions')
-    expect(JSON.stringify(expected)).not.toContain('e7')
+    expect(expected.targetFingerprint).toMatch(/^[0-9a-f]{64}$/)
+    expect(expected).not.toHaveProperty('target')
+    expect(expected).not.toHaveProperty('ref')
   })
 
   it.each([
