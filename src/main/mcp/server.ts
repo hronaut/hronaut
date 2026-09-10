@@ -732,6 +732,11 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
   }
 }
 
+export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown }): Omit<T, 'postcondition'> {
+  const { postcondition: _postcondition, ...pageInput } = input
+  return pageInput
+}
+
 function createBrowserMcpServer(
   manager: BrowserTabsManager,
   showWindowInactive: () => void,
@@ -1836,7 +1841,7 @@ function createBrowserMcpServer(
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
-    }) => textResult(await manager.click(input)))
+    }) => textResult(await manager.click(browserClickPageInput(input))))
   )
   registerWorkspaceTool(
     'browser_dialog',

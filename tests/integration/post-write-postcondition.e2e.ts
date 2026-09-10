@@ -11,7 +11,14 @@ test('reads delayed postconditions in an isolated world without replaying the wr
     response.end(`<!doctype html><title>Postcondition fixture</title>
       <div id="account">Account fixture</div><div id="state">Saving</div>
       <input id="draft" value="unsaved fixture"><button id="write" onclick="window.writes++;setTimeout(() => document.getElementById('state').textContent = 'Saved fixture', 250)">Submit</button>
-      <script>window.writes=0;window.hooks=0;</script>`)
+      <script>
+        window.writes=0;window.hooks=0;window.privateInputSeen=false;
+        const originalScrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = function (...args) {
+          window.privateInputSeen ||= String(new Error().stack).includes('Account fixture') || String(new Error().stack).includes('Saved fixture');
+          return originalScrollIntoView.apply(this, args);
+        };
+      </script>`)
   })
   await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
   const address = fixture.address()
@@ -68,9 +75,9 @@ test('reads delayed postconditions in an isolated world without replaying the wr
     expect(await inspect()).toBe('context-changed')
     const state = await electronApp.evaluate(async ({ webContents }, origin) => {
       const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
-      return page.executeJavaScript(`({ writes: window.writes, hooks: window.hooks, draft: document.getElementById('draft').value })`)
+      return page.executeJavaScript(`({ writes: window.writes, hooks: window.hooks, draft: document.getElementById('draft').value, privateInputSeen: window.privateInputSeen })`)
     }, origin)
-    expect(state).toEqual({ writes: 1, hooks: 0, draft: 'unsaved fixture' })
+    expect(state).toEqual({ writes: 1, hooks: 0, draft: 'unsaved fixture', privateInputSeen: false })
     await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'stop' })
     const report = decode<{ receipts: Array<{ event: { phase: string; status?: string; reason?: string } }> }>(
       await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'read', runId: audit.id })
