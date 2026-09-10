@@ -6551,6 +6551,28 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.isAudioMuted()
     }, url)).toBe(false)
+
+    const secondUrl = `http://127.0.0.1:${address.port}/second`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(secondUrl)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(secondUrl)})?.loading)`)).toBe(false)
+    await appWindow.evaluate('window.hronaut.setAllTabsMuted(true)')
+    await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
+    )), [url, secondUrl])).toEqual([true, true])
+
+    const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(url)})?.id)`)
+    if (typeof firstTabId !== 'string') throw new Error('First audio fixture tab was not found')
+    await appWindow.evaluate(`window.hronaut.setTabMuted(${JSON.stringify(firstTabId)}, false)`)
+    const globalAudio = appWindow.getByRole('button', { name: 'Mute all tabs' })
+    await expect(globalAudio).toHaveAttribute('aria-pressed', 'false')
+    await globalAudio.click()
+    await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
+    )), [url, secondUrl])).toEqual([true, true])
+    await appWindow.getByRole('button', { name: 'Unmute all tabs' }).click()
+    await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
+    )), [url, secondUrl])).toEqual([false, false])
   } finally {
     await closeFixtureServer(server)
   }

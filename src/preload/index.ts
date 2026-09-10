@@ -150,6 +150,7 @@ const api: HronautApi = {
   stopFindInPage: (tabId?: string) => ipcRenderer.invoke('browser:stop-find-in-page', tabId),
   setZoom: (options: BrowserZoomOptions) => ipcRenderer.invoke('browser:set-zoom', options),
   setTabMuted: (tabId: string, muted: boolean) => ipcRenderer.invoke('browser:set-tab-muted', tabId, muted),
+  setAllTabsMuted: (muted: boolean) => ipcRenderer.invoke('browser:set-all-tabs-muted', muted),
   savePdf: (options: BrowserPdfOptions = {}) => ipcRenderer.invoke('browser:save-pdf', options),
   setTabHumanInteractionLocked: (tabId: string, locked: boolean) =>
     ipcRenderer.invoke('browser:set-tab-human-interaction-locked', tabId, locked),

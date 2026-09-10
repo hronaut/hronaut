@@ -2801,6 +2801,11 @@ function registerIpc(): void {
     if (typeof tabId !== 'string' || typeof muted !== 'boolean') throw new TypeError('Invalid tab audio state')
     return tabsManager!.setTabMuted(tabId, muted)
   })
+  ipcMain.handle('browser:set-all-tabs-muted', (event, muted: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof muted !== 'boolean') throw new TypeError('Invalid global tab audio state')
+    return tabsManager!.setAllTabsMuted(muted)
+  })
   ipcMain.handle('browser:save-pdf', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid PDF options')

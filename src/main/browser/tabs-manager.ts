@@ -4241,6 +4241,16 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  setAllTabsMuted(muted: boolean): BrowserState {
+    for (const tab of this.tabs.values()) {
+      if (isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) continue
+      tab.webContents.setAudioMuted(muted)
+      tab.muted = muted
+    }
+    this.changed(false)
+    return this.getState()
+  }
+
   stop(tabId?: string): BrowserState {
     this.getTab(tabId).webContents.stop()
     return this.getState()

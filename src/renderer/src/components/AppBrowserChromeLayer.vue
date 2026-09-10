@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabState,
@@ -117,6 +117,8 @@ const {
   toggleFollowAgentActivity
 } = props.settingsController
 const { state: updateState } = updateSettingsController
+const websiteTabs = computed(() => props.state.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+const allTabsMuted = computed(() => websiteTabs.value.length > 0 && websiteTabs.value.every((tab) => tab.muted))
 const { open: settingsOpen, toggle: toggleSettings } = settingsDialogController
 const {
   downloads,
@@ -151,6 +153,7 @@ const {
   showWorkspaceContextMenu,
   closeTab,
   toggleTabMuted,
+  toggleAllTabsMuted,
   toggleTabHumanInteraction,
   toggleAllHumanInteraction
 } = props.tabActionsController
@@ -238,6 +241,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :downloads="downloads"
       :active-downloads="activeDownloads"
       :download-button-label="downloadButtonLabel"
+      :has-website-tabs="websiteTabs.length > 0"
+      :all-tabs-muted="allTabsMuted"
       :all-interaction-locked="state.allHumanInteractionLocked"
       :all-interaction-lock-label="allInteractionLockLabel"
       :follow-agent-activity="settings.followAgentActivity"
@@ -248,6 +253,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @toggle-tab-search="runAction(actions.toggleTabSearch)"
       @toggle-downloads="runAction(toggleDownloads)"
       @toggle-history="runAction(toggleVisitHistory)"
+      @toggle-all-tabs-muted="runAction(toggleAllTabsMuted)"
       @toggle-all-interaction="runAction(toggleAllHumanInteraction)"
       @toggle-follow-agent-activity="runAction(toggleFollowAgentActivity)"
       @open-update-settings="runAction(openUpdateSettings)"

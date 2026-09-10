@@ -86,6 +86,8 @@ const AppTopbarActionsStub = defineComponent({
     downloads: Array,
     activeDownloads: Array,
     downloadButtonLabel: String,
+    hasWebsiteTabs: Boolean,
+    allTabsMuted: Boolean,
     allInteractionLocked: Boolean,
     allInteractionLockLabel: String,
     followAgentActivity: Boolean,
@@ -98,6 +100,7 @@ const AppTopbarActionsStub = defineComponent({
     'toggleTabSearch',
     'toggleDownloads',
     'toggleHistory',
+    'toggleAllTabsMuted',
     'toggleAllInteraction',
     'toggleFollowAgentActivity',
     'openUpdateSettings',
@@ -254,6 +257,7 @@ function createHarness(home = false) {
     showWorkspaceContextMenu: vi.fn(),
     closeTab: vi.fn(),
     toggleTabMuted: vi.fn(),
+    toggleAllTabsMuted: vi.fn(),
     toggleTabHumanInteraction: vi.fn(),
     toggleAllHumanInteraction: vi.fn()
   }
@@ -537,6 +541,7 @@ describe('AppBrowserChromeLayer', () => {
     topbar.vm.$emit('toggleTabSearch')
     topbar.vm.$emit('toggleDownloads')
     topbar.vm.$emit('toggleHistory')
+    topbar.vm.$emit('toggleAllTabsMuted')
     topbar.vm.$emit('toggleAllInteraction')
     topbar.vm.$emit('toggleFollowAgentActivity')
     topbar.vm.$emit('openUpdateSettings')
@@ -567,6 +572,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(harness.actions.toggleTabSearch).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleDownloads).toHaveBeenCalledOnce()
     expect(harness.collectionActions.toggleVisitHistory).toHaveBeenCalledOnce()
+    expect(harness.tabActions.toggleAllTabsMuted).toHaveBeenCalledOnce()
     expect(harness.tabActions.toggleAllHumanInteraction).toHaveBeenCalledOnce()
     expect(harness.settingsActions.toggleFollowAgentActivity).toHaveBeenCalledOnce()
     expect(harness.siteActions.openUpdateSettings).toHaveBeenCalledOnce()

@@ -1153,6 +1153,8 @@ export const deDE = {
       "searchTabs": "Tabs suchen",
       "historyTitle": "Browserverlauf (Ctrl+H / Cmd+Y)",
       "history": "Browserverlauf",
+      "muteAllTabs": "Alle Tabs stummschalten",
+      "unmuteAllTabs": "Stummschaltung aller Tabs aufheben",
       "followAgents": "Agenten folgen",
       "followingAgents": "Agenten werden verfolgt",
       "followAgentActivityDescription": "Den von Agenten verwendeten Tab anzeigen, ohne Tastatur- oder Mausfokus zu übernehmen",

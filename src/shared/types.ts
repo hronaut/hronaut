@@ -2312,6 +2312,7 @@ export interface HronautApi {
   stopFindInPage(tabId?: string): Promise<void>
   setZoom(options: BrowserZoomOptions): Promise<BrowserState>
   setTabMuted(tabId: string, muted: boolean): Promise<BrowserState>
+  setAllTabsMuted(muted: boolean): Promise<BrowserState>
   savePdf(options?: BrowserPdfOptions): Promise<BrowserPdfExport>
   setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState>
   setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState>

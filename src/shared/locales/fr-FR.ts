@@ -1153,6 +1153,8 @@ export const frFR = {
       "searchTabs": "Rechercher des onglets",
       "historyTitle": "Historique de navigation (Ctrl+H / Cmd+Y)",
       "history": "Historique de navigation",
+      "muteAllTabs": "Couper le son de tous les onglets",
+      "unmuteAllTabs": "Réactiver le son de tous les onglets",
       "followAgents": "Suivre les agents",
       "followingAgents": "Suivi des agents",
       "followAgentActivityDescription": "Afficher l’onglet utilisé par l’agent sans prendre le focus du clavier ni de la souris",
