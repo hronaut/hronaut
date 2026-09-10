@@ -19,6 +19,9 @@ describe('MCP workspace fork sources and direct access', () => {
   async function setup(beforeAuditOperation?: () => void) {
     let accessible = true
     let humanInteractionGeneration = 0
+    let navigationGeneration = 1
+    let observationGeneration = 1
+    let url = 'https://trusted.example/account'
     const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
@@ -42,7 +45,11 @@ describe('MCP workspace fork sources and direct access', () => {
       snapshotDetails: vi.fn(async () => ({ text: 'Healthy page', returnedChars: 12, maxChars: 30000,
         truncated: false, omitted: { headings: false, controls: false, bodyText: false, characters: false } })),
       renameMcpTabGroup: vi.fn(() => workspace),
-      getMcpGroupState: vi.fn(() => ({ tabs: [{ id: targetId, humanInteractionGeneration }] })),
+      getMcpGroupState: vi.fn(() => ({
+        activeTabId: targetId,
+        tabs: [{ id: targetId, url, navigationGeneration, observationGeneration, humanInteractionGeneration }],
+        mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
+      })),
       deleteSavedTabGroup: vi.fn(),
       restoreSavedTabGroup: vi.fn(async () => workspace),
       transferWorkspaceStorage: vi.fn(async () => ({ copied: true })),
@@ -64,7 +71,16 @@ describe('MCP workspace fork sources and direct access', () => {
     client = new Client({ name: 'fork-access-test', version: '1' })
     await client.connect(new StreamableHTTPClientTransport(new URL(await server.start())))
     const call = async (name: string, args: Record<string, unknown>) => await client.callTool({ name, arguments: args }) as CallToolResult
-    return { manager, source, call, interact: () => { humanInteractionGeneration += 1 }, disable: () => { accessible = false } }
+    return {
+      manager, source, call,
+      interact: () => { humanInteractionGeneration += 1 },
+      disable: () => { accessible = false },
+      redirect: (next = 'https://untrusted.example/replace') => {
+        url = next
+        navigationGeneration += 1
+        observationGeneration += 1
+      }
+    }
   }
 
   it('allows a disabled archived source to be discovered and forked without granting source access', async () => {
@@ -200,6 +216,20 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.click).not.toHaveBeenCalled()
   })
 
+  it.each(['audit', 'wake'])('fails closed when a cross-origin redirect replaces an admitted page during %s', async stage => {
+    let redirect: () => void = () => undefined
+    const fixture = await setup(stage === 'audit' ? () => redirect() : undefined)
+    redirect = fixture.redirect
+    await fixture.call('browser_workspaces', { action: 'create', name: 'Task' })
+    if (stage === 'wake') fixture.manager.wakeTab.mockImplementationOnce(async () => { redirect() })
+    const result = await fixture.call('browser_click', { workspaceId: ownId, selector: '#confirm' })
+    expect(result.isError).toBe(true)
+    expect(parsed(result)).toMatchObject({
+      status: 'STALE_PRECONDITION', reason: 'ORIGIN_CHANGED', effects: 'none', retrySafe: true
+    })
+    expect(fixture.manager.click).not.toHaveBeenCalled()
+  })
+
   it('blocks storage import while continuity is suspended', async () => {
     const { manager, call } = await setup()
     await call('browser_workspaces', { action: 'create', name: 'Task' })
@@ -299,10 +329,14 @@ describe('MCP workspace fork sources and direct access', () => {
   it('keeps results valid when human input changes a different tab', async () => {
     const { manager, call } = await setup()
     let otherGeneration = 0
-    manager.getMcpGroupState.mockImplementation(() => ({ tabs: [
-      { id: targetId, humanInteractionGeneration: 0 },
-      { id: sourceId, humanInteractionGeneration: otherGeneration }
-    ] }))
+    manager.getMcpGroupState.mockImplementation(() => ({
+      activeTabId: targetId,
+      tabs: [
+        { id: targetId, url: 'https://trusted.example/account', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: 0 },
+        { id: sourceId, url: 'https://other.example/', navigationGeneration: 1, observationGeneration: 1, humanInteractionGeneration: otherGeneration }
+      ],
+      mcpTabGroups: [{ id: ownId, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
+    }))
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     manager.click.mockImplementationOnce(async () => { otherGeneration += 1; return 'Clicked' })
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)

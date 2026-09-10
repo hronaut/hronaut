@@ -11,7 +11,15 @@ const stateSchema = z.object({
   navigationGeneration: z.number().int().nonnegative().safe(),
   // Optional while reading journals written before observation fencing shipped.
   observationGeneration: z.number().int().nonnegative().safe().optional(),
-  originChanged: z.boolean()
+  humanInteractionGeneration: z.number().int().nonnegative().safe().optional(),
+  originChanged: z.boolean(),
+  operationClass: z.enum(['navigation', 'page-interaction', 'browser-state', 'site-data', 'network', 'external-request']).optional(),
+  targetKind: z.enum(['tab', 'element-ref', 'selector', 'coordinates', 'drag', 'form', 'origin', 'script', 'request']).optional(),
+  targetId: identifier.optional(),
+  authorityReason: z.enum([
+    'WORKSPACE_CHANGED', 'PERMISSION_CHANGED', 'TARGET_CHANGED', 'ORIGIN_CHANGED',
+    'NAVIGATION_CHANGED', 'EXPECTED_STATE_CHANGED', 'SITE_POLICY_CHANGED'
+  ]).optional()
 }).strict()
 const eventSchema = z.discriminatedUnion('phase', [
   z.object({
@@ -44,7 +52,7 @@ const eventSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('outcome'),
     actionId: identifier,
-    status: z.enum(['succeeded', 'failed', 'cancelled', 'interrupted', 'outcome-unknown', 'stale-observation']),
+    status: z.enum(['succeeded', 'failed', 'cancelled', 'interrupted', 'outcome-unknown', 'stale-observation', 'provenance-rejected']),
     // Failure or cancellation does not establish that a write was rolled back.
     effects: z.enum(['none', 'possible', 'confirmed']),
     siteAccessDropped: z.number().int().nonnegative().safe(),
@@ -118,6 +126,9 @@ function transition(actions: Map<string, AuditReceiptEvent>, event: AuditReceipt
   if (event.phase === 'decision' ? previous !== undefined : (
     previous?.phase !== 'decision' || previous.decision !== 'allowed'
   )) throw new Error('Invalid audit receipt transition')
+  if (event.phase === 'outcome' && event.status === 'provenance-rejected' && event.effects !== 'none') {
+    throw new Error('Invalid audit receipt transition')
+  }
   actions.set(event.actionId, event)
 }
 
@@ -150,7 +161,17 @@ export class AuditReceiptStore {
       event: {
         phase: 'outcome', actionId: options.runId, status: 'stale-observation', effects: 'confirmed',
         siteAccessDropped: Number.MAX_SAFE_INTEGER,
-        state: { tabId: options.runId, navigationGeneration: Number.MAX_SAFE_INTEGER, originChanged: false }
+        state: {
+          tabId: options.runId,
+          navigationGeneration: Number.MAX_SAFE_INTEGER,
+          observationGeneration: Number.MAX_SAFE_INTEGER,
+          humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
+          originChanged: false,
+          operationClass: 'page-interaction',
+          targetKind: 'coordinates',
+          targetId: options.runId,
+          authorityReason: 'EXPECTED_STATE_CHANGED'
+        }
       },
       previousHash: 'f'.repeat(64), hash: 'f'.repeat(64)
     }) + '\n')
