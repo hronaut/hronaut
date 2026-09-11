@@ -9,6 +9,7 @@ import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/
 import { z } from 'zod'
 import type { AuditReceiptService } from './audit-receipt-service.js'
 import type { AuditVerificationUpdate } from './audit-receipt-run.js'
+import type { AuditReceiptAuthorization } from './audit-receipt-store.js'
 import { runPostWriteVerification } from './post-write-verification-runner.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
 import type { HumanWaitingService } from './human-waiting-service.js'
@@ -940,6 +941,9 @@ function createBrowserMcpServer(
   const capabilityAuthorizationFingerprint = createHash('sha256').update(JSON.stringify(
     capability ? { kind: 'capability-profile', ...capability.grant } : { kind: 'compatibility-full-access' }
   )).digest('hex')
+  const auditAuthorization: AuditReceiptAuthorization = capability
+    ? { kind: 'capability-profile', lineage: capability.store.authorizationLineage(capability.grant) }
+    : { kind: 'full-access' }
   const toolSetCatalog = mcpToolCatalogForSet(toolSet)
     .filter(({ name }) => !capabilityProfile || capabilityProfile.allowedTools.includes(name))
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
@@ -1567,6 +1571,7 @@ function createBrowserMcpServer(
         const result = await auditReceipts.execute(workspaceId, {
           toolName: name,
           readOnly: toolDefinition(name).annotations.readOnlyHint,
+          authorization: auditAuthorization,
           signal: extra?.signal,
           isErrorResult: result => result.isError === true,
           classifyErrorResult: () => invalidatedOutcome,
@@ -1743,7 +1748,8 @@ function createBrowserMcpServer(
         }))
       }
       return auditReceipts ? auditReceipts.execute(workspaceId, {
-        toolName: 'browser_preflight', readOnly: true, observeState: () => null, signal: extra?.signal,
+        toolName: 'browser_preflight', readOnly: true, authorization: auditAuthorization,
+        observeState: () => null, signal: extra?.signal,
         operation, isErrorResult: result => result.isError === true
       }) : operation()
     })

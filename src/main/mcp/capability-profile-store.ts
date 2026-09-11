@@ -45,6 +45,11 @@ export interface McpCapabilityGrant {
   credentialId: string
 }
 
+export interface McpCapabilityAuthorizationReference {
+  profileId: string
+  revision: number
+}
+
 export interface McpCapabilityRequest {
   toolName: string
   action?: string
@@ -379,6 +384,14 @@ export class McpCapabilityProfileStore {
     if (!profile || profile.revision !== grant.revision || profile.credentialId !== grant.credentialId
       || !this.activeLineage(profile, false)) throw new McpCapabilityAuthorizationError()
     return publicProfile(profile, true)
+  }
+
+  authorizationLineage(grant: McpCapabilityGrant): McpCapabilityAuthorizationReference[] {
+    const profile = this.profiles.get(grant.profileId)
+    this.requireActiveGrant(grant)
+    const lineage = profile ? this.lineage(profile) : null
+    if (!lineage) throw new McpCapabilityAuthorizationError()
+    return [...lineage].reverse().map(candidate => ({ profileId: candidate.id, revision: candidate.revision }))
   }
 
   authorize(grant: McpCapabilityGrant, request: McpCapabilityRequest): McpCapabilityProfile {

@@ -208,6 +208,10 @@ describe('MCP capability profile store', () => {
     }
     const child = await value.derive(grant, childInput)
 
+    expect(value.authorizationLineage(value.authenticate(child.credential)!)).toEqual([
+      { profileId: parent.profile.id, revision: parent.profile.revision },
+      { profileId: child.profile.id, revision: child.profile.revision }
+    ])
     expect(child.profile.parentAuthorization).toEqual({
       profileId: parent.profile.id,
       revision: parent.profile.revision,

@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { AuditReceipt } from '../../src/main/mcp/audit-receipt-store.js'
+import type { HronautSettingsApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const text = (result: CallToolResult): string => result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
@@ -16,12 +17,23 @@ test('records private bounded browser evidence across MCP reconnects without aut
   const address = fixture.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture address')
   const origin = `http://127.0.0.1:${address.port}`
+  await appWindow.evaluate('window.hronautSettings.setMcpAuthentication(true)')
+  const parent = await appWindow.evaluate(() => (
+    window as unknown as { hronautSettings: HronautSettingsApi }
+  ).hronautSettings.createMcpCapabilityProfile({
+    name: 'Audit lineage parent', preset: 'complete', expiresInMinutes: 120
+  }))
+  const child = await appWindow.evaluate(parentProfileId => (
+    window as unknown as { hronautSettings: HronautSettingsApi }
+  ).hronautSettings.createMcpCapabilityProfile({
+    name: 'Audit lineage child', preset: 'complete', parentProfileId, expiresInMinutes: 60
+  }), parent.profile.id)
   const clients: Client[] = []
   const connect = async (): Promise<Client> => {
     const client = new Client({ name: 'audit-receipt-qa', version: '1' })
     clients.push(client)
     await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
-      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+      requestInit: { headers: { authorization: `Bearer ${child.credential}` } }
     }))
     return client
   }
@@ -35,7 +47,11 @@ test('records private bounded browser evidence across MCP reconnects without aut
   }
   try {
     await expect.poll(async () => {
-      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false }
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, {
+          headers: { authorization: `Bearer ${mcpToken}` }
+        })).ok
+      } catch { return false }
     }).toBe(true)
     const first = await connect()
     const workspace = await call<{ id: string; resumeKey: string }>(first, 'browser_workspaces', {
@@ -71,6 +87,17 @@ test('records private bounded browser evidence across MCP reconnects without aut
     expect(admissions.map(receipt => receipt.event.phase === 'decision' ? receipt.event.toolName : '')).toEqual([
       'browser_new_tab', 'browser_navigate', 'browser_snapshot'
     ])
+    for (const receipt of admissions) {
+      expect(receipt.event).toMatchObject({
+        authorization: {
+          kind: 'capability-profile',
+          lineage: [
+            { profileId: parent.profile.id, revision: parent.profile.revision },
+            { profileId: child.profile.id, revision: child.profile.revision }
+          ]
+        }
+      })
+    }
     const failedId = admissions.find(receipt => receipt.event.phase === 'decision'
       && receipt.event.toolName === 'browser_navigate')!.event.actionId
     expect(report.receipts.some(receipt => receipt.event.phase === 'site-access'
@@ -94,7 +121,8 @@ test('records private bounded browser evidence across MCP reconnects without aut
     expect(expired.openWith).toBeUndefined()
     const exported = JSON.stringify(report)
     for (const privateValue of [origin, 'blocked.example', 'private-path-canary', 'private-query-canary',
-      'private-denied-canary', 'Private title canary', 'Private page content canary', workspace.resumeKey, mcpToken]) {
+      'private-denied-canary', 'Private title canary', 'Private page content canary', workspace.resumeKey,
+      mcpToken, parent.credential, child.credential, parent.profile.credentialId, child.profile.credentialId]) {
       expect(exported).not.toContain(privateValue)
     }
     const archiveRun = await call<{ id: string }>(resumed, 'browser_audit_receipts', { workspaceId, action: 'start' })

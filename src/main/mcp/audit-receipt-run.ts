@@ -1,5 +1,5 @@
 import { currentAuditAction, withAuditAction } from './audit-action-context.js'
-import type { AuditReceipt, AuditReceiptEvent, AuditReceiptStore } from './audit-receipt-store.js'
+import type { AuditReceipt, AuditReceiptAuthorization, AuditReceiptEvent, AuditReceiptStore } from './audit-receipt-store.js'
 
 type ObservedState = Extract<AuditReceiptEvent, { phase: 'decision' }>['state']
 type SiteAccessInput = Omit<Extract<AuditReceiptEvent, { phase: 'site-access' }>, 'phase' | 'actionId'>
@@ -25,6 +25,7 @@ export interface AuditReceiptVerificationOptions {
 export interface AuditReceiptActionOptions<T> {
   toolName: string
   readOnly: boolean
+  authorization?: AuditReceiptAuthorization
   observeState: () => ObservedState
   operation: () => Promise<T>
   isErrorResult: (result: T) => boolean
@@ -68,7 +69,8 @@ export class AuditReceiptRun {
       // browser operation starts. Failure here cannot trigger an implicit retry.
       await this.store.append({
         phase: 'decision', scope: 'workspace', actionId, toolName: options.toolName,
-        decision: 'allowed', ...(options.observeEvidence ? { evidenceExpected: true } : {}), state: observe()
+        decision: 'allowed', ...(options.authorization ? { authorization: structuredClone(options.authorization) } : {}),
+        ...(options.observeEvidence ? { evidenceExpected: true } : {}), state: observe()
       })
       if (options.verification) {
         try {

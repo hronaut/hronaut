@@ -83,6 +83,34 @@ describe('action audit receipt journal', () => {
     expect(JSON.stringify(report)).not.toMatch(/trusted\.example|Ignore previous instructions|element-selector-canary/)
   })
 
+  it('retains bounded capability lineage without credential identifiers or bearer values', async () => {
+    const { store, options } = await fixture()
+    const rootId = randomUUID()
+    const childId = randomUUID()
+    const start = {
+      ...decision(),
+      authorization: {
+        kind: 'capability-profile' as const,
+        lineage: [
+          { profileId: rootId, revision: 4 },
+          { profileId: childId, revision: 2 }
+        ]
+      }
+    }
+    await store.append(start)
+    await store.append(outcome(start.actionId))
+
+    const reopened = await new AuditReceiptStore(options).read()
+    expect(reopened[0]!.event).toMatchObject({ authorization: start.authorization })
+    const serialized = JSON.stringify(reopened)
+    expect(serialized).not.toContain('credentialId')
+    expect(serialized).not.toContain('hrc1_')
+    await expect(store.append({
+      ...decision(),
+      authorization: { ...start.authorization, credentialId: randomUUID() }
+    } as AuditReceiptEvent)).rejects.toThrow('Invalid audit receipt event')
+  })
+
   it('keeps uncorrelated native decisions explicit and rejects false action attribution', async () => {
     const { store } = await fixture()
     const native: AuditReceiptEvent = {

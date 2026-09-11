@@ -40,6 +40,18 @@ const evidenceArtifactSchema = z.object({
     context.addIssue({ code: 'custom', message: 'Available evidence must be retained' })
   }
 })
+const authorizationSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('full-access') }).strict(),
+  z.object({
+    kind: z.literal('capability-profile'),
+    // Root-to-leaf profile identifiers prove delegation without retaining a
+    // bearer credential, credential identifier, or private scope values.
+    lineage: z.array(z.object({
+      profileId: identifier,
+      revision: z.number().int().positive().safe()
+    }).strict()).min(1).max(256)
+  }).strict()
+])
 const eventSchema = z.discriminatedUnion('phase', [
   z.object({
     phase: z.literal('evidence'),
@@ -62,6 +74,8 @@ const eventSchema = z.discriminatedUnion('phase', [
     actionId: identifier,
     toolName: z.string().regex(/^browser_[a-z_]+$/),
     decision: z.enum(['allowed', 'denied']),
+    // Optional so retained journals from before authorization lineage remain readable.
+    authorization: authorizationSchema.optional(),
     evidenceExpected: z.boolean().optional(),
     state: stateSchema.nullable()
   }).strict(),
@@ -99,6 +113,7 @@ const entrySchema = z.object({
 }).strict()
 
 export type AuditReceiptEvent = z.infer<typeof eventSchema>
+export type AuditReceiptAuthorization = z.infer<typeof authorizationSchema>
 export type AuditObservedState = z.infer<typeof stateSchema> | null
 export type AuditReceipt = z.infer<typeof entrySchema>
 
