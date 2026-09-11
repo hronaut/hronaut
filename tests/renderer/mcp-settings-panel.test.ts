@@ -14,7 +14,7 @@ function deferred<Value>() {
   return { promise, resolve }
 }
 
-function renderPanel() {
+function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = []) {
   const settings = ref<AppSettings>({ ...DEFAULT_RENDERER_SETTINGS })
   const endpoint = ref('http://127.0.0.1:47812/mcp')
   const setAuthentication = vi.fn(async (enabled: boolean) => {
@@ -39,12 +39,13 @@ function renderPanel() {
     return settings.value
   })
   const confirmDisableAuthentication = vi.fn(() => true)
-  const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => [])
+  const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => initialCapabilityProfiles)
   const createCapabilityProfile = vi.fn(async () => ({
     profile: {
       id: '01912345-6789-7abc-8def-0123456789ab', name: 'QA reader', revision: 1,
       credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
       operationClasses: ['read'], useCount: 0,
+      lineageActive: true,
       createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
     },
     credential: `hrc1_${'a'.repeat(43)}`
@@ -122,6 +123,43 @@ describe('McpSettingsPanel', () => {
     expect(port).toHaveValue(49001)
     expect(screen.queryByText('MCP port 49000 is active.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply port' })).toBeEnabled()
+    controller.dispose()
+  })
+
+  it('creates a derived credential from the selected parent profile', async () => {
+    const parent: McpCapabilityProfileSummary = {
+      id: '01912345-6788-7abc-8def-0123456789ab', name: 'Parent QA', revision: 3,
+      credentialId: '22222222-2222-4222-8222-222222222222', allowedTools: ['browser_snapshot', 'browser_click'],
+      operationClasses: ['read', 'interact'], useCount: 0,
+      lineageActive: true,
+      createdAt: '2026-09-11T11:00:00.000Z', updatedAt: '2026-09-11T11:30:00.000Z'
+    }
+    const inactiveChild: McpCapabilityProfileSummary = {
+      ...parent,
+      id: '01912345-6787-7abc-8def-0123456789ab',
+      name: 'Stale child',
+      lineageActive: false,
+      parentAuthorization: {
+        profileId: parent.id,
+        revision: 2,
+        credentialId: parent.credentialId
+      }
+    }
+    const { controller, createCapabilityProfile } = renderPanel([parent, inactiveChild])
+    const user = userEvent.setup()
+
+    await screen.findByRole('option', { name: 'Parent QA · r3' })
+    expect(screen.queryByRole('option', { name: 'Stale child · r3' })).not.toBeInTheDocument()
+    expect(screen.getByText('Inactive because its parent changed or exhausted its authority')).toBeVisible()
+    await user.type(screen.getByRole('textbox', { name: 'Profile name' }), 'Delegated reader')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Parent capability (optional)' }), parent.id)
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+
+    expect(createCapabilityProfile).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Delegated reader',
+      preset: 'read-only',
+      parentProfileId: parent.id
+    }))
     controller.dispose()
   })
 

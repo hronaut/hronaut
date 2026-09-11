@@ -56,6 +56,74 @@ test('creates a digest-only restricted credential and revokes its active MCP ses
   }
 })
 
+test('derives a restricted credential and invalidates it when the parent rotates', async ({
+  appWindow,
+  mcpPort,
+  profileDirectory
+}) => {
+  await appWindow.evaluate('window.hronautSettings.setMcpAuthentication(true)')
+  const parent = await appWindow.evaluate(() => (
+    window as unknown as { hronautSettings: HronautSettingsApi }
+  ).hronautSettings.createMcpCapabilityProfile({
+    name: 'Delegating parent',
+    preset: 'complete',
+    expiresInMinutes: 60
+  }))
+  const child = await appWindow.evaluate(parentProfileId => (
+    window as unknown as { hronautSettings: HronautSettingsApi }
+  ).hronautSettings.createMcpCapabilityProfile({
+    name: 'Derived reader',
+    preset: 'read-only',
+    parentProfileId,
+    expiresInMinutes: 30
+  }), parent.profile.id)
+
+  expect(child.profile).toMatchObject({
+    lineageActive: true,
+    parentAuthorization: {
+      profileId: parent.profile.id,
+      revision: parent.profile.revision,
+      credentialId: parent.profile.credentialId
+    }
+  })
+  const persisted = JSON.parse(await readFile(join(profileDirectory, 'mcp-capability-profiles.json'), 'utf8')) as {
+    profiles: Array<Record<string, unknown>>
+  }
+  expect(persisted.profiles.find(profile => profile.id === child.profile.id)).toMatchObject({
+    parentAuthorization: child.profile.parentAuthorization
+  })
+  expect(JSON.stringify(persisted)).not.toContain(child.credential)
+
+  const client = new Client({ name: 'electron-derived-client', version: '1.0.0' })
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${child.credential}` } }
+    }))
+    expect((await client.listTools()).tools.map(tool => tool.name)).toContain('browser_snapshot')
+
+    await appWindow.evaluate(id => (
+      window as unknown as { hronautSettings: HronautSettingsApi }
+    ).hronautSettings.rotateMcpCapabilityProfile(id), parent.profile.id)
+    const profiles = await appWindow.evaluate(() => (
+      window as unknown as { hronautSettings: HronautSettingsApi }
+    ).hronautSettings.listMcpCapabilityProfiles())
+    expect(profiles.find(profile => profile.id === child.profile.id)?.lineageActive).toBe(false)
+    await expect(client.listTools()).rejects.toThrow()
+  } finally {
+    await client.close().catch(() => undefined)
+  }
+
+  const reconnect = new Client({ name: 'stale-derived-client', version: '1.0.0' })
+  try {
+    await expect(reconnect.connect(new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${mcpPort}/mcp`),
+      { requestInit: { headers: { authorization: `Bearer ${child.credential}` } } }
+    ))).rejects.toThrow()
+  } finally {
+    await reconnect.close().catch(() => undefined)
+  }
+})
+
 test('repairs a malformed profile token before starting the browser and MCP listener', async ({
   profileDirectory,
   mcpPort

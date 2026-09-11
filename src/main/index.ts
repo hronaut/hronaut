@@ -3446,6 +3446,7 @@ function registerIpc(): void {
     const input = value as Partial<McpCapabilityProfileCreateInput>
     if (typeof input.name !== 'string'
       || typeof input.preset !== 'string'
+      || (input.parentProfileId !== undefined && typeof input.parentProfileId !== 'string')
       || (input.workspaceIds !== undefined && (!Array.isArray(input.workspaceIds)
         || input.workspaceIds.some(id => typeof id !== 'string')))
       || (input.origins !== undefined && (!Array.isArray(input.origins)
@@ -3466,12 +3467,24 @@ function registerIpc(): void {
   })
   ipcMain.handle('settings:create-mcp-capability-profile', async (event, value: unknown) => {
     assertTrustedShellSender(event)
-    return requireCapabilityProfiles().create(mcpCapabilityProfileInputFromPreset(capabilityProfileInput(value)))
+    const input = capabilityProfileInput(value)
+    const profiles = requireCapabilityProfiles()
+    const normalized = mcpCapabilityProfileInputFromPreset(input)
+    if (!input.parentProfileId) return profiles.create(normalized)
+    const parent = profiles.list().find(profile => profile.id === input.parentProfileId)
+    if (!parent) throw new Error('Parent MCP capability profile not found')
+    return profiles.derive({
+      profileId: parent.id,
+      revision: parent.revision,
+      credentialId: parent.credentialId
+    }, normalized)
   })
   ipcMain.handle('settings:update-mcp-capability-profile', async (event, id: unknown, value: unknown) => {
     assertTrustedShellSender(event)
     if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
-    const result = await requireCapabilityProfiles().update(id, mcpCapabilityProfileInputFromPreset(capabilityProfileInput(value)))
+    const input = capabilityProfileInput(value)
+    if (input.parentProfileId !== undefined) throw new TypeError('An existing MCP capability profile cannot be reparented')
+    const result = await requireCapabilityProfiles().update(id, mcpCapabilityProfileInputFromPreset(input))
     return result
   })
   ipcMain.handle('settings:rotate-mcp-capability-profile', async (event, id: unknown) => {

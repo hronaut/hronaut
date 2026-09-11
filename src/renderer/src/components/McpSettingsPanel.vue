@@ -40,6 +40,7 @@ const {
 
 const profileName = ref('')
 const profilePreset = ref<McpCapabilityProfilePreset>('read-only')
+const profileParentId = ref('')
 const profileWorkspaceIds = ref('')
 const profileOrigins = ref('')
 const profileExpiry = ref('1440')
@@ -55,6 +56,7 @@ async function submitCapabilityProfile(): Promise<void> {
   if (await createCapabilityProfile({
     name: profileName.value,
     preset: profilePreset.value,
+    ...(profileParentId.value ? { parentProfileId: profileParentId.value } : {}),
     workspaceIds: lines(profileWorkspaceIds.value),
     origins: lines(profileOrigins.value),
     expiresInMinutes,
@@ -200,6 +202,18 @@ function handlePortKeydown(event: KeyboardEvent): void {
           </select>
         </label>
         <label>
+          <strong>{{ t('settings.mcp.capabilities.parent') }}</strong>
+          <select v-model="profileParentId" :aria-label="t('settings.mcp.capabilities.parent')" :disabled="capabilityBusy">
+            <option value="">{{ t('settings.mcp.capabilities.parentRoot') }}</option>
+            <option
+              v-for="profile in capabilityProfiles.filter(candidate => candidate.lineageActive)"
+              :key="profile.id"
+              :value="profile.id"
+            >{{ t('settings.mcp.capabilities.parentOption', { name: profile.name, revision: profile.revision }) }}</option>
+          </select>
+          <small>{{ t('settings.mcp.capabilities.parentDescription') }}</small>
+        </label>
+        <label>
           <strong>{{ t('settings.mcp.capabilities.workspaces') }}</strong>
           <textarea v-model="profileWorkspaceIds" rows="2" :placeholder="t('settings.mcp.capabilities.workspacesPlaceholder')" :disabled="capabilityBusy" />
         </label>
@@ -238,11 +252,16 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <div>
             <strong>{{ profile.name }}</strong>
             <small>{{ t('settings.mcp.capabilities.profileSummary', { revision: profile.revision, tools: profile.allowedTools.length, uses: profile.useCount, limit: profile.maxUses ?? '∞' }) }}</small>
+            <small v-if="profile.parentAuthorization">{{ t('settings.mcp.capabilities.derivedFrom', {
+              name: capabilityProfiles.find(candidate => candidate.id === profile.parentAuthorization?.profileId)?.name ?? profile.parentAuthorization.profileId,
+              revision: profile.parentAuthorization.revision
+            }) }}</small>
             <small v-if="profile.revokedAt" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.revoked') }}</small>
+            <small v-else-if="!profile.lineageActive" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.inactiveLineage') }}</small>
             <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: new Date(profile.expiresAt).toLocaleString() }) }}</small>
           </div>
           <div class="mcp-capability-actions">
-            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
+            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
             <UiButton appearance="application" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
           </div>
           <details>

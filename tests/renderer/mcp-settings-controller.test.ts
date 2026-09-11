@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
-import type { AppSettings, McpCapabilityCredentialResult } from '../../src/shared/types.js'
+import type { AppSettings, McpCapabilityCredentialResult, McpCapabilityProfileSummary } from '../../src/shared/types.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -42,6 +42,9 @@ function createController() {
   const confirmDisableAuthentication = vi.fn(() => true)
   const onAuthenticationError = vi.fn()
   const createCapabilityProfile = vi.fn()
+  const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => [])
+  const rotateCapabilityProfile = vi.fn()
+  const revokeCapabilityProfile = vi.fn()
   const controller = useMcpSettingsController({
     settings,
     endpoint,
@@ -50,10 +53,10 @@ function createController() {
     setPort,
     setToolSet,
     resetSettings,
-    listCapabilityProfiles: vi.fn(async () => []),
+    listCapabilityProfiles,
     createCapabilityProfile,
-    rotateCapabilityProfile: vi.fn(),
-    revokeCapabilityProfile: vi.fn(),
+    rotateCapabilityProfile,
+    revokeCapabilityProfile,
     confirmDisableAuthentication,
     translate: (key, parameters) => `${key}:${JSON.stringify(parameters ?? {})}`,
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
@@ -65,6 +68,9 @@ function createController() {
     listenerFailed,
     onAuthenticationError,
     createCapabilityProfile,
+    listCapabilityProfiles,
+    rotateCapabilityProfile,
+    revokeCapabilityProfile,
     setAuthentication,
     setPort,
     setToolSet,
@@ -74,6 +80,42 @@ function createController() {
 }
 
 describe('MCP settings controller', () => {
+  it('marks every cached descendant inactive when a parent credential rotates', async () => {
+    const { controller, listCapabilityProfiles, rotateCapabilityProfile } = createController()
+    const parent: McpCapabilityProfileSummary = {
+      id: '01912345-6788-7abc-8def-0123456789ab', name: 'Parent', revision: 1,
+      credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'], useCount: 0, lineageActive: true,
+      createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+    }
+    const child: McpCapabilityProfileSummary = {
+      ...parent,
+      id: '01912345-6789-7abc-8def-0123456789ab', name: 'Child',
+      credentialId: '22222222-2222-4222-8222-222222222222',
+      parentAuthorization: { profileId: parent.id, revision: 1, credentialId: parent.credentialId }
+    }
+    const grandchild: McpCapabilityProfileSummary = {
+      ...child,
+      id: '01912345-678a-7abc-8def-0123456789ab', name: 'Grandchild',
+      credentialId: '33333333-3333-4333-8333-333333333333',
+      parentAuthorization: { profileId: child.id, revision: 1, credentialId: child.credentialId }
+    }
+    listCapabilityProfiles.mockResolvedValueOnce([parent, child, grandchild])
+    await controller.loadCapabilityProfiles()
+    rotateCapabilityProfile.mockResolvedValueOnce({
+      profile: { ...parent, revision: 2, credentialId: '44444444-4444-4444-8444-444444444444' },
+      credential: `hrc1_${'c'.repeat(43)}`
+    })
+
+    await expect(controller.rotateCapabilityProfile(parent.id)).resolves.toBe(true)
+
+    expect(controller.capabilityProfiles.value.map(profile => [profile.name, profile.lineageActive])).toEqual([
+      ['Parent', true], ['Child', false], ['Grandchild', false]
+    ])
+    expect(controller.capabilityCredential.value).toBe(`hrc1_${'c'.repeat(43)}`)
+    controller.dispose()
+  })
+
   it('preserves a newer draft when the listener move for an older draft completes', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setPort, settings } = createController()
@@ -231,7 +273,7 @@ describe('MCP settings controller', () => {
       profile: {
         id: '01912345-6789-7abc-8def-0123456789ab', name: 'Late', revision: 1,
         credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
-        operationClasses: ['read'], useCount: 0,
+        operationClasses: ['read'], useCount: 0, lineageActive: true,
         createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
       },
       credential: `hrc1_${'b'.repeat(43)}`

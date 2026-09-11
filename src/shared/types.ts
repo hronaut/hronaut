@@ -2479,6 +2479,7 @@ export type McpCapabilityProfilePreset = 'read-only' | 'essentials' | 'qa' | 'co
 export interface McpCapabilityProfileCreateInput {
   name: string
   preset: McpCapabilityProfilePreset
+  parentProfileId?: string
   workspaceIds?: string[]
   origins?: string[]
   expiresInMinutes?: number
@@ -2501,6 +2502,12 @@ export interface McpCapabilityProfileSummary {
   createdAt: string
   updatedAt: string
   revokedAt?: string
+  lineageActive: boolean
+  parentAuthorization?: {
+    profileId: string
+    revision: number
+    credentialId: string
+  }
 }
 
 export interface McpCapabilityCredentialResult {

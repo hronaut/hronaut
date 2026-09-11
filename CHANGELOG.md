@@ -4,9 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Allow trusted Settings to derive a narrower MCP capability credential from an active parent, with persistent parent/revision lineage, shared use limits, and immediate descendant invalidation when ancestor authority changes.
+
 ### Fixed
 
 - Publish the trial and subscription distinction consistently in landing-page metadata, visible pricing FAQ content, and machine-readable product data so directories cannot infer an ongoing free plan.
+- Preserve parent authorization when a derived MCP capability is edited so an update cannot silently turn it into an independent root credential.
 
 ## [1.27.0] - 2026-09-11
 
