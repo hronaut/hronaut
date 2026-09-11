@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 
 function job(source: string, name: string): string {
   const marker = `  ${name}:\n`
@@ -221,6 +222,37 @@ describe('release quality gates', () => {
     expect(testMcpb).toContain('npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts')
     expect(buildMcpb).toContain('- test-mcpb')
     expect(buildMcpb).toContain('npm run package:mcpb')
+  })
+
+  it('publishes only verified release MCPB assets to the official Registry', async () => {
+    const [releaseWorkflow, registryWorkflow] = await Promise.all([
+      readFile('.github/workflows/release.yml', 'utf8'),
+      readFile('.github/workflows/publish-mcp-registry.yml', 'utf8')
+    ])
+    const publishRegistry = job(releaseWorkflow, 'publish-mcp-registry')
+
+    expect(() => parse(releaseWorkflow)).not.toThrow()
+    expect(() => parse(registryWorkflow)).not.toThrow()
+    expect(publishRegistry).toContain('- publish-release')
+    expect(publishRegistry).toContain('- verify-public-release')
+    expect(publishRegistry).toContain('attestations: read')
+    expect(publishRegistry).toContain('id-token: write')
+    expect(publishRegistry).toContain('uses: ./.github/workflows/publish-mcp-registry.yml')
+    expect(registryWorkflow).toContain('MCP_PUBLISHER_VERSION: v1.8.1')
+    expect(registryWorkflow).toContain('MCP_PUBLISHER_LINUX_AMD64_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc')
+    expect(registryWorkflow).not.toContain('/releases/latest/')
+    expect(registryWorkflow).toContain('environment: mcp-registry-publish')
+    expect(registryWorkflow).toContain('git merge-base --is-ancestor "$tag_sha" origin/main')
+    expect(registryWorkflow).toContain('gh attestation verify "registry-release/$asset"')
+    expect(registryWorkflow).toContain('--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"')
+    expect(registryWorkflow).toContain('--source-ref "refs/tags/$TAG"')
+    expect(registryWorkflow).toContain('--source-digest "$TAG_SHA"')
+    expect(registryWorkflow).toContain('--deny-self-hosted-runners')
+    expect(registryWorkflow).toContain('sha256sum --check mcp-checksums.txt')
+    expect(registryWorkflow).toContain('login github-oidc --registry "$REGISTRY_URL"')
+    expect(registryWorkflow).toContain('publish registry-release/hronaut-mcp-server.json')
+    expect(registryWorkflow).toContain('/v0.1/servers/io.github.hronaut%2Fhronaut/versions/$VERSION')
+    expect(registryWorkflow).toContain('.server.version == $version')
   })
 
   it('binds release execution to the selected mainline tag and treats corrected notes as data', async () => {

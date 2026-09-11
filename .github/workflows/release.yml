@@ -515,6 +515,21 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: node scripts/verify-public-release.ts "$VERSION"
 
+  publish-mcp-registry:
+    name: Publish verified MCPB to MCP Registry
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
+    needs:
+      - prepare-release
+      - publish-release
+      - verify-public-release
+    permissions:
+      attestations: read
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-mcp-registry.yml
+    with:
+      tag: ${{ needs.prepare-release.outputs.tag }}
+
   update-scoop-manifest:
     name: Publish verified Scoop manifest
     if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
