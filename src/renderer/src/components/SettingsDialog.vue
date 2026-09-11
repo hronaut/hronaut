@@ -5,11 +5,11 @@ import { useI18n } from 'vue-i18n'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconContrast from '~icons/material-symbols/contrast-rounded'
-import IconDelete from '~icons/material-symbols/delete-outline-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconFavorite from '~icons/material-symbols/favorite-rounded'
 import IconKey from '~icons/material-symbols/key-rounded'
 import IconWallet from '~icons/material-symbols/account-balance-wallet-rounded'
+import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import IconPrivacy from '~icons/material-symbols/privacy-tip-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import IconShieldLock from '~icons/material-symbols/shield-lock-rounded'
@@ -53,6 +53,7 @@ const props = defineProps<{
   supportController: CommercialLicenseController
   walletsController: WalletsController
   workspaces: Array<{ id: string; name: string }>
+  dataWorkspaces: Array<{ id: string; name: string; archived: boolean; tabCount: number; storageOriginCount: number }>
   formatBytes: (bytes: number) => string
   formatNumber: (value: number) => string
   formatDateTime: (value: Date | number | string) => string
@@ -60,6 +61,11 @@ const props = defineProps<{
   reportSettingError: (error: unknown) => void
   openUrl: (url: string) => Promise<void>
   purchaseCommercialLicense: () => void
+}>()
+const emit = defineEmits<{
+  manageWorkspace: [workspaceId: string]
+  createWorkspace: []
+  transferWorkspaceData: [workspaceId?: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -85,7 +91,7 @@ const navigation = computed<Array<{
   { section: 'downloads', label: t('settings.nav.downloads'), description: t('settings.nav.downloadsDescription'), icon: IconDownload },
   { section: 'performance', label: t('settings.nav.performance'), description: t('settings.nav.performanceDescription'), icon: IconBedtime },
   { section: 'mcp', label: t('settings.nav.mcp'), description: t('settings.nav.mcpDescription'), icon: IconShieldLock },
-  { section: 'privacy', label: t('settings.nav.privacy'), description: t('settings.nav.privacyDescription'), icon: IconDelete },
+  { section: 'privacy', label: t('settings.nav.privacy'), description: t('settings.nav.privacyDescription'), icon: IconWorkspaces },
   { section: 'permissions', label: t('settings.nav.permissions'), description: t('settings.nav.permissionsDescription'), icon: IconPrivacy },
   { section: 'credentials', label: t('settings.nav.passwords'), description: t('settings.nav.passwordsDescription'), icon: IconKey },
   { section: 'wallets', label: t('settings.nav.wallets'), description: t('settings.nav.walletsDescription'), icon: IconWallet },
@@ -174,8 +180,12 @@ useModalDialogFocus({ open, panel })
         <PrivacySettingsPanel
           v-else-if="section === 'privacy'"
           :controller="privacyController"
+          :workspaces="dataWorkspaces"
           :format-bytes="formatBytes"
           :format-number="formatNumber"
+          @manage-workspace="emit('manageWorkspace', $event)"
+          @create-workspace="emit('createWorkspace')"
+          @transfer-workspace-data="emit('transferWorkspaceData', $event)"
         />
         <SitePermissionsSettingsPanel
           v-else-if="section === 'permissions'"

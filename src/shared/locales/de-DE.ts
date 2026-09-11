@@ -225,8 +225,8 @@ export const deDE = {
       "mcpDescription": "Lokale Authentifizierung",
       "wallets": "Wallets",
       "walletsDescription": "Web3-Konten und Richtlinien",
-      "privacy": "Datenschutz & Daten",
-      "privacyDescription": "Verlauf, Cookies, Cache",
+      "privacy": "Arbeitsbereiche & Daten",
+      "privacyDescription": "Profile, Übertragung, Bereinigung",
       "permissions": "Website-Berechtigungen",
       "permissionsDescription": "Zugriff pro Website",
       "passwords": "Passwörter",
@@ -319,8 +319,9 @@ export const deDE = {
       "help": "Hronaut fragt vor dem Herunterladen und Installieren eines Updates."
     },
     "privacy": {
-      "heading": "Datenschutz und Browserdaten",
-      description: "Verwalten Sie Daten des bisherigen Browserprofils und den anwendungsweiten Verlauf. Website-Daten einzelner Arbeitsbereiche verwalten Sie über deren Arbeitsbereichs- oder Seitensteuerung.",
+      "heading": "Arbeitsbereiche und Daten",
+      description: "Prüfen Sie Browser-Arbeitsbereiche, verwalten Sie ihre Richtlinien und kopieren oder verschieben Sie ausgewählte Website-Daten zwischen isolierten Profilen.",
+      workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", legacyHeading: "Globaler Verlauf und alte Daten", legacyDescription: "Löschen Sie den anwendungsweiten Verlauf oder Daten des bisherigen Standard-Browserprofils.",
       "whatToClear": "Zu löschende Daten",
       "history": "Verlauf",
       "localVisits": "Lokale Besuche",
@@ -648,8 +649,8 @@ export const deDE = {
         "description": "Hronaut-Einstellungen ändern"
       },
       "privacy": {
-        "label": "Datenschutz und Daten öffnen",
-        "description": "Daten für eine Website oder das gesamte Profil löschen"
+        "label": "Arbeitsbereiche und Daten öffnen",
+        "description": "Profile verwalten, Daten übertragen oder alte Einträge löschen"
       },
       "site-permissions": {
         "label": "Website-Berechtigungen öffnen",

@@ -96,10 +96,10 @@ test('finds global and website commands from the accessible command palette', as
   palette = appWindow.getByRole('dialog', { name: 'Commands' })
   await expect(palette).toBeVisible()
   await palette.getByRole('combobox', { name: 'Search commands' }).fill('cookies cache')
-  await expect(palette.getByRole('option', { name: /Open Privacy & data/ })).toBeVisible()
+  await expect(palette.getByRole('option', { name: /Open Workspaces & data/ })).toBeVisible()
   await palette.getByRole('combobox', { name: 'Search commands' }).press('Enter')
   const settings = appWindow.getByRole('dialog', { name: 'Settings' })
-  await expect(settings.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
+  await expect(settings.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
   await settings.getByRole('button', { name: 'Close settings' }).click()
 
   await appWindow.keyboard.press(`${primaryModifier}+Shift+P`)

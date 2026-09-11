@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Replace the broad Privacy & data Settings panel with workspace-first management that lists active and archived profiles, opens per-workspace controls, and exposes the existing selective copy or archive-only move workflow; application-wide history and legacy Default-profile cleanup remain in a clearly scoped secondary section.
+
 ## [1.25.0] - 2026-09-11
 
 ### Added

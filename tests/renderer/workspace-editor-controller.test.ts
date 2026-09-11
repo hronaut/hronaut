@@ -189,13 +189,13 @@ describe('workspace editor controller', () => {
     state.value.mcpTabGroups = []
     state.value.savedTabGroups = ['source', 'target'].map(id => ({ id, name: id, color: 'purple', savedAt: '',
       storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }))
-    await controller.openTransfer()
+    await controller.openTransfer('target')
     expect(open.value).toBe(true)
     expect(controller.mode.value).toBe('transfer')
     expect(controller.workspaceId.value).toBeNull()
     controller.transferMode.value = 'move'
     await controller.transferStorage()
-    expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({ sourceWorkspaceId: 'source', targetWorkspaceId: 'target', mode: 'move', origins: undefined })
+    expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({ sourceWorkspaceId: 'target', targetWorkspaceId: 'source', mode: 'move', origins: undefined })
     expect(browser.createWorkspace).not.toHaveBeenCalled()
     expect(browser.updateTabGroup).not.toHaveBeenCalled()
   })

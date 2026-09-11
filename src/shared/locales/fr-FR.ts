@@ -225,8 +225,8 @@ export const frFR = {
       "mcpDescription": "Authentification locale",
       "wallets": "Portefeuilles",
       "walletsDescription": "Comptes et règles Web3",
-      "privacy": "Confidentialité et données",
-      "privacyDescription": "Historique, cookies, cache",
+      "privacy": "Espaces et données",
+      "privacyDescription": "Profils, transferts et nettoyage",
       "permissions": "Autorisations des sites",
       "permissionsDescription": "Accès par site",
       "passwords": "Mots de passe",
@@ -319,8 +319,9 @@ export const frFR = {
       "help": "Hronaut demande votre accord avant de télécharger et d’installer une mise à jour."
     },
     "privacy": {
-      "heading": "Confidentialité et données de navigation",
-      description: "Gérez les données de l’ancien profil du navigateur et l’historique global. Utilisez les commandes de l’espace ou de la page pour les données des sites d’un espace individuel.",
+      "heading": "Espaces de travail et données",
+      description: "Examinez chaque espace du navigateur, gérez sa politique et copiez ou déplacez des données sélectionnées entre profils isolés.",
+      workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", legacyHeading: "Historique global et anciennes données", legacyDescription: "Effacez l’historique global de l’application ou les données de l’ancien profil par défaut.",
       "whatToClear": "Données à effacer",
       "history": "Historique",
       "localVisits": "Visites locales",
@@ -648,8 +649,8 @@ export const frFR = {
         "description": "Modifier les préférences de Hronaut"
       },
       "privacy": {
-        "label": "Ouvrir Confidentialité et données",
-        "description": "Effacer les données d’un site ou de tout le profil"
+        "label": "Ouvrir Espaces et données",
+        "description": "Gérer les profils, transférer les données ou effacer les anciens éléments"
       },
       "site-permissions": {
         "label": "Ouvrir les autorisations des sites",

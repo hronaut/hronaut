@@ -78,7 +78,7 @@ interface ZoomSurface {
 }
 
 interface WorkspaceEditorSurface {
-  openTransfer: () => Promise<void>
+  openTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openExisting: (groupId: string) => Promise<void>
   openNew: () => Promise<void>
   close: () => void
@@ -100,9 +100,9 @@ async function openTabSearch(): Promise<void> {
   await tabSearchPanel.value?.openPanel()
 }
 
-async function openWorkspaceTransfer(): Promise<void> {
+async function openWorkspaceTransfer(sourceWorkspaceId?: string): Promise<void> {
   closeTabSearch()
-  await workspaceEditor.value?.openTransfer()
+  await workspaceEditor.value?.openTransfer(sourceWorkspaceId)
 }
 
 function closeTabSearch(): void {
@@ -166,6 +166,7 @@ defineExpose({
   closeZoom,
   setZoom,
   openWorkspace,
+  openWorkspaceTransfer,
   openNewWorkspace,
   closeWorkspace,
   openCredentialPicker,

@@ -50,6 +50,10 @@ function renderPanel() {
     global: { plugins: [createHronautI18n('en-US')] },
     props: {
       controller,
+      workspaces: [
+        { id: 'active', name: 'Research', archived: false, tabCount: 2, storageOriginCount: 3 },
+        { id: 'archived', name: 'Released task', archived: true, tabCount: 1, storageOriginCount: 1 }
+      ],
       formatBytes: (bytes) => `${bytes} B`,
       formatNumber: String
     }
@@ -62,11 +66,29 @@ describe('PrivacySettingsPanel', () => {
     const { controller } = renderPanel()
     const user = userEvent.setup()
 
-    expect(screen.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Global history & legacy data' })).toBeVisible()
+    expect(screen.getByText('Research')).toBeVisible()
+    expect(screen.getByText(/Active · 2 tabs · 3 known websites/)).toBeVisible()
     expect(screen.getByText('example.test')).toBeVisible()
-    await user.type(screen.getByRole('searchbox', { name: 'Search websites' }), 'missing')
+    await user.type(screen.getByRole('searchbox', { name: 'Search legacy websites' }), 'missing')
 
     expect(screen.getByText('No matching websites')).toBeVisible()
+    controller.dispose()
+  })
+
+  it('opens workspace management and the shared transfer workflow', async () => {
+    const { controller, view } = renderPanel()
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Manage' }))
+    expect(view.emitted('manageWorkspace')).toEqual([['active']])
+
+    await user.click(screen.getAllByRole('button', { name: 'Copy or move data' })[1])
+    expect(view.emitted('transferWorkspaceData')).toEqual([['archived']])
+
+    await user.click(screen.getByRole('button', { name: 'Create workspace' }))
+    expect(view.emitted('createWorkspace')).toHaveLength(1)
     controller.dispose()
   })
 

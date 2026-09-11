@@ -212,7 +212,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     await loadOrigins()
   }
 
-  async function openTransfer(): Promise<void> {
+  async function openTransfer(preferredSourceWorkspaceId?: string): Promise<void> {
     const presentation = beginPresentation()
     options.open.value = false
     let next: BrowserState
@@ -241,7 +241,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     storageMessage.value = ''
     transferMode.value = 'copy'
     suppressDirectionReload = true
-    sourceWorkspaceId.value = next.savedTabGroups[0]?.id ?? availableWorkspaces.value[0]?.id ?? ''
+    const preferredSourceExists = availableWorkspaces.value.some(group => group.id === preferredSourceWorkspaceId)
+    sourceWorkspaceId.value = preferredSourceExists ? (preferredSourceWorkspaceId ?? '') : next.savedTabGroups[0]?.id ?? availableWorkspaces.value[0]?.id ?? ''
     targetWorkspaceId.value = next.savedTabGroups.find(group => group.id !== sourceWorkspaceId.value)?.id
       ?? availableWorkspaces.value.find(group => group.id !== sourceWorkspaceId.value)?.id ?? ''
     suppressDirectionReload = false
