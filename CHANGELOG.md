@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show a temporary virtual pointer for agent clicks, hovers, and drags so people can follow MCP-controlled interactions without moving the operating-system cursor.
+
+### Fixed
+
+- Return a stable stale-observation result when a tab closes during an MCP wait, including the brief interval before Chromium finishes removing the tab from workspace state.
+
 ## [1.26.0] - 2026-09-11
 
 ### Changed

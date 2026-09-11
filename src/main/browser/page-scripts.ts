@@ -1121,6 +1121,101 @@ export function targetPointScript(target: { ref?: string; selector?: string }): 
   })()`
 }
 
+export function agentPointerScript(
+  point: { x: number; y: number },
+  effect: 'move' | 'click' | 'drag-start' | 'drag-end',
+  origin?: { x: number; y: number }
+): string {
+  return `(() => {
+    const point = ${JSON.stringify(point)};
+    const effect = ${JSON.stringify(effect)};
+    const origin = ${JSON.stringify(origin)};
+    if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
+    if (origin && (!Number.isFinite(origin.x) || !Number.isFinite(origin.y))) return false;
+
+    document.querySelectorAll('[data-hronaut-agent-pointer="v1"]').forEach((node) => node.remove());
+    const host = document.createElement('div');
+    host.setAttribute('data-hronaut-agent-pointer', 'v1');
+    Object.assign(host.style, {
+      all: 'initial',
+      position: 'fixed',
+      left: '0',
+      top: '0',
+      width: '0',
+      height: '0',
+      zIndex: '2147483647',
+      pointerEvents: 'none',
+      opacity: '1',
+      transform: 'translate3d(' + point.x + 'px,' + point.y + 'px,0)',
+      transition: 'opacity 180ms ease',
+      contain: 'style'
+    });
+    const root = host.attachShadow({ mode: 'closed' });
+
+    if (origin) {
+      const deltaX = point.x - origin.x;
+      const deltaY = point.y - origin.y;
+      const trail = document.createElement('div');
+      Object.assign(trail.style, {
+        position: 'absolute',
+        right: '0',
+        top: '1px',
+        width: Math.hypot(deltaX, deltaY) + 'px',
+        height: '3px',
+        borderRadius: '999px',
+        background: 'linear-gradient(90deg, transparent, rgba(103,87,232,.7))',
+        transform: 'rotate(' + Math.atan2(deltaY, deltaX) + 'rad)',
+        transformOrigin: '100% 50%'
+      });
+      root.append(trail);
+    }
+
+    const pointer = document.createElement('div');
+    Object.assign(pointer.style, {
+      position: 'absolute',
+      left: '-2px',
+      top: '-2px',
+      width: '18px',
+      height: '24px',
+      background: '#6757e8',
+      clipPath: 'polygon(0 0, 100% 68%, 57% 72%, 38% 100%)',
+      filter: 'drop-shadow(0 0 1px white) drop-shadow(0 2px 3px rgba(0,0,0,.45))',
+      transform: effect === 'drag-start' ? 'scale(.84)' : 'scale(1)',
+      transformOrigin: '2px 2px'
+    });
+    root.append(pointer);
+    document.documentElement.append(host);
+
+    if (effect === 'click' || effect === 'drag-start') {
+      const pulse = document.createElement('div');
+      Object.assign(pulse.style, {
+        position: 'absolute',
+        left: '-10px',
+        top: '-10px',
+        width: '20px',
+        height: '20px',
+        border: '2px solid #8d80ff',
+        borderRadius: '999px',
+        boxSizing: 'border-box'
+      });
+      root.append(pulse);
+      if (typeof pulse.animate === 'function') {
+        const animation = pulse.animate([
+          { opacity: 0.9, transform: 'scale(.35)' },
+          { opacity: 0, transform: 'scale(1.5)' }
+        ], { duration: 360, easing: 'ease-out' });
+        animation.finished.then(() => pulse.remove(), () => pulse.remove());
+      } else {
+        setTimeout(() => pulse.remove(), 360);
+      }
+    }
+
+    setTimeout(() => { if (host.isConnected) host.style.opacity = '0'; }, 900);
+    setTimeout(() => host.remove(), 1_200);
+    return true;
+  })()`
+}
+
 export function reproTargetScript(point?: {
   x: number
   y: number

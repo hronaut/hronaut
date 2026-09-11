@@ -293,6 +293,7 @@ import type {
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
+  agentPointerScript,
   cancelElementPickerScript,
   cancelScreenshotAreaScript,
   dialogAwareClickScript,
@@ -5251,6 +5252,7 @@ export class BrowserTabsManager {
     }
     if (coordinatePoint) {
       await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
+      await this.showAgentPointer(webContents, coordinatePoint, 'click')
       if (dialogAction !== undefined) {
         await this.withAgentInput(webContents, () => this.withOptionalDialogHandling(webContents, target, async () => {
           const contextId = await this.mainWorldContextId(webContents)
@@ -5274,12 +5276,16 @@ export class BrowserTabsManager {
         y: number
         tag: string
       }
+      await this.showAgentPointer(webContents, point, 'click')
       await this.withAgentInput(webContents, () => this.withDebugger(
         webContents,
         () => this.dispatchNativeClick(webContents, point, true)
       ))
       return { ok: true, tag: point.tag, doubleClick: true }
     }
+    const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
+      .catch(() => undefined) as { x: number; y: number } | undefined
+    if (pointerPoint) await this.showAgentPointer(webContents, pointerPoint, 'click')
     return this.withAgentInput(webContents, () => {
       if (dialogAction === undefined) return webContents.executeJavaScript(targetActionScript('click', target), true)
       return this.withOptionalDialogHandling(webContents, target, async () => {
@@ -5324,6 +5330,15 @@ export class BrowserTabsManager {
     }
   }
 
+  private async showAgentPointer(
+    webContents: BrowserTab['view']['webContents'],
+    point: { x: number; y: number },
+    effect: 'move' | 'click' | 'drag-start' | 'drag-end',
+    origin?: { x: number; y: number }
+  ): Promise<void> {
+    await webContents.executeJavaScript(agentPointerScript(point, effect, origin), true).catch(() => undefined)
+  }
+
   async type(target: {
     tabId?: string
     ref?: string
@@ -5366,6 +5381,7 @@ export class BrowserTabsManager {
       tag: string
     }
     if (coordinatePoint) await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'hover')
+    await this.showAgentPointer(webContents, point, 'move')
     await this.withAgentInput(webContents, () => this.withDebugger(webContents, () =>
       this.agentInputDebugger(webContents).sendCommand('Input.dispatchMouseEvent', {
         type: 'mouseMoved',
@@ -5399,10 +5415,12 @@ export class BrowserTabsManager {
       await this.assertPointInsideVisibleViewport(webContents, from, 'drag')
       await this.assertPointInsideVisibleViewport(webContents, to, 'drag')
     }
+    await this.showAgentPointer(webContents, from, 'drag-start')
     await this.withAgentInput(webContents, () => this.withDebugger(
       webContents,
       () => dispatchNativeDrag(this.agentInputDebugger(webContents), from, to)
     ))
+    await this.showAgentPointer(webContents, to, 'drag-end', from)
     return { ok: true, from, to }
   }
 
