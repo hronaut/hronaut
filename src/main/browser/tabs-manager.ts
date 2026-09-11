@@ -5240,6 +5240,7 @@ export class BrowserTabsManager {
     x?: number
     y?: number
     doubleClick?: boolean
+    native?: boolean
   } & BrowserDialogHandlingOptions): Promise<unknown> {
     const coordinatePoint = this.coordinatePointOrValidateTarget(target, 'click')
     const tab = this.getTab(target.tabId)
@@ -5250,6 +5251,9 @@ export class BrowserTabsManager {
     }
     if (target.doubleClick && dialogAction !== undefined) {
       throw new TypeError('doubleClick cannot be combined with dialogAction or promptText')
+    }
+    if (target.native && dialogAction !== undefined) {
+      throw new TypeError('native cannot be combined with dialogAction or promptText')
     }
     if (coordinatePoint) {
       await this.assertPointInsideVisibleViewport(webContents, coordinatePoint, 'click')
@@ -5271,7 +5275,7 @@ export class BrowserTabsManager {
       }
       return { ok: true, ...coordinatePoint, ...(target.doubleClick ? { doubleClick: true } : {}) }
     }
-    if (target.doubleClick) {
+    if (target.doubleClick || target.native) {
       const point = await webContents.executeJavaScript(targetPointScript(target), true) as {
         x: number
         y: number
@@ -5280,9 +5284,14 @@ export class BrowserTabsManager {
       await this.showAgentPointer(webContents, point, 'click')
       await this.withAgentInput(webContents, () => this.withDebugger(
         webContents,
-        () => this.dispatchNativeClick(webContents, point, true)
+        () => this.dispatchNativeClick(webContents, point, target.doubleClick === true)
       ))
-      return { ok: true, tag: point.tag, doubleClick: true }
+      return {
+        ok: true,
+        tag: point.tag,
+        ...(target.doubleClick ? { doubleClick: true } : {}),
+        ...(target.native ? { native: true } : {})
+      }
     }
     const pointerPoint = await webContents.executeJavaScript(targetPointScript(target), true)
       .catch(() => undefined) as { x: number; y: number } | undefined

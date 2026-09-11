@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Add an explicit native mode for agent element clicks so custom controls can receive trusted pointer and mouse events while the virtual agent pointer remains visible.
+
 ### Fixed
 
 - Ignore Electron child views whose native `webContents` getter is invalidated during teardown so the Linux page-presentation recovery timer cannot raise an uncaught main-process exception.

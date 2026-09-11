@@ -18,6 +18,12 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
       <button id="hover" style="margin:80px;width:140px;height:50px">Hover target</button>
       <script>
         window.hooks = 0;
+        window.pointerEvents = [];
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          document.querySelector('#action').addEventListener(type, (event) => {
+            window.pointerEvents.push({ type, trusted: event.isTrusted });
+          });
+        }
         document.querySelector('#action').addEventListener('click', () => document.body.dataset.clicks = '1');
         const originalQuerySelectorAll = document.querySelectorAll;
         document.querySelectorAll = function (...args) {
@@ -58,7 +64,7 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
 
     const click = await client.callTool({
       name: 'browser_click',
-      arguments: { tabId, selector: '#action' }
+      arguments: { tabId, selector: '#action', native: true }
     }) as CallToolResult
     expect(click.isError, text(click)).not.toBe(true)
     const clicked = await electronApp.evaluate(async ({ webContents }, pageUrl) => {
@@ -67,6 +73,7 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
         const pointer = document.querySelector('[data-hronaut-agent-pointer]');
         return {
           clicks: document.body.dataset.clicks,
+          events: window.pointerEvents,
           count: pointer ? 1 : 0,
           hooks: window.hooks,
           opacity: pointer?.style.opacity,
@@ -75,7 +82,21 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
         };
       })()`)
     }, url)
-    expect(clicked).toEqual({ clicks: '1', count: 1, hooks: 0, opacity: '1', pointerEvents: 'none', shadowRoot: null })
+    expect(clicked).toEqual({
+      clicks: '1',
+      events: [
+        { type: 'pointerdown', trusted: true },
+        { type: 'mousedown', trusted: true },
+        { type: 'pointerup', trusted: true },
+        { type: 'mouseup', trusted: true },
+        { type: 'click', trusted: true }
+      ],
+      count: 1,
+      hooks: 0,
+      opacity: '1',
+      pointerEvents: 'none',
+      shadowRoot: null
+    })
 
     const hover = await client.callTool({
       name: 'browser_hover',
