@@ -22,7 +22,7 @@
   </head>
   <body>
     <header class="nav">
-      <a class="brand" href="#top" aria-label="Hronaut home"><span>B</span> HRONAUT</a>
+      <a class="brand" href="#top" aria-label="Hronaut home"><span>H</span> HRONAUT</a>
       <nav aria-label="Main navigation">
         <a href="#features">Features</a>
         <a href="#connect">Connect</a>
@@ -37,11 +37,12 @@
         <div class="hero-copy">
           <div class="eyebrow"><span></span> Source-available · Electron · TypeScript</div>
           <h1>The browser your coding agent can come back to.</h1>
-          <p>Hronaut stays visible, keeps running after an AI session ends, and preserves your durable Default profile alongside isolated agent workspaces.</p>
+          <p>Hronaut is the local, visible MCP execution layer between your agent framework and the websites it operates. It stays open after an AI session ends and preserves isolated browser workspaces for deliberate reuse.</p>
           <div class="actions">
             <a class="button primary" href="#download">Download Hronaut</a>
             <a class="button secondary" href="https://github.com/hronaut/hronaut">View source</a>
           </div>
+          <p class="hero-boundary" aria-label="Agent browser execution boundary"><span>Agent framework</span><i>→</i><span>MCP contract</span><i>→</i><span>Hronaut workspace</span><i>→</i><span>verified read-back</span></p>
           <ul class="stats" aria-label="Project highlights">
             <li><strong>76</strong><span>MCP tools</span></li>
             <li><strong>8</strong><span>palettes</span></li>
@@ -61,6 +62,26 @@
             <div class="tool-pills"><span>browser_navigate</span><span>browser_snapshot</span><span>browser_issues</span><span>browser_performance</span><span>browser_memory</span></div>
           </div>
         </div>
+      </section>
+
+      <section id="execution-layer" class="section execution-layer" aria-labelledby="execution-layer-title">
+        <div class="section-heading">
+          <span>Where Hronaut fits</span>
+          <h2 id="execution-layer-title">Your agent plans. Hronaut executes in a browser you can see.</h2>
+          <p>Orchestration stays in your agent framework. Hronaut owns the local browser boundary: MCP tool contracts, named workspace context, visible execution, human takeover, and bounded evidence returned to the caller.</p>
+        </div>
+        <ol class="execution-flow" aria-label="Browser task responsibility map">
+          <li><b>01</b><strong>Agent framework</strong><span>Keeps workflow state and decides the next step.</span></li>
+          <li><b>02</b><strong>MCP contract</strong><span>Names the allowed browser tool, arguments, and target.</span></li>
+          <li><b>03</b><strong>Hronaut workspace</strong><span>Binds execution to a local profile, account, origin, and tab.</span></li>
+          <li><b>04</b><strong>Human boundary</strong><span>Shows the work and pauses for approval or takeover when required.</span></li>
+          <li><b>05</b><strong>Read-back</strong><span>Returns bounded browser evidence so the caller can verify the result.</span></li>
+        </ol>
+        <div class="execution-example">
+          <p><strong>Example:</strong> a code-first agent keeps its task state, asks Hronaut to submit a reviewed change in one named workspace, waits for any required human approval, and receives a verified postcondition read-back before the workflow continues.</p>
+          <code>framework state → MCP tool contract → workspace / account / origin / tab → human approval → verified postcondition read-back</code>
+        </div>
+        <p class="execution-non-goals">Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee.</p>
       </section>
 
       <section id="features" class="section">
@@ -174,7 +195,7 @@
         <div class="support-copy">
           <span>Source-available</span>
           <h2>Use Hronaut anywhere. Help improve it.</h2>
-          <p>Hronaut includes a 10-day trial. All ongoing use requires a subscription afterward: $4/month or $24/year (50% off $48).</p>
+          <p>Hronaut’s 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: $4/month or $24/year per named user (50% off $48), with up to three active devices per seat.</p>
           <small>Focused issues, documentation, accessibility feedback, and signed-off code contributions are welcome.</small>
         </div>
         <div class="support-actions">

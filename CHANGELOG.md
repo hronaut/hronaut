@@ -6,10 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Clarify Hronaut's boundary as a local, visible MCP execution layer alongside agent frameworks in the landing page and quick start, with current trial and subscription terms.
 - Add an explicit native mode for agent element clicks so custom controls can receive trusted pointer and mouse events while the virtual agent pointer remains visible.
 
 ### Fixed
 
+- Correct the Hronaut initial in the static landing-page header mark and keep anchored section headings below its sticky navigation.
 - Ignore Electron child views whose native `webContents` getter is invalidated during teardown so the Linux page-presentation recovery timer cannot raise an uncaught main-process exception.
 
 ## [1.26.1] - 2026-09-11

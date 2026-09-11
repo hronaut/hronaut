@@ -11,6 +11,22 @@ Hronaut is a visible, persistent Electron browser that exposes durable agent wor
 
 [Website](https://hronaut.dev) · [Setup](https://hronaut.dev/setup) · [Browser MCP decision guide](https://hronaut.dev/browser-mcp-guide) · [Downloads](https://github.com/hronaut/hronaut/releases/latest) · [Issues](https://github.com/hronaut/hronaut/issues) · [Detailed reference](REFERENCE.md)
 
+## Where Hronaut fits in your agent stack
+
+Hronaut is a local, visible MCP execution layer for agents that already have their own orchestration. The caller keeps workflow and orchestration state; Hronaut binds each browser command to a tool contract and a named local workspace with its own profile, account, origin, and tab context. People can watch, pause, approve, or take over, and the caller can require bounded browser evidence before it treats an external action as complete.
+
+| Responsibility | Owner |
+| --- | --- |
+| Plan the workflow and retain task state | Your SDK, agent framework, or application |
+| Define the requested browser operation | MCP tool contract and arguments |
+| Execute with a specific browser identity and site context | Hronaut workspace, profile, account, origin, and tab |
+| Approve or complete a consequential manual step | The person using visible Hronaut controls |
+| Decide whether the workflow may continue | The caller, using verified postcondition read-back |
+
+For example, a code-first agent can retain its own task state, ask Hronaut to submit a reviewed change in one named workspace, wait for human approval when required, and continue only after verified postcondition read-back confirms the external result.
+
+Hronaut is not an agent framework, hosted browser fleet, no-code platform, or universal production-safety guarantee. Use it when the browser should remain local, visible, and deliberately reusable; keep orchestration and final business decisions in the calling system.
+
 ## See Hronaut in action
 
 [![Hronaut — the browser your coding agent can come back to](https://hronaut.dev/hronaut-social-card.png)](https://hronaut.dev/#demo)
@@ -271,7 +287,7 @@ Release packaging and publishing are centralized in [`.github/workflows/release.
 
 ## License
 
-Hronaut is source-available under the [Subscription and Trial License](LICENSE). All users receive one 10-day trial starting with their first agent tool call, with no credit card required. Afterward, all ongoing use requires an active subscription: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.
+Hronaut is source-available under the [Subscription and Trial License](LICENSE). The 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.
 
 Outside contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md). Security reports should follow the [security policy](.github/SECURITY.md).
 
