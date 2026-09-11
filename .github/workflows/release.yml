@@ -151,6 +151,73 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+  test-mcpb:
+    name: Test MCPB adapter (${{ matrix.os }})
+    needs:
+      - prepare-release
+      - validate
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test the packaged stdio-to-HTTP connection
+        run: npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts
+
+  build-mcpb:
+    name: Build registry-compatible MCPB adapter
+    needs:
+      - prepare-release
+      - validate
+      - test-mcpb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout immutable release source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Build the tested MCPB release artifact
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run package:mcpb
+
+      - name: Upload MCPB and registry metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-mcpb
+          if-no-files-found: error
+          path: |
+            dist/hronaut-mcp-adapter-*.mcpb
+            dist/hronaut-mcp-server.json
+          compression-level: 0
+          retention-days: 1
+
   build-linux:
     name: build-linux (${{ matrix.target }})
     needs:
@@ -297,6 +364,7 @@ jobs:
     if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
     needs:
       - prepare-release
+      - build-mcpb
       - build-linux
       - build-macos
       - build-windows

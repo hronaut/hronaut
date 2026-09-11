@@ -20,6 +20,9 @@ function releaseAssetLabel(path: string): string | undefined {
   const name = basename(path)
   if (name === 'release-history.json') return 'Verified release history'
   if (name === 'hashes.txt') return 'SHA-256 checksums'
+  if (name === 'hronaut-mcp-server.json') return 'MCP Registry metadata'
+  const mcpbMatch = name.match(/^hronaut-mcp-adapter-(.+)\.mcpb$/u)
+  if (mcpbMatch?.[1] && RELEASE_VERSION_PATTERN.test(mcpbMatch[1])) return 'MCPB adapter'
   if (!name.startsWith('hronaut-')) return undefined
   for (const [packageName, label] of Object.entries(RELEASE_ASSET_LABELS)) {
     const suffix = `-${packageName}`
