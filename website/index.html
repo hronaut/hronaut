@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Hronaut is a visible, persistent Electron browser that coding agents control through MCP." />
+    <meta name="description" content="Hronaut is a visible, persistent Electron browser that coding agents control through MCP. 10-day free trial; paid subscription required afterward." />
     <meta name="theme-color" content="#10071c" />
     <meta property="og:title" content="Hronaut — the persistent browser for coding agents" />
-    <meta property="og:description" content="A visible multi-tab browser with durable sessions, isolated agent workspaces, and 76 MCP tools." />
+    <meta property="og:description" content="A visible multi-tab browser with durable sessions, isolated agent workspaces, and 76 MCP tools. 10-day free trial; paid subscription required afterward." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://hronaut.dev/" />
     <meta property="og:image" content="https://hronaut.dev/hronaut-social-card.png" />
@@ -16,8 +16,83 @@
     <meta property="og:site_name" content="Hronaut" />
     <meta property="og:locale" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:description" content="Hronaut is a visible, persistent Electron browser that coding agents control through MCP. 10-day free trial; paid subscription required afterward." />
     <title>Hronaut — Persistent MCP Browser</title>
     <link rel="canonical" href="https://hronaut.dev/" />
+    <script id="product-structured-data" type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://hronaut.dev/#software",
+            "name": "Hronaut",
+            "url": "https://hronaut.dev/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Windows, macOS, Linux",
+            "description": "Hronaut is a visible, persistent Electron browser that coding agents control through MCP. 10-day free trial; paid subscription required afterward.",
+            "offers": [
+              {
+                "@type": "Offer",
+                "name": "Monthly subscription",
+                "url": "https://hronaut.dev/#support",
+                "price": "4",
+                "priceCurrency": "USD",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "4",
+                  "priceCurrency": "USD",
+                  "billingDuration": "P1M"
+                }
+              },
+              {
+                "@type": "Offer",
+                "name": "Annual subscription",
+                "url": "https://hronaut.dev/#support",
+                "price": "24",
+                "priceCurrency": "USD",
+                "priceSpecification": {
+                  "@type": "UnitPriceSpecification",
+                  "price": "24",
+                  "priceCurrency": "USD",
+                  "billingDuration": "P1Y"
+                }
+              }
+            ]
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://hronaut.dev/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Does Hronaut have a free plan?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "10-day free trial; paid subscription required afterward."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "When does the Hronaut trial start?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The 10-day trial starts with the first agent tool call. No credit card is required and the trial does not automatically convert to a paid subscription."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How much is a Hronaut subscription?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Hronaut costs $4 per month or $24 per year per named user, with up to three active devices per seat."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -27,6 +102,7 @@
         <a href="#features">Features</a>
         <a href="#connect">Connect</a>
         <a href="#download">Download</a>
+        <a href="#faq">FAQ</a>
         <a href="#support">Support</a>
         <a href="https://github.com/hronaut/hronaut">GitHub</a>
       </nav>
@@ -189,6 +265,31 @@
           <a href="https://github.com/hronaut/hronaut/releases/latest" data-download="linux-arm"><span>◆</span><strong>Linux</strong><small>ARM64 AppImage</small></a>
         </div>
         <p id="download-status" class="download-status" aria-live="polite">Unsigned community builds are produced by the public release workflow with SHA-256 hashes and GitHub provenance attestations.</p>
+      </section>
+
+      <section id="faq" class="section faq-section" aria-labelledby="faq-title">
+        <div class="section-heading">
+          <span>Pricing FAQ</span>
+          <h2 id="faq-title">Try the complete browser before subscribing.</h2>
+          <p>The trial and paid subscription use the same application and browser features.</p>
+        </div>
+        <div class="faq-grid">
+          <article>
+            <h3>Does Hronaut have a free plan?</h3>
+            <p>10-day free trial; paid subscription required afterward.</p>
+            <small>The trial starts with the first agent tool call, needs no credit card, and does not renew automatically.</small>
+          </article>
+          <article>
+            <h3>How much is the subscription?</h3>
+            <p>$4 per month or $24 per year per named user.</p>
+            <small>Each seat supports up to three active devices.</small>
+          </article>
+          <article>
+            <h3>What happens when access expires?</h3>
+            <p>Agent automation pauses until the subscription is active.</p>
+            <small>Your local browser data remains available for recovery, export, and deletion.</small>
+          </article>
+        </div>
       </section>
 
       <section id="support" class="section support-section">

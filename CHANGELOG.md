@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Publish the trial and subscription distinction consistently in landing-page metadata, visible pricing FAQ content, and machine-readable product data so directories cannot infer an ongoing free plan.
+
 ## [1.27.0] - 2026-09-11
 
 ### Added

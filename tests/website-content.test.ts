@@ -6,6 +6,7 @@ import { matchingReleaseAsset, RELEASE_ASSET_MATCHERS } from '../src/shared/rele
 const websiteHtml = readFileSync(new URL('../website/index.html', import.meta.url), 'utf8')
 const websiteStyles = readFileSync(new URL('../website/styles.css', import.meta.url), 'utf8')
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+const trialContract = '10-day free trial; paid subscription required afterward.'
 
 describe('public website content', () => {
   it('points discovery metadata at the canonical storefront with a large social card', () => {
@@ -47,6 +48,38 @@ describe('public website content', () => {
     }
     expect(websiteHtml).not.toContain('noncommercial use remains free')
     expect(readme).not.toContain('noncommercial use remains free')
+  })
+
+  it('publishes one explicit trial contract in metadata, the visible FAQ, and structured data', () => {
+    for (const selector of ['name="description"', 'property="og:description"', 'name="twitter:description"']) {
+      const content = websiteHtml.match(new RegExp(`<meta ${selector} content="([^"]+)" \\/>`))?.[1]
+      expect(content).toContain(trialContract)
+    }
+    expect(websiteHtml).toContain('id="faq"')
+    expect(websiteHtml).toContain(`<p>${trialContract}</p>`)
+
+    const structuredDataSource = websiteHtml.match(/<script id="product-structured-data" type="application\/ld\+json">([\s\S]*?)<\/script>/u)?.[1]
+    expect(structuredDataSource).toBeDefined()
+    const structuredData = JSON.parse(structuredDataSource ?? '{}') as {
+      '@graph'?: Array<Record<string, unknown>>
+    }
+    const software = structuredData['@graph']?.find(item => item['@type'] === 'SoftwareApplication')
+    const faq = structuredData['@graph']?.find(item => item['@type'] === 'FAQPage')
+    expect(software).toMatchObject({
+      description: expect.stringContaining(trialContract),
+      offers: [
+        expect.objectContaining({ price: '4', priceCurrency: 'USD' }),
+        expect.objectContaining({ price: '24', priceCurrency: 'USD' })
+      ]
+    })
+    expect(faq).toMatchObject({
+      mainEntity: expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Does Hronaut have a free plan?',
+          acceptedAnswer: expect.objectContaining({ text: trialContract })
+        })
+      ])
+    })
   })
 
   it('uses the Hronaut initial in both landing-page brand marks', () => {
