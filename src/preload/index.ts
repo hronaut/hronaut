@@ -66,7 +66,8 @@ import type {
   AttentionSoundCue,
   SearchEngineName,
   ThemeName,
-  MemorySaverTimeoutMinutes
+  MemorySaverTimeoutMinutes,
+  McpCapabilityProfileCreateInput
 } from '../shared/types.js'
 import type {
   WalletCreateInput,
@@ -346,6 +347,11 @@ const settingsApi: HronautSettingsApi = {
   setMcpPort: (port: number) => ipcRenderer.invoke('settings:set-mcp-port', port),
   setMcpToolSet: (toolSet) => ipcRenderer.invoke('settings:set-mcp-tool-set', toolSet),
   resetMcp: () => ipcRenderer.invoke('settings:reset-mcp'),
+  listMcpCapabilityProfiles: () => ipcRenderer.invoke('settings:list-mcp-capability-profiles'),
+  createMcpCapabilityProfile: (input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:create-mcp-capability-profile', input),
+  updateMcpCapabilityProfile: (id: string, input: McpCapabilityProfileCreateInput) => ipcRenderer.invoke('settings:update-mcp-capability-profile', id, input),
+  rotateMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:rotate-mcp-capability-profile', id),
+  revokeMcpCapabilityProfile: (id: string) => ipcRenderer.invoke('settings:revoke-mcp-capability-profile', id),
   getDefaultDownloadDirectory: () => ipcRenderer.invoke('settings:get-default-download-directory'),
   chooseDownloadDirectory: () => ipcRenderer.invoke('settings:choose-download-directory'),
   setAskWhereToSaveDownloads: (enabled: boolean) => ipcRenderer.invoke('settings:set-ask-where-to-save-downloads', enabled),

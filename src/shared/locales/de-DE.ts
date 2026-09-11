@@ -280,7 +280,8 @@ export const deDE = {
       "moving": "Wird verschoben…",
       "applyPort": "Port anwenden",
       "tokenHelp": "Das Token wird einmal pro Profil erstellt und nie auf der Hronaut-Startseite angezeigt.",
-      "warning": "Die Authentifizierung ist deaktiviert. Jeder Prozess auf diesem Computer kann angemeldete Tabs steuern und lokale Dateien anhängen."
+      "warning": "Die Authentifizierung ist deaktiviert. Jeder Prozess auf diesem Computer kann angemeldete Tabs steuern und lokale Dateien anhängen.",
+      capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
       "heading": "Website-Berechtigungen",

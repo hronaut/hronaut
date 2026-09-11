@@ -14,10 +14,21 @@ import type { BrowserPostcondition } from '../../shared/post-write-postcondition
 import type { HumanWaitingService } from './human-waiting-service.js'
 import type { TaskRunService } from './task-run-service.js'
 import type { TaskRunCheckDefinition } from './task-run-store.js'
+import {
+  MCP_CAPABILITY_OPERATION_CLASSES,
+  McpCapabilityAuthorizationError,
+  type McpCapabilityGrant,
+  type McpCapabilityOperationClass,
+  type McpCapabilityProfile,
+  type McpCapabilityProfileInput,
+  type McpCapabilityProfileStore,
+  type McpCapabilityRequest
+} from './capability-profile-store.js'
 import { workspacePreflight } from './workspace-preflight.js'
 import {
   browserActionAuthorityReason,
   browserActionOperationClass,
+  browserActionPayloadFingerprint,
   browserActionTarget,
   captureBrowserActionAuthority,
   type BrowserActionAuthorityReason
@@ -41,7 +52,8 @@ import type {
   BrowserState,
   BrowsingDataSiteSummary,
   McpServerStatus,
-  McpTabActivity
+  McpTabActivity,
+  McpCapabilityProfileCreateInput
 } from '../../shared/types.js'
 import { BROWSER_NETWORK_ABORT_REASONS } from '../../shared/types.js'
 import { formatNetworkRequestCopy, type BrowserNetworkRequestCopyFormat } from '../../shared/network-request-copy.js'
@@ -219,6 +231,7 @@ export interface McpHttpServerOptions {
   host: string
   port: number
   token?: string
+  capabilityProfiles?: McpCapabilityProfileStore
   version: string
   toolSet?: McpToolSet
   showWindowInactive: () => void
@@ -265,6 +278,9 @@ export interface McpClientActivity {
   lastSeenAt: string
   requestCount: number
   activeRequests: number
+  capabilityProfileId?: string
+  capabilityProfileRevision?: number
+  capabilityCredentialId?: string
 }
 
 export interface McpDashboardState {
@@ -288,12 +304,70 @@ interface McpTransportSession {
   server: McpServer
   transport: StreamableHTTPServerTransport
   client: McpClientActivity
+  authorization: McpRequestAuthorization
 }
+
+type McpRequestAuthorization =
+  | { kind: 'full-access' }
+  | { kind: 'capability-profile'; grant: McpCapabilityGrant }
+
+const MCP_REQUEST_AUTHORIZATION = Symbol('mcp-request-authorization')
+type AuthorizedMcpRequest = Request & { [MCP_REQUEST_AUTHORIZATION]?: McpRequestAuthorization }
 
 export function mcpRequestAuthorized(configuredToken: string | undefined, authorization: string | undefined): boolean {
   if (configuredToken === undefined) return true
   const bearer = authorization?.match(/^Bearer +(\S+)$/i)
   return bearer?.[1] === configuredToken
+}
+
+export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string>>> = {
+  browser_human_waiting: new Set(['list']),
+  browser_continuity: new Set(['status']),
+  browser_audit_receipts: new Set(['list', 'read', 'evidence']),
+  browser_task_runs: new Set(['get', 'list']),
+  browser_workspaces: new Set(['list', 'list-fork-sources', 'resume', 'list-origins']),
+  browser_saved_workspaces: new Set(['list']),
+  browser_bookmarks: new Set(['list']),
+  browser_visit_history: new Set(['list']),
+  browser_site_data: new Set(['inspect']),
+  browser_storage: new Set(['list', 'get']),
+  browser_storage_changes: new Set(['get']),
+  browser_repro: new Set(['get']),
+  browser_dom_changes: new Set(['get']),
+  browser_issues: new Set(['list']),
+  browser_console: new Set(['list']),
+  browser_diagnostic_logs: new Set(['get']),
+  browser_network: new Set(['list']),
+  browser_network_routes: new Set(['list']),
+  browser_downloads: new Set(['list'])
+}
+
+export function mcpCapabilityOperationClass(
+  toolName: string,
+  input: Record<string, unknown>
+): McpCapabilityOperationClass {
+  if (toolName.startsWith('wallet_')) return 'wallet'
+  const action = mcpCapabilityAction(toolName, input)
+  if (toolDefinition(toolName).annotations.readOnlyHint
+    || (action !== undefined && READ_ONLY_MULTI_ACTIONS[toolName]?.has(action))) return 'read'
+  if (toolName === 'browser_navigate' || toolName === 'browser_history' || toolName === 'browser_new_tab') return 'navigate'
+  if (toolName === 'browser_storage' || toolName === 'browser_site_data') return 'site-data'
+  if (toolName.startsWith('browser_network')) return 'network'
+  if (toolName === 'browser_downloads' || toolName === 'browser_file_upload' || toolName === 'browser_pdf_save') {
+    return 'external-request'
+  }
+  if (['browser_click', 'browser_dialog', 'browser_type', 'browser_select', 'browser_fill_form',
+    'browser_hover', 'browser_drag', 'browser_scroll', 'browser_press', 'browser_evaluate'].includes(toolName)) {
+    return 'interact'
+  }
+  return 'browser-state'
+}
+
+export function mcpCapabilityAction(toolName: string, input: Record<string, unknown>): string | undefined {
+  if (typeof input.action === 'string') return input.action
+  if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
+  if (toolName === 'browser_downloads') return 'list'
+  return undefined
 }
 
 export function assertMcpToolRegistrationContract(
@@ -663,6 +737,41 @@ export function mcpToolCatalogForSet(toolSet: McpToolSet): AdvertisedBrowserTool
   return BROWSER_TOOL_CATALOG.filter(({ name }) => selectedNames.has(name)).map((tool) => ({ ...tool }))
 }
 
+export function mcpCapabilityProfileInputFromPreset(
+  input: McpCapabilityProfileCreateInput,
+  now = new Date()
+): McpCapabilityProfileInput {
+  if (!['read-only', 'essentials', 'qa', 'complete'].includes(input.preset)) {
+    throw new TypeError('Unsupported MCP capability profile preset')
+  }
+  if (input.expiresInMinutes !== undefined && (!Number.isSafeInteger(input.expiresInMinutes)
+    || input.expiresInMinutes < 1 || input.expiresInMinutes > 43_200)) {
+    throw new TypeError('MCP capability profile expiry must be between 1 minute and 30 days')
+  }
+  const catalog = input.preset === 'read-only'
+    ? BROWSER_TOOL_CATALOG.filter(tool => !tool.name.startsWith('wallet_')
+      && (tool.annotations.readOnlyHint || READ_ONLY_MULTI_ACTIONS[tool.name]))
+    : mcpToolCatalogForSet(input.preset)
+  const allowedActions = input.preset === 'read-only'
+    ? Object.fromEntries(catalog.flatMap(tool => {
+        const actions = READ_ONLY_MULTI_ACTIONS[tool.name]
+        return actions ? [[tool.name, [...actions]]] : []
+      }))
+    : undefined
+  return {
+    name: input.name,
+    allowedTools: catalog.map(tool => tool.name),
+    ...(allowedActions && Object.keys(allowedActions).length ? { allowedActions } : {}),
+    operationClasses: input.preset === 'read-only' ? ['read'] : [...MCP_CAPABILITY_OPERATION_CLASSES],
+    ...(input.workspaceIds ? { workspaceIds: input.workspaceIds } : {}),
+    ...(input.origins ? { origins: input.origins } : {}),
+    ...(input.expiresInMinutes !== undefined
+      ? { expiresAt: new Date(now.getTime() + input.expiresInMinutes * 60_000).toISOString() }
+      : {}),
+    ...(input.singleUse ? { maxUses: 1 } : {})
+  }
+}
+
 function toolDefinition(name: string): AdvertisedBrowserToolDefinition {
   const tool = BROWSER_TOOL_CATALOG.find((candidate) => candidate.name === name)
   if (!tool) throw new Error(`Unknown browser tool: ${name}`)
@@ -786,6 +895,7 @@ function createBrowserMcpServer(
   version: string,
   toolSet: McpToolSet,
   client: McpClientActivity,
+  capability?: { store: McpCapabilityProfileStore; grant: McpCapabilityGrant },
   wallets?: WalletAgentOperations,
   walletSessions?: WalletAgentSessionRegistry,
   onTabActivity?: (activity: McpTabActivity) => void,
@@ -826,10 +936,77 @@ function createBrowserMcpServer(
   })
 
   const baseRegisterTool = server.registerTool.bind(server)
+  const capabilityProfile = capability?.store.requireActiveGrant(capability.grant)
+  const capabilityAuthorizationFingerprint = createHash('sha256').update(JSON.stringify(
+    capability ? { kind: 'capability-profile', ...capability.grant } : { kind: 'compatibility-full-access' }
+  )).digest('hex')
   const toolSetCatalog = mcpToolCatalogForSet(toolSet)
+    .filter(({ name }) => !capabilityProfile || capabilityProfile.allowedTools.includes(name))
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
   const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
+  const capabilityRequest = (name: string, input: Record<string, unknown>): McpCapabilityRequest => {
+    const origins: string[] = []
+    for (const key of ['url', 'origin', 'expectedOrigin'] as const) {
+      if (typeof input[key] === 'string') origins.push(input[key])
+    }
+    if (Array.isArray(input.origins)) {
+      origins.push(...input.origins.filter((origin): origin is string => typeof origin === 'string'))
+    }
+    const workspaceId = typeof input.workspaceId === 'string' ? input.workspaceId : undefined
+    const toolsWithoutPageOrigin = new Set([
+      'browser_workspaces', 'browser_saved_workspaces', 'browser_bookmarks', 'browser_visit_history',
+      'browser_show', 'browser_request_user_attention', 'browser_human_waiting', 'browser_task_runs'
+    ])
+    if (workspaceId && !toolsWithoutPageOrigin.has(name) && name !== 'browser_new_tab') {
+      try {
+        const state = manager.getMcpGroupState(workspaceId)
+        const tabId = typeof input.tabId === 'string' ? input.tabId : state.activeTabId
+        if (name === 'browser_status' || name === 'browser_tabs') origins.push(...state.tabs.map(tab => tab.url))
+        else {
+          const tab = state.tabs.find(candidate => candidate.id === tabId)
+          if (tab) origins.push(tab.url)
+        }
+      } catch {
+        // Workspace ownership and availability are checked by the tool itself.
+      }
+    }
+    return {
+      toolName: name,
+      ...(mcpCapabilityAction(name, input) ? { action: mcpCapabilityAction(name, input) } : {}),
+      operationClass: mcpCapabilityOperationClass(name, input),
+      ...(workspaceId ? { workspaceId } : {}),
+      ...(origins.length ? { origins: [...new Set(origins)] } : {})
+    }
+  }
+  const authorizeCapability = async (
+    name: string,
+    input: Record<string, unknown>,
+    phase: 'admission' | 'consume' | 'active-dispatch'
+  ): Promise<void> => {
+    if (!capability) return
+    const request = capabilityRequest(name, input)
+    if (phase === 'consume') await capability.store.authorizeAndConsume(capability.grant, request)
+    else if (phase === 'active-dispatch') capability.store.authorizeActiveDispatch(capability.grant, request)
+    else capability.store.authorize(capability.grant, request)
+  }
+  const requireActiveCapabilityDispatch = (
+    name: string,
+    input: Record<string, unknown>
+  ): McpCapabilityProfile | undefined => {
+    if (!capability) return undefined
+    return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input))
+  }
+  const capabilityAllowsUrl = (profile: McpCapabilityProfile | undefined, url: string): boolean => {
+    if (!profile?.origins) return true
+    try {
+      const parsed = new URL(url)
+      return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+        && profile.origins.includes(parsed.origin)
+    } catch {
+      return false
+    }
+  }
   const registerTool = ((name: string, config: unknown, handler: unknown) => {
     implementedToolNames.push(name)
     const definition = toolDefinition(name)
@@ -839,8 +1016,28 @@ function createBrowserMcpServer(
       annotations: definition.annotations
     } as never, (async (...args: unknown[]) => {
       try {
+        const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
+          ? args[0] as Record<string, unknown> : {}
+        await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
-        return await actionTracker.run(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
+        await authorizeCapability(name, input, 'consume')
+        const result = await actionTracker.run(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
+        try {
+          await authorizeCapability(name, input, 'active-dispatch')
+        } catch (error) {
+          if (!(error instanceof McpCapabilityAuthorizationError)) throw error
+          const readOnly = mcpCapabilityOperationClass(name, input) === 'read'
+          const outcome = {
+            status: readOnly ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
+            effects: readOnly ? 'none' : 'possible',
+            retrySafe: false,
+            nextAction: readOnly
+              ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
+              : 'The capability changed after dispatch. Inspect current state before deciding what to do next; do not automatically repeat a possible side effect.'
+          }
+          return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
+        return result
       } catch (error) {
         return errorResult(error)
       }
@@ -931,9 +1128,10 @@ function createBrowserMcpServer(
         }
         const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId
           : storage === 'fork-default' ? manager.listMcpTabGroups().find(workspace => workspace.isDefault)?.id : undefined
+        const scopedOrigins = origins ?? (forkSourceId ? capabilityProfile?.origins : undefined)
+        const forkRevision = actionTracker.controlRevision
         if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
         if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
-        const forkRevision = actionTracker.controlRevision
         const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
         const forkContextCurrent = async (): Promise<boolean> => {
           if (!forkSourceId) return true
@@ -955,7 +1153,14 @@ function createBrowserMcpServer(
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         try {
-          const created = await manager.createMcpTabGroup(name, color, storage, origins, true, undefined, sourceWorkspaceId)
+          if (!await forkContextCurrent()) {
+            throw new Error('MCP control changed before workspace creation. Obtain fresh state before retrying.')
+          }
+          requireActiveCapabilityDispatch('browser_workspaces', {
+            action, name, color, storage, sourceWorkspaceId,
+            ...(scopedOrigins ? { origins: scopedOrigins } : {})
+          })
+          const created = await manager.createMcpTabGroup(name, color, storage, scopedOrigins, true, undefined, sourceWorkspaceId)
           activeWorkspaceIds.add(created.id)
           if (!await forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
@@ -999,6 +1204,8 @@ function createBrowserMcpServer(
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       if (action === 'import-default' || action === 'save-default') {
+        const revision = actionTracker.controlRevision
+        const scopedOrigins = origins ?? capabilityProfile?.origins
         if (humanWaiting) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
         manager.requireWorkspaceContinuityDispatch(workspaceId)
         const defaultWorkspace = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
@@ -1010,7 +1217,6 @@ function createBrowserMcpServer(
           const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
           if (!target || !manager.isWorkspaceAgentAccessible(target.id)) throw workspaceAuthorizationError()
         }
-        const revision = actionTracker.controlRevision
         const affectedIds = [...new Set([workspaceId, ...(defaultWorkspace ? [defaultWorkspace.id] : [])])]
         const finishes = affectedIds.map(id => manager.beginWorkspaceContinuityAction(id, false))
         const contextStillCurrent = async (): Promise<boolean> => {
@@ -1024,10 +1230,17 @@ function createBrowserMcpServer(
           } catch { return false }
         }
         try {
+          if (!await contextStillCurrent()) {
+            throw new Error('MCP control changed before workspace storage transfer. Obtain fresh state before retrying.')
+          }
+          requireActiveCapabilityDispatch('browser_workspaces', {
+            action, workspaceId,
+            ...(scopedOrigins ? { origins: scopedOrigins } : {})
+          })
           const settled = await manager.transferWorkspaceStorage({
             workspaceId,
             direction: action === 'import-default' ? 'from-default' : 'to-default',
-            ...(origins !== undefined ? { origins } : {})
+            ...(scopedOrigins !== undefined ? { origins: scopedOrigins } : {})
           }).then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }))
           if (!await contextStillCurrent()) {
             for (const id of affectedIds) manager.suspendWorkspaceContinuity(id, 'OUTCOME_UNKNOWN')
@@ -1149,6 +1362,7 @@ function createBrowserMcpServer(
         }
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
+        requireActiveCapabilityDispatch(name, input)
         requireAgentWorkspace(workspaceId)
         const requireHumanDecision = async (): Promise<void> => {
           if (humanWaiting && !continuityInspectionTools.has(name)) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
@@ -1171,10 +1385,13 @@ function createBrowserMcpServer(
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const definition = toolDefinition(name)
         const actionTarget = browserActionTarget(input)
+        const actionPayloadFingerprint = browserActionPayloadFingerprint(input)
         const actionAuthority = definition.annotations.destructiveHint && resolvedTabId
           ? captureBrowserActionAuthority({
               state: manager.getMcpGroupState(workspaceId), workspaceId, tabId: resolvedTabId,
-              operationClass: browserActionOperationClass(name), target: actionTarget, targetId: randomUUID()
+              operationClass: browserActionOperationClass(name), target: actionTarget, targetId: randomUUID(),
+              authorizationFingerprint: capabilityAuthorizationFingerprint,
+              payloadFingerprint: actionPayloadFingerprint
             })
           : undefined
         const postWrite = name === 'browser_click' && input.postcondition
@@ -1209,6 +1426,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
+          requireActiveCapabilityDispatch(name, input)
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1229,10 +1447,15 @@ function createBrowserMcpServer(
           }
           if (!authorityReason) {
             let permitted = true
-            try { requireAgentWorkspace(workspaceId) } catch { permitted = false }
+            try {
+              requireActiveCapabilityDispatch(name, input)
+              requireAgentWorkspace(workspaceId)
+            } catch { permitted = false }
             authorityReason = browserActionAuthorityReason({
               expected: actionAuthority, state: state!, workspaceId, tabId: resolvedTabId,
-              target: browserActionTarget(input), permitted
+              target: browserActionTarget(input), permitted,
+              authorizationFingerprint: capabilityAuthorizationFingerprint,
+              payloadFingerprint: browserActionPayloadFingerprint(input)
             })
           }
           if (!authorityReason) return undefined
@@ -1816,19 +2039,28 @@ function createBrowserMcpServer(
       title?: string
       active?: boolean
     }) => {
-      if (action === 'list') return textResult(bookmarks.list())
+      const input = { workspaceId, action, id, url, title, active }
+      const visibleBookmarks = (profile: McpCapabilityProfile | undefined, entries: BrowserBookmark[]): BrowserBookmark[] => (
+        entries.filter((entry) => capabilityAllowsUrl(profile, entry.url))
+      )
+      if (action === 'list') {
+        const profile = requireActiveCapabilityDispatch('browser_bookmarks', input)
+        return textResult(visibleBookmarks(profile, bookmarks.list()))
+      }
       if (action === 'add') {
         if (!url) throw new TypeError('url is required to add a bookmark')
-        return textResult(await bookmarks.add(url, title ?? url))
+        const profile = requireActiveCapabilityDispatch('browser_bookmarks', input)
+        return textResult(visibleBookmarks(profile, await bookmarks.add(url, title ?? url)))
       }
       if (!id) throw new TypeError(`id is required to ${action} a bookmark`)
-      if (action === 'rename') {
-        if (title === undefined) throw new TypeError('title is required to rename a bookmark')
-        return textResult(await bookmarks.rename(id, title))
-      }
-      if (action === 'remove') return textResult(await bookmarks.remove(id))
       const bookmark = bookmarks.list().find((candidate) => candidate.id === id)
       if (!bookmark) throw new Error(`Bookmark not found: ${id}`)
+      const profile = requireActiveCapabilityDispatch('browser_bookmarks', { ...input, url: bookmark.url })
+      if (action === 'rename') {
+        if (title === undefined) throw new TypeError('title is required to rename a bookmark')
+        return textResult(visibleBookmarks(profile, await bookmarks.rename(id, title)))
+      }
+      if (action === 'remove') return textResult(visibleBookmarks(profile, await bookmarks.remove(id)))
       return textResult(await manager.newTab({ url: bookmark.url, active, mcpGroupId: workspaceId! }))
     })
   )
@@ -1852,8 +2084,17 @@ function createBrowserMcpServer(
       limit: number
       active?: boolean
     }) => {
-      if (action === 'clear') return textResult(await history.clear())
+      const input = { workspaceId, action, id, query, limit, active }
+      const visibleHistory = (profile: McpCapabilityProfile | undefined, entries: BrowserHistoryEntry[]): BrowserHistoryEntry[] => (
+        entries.filter((entry) => capabilityAllowsUrl(profile, entry.url))
+      )
+      if (action === 'clear') {
+        const profile = requireActiveCapabilityDispatch('browser_visit_history', input)
+        if (profile?.origins) throw new McpCapabilityAuthorizationError()
+        return textResult(await history.clear())
+      }
       if (action === 'list') {
+        const profile = requireActiveCapabilityDispatch('browser_visit_history', input)
         const normalizedQuery = query?.trim().toLocaleLowerCase()
         const entries = normalizedQuery
           ? history.list().filter((entry) => (
@@ -1861,12 +2102,13 @@ function createBrowserMcpServer(
             || entry.url.toLocaleLowerCase().includes(normalizedQuery)
           ))
           : history.list()
-        return textResult(entries.slice(0, limit))
+        return textResult(visibleHistory(profile, entries).slice(0, limit))
       }
       if (!id) throw new TypeError(`id is required to ${action} a history entry`)
-      if (action === 'remove') return textResult(await history.remove(id))
       const entry = history.list().find((candidate) => candidate.id === id)
       if (!entry) throw new Error(`History entry not found: ${id}`)
+      const profile = requireActiveCapabilityDispatch('browser_visit_history', { ...input, url: entry.url })
+      if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
       return textResult(await manager.newTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
     })
   )
@@ -3292,14 +3534,16 @@ export class McpHttpServer {
       limit: MCP_FAILED_AUTH_LIMIT,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
-      skip: (request) => mcpRequestAuthorized(this.token, request.headers.authorization),
+      skip: (request) => this.authenticateRequest(request.headers.authorization) !== null,
       message: { error: 'Too many unauthorized requests' }
     }))
     app.use((request, response, next) => {
-      if (!mcpRequestAuthorized(this.token, request.headers.authorization)) {
+      const authorization = this.authenticateRequest(request.headers.authorization)
+      if (!authorization) {
         response.status(401).json({ error: 'Unauthorized' })
         return
       }
+      ;(request as AuthorizedMcpRequest)[MCP_REQUEST_AUTHORIZATION] = authorization
       const origin = request.headers.origin
       if (origin) {
         try {
@@ -3350,6 +3594,15 @@ export class McpHttpServer {
         response.status(404).json({ error: 'MCP session not found' })
         return
       }
+      const requestAuthorization = (request as AuthorizedMcpRequest)[MCP_REQUEST_AUTHORIZATION]
+      if (!requestAuthorization) {
+        response.status(401).json({ error: 'Unauthorized' })
+        return
+      }
+      if (transportSession && !this.sameAuthorization(transportSession.authorization, requestAuthorization)) {
+        response.status(401).json({ error: 'Unauthorized' })
+        return
+      }
       const isInitialization = request.method === 'POST'
         && typeof request.body === 'object'
         && request.body !== null
@@ -3360,7 +3613,7 @@ export class McpHttpServer {
         return
       }
 
-      const client = this.beginRequest(request, transportSession?.client)
+      const client = this.beginRequest(request, transportSession?.client, requestAuthorization)
       const createdTransportSession = !transportSession
       let completed = false
       const completeRequest = (): void => {
@@ -3374,7 +3627,7 @@ export class McpHttpServer {
 
       try {
         if (!transportSession) {
-          const session: Partial<McpTransportSession> = { client }
+          const session: Partial<McpTransportSession> = { client, authorization: requestAuthorization }
           const transport = new StreamableHTTPServerTransport({
             sessionIdGenerator: randomUUID,
             enableJsonResponse: true,
@@ -3410,6 +3663,9 @@ export class McpHttpServer {
             this.options.version,
             this.toolSet,
             client,
+            requestAuthorization.kind === 'capability-profile' && this.options.capabilityProfiles
+              ? { store: this.options.capabilityProfiles, grant: requestAuthorization.grant }
+              : undefined,
             this.options.wallets,
             this.walletSessions,
             (activity) => this.trackTabActivity(activity),
@@ -3467,7 +3723,28 @@ export class McpHttpServer {
     this.clients.clear()
   }
 
-  private beginRequest(request: Request, sessionClient?: McpClientActivity): McpClientActivity {
+  private authenticateRequest(authorization: string | undefined): McpRequestAuthorization | null {
+    if (this.token === undefined) return { kind: 'full-access' }
+    const bearer = authorization?.match(/^Bearer +(\S+)$/i)?.[1]
+    if (!bearer) return null
+    if (bearer === this.token) return { kind: 'full-access' }
+    const grant = this.options.capabilityProfiles?.authenticate(bearer)
+    return grant ? { kind: 'capability-profile', grant } : null
+  }
+
+  private sameAuthorization(left: McpRequestAuthorization, right: McpRequestAuthorization): boolean {
+    if (left.kind !== right.kind) return false
+    if (left.kind === 'full-access' || right.kind === 'full-access') return true
+    return left.grant.profileId === right.grant.profileId
+      && left.grant.revision === right.grant.revision
+      && left.grant.credentialId === right.grant.credentialId
+  }
+
+  private beginRequest(
+    request: Request,
+    sessionClient?: McpClientActivity,
+    authorization: McpRequestAuthorization = { kind: 'full-access' }
+  ): McpClientActivity {
     const body = (request.body ?? {}) as {
       method?: unknown
       params?: { clientInfo?: { name?: unknown; version?: unknown } }
@@ -3502,6 +3779,11 @@ export class McpHttpServer {
     client.lastSeenAt = now
     client.requestCount += 1
     client.activeRequests += 1
+    if (authorization.kind === 'capability-profile') {
+      client.capabilityProfileId = authorization.grant.profileId
+      client.capabilityProfileRevision = authorization.grant.revision
+      client.capabilityCredentialId = authorization.grant.credentialId
+    }
     if (existing) this.clients.delete(id)
     this.clients.set(id, client)
     this.activeRequests += 1

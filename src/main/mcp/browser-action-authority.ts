@@ -26,6 +26,8 @@ export interface BrowserActionAuthority {
   humanInteractionGeneration: number
   policyFingerprint: string
   targetFingerprint: string
+  authorizationFingerprint: string
+  payloadFingerprint: string
   operationClass: BrowserActionOperationClass
   targetKind: BrowserActionTargetKind
   targetId: string
@@ -61,6 +63,8 @@ export function captureBrowserActionAuthority(options: {
   operationClass: BrowserActionOperationClass
   target: BrowserActionTarget
   targetId: string
+  authorizationFingerprint: string
+  payloadFingerprint: string
 }): BrowserActionAuthority {
   const tab = options.state.tabs.find(candidate => candidate.id === options.tabId)
   if (!tab) throw new Error('The authorized action target is unavailable')
@@ -73,6 +77,8 @@ export function captureBrowserActionAuthority(options: {
     humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
     policyFingerprint: policyFingerprint(options.state, options.workspaceId),
     targetFingerprint: digest(options.target),
+    authorizationFingerprint: options.authorizationFingerprint,
+    payloadFingerprint: options.payloadFingerprint,
     operationClass: options.operationClass,
     targetKind: options.target.kind,
     targetId: options.targetId
@@ -86,10 +92,13 @@ export function browserActionAuthorityReason(options: {
   tabId: string
   target: BrowserActionTarget
   permitted: boolean
+  authorizationFingerprint: string
+  payloadFingerprint: string
 }): BrowserActionAuthorityReason | undefined {
   const { expected } = options
   if (options.workspaceId !== expected.workspaceId) return 'WORKSPACE_CHANGED'
   if (!options.permitted) return 'PERMISSION_CHANGED'
+  if (options.authorizationFingerprint !== expected.authorizationFingerprint) return 'PERMISSION_CHANGED'
   const tab = options.state.tabs.find(candidate => candidate.id === options.tabId)
   if (!tab || options.tabId !== expected.tabId) return 'TARGET_CHANGED'
   if (topLevelOrigin(tab.url) !== expected.topLevelOrigin) return 'ORIGIN_CHANGED'
@@ -98,7 +107,13 @@ export function browserActionAuthorityReason(options: {
   if ((tab.humanInteractionGeneration ?? 0) !== expected.humanInteractionGeneration) return 'EXPECTED_STATE_CHANGED'
   if (policyFingerprint(options.state, options.workspaceId) !== expected.policyFingerprint) return 'SITE_POLICY_CHANGED'
   if (digest(options.target) !== expected.targetFingerprint) return 'TARGET_CHANGED'
+  if (options.payloadFingerprint !== expected.payloadFingerprint) return 'TARGET_CHANGED'
   return undefined
+}
+
+/** Returns only a digest. Callers must not retain or log the source payload. */
+export function browserActionPayloadFingerprint(input: Record<string, unknown>): string {
+  return digest(input)
 }
 
 export function browserActionOperationClass(toolName: string): BrowserActionOperationClass {

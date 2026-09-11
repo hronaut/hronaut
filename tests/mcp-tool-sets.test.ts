@@ -3,6 +3,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BROWSER_TOOL_CATALOG,
+  mcpCapabilityProfileInputFromPreset,
   McpHttpServer,
   mcpToolCatalogForSet
 } from '../src/main/mcp/server.js'
@@ -12,6 +13,24 @@ import {
 } from '../src/shared/mcp-tool-sets.js'
 
 describe('MCP tool sets', () => {
+  it('builds a read-only capability preset with exact read actions for mixed tools', () => {
+    const profile = mcpCapabilityProfileInputFromPreset({
+      name: 'Reader', preset: 'read-only', expiresInMinutes: 60, singleUse: true
+    }, new Date('2026-09-11T12:00:00.000Z'))
+
+    expect(profile.operationClasses).toEqual(['read'])
+    expect(profile.allowedTools).toEqual(expect.arrayContaining([
+      'browser_snapshot', 'browser_storage', 'browser_downloads', 'browser_network'
+    ]))
+    expect(profile.allowedTools).not.toEqual(expect.arrayContaining([
+      'browser_click', 'browser_audio', 'browser_zoom', 'wallet_request_status'
+    ]))
+    expect(profile.allowedActions).toMatchObject({
+      browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list']
+    })
+    expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
+  })
+
   let server: McpHttpServer | undefined
   const clients: Client[] = []
 

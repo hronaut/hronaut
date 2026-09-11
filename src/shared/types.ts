@@ -2454,6 +2454,11 @@ export interface HronautSettingsApi {
   setMcpPort(port: number): Promise<AppSettings>
   setMcpToolSet(toolSet: import('./mcp-tool-sets.js').McpToolSet): Promise<AppSettings>
   resetMcp(): Promise<AppSettings>
+  listMcpCapabilityProfiles(): Promise<McpCapabilityProfileSummary[]>
+  createMcpCapabilityProfile(input: McpCapabilityProfileCreateInput): Promise<McpCapabilityCredentialResult>
+  updateMcpCapabilityProfile(id: string, input: McpCapabilityProfileCreateInput): Promise<McpCapabilityCredentialResult>
+  rotateMcpCapabilityProfile(id: string): Promise<McpCapabilityCredentialResult>
+  revokeMcpCapabilityProfile(id: string): Promise<McpCapabilityProfileSummary>
   getDefaultDownloadDirectory(): Promise<string>
   chooseDownloadDirectory(): Promise<DownloadDirectorySelection>
   setAskWhereToSaveDownloads(enabled: boolean): Promise<AppSettings>
@@ -2467,6 +2472,40 @@ export interface HronautSettingsApi {
   onChanged(listener: (settings: AppSettings) => void): () => void
   onSystemThemeChanged(listener: (theme: 'light' | 'dark') => void): () => void
   onRendererStateChanged(listener: (state: RendererSettingsState) => void): () => void
+}
+
+export type McpCapabilityProfilePreset = 'read-only' | 'essentials' | 'qa' | 'complete'
+
+export interface McpCapabilityProfileCreateInput {
+  name: string
+  preset: McpCapabilityProfilePreset
+  workspaceIds?: string[]
+  origins?: string[]
+  expiresInMinutes?: number
+  singleUse?: boolean
+}
+
+export interface McpCapabilityProfileSummary {
+  id: string
+  name: string
+  revision: number
+  credentialId: string
+  allowedTools: string[]
+  allowedActions?: Record<string, string[]>
+  operationClasses: string[]
+  workspaceIds?: string[]
+  origins?: string[]
+  expiresAt?: string
+  maxUses?: number
+  useCount: number
+  createdAt: string
+  updatedAt: string
+  revokedAt?: string
+}
+
+export interface McpCapabilityCredentialResult {
+  profile: McpCapabilityProfileSummary
+  credential: string
 }
 
 export interface WindowChromeState {

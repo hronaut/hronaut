@@ -2,7 +2,7 @@ import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
-import type { AppSettings } from '../../src/shared/types.js'
+import type { AppSettings, McpCapabilityCredentialResult } from '../../src/shared/types.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -41,6 +41,7 @@ function createController() {
   })
   const confirmDisableAuthentication = vi.fn(() => true)
   const onAuthenticationError = vi.fn()
+  const createCapabilityProfile = vi.fn()
   const controller = useMcpSettingsController({
     settings,
     endpoint,
@@ -49,6 +50,10 @@ function createController() {
     setPort,
     setToolSet,
     resetSettings,
+    listCapabilityProfiles: vi.fn(async () => []),
+    createCapabilityProfile,
+    rotateCapabilityProfile: vi.fn(),
+    revokeCapabilityProfile: vi.fn(),
     confirmDisableAuthentication,
     translate: (key, parameters) => `${key}:${JSON.stringify(parameters ?? {})}`,
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
@@ -59,6 +64,7 @@ function createController() {
     confirmDisableAuthentication,
     listenerFailed,
     onAuthenticationError,
+    createCapabilityProfile,
     setAuthentication,
     setPort,
     setToolSet,
@@ -212,5 +218,27 @@ describe('MCP settings controller', () => {
     expect(setAuthentication).not.toHaveBeenCalled()
     expect(setPort).not.toHaveBeenCalled()
     controller.dispose()
+  })
+
+  it('discards a credential returned after the settings controller is disposed', async () => {
+    const created = deferred<McpCapabilityCredentialResult>()
+    const { controller, createCapabilityProfile } = createController()
+    createCapabilityProfile.mockImplementationOnce(() => created.promise)
+
+    const operation = controller.createCapabilityProfile({ name: 'Late', preset: 'read-only' })
+    controller.dispose()
+    created.resolve({
+      profile: {
+        id: '01912345-6789-7abc-8def-0123456789ab', name: 'Late', revision: 1,
+        credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+        operationClasses: ['read'], useCount: 0,
+        createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+      },
+      credential: `hrc1_${'b'.repeat(43)}`
+    })
+
+    await expect(operation).resolves.toBe(false)
+    expect(controller.capabilityCredential.value).toBe('')
+    expect(controller.capabilityProfiles.value).toEqual([])
   })
 })

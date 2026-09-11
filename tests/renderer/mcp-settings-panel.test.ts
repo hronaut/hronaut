@@ -6,7 +6,7 @@ import McpSettingsPanel from '../../src/renderer/src/components/McpSettingsPanel
 import { useMcpSettingsController } from '../../src/renderer/src/composables/useMcpSettingsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import { DEFAULT_RENDERER_SETTINGS } from '../../src/renderer/src/stores/settings.js'
-import type { AppSettings } from '../../src/shared/types.js'
+import type { AppSettings, McpCapabilityProfileSummary } from '../../src/shared/types.js'
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
@@ -39,6 +39,16 @@ function renderPanel() {
     return settings.value
   })
   const confirmDisableAuthentication = vi.fn(() => true)
+  const listCapabilityProfiles = vi.fn(async (): Promise<McpCapabilityProfileSummary[]> => [])
+  const createCapabilityProfile = vi.fn(async () => ({
+    profile: {
+      id: '01912345-6789-7abc-8def-0123456789ab', name: 'QA reader', revision: 1,
+      credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'], useCount: 0,
+      createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+    },
+    credential: `hrc1_${'a'.repeat(43)}`
+  }))
   const controller = useMcpSettingsController({
     settings,
     endpoint,
@@ -47,6 +57,10 @@ function renderPanel() {
     setToolSet,
     setPort,
     resetSettings,
+    listCapabilityProfiles,
+    createCapabilityProfile,
+    rotateCapabilityProfile: vi.fn(),
+    revokeCapabilityProfile: vi.fn(),
     confirmDisableAuthentication,
     translate: (key, parameters) => createHronautI18n('en-US').global.t(key, parameters ?? {}),
     formatPortError: (error) => error instanceof Error ? error.message : String(error),
@@ -56,7 +70,7 @@ function renderPanel() {
     global: { plugins: [createHronautI18n('en-US')] },
     props: { controller }
   })
-  return { controller, confirmDisableAuthentication, setAuthentication, setPort, setToolSet, settings }
+  return { controller, confirmDisableAuthentication, createCapabilityProfile, setAuthentication, setPort, setToolSet, settings }
 }
 
 describe('McpSettingsPanel', () => {
@@ -134,6 +148,28 @@ describe('McpSettingsPanel', () => {
 
     expect(authentication).toBeChecked()
     expect(setAuthentication).not.toHaveBeenCalled()
+    controller.dispose()
+  })
+
+  it('creates a scoped profile and shows its credential only in the transient result', async () => {
+    const { controller, createCapabilityProfile } = renderPanel()
+    const user = userEvent.setup()
+
+    await user.type(screen.getByLabelText('Profile name'), 'QA reader')
+    await user.type(screen.getByLabelText('Workspace IDs (optional)'), '01912345-6789-7abc-8def-0123456789ab')
+    await user.type(screen.getByLabelText('Website origins (optional)'), 'https://allowed.example/path')
+    await user.click(screen.getByRole('button', { name: 'Create profile' }))
+
+    expect(createCapabilityProfile).toHaveBeenCalledWith({
+      name: 'QA reader', preset: 'read-only',
+      workspaceIds: ['01912345-6789-7abc-8def-0123456789ab'],
+      origins: ['https://allowed.example/path'], expiresInMinutes: 1440, singleUse: false
+    })
+    expect(screen.getByText(`hrc1_${'a'.repeat(43)}`)).toBeVisible()
+    expect(screen.getByText('QA reader')).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.queryByText(`hrc1_${'a'.repeat(43)}`)).not.toBeInTheDocument()
     controller.dispose()
   })
 })

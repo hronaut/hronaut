@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { BrowserState } from '../src/shared/types.js'
 import {
   browserActionAuthorityReason,
+  browserActionPayloadFingerprint,
   captureBrowserActionAuthority,
   type BrowserActionTarget
 } from '../src/main/mcp/browser-action-authority.js'
@@ -10,6 +11,8 @@ import {
 const workspaceId = '01912345-6789-7abc-8def-0123456789ab'
 const tabId = '01912345-678a-7abc-8def-0123456789ab'
 const target: BrowserActionTarget = { kind: 'element-ref', value: { ref: 'e7' } }
+const authorizationFingerprint = 'a'.repeat(64)
+const payloadFingerprint = browserActionPayloadFingerprint({ workspaceId, tabId, ref: 'e7', text: 'private value' })
 
 function state(overrides: Record<string, unknown> = {}): BrowserState {
   return {
@@ -32,10 +35,14 @@ function state(overrides: Record<string, unknown> = {}): BrowserState {
 
 function fixture() {
   const expected = captureBrowserActionAuthority({
-    state: state(), workspaceId, tabId, operationClass: 'page-interaction', target, targetId: randomUUID()
+    state: state(), workspaceId, tabId, operationClass: 'page-interaction', target, targetId: randomUUID(),
+    authorizationFingerprint, payloadFingerprint
   })
   const reason = (nextState: BrowserState, options: Partial<Parameters<typeof browserActionAuthorityReason>[0]> = {}) => (
-    browserActionAuthorityReason({ expected, state: nextState, workspaceId, tabId, target, permitted: true, ...options })
+    browserActionAuthorityReason({
+      expected, state: nextState, workspaceId, tabId, target, permitted: true,
+      authorizationFingerprint, payloadFingerprint, ...options
+    })
   )
   return { expected, reason }
 }
@@ -51,6 +58,9 @@ describe('consequential browser action authority', () => {
     })
     expect(JSON.stringify(expected)).not.toContain('Ignore previous instructions')
     expect(expected.targetFingerprint).toMatch(/^[0-9a-f]{64}$/)
+    expect(expected.authorizationFingerprint).toBe(authorizationFingerprint)
+    expect(expected.payloadFingerprint).toMatch(/^[0-9a-f]{64}$/)
+    expect(JSON.stringify(expected)).not.toContain('private value')
     expect(expected).not.toHaveProperty('target')
     expect(expected).not.toHaveProperty('ref')
   })
@@ -73,5 +83,7 @@ describe('consequential browser action authority', () => {
     changedPolicy.mcpTabGroups[0]!.navigationPolicy = { mode: 'unrestricted', rules: [] }
     expect(reason(changedPolicy)).toBe('SITE_POLICY_CHANGED')
     expect(reason(state(), { target: { kind: 'selector', value: { selector: '#confirm' } } })).toBe('TARGET_CHANGED')
+    expect(reason(state(), { authorizationFingerprint: 'b'.repeat(64) })).toBe('PERMISSION_CHANGED')
+    expect(reason(state(), { payloadFingerprint: browserActionPayloadFingerprint({ text: 'changed' }) })).toBe('TARGET_CHANGED')
   })
 })

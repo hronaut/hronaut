@@ -280,7 +280,8 @@ export const plPL = {
       "moving": "Przenoszenie…",
       "applyPort": "Zastosuj port",
       "tokenHelp": "Token jest tworzony raz dla profilu i nigdy nie jest wyświetlany na stronie głównej Hronaut.",
-      "warning": "Uwierzytelnianie jest wyłączone. Każdy proces na tym komputerze może sterować zalogowanymi kartami i dołączać lokalne pliki."
+      "warning": "Uwierzytelnianie jest wyłączone. Każdy proces na tym komputerze może sterować zalogowanymi kartami i dołączać lokalne pliki.",
+      capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
       "heading": "Uprawnienia witryn",
