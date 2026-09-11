@@ -95,7 +95,7 @@ export const COMMAND_PALETTE_COMMANDS: readonly CommandPaletteCommand[] = [
   { id: 'memory', label: 'Measure page memory', description: 'Inspect heap and DOM counters or sample retained allocations', category: 'Current website', keywords: ['heap', 'dom', 'allocation', 'leak', 'retained'], websiteOnly: true },
   { id: 'developer-tools', label: 'Toggle Developer Tools', description: 'Open Chromium DevTools for the current website', category: 'Current website', keywords: ['inspect', 'console'], shortcut: 'F12', websiteOnly: true },
   { id: 'settings', label: 'Open Settings', description: 'Change Hronaut preferences', category: 'Application', keywords: ['preferences'] },
-  { id: 'privacy', label: 'Open Privacy & data', description: 'Clear data for one website or the whole profile', category: 'Application', keywords: ['janitor', 'cookies', 'cache'], shortcut: 'Ctrl/Cmd+Shift+Delete' },
+  { id: 'privacy', label: 'Open Workspaces & data', description: 'Manage profiles, transfer site data, or clear legacy records', category: 'Application', keywords: ['workspace', 'transfer', 'copy', 'move', 'janitor', 'cookies', 'cache'], shortcut: 'Ctrl/Cmd+Shift+Delete' },
   { id: 'site-permissions', label: 'Open Site permissions', description: 'Review saved permission decisions', category: 'Application', keywords: ['camera', 'location', 'notifications'] },
   { id: 'mcp-security', label: 'Open MCP security', description: 'Change authentication and server port', category: 'Application', keywords: ['agent', 'token', 'port'] },
   { id: 'updates', label: 'Check for updates', description: 'Open software update settings', category: 'Application', keywords: ['upgrade', 'version'] },

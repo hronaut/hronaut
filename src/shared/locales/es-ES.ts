@@ -225,8 +225,8 @@ export const esES = {
       "mcpDescription": "Autenticación local",
       "wallets": "Carteras",
       "walletsDescription": "Cuentas y políticas Web3",
-      "privacy": "Privacidad y datos",
-      "privacyDescription": "Historial, cookies, caché",
+      "privacy": "Espacios y datos",
+      "privacyDescription": "Perfiles, transferencias y limpieza",
       "permissions": "Permisos de sitios",
       "permissionsDescription": "Acceso por sitio",
       "passwords": "Contraseñas",
@@ -319,8 +319,9 @@ export const esES = {
       "help": "Hronaut pide permiso antes de descargar e instalar una actualización."
     },
     "privacy": {
-      "heading": "Privacidad y datos de navegación",
-      description: "Gestione los datos del perfil anterior y el historial global. Use los controles del espacio o de la página para los datos de sitios de cada espacio.",
+      "heading": "Espacios de trabajo y datos",
+      description: "Revisa cada espacio del navegador, gestiona su política y copia o mueve datos seleccionados entre perfiles aislados.",
+      workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", legacyHeading: "Historial global y datos anteriores", legacyDescription: "Borra el historial global de la aplicación o los datos del perfil predeterminado anterior.",
       "whatToClear": "Qué borrar",
       "history": "Historial",
       "localVisits": "Visitas locales",
@@ -648,8 +649,8 @@ export const esES = {
         "description": "Cambiar preferencias de Hronaut"
       },
       "privacy": {
-        "label": "Abrir Privacidad y datos",
-        "description": "Borrar datos de un sitio o de todo el perfil"
+        "label": "Abrir Espacios y datos",
+        "description": "Gestionar perfiles, transferir datos o borrar registros anteriores"
       },
       "site-permissions": {
         "label": "Abrir permisos de sitios",

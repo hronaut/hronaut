@@ -10,6 +10,7 @@ const props = defineProps<{
   settingsController: AppSettingsFeatureController
   helpController: HelpDialogController
   workspaces: Array<{ id: string; name: string }>
+  dataWorkspaces: Array<{ id: string; name: string; archived: boolean; tabCount: number; storageOriginCount: number }>
   formatBytes: (bytes: number) => string
   formatNumber: (value: number) => string
   formatDateTime: (value: Date | number | string) => string
@@ -19,6 +20,11 @@ const props = defineProps<{
   purchaseCommercialLicense: () => void
   openSupportSettings: () => void
   reportLayout: () => void
+}>()
+const emit = defineEmits<{
+  manageWorkspace: [workspaceId: string]
+  createWorkspace: []
+  transferWorkspaceData: [workspaceId?: string]
 }>()
 
 const {
@@ -53,6 +59,7 @@ const { state: updateState } = updateSettingsController
     :support-controller="commercialLicenseController"
     :wallets-controller="walletsController"
     :workspaces="workspaces"
+    :data-workspaces="dataWorkspaces"
     :format-bytes="formatBytes"
     :format-number="formatNumber"
     :format-date-time="formatDateTime"
@@ -60,6 +67,9 @@ const { state: updateState } = updateSettingsController
     :report-setting-error="reportSettingError"
     :open-url="openUrl"
     :purchase-commercial-license="purchaseCommercialLicense"
+    @manage-workspace="emit('manageWorkspace', $event)"
+    @create-workspace="emit('createWorkspace')"
+    @transfer-workspace-data="emit('transferWorkspaceData', $event)"
   />
   <WalletApprovalDialog :controller="walletsController" :workspaces="workspaces" />
   <WhatsNewDialog

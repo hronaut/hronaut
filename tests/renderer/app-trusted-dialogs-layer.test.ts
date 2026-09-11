@@ -25,6 +25,7 @@ describe('AppTrustedDialogsLayer', () => {
     }
     const helpController = { id: 'help-dialog' }
     const workspaces = [{ id: 'workspace-1', name: 'Primary' }]
+    const dataWorkspaces = [{ id: 'workspace-1', name: 'Primary', archived: false, tabCount: 2, storageOriginCount: 1 }]
     const formatBytes = vi.fn(String)
     const formatNumber = vi.fn(String)
     const formatDateTime = vi.fn(String)
@@ -41,6 +42,7 @@ describe('AppTrustedDialogsLayer', () => {
         settingsController: controllers as never,
         helpController: helpController as never,
         workspaces,
+        dataWorkspaces,
         formatBytes,
         formatNumber,
         formatDateTime,
@@ -67,6 +69,7 @@ describe('AppTrustedDialogsLayer', () => {
       supportController: controllers.commercialLicenseController,
       walletsController: controllers.walletsController,
       workspaces,
+      dataWorkspaces,
       formatBytes,
       formatNumber,
       formatDateTime,

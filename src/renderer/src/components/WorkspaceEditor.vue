@@ -133,10 +133,10 @@ async function openNew(): Promise<void> {
   templateView.value = false
   await openNewEditor()
 }
-async function openTransfer(): Promise<void> {
+async function openTransfer(sourceWorkspaceId?: string): Promise<void> {
   if (templateBusy.value) return
   templateView.value = false
-  await openTransferEditor()
+  await openTransferEditor(sourceWorkspaceId)
 }
 
 defineExpose({ openExisting, openNew, openTransfer, close })

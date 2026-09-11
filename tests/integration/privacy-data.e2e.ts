@@ -121,11 +121,11 @@ legacyProfileTest('summarizes and selectively clears browsing data without remov
 
     dialog = appWindow.getByRole('dialog', { name: 'Settings' })
     const dialogHeight = (await dialog.boundingBox())!.height
-    await expect(dialog.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
-    await expect(dialog.getByRole('searchbox', { name: 'Search websites' })).toHaveValue(origin)
+    await expect(dialog.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
+    await expect(dialog.getByRole('searchbox', { name: 'Search legacy websites' })).toHaveValue(origin)
     await appWindow.evaluate('window.hronaut.openHome()')
-    await expect(dialog.getByRole('searchbox', { name: 'Search websites' })).toHaveValue(origin)
-    await expect(dialog.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
+    await expect(dialog.getByRole('searchbox', { name: 'Search legacy websites' })).toHaveValue(origin)
+    await expect(dialog.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
     await expect.poll(async () => (await dialog.boundingBox())!.height).toBe(dialogHeight)
     await expect(dialog).toContainText('2 cookies')
     await expect(dialog).toContainText('1 history page · 1 visit')
@@ -134,14 +134,14 @@ legacyProfileTest('summarizes and selectively clears browsing data without remov
     await expect(dialog.getByRole('checkbox', { name: /^Cookies & site data/ })).not.toBeChecked()
     await expect(dialog.getByRole('checkbox', { name: /^Cached files/ })).toBeChecked()
     await dialog.getByRole('checkbox', { name: /^Cookies & site data/ }).check()
-    await expect(dialog.getByRole('button', { name: /Clear all websites/ })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: /Clear all legacy data/ })).toBeVisible()
     appWindow.once('dialog', (confirmation) => {
       expect(confirmation.message()).toContain(`for ${origin}`)
       expect(confirmation.message()).toContain('Related subdomains may share cookies')
       expect(confirmation.message()).toContain('Bookmarks, saved passwords, site permissions')
       void confirmation.accept()
     })
-    await dialog.getByRole('button', { name: `Clear selected data for ${origin}` }).click()
+    await dialog.getByRole('button', { name: `Clear selected legacy data for ${origin}` }).click()
     await expect(dialog.getByText(`Selected data was cleared for ${origin}. Open pages were left in place.`)).toBeVisible()
 
     await expect.poll(() => appWindow.evaluate('window.hronautBrowsingData.summary()')).toMatchObject({

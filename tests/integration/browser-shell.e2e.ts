@@ -2003,7 +2003,7 @@ test('opens Privacy immediately and keeps a newer close authoritative after dela
     await appWindow.keyboard.press('Control+Shift+Delete')
     const settings = appWindow.getByRole('dialog', { name: 'Settings' })
     await expect(settings).toBeVisible()
-    await expect(settings.getByRole('heading', { name: 'Privacy & browsing data' })).toBeVisible()
+    await expect(settings.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
     await settings.getByRole('button', { name: 'Close settings' }).click()
     await expect(settings).toBeHidden()
 

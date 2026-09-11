@@ -8,12 +8,28 @@ import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconRefresh from '~icons/material-symbols/refresh-rounded'
 import IconSearch from '~icons/material-symbols/search-rounded'
+import IconSwapHoriz from '~icons/material-symbols/swap-horiz-rounded'
+import IconWorkspaces from '~icons/material-symbols/workspaces-rounded'
 import type { PrivacySettingsController } from '../composables/usePrivacySettingsController'
+
+interface WorkspaceDataSummary {
+  id: string
+  name: string
+  archived: boolean
+  tabCount: number
+  storageOriginCount: number
+}
 
 const props = defineProps<{
   controller: PrivacySettingsController
+  workspaces: WorkspaceDataSummary[]
   formatBytes: (bytes: number) => string
   formatNumber: (value: number) => string
+}>()
+const emit = defineEmits<{
+  manageWorkspace: [workspaceId: string]
+  createWorkspace: []
+  transferWorkspaceData: [workspaceId?: string]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -44,6 +60,34 @@ const {
       <h3>{{ t('settings.privacy.heading') }}</h3>
       <p>{{ t('settings.privacy.description') }}</p>
     </div>
+    <section class="workspace-data-section" aria-labelledby="workspace-data-heading">
+      <div class="workspace-data-heading">
+        <div>
+          <h4 id="workspace-data-heading">{{ t('settings.privacy.workspaces') }}</h4>
+          <p>{{ t('settings.privacy.workspacesDescription') }}</p>
+        </div>
+        <div class="workspace-data-actions">
+          <UiButton appearance="application" type="button" @click="emit('createWorkspace')">{{ t('settings.privacy.createWorkspace') }}</UiButton>
+          <UiButton appearance="application" variant="primary" type="button" :disabled="workspaces.length < 2" @click="emit('transferWorkspaceData')"><IconSwapHoriz aria-hidden="true" />{{ t('settings.privacy.transferData') }}</UiButton>
+        </div>
+      </div>
+      <div class="workspace-data-list">
+        <article v-for="workspace in workspaces" :key="workspace.id" class="workspace-data-card">
+          <span class="workspace-data-icon" aria-hidden="true"><IconWorkspaces /></span>
+          <span class="workspace-data-copy">
+            <strong>{{ workspace.name }}</strong>
+            <small>{{ t(workspace.archived ? 'settings.privacy.workspaceArchived' : 'settings.privacy.workspaceActive') }} · {{ t('settings.privacy.workspaceTabs', { count: formatNumber(workspace.tabCount) }, workspace.tabCount) }} · {{ t('settings.privacy.workspaceSites', { count: formatNumber(workspace.storageOriginCount) }, workspace.storageOriginCount) }}</small>
+          </span>
+          <UiButton v-if="!workspace.archived" appearance="application" type="button" @click="emit('manageWorkspace', workspace.id)">{{ t('settings.privacy.manageWorkspace') }}</UiButton>
+          <UiButton v-else appearance="application" type="button" @click="emit('transferWorkspaceData', workspace.id)">{{ t('settings.privacy.transferData') }}</UiButton>
+        </article>
+      </div>
+    </section>
+    <section class="legacy-data-section" aria-labelledby="legacy-data-heading">
+      <div class="setting-copy">
+        <h4 id="legacy-data-heading">{{ t('settings.privacy.legacyHeading') }}</h4>
+        <p>{{ t('settings.privacy.legacyDescription') }}</p>
+      </div>
     <fieldset class="privacy-category-options" :disabled="clearing">
       <legend>{{ t('settings.privacy.whatToClear') }}</legend>
       <label for="clear-browsing-history">
@@ -124,5 +168,6 @@ const {
       <span class="info-dot" aria-hidden="true"><IconInfo /></span>
       <p>{{ t('settings.privacy.exclusions', { bookmarks: summary?.bookmarkCount === undefined ? '…' : formatNumber(summary.bookmarkCount), passwords: summary?.savedPasswordCount === undefined ? '…' : formatNumber(summary.savedPasswordCount), permissions: summary?.permissionDecisionCount === undefined ? '…' : formatNumber(summary.permissionDecisionCount) }) }}</p>
     </div>
+    </section>
   </div>
 </template>

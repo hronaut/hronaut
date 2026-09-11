@@ -146,7 +146,7 @@ test('keeps rejected settings out of live state and later persisted changes', as
 
 test('keeps supporting text readable in Settings and page tools', async ({ appWindow }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
-  await appWindow.getByRole('button', { name: /Privacy & data/ }).click()
+  await appWindow.getByRole('button', { name: /Workspaces & data/ }).click()
 
   const settingsSizes = await appWindow.evaluate(`(() => ({
     navigation: Number.parseFloat(getComputedStyle(document.querySelector('.settings-nav-item small')).fontSize),

@@ -13,6 +13,7 @@ export interface AppTransientShellSurface {
   closeZoom: () => void
   setZoom: (action: ZoomAction) => Promise<void>
   openWorkspace: (groupId: string) => Promise<void>
+  openWorkspaceTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openNewWorkspace: () => Promise<void>
   closeWorkspace: () => void
   openCredentialPicker: () => Promise<void>
@@ -83,6 +84,7 @@ export function useAppTransientShellLayerController() {
     commandPalettePanel,
     workspaceEditorOpen: workspaceEditorController.open,
     openWorkspace: workspaceEditorController.openExisting,
+    openWorkspaceTransfer: async (sourceWorkspaceId?: string) => { await layer.value?.openWorkspaceTransfer(sourceWorkspaceId) },
     openNewWorkspace: workspaceEditorController.openNew,
     closeWorkspace: workspaceEditorController.close,
     openFindForTab,

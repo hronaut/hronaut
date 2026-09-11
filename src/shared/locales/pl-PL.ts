@@ -225,8 +225,8 @@ export const plPL = {
       "mcpDescription": "Lokalne uwierzytelnianie",
       "wallets": "Portfele",
       "walletsDescription": "Konta i zasady Web3",
-      "privacy": "Prywatność i dane",
-      "privacyDescription": "Historia, pliki cookie, pamięć podręczna",
+      "privacy": "Obszary i dane",
+      "privacyDescription": "Profile, transfer i czyszczenie",
       "permissions": "Uprawnienia witryn",
       "permissionsDescription": "Dostęp dla witryn",
       "passwords": "Hasła",
@@ -319,8 +319,9 @@ export const plPL = {
       "help": "Hronaut pyta przed pobraniem i zainstalowaniem aktualizacji."
     },
     "privacy": {
-      "heading": "Prywatność i dane przeglądania",
-      description: "Zarządzaj danymi wcześniejszego profilu przeglądarki i historią całej aplikacji. Dane witryn poszczególnych obszarów obsługuj za pomocą ustawień obszaru lub strony.",
+      "heading": "Obszary robocze i dane",
+      description: "Przeglądaj obszary przeglądarki, zarządzaj ich zasadami oraz kopiuj lub przenoś wybrane dane między izolowanymi profilami.",
+      workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", legacyHeading: "Historia globalna i starsze dane", legacyDescription: "Wyczyść historię całej aplikacji lub dane starszego domyślnego profilu przeglądarki.",
       "whatToClear": "Co wyczyścić",
       "history": "Historia",
       "localVisits": "Lokalne wizyty",
@@ -648,8 +649,8 @@ export const plPL = {
         "description": "Zmień preferencje Hronaut"
       },
       "privacy": {
-        "label": "Otwórz Prywatność i dane",
-        "description": "Wyczyść dane jednej witryny lub całego profilu"
+        "label": "Otwórz Obszary i dane",
+        "description": "Zarządzaj profilami, przenoś dane lub czyść starsze wpisy"
       },
       "site-permissions": {
         "label": "Otwórz uprawnienia witryn",

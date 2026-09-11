@@ -242,6 +242,37 @@ const {
 } = settingsDialogController
 const walletApprovalOpen = computed(() => walletsController.awaitingApproval.value.length > 0)
 const walletWorkspaces = computed(() => state.value.mcpTabGroups.map((workspace) => ({ id: workspace.id, name: workspace.name })))
+const dataWorkspaces = computed(() => [
+  ...state.value.mcpTabGroups.map((workspace) => ({
+    id: workspace.id,
+    name: workspace.name,
+    archived: false,
+    tabCount: workspace.tabCount,
+    storageOriginCount: workspace.storageOriginCount
+  })),
+  ...state.value.savedTabGroups.map((workspace) => ({
+    id: workspace.id,
+    name: workspace.name,
+    archived: true,
+    tabCount: workspace.tabs.length,
+    storageOriginCount: workspace.storageOriginCount
+  }))
+])
+
+async function openWorkspaceFromSettings(workspaceId: string): Promise<void> {
+  closeSettings()
+  await openTabGroupEditor(workspaceId)
+}
+
+async function createWorkspaceFromSettings(): Promise<void> {
+  closeSettings()
+  await openNewWorkspaceEditor()
+}
+
+async function transferWorkspaceDataFromSettings(workspaceId?: string): Promise<void> {
+  closeSettings()
+  await appTransientShellLayerController.openWorkspaceTransfer(workspaceId)
+}
 const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
   browser,
   downloadsApi: window.hronautDownloads,
@@ -866,6 +897,7 @@ useAppLifecycleController({
       :settings-controller="appSettingsFeatureController"
       :help-controller="helpDialogController"
       :workspaces="walletWorkspaces"
+      :data-workspaces="dataWorkspaces"
       :format-bytes="formatBytes"
       :format-number="localNumber"
       :format-date-time="localDateTime"
@@ -875,6 +907,9 @@ useAppLifecycleController({
       :purchase-commercial-license="purchaseCommercialLicense"
       :open-support-settings="openSupportSettings"
       :report-layout="reportShellHeight"
+      @manage-workspace="openWorkspaceFromSettings"
+      @create-workspace="createWorkspaceFromSettings"
+      @transfer-workspace-data="transferWorkspaceDataFromSettings"
     />
     <DetachedPanelUnavailableState
       v-if="detachedPanelUnavailable"
