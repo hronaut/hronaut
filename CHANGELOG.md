@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-09-11
+
 ### Added
 
 - Add named MCP capability profiles with one-time credential display, digest-only storage, tool and action restrictions, workspace and origin scopes, expiry and use limits, immediate revocation, and trusted Settings controls.
