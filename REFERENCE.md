@@ -279,6 +279,8 @@ Authentication is off for a new profile so local agents can connect without toke
 
 Trusted Settings can also create named capability credentials with a smaller tool preset and optional workspace, origin, expiry, and use limits. Select an existing active capability as the parent to derive a delegated credential. Hronaut requires the child to be a strict subset of that parent, records the opaque parent profile, revision, and credential identifiers, and stores only credential digests. Every bounded child call consumes its own use budget and each bounded ancestor budget atomically. Parent rotation, editing, revocation, expiry, or exhaustion makes descendants inactive; reconnecting does not restore stale lineage. Derived profiles cannot be reparented through an edit, and their parent linkage remains visible in Settings. Creating a derived credential is a trusted local Settings action; browser pages and connected MCP clients cannot mint authority.
 
+When action audit recording is active, each decision records whether the connection had full access or used a capability profile. Capability decisions include the bounded root-to-leaf profile IDs and revisions so a reviewer can verify delegation lineage. Audit receipts never record bearer credentials, credential identifiers, profile scopes, cookies, tokens, page content, or tool arguments.
+
 ## Connect an MCP client
 
 Use a Streamable HTTP MCP configuration and start Hronaut before the client connects. A generic JSON configuration looks like:

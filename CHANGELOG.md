@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Allow trusted Settings to derive a narrower MCP capability credential from an active parent, with persistent parent/revision lineage, shared use limits, and immediate descendant invalidation when ancestor authority changes.
+- Record bounded root-to-leaf capability profile lineage in action audit decisions without retaining bearer credentials, credential identifiers, private scope values, or tool arguments.
 
 ### Fixed
 

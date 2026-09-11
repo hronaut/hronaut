@@ -61,7 +61,7 @@ describe('persistent audit receipt service', () => {
     })
     await service.stop(workspaceId)
     const report = await service.read(workspaceId, run.id)
-    expect(report.formatVersion).toBe(2)
+    expect(report.formatVersion).toBe(3)
     expect(report.evidenceCoverage).toMatchObject({ limit: 1_000, omitted: 0 })
     expect(report.evidenceCoverage.items).toEqual(expect.arrayContaining([
       expect.objectContaining({ actionId: expect.any(String), source: 'diagnostic', status: 'available', referenceId,
