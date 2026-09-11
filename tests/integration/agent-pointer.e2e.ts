@@ -16,7 +16,15 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
     response.end(`<!doctype html><title>Agent pointer fixture</title>
       <button id="action" style="margin:80px;width:140px;height:50px">Run action</button>
       <button id="hover" style="margin:80px;width:140px;height:50px">Hover target</button>
-      <script>document.querySelector('#action').addEventListener('click', () => document.body.dataset.clicks = '1')</script>`)
+      <script>
+        window.hooks = 0;
+        document.querySelector('#action').addEventListener('click', () => document.body.dataset.clicks = '1');
+        const originalQuerySelectorAll = document.querySelectorAll;
+        document.querySelectorAll = function (...args) {
+          window.hooks++;
+          return originalQuerySelectorAll.apply(this, args);
+        };
+      </script>`)
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -59,14 +67,15 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
         const pointer = document.querySelector('[data-hronaut-agent-pointer]');
         return {
           clicks: document.body.dataset.clicks,
-          count: document.querySelectorAll('[data-hronaut-agent-pointer]').length,
+          count: pointer ? 1 : 0,
+          hooks: window.hooks,
           opacity: pointer?.style.opacity,
           pointerEvents: pointer?.style.pointerEvents,
           shadowRoot: pointer?.shadowRoot ?? null
         };
       })()`)
     }, url)
-    expect(clicked).toEqual({ clicks: '1', count: 1, opacity: '1', pointerEvents: 'none', shadowRoot: null })
+    expect(clicked).toEqual({ clicks: '1', count: 1, hooks: 0, opacity: '1', pointerEvents: 'none', shadowRoot: null })
 
     const hover = await client.callTool({
       name: 'browser_hover',
@@ -75,9 +84,9 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
     expect(hover.isError, text(hover)).not.toBe(true)
     const pointerCount = await electronApp.evaluate(async ({ webContents }, pageUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === pageUrl)!
-      return page.executeJavaScript(`document.querySelectorAll('[data-hronaut-agent-pointer]').length`)
+      return page.executeJavaScript(`({ count: document.querySelector('[data-hronaut-agent-pointer]') ? 1 : 0, hooks: window.hooks })`)
     }, url)
-    expect(pointerCount).toBe(1)
+    expect(pointerCount).toEqual({ count: 1, hooks: 0 })
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)

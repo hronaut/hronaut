@@ -406,6 +406,7 @@ const STORAGE_USAGE_WORLD_ID = 1009
 // 1010 is reserved by the Linux presented-view visibility probe.
 const CONTINUITY_MARKER_WORLD_ID = 1011
 const POSTCONDITION_WORLD_ID = 1012
+const AGENT_POINTER_WORLD_ID = 1013
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -5336,7 +5337,11 @@ export class BrowserTabsManager {
     effect: 'move' | 'click' | 'drag-start' | 'drag-end',
     origin?: { x: number; y: number }
   ): Promise<void> {
-    await webContents.executeJavaScript(agentPointerScript(point, effect, origin), true).catch(() => undefined)
+    await webContents.executeJavaScriptInIsolatedWorld(
+      AGENT_POINTER_WORLD_ID,
+      [{ code: agentPointerScript(point, effect, origin) }],
+      false
+    ).catch(() => undefined)
   }
 
   async type(target: {
