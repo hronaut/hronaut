@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { UiButton, UiCheckbox } from '../ui/index.js'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconInfo from '~icons/material-symbols/info-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
@@ -7,6 +8,7 @@ import { MAX_MCP_PORT, MIN_MCP_PORT } from '../../../shared/mcp-port'
 import { isMcpToolSet } from '../../../shared/mcp-tool-sets'
 import type { McpSettingsController } from '../composables/useMcpSettingsController'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
+import type { McpCapabilityProfilePreset } from '../../../shared/types'
 
 const props = defineProps<{
   controller: McpSettingsController
@@ -24,8 +26,52 @@ const {
   editPort,
   setAuthentication,
   setToolSet,
-  applyPort
+  applyPort,
+  capabilityProfiles,
+  capabilityCredential,
+  capabilityError,
+  capabilityBusy,
+  loadCapabilityProfiles,
+  createCapabilityProfile,
+  rotateCapabilityProfile,
+  revokeCapabilityProfile,
+  clearCapabilityCredential
 } = props.controller
+
+const profileName = ref('')
+const profilePreset = ref<McpCapabilityProfilePreset>('read-only')
+const profileWorkspaceIds = ref('')
+const profileOrigins = ref('')
+const profileExpiry = ref('1440')
+const profileSingleUse = ref(false)
+
+function lines(value: string): string[] | undefined {
+  const entries = value.split(/[\n,]/u).map(entry => entry.trim()).filter(Boolean)
+  return entries.length ? entries : undefined
+}
+
+async function submitCapabilityProfile(): Promise<void> {
+  const expiresInMinutes = profileExpiry.value ? Number(profileExpiry.value) : undefined
+  if (await createCapabilityProfile({
+    name: profileName.value,
+    preset: profilePreset.value,
+    workspaceIds: lines(profileWorkspaceIds.value),
+    origins: lines(profileOrigins.value),
+    expiresInMinutes,
+    singleUse: profileSingleUse.value
+  })) profileName.value = ''
+}
+
+async function copyCapabilityCredential(): Promise<void> {
+  if (capabilityCredential.value) await window.hronaut.copyText(capabilityCredential.value)
+}
+
+async function revokeProfile(id: string, name: string): Promise<void> {
+  if (window.confirm(t('settings.mcp.capabilities.revokeConfirm', { name }))) await revokeCapabilityProfile(id)
+}
+
+onMounted(() => { void loadCapabilityProfiles() })
+onUnmounted(clearCapabilityCredential)
 
 async function changeAuthentication(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
@@ -51,7 +97,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
 </script>
 
 <template>
-  <div class="settings-content" :aria-busy="busy">
+  <div class="settings-content" :aria-busy="busy || capabilityBusy">
     <div class="setting-copy">
       <h3>{{ t('settings.mcp.heading') }}</h3>
       <p>{{ t('settings.mcp.description') }}</p>
@@ -134,5 +180,81 @@ function handlePortKeydown(event: KeyboardEvent): void {
       <p v-if="settings.mcpAuthentication">{{ t('settings.mcp.tokenHelp') }}</p>
       <p v-else>{{ t('settings.mcp.warning') }}</p>
     </div>
+    <section class="mcp-capabilities">
+      <div class="setting-copy">
+        <h3>{{ t('settings.mcp.capabilities.heading') }}</h3>
+        <p>{{ t('settings.mcp.capabilities.description') }}</p>
+      </div>
+      <form class="mcp-capability-form" @submit.prevent="submitCapabilityProfile">
+        <label>
+          <strong>{{ t('settings.mcp.capabilities.name') }}</strong>
+          <input v-model="profileName" required maxlength="80" :disabled="capabilityBusy">
+        </label>
+        <label>
+          <strong>{{ t('settings.mcp.capabilities.preset') }}</strong>
+          <select v-model="profilePreset" :disabled="capabilityBusy">
+            <option value="read-only">{{ t('settings.mcp.capabilities.presetReadOnly') }}</option>
+            <option value="essentials">{{ t('settings.mcp.capabilities.presetEssentials') }}</option>
+            <option value="qa">{{ t('settings.mcp.capabilities.presetQa') }}</option>
+            <option value="complete">{{ t('settings.mcp.capabilities.presetComplete') }}</option>
+          </select>
+        </label>
+        <label>
+          <strong>{{ t('settings.mcp.capabilities.workspaces') }}</strong>
+          <textarea v-model="profileWorkspaceIds" rows="2" :placeholder="t('settings.mcp.capabilities.workspacesPlaceholder')" :disabled="capabilityBusy" />
+        </label>
+        <label>
+          <strong>{{ t('settings.mcp.capabilities.origins') }}</strong>
+          <textarea v-model="profileOrigins" rows="2" :placeholder="t('settings.mcp.capabilities.originsPlaceholder')" :disabled="capabilityBusy" />
+        </label>
+        <label>
+          <strong>{{ t('settings.mcp.capabilities.expiry') }}</strong>
+          <select v-model="profileExpiry" :disabled="capabilityBusy">
+            <option value="60">{{ t('settings.mcp.capabilities.oneHour') }}</option>
+            <option value="1440">{{ t('settings.mcp.capabilities.oneDay') }}</option>
+            <option value="10080">{{ t('settings.mcp.capabilities.sevenDays') }}</option>
+            <option value="">{{ t('settings.mcp.capabilities.noExpiry') }}</option>
+          </select>
+        </label>
+        <label class="mcp-capability-check">
+          <input v-model="profileSingleUse" type="checkbox" :disabled="capabilityBusy">
+          <span>{{ t('settings.mcp.capabilities.singleUse') }}</span>
+        </label>
+        <UiButton appearance="application" type="submit" :disabled="capabilityBusy || !profileName.trim()">
+          {{ capabilityBusy ? t('settings.mcp.capabilities.saving') : t('settings.mcp.capabilities.create') }}
+        </UiButton>
+      </form>
+      <div v-if="capabilityCredential" class="mcp-capability-secret" role="status">
+        <strong>{{ t('settings.mcp.capabilities.credentialHeading') }}</strong>
+        <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
+        <code>{{ capabilityCredential }}</code>
+        <div>
+          <UiButton appearance="application" type="button" @click="copyCapabilityCredential">{{ t('settings.mcp.capabilities.copy') }}</UiButton>
+          <UiButton appearance="application" type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
+        </div>
+      </div>
+      <div v-if="capabilityProfiles.length" class="mcp-capability-list">
+        <article v-for="profile in capabilityProfiles" :key="profile.id" class="mcp-capability-card">
+          <div>
+            <strong>{{ profile.name }}</strong>
+            <small>{{ t('settings.mcp.capabilities.profileSummary', { revision: profile.revision, tools: profile.allowedTools.length, uses: profile.useCount, limit: profile.maxUses ?? '∞' }) }}</small>
+            <small v-if="profile.revokedAt" class="mcp-capability-revoked">{{ t('settings.mcp.capabilities.revoked') }}</small>
+            <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: new Date(profile.expiresAt).toLocaleString() }) }}</small>
+          </div>
+          <div class="mcp-capability-actions">
+            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
+            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
+          </div>
+          <details>
+            <summary>{{ t('settings.mcp.capabilities.inspect') }}</summary>
+            <code>{{ profile.allowedTools.join(', ') }}</code>
+            <small v-if="profile.workspaceIds?.length">{{ profile.workspaceIds.join(', ') }}</small>
+            <small v-if="profile.origins?.length">{{ profile.origins.join(', ') }}</small>
+          </details>
+        </article>
+      </div>
+      <p v-else class="mcp-capability-empty">{{ t('settings.mcp.capabilities.empty') }}</p>
+      <output v-if="capabilityError" class="site-controls-error" role="alert">{{ capabilityError }}</output>
+    </section>
   </div>
 </template>

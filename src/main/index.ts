@@ -73,6 +73,7 @@ import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
+  mcpCapabilityProfileInputFromPreset,
   mcpToolCatalogForSet,
   type McpDashboardState,
   type SiteDataType,
@@ -81,6 +82,7 @@ import {
   type UserAttentionRequest
 } from './mcp/server.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
+import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
 import { McpPauseState } from './mcp-pause-state.js'
 import { McpActionTracker } from './mcp/action-tracker.js'
@@ -154,6 +156,7 @@ import {
   type LanguagePreference,
   type McpControlState,
   type McpServerStatus,
+  type McpCapabilityProfileCreateInput,
   type PanelDock,
   type RendererSettingsState,
   type SitePermissionDecision,
@@ -226,6 +229,7 @@ let panelWindowOpening: Promise<void> | null = null
 let tabsManager: BrowserTabsManager | null = null
 let tabsInitializationPromise: Promise<void> | null = null
 let mcpServer: McpHttpServer | null = null
+let mcpCapabilityProfiles: McpCapabilityProfileStore | null = null
 let auditReceipts: AuditReceiptService | null = null
 let humanWaiting: import('./mcp/human-waiting-service.js').HumanWaitingService | null = null
 let taskRuns: import('./mcp/task-run-service.js').TaskRunService | null = null
@@ -3435,6 +3439,53 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     return resetMcpSettings()
   })
+  const capabilityProfileInput = (value: unknown): McpCapabilityProfileCreateInput => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new TypeError('MCP capability profile input is required')
+    }
+    const input = value as Partial<McpCapabilityProfileCreateInput>
+    if (typeof input.name !== 'string'
+      || typeof input.preset !== 'string'
+      || (input.workspaceIds !== undefined && (!Array.isArray(input.workspaceIds)
+        || input.workspaceIds.some(id => typeof id !== 'string')))
+      || (input.origins !== undefined && (!Array.isArray(input.origins)
+        || input.origins.some(origin => typeof origin !== 'string')))
+      || (input.expiresInMinutes !== undefined && typeof input.expiresInMinutes !== 'number')
+      || (input.singleUse !== undefined && typeof input.singleUse !== 'boolean')) {
+      throw new TypeError('MCP capability profile input is invalid')
+    }
+    return input as McpCapabilityProfileCreateInput
+  }
+  const requireCapabilityProfiles = (): McpCapabilityProfileStore => {
+    if (!mcpCapabilityProfiles) throw new Error('MCP capability profile storage is unavailable')
+    return mcpCapabilityProfiles
+  }
+  ipcMain.handle('settings:list-mcp-capability-profiles', (event) => {
+    assertTrustedShellSender(event)
+    return requireCapabilityProfiles().list()
+  })
+  ipcMain.handle('settings:create-mcp-capability-profile', async (event, value: unknown) => {
+    assertTrustedShellSender(event)
+    return requireCapabilityProfiles().create(mcpCapabilityProfileInputFromPreset(capabilityProfileInput(value)))
+  })
+  ipcMain.handle('settings:update-mcp-capability-profile', async (event, id: unknown, value: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
+    const result = await requireCapabilityProfiles().update(id, mcpCapabilityProfileInputFromPreset(capabilityProfileInput(value)))
+    return result
+  })
+  ipcMain.handle('settings:rotate-mcp-capability-profile', async (event, id: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
+    const result = await requireCapabilityProfiles().rotate(id)
+    return result
+  })
+  ipcMain.handle('settings:revoke-mcp-capability-profile', async (event, id: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof id !== 'string') throw new TypeError('MCP capability profile ID is invalid')
+    const profile = await requireCapabilityProfiles().revoke(id)
+    return profile
+  })
   ipcMain.handle('settings:set-check-on-startup', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Startup update check must be a boolean')
@@ -4073,6 +4124,7 @@ function createRuntimeMcpServer(
     host: MCP_HOST,
     port,
     token: authenticationEnabled ? mcpTokenConfiguration.token : undefined,
+    capabilityProfiles: mcpCapabilityProfiles ?? undefined,
     version: app.getVersion(),
     toolSet: settings.mcpToolSet,
     showWindowInactive,
@@ -4287,6 +4339,12 @@ app.whenReady().then(async () => {
     join(app.getPath('userData'), 'mcp-token'),
     process.env.HRONAUT_MCP_TOKEN
   )
+  mcpCapabilityProfiles = new McpCapabilityProfileStore(
+    join(app.getPath('userData'), 'mcp-capability-profiles.json'),
+    () => new Date(),
+    () => mcpActionTracker.invalidatePendingDispatches()
+  )
+  await mcpCapabilityProfiles.load()
   configureAutoUpdater()
   await loadAuthoritativeSettings()
   installApplicationMenu()

@@ -280,7 +280,8 @@ export const frFR = {
       "moving": "Déplacement…",
       "applyPort": "Appliquer le port",
       "tokenHelp": "Le jeton est créé une seule fois par profil et n’apparaît jamais sur l’accueil Hronaut.",
-      "warning": "L’authentification est désactivée. Tout processus de cet ordinateur peut contrôler les onglets connectés et joindre des fichiers locaux."
+      "warning": "L’authentification est désactivée. Tout processus de cet ordinateur peut contrôler les onglets connectés et joindre des fichiers locaux.",
+      capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
       "heading": "Autorisations des sites",

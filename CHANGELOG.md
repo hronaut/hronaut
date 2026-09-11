@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add named MCP capability profiles with one-time credential display, digest-only storage, tool and action restrictions, workspace and origin scopes, expiry and use limits, immediate revocation, and trusted Settings controls.
+
 ### Changed
 
 - Clarify Hronaut's boundary as a local, visible MCP execution layer alongside agent frameworks in the landing page and quick start, with current trial and subscription terms.

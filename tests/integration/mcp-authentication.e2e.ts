@@ -2,8 +2,59 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { get } from 'node:http'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { DEFAULT_MCP_PORT } from '../../src/shared/mcp-port.js'
+import type { HronautSettingsApi } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+test('creates a digest-only restricted credential and revokes its active MCP session', async ({
+  appWindow,
+  mcpPort,
+  profileDirectory
+}) => {
+  await appWindow.evaluate('window.hronautSettings.setMcpAuthentication(true)')
+  const created = await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({
+    name: 'Electron read-only client',
+    preset: 'read-only',
+    expiresInMinutes: 60
+  }))
+  expect(created.credential).toMatch(/^hrc1_[A-Za-z0-9_-]{43}$/)
+  expect(created.profile).not.toHaveProperty('credentialDigest')
+  const persisted = await readFile(join(profileDirectory, 'mcp-capability-profiles.json'), 'utf8')
+  expect(persisted).not.toContain(created.credential)
+  expect(persisted).toMatch(/"credentialDigest": "[0-9a-f]{64}"/)
+
+  const client = new Client({ name: 'electron-restricted-client', version: '1.0.0' })
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization: `Bearer ${created.credential}` } }
+  })
+  try {
+    await client.connect(transport)
+    const tools = await client.listTools()
+    expect(tools.tools.map(tool => tool.name)).toContain('browser_snapshot')
+    expect(tools.tools.map(tool => tool.name)).not.toContain('browser_click')
+    await expect(client.callTool({ name: 'browser_click', arguments: {} })).resolves.toMatchObject({ isError: true })
+
+    await appWindow.evaluate(
+      id => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.revokeMcpCapabilityProfile(id),
+      created.profile.id
+    )
+    await expect(client.listTools()).rejects.toThrow()
+  } finally {
+    await client.close().catch(() => undefined)
+  }
+
+  const reconnect = new Client({ name: 'revoked-electron-client', version: '1.0.0' })
+  try {
+    await expect(reconnect.connect(new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${mcpPort}/mcp`),
+      { requestInit: { headers: { authorization: `Bearer ${created.credential}` } } }
+    ))).rejects.toThrow()
+  } finally {
+    await reconnect.close().catch(() => undefined)
+  }
+})
 
 test('repairs a malformed profile token before starting the browser and MCP listener', async ({
   profileDirectory,

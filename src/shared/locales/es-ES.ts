@@ -280,7 +280,8 @@ export const esES = {
       "moving": "Moviendo…",
       "applyPort": "Aplicar puerto",
       "tokenHelp": "El token se genera una vez por perfil y nunca se muestra en el inicio de Hronaut.",
-      "warning": "La autenticación está desactivada. Cualquier proceso de este equipo puede controlar pestañas con sesión y adjuntar archivos locales."
+      "warning": "La autenticación está desactivada. Cualquier proceso de este equipo puede controlar pestañas con sesión y adjuntar archivos locales.",
+      capabilities: enUS.settings.mcp.capabilities
     },
     "permissions": {
       "heading": "Permisos de sitios",

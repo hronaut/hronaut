@@ -1,5 +1,10 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import type { AppSettings } from '../../../shared/types.js'
+import type {
+  AppSettings,
+  McpCapabilityCredentialResult,
+  McpCapabilityProfileCreateInput,
+  McpCapabilityProfileSummary
+} from '../../../shared/types.js'
 import type { McpToolSet } from '../../../shared/mcp-tool-sets.js'
 import {
   DEFAULT_MCP_PORT,
@@ -19,6 +24,10 @@ export interface McpSettingsControllerOptions {
   setToolSet: (toolSet: McpToolSet) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
+  listCapabilityProfiles: () => Promise<McpCapabilityProfileSummary[]>
+  createCapabilityProfile: (input: McpCapabilityProfileCreateInput) => Promise<McpCapabilityCredentialResult>
+  rotateCapabilityProfile: (id: string) => Promise<McpCapabilityCredentialResult>
+  revokeCapabilityProfile: (id: string) => Promise<McpCapabilityProfileSummary>
   confirmDisableAuthentication: () => boolean
   translate: (key: string, parameters?: Record<string, unknown>) => string
   formatPortError: (error: unknown) => string
@@ -30,6 +39,10 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   const portState = ref<McpPortState>('idle')
   const portMessage = ref('')
   const operation = ref<McpOperation>('idle')
+  const capabilityProfiles = ref<McpCapabilityProfileSummary[]>([])
+  const capabilityCredential = ref('')
+  const capabilityError = ref('')
+  const capabilityBusy = ref(false)
   let dirtyPortDraft = false
   let draftRevision = 0
   let generation = 0
@@ -176,9 +189,85 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     }
   }
 
+  async function loadCapabilityProfiles(): Promise<boolean> {
+    const operationGeneration = generation
+    capabilityError.value = ''
+    try {
+      const profiles = await options.listCapabilityProfiles()
+      if (operationGeneration !== generation) return false
+      capabilityProfiles.value = profiles
+      return true
+    } catch (error) {
+      if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
+      return false
+    }
+  }
+
+  async function createCapabilityProfile(input: McpCapabilityProfileCreateInput): Promise<boolean> {
+    if (capabilityBusy.value) return false
+    const operationGeneration = generation
+    capabilityBusy.value = true
+    capabilityError.value = ''
+    try {
+      const created = await options.createCapabilityProfile(input)
+      if (operationGeneration !== generation) return false
+      capabilityProfiles.value = [...capabilityProfiles.value, created.profile]
+      capabilityCredential.value = created.credential
+      return true
+    } catch (error) {
+      if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) capabilityBusy.value = false
+    }
+  }
+
+  async function rotateCapabilityProfile(id: string): Promise<boolean> {
+    if (capabilityBusy.value) return false
+    const operationGeneration = generation
+    capabilityBusy.value = true
+    capabilityError.value = ''
+    try {
+      const rotated = await options.rotateCapabilityProfile(id)
+      if (operationGeneration !== generation) return false
+      capabilityProfiles.value = capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
+      capabilityCredential.value = rotated.credential
+      return true
+    } catch (error) {
+      if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) capabilityBusy.value = false
+    }
+  }
+
+  async function revokeCapabilityProfile(id: string): Promise<boolean> {
+    if (capabilityBusy.value) return false
+    const operationGeneration = generation
+    capabilityBusy.value = true
+    capabilityError.value = ''
+    try {
+      const revoked = await options.revokeCapabilityProfile(id)
+      if (operationGeneration !== generation) return false
+      capabilityProfiles.value = capabilityProfiles.value.map(profile => profile.id === id ? revoked : profile)
+      return true
+    } catch (error) {
+      if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) capabilityBusy.value = false
+    }
+  }
+
+  function clearCapabilityCredential(): void {
+    capabilityCredential.value = ''
+  }
+
   function dispose(): void {
     generation += 1
     operation.value = 'idle'
+    capabilityBusy.value = false
+    capabilityCredential.value = ''
     stopWatchingPort()
   }
 
@@ -194,6 +283,15 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     setAuthentication,
     setToolSet,
     applyPort,
+    capabilityProfiles,
+    capabilityCredential,
+    capabilityError,
+    capabilityBusy,
+    loadCapabilityProfiles,
+    createCapabilityProfile,
+    rotateCapabilityProfile,
+    revokeCapabilityProfile,
+    clearCapabilityCredential,
     reset,
     dispose
   }

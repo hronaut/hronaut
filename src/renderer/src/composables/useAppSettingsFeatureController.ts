@@ -213,6 +213,10 @@ export function useAppSettingsFeatureController(options: AppSettingsFeatureContr
     setToolSet: (toolSet) => options.settingsStore.setMcpToolSet(toolSet),
     setPort: (port) => options.settingsStore.setMcpPort(port),
     resetSettings: () => options.settingsStore.resetMcp(),
+    listCapabilityProfiles: () => window.hronautSettings.listMcpCapabilityProfiles(),
+    createCapabilityProfile: (input) => window.hronautSettings.createMcpCapabilityProfile(input),
+    rotateCapabilityProfile: (id) => window.hronautSettings.rotateMcpCapabilityProfile(id),
+    revokeCapabilityProfile: (id) => window.hronautSettings.revokeMcpCapabilityProfile(id),
     confirmDisableAuthentication: () => options.confirm(
       options.translate('runtimeActions.mcp.disableConfirm')
     ),
