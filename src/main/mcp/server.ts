@@ -537,7 +537,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
-  { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces. With an active audit run, an optional declarative postcondition performs bounded read-back without repeating the click.' },
+  { name: 'browser_click', category: 'Interaction', description: 'Single- or double-click an element by snapshot ref or CSS selector, or click viewport coordinates for canvas and other visual-only surfaces. Set native=true only when a custom control requires trusted pointer and mouse events. With an active audit run, an optional declarative postcondition performs bounded read-back without repeating the click.' },
   { name: 'browser_dialog', category: 'Interaction', description: 'Accept or dismiss an open JavaScript alert or confirmation.' },
   { name: 'browser_type', category: 'Interaction', description: 'Type into a field and optionally submit its form.' },
   { name: 'browser_select', category: 'Interaction', description: 'Select an option by value or visible label.' },
@@ -2095,7 +2095,9 @@ function createBrowserMcpServer(
         y: z.number().finite().min(0).max(100_000).optional()
           .describe('Viewport-relative CSS y coordinate. Provide together with x and without ref or selector.'),
         doubleClick: z.boolean().optional()
-          .describe('Dispatch two native pointer clicks and a dblclick event instead of one programmatic click.'),
+          .describe('Dispatch two native pointer clicks and a dblclick event instead of one native pointer click.'),
+        native: z.boolean().optional()
+          .describe('For a single ref or selector click, dispatch trusted native pointer and mouse events. Use only when the control does not respond to the default exact-element click.'),
         dialogAction: z.enum(['accept', 'dismiss']).optional(),
         promptText: z.string().max(4096).optional(),
         postcondition: z.object({
@@ -2117,6 +2119,7 @@ function createBrowserMcpServer(
       x?: number
       y?: number
       doubleClick?: boolean
+      native?: boolean
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest

@@ -1526,6 +1526,13 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(invalidDialogDoubleClick.isError).toBe(true)
     expect(text(invalidDialogDoubleClick)).toContain('doubleClick cannot be combined with dialogAction')
 
+    const invalidDialogNativeClick = await client.callTool({
+      name: 'browser_click',
+      arguments: { tabId, selector: '#double-click', native: true, dialogAction: 'dismiss' }
+    }) as CallToolResult
+    expect(invalidDialogNativeClick.isError).toBe(true)
+    expect(text(invalidDialogNativeClick)).toContain('native cannot be combined with dialogAction')
+
     const doubleClicked = await client.callTool({
       name: 'browser_click',
       arguments: { tabId, selector: '#double-click', doubleClick: true }
