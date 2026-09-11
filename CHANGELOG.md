@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-09-12
+
 ### Added
 
 - Allow trusted Settings to derive a narrower MCP capability credential from an active parent, with persistent parent/revision lineage, shared use limits, and immediate descendant invalidation when ancestor authority changes.
