@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [1.26.1] - 2026-09-11
+
 ### Added
 
 - Show a temporary virtual pointer for agent clicks, hovers, and drags so people can follow MCP-controlled interactions without moving the operating-system cursor.
