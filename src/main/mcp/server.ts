@@ -684,6 +684,16 @@ const errorResult = (error: unknown): CallToolResult => ({
   content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }]
 })
 
+export function closedTabWaitResult(error: unknown): CallToolResult | undefined {
+  if (!(error instanceof Error) || !error.message.startsWith('The tab closed while waiting')) return undefined
+  const outcome = {
+    status: 'STALE_OBSERVATION',
+    retrySafe: false,
+    nextAction: 'The waited-on tab closed. Inspect the current workspace and choose a live tab before waiting again.'
+  }
+  return { ...textResult(outcome), structuredContent: outcome, isError: true }
+}
+
 function safeValue(value: unknown): unknown {
   try {
     return JSON.parse(JSON.stringify(value))
@@ -2303,42 +2313,48 @@ function createBrowserMcpServer(
       urlPattern?: string
       timeoutMs?: number
     }) => {
-      if (text && textGone) throw new TypeError('Choose either text or textGone, not both.')
-      const hasTarget = Boolean(ref || selector)
-      if (urlPattern && (text || textGone || hasTarget || state)) {
-        throw new TypeError('Choose one wait condition: urlPattern, page text, or an element target.')
+      try {
+        if (text && textGone) throw new TypeError('Choose either text or textGone, not both.')
+        const hasTarget = Boolean(ref || selector)
+        if (urlPattern && (text || textGone || hasTarget || state)) {
+          throw new TypeError('Choose one wait condition: urlPattern, page text, or an element target.')
+        }
+        if (hasTarget && (text || textGone)) throw new TypeError('Choose page text or an element target, not both.')
+        if (state && !hasTarget) throw new TypeError('Provide ref or selector when waiting for an element state.')
+        if (urlPattern) {
+          const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
+          return matchedUrl
+            ? textResult(`URL matched: ${matchedUrl}`)
+            : errorResult(new Error('Timed out waiting for the page URL pattern.'))
+        }
+        if (hasTarget) {
+          const elementState = state ?? 'visible'
+          const matched = await manager.waitForElement({ ref, selector }, tabId, timeoutMs, elementState)
+          const targetLabel = ref ? `[${ref}]` : selector!
+          return matched
+            ? textResult(`Element is ${elementState}: ${targetLabel}`)
+            : errorResult(new Error(`Timed out waiting for element to become ${elementState}: ${targetLabel}`))
+        }
+        if (text) {
+          const found = await manager.waitForText(text, tabId, timeoutMs, 'visible')
+          if (found) return textResult(`Found text: ${found}`)
+          return errorResult(new Error(Array.isArray(text)
+            ? `Timed out waiting for any of ${text.length} requested texts.`
+            : `Timed out waiting for text: ${text}`))
+        }
+        if (textGone) {
+          const disappeared = await manager.waitForText(textGone, tabId, timeoutMs, 'hidden')
+          return disappeared
+            ? textResult(`Text disappeared: ${textGone}`)
+            : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))
+        }
+        await manager.waitForPage(tabId, timeoutMs)
+        return textResult('Page is no longer loading.')
+      } catch (error) {
+        const closedTabResult = closedTabWaitResult(error)
+        if (closedTabResult) return closedTabResult
+        throw error
       }
-      if (hasTarget && (text || textGone)) throw new TypeError('Choose page text or an element target, not both.')
-      if (state && !hasTarget) throw new TypeError('Provide ref or selector when waiting for an element state.')
-      if (urlPattern) {
-        const matchedUrl = await manager.waitForUrlPattern(urlPattern, tabId, timeoutMs)
-        return matchedUrl
-          ? textResult(`URL matched: ${matchedUrl}`)
-          : errorResult(new Error('Timed out waiting for the page URL pattern.'))
-      }
-      if (hasTarget) {
-        const elementState = state ?? 'visible'
-        const matched = await manager.waitForElement({ ref, selector }, tabId, timeoutMs, elementState)
-        const targetLabel = ref ? `[${ref}]` : selector!
-        return matched
-          ? textResult(`Element is ${elementState}: ${targetLabel}`)
-          : errorResult(new Error(`Timed out waiting for element to become ${elementState}: ${targetLabel}`))
-      }
-      if (text) {
-        const found = await manager.waitForText(text, tabId, timeoutMs, 'visible')
-        if (found) return textResult(`Found text: ${found}`)
-        return errorResult(new Error(Array.isArray(text)
-          ? `Timed out waiting for any of ${text.length} requested texts.`
-          : `Timed out waiting for text: ${text}`))
-      }
-      if (textGone) {
-        const disappeared = await manager.waitForText(textGone, tabId, timeoutMs, 'hidden')
-        return disappeared
-          ? textResult(`Text disappeared: ${textGone}`)
-          : errorResult(new Error(`Timed out waiting for text to disappear: ${textGone}`))
-      }
-      await manager.waitForPage(tabId, timeoutMs)
-      return textResult('Page is no longer loading.')
     })
   )
   registerWorkspaceTool(
