@@ -27,6 +27,7 @@ function tab(): BrowserTabState {
 
 function panelStub(testId: string, exposed: Record<string, unknown> = {}) {
   return defineComponent({
+    inheritAttrs: false,
     props: { open: Boolean, dock: String },
     emits: ['update:open', 'update:dock'],
     setup(_props, { emit, expose }) {
@@ -56,6 +57,7 @@ function createHarness(websiteAvailable = true) {
   const fillSavedPassword = vi.fn()
   let pageToolsProps: Record<string, unknown> | undefined
   const PageToolsStub = defineComponent({
+    inheritAttrs: false,
     props: {
       open: Boolean,
       dock: String,
@@ -179,6 +181,18 @@ function createHarness(websiteAvailable = true) {
 }
 
 describe('app page tools layer', () => {
+  it('does not leak component props onto native elements in the composition harness', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    let harness: ReturnType<typeof createHarness> | undefined
+    try {
+      harness = createHarness()
+      expect(warn).not.toHaveBeenCalled()
+    } finally {
+      harness?.view.unmount()
+      warn.mockRestore()
+    }
+  })
+
   it('keeps runtime panels mounted on Home while omitting the website-only Page Tools surface', () => {
     const harness = createHarness(false)
 
