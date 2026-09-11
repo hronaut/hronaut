@@ -6,7 +6,15 @@ const VISIBILITY_WORLD_ID = 1010
 /** Repair Electron 44's stale native visibility without reloading or focusing. */
 export function reconcilePresentedViewVisibility(window: BrowserWindow, view: WebContentsView): void {
   if (process.platform !== 'linux' || process.versions.electron?.split('.')[0] !== '44' || pending.has(view)) return
-  const contents = view.webContents
+  let contents: WebContents
+  try {
+    // Electron can invalidate this native getter while a child view is being
+    // torn down. The periodic recovery check must not turn that expected race
+    // into an uncaught main-process exception.
+    contents = view.webContents
+  } catch {
+    return
+  }
   const isPresented = (): boolean => !window.isDestroyed()
     && !contents.isDestroyed()
     && window.isVisible()
