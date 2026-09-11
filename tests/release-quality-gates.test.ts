@@ -210,6 +210,19 @@ describe('release quality gates', () => {
     expect(workflow).not.toContain('uses: actions/cache')
   })
 
+  it('tests the packaged MCPB connection on every supported desktop platform before building it', async () => {
+    const workflow = await readFile('.github/workflows/release.yml', 'utf8')
+    const testMcpb = job(workflow, 'test-mcpb')
+    const buildMcpb = job(workflow, 'build-mcpb')
+
+    for (const os of ['ubuntu-latest', 'macos-latest', 'windows-latest']) {
+      expect(testMcpb).toContain(`- ${os}`)
+    }
+    expect(testMcpb).toContain('npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts')
+    expect(buildMcpb).toContain('- test-mcpb')
+    expect(buildMcpb).toContain('npm run package:mcpb')
+  })
+
   it('binds release execution to the selected mainline tag and treats corrected notes as data', async () => {
     const [workflow, autoTag] = await Promise.all([
       readFile('.github/workflows/release.yml', 'utf8'),
@@ -231,6 +244,8 @@ describe('release quality gates', () => {
       'prepare-release',
       'test-integration',
       'validate',
+      'test-mcpb',
+      'build-mcpb',
       'build-linux',
       'build-macos',
       'build-windows',

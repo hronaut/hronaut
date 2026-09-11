@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Replace the broad Privacy & data Settings panel with workspace-first management that lists active and archived profiles, opens per-workspace controls, and exposes the existing selective copy or archive-only move workflow; application-wide history and legacy Default-profile cleanup remain in a clearly scoped secondary section.
 
+### Added
+
+- Add a registry-ready MCPB adapter that connects stdio clients to the running desktop application's loopback Streamable HTTP endpoint, preserves JSON-RPC messages and session isolation, rejects remote destinations and redirects, and keeps optional bearer tokens in sensitive local configuration.
+
 ## [1.25.0] - 2026-09-11
 
 ### Added
