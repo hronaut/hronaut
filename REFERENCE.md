@@ -277,6 +277,8 @@ curl http://127.0.0.1:47812/healthz
 
 Authentication is off for a new profile so local agents can connect without token setup. If you enable **Require MCP authentication** in Settings, the exact token path is shown on Hronaut Home. On Linux, the packaged default is `~/.config/Hronaut/mcp-token`; development builds use `~/.config/hronaut-dev/mcp-token`. Hronaut creates one random token per profile and restricts the token file to the profile owner.
 
+Trusted Settings can also create named capability credentials with a smaller tool preset and optional workspace, origin, expiry, and use limits. Select an existing active capability as the parent to derive a delegated credential. Hronaut requires the child to be a strict subset of that parent, records the opaque parent profile, revision, and credential identifiers, and stores only credential digests. Every bounded child call consumes its own use budget and each bounded ancestor budget atomically. Parent rotation, editing, revocation, expiry, or exhaustion makes descendants inactive; reconnecting does not restore stale lineage. Derived profiles cannot be reparented through an edit, and their parent linkage remains visible in Settings. Creating a derived credential is a trusted local Settings action; browser pages and connected MCP clients cannot mint authority.
+
 ## Connect an MCP client
 
 Use a Streamable HTTP MCP configuration and start Hronaut before the client connects. A generic JSON configuration looks like:

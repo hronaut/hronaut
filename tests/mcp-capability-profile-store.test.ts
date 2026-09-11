@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   McpCapabilityAuthorizationError,
   McpCapabilityProfileStore,
+  type McpCapabilityProfileInput,
   type McpCapabilityRequest
 } from '../src/main/mcp/capability-profile-store.js'
 
@@ -181,5 +182,125 @@ describe('MCP capability profile store', () => {
     await value.rotate(updated.profile.id)
     await value.revoke(updated.profile.id)
     expect(authorityChanged).toHaveBeenCalledTimes(3)
+  })
+
+  it('derives only strict subsets and records parent authorization lineage', async () => {
+    const value = await store()
+    const parent = await value.create({
+      name: 'Delegating QA',
+      allowedTools: ['browser_click', 'browser_snapshot', 'browser_storage'],
+      allowedActions: { browser_storage: ['get', 'set'] },
+      operationClasses: ['read', 'interact', 'site-data'],
+      workspaceIds: [workspaceId, otherWorkspaceId],
+      origins: ['https://allowed.example', 'https://other.example'],
+      expiresAt: '2026-09-11T13:00:00.000Z',
+      maxUses: 2
+    })
+    const grant = value.authenticate(parent.credential)!
+    const childInput: McpCapabilityProfileInput = {
+      name: 'One delegated read',
+      allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'],
+      workspaceIds: [workspaceId],
+      origins: ['https://allowed.example/path'],
+      expiresAt: '2026-09-11T12:30:00.000Z',
+      maxUses: 1
+    }
+    const child = await value.derive(grant, childInput)
+
+    expect(child.profile.parentAuthorization).toEqual({
+      profileId: parent.profile.id,
+      revision: parent.profile.revision,
+      credentialId: parent.profile.credentialId
+    })
+    expect(value.authenticate(child.credential)?.profileId).toBe(child.profile.id)
+    expect(() => value.authorize(value.authenticate(child.credential)!, readRequest)).not.toThrow()
+    const persisted = await readFile(join(directory!, 'mcp-capability-profiles.json'), 'utf8')
+    expect(persisted).not.toContain(parent.credential)
+    expect(persisted).not.toContain(child.credential)
+    const reloaded = new McpCapabilityProfileStore(
+      join(directory!, 'mcp-capability-profiles.json'),
+      () => new Date('2026-09-11T12:00:00.000Z')
+    )
+    await reloaded.load()
+    expect(reloaded.authenticate(child.credential)?.profileId).toBe(child.profile.id)
+
+    const updatedChild = await value.update(child.profile.id, { ...childInput, name: 'Renamed delegated read' })
+    expect(updatedChild.profile.parentAuthorization).toEqual(child.profile.parentAuthorization)
+    expect(value.authenticate(updatedChild.credential)?.profileId).toBe(child.profile.id)
+    await expect(value.update(child.profile.id, {
+      ...childInput,
+      name: 'Illegally widened child',
+      allowedTools: ['browser_snapshot', 'browser_tabs']
+    })).rejects.toThrow(McpCapabilityAuthorizationError)
+
+    const widened: McpCapabilityProfileInput[] = [
+      { ...childInput, name: 'Tool widened', allowedTools: ['browser_snapshot', 'browser_tabs'] },
+      { ...childInput, name: 'Class widened', operationClasses: ['read', 'network'] },
+      { ...childInput, name: 'Workspace widened', workspaceIds: [workspaceId, '01912345-678b-7abc-8def-0123456789ab'] },
+      { ...childInput, name: 'Workspace unrestricted', workspaceIds: undefined },
+      { ...childInput, name: 'Origin widened', origins: ['https://private.example'] },
+      { ...childInput, name: 'Origin unrestricted', origins: undefined },
+      { ...childInput, name: 'Expiry widened', expiresAt: '2026-09-11T13:01:00.000Z' },
+      { ...childInput, name: 'Uses widened', maxUses: 3 }
+    ]
+    for (const candidate of widened) {
+      await expect(value.derive(grant, candidate)).rejects.toThrow(McpCapabilityAuthorizationError)
+    }
+
+    await expect(value.derive(grant, {
+      name: 'Action widened',
+      allowedTools: ['browser_storage'],
+      operationClasses: ['site-data'],
+      workspaceIds: [workspaceId],
+      origins: ['https://allowed.example'],
+      expiresAt: '2026-09-11T12:30:00.000Z',
+      maxUses: 1
+    })).rejects.toThrow(McpCapabilityAuthorizationError)
+  })
+
+  it('shares bounded uses with ancestors and invalidates descendants when lineage changes', async () => {
+    let current = new Date('2026-09-11T12:00:00.000Z')
+    const value = await store(() => current)
+    const parent = await value.create({
+      name: 'Two reads',
+      allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'],
+      expiresAt: '2026-09-11T13:00:00.000Z',
+      maxUses: 2
+    })
+    const parentGrant = value.authenticate(parent.credential)!
+    const child = await value.derive(parentGrant, {
+      name: 'Delegated reads',
+      allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'],
+      expiresAt: '2026-09-11T12:30:00.000Z',
+      maxUses: 2
+    })
+    const childGrant = value.authenticate(child.credential)!
+
+    await value.authorizeAndConsume(childGrant, readRequest)
+    expect(value.list().find(profile => profile.id === parent.profile.id)?.useCount).toBe(1)
+    expect(value.list().find(profile => profile.id === child.profile.id)?.useCount).toBe(1)
+    await value.authorizeAndConsume(childGrant, readRequest)
+    expect(value.authenticate(parent.credential)).toBeNull()
+    expect(value.authenticate(child.credential)).toBeNull()
+    expect(() => value.authorizeActiveDispatch(childGrant, readRequest)).not.toThrow()
+
+    const rotatable = await value.create({
+      name: 'Rotatable parent', allowedTools: ['browser_snapshot'], operationClasses: ['read']
+    })
+    const rotatableGrant = value.authenticate(rotatable.credential)!
+    const descendant = await value.derive(rotatableGrant, {
+      name: 'Invalidated child', allowedTools: ['browser_snapshot'], operationClasses: ['read'], maxUses: 1
+    })
+    const descendantGrant = value.authenticate(descendant.credential)!
+    await value.rotate(rotatable.profile.id)
+    expect(value.authenticate(descendant.credential)).toBeNull()
+    expect(() => value.authorize(descendantGrant, readRequest)).toThrow(McpCapabilityAuthorizationError)
+    expect(value.list().find(profile => profile.id === descendant.profile.id)?.lineageActive).toBe(false)
+
+    current = new Date('2026-09-11T13:01:00.000Z')
+    expect(value.authenticate(child.credential)).toBeNull()
   })
 })

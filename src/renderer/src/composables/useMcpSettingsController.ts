@@ -195,7 +195,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const profiles = await options.listCapabilityProfiles()
       if (operationGeneration !== generation) return false
-      capabilityProfiles.value = profiles
+      capabilityProfiles.value = reconcileCapabilityLineage(profiles)
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -211,7 +211,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const created = await options.createCapabilityProfile(input)
       if (operationGeneration !== generation) return false
-      capabilityProfiles.value = [...capabilityProfiles.value, created.profile]
+      capabilityProfiles.value = reconcileCapabilityLineage([...capabilityProfiles.value, created.profile])
       capabilityCredential.value = created.credential
       return true
     } catch (error) {
@@ -230,7 +230,9 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const rotated = await options.rotateCapabilityProfile(id)
       if (operationGeneration !== generation) return false
-      capabilityProfiles.value = capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
+      capabilityProfiles.value = reconcileCapabilityLineage(
+        capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
+      )
       capabilityCredential.value = rotated.credential
       return true
     } catch (error) {
@@ -249,7 +251,9 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const revoked = await options.revokeCapabilityProfile(id)
       if (operationGeneration !== generation) return false
-      capabilityProfiles.value = capabilityProfiles.value.map(profile => profile.id === id ? revoked : profile)
+      capabilityProfiles.value = reconcileCapabilityLineage(
+        capabilityProfiles.value.map(profile => profile.id === id ? revoked : profile)
+      )
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -261,6 +265,36 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
 
   function clearCapabilityCredential(): void {
     capabilityCredential.value = ''
+  }
+
+  function reconcileCapabilityLineage(profiles: McpCapabilityProfileSummary[]): McpCapabilityProfileSummary[] {
+    const byId = new Map(profiles.map(profile => [profile.id, profile]))
+    const resolved = new Map<string, boolean>()
+    const active = (profile: McpCapabilityProfileSummary, visiting: Set<string>): boolean => {
+      const cached = resolved.get(profile.id)
+      if (cached !== undefined) return cached
+      if (!profile.lineageActive || visiting.has(profile.id)) {
+        resolved.set(profile.id, false)
+        return false
+      }
+      const parentAuthorization = profile.parentAuthorization
+      if (!parentAuthorization) {
+        resolved.set(profile.id, true)
+        return true
+      }
+      const parent = byId.get(parentAuthorization.profileId)
+      if (!parent || parent.revision !== parentAuthorization.revision
+        || parent.credentialId !== parentAuthorization.credentialId) {
+        resolved.set(profile.id, false)
+        return false
+      }
+      const nextVisiting = new Set(visiting)
+      nextVisiting.add(profile.id)
+      const value = active(parent, nextVisiting)
+      resolved.set(profile.id, value)
+      return value
+    }
+    return profiles.map(profile => ({ ...profile, lineageActive: active(profile, new Set()) }))
   }
 
   function dispose(): void {
