@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Ignore Electron child views whose native `webContents` getter is invalidated during teardown so the Linux page-presentation recovery timer cannot raise an uncaught main-process exception.
+
 ## [1.26.1] - 2026-09-11
 
 ### Added

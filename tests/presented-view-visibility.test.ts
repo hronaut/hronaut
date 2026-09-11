@@ -79,6 +79,17 @@ describe('presented view visibility', () => {
     expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
 
+  it('ignores a native view whose webContents getter was invalidated during teardown', () => {
+    const f = fixture()
+    Object.defineProperty(f.view, 'webContents', {
+      configurable: true,
+      get: () => { throw new Error('Object has been destroyed') }
+    })
+
+    expect(f.reconcile).not.toThrow()
+    expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+
   it('does not use the internal workaround on an unverified Electron major', () => {
     const f = fixture()
     vi.stubGlobal('process', { ...process, versions: { ...process.versions, electron: '45.0.0' } })
