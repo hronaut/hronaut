@@ -679,7 +679,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         :title="t('runtime.tabs.newTab', { name: workspace.name })"
         :aria-label="t('runtime.tabs.newTab', { name: workspace.name })"
         @click="emit('newTab', workspace.id)"
-      ><IconAdd aria-hidden="true" /></UiButton>
+      ><IconAdd aria-hidden="true" /><span class="workspace-new-tab-label">{{ t('tabSearch.newTabTitle') }}</span></UiButton>
     </div>
     <UiButton v-if="!state.mcpTabGroups.length" appearance="application"
       class="new-tab"

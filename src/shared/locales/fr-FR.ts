@@ -207,6 +207,8 @@ export const frFR = {
     }
   },
   "settings": {
+    "searchSections": "Rechercher une rubrique…",
+    "noMatchingSections": "Aucune rubrique correspondante. Essayez un autre nom.",
     "kicker": "Préférences Hronaut",
     "heading": "Paramètres",
     "close": "Fermer les paramètres",
@@ -1115,6 +1117,7 @@ export const frFR = {
     "replayed": "Requête XHR {method} rejouée. La nouvelle requête est sélectionnée pour inspection."
   },
   "shell": {
+    "audioControl": {"mute": "Couper le son", "muted": "Son coupé"},
     "home": {
       "open": "Ouvrir l’accueil Hronaut",
       "label": "Accueil"
@@ -2739,6 +2742,7 @@ export const frFR = {
     "recentlyClosedTabs": "Onglets fermés récemment"
   },
   "home": {
+    "navigation": {"label": "Rubriques de l’accueil", "overview": "Vue d’ensemble", "connect": "Connecter un agent", "tools": "Bibliothèque d’outils"},
     journey: {
       heading: 'Commencez avec votre agent de code',
       connect: 'Connecter',

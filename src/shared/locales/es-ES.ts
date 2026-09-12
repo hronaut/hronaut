@@ -207,6 +207,8 @@ export const esES = {
     }
   },
   "settings": {
+    "searchSections": "Buscar una sección…",
+    "noMatchingSections": "No hay secciones coincidentes. Prueba otro nombre.",
     "kicker": "Preferencias de Hronaut",
     "heading": "Configuración",
     "close": "Cerrar configuración",
@@ -1115,6 +1117,7 @@ export const esES = {
     "replayed": "XHR {method} repetido. La solicitud nueva está seleccionada para inspección."
   },
   "shell": {
+    "audioControl": {"mute": "Silenciar", "muted": "Silenciado"},
     "home": {
       "open": "Abrir inicio de Hronaut",
       "label": "Inicio"
@@ -2739,6 +2742,7 @@ export const esES = {
     "recentlyClosedTabs": "Pestañas cerradas recientemente"
   },
   "home": {
+    "navigation": {"label": "Secciones de inicio", "overview": "Resumen", "connect": "Conectar un agente", "tools": "Biblioteca de herramientas"},
     journey: {
       heading: 'Empieza con tu agente de código',
       connect: 'Conectar',

@@ -10,6 +10,8 @@ import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
+import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
+import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
 import type { BrowserState, BrowserTabState, HronautApi } from '../../../shared/types.js'
 import type {
   ElementPickerState,
@@ -38,6 +40,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleTabInteraction: []
+  toggleTabMuted: [tab: BrowserTabState]
   toggleAreaCapture: []
   toggleElementPicker: []
   togglePageTools: []
@@ -47,6 +50,9 @@ const emit = defineEmits<{
 const splitMenuOpen = defineModel<boolean>('splitMenuOpen', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const activeTabIsInternal = computed(() => !props.activeTab || props.activeTab.url.startsWith('hronaut://home'))
+const audioLabel = computed(() => t(props.activeTab?.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', {
+  title: props.activeTab?.title || t('runtime.tabs.unnamed')
+}))
 
 function reportSplitError(cause: unknown, fallback: string): void {
   emit('splitError', cause, fallback)
@@ -74,6 +80,20 @@ function reportSplitError(cause: unknown, fallback: string): void {
       {{ t('shell.split.tab') }}
     </UiButton>
   </div>
+  <UiButton appearance="application"
+    class="interaction-lock-button tab-mute-button"
+    :class="{ muted: activeTab?.muted }"
+    type="button"
+    :title="audioLabel"
+    :aria-label="t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
+    :aria-pressed="Boolean(activeTab?.muted)"
+    :disabled="activeTabIsInternal"
+    @click="activeTab && emit('toggleTabMuted', activeTab)"
+  >
+    <IconVolumeOff v-if="activeTab?.muted" aria-hidden="true" />
+    <IconVolumeUp v-else aria-hidden="true" />
+    <span class="tab-mute-label">{{ t(activeTab?.muted ? 'shell.audioControl.muted' : 'shell.audioControl.mute') }}</span>
+  </UiButton>
   <SplitViewControl
     v-model:open="splitMenuOpen"
     :state="state"

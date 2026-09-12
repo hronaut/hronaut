@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { DEFAULT_INTERFACE_SCALE } from '../../../shared/interface-scale.js'
+import { DEFAULT_TAB_POSITION } from '../../../shared/tab-position.js'
 import type {
   AppSettings,
   AttentionSoundCue,
@@ -17,7 +18,7 @@ import type {
 export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   theme: 'system',
   interfaceScale: DEFAULT_INTERFACE_SCALE,
-  tabPosition: 'top',
+  tabPosition: DEFAULT_TAB_POSITION,
   useSystemTitleBar: false,
   searchEngine: 'google',
   hideInTray: true,

@@ -78,6 +78,7 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleTabSearch')"
     >
       <IconTabSearch aria-hidden="true" />
+      <span class="rail-action-label">{{ t('tabSearch.heading') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button downloads-button"
@@ -91,6 +92,7 @@ const { t } = useI18n({ useScope: 'global' })
       <IconProgress v-if="activeDownloads.length" class="state-spinner" aria-hidden="true" />
       <IconDownloadDone v-else-if="downloads[0]?.state === 'completed'" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
+      <span class="rail-action-label">{{ t('downloads.heading') }}</span>
       <span v-if="downloads.length" class="downloads-badge" aria-hidden="true">{{ Math.min(downloads.length, 99) }}</span>
     </UiButton>
     <UiButton appearance="application"
@@ -103,6 +105,7 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleHistory')"
     >
       <IconHistory aria-hidden="true" />
+      <span class="rail-action-label">{{ t('shell.actions.history') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button all-tabs-audio-button"
@@ -158,6 +161,7 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleSettings')"
     >
       <IconSettings aria-hidden="true" />
+      <span class="rail-action-label">{{ t('settings.heading') }}</span>
     </UiButton>
   </div>
 </template>

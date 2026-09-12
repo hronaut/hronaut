@@ -71,6 +71,22 @@ function renderActions(
 }
 
 describe('BrowserPageActions', () => {
+  it('mutes a silent tab and reflects the authoritative state when switching tabs', async () => {
+    const activeTab = tab()
+    const view = renderActions('idle', activeTab)
+    const mute = screen.getByRole('button', { name: 'Mute Tab' })
+    expect(mute).toHaveAttribute('title', 'Mute Example')
+    expect(mute).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(mute)
+    expect(view.emitted().toggleTabMuted).toEqual([[activeTab]])
+    await view.rerender({ activeTab: tab({ id: 'tab-2', title: 'Music', muted: true }) })
+    const unmute = screen.getByRole('button', { name: 'Unmute Tab' })
+    expect(unmute).toHaveAttribute('title', 'Unmute Music')
+    expect(unmute).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(unmute)
+    expect(view.emitted().toggleTabMuted?.[1]).toEqual([expect.objectContaining({ id: 'tab-2', muted: true })])
+  })
+
   it('delegates the website toolbar actions with accessible controls', async () => {
     const view = renderActions()
     const user = userEvent.setup()
@@ -101,5 +117,6 @@ describe('BrowserPageActions', () => {
     expect(screen.getByRole('button', { name: 'Capture page area' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Pick element for agent context' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Page tools' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Mute Tab' })).toBeDisabled()
   })
 })

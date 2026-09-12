@@ -4,6 +4,19 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-12
+
+### Added
+
+- Mute or unmute the current page directly beside the tab input lock in the navigation bar, including silent tabs. The control follows the active tab and reflects mute changes from other controls.
+
+### Changed
+
+- Redesign the desktop window around persistent workspaces: new profiles start with the resizable left tab rail, labeled everyday actions, and explicit new-tab actions within workspaces. Saved tab-layout choices remain available and unchanged.
+- Refresh light and dark surfaces across the shell, native title bar, tabs, address bar, dialogs, and developer tools with calmer colors, clearer selection, and lighter overlays.
+- Make Settings easier to navigate with a compact section list and localized search. Select a result with Enter, clear a search with Escape, and find sections by their descriptions.
+- Rebuild Home into dedicated Connect an agent, Overview, and Tool library views, with a remembered selection and keyboard navigation. Keep setup and verification together; give live clients, session metrics, and recent activity their own overview; provide a searchable tool catalog with expandable descriptions.
+
 ## [2.0.0] - 2026-09-12
 
 ### Breaking changes

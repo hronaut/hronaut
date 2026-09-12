@@ -333,6 +333,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :element-picker-label="elementPickerLabel"
       :page-tools-open="pageToolsOpen"
       @toggle-tab-interaction="runAction(toggleTabHumanInteraction)"
+      @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
       @toggle-area-capture="runAction(toggleAreaCapture)"
       @toggle-element-picker="runAction(() => toggleElementPicker('context'))"
       @toggle-page-tools="actions.togglePageTools"

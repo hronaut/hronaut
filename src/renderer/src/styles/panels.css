@@ -136,6 +136,8 @@
   .settings-dialog { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_28px)]; }
   .help-dialog { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_28px)]; }
   .settings-layout { @apply [grid-template-columns:minmax(0,_1fr)] [grid-template-rows:auto_minmax(0,_1fr)] overflow-hidden; }
+  .settings-navigation { @apply [border-right:0] [border-bottom:1px_solid_var(--border-soft)]; }
+  .settings-search { @apply [margin:8px_10px_0]; }
   .settings-sidebar { @apply flex [gap:6px] [padding:8px] overflow-x-auto overflow-y-hidden [border-right:0] [border-bottom:1px_solid_var(--border)] [scrollbar-width:thin]; }
   .settings-nav-item { @apply [width:auto] [min-width:max-content] flex-none [padding:8px_10px]; }
   .settings-nav-item + .settings-nav-item { @apply [margin-top:0]; }

@@ -128,7 +128,7 @@ describe('SettingsStore', () => {
     expect(await store.load()).toEqual({
       theme: 'dark',
       interfaceScale: DEFAULT_INTERFACE_SCALE,
-      tabPosition: 'top',
+      tabPosition: 'left',
       useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
@@ -166,11 +166,11 @@ describe('SettingsStore', () => {
     expect((await store.load()).languagePreference).toBe('system')
   })
 
-  it.each(['side', 'bottom', '', 42, null])('migrates an invalid tab position to top: %s', async (tabPosition) => {
+  it.each(['side', 'bottom', '', 42, null])('migrates an invalid tab position to left: %s', async (tabPosition) => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ tabPosition }), 'utf8')
-    expect((await store.load()).tabPosition).toBe('top')
+    expect((await store.load()).tabPosition).toBe('left')
   })
 
   it.each(['system', 1, null])('migrates an invalid system title bar preference to false: %s', async (useSystemTitleBar) => {

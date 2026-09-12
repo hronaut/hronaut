@@ -138,6 +138,8 @@ export const enUS = {
     }
   },
   settings: {
+    searchSections: 'Find a section…',
+    noMatchingSections: 'No matching sections. Try another name.',
     kicker: 'Hronaut preferences', heading: 'Settings', close: 'Close settings', sections: 'Settings sections', reset: 'Reset to default',
     nav: {
       appearance: 'Appearance', appearanceDescription: 'Theme and window', search: 'Search engine', searchDescription: 'Address bar searches', downloads: 'Downloads', downloadsDescription: 'Location and prompts', performance: 'Performance', performanceDescription: 'Sleeping tabs', mcp: 'MCP security', mcpDescription: 'Local authentication', privacy: 'Workspaces & data', privacyDescription: 'Profiles, transfers, cleanup', permissions: 'Site permissions', permissionsDescription: 'Per-website access', passwords: 'Passwords', passwordsDescription: 'Saved accounts', wallets: 'Wallets', walletsDescription: 'Web3 accounts and policies', updates: 'Updates', updatesDescription: 'Automatic checks', support: 'License', supportDescription: 'Activation and subscription'
@@ -423,6 +425,7 @@ export const enUS = {
   runtimeDetails: { clearStorage: 'Clear {kind} for {host}?{note}', httpOnlyNote: ' HttpOnly cookies will remain protected.', headers: '{count} request header | {count} request headers', emulation: { cache: 'HTTP cache disabled', worker: 'service worker bypassed', dataSaver: 'Data Saver {state}', on: 'on', off: 'off', js: 'JavaScript disabled', viewport: '{size} at {scale}×{mobile}{touch} {orientation} viewport', mobile: ' mobile', touch: ' touch', geolocation: 'custom geolocation', locale: '{locale} locale', timezone: '{timezone} time zone', cpu: 'CPU {rate}× slower', animationsPaused: 'animations paused', animations: 'animations at {percent} speed', color: '{scheme} color scheme', reducedMotion: 'reduced motion', fullMotion: 'no reduced motion', media: '{media} media', forced: 'forced colors {state}', contrast: '{contrast} contrast preference', reducedTransparency: 'reduced transparency', fullTransparency: 'no reduced transparency', vision: '{vision} simulation', paint: 'paint flashing', shifts: 'layout shift regions', layers: 'layer borders', frames: 'frame rendering stats', scroll: 'scrolling performance issues', userAgent: 'custom user agent', customHeaders: '{count} custom request header | {count} custom request headers', custom: 'custom browser conditions' }, tab: { pinned: ' — pinned', sleeping: ' — sleeping; reloads when selected', muted: ' — muted', audio: ' — playing audio', locked: ' — page input locked', problem: ' — {problem}', emulated: ' — emulated: {description}', routes: ' — {count} temporary network route |  — {count} temporary network routes', split: ' — visible in split view', workspace: ' — workspace: {name}', exit: '{reason} · exit {code}' }, performance: { anonymous: 'Anonymous script work', unavailable: 'Source unavailable', delta: '{value} vs baseline', character: '{source} · char {position}' }, networkHeadersError: 'Response headers must be a JSON object with string values.', deactivate: 'Deactivate this Hronaut installation and free its device slot?', browserAction: 'Browser action failed' },
   networkReplayStatus: { confirm: 'Replaying {method} can repeat writes or other side effects. Click again to confirm.', replaying: 'Replaying {method} XHR inside this tab…', replayed: 'Replayed {method} XHR. The new request is selected for inspection.' },
   shell: {
+    "audioControl": {"mute": "Mute", "muted": "Muted"},
     home: { open: 'Open Hronaut Home', label: 'Home' },
     loading: 'Loading',
     tabs: { resizeRail: "Resize workspace panel", resizeRailHelp: "Drag to resize. Arrow keys adjust width; Home/End use the minimum/maximum. Double-click to reset.",
@@ -594,6 +597,7 @@ export const enUS = {
   panelDocks: { responsive: 'Dock responsive preview', network: 'Dock network monitor', issues: 'Dock browser issues' },
   accessibility: { recentlyClosedTabs: 'Recently closed tabs' },
   home: {
+    "navigation": {"label": "Home sections", "overview": "Overview", "connect": "Connect an agent", "tools": "Tool library"},
     journey: {
       heading: 'Start with your coding agent',
       connect: 'Connect',

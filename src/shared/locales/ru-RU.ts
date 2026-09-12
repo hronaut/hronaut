@@ -207,6 +207,8 @@ export const ruRU = {
     }
   },
   "settings": {
+    "searchSections": "Найти раздел…",
+    "noMatchingSections": "Разделы не найдены. Попробуйте другое название.",
     "kicker": "Параметры Hronaut",
     "heading": "Настройки",
     "close": "Закрыть настройки",
@@ -1115,6 +1117,7 @@ export const ruRU = {
     "replayed": "XHR {method} повторён. Новый запрос выбран для проверки."
   },
   "shell": {
+    "audioControl": {"mute": "Выключить звук", "muted": "Без звука"},
     "home": {
       "open": "Открыть домашнюю страницу Hronaut",
       "label": "Домой"
@@ -2739,6 +2742,7 @@ export const ruRU = {
     "recentlyClosedTabs": "Недавно закрытые вкладки"
   },
   "home": {
+    "navigation": {"label": "Разделы главной", "overview": "Обзор", "connect": "Подключить агента", "tools": "Библиотека инструментов"},
     journey: {
       heading: 'Начните со своего агента',
       connect: 'Подключение',

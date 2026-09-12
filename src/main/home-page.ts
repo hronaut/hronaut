@@ -1,7 +1,8 @@
 import type { McpDashboardState } from './mcp/server.js'
 import { localeMessages } from '../shared/i18n.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
-import { CYBERPUNK_TURBO_COLORS, type ResolvedThemeName } from '../shared/theme.js'
+import type { ResolvedThemeName } from '../shared/theme.js'
+import { HOME_PAGE_STYLES } from './home-page-styles.js'
 import type { SupportedLocale } from '../shared/locale.js'
 
 interface HomePageOptions {
@@ -424,300 +425,33 @@ export function renderHomePage(options: HomePageOptions): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(home.title)}</title>
-  <style>
-    :root {
-      color-scheme: light dark;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --bg: #f5f5fa;
-      --panel: #fff;
-      --panel-solid: #fff;
-      --text: #20202b;
-      --muted: #6f6c7c;
-      --border: #dedce8;
-      --soft: #f0eef7;
-      --accent: #6757e8;
-      --accent-2: #26a67a;
-      --code: #171821;
-      --code-text: #eeeff7;
-    }
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #12131a;
-        --panel: #1e1f2a;
-        --panel-solid: #1e1f2a;
-        --text: #f1f1f6;
-        --muted: #aaa8b7;
-        --border: #353645;
-        --soft: #262733;
-        --accent: #9b8cff;
-        --accent-2: #42d392;
-        --code: #0d0e13;
-        --code-text: #f3f3f8;
-      }
-    }
-    :root[data-theme="cyberpunk-turbo"] {
-      color-scheme: dark;
-      --bg: ${CYBERPUNK_TURBO_COLORS.background};
-      --panel: #1a1a2e;
-      --panel-solid: #1a1a2e;
-      --text: ${CYBERPUNK_TURBO_COLORS.text};
-      --muted: ${CYBERPUNK_TURBO_COLORS.muted};
-      --border: #594b70;
-      --soft: #292942;
-      --accent: ${CYBERPUNK_TURBO_COLORS.accent};
-      --accent-2: ${CYBERPUNK_TURBO_COLORS.secondary};
-      --code: #12121e;
-      --code-text: #d8e9f0;
-    }
-    :root[data-theme="cyberpunk-turbo"] .hero {
-      border-bottom: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border));
-    }
-    :root[data-theme="cyberpunk-turbo"] :is(button, input, pre, .panel, .mark, .count, .client-icon, .connection-state, .verify code) {
-      border-radius: 4px;
-    }
-    :root[data-theme="cyberpunk-turbo"] :is(.brand, .eyebrow, .connection-state) {
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-      letter-spacing: .04em;
-    }
-    :root[data-theme="cyberpunk-turbo"] h1 {
-      color: var(--accent-2);
-    }
-    :root[data-theme="cyberpunk-turbo"] .mark {
-      background: ${CYBERPUNK_TURBO_COLORS.highlight};
-    }
-    :root[data-theme="cyberpunk-turbo"] .guide-primary-action button {
-      color: var(--bg);
-    }
-    * { box-sizing: border-box; }
-    html { min-width: 320px; min-height: 100%; background: var(--bg); }
-    body { min-height: 100vh; margin: 0; color: var(--text); background: var(--bg); }
-    button { color: inherit; font: inherit; }
-    .page { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 22px 0 32px; }
-    .hero { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 24px; align-items: center; padding: 0 0 12px; }
-    .brand { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-    .mark { display: grid; width: 22px; height: 22px; place-items: center; border-radius: 6px; color: var(--panel-solid); background: var(--accent); font-size: 13px; letter-spacing: 0; }
-    h1 { margin: 0; font-size: clamp(22px, 2.1vw, 26px); line-height: 1.25; letter-spacing: -.03em; font-weight: 650; }
-    .hero-status { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; align-items: center; min-width: 230px; max-width: 300px; padding: 4px 0 4px 20px; border-left: 1px solid var(--border); }
-    .status-label { display: flex; grid-column: 1 / -1; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .03em; text-transform: uppercase; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-2) 14%, transparent); }
-    .dot.starting { background: #4f8cff; box-shadow: 0 0 0 4px color-mix(in srgb, #4f8cff 16%, transparent); }
-    .dot.paused { background: #e7a33c; box-shadow: 0 0 0 4px color-mix(in srgb, #e7a33c 16%, transparent); }
-    .dot.error { background: #df4b5f; box-shadow: 0 0 0 4px color-mix(in srgb, #df4b5f 18%, transparent); }
-    .status-value { display: block; font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
-    .status-detail { display: block; color: var(--muted); font-size: 12px; text-align: right; }
-    .endpoint { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 10px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .endpoint-label { flex: 0 0 auto; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-    .endpoint code { min-width: 0; flex: 1; overflow: hidden; color: var(--text); font-family: "SFMono-Regular", Consolas, monospace; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-    .copy-button { flex: 0 0 auto; padding: 8px 11px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-solid); cursor: pointer; font-size: 12px; font-weight: 650; }
-    .copy-button:hover { border-color: var(--accent); color: var(--accent); }
-    .grid { display: grid; align-items: start; grid-template-columns: minmax(0, 1fr) 290px; gap: 26px; }
-    .panel { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-solid); }
-    .panel-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; padding: 17px 18px 15px; border-bottom: 1px solid var(--border); }
-    h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
-    .panel-heading p { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-    .count { flex: 0 0 auto; padding: 4px 8px; border-radius: 6px; color: var(--muted); background: var(--soft); font-size: 11px; font-weight: 650; }
-    .agent-layout { display: grid; grid-template-columns: 176px minmax(0,1fr); }
-    .agents { padding: 4px 8px 12px; max-height: 290px; overflow-y: auto; overscroll-behavior: contain; }
-    .agent-button { display: block; width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; font-size: 13px; font-weight: 550; }
-    .agent-button + .agent-button { margin-top: 3px; }
-    .agent-button:hover { background: var(--panel-solid); }
-    .agent-button.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 750; }
-    .guide { min-width: 0; padding: 20px 22px; }
-    .guide-kicker { color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
-    .guide h3 { margin: 4px 0 0; font-size: 22px; letter-spacing: -.025em; }
-    .guide-note { margin: 6px 0 14px; color: var(--muted); font-size: 13px; line-height: 1.5; }
-    .location { margin-bottom: 8px; color: var(--muted); font-size: 12px; }
-    .code-wrap { position: relative; }
-    pre { min-height: 88px; margin: 0; padding: 14px 76px 14px 14px; overflow: auto; border-radius: 8px; color: var(--code-text); background: var(--code); font: 12px/1.7 "SFMono-Regular", Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
-    .code-copy { position: absolute; top: 10px; right: 10px; border-color: rgba(255,255,255,.16); color: #f4f4f8; background: rgba(255,255,255,.08); }
-    .security { margin: 13px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .verify { display: flex; align-items: center; gap: 9px; margin-top: 12px; }
-    .verify[hidden] { display: none; }
-    .verify-label { flex: 0 0 auto; color: var(--muted); font-size: 12px; font-weight: 750; }
-    .verify code { min-width: 0; flex: 1; overflow: hidden; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--soft); font: 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-    .verify .copy-button { padding: 7px 10px; }
-    .guide-doc-action { margin-top: 13px; }
-    .guide-doc-action button { padding: 9px 13px; border: 1px solid color-mix(in srgb, var(--accent) 68%, var(--border)); border-radius: 9px; color: var(--accent); background: var(--panel-solid); cursor: pointer; font-size: 13px; font-weight: 780; }
-    .guide-doc-action button:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel-solid)); }
-    .guide-doc-action button:disabled { cursor: wait; opacity: .72; }
-    .guide-primary-action { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
-    .guide-primary-action[hidden] { display: none; }
-    .guide-primary-action button { flex: 0 0 auto; padding: 9px 13px; border: 1px solid var(--accent); border-radius: 9px; color: white; background: var(--accent); cursor: pointer; font-size: 13px; font-weight: 780; }
-    .guide-primary-action button:hover { filter: brightness(1.08); }
-    .guide-primary-action button:disabled { cursor: wait; opacity: .72; }
-    .guide-primary-status { min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
-    .connections-body { max-height: 240px; overflow-y: auto; padding: 0; }
-    .first-run { display: grid; grid-template-columns: minmax(230px,.62fr) minmax(0,1.38fr); gap: 22px; align-items: center; margin-top: 20px; padding: 22px 24px; }
-    .first-run-kicker { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-    .first-run h2 { margin-top: 6px; font-size: 16px; }
-    .first-run p { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-    .first-run .code-wrap { min-width: 0; }
-    .first-run pre { min-height: 0; padding: 14px; }
-    .first-run .code-copy { position: static; margin-top: 10px; color: var(--text); background: var(--panel-solid); border-color: var(--border); }
-    .empty { padding: 16px 0; color: var(--muted); text-align: left; }
-    .empty strong { display: block; color: var(--text); font-size: 14px; }
-    .empty span { display: block; margin-top: 6px; font-size: 12px; line-height: 1.5; }
-    .connection { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 11px; align-items: center; padding: 12px 8px; border-bottom: 1px solid var(--border); }
-    .connection:last-child { border-bottom: 0; }
-    .client-icon { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 10px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); font-size: 13px; font-weight: 800; }
-    .client-name { overflow: hidden; font-size: 14px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
-    .client-meta { margin-top: 3px; color: var(--muted); font-size: 12px; }
-    .connection-state { padding: 4px 7px; border-radius: 999px; color: var(--muted); background: var(--soft); font-size: 12px; font-weight: 750; }
-    .connection-state.active { color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 12%, transparent); }
-    .tools { margin-top: 20px; }
-    .activity { margin-top: 20px; }
-    .impact-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); padding: 16px 18px 0; }
-    .impact { padding: 4px 18px; border-right: 1px solid var(--border); }
-    .impact strong { display: block; font-size: 22px; letter-spacing: -.03em; }
-    .impact span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
-    .activity-layout { display: grid; grid-template-columns: minmax(0,1.5fr) minmax(250px,.7fr); gap: 24px; padding: 18px; }
-    .activity-column { min-width: 0; }
-    .activity-column h3 { margin: 0 0 10px; font-size: 14px; }
-    .activity-list { overflow: hidden; }
-    .activity-list .empty { min-height: 80px; }
-    .activity-item { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 12px; padding: 11px 13px; border-bottom: 1px solid var(--border); }
-    .activity-item:last-child { border-bottom: 0; }
-    .activity-item code { overflow: hidden; color: var(--text); font: 700 11px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-    .activity-meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
-    .outcome { align-self: center; color: var(--accent-2); font-size: 12px; font-weight: 800; }
-    .outcome.failed { color: #df625e; }
-    .outcome.attention { color: #d69b36; }
-    .privacy-note { margin: 10px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .support-card { padding: 0 0 0 24px; border-left: 1px solid var(--border); }
-    .support-card span { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
-    .support-card h3 { margin: 9px 0; font-size: 17px; line-height: 1.2; }
-    .support-card p { margin: 0 0 15px; color: var(--muted); font-size: 13px; line-height: 1.55; }
-    .support-card a, .support-card button { display: block; width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--panel-solid); text-align: left; text-decoration: none; cursor: pointer; font-size: 13px; font-weight: 650; }
-    .support-card a + button, .support-card button + button { margin-top: 8px; }
-    .support-card button.secondary { border-color: var(--border); color: var(--text); background: var(--panel-solid); }
-    .support-card button.secondary:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel-solid)); }
-    .support-card button:disabled { cursor: wait; opacity: .72; }
-    .support-card [hidden] { display: none; }
-    .support-card small { display: block; margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: center; }
-    .tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px 24px; padding: 18px; }
-    .tool { min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--border); }
-    .tool-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .tool code { overflow: hidden; color: var(--text); font: 700 12px "SFMono-Regular", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
-    .category { flex: 0 0 auto; color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
-    .tool p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-    .footer { display: flex; justify-content: space-between; gap: 16px; padding: 24px 3px 0; color: var(--muted); font-size: 12px; }
-    [hidden] { display: none !important; }
-    :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
-    .journey { margin-bottom: 12px; }
-    .journey h2 { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-    .journey-links { display: flex; flex-wrap: wrap; gap: 8px 24px; }
-    .journey a { display: flex; align-items: center; gap: 8px; padding: 5px 0; color: var(--muted); text-decoration: none; font-size: 13px; }
-    .step-number { color: var(--accent); font-weight: 750; }
-    summary { cursor: pointer; }
-    .setup-summary { display: flex; align-items: center; gap: 12px; padding: 16px 18px; list-style: none; }
-    details[open] > .setup-summary { border-bottom: 1px solid var(--border); }
-    .setup-summary small { color: var(--muted); font-size: 11px; font-weight: 400; }
-    .guide-picker { min-width: 0; border-right: 1px solid var(--border); }
-    .guide-picker .agents { border-right: 0; }
-    .search-field { display: block; padding: 16px 12px 10px; }
-    .search-field span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
-    input[type=search] { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--panel-solid); font: inherit; font-size: 13px; }
-    .filter-empty { margin: 0; padding: 12px; color: var(--muted); font-size: 13px; }
-    .action-status { display: block; margin-top: 8px; color: var(--text); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-    .action-status:empty { margin-top: 0; }
-    .connection-note { margin: 0; padding: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-    .tools .tool-grid { max-height: 480px; overflow-y: auto; }
-    .tools .search-field { padding: 16px 18px 0; }
-    .tools > summary { padding: 20px 24px; font-weight: 750; }
-    .tools > summary .count { margin-left: 10px; }
-    .next-steps { min-width: 0; padding-top: 6px; }
-    .next-steps .first-run { grid-template-columns: 1fr; gap: 12px; margin-top: 16px; padding: 18px 0 0; border-top: 1px solid var(--border); }
-    .setup-summary::-webkit-details-marker { display: none; }
-    .setup-summary h2 { flex: 1; min-width: 0; font-size: 16px; line-height: 1.4; }
-    .setup-summary .step-number { margin-right: 6px; }
-    .setup-summary::after { content: ''; flex: 0 0 auto; width: 7px; height: 7px; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(45deg); }
-    details[open] > .setup-summary::after { transform: rotate(225deg); }
-    .setup-description { margin: 0; padding: 12px 18px; color: var(--muted); font-size: 13px; line-height: 1.5; border-bottom: 1px solid var(--border); }
-    .journey a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
-    .next-steps .panel { border: 0; border-radius: 0; background: transparent; }
-    .next-steps .panel-heading { padding: 0; border: 0; }
-    .next-steps .panel-heading h2 { font-size: 16px; }
-    .next-steps .panel-heading p { font-size: 12px; }
-    .next-steps .first-run { border-top: 1px solid var(--border); }
-    .impact:first-child { padding-left: 0; }
-    .impact:last-child { border-right: 0; }
-    .tools > .connection-note { padding: 0 18px; }
-    @media (max-width: 880px) {
-      .page { width: calc(100% - 32px); padding-top: 18px; }
-      .hero { grid-template-columns: minmax(0,1fr) minmax(190px,.55fr); gap: 18px; }
-      .hero-status { min-width: 0; }
-      .grid { grid-template-columns: 1fr; }
-      .first-run { grid-template-columns: 1fr; }
-      .activity-layout { grid-template-columns: 1fr; }
-      .next-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-      .next-steps .first-run { margin: 0; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid var(--border); }
-      .support-card { padding: 16px 0 0; border-left: 0; border-top: 1px solid var(--border); }
-      .tool-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
-    @media (max-width: 560px) {
-      .hero { grid-template-columns: 1fr; gap: 14px; }
-      .hero-status { max-width: none; padding: 0; border: 0; }
-      .next-steps { display: block; }
-      .next-steps .first-run { margin-top: 18px; padding: 18px 0 0; border-left: 0; border-top: 1px solid var(--border); }
-      .setup-summary { flex-wrap: wrap; gap: 8px; }
-      .setup-summary h2 { flex-basis: 75%; }
-      .agent-layout { display: block; }
-      .guide-picker { border-right: 0; }
-      .agents { max-height: 160px; flex-wrap: wrap; }
-      .guide { padding: 18px; }
-      .panel-heading { flex-wrap: wrap; }
-      .verify { flex-wrap: wrap; }
-      .verify code { flex-basis: 60%; }
-      .agents { display: flex; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
-      .agent-button { width: auto; flex: 0 0 auto; }
-      .agent-button + .agent-button { margin: 0 0 0 3px; }
-      .tool-grid { grid-template-columns: 1fr; }
-      .impact-grid { grid-template-columns: 1fr; }
-      .impact { padding: 10px 0; border-right: 0; border-bottom: 1px solid var(--border); }
-      .impact:last-child { border-bottom: 0; }
-      .endpoint-label { display: none; }
-      .footer { display: block; }
-      .footer span { display: block; margin-top: 5px; }
-    }
-  </style>
+  <style>${HOME_PAGE_STYLES}</style>
 </head>
 <body>
   <main class="page">
-    <section class="hero">
-      <div>
+    <header class="hero">
+      <div class="hero-copy">
         <div class="brand"><span class="mark">H</span> ${escapeHtml(home.brand)}</div>
-        <h1>${escapeHtml(home.hero)}</h1>
+        <h1 id="home-view-title">${escapeHtml(home.connect.heading)}</h1>
+        <p id="home-view-description" class="hero-description">${escapeHtml(home.connect.description)}</p>
       </div>
       <div class="hero-status" aria-live="polite">
         <span id="server-state" class="status-label"><span class="dot"></span> ${escapeHtml(home.status.online)}</span>
         <strong id="active-count" class="status-value">${escapeHtml(home.status.activeOther.replace('{count}', '0'))}</strong>
         <span id="request-count" class="status-detail">${escapeHtml(home.status.waiting)}</span>
       </div>
-    </section>
+    </header>
 
-    <div class="endpoint">
-      <span class="endpoint-label">${escapeHtml(home.endpoint)}</span>
-      <code id="endpoint">${endpoint}</code>
-      <button class="copy-button" type="button" data-copy-target="endpoint">${escapeHtml(home.copyUrl)}</button>
-    </div>
-
-    <nav class="journey" aria-labelledby="journey-title">
-      <h2 id="journey-title">${escapeHtml(home.journey.heading)}</h2>
-      <div class="journey-links">
-        <a href="#setup" data-open-setup><span class="step-number">1</span>${escapeHtml(home.journey.connect)}</a>
-        <a href="#connections-title"><span class="step-number">2</span>${escapeHtml(home.journey.verify)}</a>
-        <a href="#first-run-title"><span class="step-number">3</span>${escapeHtml(home.journey.tryTask)}</a>
-      </div>
+    <nav class="home-navigation" role="tablist" aria-label="${escapeHtml(home.navigation.label)}">
+      <button id="home-tab-connect" type="button" role="tab" data-home-view="connect" data-open-setup aria-selected="true" aria-controls="home-connect">${escapeHtml(home.navigation.connect)}</button>
+      <button id="home-tab-overview" type="button" role="tab" data-home-view="overview" data-home-section="activity" aria-selected="false" aria-controls="home-overview" tabindex="-1">${escapeHtml(home.navigation.overview)}</button>
+      <button id="home-tab-tools" type="button" role="tab" data-home-view="tools" data-home-section="tools" aria-selected="false" aria-controls="home-tools" tabindex="-1">${escapeHtml(home.navigation.tools)}</button>
     </nav>
 
-    <div class="grid">
-      <details id="setup" class="panel" aria-label="${escapeHtml(home.journey.setup)}" open>
-        <summary class="setup-summary">
-          <h2 id="connect-title"><span class="step-number">1</span> ${escapeHtml(home.connect.heading)}</h2>
-          <small>${escapeHtml(home.journey.toggleSetup)}</small>
-          <span class="count">${escapeHtml(home.connect.clients.replace('{count}', new Intl.NumberFormat(options.locale).format(guides.length)))}</span>
-        </summary>
-        <p class="setup-description">${escapeHtml(home.connect.description)}</p>
+    <section id="home-connect" class="home-view" role="tabpanel" aria-labelledby="home-tab-connect" tabindex="0">
+      <div class="connect-layout">
+        <section id="setup" class="panel setup-panel" aria-label="${escapeHtml(home.journey.setup)}">
+          <header class="panel-heading"><h2 id="connect-title">${escapeHtml(home.connect.agentsLabel)}</h2><span class="count">${escapeHtml(home.connect.clients.replace('{count}', new Intl.NumberFormat(options.locale).format(guides.length)))}</span></header>
         <div class="agent-layout">
           <div class="guide-picker">
             <label class="search-field"><span>${escapeHtml(home.journey.searchAgents)}</span><input id="agent-search" type="search" autocomplete="off" aria-controls="agent-list"></label>
@@ -754,21 +488,17 @@ export function renderHomePage(options: HomePageOptions): string {
             <p class="security">${escapeHtml(securityNote)}</p>
           </div>
         </div>
-      </details>
-
-      <div class="next-steps">
-      <section class="panel" aria-labelledby="connections-title">
-        <header class="panel-heading">
-          <div><h2 id="connections-title">2 · ${escapeHtml(home.journey.verify)}</h2><p>${escapeHtml(home.connections.description)}</p></div>
-          <span id="client-count" class="count">${escapeHtml(home.counts.clientsOther.replace('{count}', '0'))}</span>
-        </header>
-        <p id="connection-note" class="connection-note" role="status">${escapeHtml(home.journey.waiting)}</p>
-        <div id="connections" class="connections-body"></div>
-      </section>
-
+        </section>
+        <aside class="connect-aside">
+          <section class="connection-check">
+            <span class="section-kicker">${escapeHtml(home.journey.verify)}</span>
+            <h2>${escapeHtml(home.connect.verify)}</h2>
+            <p id="connection-note" class="connection-note" role="status">${escapeHtml(home.journey.waiting)}</p>
+            <button type="button" class="text-action" data-open-view="overview">${escapeHtml(home.navigation.overview)} <span aria-hidden="true">→</span></button>
+          </section>
     <section class="panel first-run" aria-labelledby="first-run-title">
       <div>
-        <span class="first-run-kicker">3 · ${escapeHtml(home.journey.tryTask)}</span>
+        <span class="first-run-kicker">${escapeHtml(home.journey.tryTask)}</span>
         <h2 id="first-run-title">${escapeHtml(home.firstRun.heading)}</h2>
         <p>${escapeHtml(home.firstRun.description)}</p>
       </div>
@@ -776,27 +506,56 @@ export function renderHomePage(options: HomePageOptions): string {
         <pre><code id="first-run-prompt">${escapeHtml(home.firstRun.prompt)}</code></pre>
         <button class="copy-button code-copy" type="button" data-copy-target="first-run-prompt">${escapeHtml(home.firstRun.copy)}</button>
       </div>
+    </section>        </aside>
+      </div>
     </section>
 
-      </div>
-    </div>
-
-    <section class="panel activity" aria-labelledby="activity-title">
-      <header class="panel-heading">
-        <div><h2 id="activity-title">${escapeHtml(home.activity.heading)}</h2><p>${escapeHtml(home.activity.description)}</p></div>
-        <span id="activity-count" class="count">${escapeHtml(home.counts.actionsOther.replace('{count}', '0'))}</span>
-      </header>
+    <section id="home-overview" class="home-view" role="tabpanel" aria-labelledby="home-tab-overview" tabindex="0" hidden>
       <div class="impact-grid">
         <div class="impact"><strong id="completed-count">0</strong><span>${escapeHtml(home.activity.tabActionsCompleted)}</span></div>
         <div class="impact"><strong id="tool-types-count">0</strong><span>${escapeHtml(home.activity.toolsUsed)}</span></div>
         <div class="impact"><strong id="success-rate">—</strong><span>${escapeHtml(home.activity.successfulActions)}</span></div>
       </div>
+      <div class="overview-layout">
+    <section id="activity" class="panel activity" aria-labelledby="activity-title" tabindex="-1">
+      <header class="panel-heading">
+        <div><h2 id="activity-title">${escapeHtml(home.activity.heading)}</h2><p>${escapeHtml(home.activity.description)}</p></div>
+        <span id="activity-count" class="count">${escapeHtml(home.counts.actionsOther.replace('{count}', '0'))}</span>
+      </header>
       <div class="activity-layout">
         <div class="activity-column">
           <h3>${escapeHtml(home.activity.recent)}</h3>
           <div id="activity-list" class="activity-list"></div>
           <p class="privacy-note">${escapeHtml(home.activity.privacy)}</p>
         </div>
+
+      </div>
+    </section>      <section class="panel" aria-labelledby="connections-title">
+        <header class="panel-heading">
+          <div><h2 id="connections-title">${escapeHtml(home.connections.heading)}</h2><p>${escapeHtml(home.connections.description)}</p></div>
+          <span id="client-count" class="count">${escapeHtml(home.counts.clientsOther.replace('{count}', '0'))}</span>
+        </header>
+        <div id="connections" class="connections-body"></div>
+      </section>      </div>
+    </section>
+
+    <section id="home-tools" class="home-view" role="tabpanel" aria-labelledby="home-tab-tools" tabindex="0" hidden>
+    <section id="tools" class="panel tools" tabindex="-1" aria-labelledby="tools-title">
+      <header class="panel-heading"><h2 id="tools-title">${escapeHtml(home.navigation.tools)}</h2><span id="tool-count" class="count">${escapeHtml(home.counts.tools.replace('{count}', '0'))}</span></header>
+      <p class="connection-note">${escapeHtml(home.tools.description)}</p>
+      <label class="search-field"><span>${escapeHtml(home.journey.searchTools)}</span><input id="tool-search" type="search" autocomplete="off" aria-controls="tool-grid"></label>
+      <p id="tool-empty" class="filter-empty" role="status" hidden>${escapeHtml(home.journey.noTools)}</p>
+      <div id="tool-grid" class="tool-grid"></div>
+    </section>    </section>
+
+    <div class="home-bottom">
+      <div class="endpoint">
+        <span class="endpoint-label">${escapeHtml(home.endpoint)}</span>
+        <code id="endpoint">${endpoint}</code>
+        <button class="copy-button" type="button" data-copy-target="endpoint">${escapeHtml(home.copyUrl)}</button>
+      </div>
+      <details class="support-panel">
+        <summary>${escapeHtml(home.support.troubleshoot)}</summary>
         <aside class="support-card">
           <span id="support-kicker">${escapeHtml(home.support.kicker)}</span>
           <h3 id="support-heading">${escapeHtml(home.support.heading)}</h3>
@@ -810,18 +569,8 @@ export function renderHomePage(options: HomePageOptions): string {
           <small id="support-welcome">${escapeHtml(home.support.helpPrivacy)}</small>
           <small id="support-feedback-privacy">${escapeHtml(home.support.feedbackPrivacy)}</small>
           <small id="support-recommend-privacy" hidden>${escapeHtml(home.support.recommendPrivacy)}</small>
-        </aside>
-      </div>
-    </section>
-
-    <details class="panel tools">
-      <summary>${escapeHtml(home.journey.browseTools)}<span id="tool-count" class="count">${escapeHtml(home.counts.tools.replace('{count}', '0'))}</span></summary>
-      <p class="connection-note">${escapeHtml(home.tools.description)}</p>
-      <label class="search-field"><span>${escapeHtml(home.journey.searchTools)}</span><input id="tool-search" type="search" autocomplete="off" aria-controls="tool-grid"></label>
-      <p id="tool-empty" class="filter-empty" role="status" hidden>${escapeHtml(home.journey.noTools)}</p>
-      <div id="tool-grid" class="tool-grid"></div>
-    </details>
-
+        </aside>      </details>
+    </div>
     <footer class="footer"><span>${escapeHtml(home.footer)}</span><span id="server-version">Hronaut ${escapeHtml(options.initialState.version)}</span></footer>
   </main>
   <script>
@@ -852,7 +601,7 @@ export function renderHomePage(options: HomePageOptions): string {
     function escapeText(value) {
       const node = document.createElement('span');
       node.textContent = String(value ?? '');
-      return node.innerHTML;
+      return node.innerHTML.replaceAll('"', '&quot;');
     }
 
     function interpolate(message, values = {}) {
@@ -1100,12 +849,18 @@ export function renderHomePage(options: HomePageOptions): string {
       renderTools();
     }
 
+    let renderedToolCatalog = '';
     function renderTools() {
       const query = document.getElementById('tool-search').value.trim().toLocaleLowerCase(locale);
       const tools = dashboard.tools.filter((tool) => (tool.name + ' ' + tool.category + ' ' + tool.description).toLocaleLowerCase(locale).includes(query));
       document.getElementById('tool-empty').hidden = !query || tools.length > 0;
+      // Status polling must not replace a focused or expanded reference entry.
+      const catalog = JSON.stringify(tools);
+      if (catalog === renderedToolCatalog) return;
+      renderedToolCatalog = catalog;
+      const expanded = new Set(Array.from(document.querySelectorAll('#tool-grid details[open]')).map((entry) => entry.dataset.tool));
       document.getElementById('tool-grid').innerHTML = tools.map((tool) =>
-        '<article class="tool"><div class="tool-top"><code>' + escapeText(tool.name) + '</code><span class="category">' + escapeText(tool.category) + '</span></div><p>' + escapeText(tool.description) + '</p></article>'
+        '<details class="tool" data-tool="' + escapeText(tool.name) + '"' + (expanded.has(tool.name) ? ' open' : '') + '><summary><span class="tool-top"><code>' + escapeText(tool.name) + '</code><span class="category">' + escapeText(tool.category) + '</span></span></summary><p>' + escapeText(tool.description) + '</p></details>'
       ).join('');
     }
 
@@ -1184,20 +939,49 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     });
 
-    const setupDetails = document.getElementById('setup');
-    try { setupDetails.open = window.localStorage.getItem('hronaut.home.setup') !== 'collapsed'; } catch { /* Default to visible setup. */ }
+    const homeViews = ['connect', 'overview', 'tools'];
+    let selectedHomeView = (dashboard.clients.length || dashboard.completedToolCalls) ? 'overview' : 'connect';
+    try {
+      const rememberedView = window.localStorage.getItem('hronaut.home.view');
+      if (homeViews.includes(rememberedView)) selectedHomeView = rememberedView;
+    } catch { /* Home remains usable without preference storage. */ }
+
     function revealSelectedGuide() {
       const selected = document.querySelector('[data-guide="' + selectedGuide + '"]');
       const list = document.getElementById('agent-list');
-      if (setupDetails.open && selected && !selected.hidden) list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top;
+      if (selectedHomeView === 'connect' && selected && !selected.hidden) list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top;
     }
-    setupDetails.addEventListener('toggle', () => {
-      if (setupDetails.open) revealSelectedGuide();
-      try { window.localStorage.setItem('hronaut.home.setup', setupDetails.open ? 'open' : 'collapsed'); } catch { /* Optional preference. */ }
+
+    function selectHomeView(view, focus = false) {
+      if (!homeViews.includes(view)) return;
+      selectedHomeView = view;
+      document.querySelectorAll('[data-home-view]').forEach(button => {
+        const selected = button.dataset.homeView === view;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+      });
+      homeViews.forEach(id => { document.getElementById('home-' + id).hidden = id !== view; });
+      document.getElementById('home-view-title').textContent = view === 'connect' ? messages.connect.heading : view === 'overview' ? messages.activity.heading : messages.navigation.tools;
+      document.getElementById('home-view-description').textContent = view === 'connect' ? messages.connect.description : view === 'overview' ? messages.activity.description : messages.tools.description;
+      if (focus) document.getElementById('home-tab-' + view).focus();
+      try { window.localStorage.setItem('hronaut.home.view', view); } catch { /* Optional local preference. */ }
+      revealSelectedGuide();
+    }
+    document.querySelectorAll('[data-home-view]').forEach(button => {
+      button.addEventListener('click', () => selectHomeView(button.dataset.homeView));
+      button.addEventListener('keydown', event => {
+        if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+        const index = homeViews.indexOf(button.dataset.homeView);
+        const next = event.key === 'ArrowRight' ? (index + 1) % homeViews.length
+          : event.key === 'ArrowLeft' ? (index + homeViews.length - 1) % homeViews.length
+          : event.key === 'Home' ? 0 : event.key === 'End' ? homeViews.length - 1 : -1;
+        if (next < 0) return;
+        event.preventDefault();
+        selectHomeView(homeViews[next], true);
+      });
     });
-    document.querySelector('[data-open-setup]').addEventListener('click', () => {
-      document.getElementById('setup').open = true;
-    });
+    document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => selectHomeView(button.dataset.openView, true)));
+    selectHomeView(selectedHomeView);
     document.getElementById('agent-search').addEventListener('input', (event) => {
       const query = event.target.value.trim().toLocaleLowerCase(locale);
       let visible = 0;

@@ -168,6 +168,8 @@ export const ukUA = {
     }
   },
   settings: {
+    searchSections: 'Знайти розділ…',
+    noMatchingSections: 'Розділів не знайдено. Спробуйте іншу назву.',
     kicker: 'Параметри Hronaut', heading: 'Налаштування', close: 'Закрити налаштування', sections: 'Розділи налаштувань', reset: 'Скинути до типових',
     nav: {
       appearance: 'Вигляд', appearanceDescription: 'Тема й вікно', search: 'Пошукова система', searchDescription: 'Пошук з адресного рядка', downloads: 'Завантаження', downloadsDescription: 'Розташування й запити', performance: 'Продуктивність', performanceDescription: 'Сплячі вкладки', mcp: 'Безпека MCP', mcpDescription: 'Локальна автентифікація', wallets: 'Гаманці', walletsDescription: 'Облікові записи й політики Web3', privacy: 'Приватність і дані', privacyDescription: 'Історія, cookie, кеш', permissions: 'Дозволи сайтів', permissionsDescription: 'Доступ для кожного сайту', passwords: 'Паролі', passwordsDescription: 'Збережені облікові записи', updates: 'Оновлення', updatesDescription: 'Автоматичні перевірки', support: 'Комерційна ліцензія', supportDescription: 'Активація і підписка'
@@ -263,6 +265,7 @@ export const ukUA = {
   runtimeDetails: { clearStorage: 'Очистити {kind} для {host}?{note}', httpOnlyNote: ' HttpOnly-cookie залишаться захищеними.', headers: '{count} заголовок запиту | {count} заголовки запитів | {count} заголовків запитів', emulation: { cache: 'HTTP-кеш вимкнено', worker: 'service worker обійдено', dataSaver: 'Заощадження даних: {state}', on: 'увімкнено', off: 'вимкнено', js: 'JavaScript вимкнено', viewport: '{size} при {scale}×{mobile}{touch}, орієнтація {orientation}', mobile: ' мобільний', touch: ' дотик', geolocation: 'власне географічне розташування', locale: 'локаль {locale}', timezone: 'часовий пояс {timezone}', cpu: 'CPU повільніше у {rate}×', animationsPaused: 'анімації призупинено', animations: 'швидкість анімацій {percent}', color: 'колірна схема {scheme}', reducedMotion: 'зменшений рух', fullMotion: 'без зменшення руху', media: 'медіа {media}', forced: 'примусові кольори: {state}', contrast: 'налаштування контрасту {contrast}', reducedTransparency: 'зменшена прозорість', fullTransparency: 'без зменшення прозорості', vision: 'симуляція {vision}', paint: 'блимання перемальовування', shifts: 'області зсуву макета', layers: 'межі шарів', frames: 'статистика рендерингу кадрів', scroll: 'проблеми продуктивності прокручування', userAgent: 'власний user agent', customHeaders: '{count} власний заголовок запиту | {count} власні заголовки запитів | {count} власних заголовків запитів', custom: 'власні умови браузера' }, tab: { pinned: ' — закріплено', sleeping: ' — спить; перезавантажиться після вибору', muted: ' — звук вимкнено', audio: ' — відтворює звук', locked: ' — введення на сторінці заблоковано', problem: ' — {problem}', emulated: ' — емуляція: {description}', routes: ' — {count} тимчасовий маршрут мережі |  — {count} тимчасові маршрути мережі |  — {count} тимчасових маршрутів мережі', split: ' — видима в розділеному перегляді', workspace: ' — робочий простір: {name}', exit: '{reason} · код виходу {code}' }, performance: { anonymous: 'Анонімна робота скрипту', unavailable: 'Джерело недоступне', delta: '{value} проти базового стану', character: '{source} · символ {position}' }, networkHeadersError: 'Заголовки відповіді мають бути JSON-об’єктом із рядковими значеннями.', deactivate: 'Деактивувати цю інсталяцію Hronaut і звільнити місце пристрою?', browserAction: 'Помилка дії браузера' },
   networkReplayStatus: { confirm: 'Повторення {method} може знову виконати запис або інші побічні дії. Натисніть ще раз для підтвердження.', replaying: 'Повторення XHR {method} у цій вкладці…', replayed: 'XHR {method} повторено. Новий запит вибрано для дослідження.' },
   shell: {
+    "audioControl": {"mute": "Вимкнути звук", "muted": "Без звуку"},
     home: { open: 'Відкрити домівку Hronaut', label: 'Домівка' },
     loading: 'Завантаження',
     tabs: {
@@ -436,6 +439,7 @@ export const ukUA = {
   panelDocks: { responsive: 'Розташування адаптивного перегляду', network: 'Розташування монітора мережі', issues: 'Розташування проблем браузера' },
   accessibility: { recentlyClosedTabs: 'Нещодавно закриті вкладки' },
   home: {
+    "navigation": {"label": "Розділи головної", "overview": "Огляд", "connect": "Підключити агента", "tools": "Бібліотека інструментів"},
     journey: {
       heading: 'Почніть зі свого агента',
       connect: 'Підключення',

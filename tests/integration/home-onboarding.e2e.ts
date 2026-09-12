@@ -36,21 +36,20 @@ for (const [selector, status] of [
   })
 }
 
-test('Home remembers client choice and explicit setup collapse through reload', async ({ electronApp }) => {
+test('Home remembers the selected view and coding agent through reload', async ({ electronApp }) => {
   await ready(electronApp)
   await homeScript(electronApp, `(() => {
     document.querySelector('[data-guide="qwen-code"]').click();
-    const setup = document.getElementById('setup');
-    setup.open = false;
+    document.querySelector('[data-home-view="overview"]').click();
   })()`)
-  await expect.poll(() => homeScript(electronApp, `localStorage.getItem('hronaut.home.setup')`)).toBe('collapsed')
+  await expect.poll(() => homeScript(electronApp, `localStorage.getItem('hronaut.home.view')`)).toBe('overview')
   await electronApp.evaluate(({ webContents }) => {
     webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))?.reload()
   })
   await expect.poll(() => homeScript(electronApp, `document.getElementById('guide-name')?.textContent`)).toBe('Qwen Code')
-  expect(await homeScript(electronApp, `document.getElementById('setup').open`)).toBe(false)
+  expect(await homeScript(electronApp, `document.getElementById('home-overview').hidden`)).toBe(false)
   await homeScript(electronApp, `document.querySelector('[data-open-setup]').click()`)
-  expect(await homeScript(electronApp, `document.getElementById('setup').open`)).toBe(true)
+  expect(await homeScript(electronApp, `document.getElementById('home-connect').hidden`)).toBe(false)
   await expect.poll(() => homeScript(electronApp, `(() => { const selected = document.querySelector('[data-guide="qwen-code"]').getBoundingClientRect(); const list = document.getElementById('agent-list').getBoundingClientRect(); return selected.top >= list.top && selected.bottom <= list.bottom; })()`)).toBe(true)
 })
 
@@ -88,7 +87,7 @@ test('Home stays usable in light and dark English and Ukrainian at narrow and wi
       // Playwright defaults every page to emulated light; let the real app theme apply.
       await homePage.emulateMedia({ colorScheme: null })
       await expect.poll(() => homeScript(electronApp, `matchMedia('(prefers-color-scheme: dark)').matches`)).toBe(theme === 'dark')
-      await expect.poll(() => homeScript(electronApp, `getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()`)).toBe(theme === 'dark' ? '#12131a' : '#f5f5fa')
+      await expect.poll(() => homeScript(electronApp, `getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()`)).toBe(theme === 'dark' ? '#19191c' : '#f7f7f8')
       for (const width of [1200, 760]) {
         await electronApp.evaluate(({ BrowserWindow }, width) => {
           const window = BrowserWindow.getAllWindows()[0]!
@@ -101,7 +100,7 @@ test('Home stays usable in light and dark English and Ukrainian at narrow and wi
             overflow: document.documentElement.scrollWidth - innerWidth,
             listHeight: list.clientHeight, listScroll: list.scrollHeight,
             copyTop: document.querySelector('[data-copy-target="guide-code"]').getBoundingClientRect().top,
-            controlsWithinPage: [...document.querySelectorAll('.journey a, #agent-search, [data-agent-guide]')].every(node => { const rect = node.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth; })
+            controlsWithinPage: [...document.querySelectorAll('[data-home-view], #agent-search, [data-agent-guide]')].every(node => { const rect = node.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth; })
           };
         })()`)
         expect(layout.overflow).toBeLessThanOrEqual(1)

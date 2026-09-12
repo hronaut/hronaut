@@ -41,8 +41,8 @@ interface TitleBarThemeColors {
 }
 
 const TITLE_BAR_THEME_COLORS: Record<ResolvedThemeName, TitleBarThemeColors> = {
-  light: { horizontal: '#eeedf7', vertical: '#ffffff', symbols: '#252432' },
-  dark: { horizontal: '#20212c', vertical: '#171821', symbols: '#eeeef5' },
+  light: { horizontal: '#ededef', vertical: '#ffffff', symbols: '#25262b' },
+  dark: { horizontal: '#202023', vertical: '#19191c', symbols: '#ededf0' },
   midnight: { horizontal: '#111f32', vertical: '#0a1320', symbols: '#edf4ff' },
   sepia: { horizontal: '#e8dcc8', vertical: '#faf4e9', symbols: '#3c3025' },
   'cyberpunk-turbo': { horizontal: CYBERPUNK_TURBO_COLORS.shellTop, vertical: CYBERPUNK_TURBO_COLORS.toolbar, symbols: CYBERPUNK_TURBO_COLORS.text },

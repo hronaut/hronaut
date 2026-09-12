@@ -207,6 +207,8 @@ export const deDE = {
     }
   },
   "settings": {
+    "searchSections": "Bereich suchen…",
+    "noMatchingSections": "Keine passenden Bereiche. Versuche einen anderen Namen.",
     "kicker": "Hronaut-Einstellungen",
     "heading": "Einstellungen",
     "close": "Einstellungen schließen",
@@ -1115,6 +1117,7 @@ export const deDE = {
     "replayed": "{method}-XHR wiederholt. Die neue Anfrage ist zur Prüfung ausgewählt."
   },
   "shell": {
+    "audioControl": {"mute": "Stummschalten", "muted": "Stumm"},
     "home": {
       "open": "Hronaut-Startseite öffnen",
       "label": "Start"
@@ -2739,6 +2742,7 @@ export const deDE = {
     "recentlyClosedTabs": "Kürzlich geschlossene Tabs"
   },
   "home": {
+    "navigation": {"label": "Startbereiche", "overview": "Übersicht", "connect": "Agent verbinden", "tools": "Werkzeugbibliothek"},
     journey: {
       heading: 'Mit deinem Coding-Agent starten',
       connect: 'Verbinden',
