@@ -15,16 +15,28 @@ export const esES = {
     "handle": "Identificador de decisión",
     "unknown": "El resultado de la acción anterior sigue siendo desconocido.",
     "reviewed": "He revisado esta decisión y el estado actual del espacio de trabajo.",
+    "reviewedExact": "He revisado esta acción exacta y el estado vinculado del espacio de trabajo.",
     "acknowledge": "Confirmar recepción",
     "resolve": "Completar revisión",
+    "approve": "Aprobar acción exacta",
+    "reject": "Rechazar acción",
     "cancel": "Cancelar decisión",
     "unavailable": "No disponible",
     "states": {
       "WAITING_FOR_HUMAN": "Esperando a una persona",
       "ACKNOWLEDGED": "Recibida; revisión pendiente",
       "RESOLVED": "Revisión completada",
+      "REJECTED": "Rechazada",
       "EXPIRED": "Caducada",
-      "CANCELLED": "Cancelada"
+      "CANCELLED": "Cancelada",
+      "ATTEMPTED": "Acción intentada",
+      "VERIFIED": "Resultado verificado",
+      "UNKNOWN": "Resultado desconocido"
+    },
+    "review": {
+      "heading": "Acción con consecuencias", "expected": "Resultado esperado", "tool": "Herramienta", "actionClass": "Clase de acción", "reversibility": "Reversibilidad", "workspace": "Espacio de trabajo", "profile": "Perfil de capacidades", "origin": "Origen actual", "tab": "Pestaña", "navigation": "Generación de navegación", "humanInput": "Generación de entrada humana", "artifact": "Hash exacto del artefacto", "timeline": "Cronología de recibos de revisión", "visibleOnly": "La modificación no se puede representar de forma segura como texto. Revisa el navegador visible antes de decidir.",
+      "statuses": { "PROPOSED": "Propuesta", "REVIEWED": "Revisada", "APPROVED": "Aprobada", "REJECTED": "Rechazada", "CANCELLED": "Cancelada", "EXPIRED": "Caducada", "ATTEMPTED": "Intentada", "VERIFIED": "Verificada", "UNKNOWN": "Desconocida" },
+      "reversibilities": { "reversible": "Reversible", "conditionally-reversible": "Reversible con condiciones", "irreversible": "Irreversible", "unknown": "Desconocida" }
     },
     "decisions": {
       "review-page": "Revisar la página",

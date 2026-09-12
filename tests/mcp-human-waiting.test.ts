@@ -23,7 +23,7 @@ it('exposes tabless waiting only to its owner and blocks dispatch without allowi
     requireMcpTabGroup: vi.fn(() => ({ id: workspaceId, isDefault: false })),
     requireTabInMcpGroup: vi.fn(() => { throw new Error('No tab') }),
     isWorkspaceAgentAccessible: vi.fn(() => true),
-    listMcpTabGroups: vi.fn(() => [{ id: workspaceId, isDefault: false }]),
+    listMcpTabGroups: vi.fn(() => [{ id: workspaceId, name: 'Private QA', isDefault: false }]),
     listSavedTabGroups: vi.fn(() => []), mcpWorkspaceResumeKey: vi.fn(() => resumeKey),
     getMcpGroupState: vi.fn(() => ({ activeTabId: null, tabs: [], closedTabs: [], mcpTabGroups: [], savedTabGroups: [] })),
     getState: vi.fn(() => ({ activeTabId: null, tabs: [] }))
@@ -65,6 +65,19 @@ it('exposes tabless waiting only to its owner and blocks dispatch without allowi
   const cancelled = await call('browser_human_waiting', { workspaceId, action: 'cancel', ...record })
   expect(cancelled.isError, text(cancelled)).not.toBe(true)
   expect(JSON.parse(text(cancelled))).toMatchObject({ state: 'CANCELLED', priorOutcome: 'OUTCOME_UNKNOWN' })
+  const consequential = await call('browser_human_waiting', {
+    workspaceId, action: 'request', runId: otherWorkspaceId, decision: 'approve-action',
+    review: {
+      toolName: 'browser_click', arguments: { workspaceId, selector: '#private-secret' },
+      reversibility: 'unknown', representation: 'bounded-description', description: 'Submit the visible form'
+    }
+  })
+  expect(consequential.isError, text(consequential)).not.toBe(true)
+  expect(text(consequential)).not.toContain('private-secret')
+  const consequentialRecord = JSON.parse(text(consequential)) as { id: string; revision: string; review: { artifactHash: string } }
+  expect(consequentialRecord).toMatchObject({ review: { artifactHash: expect.stringMatching(/^[a-f0-9]{64}$/) } })
+  expect(JSON.stringify(await waiting.list(workspaceId, () => undefined))).not.toContain('private-secret')
+  await waiting.change(workspaceId, consequentialRecord.id, consequentialRecord.revision, 'cancel', () => undefined)
   expect(manager.requireWorkspaceContinuityReview).toHaveBeenCalledWith(workspaceId)
   manager.transferWorkspaceStorage.mockImplementationOnce(async () => {
     await waiting.create({ workspaceId, runId: otherWorkspaceId, decision: 'review-page', owner: 'operator', fallbackOwner: 'operator', timeoutMs: 60_000, priorOutcome: 'OUTCOME_UNKNOWN' }, () => undefined)

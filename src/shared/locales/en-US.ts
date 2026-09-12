@@ -4,8 +4,14 @@ export const enUS = {
     refresh: 'Refresh decisions', empty: 'No human decisions in this workspace.', error: 'Could not update the decision. Refresh and review current state.',
     owner: 'Owner', fallback: 'Fallback owner', deadline: 'Deadline', notification: 'Notification', attempts: 'Attempts', handle: 'Decision handle',
     unknown: 'The earlier action outcome remains unknown.', reviewed: 'I reviewed this decision and the current workspace state.',
-    acknowledge: 'Acknowledge', resolve: 'Complete review', cancel: 'Cancel decision', unavailable: 'Unavailable',
-    states: { WAITING_FOR_HUMAN: 'Waiting for a human', ACKNOWLEDGED: 'Acknowledged; review pending', RESOLVED: 'Review completed', EXPIRED: 'Expired', CANCELLED: 'Cancelled' },
+    reviewedExact: 'I reviewed this exact action and the bound workspace state.',
+    acknowledge: 'Acknowledge', resolve: 'Complete review', approve: 'Approve exact action', reject: 'Reject action', cancel: 'Cancel decision', unavailable: 'Unavailable',
+    states: { WAITING_FOR_HUMAN: 'Waiting for a human', ACKNOWLEDGED: 'Acknowledged; review pending', RESOLVED: 'Review completed', REJECTED: 'Rejected', EXPIRED: 'Expired', CANCELLED: 'Cancelled', ATTEMPTED: 'Action attempted', VERIFIED: 'Outcome verified', UNKNOWN: 'Outcome unknown' },
+    review: {
+      heading: 'Consequential action', expected: 'Expected result', tool: 'Tool', actionClass: 'Action class', reversibility: 'Reversibility', workspace: 'Workspace', profile: 'Capability profile', origin: 'Current origin', tab: 'Tab', navigation: 'Navigation generation', humanInput: 'Human input generation', artifact: 'Exact artifact hash', timeline: 'Review receipt timeline', visibleOnly: 'The mutation cannot be represented safely as text. Inspect the visible browser before deciding.',
+      statuses: { PROPOSED: 'Proposed', REVIEWED: 'Reviewed', APPROVED: 'Approved', REJECTED: 'Rejected', CANCELLED: 'Cancelled', EXPIRED: 'Expired', ATTEMPTED: 'Attempted', VERIFIED: 'Verified', UNKNOWN: 'Unknown' },
+      reversibilities: { reversible: 'Reversible', 'conditionally-reversible': 'Conditionally reversible', irreversible: 'Irreversible', unknown: 'Unknown' }
+    },
     decisions: { 'review-page': 'Review the page', 'approve-action': 'Review the proposed action', 'provide-input': 'Provide input', 'resolve-unknown': 'Review an unknown outcome' },
     notifications: { 'not-attempted': 'Not attempted', pending: 'Pending', delivered: 'Sent to local attention controls', failed: 'Not delivered' }
   },

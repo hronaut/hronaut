@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+- Add reviewable consequential browser handoffs with privacy-safe exact-action hashes, visible workspace and capability context, cheap reject and cancel controls, single-use approval bindings, drift and reconnect invalidation, and durable attempted, verified, and unknown receipts.
+
 - Explain capability rejections with a bounded, privacy-safe precedence trace and stable first-denying-rule reason, keep permission separate from dispatch and postcondition state, and require every non-read MCP tool to declare its operation class explicitly.
 
 - Distinguish successful, failed, cancelled, blocked, interrupted, verifier-rejected, timed-out, and unknown agent outcomes in the activity dashboard and task-run summaries, with privacy-safe reason provenance, dispatch state, and conservative effect certainty.
