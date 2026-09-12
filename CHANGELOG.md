@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.1.3] - 2026-09-13
+
+### Fixed
+
+- Align the workspace-header divider with the navigation and Home header dividers. Keep the same border placement, thickness, and color at every interface scale.
+
 ## [2.1.2] - 2026-09-12
 
 ### Fixed

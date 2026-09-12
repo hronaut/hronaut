@@ -124,7 +124,7 @@
 }
 
 .vertical-tabs-shell .shell-title-bar-surface.surface-home {
-  @apply [width:calc(100%_-_var(--tab-rail-width))] [height:var(--vertical-titlebar-height)] [margin-left:var(--tab-rail-width)];
+  @apply [width:calc(100%_-_var(--tab-rail-width))] [height:var(--vertical-titlebar-height)] [margin-left:var(--tab-rail-width)] [border-bottom:1px_solid_var(--border-soft)];
   padding-left: max(
     14px,
     calc(var(--titlebar-controls-left-safe) - var(--tab-rail-width) + 8px)
@@ -136,8 +136,16 @@
   );
 }
 
+/* Both columns include their divider inside the same header height. An outer
+   shell border adds a pixel below navigation and leaves the rail out of line. */
+.custom-title-bar.vertical-tabs-shell {
+  @apply [border-bottom:0];
+}
+.custom-title-bar.vertical-tabs-shell .toolbar {
+  @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:1px_solid_var(--border-soft)];
+}
 .custom-title-bar.vertical-tabs-shell.home-shell {
-  @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:1px_solid_var(--border)] [box-shadow:0_1px_4px_var(--shadow)];
+  @apply [min-height:var(--vertical-titlebar-height)] [border-bottom:0] [box-shadow:none];
 }
 
 @media (max-width: 900px) {
