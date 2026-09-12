@@ -103,6 +103,94 @@ describe('MCP capability profile store', () => {
     }
   })
 
+  it('reports deterministic redacted precedence and the first denying rule', async () => {
+    const value = await store()
+    const { credential } = await value.create({
+      name: 'Diagnosable storage reader',
+      allowedTools: ['browser_storage'],
+      allowedActions: { browser_storage: ['get'] },
+      operationClasses: ['site-data'],
+      workspaceIds: [workspaceId],
+      origins: ['https://allowed.example']
+    })
+    const grant = value.authenticate(credential)!
+    const request: McpCapabilityRequest = {
+      toolName: 'browser_storage', action: 'get', operationClass: 'site-data',
+      workspaceId, origins: ['https://allowed.example/account']
+    }
+
+    expect(value.evaluate(grant, request)).toMatchObject({
+      decision: 'permitted', reasonCode: 'PERMITTED', firstDenyingRule: null,
+      route: 'direct', lineageDepth: 1, phase: 'admission',
+      sessionGeneration: { presented: 1, active: 1 },
+      permission: 'permitted', dispatch: 'not-established', postcondition: 'not-established',
+      request: {
+        tool: 'browser_storage', action: 'get', operationClass: 'site-data',
+        workspace: 'supplied', origins: 'supplied'
+      },
+      checks: [
+        { rule: 'grant', result: 'passed' },
+        { rule: 'lineage', result: 'passed' },
+        { rule: 'session', result: 'passed' },
+        { rule: 'tool', result: 'passed' },
+        { rule: 'action', result: 'passed' },
+        { rule: 'operation-class', result: 'passed' },
+        { rule: 'workspace', result: 'passed' },
+        { rule: 'origin', result: 'passed' }
+      ]
+    })
+
+    const cases: Array<[Partial<McpCapabilityRequest>, string, string]> = [
+      [{ action: undefined }, 'ACTION_REQUIRED', 'action'],
+      [{ action: 'set', operationClass: 'network' }, 'ACTION_NOT_ALLOWED', 'action'],
+      [{ operationClass: 'network' }, 'OPERATION_CLASS_NOT_ALLOWED', 'operation-class'],
+      [{ operationClass: undefined }, 'OPERATION_CLASS_REQUIRED', 'operation-class'],
+      [{ operationClass: 'future-class' as McpCapabilityRequest['operationClass'] }, 'OPERATION_CLASS_UNRECOGNIZED', 'operation-class'],
+      [{ workspaceId: undefined }, 'WORKSPACE_REQUIRED', 'workspace'],
+      [{ workspaceId: otherWorkspaceId }, 'WORKSPACE_NOT_ALLOWED', 'workspace'],
+      [{ origins: ['not an origin'] }, 'ORIGIN_MALFORMED', 'origin'],
+      [{ origins: ['https://private.example/account?token=secret'] }, 'ORIGIN_NOT_ALLOWED', 'origin']
+    ]
+    for (const [changes, reasonCode, rule] of cases) {
+      const decision = value.evaluate(grant, { ...request, ...changes })
+      expect(decision).toMatchObject({
+        decision: 'denied', reasonCode, firstDenyingRule: rule, permission: 'denied'
+      })
+      const firstDenial = decision.checks.find(check => check.result === 'denied')
+      expect(firstDenial?.rule).toBe(rule)
+      expect(decision.checks.slice(decision.checks.indexOf(firstDenial!) + 1)
+        .every(check => check.result === 'not-evaluated')).toBe(true)
+      const serialized = JSON.stringify(decision)
+      expect(serialized).not.toContain('private.example')
+      expect(serialized).not.toContain('secret')
+      expect(serialized).not.toContain(workspaceId)
+      expect(serialized).not.toContain(otherWorkspaceId)
+      expect(serialized).not.toContain(credential)
+    }
+  })
+
+  it('permits non-HTTP pages when the profile has no origin restriction', async () => {
+    const value = await store()
+    const { credential } = await value.create({
+      name: 'Unscoped reader',
+      allowedTools: ['browser_snapshot'],
+      operationClasses: ['read']
+    })
+    const decision = value.evaluate(value.authenticate(credential)!, {
+      toolName: 'browser_snapshot',
+      operationClass: 'read',
+      origins: ['about:blank']
+    })
+
+    expect(decision).toMatchObject({
+      decision: 'permitted',
+      reasonCode: 'PERMITTED',
+      checks: expect.arrayContaining([
+        { rule: 'origin', result: 'not-applicable' }
+      ])
+    })
+  })
+
   it('invalidates credentials after expiry, profile edits, rotation, and revocation', async () => {
     let current = new Date('2026-09-11T12:00:00.000Z')
     const value = await store(() => current)
@@ -116,6 +204,9 @@ describe('MCP capability profile store', () => {
     current = new Date('2026-09-11T12:01:00.000Z')
     expect(value.authenticate(expiring.credential)).toBeNull()
     expect(() => value.authorize(expiringGrant, readRequest)).toThrow(McpCapabilityAuthorizationError)
+    expect(value.evaluate(expiringGrant, readRequest)).toMatchObject({
+      decision: 'denied', reasonCode: 'PROFILE_EXPIRED', firstDenyingRule: 'session'
+    })
 
     current = new Date('2026-09-11T12:02:00.000Z')
     const editable = await value.create({
@@ -131,6 +222,10 @@ describe('MCP capability profile store', () => {
     })
     expect(value.authenticate(editable.credential)).toBeNull()
     expect(() => value.authorize(oldGrant, readRequest)).toThrow(McpCapabilityAuthorizationError)
+    expect(value.evaluate(oldGrant, readRequest)).toMatchObject({
+      decision: 'denied', reasonCode: 'GRANT_REVISION_CHANGED', firstDenyingRule: 'grant',
+      sessionGeneration: { presented: 1, active: 2 }
+    })
     expect(value.authenticate(edited.credential)?.revision).toBe(2)
 
     const rotated = await value.rotate(editable.profile.id)
@@ -158,6 +253,12 @@ describe('MCP capability profile store', () => {
     expect(attempts.filter(result => result.status === 'rejected')).toHaveLength(1)
     expect(value.authenticate(created.credential)).toBeNull()
     expect(value.list()[0]).toMatchObject({ useCount: 1, maxUses: 1 })
+    expect(value.evaluate(grant, readRequest, 'admission')).toMatchObject({
+      decision: 'denied', reasonCode: 'USE_LIMIT_REACHED', firstDenyingRule: 'session'
+    })
+    expect(value.evaluate(grant, readRequest, 'active-dispatch')).toMatchObject({
+      decision: 'permitted', reasonCode: 'PERMITTED'
+    })
   })
 
   it('invalidates pending dispatches when authority changes but not when a credential is created or consumed', async () => {
@@ -212,6 +313,9 @@ describe('MCP capability profile store', () => {
       { profileId: parent.profile.id, revision: parent.profile.revision },
       { profileId: child.profile.id, revision: child.profile.revision }
     ])
+    expect(value.evaluate(value.authenticate(child.credential)!, readRequest)).toMatchObject({
+      decision: 'permitted', route: 'delegated', lineageDepth: 2
+    })
     expect(child.profile.parentAuthorization).toEqual({
       profileId: parent.profile.id,
       revision: parent.profile.revision,

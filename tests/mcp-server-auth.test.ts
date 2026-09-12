@@ -194,7 +194,21 @@ describe('MCP capability profile authentication', () => {
       name: 'browser_workspaces', arguments: { action: 'create', name: 'Denied workspace' }
     })).resolves.toMatchObject({
       isError: true,
-      content: [{ type: 'text', text: 'MCP capability does not authorize this operation' }]
+      content: [{ type: 'text', text: 'MCP capability denied this operation: ACTION_NOT_ALLOWED at action.' }],
+      structuredContent: {
+        status: 'POLICY_REJECTED', reason: 'ACTION_NOT_ALLOWED',
+        dispatch: 'not-dispatched', effects: 'none', postcondition: 'not-established',
+        reconciliationRequired: false,
+        policyDecision: {
+          decision: 'denied', reasonCode: 'ACTION_NOT_ALLOWED', firstDenyingRule: 'action',
+          phase: 'admission', route: 'direct', lineageDepth: 1,
+          request: {
+            tool: 'browser_workspaces', action: 'create', operationClass: 'browser-state',
+            workspace: 'missing', origins: 'none'
+          },
+          permission: 'denied', dispatch: 'not-established', postcondition: 'not-established'
+        }
+      }
     })
   })
 
@@ -219,10 +233,14 @@ describe('MCP capability profile authentication', () => {
       { workspaceId: OTHER_WORKSPACE_ID, url: 'https://allowed.example/page' },
       { workspaceId: WORKSPACE_ID, url: 'https://denied.example/page' }
     ]) {
-      await expect(client!.callTool({ name: 'browser_new_tab', arguments: arguments_ })).resolves.toMatchObject({
+      const result = await client!.callTool({ name: 'browser_new_tab', arguments: arguments_ })
+      expect(result).toMatchObject({
         isError: true,
-        content: [{ type: 'text', text: 'MCP capability does not authorize this operation' }]
+        content: [{ type: 'text', text: expect.stringMatching(/^MCP capability denied this operation: [A-Z_]+ at (?:workspace|origin)\.$/) }]
       })
+      expect(JSON.stringify(result)).not.toContain('denied.example')
+      expect(JSON.stringify(result)).not.toContain(WORKSPACE_ID)
+      expect(JSON.stringify(result)).not.toContain(OTHER_WORKSPACE_ID)
     }
   })
 
@@ -434,7 +452,15 @@ describe('MCP capability profile authentication', () => {
 
     await expect(call).resolves.toMatchObject({
       isError: true,
-      structuredContent: { status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false }
+      structuredContent: {
+        status: 'OUTCOME_UNKNOWN', effects: 'possible', retrySafe: false,
+        permission: 'denied', dispatch: 'dispatched', postcondition: 'unknown',
+        reconciliationRequired: true,
+        policyDecision: {
+          decision: 'denied', reasonCode: 'GRANT_REVISION_CHANGED', firstDenyingRule: 'grant',
+          phase: 'active-dispatch'
+        }
+      }
     })
   })
 
