@@ -267,6 +267,29 @@ api_key_format = "Bearer {token}"`)
     timeout: 300`)
   })
 
+  it('renders bounded activity outcome categories', () => {
+    const html = renderHomePage({
+      endpoint: dashboard.endpoint,
+      locale: 'en-US',
+      initialState: {
+        ...dashboard,
+        completedToolCalls: 1,
+        recentActivity: [{
+          activityId: 'activity-1', tabId: 'tab-1', toolName: 'browser_click',
+          startedAt: new Date(0).toISOString(), completedAt: new Date(10).toISOString(), durationMs: 10,
+          outcome: 'failed',
+          result: {
+            outcome: 'outcome-unknown', reasonCode: 'POSTCONDITION_NOT_VERIFIED', dispatch: 'dispatched',
+            effects: 'possible', evidenceSource: 'hronaut-observed'
+          }
+        }],
+        outcomeTotals: { 'outcome-unknown': 1 }
+      }
+    })
+    expect(html).toContain("'outcome-unknown': messages.activity.unknown")
+    expect(html).toContain('Outcome unknown')
+  })
+
   it('renders Ukrainian UI while preserving technical MCP content', () => {
     const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'uk-UA' })
     expect(html).toContain('<html lang="uk-UA">')

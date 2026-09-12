@@ -429,6 +429,29 @@ export interface McpTabActivity {
   toolName: string
   phase: 'started' | 'finished' | 'failed'
   occurredAt: number
+  /** Optional bounded settlement detail. The phase remains for compatibility
+   * with presentation listeners that only need start/finish lifecycle. */
+  result?: McpActivityResult
+}
+
+export type McpActivityOutcome = 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'timed-out' | 'interrupted' | 'outcome-unknown'
+export type McpActivityReasonCode =
+  | 'COMPLETED'
+  | 'POSTCONDITION_VERIFIED'
+  | 'RESULT_ERROR'
+  | 'COMMAND_FAILED'
+  | 'REQUEST_CANCELLED'
+  | 'TIMEOUT'
+  | 'POLICY_REJECTED'
+  | 'CONTEXT_CHANGED'
+  | 'POSTCONDITION_NOT_VERIFIED'
+
+export interface McpActivityResult {
+  outcome: McpActivityOutcome
+  reasonCode: McpActivityReasonCode
+  dispatch: 'not-dispatched' | 'dispatched'
+  effects: 'none' | 'possible' | 'confirmed'
+  evidenceSource: 'hronaut-observed'
 }
 
 export type McpServerStatus = 'starting' | 'ready' | 'paused' | 'error'

@@ -154,7 +154,21 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
     expect(await call(owner, 'browser_task_runs', {
       workspaceId: workspace.id, action: 'complete', taskRunId: unchecked.id,
       revision: unchecked.revision, outcome: 'OUTCOME_UNKNOWN'
-    })).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'CALLER_REPORTED_UNKNOWN' })
+    })).toMatchObject({
+      state: 'OUTCOME_UNKNOWN', terminalReason: 'CALLER_REPORTED_UNKNOWN', outcome: 'outcome-unknown',
+      reasonCode: 'CALLER_REPORTED_UNKNOWN', evidenceSource: 'caller-supplied', effects: 'not-established'
+    })
+
+    const cancellable = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id, action: 'start'
+    })
+    expect(await call(owner, 'browser_task_runs', {
+      workspaceId: workspace.id, action: 'complete', taskRunId: cancellable.id,
+      revision: cancellable.revision, outcome: 'CANCELLED'
+    })).toMatchObject({
+      state: 'CANCELLED', terminalReason: 'CALLER_REPORTED_CANCELLED', outcome: 'cancelled',
+      reasonCode: 'CALLER_REPORTED_CANCELLED', evidenceSource: 'caller-supplied', effects: 'not-established'
+    })
   } finally {
     await Promise.allSettled(clients.map(client => client.close()))
     await Promise.all([closeFixtureServer(firstSite), closeFixtureServer(secondSite)])

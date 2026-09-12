@@ -526,7 +526,7 @@ export const ukUA = {
       tabActionsCompleted: 'Виконані дії з вкладками', toolsUsed: 'Використані інструменти', successfulActions: 'Успішні дії', recent: 'Недавня активність',
       privacy: 'Hronaut зберігає в пам’яті лише назви інструментів, час і результат. URL, селектори, введений текст, знімки екрана та вміст сторінок тут не зберігаються.',
       emptyHeading: 'Дій із вкладками ще немає', emptyDescription: 'Виклики інструментів з’являться тут, коли агент почне працювати.',
-      failed: 'Помилка', done: 'Готово'
+      failed: 'Помилка', done: 'Готово', cancelled: 'Скасовано', blocked: 'Заблоковано', timedOut: 'Час вичерпано', interrupted: 'Перервано', unknown: 'Результат невідомий'
     },
     support: {
       kicker: 'Підключення', activeKicker: 'Поділіться Hronaut', heading: 'Підключіть і перевірте Hronaut.', failedHeading: 'Перша дія потребує уваги.',

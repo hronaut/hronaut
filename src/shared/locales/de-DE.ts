@@ -2856,7 +2856,12 @@ export const deDE = {
       "emptyHeading": "Noch keine Tabaktionen",
       "emptyDescription": "Werkzeugaufrufe erscheinen hier, nachdem ein Agent mit der Arbeit begonnen hat.",
       "failed": "Fehlgeschlagen",
-      "done": "Fertig"
+      "done": "Fertig",
+      "cancelled": "Abgebrochen",
+      "blocked": "Blockiert",
+      "timedOut": "Zeitüberschreitung",
+      "interrupted": "Unterbrochen",
+      "unknown": "Ergebnis unbekannt"
     },
     "support": {
       "kicker": "Verbindung herstellen",

@@ -9,9 +9,9 @@ const checkDefinitionSchema = z.discriminatedUnion('type', [
   z.object({ id: checkIdSchema, type: z.literal('audit-run'), artifactId: idSchema }).strict()
 ])
 const checkStatusSchema = z.enum(['PENDING', 'PASS', 'FAIL', 'UNAVAILABLE'])
-const stateSchema = z.enum(['RUNNING', 'VERIFYING', 'SUCCEEDED', 'FAILED', 'BLOCKED', 'TIMED_OUT', 'OUTCOME_UNKNOWN'])
+const stateSchema = z.enum(['RUNNING', 'VERIFYING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED', 'TIMED_OUT', 'OUTCOME_UNKNOWN'])
 const terminalReasonSchema = z.enum([
-  'CALLER_REPORTED_FAILURE', 'CALLER_REPORTED_BLOCKED', 'CALLER_REPORTED_UNKNOWN',
+  'CALLER_REPORTED_FAILURE', 'CALLER_REPORTED_CANCELLED', 'CALLER_REPORTED_BLOCKED', 'CALLER_REPORTED_UNKNOWN',
   'COMPLETION_CHECK_FAILED', 'COMPLETION_EVIDENCE_UNAVAILABLE',
   'COMPLETION_CONTEXT_CHANGED', 'HEARTBEAT_EXPIRED', 'DEADLINE_REACHED', 'CLOCK_INVALID', 'RESTART'
 ])
@@ -65,6 +65,7 @@ type StoredRecord = z.infer<typeof storedRecordSchema>
 type TaskRunState = z.infer<typeof stateSchema>
 type TerminalReason = z.infer<typeof terminalReasonSchema>
 type CheckStatus = z.infer<typeof checkStatusSchema>
+export type TaskRunOutcome = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'timed-out' | 'verifier-rejected' | 'outcome-unknown'
 
 export interface TaskRunSummary {
   id: string
@@ -72,6 +73,14 @@ export interface TaskRunSummary {
   workspaceId: string
   state: TaskRunState
   terminalReason: TerminalReason | null
+  /** Stable presentation taxonomy. Existing state and terminalReason fields are
+   * retained for backward compatibility. */
+  outcome: TaskRunOutcome
+  reasonCode: TerminalReason | null
+  evidenceSource: 'caller-supplied' | 'hronaut-observed'
+  /** A task-run contract does not observe every browser side effect in the
+   * caller's wider workflow, so terminal state must never imply rollback. */
+  effects: 'not-established'
   createdAt: number
   updatedAt: number
   deadlineAt: number
@@ -159,13 +168,14 @@ export class TaskRunStore {
     return this.publicRecord(entry.record)
   }
 
-  complete(id: string, revision: string, requested: 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'OUTCOME_UNKNOWN',
+  complete(id: string, revision: string, requested: 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'BLOCKED' | 'OUTCOME_UNKNOWN',
     evidence: Array<{ id: string; status: Exclude<CheckStatus, 'PENDING'> }>): TaskRunSummary {
     const entry = this.current(id, revision)
     if (requested !== 'SUCCEEDED') {
       if (evidence.length) throw new Error('Completion evidence is accepted only for a success claim')
       const reason: TerminalReason = requested === 'FAILED' ? 'CALLER_REPORTED_FAILURE'
-        : requested === 'BLOCKED' ? 'CALLER_REPORTED_BLOCKED' : 'CALLER_REPORTED_UNKNOWN'
+        : requested === 'CANCELLED' ? 'CALLER_REPORTED_CANCELLED'
+          : requested === 'BLOCKED' ? 'CALLER_REPORTED_BLOCKED' : 'CALLER_REPORTED_UNKNOWN'
       this.transition(entry.record, requested, reason)
       return this.publicRecord(entry.record)
     }
@@ -312,12 +322,25 @@ export class TaskRunStore {
   }
 
   private publicRecord(record: StoredRecord): TaskRunSummary {
+    const outcome: TaskRunOutcome = record.state === 'RUNNING' || record.state === 'VERIFYING' ? 'running'
+      : record.state === 'SUCCEEDED' ? 'succeeded'
+        : record.state === 'FAILED' ? 'failed'
+          : record.state === 'CANCELLED' ? 'cancelled'
+            : record.state === 'TIMED_OUT' ? 'timed-out'
+              : record.state === 'OUTCOME_UNKNOWN' ? 'outcome-unknown'
+                : record.terminalReason === 'COMPLETION_CHECK_FAILED' ? 'verifier-rejected' : 'blocked'
     return structuredClone({
       id: record.id,
       revision: record.revision,
       workspaceId: record.workspaceId,
       state: record.state,
       terminalReason: record.terminalReason,
+      outcome,
+      reasonCode: record.terminalReason,
+      evidenceSource: record.terminalReason?.startsWith('CALLER_REPORTED_')
+        ? 'caller-supplied' as const
+        : 'hronaut-observed' as const,
+      effects: 'not-established' as const,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       deadlineAt: record.deadlineAt,

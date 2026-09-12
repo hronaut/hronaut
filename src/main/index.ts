@@ -1210,6 +1210,7 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
       clients: [],
       recentActivity: [],
       toolMetrics: [],
+      outcomeTotals: {},
       tools: mcpToolCatalogForSet(settings.mcpToolSet)
     }),
     endpoint: mcpUrl,

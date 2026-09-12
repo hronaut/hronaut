@@ -36,6 +36,10 @@ test('keeps activity from a disconnected command that settles after changing the
     }))
     const workspace = parse<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Activity fixture' }))
     const state = parse<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url: `http://127.0.0.1:${fixtureAddress.port}` }))
+    const timedOut = await call('browser_wait', {
+      workspaceId: workspace.id, tabId: state.activeTabId!, text: 'text that never appears', timeoutMs: 100
+    })
+    expect(timedOut).toMatchObject({ isError: true, structuredContent: { status: 'TIMED_OUT' } })
     const pending = call('browser_evaluate', { workspaceId: workspace.id, tabId: state.activeTabId!, script: "fetch('/hold').then(() => 'done')" })
     void pending.catch(() => undefined)
     await expect.poll(() => Boolean(held)).toBe(true)
@@ -53,10 +57,31 @@ test('keeps activity from a disconnected command that settles after changing the
       try { return await home.executeJavaScript("fetch('/api/status').then(response => response.json()).then(state => state.recentActivity)") } catch { return null }
     })).toEqual(expect.arrayContaining([
       expect.objectContaining({ toolName: 'browser_new_tab', outcome: 'finished' }),
-      // Staging the replacement listener changes control and invalidates the
-      // old result. Keep its failed activity visible rather than losing it.
-      expect.objectContaining({ toolName: 'browser_evaluate', outcome: 'failed' })
+      expect.objectContaining({
+        toolName: 'browser_wait', outcome: 'failed',
+        result: {
+          outcome: 'timed-out', reasonCode: 'TIMEOUT', dispatch: 'dispatched',
+          effects: 'none', evidenceSource: 'hronaut-observed'
+        }
+      }),
+      // Replacing the endpoint aborts the old server's in-flight command. Keep
+      // that explicit cancellation visible in the shared activity history.
+      expect.objectContaining({
+        toolName: 'browser_evaluate', outcome: 'failed',
+        result: {
+          outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', dispatch: 'dispatched',
+          effects: 'possible', evidenceSource: 'hronaut-observed'
+        }
+      })
     ]))
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+      return home?.executeJavaScript("document.getElementById('activity-list')?.innerText")
+    })).toEqual(expect.stringContaining('Cancelled'))
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+      const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+      return home?.executeJavaScript("document.getElementById('activity-list')?.innerText")
+    })).toEqual(expect.stringContaining('Timed out'))
   } finally {
     held?.end()
     await client.close()

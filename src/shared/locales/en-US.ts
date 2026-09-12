@@ -684,7 +684,7 @@ export const enUS = {
       tabActionsCompleted: 'Tab actions completed', toolsUsed: 'Tools used', successfulActions: 'Successful actions', recent: 'Recent activity',
       privacy: 'Hronaut records only tool names, timing, and outcome in memory. URLs, selectors, typed text, screenshots, and page content are not stored here.',
       emptyHeading: 'No tab actions yet', emptyDescription: 'Tool calls will appear here after an agent starts working.',
-      failed: 'Failed', done: 'Done'
+      failed: 'Failed', done: 'Done', cancelled: 'Cancelled', blocked: 'Blocked', timedOut: 'Timed out', interrupted: 'Interrupted', unknown: 'Outcome unknown'
     },
     support: {
       kicker: 'Get connected', activeKicker: 'Share Hronaut', heading: 'Connect and verify Hronaut.', failedHeading: 'The first action needs attention.',
