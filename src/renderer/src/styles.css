@@ -36,6 +36,7 @@
 @import './styles/shell.css' layer(application);
 @import './styles/tools.css' layer(application);
 @import './styles/collections.css' layer(application);
+@import './styles/workspaces.css' layer(application);
 @import './styles/dialogs.css' layer(application);
 @import './styles/settings.css' layer(application);
 @import './styles/panels.css' layer(application);

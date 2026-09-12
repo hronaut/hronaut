@@ -1,4 +1,18 @@
 export const enUS = {
+  workspaceLibrary: {
+    title: 'Workspaces', heading: 'A place for every project', description: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.',
+    open: 'Open', archived: 'Archived', search: 'Search workspaces or tabs', views: 'Workspace views', current: 'Current', personal: 'Direct agent access off', agentAccess: 'Agent access on', restricted: 'Selected sites only',
+    noTabs: 'No open pages yet', openWorkspace: 'Open workspace', restore: 'Restore workspace', archive: 'Archive', delete: 'Delete…', undo: 'Undo archive',
+    archiveHelp: 'Archived workspaces keep their tabs and sign-ins. Restore one whenever you need it.', openHelp: 'Archive finished work to keep this list tidy. Your tabs and sign-ins are kept.',
+    empty: 'Your first workspace starts here', emptyHelp: 'Create a space for a project, account, or agent task. Each workspace has its own website data.',
+    noArchived: 'No archived workspaces', noMatches: 'No matching workspaces', searchHelp: 'Try another workspace name or page title.', clearSearch: 'Clear search',
+    archiveNotice: '“{name}” archived. Tabs and sign-ins are saved.', restoreNotice: '“{name}” restored.', deleteNotice: '“{name}” deleted.',
+    deleteConfirm: 'Permanently delete “{name}” and its website data? This cannot be undone.', actionError: 'Could not update this workspace. Please try again.',
+    back: 'All workspaces', basicsHelp: 'Give this workspace a name and a color so it is easy to find.', createHelp: 'Start with a fresh browser space, or reuse sign-ins from another workspace.',
+    accessSummary: 'Website access', accessHelp: 'Choose which websites this workspace can open.', dataSummary: 'Copy or move website data', dataHelp: 'Transfer selected cookies and local storage between workspaces.',
+    activitySummary: 'Continuity & human decisions', activityHelp: 'Review agent handoffs, checkpoints, and decisions that need your attention.',
+    identity: 'Workspace details'
+  },
   humanWaiting: {
     title: 'Human decisions', help: 'Review workspace continuity above before completing a decision. These controls never replay an action or unpause agents.',
     refresh: 'Refresh decisions', empty: 'No human decisions in this workspace.', error: 'Could not update the decision. Refresh and review current state.',

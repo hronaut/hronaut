@@ -37,6 +37,7 @@ test('enforces trusted workspace allowlists for direct and page-driven top-level
     await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.setSize(760, 600))
     await appWindow.getByRole('button', { name: 'Create workspace' }).click()
     const editor = appWindow.getByRole('dialog', { name: 'Create workspace' })
+    await editor.locator('.workspace-access-disclosure > summary').click()
     await expect(editor.getByText('Site access', { exact: true })).toBeVisible()
     await editor.getByRole('textbox', { name: 'Workspace name' }).fill('Restricted production QA')
     await editor.getByText('Only listed sites', { exact: true }).click()

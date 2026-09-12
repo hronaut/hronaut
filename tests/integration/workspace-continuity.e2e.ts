@@ -48,6 +48,7 @@ test('blocks a resumed write after navigation and rejects stale continuity recon
     expect((await call(first, 'browser_evaluate', { ...args, script: 'window.writes = 1' })).isError).toBe(true)
     await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), workspace.id)
     const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+    await editor.locator('.workspace-activity-disclosure > summary').click()
     const continuity = editor.getByRole('region', { name: 'Workspace continuity' })
     await expect(continuity.getByText('Review required before agent actions', { exact: true })).toBeVisible()
     await expect(continuity.getByRole('button', { name: 'Confirm reviewed state' })).toBeEnabled()
