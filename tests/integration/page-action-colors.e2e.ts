@@ -32,6 +32,7 @@ for (const theme of ['cyberpunk-turbo', 'light', 'dark']) {
     const neutral = await colorToken(tools, '--text')
     const accent = await colorToken(tools, '--accent')
     const accentCopy = await colorToken(tools, '--accent-text')
+    const buttonCopy = await colorToken(tools, '--button-text')
     await appWindow.getByRole('combobox', { name: 'Address', exact: true }).hover()
     await appWindow.locator('.toolbar').screenshot({ path: testInfo.outputPath(`${theme}-inactive.png`) })
     for (const button of [split, capture, picker, tools]) {
@@ -53,7 +54,7 @@ for (const theme of ['cyberpunk-turbo', 'light', 'dark']) {
       await expect(button).toHaveAttribute('aria-pressed', 'true')
       await appWindow.getByRole('combobox', { name: 'Address', exact: true }).hover()
       await expect(button).toHaveCSS('background-color', accent)
-      await expect(button).not.toHaveCSS('color', neutral)
+      await expect(button).toHaveCSS('color', buttonCopy)
       await expect.poll(() => electronApp.evaluate(async ({ webContents }, overlay) => {
         const page = webContents.getAllWebContents().find(page => page.getTitle() === 'Action Alpha')
         return page?.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(overlay)}))`)
@@ -73,6 +74,7 @@ for (const theme of ['cyberpunk-turbo', 'light', 'dark']) {
     await expect(split).toHaveClass(/\bactive\b/)
     await appWindow.getByRole('combobox', { name: 'Address', exact: true }).hover()
     await expect(split).toHaveCSS('background-color', accent)
+    await expect(split).toHaveCSS('color', buttonCopy)
     await split.click()
     await appWindow.getByRole('button', { name: 'Exit split view', exact: true }).click()
     await expect(split).not.toHaveClass(/\bactive\b/)

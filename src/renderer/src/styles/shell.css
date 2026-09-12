@@ -491,20 +491,20 @@
 .downloads-button.complete { @apply [color:var(--success)]; }
 .downloads-button .state-spinner { @apply [animation:spin_0.9s_linear_infinite]; }
 .downloads-badge {
-  @apply absolute [top:1px] [right:0] grid [min-width:16px] [height:16px] [padding:0_4px] place-items-center [border:2px_solid_var(--shell-top)] [border-radius:999px] [color:#fff] bg-accent [font-size:11px] [font-weight:800] [line-height:1];
+  @apply absolute [top:1px] [right:0] grid [min-width:16px] [height:16px] [padding:0_4px] place-items-center [border:2px_solid_var(--shell-top)] [border-radius:999px] text-button-copy bg-accent [font-size:11px] [font-weight:800] [line-height:1];
 }
 .area-capture-button { @apply text-copy; }
-.area-capture-button.active { @apply [color:#fff] bg-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
+.area-capture-button.active { @apply text-button-copy bg-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .area-capture-button.copied { @apply [color:var(--success)] [background:color-mix(in_srgb,_var(--success)_12%,_transparent)]; }
 .area-capture-button.error { @apply [color:#d9534f] [background:rgba(217,_83,_79,_0.1)]; }
 .area-capture-button .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
 .element-picker-button { @apply text-copy; }
-.element-picker-button.active { @apply [color:#fff] bg-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
+.element-picker-button.active { @apply text-button-copy bg-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
 .element-picker-button.copied { @apply [color:var(--success)] [background:color-mix(in_srgb,_var(--success)_12%,_transparent)]; }
 .element-picker-button.error { @apply [color:#d9534f] [background:rgba(217,_83,_79,_0.1)]; }
 .split-view-control { @apply relative flex-none; }
 .split-view-button { @apply text-copy; }
-.split-view-button.active { @apply [color:#fff] bg-accent; }
+.split-view-button.active { @apply text-button-copy bg-accent; }
 .split-view-menu {
   @apply fixed [z-index:20] [top:calc(var(--shell-content-top)_+_8px)] [right:12px] [width:min(380px,_calc(100vw_-_var(--tab-rail-width,_0px)_-_24px))] [max-height:min(460px,_calc(100vh_-_var(--shell-content-top)_-_24px))] overflow-auto [border:1px_solid_var(--border)] [border-radius:14px] text-copy bg-surface [box-shadow:var(--shadow)];
 }

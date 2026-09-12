@@ -9,9 +9,51 @@
   @apply [min-height:30px] [padding:4px_24px_4px_8px] [border:1px_solid_var(--border-soft)] [border-radius:7px] [outline:0] text-copy bg-surface-raised [font:inherit] cursor-pointer;
 }
 .panel-dock-picker select:focus-visible { @apply border-accent [box-shadow:0_0_0_2px_var(--accent-soft)]; }
+.panel-scroll-body { @apply flex min-h-0 min-w-0 [flex:1_1_auto] flex-col overflow-auto [overscroll-behavior:contain]; }
+.panel-scroll-body + footer { @apply flex-none; }
 
 .shell [data-shell-docked-panel] {
+  container-type: inline-size;
   @apply fixed [z-index:49] m-0 [max-width:none] [max-height:none] [border-radius:0] [box-shadow:-8px_12px_34px_rgba(16,_13,_36,_.2)];
+}
+
+/* A dock can be narrow inside a large window. Size its controls to the panel. */
+@container (max-width: 560px) {
+  [data-shell-docked-panel] > header:has(.panel-dock-picker) {
+    @apply grid [grid-template-columns:minmax(0,_1fr)_auto_auto] [gap:10px_8px];
+  }
+  [data-shell-docked-panel] > header:has(.panel-dock-picker) > div:first-child {
+    @apply min-w-0 [grid-column:1_/_-2] [grid-row:1];
+  }
+  [data-shell-docked-panel] > header h2 { @apply [overflow-wrap:anywhere]; }
+  [data-shell-docked-panel] > header :is(.panel-header-actions, .site-storage-header-actions, .network-monitor-header-actions) { @apply contents; }
+  [data-shell-docked-panel] > header .panel-close { @apply [grid-column:-2_/_-1] [grid-row:1]; }
+  [data-shell-docked-panel] > header .panel-dock-picker { @apply min-w-0 [grid-column:1_/_-1] [grid-row:2]; }
+  [data-shell-docked-panel] > header .panel-dock-picker select { @apply min-w-0 flex-1; }
+  [data-shell-docked-panel] > header:has(button:not(.panel-close)) .panel-dock-picker { @apply [grid-column:1]; }
+  [data-shell-docked-panel] > header button:not(.panel-close) { @apply [grid-row:2]; }
+  [data-shell-docked-panel] > footer { @apply flex-wrap; }
+  [data-shell-docked-panel] > footer > div { @apply min-w-0 flex-wrap; }
+  .network-monitor-tools { @apply flex-wrap; }
+  .network-monitor-tools .network-monitor-search { @apply [flex-basis:100%] [min-height:36px]; }
+  .network-resource-filters { @apply flex-wrap; }
+  .network-content-search > form { @apply flex-wrap; }
+  .network-content-search > form > label { @apply [flex-basis:100%]; }
+  .site-storage-kinds { @apply [grid-template-columns:repeat(auto-fit,_minmax(108px,_1fr))]; }
+  .site-storage-kinds button { @apply [padding-inline:6px]; }
+  .site-storage-kinds svg { @apply flex-none; }
+  .site-storage-tools { @apply flex-wrap; }
+  .site-storage-editor { @apply [grid-template-columns:minmax(0,_1fr)_auto]; }
+  .site-storage-editor > input { @apply [grid-column:1_/_-1]; }
+  .site-storage-editor > button { @apply [min-height:36px]; }
+  .request-condition-form-row { @apply [grid-template-columns:1fr]; }
+  .request-condition-form-actions { @apply flex-wrap; }
+}
+
+@container (max-width: 420px) {
+  .accessibility-audit-summary, .design-overview-summary, .page-metadata-summary, .memory-summary { @apply [grid-template-columns:repeat(2,_minmax(0,_1fr))]; }
+  .performance-vitals, .design-color-groups, .social-metadata-cards { @apply [grid-template-columns:1fr]; }
+  .site-storage-tools .site-storage-search { @apply [flex-basis:100%]; }
 }
 .shell.panel-dock-right [data-shell-docked-panel],
 .shell.panel-dock-left [data-shell-docked-panel] {
