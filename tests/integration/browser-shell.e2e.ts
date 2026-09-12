@@ -977,6 +977,7 @@ test('keeps keyboard focus and selection state when switching Home setup guides'
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
+      document.querySelector('[data-home-view="connect"]').click();
       const button = document.querySelector('[data-guide="opencode"]');
       button.focus();
       button.click();
@@ -7691,6 +7692,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
       if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
       const guidePoint = await home.executeJavaScript(`(async () => {
+        document.querySelector('[data-home-view="connect"]').click();
         const guide = document.querySelector('[data-guide="opencode"]')
         guide.scrollIntoView({ block: 'center', behavior: 'instant' })
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -9012,6 +9014,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
+      document.querySelector('[data-home-view="connect"]').click();
       document.querySelector('[data-guide="opencode"]')?.click();
       const result = {
         heading: document.querySelector('h1')?.textContent,
