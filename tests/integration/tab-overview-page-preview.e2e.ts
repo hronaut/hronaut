@@ -261,7 +261,16 @@ for (const resize of [false, true]) {
         const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)!
         return { focused: webContents.getFocusedWebContents()?.id, viewport: await page.executeJavaScript('({width:innerWidth,height:innerHeight,x:scrollX,y:scrollY})') }
       }, target.url)
-      if (resize) await expect.poll(async () => (await targetState()).viewport.width).toBe(1040)
+      if (resize) {
+        await expect.poll(async () => (await targetState()).viewport.width).toBe(1040)
+        // Native width can update before the responsive shell reports its new height.
+        // Capture the selected state only after both dimensions reflect the resized chrome.
+        const expectedViewport = await appWindow.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight - Math.ceil(document.querySelector('.shell')!.getBoundingClientRect().bottom)
+        }))
+        await expect.poll(async () => (await targetState()).viewport).toMatchObject(expectedViewport)
+      }
       const selectedState = await targetState()
       await releaseCapture(electronApp)
       const result = await appWindow.evaluate('globalThis.__pagePreviewResult') as { error?: string }

@@ -1093,6 +1093,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(compactToolbar.scrollWidth).toBeLessThanOrEqual(compactToolbar.clientWidth)
   expect(compactToolbar.addressWidth).toBeGreaterThanOrEqual(180)
   expect(compactToolbar.pageToolsRight).toBeLessThanOrEqual(compactToolbar.viewportWidth - 12)
+  const compactContentTop = await appWindow.locator('.shell').evaluate(element => Math.ceil(element.getBoundingClientRect().bottom))
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
   await expect(pageTools).toBeVisible()
@@ -1100,7 +1101,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(pageToolsBounds).not.toBeNull()
   await expect.poll(browserViewBounds).toMatchObject({
     x: 0,
-    y: 105,
+    y: compactContentTop,
     width: Math.round(pageToolsBounds!.x)
   })
   for (const label of ['Site storage is unavailable', 'Responsive preview: Test phones, tablets, and desktops', 'Environment: Network, cache, service workers, CPU, animations, rendering, runtime, region, identity, and location', 'Open Console', 'Open network monitor', 'Request conditions: none active', 'Quality audit: Accessibility, speed, SEO, security, PWA, and browser issues', 'Run accessibility audit', 'Measure page performance', 'Design overview: Colors, typography, and contrast', 'Page metadata: Search, social, and structured data', 'Security: TLS, certificate, and connection details', 'Code coverage: Find unused JavaScript and CSS', 'JavaScript CPU profile: Find hot JavaScript functions', 'Page memory: Heap, DOM, and allocation diagnostics', 'DOM changes: See what changed after an action', 'Visual compare: Compare the page before and after', 'Select an element to copy for agent', 'Select an element and copy its screenshot', 'Save page as PDF', 'No saved password for this site']) {
@@ -1117,7 +1118,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
     await expect(pageTools.getByRole('region', { name }).getByRole('button')).toHaveCount(buttonCount)
   }
   await pageTools.getByRole('button', { name: 'Close page tools' }).click()
-  await expect.poll(browserViewY).toBe(105)
+  await expect.poll(browserViewY).toBe(compactContentTop)
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   await appWindow.getByRole('dialog', { name: 'Page tools' }).getByRole('button', { name: 'Open network monitor' }).click()
   const networkPanel = appWindow.getByRole('dialog', { name: 'Network' })
@@ -1126,22 +1127,22 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(networkPanelBounds).not.toBeNull()
   await expect.poll(browserViewBounds).toMatchObject({
     x: 0,
-    y: 105,
+    y: compactContentTop,
     width: Math.round(networkPanelBounds!.x)
   })
   await networkPanel.getByRole('button', { name: 'Close network monitor' }).click()
-  await expect.poll(browserViewY).toBe(105)
+  await expect.poll(browserViewY).toBe(compactContentTop)
 
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const dockPicker = appWindow.getByRole('combobox', { name: 'Dock page tools' })
   await dockPicker.selectOption('left')
-  await expect.poll(browserViewBounds).toMatchObject({ x: expect.any(Number), y: 105 })
+  await expect.poll(browserViewBounds).toMatchObject({ x: expect.any(Number), y: compactContentTop })
   const leftPanelBounds = await pageTools.boundingBox()
   expect((await browserViewBounds())?.x).toBe(Math.round(leftPanelBounds!.width))
   await dockPicker.selectOption('bottom')
   const bottomPanelBounds = await pageTools.boundingBox()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105 })
-  expect((await browserViewBounds())?.height).toBe(Math.round(bottomPanelBounds!.y - 105))
+  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: compactContentTop })
+  expect((await browserViewBounds())?.height).toBe(Math.round(bottomPanelBounds!.y - compactContentTop))
   await dockPicker.selectOption('top')
   const topPanelBounds = await pageTools.boundingBox()
   await expect.poll(browserViewBounds).toMatchObject({
@@ -1157,11 +1158,11 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
   expect(bookmarksPanelBounds).not.toBeNull()
   await expect.poll(browserViewBounds).toMatchObject({
     x: 0,
-    y: 105,
+    y: compactContentTop,
     width: Math.round(bookmarksPanelBounds!.x)
   })
   await bookmarksPanel.getByRole('button', { name: 'Close bookmarks' }).click()
-  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: 105, width: 760 })
+  await expect.poll(browserViewBounds).toMatchObject({ x: 0, y: compactContentTop, width: 760 })
   await homeButton.click()
   await expect(appWindow.locator('.toolbar')).toBeHidden()
   expect(await globalControlPositions()).toEqual(compactHomeGlobalPositions)
@@ -3626,7 +3627,8 @@ test('floats bookmark and history suggestions above pages while allowing duplica
     expect(compactPopupBounds!.width).toBeGreaterThanOrEqual(550)
     expect(compactPopupBounds!.x + compactPopupBounds!.width).toBeLessThanOrEqual(760)
     expect(requests).toHaveLength(requestCountBeforeTyping)
-    await expect.poll(browserViewY).toBe(browserViewYWithoutPopup)
+    const compactContentTop = await appWindow.locator('.shell').evaluate(element => Math.ceil(element.getBoundingClientRect().bottom))
+    await expect.poll(browserViewY).toBe(compactContentTop)
 
     // Native views always sit above the renderer. Opening any full application
     // modal must therefore detach the suggestion view before showing the modal.
