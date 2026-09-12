@@ -6031,6 +6031,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect(editor).toBeVisible()
   await expect(appWindow.getByRole('dialog', { name: 'Commands' })).toHaveCount(0)
   await expect(editor.locator('.tab-group-color-options').getByRole('radio')).toHaveCount(9)
+  await editor.locator('.workspace-access-disclosure > summary').click()
   await expect(editor.getByRole('radio', { name: 'Any safe website' })).toBeChecked()
   await expect(editor.getByRole('radio', { name: 'Only listed sites' })).not.toBeChecked()
   await editor.getByRole('radio', { name: 'Orange' }).click()

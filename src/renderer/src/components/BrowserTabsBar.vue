@@ -531,6 +531,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <IconDashboard v-else aria-hidden="true" />
     <span class="app-home-label">{{ t('shell.home.label') }}</span>
   </UiButton>
+  <UiButton class="workspace-library-launcher" variant="ghost" :title="t('workspaceLibrary.title')" :aria-label="t('workspaceLibrary.title')" @click="emit('manageWorkspaces')"><IconWorkspaces aria-hidden="true" /><span>{{ t('workspaceLibrary.title') }}</span><small>{{ state.mcpTabGroups.length }}</small></UiButton>
   <UiButton appearance="application"
     v-if="vertical"
     class="tab-rail-pin"
@@ -545,7 +546,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
   </UiButton>
   </div>
-  <UiButton class="workspace-library-launcher" variant="ghost" :title="t('workspaceLibrary.title')" :aria-label="t('workspaceLibrary.title')" @click="emit('manageWorkspaces')"><IconWorkspaces aria-hidden="true" /><span>{{ t('workspaceLibrary.title') }}</span><small>{{ state.mcpTabGroups.length }}</small></UiButton>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <UiButton appearance="application"

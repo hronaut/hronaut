@@ -232,6 +232,7 @@ workspaceProfileTest('isolates workspace profiles and explicitly forks and copie
       ;(item.click as unknown as () => void)()
     })
     const transferEditor = appWindow.getByRole('dialog', { name: 'Edit workspace' })
+    await transferEditor.locator('.workspace-data-disclosure > summary').click()
     await expect(transferEditor.getByText(secondaryOrigin, { exact: true })).toBeVisible()
     await transferEditor.getByLabel('Source workspace', { exact: true }).selectOption(directionWorkspace.id)
     await transferEditor.getByLabel('Destination workspace', { exact: true }).selectOption(defaultWorkspaceId)
