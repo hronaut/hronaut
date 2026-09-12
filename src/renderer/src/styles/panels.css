@@ -133,7 +133,7 @@
   .credential-picker-overlay { @apply [padding-top:28px]; }
   .credential-picker { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_56px)]; }
   .credential-picker > footer { @apply items-start flex-col; }
-  .settings-dialog { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_28px)]; }
+  .settings-dialog { @apply [width:calc(100vw_-_28px)] [height:calc(100vh_-_28px)] [max-height:calc(100vh_-_28px)]; }
   .help-dialog { @apply [width:calc(100vw_-_28px)] [max-height:calc(100vh_-_28px)]; }
   .settings-layout { @apply [grid-template-columns:minmax(0,_1fr)] [grid-template-rows:auto_minmax(0,_1fr)] overflow-hidden; }
   .settings-navigation { @apply [border-right:0] [border-bottom:1px_solid_var(--border-soft)]; }
@@ -167,6 +167,13 @@
   .environment-content > footer { @apply items-stretch flex-col; }
   .environment-content > footer > div { @apply [justify-content:stretch]; }
   .environment-content > footer button { @apply justify-center [flex:1]; }
+}
+
+@media (max-height: 520px) {
+  .settings-dialog .settings-header { @apply [min-height:52px] [padding:10px_16px]; }
+  .settings-dialog .settings-header .eyebrow { @apply hidden; }
+  .settings-dialog .settings-footer { @apply [min-height:52px] [padding:8px_16px]; }
+  .settings-dialog .settings-search { @apply [padding:6px_8px]; }
 }
 
 @media (prefers-reduced-motion: reduce) {
