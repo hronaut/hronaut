@@ -15,7 +15,7 @@ for (const theme of ['light', 'dark'] as const) {
         window.setSize(value, 800)
       }, width)
       await expect.poll(() => appWindow.evaluate(() => window.innerWidth)).toBe(width)
-      for (const index of [0, 2, 3, 4]) {
+      for (const index of Array.from({ length: 11 }, (_, index) => index)) {
         const section = navigation.getByRole('button').nth(index)
         await section.click()
         await expect(section).toHaveAttribute('aria-current', 'page')

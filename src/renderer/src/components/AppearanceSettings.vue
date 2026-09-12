@@ -292,7 +292,7 @@ async function setLanguagePreference(event: Event): Promise<void> {
           >
             <option v-for="option in attentionSoundOptions" :key="option.cue" :value="option.cue">{{ option.label }}</option>
           </select>
-          <UiButton appearance="application" class="test-sound-button" type="button" :disabled="!settings.attentionSound" @click="emit('testSound')">
+          <UiButton class="test-sound-button" type="button" :disabled="!settings.attentionSound" @click="emit('testSound')">
             {{ t('appearance.attentionSound.test') }}
           </UiButton>
         </div>

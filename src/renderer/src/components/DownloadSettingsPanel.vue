@@ -42,10 +42,10 @@ async function changeAskWhereToSave(event: Event): Promise<void> {
           <code :title="effectiveDirectory">{{ effectiveDirectory }}</code>
         </span>
         <div class="download-location-actions">
-          <UiButton appearance="application" class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
+          <UiButton class="secondary-button" type="button" :disabled="busy" @click="chooseDirectory">
             {{ t('settings.downloads.change') }}
           </UiButton>
-          <UiButton appearance="application" class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
+          <UiButton class="secondary-button" type="button" :disabled="busy" @click="openDirectory">
             <IconFolderOpen aria-hidden="true" />
             {{ t('settings.downloads.open') }}
           </UiButton>

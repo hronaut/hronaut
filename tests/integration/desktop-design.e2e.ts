@@ -58,7 +58,8 @@ test('fresh profiles provide a workspace rail with reachable named actions acros
       for (const name of ['.command-palette-button', '.tab-search-button', '.downloads-button', '.history-button', '.settings-button']) {
         const control = window.locator(name)
         await expect(control).toBeInViewport({ ratio: 1 })
-        await expect(control.locator('span').first()).toBeVisible()
+        await expect(control.locator('svg').first()).toBeVisible()
+        await expect(control).toHaveAttribute('aria-label', /.+/)
         expect(await control.evaluate(element => {
           const rect = element.getBoundingClientRect()
           return element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2))

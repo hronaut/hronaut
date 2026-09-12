@@ -266,6 +266,8 @@ async function openWorkspaceFromSettings(workspaceId: string): Promise<void> {
 
 async function createWorkspaceFromSettings(): Promise<void> {
   closeSettings()
+  // Let the editor receive the updated Settings visibility before its presentation guard runs.
+  await nextTick()
   await openNewWorkspaceEditor()
 }
 

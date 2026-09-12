@@ -189,14 +189,14 @@ useModalDialogFocus({ open, panel })
       </div>
 
       <footer class="settings-footer">
-        <UiButton appearance="application"
+        <UiButton
           v-if="resetVisible"
           class="secondary-button"
           type="button"
           :disabled="resetDisabled"
           @click="resetCurrent"
         >{{ t('settings.reset') }}</UiButton>
-        <UiButton appearance="application" variant="primary" class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
+        <UiButton variant="primary" class="primary-button" type="button" @click="close">{{ t('common.close') }}</UiButton>
       </footer>
     </section>
   </div>

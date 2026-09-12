@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-12
+
+### Changed
+
+- Keep Commands, Tabs, Downloads, History, input blocking, mute all tabs, and agent following in one row of named utility icons. Place Settings directly after MCP status and retain access to every utility in narrow and short workspace rails.
+- Use consistent button sizes, borders, icons, keyboard focus, and primary or destructive states throughout Settings, including workspace data, MCP credentials, downloads, wallets, and updates.
+
+### Fixed
+
+- Open the workspace editor reliably when Create workspace is selected in Settings.
+
 ## [2.1.0] - 2026-09-12
 
 ### Added

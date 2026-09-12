@@ -157,7 +157,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
               @input="changePort"
               @keydown="handlePortKeydown"
             />
-            <UiButton appearance="application"
+            <UiButton
               class="secondary-button"
               type="button"
               :disabled="!canApplyPort"
@@ -234,7 +234,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <input v-model="profileSingleUse" type="checkbox" :disabled="capabilityBusy">
           <span>{{ t('settings.mcp.capabilities.singleUse') }}</span>
         </label>
-        <UiButton appearance="application" type="submit" :disabled="capabilityBusy || !profileName.trim()">
+        <UiButton variant="primary" type="submit" :disabled="capabilityBusy || !profileName.trim()">
           {{ capabilityBusy ? t('settings.mcp.capabilities.saving') : t('settings.mcp.capabilities.create') }}
         </UiButton>
       </form>
@@ -243,8 +243,8 @@ function handlePortKeydown(event: KeyboardEvent): void {
         <p>{{ t('settings.mcp.capabilities.credentialWarning') }}</p>
         <code>{{ capabilityCredential }}</code>
         <div>
-          <UiButton appearance="application" type="button" @click="copyCapabilityCredential">{{ t('settings.mcp.capabilities.copy') }}</UiButton>
-          <UiButton appearance="application" type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
+          <UiButton type="button" @click="copyCapabilityCredential">{{ t('settings.mcp.capabilities.copy') }}</UiButton>
+          <UiButton type="button" @click="clearCapabilityCredential">{{ t('settings.mcp.capabilities.dismiss') }}</UiButton>
         </div>
       </div>
       <div v-if="capabilityProfiles.length" class="mcp-capability-list">
@@ -261,8 +261,8 @@ function handlePortKeydown(event: KeyboardEvent): void {
             <small v-else-if="profile.expiresAt">{{ t('settings.mcp.capabilities.expires', { date: new Date(profile.expiresAt).toLocaleString() }) }}</small>
           </div>
           <div class="mcp-capability-actions">
-            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
-            <UiButton appearance="application" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
+            <UiButton type="button" :disabled="capabilityBusy || !profile.lineageActive" @click="rotateCapabilityProfile(profile.id)">{{ t('settings.mcp.capabilities.rotate') }}</UiButton>
+            <UiButton variant="danger" type="button" :disabled="capabilityBusy || !!profile.revokedAt" @click="revokeProfile(profile.id, profile.name)">{{ t('settings.mcp.capabilities.revoke') }}</UiButton>
           </div>
           <details>
             <summary>{{ t('settings.mcp.capabilities.inspect') }}</summary>

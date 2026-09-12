@@ -7,7 +7,7 @@
 .ui-button {
   font: inherit;
 
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-[7px] rounded-[7px] border border-border-soft bg-transparent px-[13px] py-0 text-[13px] font-[650] text-copy;
+  @apply inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-[7px] rounded-[7px] border border-border-soft bg-transparent px-[13px] py-0 text-[13px] font-[650] text-copy;
 }
 
 .ui-button:hover:not(:disabled) { @apply bg-hover; }
@@ -20,6 +20,7 @@
 .ui-button--ghost { @apply border-transparent; }
 .ui-button--small { @apply min-h-[30px] px-[9px] [font-size:12px]; }
 .ui-button--large { @apply min-h-[42px] px-[17px] [font-size:14px]; }
+.ui-button--standard > svg { @apply size-[1.25em] flex-none; }
 .ui-button__icon { @apply inline-grid flex-none place-items-center; }
 .ui-button__icon :is(svg, img) { @apply size-[1.25em]; }
 .ui-button--application {

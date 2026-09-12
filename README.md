@@ -92,7 +92,7 @@ Use a task-owned headless browser or automation library when the browser should 
 ## Highlights
 
 - Persistent tabs, cookies, storage, sessions, workspaces, split views, and window state.
-- A workspace-first desktop layout with labeled navigation, searchable settings, tab previews, a full-page viewer, and clear active-tab treatment. New profiles use the resizable, collapsible left rail; top tabs remain available in Appearance.
+- A workspace-first desktop layout with compact icon navigation, searchable settings, tab previews, a full-page viewer, and clear active-tab treatment. New profiles use the resizable, collapsible left rail; top tabs remain available in Appearance.
 - Ten appearance choices: System, Light, Dark, Midnight, Sepia, Cyberpunk, Cyberpunk Turbo, Matrix, Machine, and Galactic.
 - Local Streamable HTTP MCP endpoint with browser navigation, interaction, inspection, diagnostics, downloads, storage, and accessibility tools.
 - Multi-agent workspaces with isolated browser profiles, connection-scoped access, and private restart-safe resume capabilities.

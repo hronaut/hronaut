@@ -67,8 +67,8 @@ const {
           <p>{{ t('settings.privacy.workspacesDescription') }}</p>
         </div>
         <div class="workspace-data-actions">
-          <UiButton appearance="application" type="button" @click="emit('createWorkspace')">{{ t('settings.privacy.createWorkspace') }}</UiButton>
-          <UiButton appearance="application" variant="primary" type="button" :disabled="workspaces.length < 2" @click="emit('transferWorkspaceData')"><IconSwapHoriz aria-hidden="true" />{{ t('settings.privacy.transferData') }}</UiButton>
+          <UiButton type="button" @click="emit('createWorkspace')">{{ t('settings.privacy.createWorkspace') }}</UiButton>
+          <UiButton variant="primary" type="button" :disabled="workspaces.length < 2" @click="emit('transferWorkspaceData')"><IconSwapHoriz aria-hidden="true" />{{ t('settings.privacy.transferData') }}</UiButton>
         </div>
       </div>
       <div class="workspace-data-list">
@@ -78,8 +78,8 @@ const {
             <strong>{{ workspace.name }}</strong>
             <small>{{ t(workspace.archived ? 'settings.privacy.workspaceArchived' : 'settings.privacy.workspaceActive') }} · {{ t('settings.privacy.workspaceTabs', { count: formatNumber(workspace.tabCount) }, workspace.tabCount) }} · {{ t('settings.privacy.workspaceSites', { count: formatNumber(workspace.storageOriginCount) }, workspace.storageOriginCount) }}</small>
           </span>
-          <UiButton v-if="!workspace.archived" appearance="application" type="button" @click="emit('manageWorkspace', workspace.id)">{{ t('settings.privacy.manageWorkspace') }}</UiButton>
-          <UiButton v-else appearance="application" type="button" @click="emit('transferWorkspaceData', workspace.id)">{{ t('settings.privacy.transferData') }}</UiButton>
+          <UiButton v-if="!workspace.archived" type="button" @click="emit('manageWorkspace', workspace.id)">{{ t('settings.privacy.manageWorkspace') }}</UiButton>
+          <UiButton v-else type="button" @click="emit('transferWorkspaceData', workspace.id)">{{ t('settings.privacy.transferData') }}</UiButton>
         </article>
       </div>
     </section>
@@ -96,7 +96,7 @@ const {
       </label>
     </fieldset>
     <div class="privacy-data-actions">
-      <UiButton appearance="application" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
+      <UiButton variant="danger" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll', { count: formatNumber(selectedCount) }) }}
       </UiButton>
       <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries) : t('settings.privacy.loadingTotals')) }}</output>
@@ -106,7 +106,7 @@ const {
         <h4>{{ t('settings.privacy.websites') }}</h4>
         <p>{{ t('settings.privacy.websitesDescription') }}</p>
       </div>
-      <UiButton appearance="application" class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
+      <UiButton class="secondary-button janitor-refresh" type="button" :disabled="websiteState === 'loading' || clearing" @click="refreshWebsites">
         <IconRefresh aria-hidden="true" />
         {{ t('settings.privacy.refresh') }}
       </UiButton>
@@ -142,7 +142,7 @@ const {
           </span>
           <span v-else class="janitor-site-meta"><span>{{ t('settings.privacy.known') }}</span></span>
         </span>
-        <UiButton appearance="application"
+        <UiButton variant="danger"
           class="janitor-clear-button"
           type="button"
           :aria-label="t('settings.privacy.clearSiteAria', { origin: site.origin })"

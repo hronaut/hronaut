@@ -63,8 +63,8 @@ async function changeStartupCheck(event: Event): Promise<void> {
           <small>{{ state.currentVersion || t('help.developmentBuild') }}</small>
         </span>
         <div class="update-settings-actions">
-          <UiButton appearance="application" class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
-          <UiButton appearance="application" class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</UiButton>
+          <UiButton class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
+          <UiButton class="secondary-button check-update-button" type="button" :disabled="busy" @click="check">{{ t('settings.updates.check') }}</UiButton>
         </div>
       </div>
     </div>

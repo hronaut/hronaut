@@ -122,7 +122,7 @@ const pillLabel = computed(() => {
       v-html="formattedReleaseNotes"
     />
     <div class="update-status-card-actions">
-      <UiButton appearance="application"
+      <UiButton
         v-if="state.status === 'up-to-date' || state.status === 'disabled' || state.status === 'error'"
         class="secondary-button"
         type="button"
@@ -131,13 +131,13 @@ const pillLabel = computed(() => {
       >
         {{ state.status === 'error' ? t('common.tryAgain') : t('common.checkAgain') }}
       </UiButton>
-      <UiButton appearance="application" variant="primary" v-if="state.status === 'available'" class="primary-button" type="button" :disabled="disabled" @click="emit('download')">
+      <UiButton variant="primary" v-if="state.status === 'available'" class="primary-button" type="button" :disabled="disabled" @click="emit('download')">
         {{ t('updates.download') }}
       </UiButton>
-      <UiButton appearance="application" variant="primary" v-if="state.status === 'downloaded'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
+      <UiButton variant="primary" v-if="state.status === 'downloaded'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
         {{ t('updates.install') }}
       </UiButton>
-      <UiButton appearance="application" variant="primary" v-if="state.status === 'install-error'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
+      <UiButton variant="primary" v-if="state.status === 'install-error'" class="primary-button" type="button" :disabled="disabled" @click="emit('install')">
         {{ t('updates.retryInstall') }}
       </UiButton>
     </div>
