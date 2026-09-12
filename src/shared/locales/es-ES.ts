@@ -322,7 +322,7 @@ export const esES = {
     "privacy": {
       "heading": "Espacios de trabajo y datos",
       description: "Revisa cada espacio del navegador, gestiona su política y copia o mueve datos seleccionados entre perfiles aislados.",
-      workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", legacyHeading: "Historial global y datos anteriores", legacyDescription: "Borra el historial global de la aplicación o los datos del perfil predeterminado anterior.",
+      workspaces: "Espacios del navegador", workspacesDescription: "Los espacios activos y archivados mantienen cookies y almacenamiento local separados.", createWorkspace: "Crear espacio", transferData: "Copiar o mover datos", manageWorkspace: "Gestionar", workspaceActive: "Activo", workspaceArchived: "Archivado", workspaceTabs: "{count} pestaña | {count} pestañas", workspaceSites: "{count} sitio conocido | {count} sitios conocidos", historyHeading: "Historial global", historyDescription: "Borra el historial. Gestiona los datos de cada sitio en su espacio.",
       "whatToClear": "Qué borrar",
       "history": "Historial",
       "localVisits": "Visitas locales",
@@ -331,26 +331,26 @@ export const esES = {
       "cache": "Archivos en caché",
       "slower": "Las recargas pueden ser más lentas",
       "clearingAll": "Borrando todo…",
-      "clearAll": "Borrar todos los sitios web… ({count})",
+      clearAll: "Borrar historial… ({count})",
       "totals": "{history} página del historial | {history} páginas del historial",
       "totalsDetail": "{history} · {cookies} · caché {cache}",
-      "loadingTotals": "Cargando totales del perfil…",
-      "websites": "Sitios web",
-      websitesDescription: "Busque datos del perfil anterior y registros globales y borre las categorías seleccionadas de un sitio.",
+      loadingTotals: "Cargando historial…",
+      websites: "Sitios visitados",
+      websitesDescription: "Busca en el historial y los registros globales de sitios.",
       "refresh": "Actualizar",
-      "search": "Buscar sitios web",
+      search: "Buscar sitios",
       "range": "{shown} de {total}",
-      "finding": "Buscando sitios web…",
-      checking: "Comprobando datos del perfil anterior y registros globales.",
-      "empty": "Aún no hay sitios web",
-      "emptyDescription": "Los sitios aparecen tras visitarlos, abrirlos, guardarlos como marcadores, concederles un permiso, guardar una cuenta o almacenar una cookie.",
+      finding: "Buscando sitios…",
+      checking: "Comprobando el historial.",
+      empty: "Aún no hay sitios",
+      emptyDescription: "Los sitios aparecen en el historial y los registros relacionados.",
       "noMatches": "No hay sitios web coincidentes",
       "noMatchesDescription": "Prueba con un nombre de host, un título o un origen completo.",
-      known: "Conocido en el perfil anterior",
-      "clearSiteAria": "Borrar los datos seleccionados de {origin}",
+      known: "Sitio conocido",
+      clearSiteAria: "Borrar historial de {origin}",
       "clearing": "Borrando…",
       "clear": "Borrar…",
-      exclusions: "Se conservan marcadores ({bookmarks}), contraseñas ({passwords}), permisos ({permissions}), descargas, ajustes y pestañas abiertas. Las páginas no se recargan. Los nuevos comandos MCP esperan durante el borrado. Las cookies, la caché y los datos de sitios pertenecen aquí al perfil anterior; el historial es global. Gestione cada espacio desde sus controles o los de la página. Chromium no enumera todos los orígenes que solo tienen almacenamiento. Los subdominios pueden compartir cookies."
+      exclusions: "Se conservan los marcadores ({bookmarks}), contraseñas ({passwords}), permisos ({permissions}), descargas, ajustes, pestañas y datos de los espacios."
     },
     "support": {
       "trialNotStarted": "La prueba de 10 días empieza con la primera llamada a una herramienta del agente.",
@@ -435,18 +435,13 @@ export const esES = {
     startingDescription: "Empiece sin datos o copie datos seleccionados de otro espacio.",
     "scratch": "Empezar de cero",
     "scratchDescription": "Usar un perfil de navegador aislado vacío.",
-    "fork": "Bifurcar Predeterminado",
     "forkDescription": "Copiar cookies y almacenamiento local sin vincular cambios futuros.",
     websites: "Sitios web",
     "clear": "Borrar",
     "selectAll": "Seleccionar todo",
     noOrigins: "Aún no hay orígenes de sitios conocidos. Las cookies del origen seleccionado todavía se pueden copiar.",
-    defaultDescription: "Este espacio usa un perfil anterior del navegador. Puede renombrarlo, archivarlo o eliminarlo.",
     "browserData": "Datos del navegador",
     browserDataDescription: "Transfiera datos seleccionados entre espacios sin vincular cambios futuros.",
-    "transferDirection": "Dirección de transferencia del almacenamiento",
-    "importDefault": "Importar de Predeterminado",
-    "saveDefault": "Guardar en Predeterminado",
     "loading": "Cargando sitios web conocidos…",
     "noSourceOrigins": "No hay orígenes de sitios web conocidos en el perfil de origen. Aun así, se pueden copiar todas las cookies.",
     "copying": "Copiando…",
@@ -454,7 +449,6 @@ export const esES = {
     "saving": "Guardando espacio de trabajo…",
     "closing": "Cerrando espacio de trabajo…",
     "importSelected": "Importar datos seleccionados",
-    "saveSelected": "Guardar datos seleccionados en Predeterminado",
     "closePermanently": "Cerrar espacio de trabajo permanentemente",
     "closeDescription": "Cierra sus pestañas y elimina sus datos aislados del navegador.",
     "unlockTitle": "Desbloquea todas las pestañas antes de cerrar un espacio de trabajo",
@@ -503,7 +497,7 @@ export const esES = {
       },
       "new-tab": {
         "label": "Nueva pestaña",
-        "description": "Abrir una pestaña vacía en el espacio predeterminado"
+        "description": "Abrir una pestaña vacía en el espacio de trabajo actual"
       },
       "search-tabs": {
         "label": "Buscar pestañas",
@@ -1023,7 +1017,7 @@ export const esES = {
       "splitClose": "No se pudo cerrar la vista dividida."
     },
     "browsingData": {
-      "confirm": "¿Borrar los datos de navegación seleccionados de todos los sitios web?\n\n{items}\n\nLos marcadores, archivos descargados, contraseñas guardadas y decisiones de permisos de sitios se conservarán. Las páginas abiertas no se recargarán automáticamente.",
+      "confirm": "¿Borrar el historial de navegación de todos los sitios web?\n\n{items}\n\nSe conservarán los datos web de los espacios de trabajo y los demás registros de la aplicación.",
       "item": "• {item}",
       "websiteConfirm": "¿Borrar {items} de {origin}? Las páginas abiertas no se recargarán automáticamente.",
       "cookieMeta": "{count} cookie | {count} cookies",
@@ -1031,7 +1025,6 @@ export const esES = {
       "bookmarkMeta": "{count} marcador | {count} marcadores",
       "passwordMeta": "{count} cuenta guardada | {count} cuentas guardadas",
       "permissionMeta": "{count} decisión de permiso | {count} decisiones de permiso",
-      "tabMeta": "{count} pestaña Predeterminada abierta | {count} pestañas Predeterminadas abiertas",
       "clearedSite": "Se borraron los datos seleccionados de {origin}. Recarga las páginas abiertas cuando quieras."
     },
     "permission": {
@@ -1047,7 +1040,7 @@ export const esES = {
     "cookiesAll": "Cookies y datos de sitios (puede que se cierre tu sesión)",
     "cookiesSite": "Cookies y almacenamiento del sitio (puede que se cierre tu sesión)",
     "cache": "Imágenes y archivos en caché",
-    "clearSiteConfirm": "¿Borrar los datos seleccionados de {origin}?\n\n{items}\n\nLos subdominios relacionados pueden compartir cookies. Los marcadores, contraseñas guardadas, permisos del sitio, descargas, ajustes y pestañas abiertas se conservarán.",
+    "clearSiteConfirm": "¿Borrar el historial de navegación de {origin}?\n\n{items}\n\nSe conservarán los datos web de los espacios de trabajo y los demás registros de la aplicación.",
     "historyWithVisits": "{pages} página del historial · {visits} visita | {pages} páginas del historial · {visits} visitas",
     "openTabs": "{count} pestaña abierta | {count} pestañas abiertas",
     "bookmarksKept": "{count} marcador conservado | {count} marcadores conservados",
@@ -1134,7 +1127,6 @@ export const esES = {
       "list": "Pestañas y espacios de trabajo del navegador",
       "scrollBack": "Mostrar pestañas anteriores",
       "scrollForward": "Mostrar pestañas siguientes",
-      "defaultWorkspace": "Espacio de trabajo predeterminado para pestañas nuevas",
       "pageAttention": "La página requiere atención",
       "sleeping": "Suspendida para ahorrar recursos",
       "stackedVisible": "Visible en vista dividida apilada",
@@ -2841,8 +2833,8 @@ export const esES = {
     "firstRun": {
       "kicker": "Primer éxito",
       "heading": "Prueba Hronaut con una tarea segura",
-      "description": "Después de conectar, copia este mensaje en tu agente de programación. Verás cómo crea un espacio de trabajo aislado e inspecciona una página sin usar el espacio Predeterminado.",
-      "prompt": "Usando Hronaut, crea un nuevo espacio de trabajo aislado llamado «Primera ejecución de Hronaut», abre https://example.com, toma una instantánea semántica y dime el encabezado de la página. No uses el espacio de trabajo Predeterminado.",
+      "description": "Tras conectarte, copia esta solicitud en tu agente de programación. Creará un espacio de trabajo aislado e inspeccionará una página.",
+      "prompt": "Con Hronaut, crea un espacio de trabajo aislado llamado «Primer uso de Hronaut», abre https://example.com, toma una instantánea semántica y dime el encabezado de la página. Usa solo este espacio de trabajo.",
       "copy": "Copiar mensaje"
     },
     "activity": {

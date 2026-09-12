@@ -1,20 +1,13 @@
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { z } from 'zod'
 import {
   WalletCapabilitySchema,
   WalletChainFamilySchema,
   WalletPolicySchema,
   WalletRequesterSchema,
-  walletAllowsWorkspace,
   type WalletCapability,
-  type WalletDescriptor,
-  type WalletPolicy,
   type WalletRequester
 } from '../../shared/wallet.js'
 import type { WalletVault } from './vault.js'
-
-const LEGACY_AUTHORITY_MARKER = z.object({ legacyMigrationRequired: z.literal(true) }).strict()
 
 const NormalizedOriginSchema = z.url().refine((value) => {
   const url = new URL(value)
@@ -66,11 +59,10 @@ export type WalletPolicyUsageEntry = z.infer<typeof WalletPolicyUsageEntrySchema
 const WalletAuthorityStateSchema = z.object({
   version: z.literal(1),
   revision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-  migratedLegacyAuthority: z.boolean(),
   permissions: z.array(WalletPermissionSchema).max(10_000),
   policies: z.array(WalletPolicySchema).max(10_000),
   policyUsage: z.array(WalletPolicyUsageEntrySchema).max(10_000)
-}).strict()
+})
 
 export type WalletAuthorityState = z.infer<typeof WalletAuthorityStateSchema>
 
@@ -78,7 +70,6 @@ export function emptyWalletAuthorityState(): WalletAuthorityState {
   return {
     version: 1,
     revision: 0,
-    migratedLegacyAuthority: false,
     permissions: [],
     policies: [],
     policyUsage: []
@@ -94,11 +85,10 @@ export class WalletAuthorityPersistence {
   private mutationQueue: Promise<void> = Promise.resolve()
 
   constructor(
-    private readonly vaultProvider: () => WalletVault,
-    private readonly legacyDirectory: string
+    private readonly vaultProvider: () => WalletVault
   ) {}
 
-  async load(wallets: readonly WalletDescriptor[]): Promise<WalletAuthorityState> {
+  async load(): Promise<WalletAuthorityState> {
     const vault = this.vaultProvider()
     const bytes = vault.readAuthorityState()
     let value: unknown
@@ -108,12 +98,6 @@ export class WalletAuthorityPersistence {
       throw new Error('Wallet authority authentication failed')
     } finally {
       bytes.fill(0)
-    }
-    if (LEGACY_AUTHORITY_MARKER.safeParse(value).success || vault.authorityNeedsLegacyMigration()) {
-      const migrated = await this.migrateLegacy(wallets)
-      await vault.replaceEncryptedAuthorityState(encodeWalletAuthorityState(migrated))
-      this.state = migrated
-      return this.snapshot()
     }
     try {
       this.state = WalletAuthorityStateSchema.parse(value)
@@ -142,39 +126,6 @@ export class WalletAuthorityPersistence {
 
   clear(): void {
     this.state = undefined
-  }
-
-  private async migrateLegacy(wallets: readonly WalletDescriptor[]): Promise<WalletAuthorityState> {
-    const walletsById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
-    let policies: WalletPolicy[] = []
-    try {
-      const parsed = z.object({ version: z.literal(1), policies: z.array(WalletPolicySchema).max(10_000) }).strict()
-        .parse(JSON.parse(await readFile(join(this.legacyDirectory, 'policies.json'), 'utf8')))
-      policies = parsed.policies.flatMap((policy) => {
-        const wallet = walletsById.get(policy.walletId)
-        if (
-          !wallet
-          || wallet.kind === 'watch-only'
-          || !wallet.policyIds.includes(policy.id)
-          || !walletAllowsWorkspace(wallet, policy.workspaceId)
-          || !policy.networkIds.includes(wallet.network.id)
-        ) return []
-        return [{ ...policy, mode: policy.mode === 'bounded-auto' ? 'always-ask' as const : policy.mode }]
-      })
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Wallet legacy policy store is invalid')
-    }
-    return {
-      ...emptyWalletAuthorityState(),
-      revision: 1,
-      migratedLegacyAuthority: true,
-      // Plaintext permissions and usage counters cannot be authenticated after
-      // upgrade. Revoke/reset them and make every legacy automatic policy ask
-      // the human before it can become active again.
-      permissions: [],
-      policies: policies.sort((left, right) => left.id.localeCompare(right.id)),
-      policyUsage: []
-    }
   }
 
   private queueMutation<T>(mutation: () => Promise<T>): Promise<T> {

@@ -23,15 +23,15 @@ function testSafeStorage(): WalletSafeStorage {
 export async function createTestWalletAuthority(directory: string): Promise<WalletAuthorityPersistence> {
   const vault = new WalletVault(join(directory, 'vault.json'), new SafeStorageWalletKeyWrapper(testSafeStorage()))
   await vault.initialize(undefined, encodeWalletAuthorityState(emptyWalletAuthorityState()))
-  const authority = new WalletAuthorityPersistence(() => vault, directory)
-  await authority.load([])
+  const authority = new WalletAuthorityPersistence(() => vault)
+  await authority.load()
   return authority
 }
 
 export async function loadTestWalletAuthority(directory: string): Promise<WalletAuthorityPersistence> {
   const vault = new WalletVault(join(directory, 'vault.json'), new SafeStorageWalletKeyWrapper(testSafeStorage()))
   await vault.load()
-  const authority = new WalletAuthorityPersistence(() => vault, directory)
-  await authority.load(vault.list())
+  const authority = new WalletAuthorityPersistence(() => vault)
+  await authority.load()
   return authority
 }

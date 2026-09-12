@@ -258,7 +258,7 @@ describe('MCP capability profile authentication', () => {
   })
 
   it('filters global bookmarks and history and rejects indirect out-of-scope destinations', async () => {
-    const workspace = { id: WORKSPACE_ID, name: 'Scoped', isDefault: false, tabs: [] }
+    const workspace = { id: WORKSPACE_ID, name: 'Scoped', tabs: [] }
     const manager = {
       listMcpTabGroups: () => [workspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       isWorkspaceAgentAccessible: () => true, requireMcpTabGroup: () => workspace,
@@ -323,8 +323,8 @@ describe('MCP capability profile authentication', () => {
   })
 
   it('intersects workspace storage transfers with the profile origin scope', async () => {
-    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', isDefault: true, tabs: [] }
-    const createdWorkspace = { id: WORKSPACE_ID, name: 'Fork', isDefault: false, tabs: [] }
+    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', tabs: [] }
+    const createdWorkspace = { id: WORKSPACE_ID, name: 'Fork', tabs: [] }
     const createMcpTabGroup = vi.fn(async () => createdWorkspace)
     const transferWorkspaceStorage = vi.fn(async () => ({ copied: true }))
     const manager = {
@@ -342,22 +342,15 @@ describe('MCP capability profile authentication', () => {
 
     await expect(client!.callTool({
       name: 'browser_workspaces',
-      arguments: { action: 'create', name: 'Fork', storage: 'fork-default' }
+      arguments: { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID }
     })).resolves.not.toMatchObject({ isError: true })
     expect(createMcpTabGroup).toHaveBeenCalledWith(
-      'Fork', undefined, 'fork-default', ['https://allowed.example'], true, undefined, undefined
+      'Fork', undefined, 'fork-workspace', ['https://allowed.example'], true, undefined, OTHER_WORKSPACE_ID
     )
-    await expect(client!.callTool({
-      name: 'browser_workspaces', arguments: { action: 'import-default', workspaceId: WORKSPACE_ID }
-    })).resolves.not.toMatchObject({ isError: true })
-    expect(transferWorkspaceStorage).toHaveBeenCalledWith({
-      workspaceId: WORKSPACE_ID, direction: 'from-default', origins: ['https://allowed.example']
-    })
-
     createMcpTabGroup.mockClear()
     await expect(client!.callTool({
       name: 'browser_workspaces',
-      arguments: { action: 'create', name: 'Denied', storage: 'fork-default', origins: ['https://private.example'] }
+      arguments: { action: 'create', name: 'Denied', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID, origins: ['https://private.example'] }
     })).resolves.toMatchObject({ isError: true })
     expect(createMcpTabGroup).not.toHaveBeenCalled()
   })
@@ -366,8 +359,8 @@ describe('MCP capability profile authentication', () => {
     let release!: () => void
     const gate = new Promise<void>(resolve => { release = resolve })
     const gateEntered = vi.fn()
-    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', isDefault: true, tabs: [] }
-    const createMcpTabGroup = vi.fn(async () => ({ id: WORKSPACE_ID, isDefault: false, tabs: [] }))
+    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', tabs: [] }
+    const createMcpTabGroup = vi.fn(async () => ({ id: WORKSPACE_ID, tabs: [] }))
     const manager = {
       listMcpTabGroups: () => [defaultWorkspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       isWorkspaceAgentAccessible: () => true, requireWorkspaceContinuityDispatch: () => undefined,
@@ -383,7 +376,7 @@ describe('MCP capability profile authentication', () => {
     }, undefined, { manager, humanWaiting })
 
     const call = client!.callTool({
-      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-default' }
+      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID }
     })
     await vi.waitFor(() => expect(gateEntered).toHaveBeenCalled())
     await profiles.revoke(created.profile.id)
@@ -398,8 +391,8 @@ describe('MCP capability profile authentication', () => {
     let release!: () => void
     const gate = new Promise<void>(resolve => { release = resolve })
     const gateEntered = vi.fn()
-    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', isDefault: true, tabs: [] }
-    const createMcpTabGroup = vi.fn(async () => ({ id: WORKSPACE_ID, isDefault: false, tabs: [] }))
+    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', tabs: [] }
+    const createMcpTabGroup = vi.fn(async () => ({ id: WORKSPACE_ID, tabs: [] }))
     const manager = {
       listMcpTabGroups: () => [defaultWorkspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       isWorkspaceAgentAccessible: () => true, requireWorkspaceContinuityDispatch: () => undefined,
@@ -416,7 +409,7 @@ describe('MCP capability profile authentication', () => {
     }, () => current, { manager, humanWaiting })
 
     const call = client!.callTool({
-      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-default' }
+      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID }
     })
     await vi.waitFor(() => expect(gateEntered).toHaveBeenCalled())
     current = new Date('2026-09-11T12:01:00.000Z')
@@ -430,8 +423,8 @@ describe('MCP capability profile authentication', () => {
     let release!: () => void
     const mutation = new Promise<void>(resolve => { release = resolve })
     const mutationEntered = vi.fn()
-    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', isDefault: true, tabs: [] }
-    const createdWorkspace = { id: WORKSPACE_ID, name: 'Fork', isDefault: false, tabs: [] }
+    const defaultWorkspace = { id: OTHER_WORKSPACE_ID, name: 'Default', tabs: [] }
+    const createdWorkspace = { id: WORKSPACE_ID, name: 'Fork', tabs: [] }
     const manager = {
       listMcpTabGroups: () => [defaultWorkspace], listSavedTabGroups: () => [], listWorkspaceForkSources: () => [],
       isWorkspaceAgentAccessible: () => true, requireWorkspaceContinuityDispatch: () => undefined,
@@ -444,7 +437,7 @@ describe('MCP capability profile authentication', () => {
     }, undefined, { manager })
 
     const call = client!.callTool({
-      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-default' }
+      name: 'browser_workspaces', arguments: { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID }
     })
     await vi.waitFor(() => expect(mutationEntered).toHaveBeenCalled())
     await profiles.revoke(created.profile.id)

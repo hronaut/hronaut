@@ -273,7 +273,7 @@ const historyApi: HronautHistoryApi = {
 contextBridge.exposeInMainWorld('hronautHistory', historyApi)
 const browsingDataApi: HronautBrowsingDataApi = {
   summary: () => ipcRenderer.invoke('browsing-data:summary'),
-  siteSummary: (url: string, tabId?: string) => ipcRenderer.invoke('browsing-data:site-summary', url, tabId),
+  siteSummary: (url: string, tabId: string) => ipcRenderer.invoke('browsing-data:site-summary', url, tabId),
   websites: () => ipcRenderer.invoke('browsing-data:websites'),
   clear: (options: BrowsingDataClearOptions) => ipcRenderer.invoke('browsing-data:clear', options)
 }

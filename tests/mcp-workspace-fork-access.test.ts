@@ -22,7 +22,7 @@ describe('MCP workspace fork sources and direct access', () => {
     let navigationGeneration = 1
     let observationGeneration = 1
     let url = 'https://trusted.example/account'
-    const workspace = { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
+    const workspace = { id: ownId, name: 'Task', agentAccess: true }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
       suspendWorkspaceContinuity: vi.fn(),
@@ -168,20 +168,11 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(manager.deleteSavedTabGroup).not.toHaveBeenCalled()
   })
 
-  it('blocks merge-back to disabled Default while allowing copy-only import', async () => {
-    const { manager, call } = await setup()
-    await call('browser_workspaces', { action: 'create', name: 'Task' })
-    manager.listMcpTabGroups.mockReturnValue([
-      { id: ownId, name: 'Task', isDefault: false, agentAccess: true },
-      { id: sourceId, name: 'Default', isDefault: true, agentAccess: true }
-    ])
-    manager.isWorkspaceAgentAccessible.mockReturnValue(true)
-    expect((await call('browser_workspaces', { action: 'save-default', workspaceId: ownId })).isError).not.toBe(true)
-    manager.isWorkspaceAgentAccessible.mockImplementation((id) => id === ownId)
-    expect((await call('browser_workspaces', { action: 'save-default', workspaceId: ownId })).isError).toBe(true)
-    expect(manager.transferWorkspaceStorage).toHaveBeenCalledTimes(1)
-    expect((await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })).isError).not.toBe(true)
-    expect(manager.transferWorkspaceStorage).toHaveBeenLastCalledWith({ workspaceId: ownId, direction: 'from-default' })
+  it.each(['import-default', 'save-default'])('rejects removed workspace action %s without transferring data', async action => {
+    const { call, manager } = await setup()
+    const result = await call('browser_workspaces', { action, workspaceId: ownId })
+    expect(result.isError).toBe(true)
+    expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
   })
 
   it('rechecks direct access after an asynchronous page wake', async () => {
@@ -230,31 +221,6 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(fixture.manager.click).not.toHaveBeenCalled()
   })
 
-  it('blocks storage import while continuity is suspended', async () => {
-    const { manager, call } = await setup()
-    await call('browser_workspaces', { action: 'create', name: 'Task' })
-    manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
-    expect((await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })).isError).toBe(true)
-    expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
-  })
-
-  it.each([false, true])('reports unknown storage effects when control changes during transfer (reject: %s)', async reject => {
-    const { manager, call } = await setup()
-    await call('browser_workspaces', { action: 'create', name: 'Task' })
-    manager.transferWorkspaceStorage.mockImplementationOnce(async () => {
-      server.setPaused(true); server.setPaused(false)
-      if (reject) throw new Error('Private transfer detail')
-      return { copied: true }
-    })
-    const result = await call('browser_workspaces', { action: 'import-default', workspaceId: ownId })
-    expect(result.isError).toBe(true)
-    expect(parsed(result)).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible' })
-    expect(JSON.stringify(result)).not.toContain('Private transfer detail')
-    expect(manager.transferWorkspaceStorage).toHaveBeenCalledTimes(1)
-    expect(manager.beginWorkspaceContinuityAction).toHaveBeenCalledWith(ownId, false)
-    expect(manager.beginWorkspaceContinuityAction.mock.results[0]?.value).toHaveBeenCalledTimes(1)
-  })
-
   it('does not copy a suspended source into a new unguarded workspace', async () => {
     const { manager, call } = await setup()
     manager.requireWorkspaceContinuityDispatch.mockImplementation(() => { throw new Error('Continuity suspended') })
@@ -267,7 +233,7 @@ describe('MCP workspace fork sources and direct access', () => {
     manager.createMcpTabGroup.mockImplementationOnce(async () => {
       server.setPaused(true); server.setPaused(false)
       if (failed) throw new RetainedBrowserWorkspaceError([], ownId, 'Private fork failure detail')
-      return { id: ownId, name: 'Task', isDefault: false, agentAccess: true }
+      return { id: ownId, name: 'Task', agentAccess: true }
     })
     const result = await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(result.isError).toBe(true)

@@ -34,7 +34,7 @@ import { WalletPermissionStore } from './permissions.js'
 import { isMainnetAgentAutomationPolicy, isWalletNetworkEligibleForAutomation } from './policy.js'
 import { WalletPolicyStore } from './policy-store.js'
 import { WalletPolicyUsageStore } from './policy-usage.js'
-import { readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
+import { discardObsoleteWalletData, readWalletVaultProtectionMode, WalletVault, type WalletSecret } from './vault.js'
 import { WalletWatchOnlyStore } from './watch-only-store.js'
 
 const PASSPHRASE_PARAMETERS = { memoryKiB: 64 * 1024, passes: 3, parallelism: 1 } as const
@@ -116,7 +116,7 @@ export class WalletService {
     this.authority = new WalletAuthorityPersistence(() => {
       if (!this.vault) throw new Error('Wallet vault is unavailable')
       return this.vault
-    }, options.directory)
+    })
     this.permissions = new WalletPermissionStore(this.authority)
     this.policies = new WalletPolicyStore(this.authority)
     this.policyUsage = new WalletPolicyUsageStore(this.authority)
@@ -125,6 +125,7 @@ export class WalletService {
 
   async initialize(): Promise<void> {
     await mkdir(this.options.directory, { recursive: true, mode: 0o700 })
+    await discardObsoleteWalletData(this.options.directory)
     const storeResults = await Promise.allSettled([
       this.watchOnly.load(), this.approvals.load(this.now()), this.audit.verify()
     ])
@@ -596,7 +597,7 @@ export class WalletService {
     if (this.watchOnly.list().some((wallet) => managedIds.has(wallet.id))) {
       throw new Error('Wallet identity authentication failed')
     }
-    await this.authority.load(vault.list())
+    await this.authority.load()
     await Promise.all([this.permissions.load(), this.policies.load(), this.policyUsage.load()])
   }
 

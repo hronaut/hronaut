@@ -322,7 +322,7 @@ export const deDE = {
     "privacy": {
       "heading": "Arbeitsbereiche und Daten",
       description: "Prüfen Sie Browser-Arbeitsbereiche, verwalten Sie ihre Richtlinien und kopieren oder verschieben Sie ausgewählte Website-Daten zwischen isolierten Profilen.",
-      workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", legacyHeading: "Globaler Verlauf und alte Daten", legacyDescription: "Löschen Sie den anwendungsweiten Verlauf oder Daten des bisherigen Standard-Browserprofils.",
+      workspaces: "Browser-Arbeitsbereiche", workspacesDescription: "Aktive und archivierte Arbeitsbereiche speichern Cookies und lokalen Speicher getrennt.", createWorkspace: "Arbeitsbereich erstellen", transferData: "Daten kopieren oder verschieben", manageWorkspace: "Verwalten", workspaceActive: "Aktiv", workspaceArchived: "Archiviert", workspaceTabs: "{count} Tab | {count} Tabs", workspaceSites: "{count} bekannte Website | {count} bekannte Websites", historyHeading: "Globaler Verlauf", historyDescription: "Löschen Sie den Browserverlauf. Websitedaten verwalten Sie im jeweiligen Arbeitsbereich.",
       "whatToClear": "Zu löschende Daten",
       "history": "Verlauf",
       "localVisits": "Lokale Besuche",
@@ -331,26 +331,26 @@ export const deDE = {
       "cache": "Zwischengespeicherte Dateien",
       "slower": "Neuladen kann langsamer sein",
       "clearingAll": "Alles wird gelöscht…",
-      "clearAll": "Alle Websites löschen… ({count})",
+      clearAll: "Verlauf löschen… ({count})",
       "totals": "{history} Verlaufsseite | {history} Verlaufsseiten",
       "totalsDetail": "{history} · {cookies} · {cache} Cache",
-      "loadingTotals": "Profilsummen werden geladen…",
-      "websites": "Websites",
-      websitesDescription: "Durchsuchen Sie bisherige Profildaten und anwendungsweite Einträge und löschen Sie ausgewählte Kategorien einer Website.",
+      loadingTotals: "Verlauf wird geladen…",
+      websites: "Besuchte Websites",
+      websitesDescription: "Browserverlauf und globale Websiteeinträge durchsuchen.",
       "refresh": "Aktualisieren",
-      "search": "Websites durchsuchen",
+      search: "Websites suchen",
       "range": "{shown} von {total}",
-      "finding": "Websites werden gesucht…",
-      checking: "Bisherige Profildaten und anwendungsweite Einträge werden geprüft.",
-      "empty": "Noch keine Websites",
-      "emptyDescription": "Websites erscheinen nach einem Besuch, Öffnen, Lesezeichen, einer Berechtigung, einem gespeicherten Konto oder Cookie.",
+      finding: "Websites werden gesucht…",
+      checking: "Verlauf und globale Einträge werden geprüft.",
+      empty: "Noch keine Websites",
+      emptyDescription: "Websites erscheinen im Verlauf und in zugehörigen Einträgen.",
       "noMatches": "Keine passenden Websites",
       "noMatchesDescription": "Versuchen Sie Hostname, Titel oder vollständigen Ursprung.",
-      known: "Im bisherigen Profil bekannt",
-      "clearSiteAria": "Ausgewählte Daten für {origin} löschen",
+      known: "Bekannte Website",
+      clearSiteAria: "Verlauf für {origin} löschen",
       "clearing": "Wird gelöscht…",
       "clear": "Löschen…",
-      exclusions: "Lesezeichen ({bookmarks}), gespeicherte Passwörter ({passwords}), Berechtigungen ({permissions}), Downloads, Einstellungen und offene Tabs bleiben erhalten. Seiten werden nicht neu geladen. Neue MCP-Befehle pausieren während des Löschens. Cookies, Cache und Website-Daten gehören hier zum bisherigen Browserprofil; der Verlauf gilt anwendungsweit. Einzelne Arbeitsbereiche verwalten Sie über Arbeitsbereichs- oder Seitensteuerung. Chromium zeigt nicht alle reinen Speicherursprünge. Subdomains können Cookies teilen."
+      exclusions: "Lesezeichen ({bookmarks}), Passwörter ({passwords}), Berechtigungen ({permissions}), Downloads, Einstellungen, Tabs und Websitedaten der Arbeitsbereiche bleiben erhalten."
     },
     "support": {
       "trialNotStarted": "Die 10 Testtage beginnen mit dem ersten Werkzeugaufruf eines Agenten.",
@@ -435,18 +435,13 @@ export const deDE = {
     startingDescription: "Beginnen Sie leer oder kopieren Sie ausgewählte Browserdaten aus einem anderen Arbeitsbereich.",
     "scratch": "Neu beginnen",
     "scratchDescription": "Ein leeres isoliertes Browserprofil verwenden.",
-    "fork": "Standard abzweigen",
     "forkDescription": "Cookies und lokalen Speicher kopieren, ohne zukünftige Änderungen zu verknüpfen.",
     websites: "Websites",
     "clear": "Leeren",
     "selectAll": "Alle auswählen",
     noOrigins: "Noch keine bekannten Website-Ursprünge. Cookies aus der ausgewählten Quelle können trotzdem kopiert werden.",
-    defaultDescription: "Dieser Arbeitsbereich besitzt ein bisheriges Browserprofil. Sie können ihn umbenennen, archivieren oder löschen.",
     "browserData": "Browserdaten",
     browserDataDescription: "Übertragen Sie ausgewählte Browserdaten zwischen Arbeitsbereichen, ohne zukünftige Änderungen zu verknüpfen.",
-    "transferDirection": "Übertragungsrichtung des Speichers",
-    "importDefault": "Aus Standard importieren",
-    "saveDefault": "In Standard speichern",
     "loading": "Bekannte Websites werden geladen…",
     "noSourceOrigins": "Keine bekannten Website-Ursprünge im Quellprofil. Alle Cookies können dennoch kopiert werden.",
     "copying": "Wird kopiert…",
@@ -454,7 +449,6 @@ export const deDE = {
     "saving": "Arbeitsbereich wird gespeichert…",
     "closing": "Arbeitsbereich wird geschlossen…",
     "importSelected": "Ausgewählte Daten importieren",
-    "saveSelected": "Ausgewählte Daten in Standard speichern",
     "closePermanently": "Arbeitsbereich dauerhaft schließen",
     "closeDescription": "Schließt seine Tabs und löscht seine isolierten Browserdaten.",
     "unlockTitle": "Vor dem Schließen eines Arbeitsbereichs alle Tabs entsperren",
@@ -503,7 +497,7 @@ export const deDE = {
       },
       "new-tab": {
         "label": "Neuer Tab",
-        "description": "Leeren Tab im Standardarbeitsbereich öffnen"
+        "description": "Leeren Tab im aktuellen Arbeitsbereich öffnen"
       },
       "search-tabs": {
         "label": "Tabs durchsuchen",
@@ -1023,7 +1017,7 @@ export const deDE = {
       "splitClose": "Die geteilte Ansicht konnte nicht geschlossen werden."
     },
     "browsingData": {
-      "confirm": "Ausgewählte Browserdaten für alle Websites löschen?\n\n{items}\n\nLesezeichen, heruntergeladene Dateien, gespeicherte Passwörter und Website-Berechtigungsentscheidungen bleiben erhalten. Geöffnete Seiten werden nicht automatisch neu geladen.",
+      "confirm": "Browserverlauf für alle Websites löschen?\n\n{items}\n\nWebsite-Daten der Arbeitsbereiche und andere Anwendungsdaten bleiben erhalten.",
       "item": "• {item}",
       "websiteConfirm": "{items} für {origin} löschen? Geöffnete Seiten werden nicht automatisch neu geladen.",
       "cookieMeta": "{count} Cookie | {count} Cookies",
@@ -1031,7 +1025,6 @@ export const deDE = {
       "bookmarkMeta": "{count} Lesezeichen | {count} Lesezeichen",
       "passwordMeta": "{count} gespeichertes Konto | {count} gespeicherte Konten",
       "permissionMeta": "{count} Berechtigungsentscheidung | {count} Berechtigungsentscheidungen",
-      "tabMeta": "{count} offener Standard-Tab | {count} offene Standard-Tabs",
       "clearedSite": "Ausgewählte Daten für {origin} wurden gelöscht. Laden Sie geöffnete Seiten neu, wenn Sie bereit sind."
     },
     "permission": {
@@ -1047,7 +1040,7 @@ export const deDE = {
     "cookiesAll": "Cookies und Websitedaten (Sie werden möglicherweise abgemeldet)",
     "cookiesSite": "Cookies und Website-Speicher (Sie werden möglicherweise abgemeldet)",
     "cache": "Zwischengespeicherte Bilder und Dateien",
-    "clearSiteConfirm": "Ausgewählte Daten für {origin} löschen?\n\n{items}\n\nZugehörige Subdomains können Cookies teilen. Lesezeichen, gespeicherte Passwörter, Website-Berechtigungen, Downloads, Einstellungen und offene Tabs bleiben erhalten.",
+    "clearSiteConfirm": "Browserverlauf für {origin} löschen?\n\n{items}\n\nWebsite-Daten der Arbeitsbereiche und andere Anwendungsdaten bleiben erhalten.",
     "historyWithVisits": "{pages} Verlaufsseite · {visits} Besuch | {pages} Verlaufsseiten · {visits} Besuche",
     "openTabs": "{count} offener Tab | {count} offene Tabs",
     "bookmarksKept": "{count} Lesezeichen beibehalten | {count} Lesezeichen beibehalten",
@@ -1134,7 +1127,6 @@ export const deDE = {
       "list": "Browser-Tabs und Arbeitsbereiche",
       "scrollBack": "Vorherige Tabs anzeigen",
       "scrollForward": "Weitere Tabs anzeigen",
-      "defaultWorkspace": "Standardarbeitsbereich für neue Tabs",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",
       "stackedVisible": "In gestapelter geteilter Ansicht sichtbar",
@@ -2841,8 +2833,8 @@ export const deDE = {
     "firstRun": {
       "kicker": "Erster Erfolg",
       "heading": "Hronaut mit einer sicheren Aufgabe ausprobieren",
-      "description": "Kopieren Sie nach dem Verbinden diesen Prompt in Ihren Coding-Agenten. Sie sehen, wie er einen isolierten Arbeitsbereich erstellt und eine Seite prüft, ohne Standard zu verwenden.",
-      "prompt": "Erstelle mit Hronaut einen neuen isolierten Arbeitsbereich namens „Hronaut erster Lauf“, öffne https://example.com, erstelle einen semantischen Snapshot und nenne mir die Seitenüberschrift. Verwende nicht den Arbeitsbereich Standard.",
+      "description": "Kopieren Sie nach dem Verbinden diesen Auftrag in Ihren Coding-Agenten. Er erstellt einen isolierten Arbeitsbereich und untersucht eine Seite.",
+      "prompt": "Erstelle mit Hronaut einen neuen isolierten Arbeitsbereich namens „Hronaut erster Start“, öffne https://example.com, erstelle einen semantischen Snapshot und nenne mir die Seitenüberschrift. Verwende nur diesen Arbeitsbereich.",
       "copy": "Prompt kopieren"
     },
     "activity": {

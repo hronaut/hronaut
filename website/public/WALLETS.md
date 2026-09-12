@@ -37,9 +37,9 @@ Removing a managed wallet deletes its encrypted local record and revokes its per
 
 ## Vault protection
 
-Each wallet secret is encrypted with XChaCha20-Poly1305 using a random data-encryption key. Wallet ID, schema version, and chain family are authenticated metadata, so modified, truncated, or substituted records are rejected. A separate encrypted authority record authenticates the complete managed descriptor and the combined permission/policy/usage state. The vault supports authenticated schema migration and data-key rotation, including re-encryption of authority metadata.
+Each wallet secret is encrypted with XChaCha20-Poly1305 using a random data-encryption key. Wallet ID, schema version, and chain family are authenticated metadata, so modified, truncated, or substituted records are rejected. A separate encrypted authority record authenticates the complete managed descriptor and the combined permission/policy/usage state. The vault supports data-key rotation, including re-encryption of authority metadata.
 
-When upgrading a legacy plaintext authority layout, Hronaut does not silently bless it as trusted: existing address grants are revoked, policy usage counters are reset, and every legacy bounded-automatic policy is converted to **Always ask**. Review and explicitly recreate any automation you still want after the upgrade.
+Only version-2 encrypted wallet vaults are supported. Version-0 and version-1 vaults, their pending requests, and obsolete plaintext policies, permissions, and usage files are deleted at startup. They are not migrated. Current encrypted vaults and their authenticated authority remain supported.
 
 On Windows and macOS, and on Linux with a secure Secret Service/KWallet backend, Electron `safeStorage` wraps the data-encryption key. Electron's asynchronous encryption APIs are used. On Linux, `basic_text` is never considered secure. When Hronaut detects `basic_text`, an unknown backend, or no available secure store, it requires a user passphrase and derives the wrapping key with Argon2id (64 MiB, three passes, one lane) through the MIT-licensed RustCrypto Node-API binding. Failure to initialize either protection mode disables managed signing without silently downgrading; watch-only wallets remain usable.
 

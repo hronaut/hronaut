@@ -64,7 +64,6 @@ export interface AppSiteNavigationFeatureControllerOptions {
     keepsSeparatePanelOpen: () => boolean
     activeUrl: () => string | null
     activeOrigin: () => string | null
-    usesDefaultProfile: () => boolean
     settingsEntryBlocked: () => boolean
   }
   address: {
@@ -165,7 +164,6 @@ export function useAppSiteNavigationFeatureController(
     addressSuggestionsOpen: addressBarController.open,
     findOpen: shell.findOpen,
     janitorSearch: options.privacy.janitorSearch,
-    usesDefaultProfile: options.site.usesDefaultProfile,
     activeOrigin: options.site.activeOrigin,
     settingsEntryBlocked: options.site.settingsEntryBlocked,
     openSettingsSection: actions.openSettingsSection,

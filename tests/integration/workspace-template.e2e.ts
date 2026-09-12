@@ -28,7 +28,7 @@ test('imports fresh isolated profiles without sharing authenticated storage or s
     expect(result.status).toBe('completed')
     expect(new Set(result.workspaceIds).size).toBe(2)
     expect(result.state.activeTabId).toBe(source.activeTabId)
-    for (const id of result.workspaceIds) expect(result.state.mcpTabGroups.find(group => group.id === id)).toMatchObject({ storageKind: 'isolated', agentAccess: false })
+    for (const id of result.workspaceIds) expect(result.state.mcpTabGroups.find(group => group.id === id)).toMatchObject({ agentAccess: false })
     for (const name of ['First', 'Second']) {
       await expect.poll(() => electronApp.evaluate(({ webContents }, url) => webContents.getAllWebContents().some(page => page.getURL() === url), `${origin}/${name}`)).toBe(true)
       expect(await electronApp.evaluate(async ({ webContents }, url) => {
@@ -171,7 +171,7 @@ test('reviews templates through the editor before export and resolves import col
   await expect(commit).toBeDisabled()
   const after = await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.getState())
   expect(after.mcpTabGroups).toHaveLength(source.mcpTabGroups.length + 1)
-  expect(after.mcpTabGroups.find(group => group.name === 'Imported')).toMatchObject({ agentAccess: false, storageKind: 'isolated' })
+  expect(after.mcpTabGroups.find(group => group.name === 'Imported')).toMatchObject({ agentAccess: false })
 })
 
 test('keeps a maximum-size template preview usable in dark mode without creating profiles', async ({ appWindow, electronApp, profileDirectory }, testInfo) => {

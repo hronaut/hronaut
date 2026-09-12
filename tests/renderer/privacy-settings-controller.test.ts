@@ -4,8 +4,6 @@ import type { BrowsingDataSummary, BrowsingDataWebsiteSummary } from '../../src/
 
 function summary(historyEntries: number): BrowsingDataSummary {
   return {
-    cookieCount: 0,
-    cacheBytes: 0,
     historyEntries,
     historyVisits: historyEntries,
     bookmarkCount: 0,
@@ -85,7 +83,7 @@ describe('privacy settings controller', () => {
 
     expect(controller.summary.value?.historyEntries).toBe(0)
     expect(controller.summaryState.value).toBe('cleared')
-    expect(api.clear).toHaveBeenCalledWith({ history: true, cookiesAndSiteData: false, cache: true })
+    expect(api.clear).toHaveBeenCalledWith({ history: true })
     controller.dispose()
   })
 
@@ -158,8 +156,6 @@ describe('privacy settings controller', () => {
 
     expect(api.clear).toHaveBeenCalledWith({
       history: true,
-      cookiesAndSiteData: false,
-      cache: true,
       origin: target.origin
     })
     expect(controller.summary.value?.historyEntries).toBe(0)

@@ -306,8 +306,6 @@ export interface BrowserTabGroupState {
   lastUsedAt: string
   tabCount: number
   activeTabId: string | null
-  isDefault: boolean
-  storageKind: 'default' | 'isolated'
   storageOriginCount: number
   navigationPolicy: BrowserWorkspaceNavigationPolicy
 }
@@ -338,7 +336,7 @@ export interface BrowserSavedTabGroupState {
 export interface BrowserWorkspaceCreateOptions {
   name: string
   color?: BrowserTabGroupColor
-  storage: 'scratch' | 'fork-default' | 'fork-workspace'
+  storage: 'scratch' | 'fork-workspace'
   sourceWorkspaceId?: string
   agentAccess?: boolean
   origins?: string[]
@@ -350,10 +348,6 @@ export type BrowserWorkspaceStorageTransferOptions = {
   targetWorkspaceId: string
   mode: 'copy' | 'move'
   origins?: string[]
-} | {
-  workspaceId: string
-  direction: 'from-default' | 'to-default'
-  origins?: string[]
 }
 
 export interface BrowserWorkspaceStorageTransferResult {
@@ -361,8 +355,6 @@ export interface BrowserWorkspaceStorageTransferResult {
   targetWorkspaceId?: string
   mode?: 'copy' | 'move'
   cleanupStatus?: 'complete' | 'incomplete'
-  workspaceId?: string
-  direction?: 'from-default' | 'to-default'
   cookieCount: number
   localStorageOriginCount: number
   localStorageItemCount: number
@@ -1952,8 +1944,6 @@ export interface BrowserHistoryEntry {
 }
 
 export interface BrowsingDataSummary {
-  cookieCount: number
-  cacheBytes: number
   historyEntries: number
   historyVisits: number
   bookmarkCount: number
@@ -1980,8 +1970,6 @@ export interface BrowsingDataWebsiteSummary extends BrowsingDataSiteSummary {
 
 export interface BrowsingDataClearOptions {
   history: boolean
-  cookiesAndSiteData: boolean
-  cache: boolean
   origin?: string
 }
 
@@ -2454,7 +2442,7 @@ export interface HronautHistoryApi {
 
 export interface HronautBrowsingDataApi {
   summary(): Promise<BrowsingDataSummary>
-  siteSummary(url: string, tabId?: string): Promise<BrowsingDataSiteSummary>
+  siteSummary(url: string, tabId: string): Promise<BrowsingDataSiteSummary>
   websites(): Promise<BrowsingDataWebsiteSummary[]>
   clear(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary>
 }

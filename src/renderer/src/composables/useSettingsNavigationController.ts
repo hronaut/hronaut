@@ -1,6 +1,5 @@
 export interface SettingsNavigationControllerOptions {
   closeSiteControls: () => void
-  usesDefaultProfile: () => boolean
   activeOrigin: () => string | null
   openSiteStorage: () => Promise<void>
   openPrivacySettings: (origin?: string) => Promise<void>
@@ -13,11 +12,7 @@ export interface SettingsNavigationControllerOptions {
 export function useSettingsNavigationController(options: SettingsNavigationControllerOptions) {
   async function openSitePrivacySettings(): Promise<void> {
     options.closeSiteControls()
-    if (!options.usesDefaultProfile()) {
-      await options.openSiteStorage()
-      return
-    }
-    await options.openPrivacySettings(options.activeOrigin() ?? undefined)
+    await options.openSiteStorage()
   }
 
   function openSitePermissionSettings(): void {

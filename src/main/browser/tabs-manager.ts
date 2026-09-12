@@ -705,14 +705,14 @@ interface BrowserTabGroup {
   createdAt: string
   lastUsedAt: string
   activeTabId: string | null
-  storageId?: string
+  storageId: string
   origins: string[]
   navigationPolicy: BrowserWorkspaceNavigationPolicy
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
 }
 
 interface BrowserSavedTabGroupInternal extends BrowserSavedTabGroupState {
-  storageId?: string
+  storageId: string
   origins: string[]
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
 }
@@ -1254,7 +1254,6 @@ export class BrowserTabsManager {
   private downloadNotifyTimer: NodeJS.Timeout | null = null
   private readonly closedTabs: BrowserClosedTabState[] = []
   private mcpUrl: string
-  private defaultHumanGroupId: string | null = null
 
   constructor(
     private readonly window: BrowserWindow,
@@ -1317,7 +1316,6 @@ export class BrowserTabsManager {
         tabs: group.tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned === true }))
       })
     }
-    this.defaultHumanGroupId = saved?.defaultHumanGroupId ?? null
     if (persistedTabs.length) {
       let restoredHome = false
       for (const tab of persistedTabs) {
@@ -1363,6 +1361,7 @@ export class BrowserTabsManager {
     this.layout()
     this.restoringLayout = false
     this.initialized = true
+    await this.store.save(this.persistedState())
     if (this.activeTabId) {
       const activeTab = this.tabs.get(this.activeTabId)
       if (activeTab) this.focusTabOrTrustedChrome(activeTab)
@@ -1578,8 +1577,6 @@ export class BrowserTabsManager {
       lastUsedAt: group.lastUsedAt,
       activeTabId: group.activeTabId,
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      isDefault: group.id === this.defaultHumanGroupId,
-      storageKind: group.id === this.defaultHumanGroupId ? 'default' : 'isolated',
       agentAccess: group.agentAccess !== false,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
@@ -1625,7 +1622,7 @@ export class BrowserTabsManager {
   async createMcpTabGroup(
     name: string,
     color?: BrowserTabGroupColor,
-    storage: 'scratch' | 'fork-default' | 'fork-workspace' = 'scratch',
+    storage: 'scratch' | 'fork-workspace' = 'scratch',
     origins?: string[],
     allowDuplicateName = false,
     navigationPolicy?: BrowserWorkspaceNavigationPolicy,
@@ -1649,8 +1646,8 @@ export class BrowserTabsManager {
       navigationPolicy: normalizeWorkspaceNavigationPolicy(navigationPolicy),
       navigationAudit: []
     }
-    if (storage === 'fork-default' || storage === 'fork-workspace') {
-      const sourceId = storage === 'fork-default' ? this.defaultHumanGroupId : sourceWorkspaceId
+    if (storage === 'fork-workspace') {
+      const sourceId = sourceWorkspaceId
       const source = sourceId ? this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId) : undefined
       if (!source) throw new Error('Source workspace is unavailable.')
       group.navigationPolicy = normalizeWorkspaceNavigationPolicy(source.navigationPolicy)
@@ -1659,9 +1656,9 @@ export class BrowserTabsManager {
         let selectedOrigins: string[] = []
         try {
           selectedOrigins = normalizeWorkspaceStorageOrigins(origins ?? source.origins)
-          await this.withWorkspaceOperation(group.id, 'creating the workspace from Default', () => (
+          await this.withWorkspaceOperation(group.id, 'forking workspace data', () => (
             transferWorkspaceStorage({
-              sourcePartition: source.storageId ? workspacePartition(this.options.partition, source.storageId) : this.options.partition,
+              sourcePartition: workspacePartition(this.options.partition, source.storageId),
               targetPartition: workspacePartition(this.options.partition, storageId),
               origins: selectedOrigins,
               copyAllCookies: origins === undefined,
@@ -1742,8 +1739,6 @@ export class BrowserTabsManager {
       lastUsedAt: group.lastUsedAt,
       activeTabId: group.activeTabId,
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
-      isDefault: group.id === this.defaultHumanGroupId,
-      storageKind: group.id === this.defaultHumanGroupId ? 'default' : 'isolated',
       agentAccess: group.agentAccess !== false,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
@@ -1790,9 +1785,6 @@ export class BrowserTabsManager {
   private workspaceNavigationDecision(groupId: string, url: string): WorkspaceNavigationDecision {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
-    if (group.id === this.defaultHumanGroupId && group.navigationPolicy.mode === 'unrestricted') {
-      return { allowed: true, targetOrigin: new URL(url).origin, reason: 'unrestricted' }
-    }
     const decision = evaluateWorkspaceNavigation(group.navigationPolicy, url)
     if (isAgentWorkspaceNavigationUrl(url) || !decision.allowed) return decision
     return { allowed: false, targetOrigin: decision.targetOrigin, reason: 'unsupported-scheme' }
@@ -1930,9 +1922,7 @@ export class BrowserTabsManager {
   workspaceSession(workspaceId: string): Session {
     const workspace = this.mcpTabGroups.get(workspaceId)
     if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
-    const partition = workspace.storageId
-      ? workspacePartition(this.options.partition, workspace.storageId)
-      : this.options.partition
+    const partition = workspacePartition(this.options.partition, workspace.storageId)
     const browserSession = session.fromPartition(partition, { cache: true })
     this.options.configureSession?.(browserSession)
     return browserSession
@@ -1953,19 +1943,13 @@ export class BrowserTabsManager {
   async transferWorkspaceStorage(
     options: BrowserWorkspaceStorageTransferOptions
   ): Promise<BrowserWorkspaceStorageTransferResult> {
-    const legacy = 'workspaceId' in options
-    const sourceId = legacy
-      ? options.direction === 'from-default' ? this.defaultHumanGroupId : options.workspaceId
-      : options.sourceWorkspaceId
-    const targetId = legacy
-      ? options.direction === 'to-default' ? this.defaultHumanGroupId : options.workspaceId
-      : options.targetWorkspaceId
-    if (!sourceId || !targetId) throw new Error('Default workspace is unavailable.')
+    const sourceId = options.sourceWorkspaceId
+    const targetId = options.targetWorkspaceId
     if (sourceId === targetId) throw new Error('Choose two different workspaces.')
     const source = this.mcpTabGroups.get(sourceId) ?? this.savedTabGroups.get(sourceId)
     const target = this.mcpTabGroups.get(targetId) ?? this.savedTabGroups.get(targetId)
     if (!source || !target) throw new Error('Source or destination workspace is unavailable.')
-    const mode = legacy ? 'copy' : options.mode
+    const mode = options.mode
     if (mode === 'move' && (!this.savedTabGroups.has(sourceId) || !this.savedTabGroups.has(targetId))) throw new Error('Archive both workspaces before moving data, or choose Copy to keep their pages open.')
     const action = mode === 'move' ? 'moving workspace data' : 'copying workspace data'
     const lock = <T>(id: string, operation: () => Promise<T>): Promise<T> => (
@@ -1977,16 +1961,16 @@ export class BrowserTabsManager {
       const origins = normalizeWorkspaceStorageOrigins(options.origins ?? source.origins)
       const copy = (permissions = { allowCookieCleanup: false, allowLocalStorageCleanup: false }) => transferWorkspaceStorage({
         ...permissions,
-        sourcePartition: source.storageId ? workspacePartition(this.options.partition, source.storageId) : this.options.partition,
-        targetPartition: target.storageId ? workspacePartition(this.options.partition, target.storageId) : this.options.partition,
+        sourcePartition: workspacePartition(this.options.partition, source.storageId),
+        targetPartition: workspacePartition(this.options.partition, target.storageId),
         mode,
         origins,
         copyAllCookies: options.origins === undefined,
         copyLocalStorage: true,
         configureSession: this.options.configureSession
       })
-      const sourceSession = session.fromPartition(source.storageId ? workspacePartition(this.options.partition, source.storageId) : this.options.partition)
-      const targetSession = session.fromPartition(target.storageId ? workspacePartition(this.options.partition, target.storageId) : this.options.partition)
+      const sourceSession = session.fromPartition(workspacePartition(this.options.partition, source.storageId))
+      const targetSession = session.fromPartition(workspacePartition(this.options.partition, target.storageId))
       const result = mode === 'move'
         ? await withWorkspaceMoveGuard(sourceSession, permissions => withWorkspaceMoveGuard(targetSession, () => copy(permissions)))
         : await copy()
@@ -1994,7 +1978,6 @@ export class BrowserTabsManager {
       if ('lastUsedAt' in target) target.lastUsedAt = new Date().toISOString()
       this.changed()
       return {
-        ...(legacy ? { workspaceId: options.workspaceId, direction: options.direction } : {}),
         sourceWorkspaceId: sourceId,
         targetWorkspaceId: targetId,
         mode,
@@ -2140,7 +2123,7 @@ export class BrowserTabsManager {
       await this.closeTabs(tabSnapshots.map((tab) => tab.id), false)
       if (!preserveStorage) {
         await destroyWorkspaceStorage(
-          group.storageId ? workspacePartition(this.options.partition, group.storageId) : this.options.partition,
+          workspacePartition(this.options.partition, group.storageId),
           this.options.configureSession
         )
       }
@@ -2163,7 +2146,6 @@ export class BrowserTabsManager {
     if (preserveStorage) this.suspendWorkspaceContinuity(groupId)
     else this.retireWorkspaceContinuity(groupId)
     this.options.onWorkspaceClosed?.(groupId)
-    if (!preserveStorage && groupId === this.defaultHumanGroupId) this.defaultHumanGroupId = null
     this.runWalletLifecycleAction('cancel wallet access after closing a workspace', () => (
       this.options.onWalletWorkspaceClosed?.(groupId)
     ))
@@ -2198,7 +2180,7 @@ export class BrowserTabsManager {
           mode: internalGroup.navigationPolicy.mode,
           rules: [...internalGroup.navigationPolicy.rules]
         },
-        ...(internalGroup.storageId ? { storageId: internalGroup.storageId } : {}),
+        storageId: internalGroup.storageId,
         origins: [...internalGroup.origins],
         navigationAudit: [...internalGroup.navigationAudit],
         tabs: tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned }))
@@ -2246,7 +2228,7 @@ export class BrowserTabsManager {
       lastUsedAt: now,
       activeTabId: null,
       agentAccess: saved.agentAccess !== false,
-      ...(saved.storageId ? { storageId: saved.storageId } : {}),
+      storageId: saved.storageId,
       origins: [...saved.origins],
       navigationPolicy: {
         mode: saved.navigationPolicy.mode,
@@ -2303,13 +2285,12 @@ export class BrowserTabsManager {
       if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
       {
         await destroyWorkspaceStorage(
-          saved.storageId ? workspacePartition(this.options.partition, saved.storageId) : this.options.partition,
+          workspacePartition(this.options.partition, saved.storageId),
           this.options.configureSession
         )
       }
       this.savedTabGroups.delete(savedGroupId)
       this.retireWorkspaceContinuity(savedGroupId)
-      if (savedGroupId === this.defaultHumanGroupId) this.defaultHumanGroupId = null
       this.changed()
       return this.listSavedTabGroups()
     })
@@ -7326,9 +7307,7 @@ export class BrowserTabsManager {
     const workspace = options.mcpGroupId ? this.mcpTabGroups.get(options.mcpGroupId) : undefined
     const partition = isHronautHomeUrl(url)
       ? workspacePartition(this.options.partition, 'home')
-      : workspace?.storageId
-        ? workspacePartition(this.options.partition, workspace.storageId)
-        : this.options.partition
+      : workspacePartition(this.options.partition, workspace!.storageId)
     const view = new WebContentsView({
       webPreferences: {
         partition,
@@ -11027,7 +11006,6 @@ export class BrowserTabsManager {
       activeTabId: this.activeTabId,
       ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
       allHumanInteractionLocked: this.allHumanInteractionLocked,
-      ...(this.defaultHumanGroupId ? { defaultHumanGroupId: this.defaultHumanGroupId } : {}),
       mcpTabGroups: [...this.mcpTabGroups.values()].map((group) => ({ ...group })),
       savedTabGroups: [...this.savedTabGroups.values()].map((group) => ({
         id: group.id,
@@ -11035,7 +11013,7 @@ export class BrowserTabsManager {
         color: group.color,
         savedAt: group.savedAt,
         agentAccess: group.agentAccess !== false,
-        ...(group.storageId ? { storageId: group.storageId } : {}),
+        storageId: group.storageId,
         origins: [...group.origins],
         navigationPolicy: {
           mode: group.navigationPolicy.mode,

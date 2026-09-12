@@ -39,7 +39,7 @@ Not sure which browser model fits your workflow? Read the source-backed [Browser
 
 1. [Download the latest Hronaut](https://hronaut.dev/download) for Windows, macOS, or Linux and start it.
 2. On Hronaut Home, choose your coding agent and copy its generated setup, or use the [generic setup guide](https://hronaut.dev/setup). The in-app setup always reflects the current local endpoint and authentication choice.
-3. Ask the connected agent: `Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.`
+3. Ask the connected agent: `Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Use only that task workspace.`
 
 A successful run stays visible in Hronaut, creates an isolated workspace, and remains available after that coding-agent conversation ends.
 
@@ -59,7 +59,7 @@ Move reviewed setup between machines with [portable workspace templates](REFEREN
 
 ### Keep personal and agent work separate
 
-Hronaut starts on Home without creating a Default workspace. Opening your first tab creates a workspace; existing Default workspaces keep their browser data and can be renamed, archived, or deleted.
+Hronaut starts on Home without creating a Default workspace. Opening your first tab creates an isolated workspace. Obsolete base-profile data and unsupported persistence formats are discarded.
 
 - **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions.
 - **Disable direct agent access** when a workspace should stay under your control. Agents can still fork it, but cannot browse or change its original tabs. The fork receives a copy of its site data, so this setting does not prevent agents from reusing copied sign-ins.
@@ -198,7 +198,7 @@ After trying it, share a short [setup report](https://github.com/hronaut/hronaut
 After your client reports Hronaut as connected, paste this into the coding agent:
 
 ```text
-Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Do not use the Default workspace.
+Using Hronaut, create a new isolated workspace named “Hronaut first run”, open https://example.com, take a semantic snapshot, and tell me the page heading. Use only that task workspace.
 ```
 
 Hronaut Home provides the same prompt with a copy button. A successful run visibly creates a separate workspace, opens the page, and records content-free tool activity on Home; the workspace and its browser profile remain available after the coding-agent conversation ends.

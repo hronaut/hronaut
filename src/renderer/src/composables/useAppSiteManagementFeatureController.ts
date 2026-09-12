@@ -27,7 +27,6 @@ export interface AppSiteManagementFeatureControllerOptions {
   addressSuggestionsOpen: Ref<boolean>
   findOpen: Ref<boolean>
   janitorSearch: Ref<string>
-  usesDefaultProfile: () => boolean
   activeOrigin: () => string | null
   settingsEntryBlocked: () => boolean
   openSettingsSection: (section: SettingsSection) => void
@@ -89,7 +88,6 @@ export function useAppSiteManagementFeatureController(
   })
   const navigationController = useSettingsNavigationController({
     closeSiteControls: () => (options.siteControlsOpen.value = false),
-    usesDefaultProfile: options.usesDefaultProfile,
     activeOrigin: options.activeOrigin,
     openSiteStorage: storageController.open,
     openPrivacySettings: privacyController.open,

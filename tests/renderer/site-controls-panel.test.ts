@@ -31,7 +31,6 @@ function renderPanel(options: {
       state: 'idle',
       message: '',
       permissions: [cameraPermission],
-      usesDefaultProfile: true,
       locale: 'en-US',
       permissionLabel: () => 'Camera',
       permissionPending: options.permissionPending ?? (() => false),
@@ -55,7 +54,7 @@ describe('SiteControlsPanel', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Camera/ }), 'deny')
     await user.click(screen.getByTitle('Reset to default'))
     await user.click(screen.getByRole('button', { name: 'All site settings' }))
-    await user.click(screen.getByRole('button', { name: 'Clear data for this website' }))
+    await user.click(screen.getByRole('button', { name: 'Site storage' }))
 
     expect(setPermission).toHaveBeenCalledWith(cameraPermission, 'deny')
     expect(resetPermission).toHaveBeenCalledWith(cameraPermission)

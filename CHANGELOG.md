@@ -4,6 +4,17 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-12
+
+### Breaking changes
+
+- Remove legacy persisted-data support: discard old base-profile browser data, active and archived workspaces without isolated storage, and tab snapshots older than version 3. Current isolated workspaces retain their identities and storage.
+- Delete version-0 and version-1 wallet vaults, their pending requests, and obsolete plaintext authority files without migration. Version-2 encrypted wallets remain supported.
+- Remove `fork-default`, `import-default`, `save-default`, Default-profile workspace fields, and old transfer payloads. Use `fork-workspace` with an explicit source, and human workspace-to-workspace Copy or Move controls.
+- Replace legacy data management with global history clearing and workspace-scoped site storage. Ignore obsolete update settings and use Browser Essentials when no tool set is saved.
+
+### Added
+
 - Explain capability rejections with a bounded, privacy-safe precedence trace and stable first-denying-rule reason, keep permission separate from dispatch and postcondition state, and require every non-read MCP tool to declare its operation class explicitly.
 
 - Distinguish successful, failed, cancelled, blocked, interrupted, verifier-rejected, timed-out, and unknown agent outcomes in the activity dashboard and task-run summaries, with privacy-safe reason provenance, dispatch state, and conservative effect certainty.

@@ -23,7 +23,6 @@ const props = defineProps<{
   state: 'idle' | 'loading' | 'error'
   message: string
   permissions: SitePermissionEntry[]
-  usesDefaultProfile: boolean
   locale: SupportedLocale
   permissionLabel: (permission: string) => string
   permissionPending: (entry: SitePermissionEntry) => boolean
@@ -102,7 +101,7 @@ async function changePermission(entry: SitePermissionEntry, event: Event): Promi
     </section>
     <footer>
       <UiButton appearance="application" class="site-controls-secondary" type="button" @click="openPermissionSettings">{{ t('shell.siteControls.allSettings') }}</UiButton>
-      <UiButton appearance="application" variant="primary" class="site-controls-primary" type="button" @click="openPrivacySettings">{{ usesDefaultProfile ? t('shell.siteControls.clearData') : t('panels.siteStorage') }}</UiButton>
+      <UiButton appearance="application" variant="primary" class="site-controls-primary" type="button" @click="openPrivacySettings">{{ t('panels.siteStorage') }}</UiButton>
     </footer>
   </section>
 </template>

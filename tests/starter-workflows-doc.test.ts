@@ -28,7 +28,7 @@ describe('starter workflow documentation', () => {
     }
 
     expect(guide).toContain('Create a fresh scratch workspace')
-    expect(guide).toContain('Do not use or inspect the Default workspace')
+    expect(guide).toContain('Use only your task workspace.')
     expect(guide).toContain('Do not enter credentials, solve CAPTCHA, or approve consent')
     expect(guide).toContain('Pause MCP in Hronaut before entering anything sensitive')
     expect(guide).toContain('Do not request network bodies unless the failure requires them')

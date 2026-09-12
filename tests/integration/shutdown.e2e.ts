@@ -1,4 +1,4 @@
-import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
+import { seedWorkspaceProfile } from './workspace-profile.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
@@ -83,13 +83,13 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
   const homeTabId = '01912345-678c-7abc-8def-0123456789ab'
   const websiteTabId = '01912345-678d-7abc-8def-0123456789ab'
   const persistedState = {
-    version: 2,
+    version: 3,
     activeTabId: websiteTabId,
     allHumanInteractionLocked: true,
-    defaultHumanGroupId: defaultWorkspaceId,
     mcpTabGroups: [{
       id: defaultWorkspaceId,
-      name: 'Default',
+      name: 'Personal',
+      storageId: '77777777-1111-4111-8111-111111111111',
       color: 'gray',
       createdAt: '2026-08-20T09:00:00.000Z',
       lastUsedAt: '2026-08-20T09:01:00.000Z',
@@ -172,7 +172,7 @@ test('preserves persisted tabs when --quit arrives before browser restoration st
   }
 })
 
-test('waits for Default and isolated browser profiles to flush before exiting', async ({
+test('waits for application and isolated browser profiles to flush before exiting', async ({
   profileDirectory,
   mcpPort
 }) => {
@@ -281,7 +281,7 @@ test('waits for an in-flight workspace storage transfer before exiting', async (
   profileDirectory,
   mcpPort
 }) => {
-  await seedLegacyWorkspaceProfile(profileDirectory)
+  await seedWorkspaceProfile(profileDirectory)
   const cookieUrl = 'https://shutdown-transfer.example/'
   const cookieName = 'shutdown-transfer-cookie'
   const tabsPath = join(profileDirectory, 'tabs.json')
@@ -316,7 +316,7 @@ test('waits for an in-flight workspace storage transfer before exiting', async (
     const targetPartition = `persist:hronaut-workspace-${storageId}`
 
     await initialApp.evaluate(async ({ session }, input) => {
-      const source = session.fromPartition('persist:hronaut', { cache: true })
+      const source = session.fromPartition('persist:hronaut-workspace-77777777-1111-4111-8111-111111111111', { cache: true })
       await source.cookies.set({
         url: input.cookieUrl,
         name: input.cookieName,
@@ -345,8 +345,9 @@ test('waits for an in-flight workspace storage transfer before exiting', async (
     }, { cookieUrl, cookieName, targetPartition })
 
     await instance.window.evaluate(`void (globalThis.__shutdownTransfer = window.hronaut.transferWorkspaceStorage({
-      workspaceId: ${JSON.stringify(workspaceId)},
-      direction: 'from-default'
+      sourceWorkspaceId: '01912345-6789-7abc-8def-0123456789ab',
+      targetWorkspaceId: ${JSON.stringify(workspaceId)},
+      mode: 'copy'
     }).catch(() => undefined))`)
     await expect.poll(() => initialApp.evaluate(() => (
       (globalThis as typeof globalThis & { __shutdownTransferStarted?: boolean }).__shutdownTransferStarted

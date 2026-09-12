@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WalletService } from '../src/main/wallet/service.js'
-import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
+import { WalletVault } from '../src/main/wallet/vault.js'
+import { SafeStorageWalletKeyWrapper, type WalletSafeStorage } from '../src/main/wallet/key-provider.js'
 
 const temporaryDirectories: string[] = []
 afterEach(async () => {
@@ -469,7 +470,7 @@ describe('WalletService', () => {
     await expect(restored.initialize()).rejects.toThrow('Wallet vault authentication failed')
   })
 
-  it('revokes unauthenticated legacy grants and makes legacy automatic policies ask before use', async () => {
+  it.each([0, 1])('discards obsolete wallets and plaintext authority without migration (version=%s)', async version => {
     const path = await directory()
     const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
     await created.initialize()
@@ -488,7 +489,7 @@ describe('WalletService', () => {
 
     const vaultPath = join(path, 'vault.json')
     const legacyVault = JSON.parse(await readFile(vaultPath, 'utf8')) as { version: number; authority?: unknown }
-    legacyVault.version = 1
+    legacyVault.version = version
     delete legacyVault.authority
     await writeFile(vaultPath, `${JSON.stringify(legacyVault, null, 2)}\n`, 'utf8')
     await writeFile(join(path, 'policies.json'), `${JSON.stringify({ version: 1, policies: [
@@ -511,13 +512,37 @@ describe('WalletService', () => {
     const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
     await restored.initialize()
 
-    expect(restored.policies.list()).toEqual([{ ...policy, maxNativeAmount: '1000', maximumOperationCount: 10_000, mode: 'always-ask' }])
+    expect(restored.policies.list()).toEqual([])
+    expect(restored.list()).toEqual([])
+    for (const name of ['policies.json', 'permissions.json', 'policy-usage.json']) {
+      await expect(readFile(join(path, name))).rejects.toMatchObject({ code: 'ENOENT' })
+    }
     expect(restored.permissions.list()).toEqual([])
     expect(restored.policyUsage.snapshot(policy.id, new Date('2026-08-30T12:30:00.000Z'))).toMatchObject({
       operationCount: 0,
       dailySpend: '0'
     })
     expect(JSON.parse(await readFile(vaultPath, 'utf8'))).toMatchObject({ version: 2, authority: { algorithm: 'xchacha20-poly1305' } })
+  })
+
+  it('preserves supported encrypted wallets with authenticated historical metadata', async () => {
+    const path = await directory()
+    const created = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await created.initialize()
+    const generated = await created.generate({ name: 'Supported wallet', chainFamily: 'evm', network, workspaceIds: ['workspace-1'] })
+    created.dispose()
+    const vault = new WalletVault(join(path, 'vault.json'), new SafeStorageWalletKeyWrapper(storage()))
+    await vault.load()
+    const bytes = vault.readAuthorityState()
+    const authority = JSON.parse(bytes.toString('utf8'))
+    bytes.fill(0)
+    await vault.replaceEncryptedAuthorityState(Buffer.from(JSON.stringify({ ...authority, migratedLegacyAuthority: true })))
+    vault.lock()
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await restored.initialize()
+    expect(restored.list()).toEqual([generated.wallet])
+    expect(restored.authority.snapshot()).not.toHaveProperty('migratedLegacyAuthority')
+    restored.dispose()
   })
 
   it('rejects a watch-only record that spoofs a managed wallet id', async () => {

@@ -319,7 +319,6 @@ const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController
     keepsSeparatePanelOpen,
     activeUrl: () => activeWebUrl.value,
     activeOrigin: () => activeOrigin.value,
-    usesDefaultProfile: () => activeTabUsesDefaultProfile.value,
     settingsEntryBlocked: () => workspaceEditorOpen.value || credentialPickerOpen.value
   },
   address: {
@@ -681,7 +680,6 @@ const {
   activeIsHome,
   activeWebUrl,
   activeOrigin,
-  activeTabUsesDefaultProfile,
   currentBookmark,
   pageProblemDetails,
   fillSelectedCredential,

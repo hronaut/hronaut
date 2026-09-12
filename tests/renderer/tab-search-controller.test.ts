@@ -236,12 +236,12 @@ describe('tab search controller', () => {
     initial.mcpTabGroups = [
       {
         id: 'workspace-1', name: 'Default', color: 'gray', createdAt: '', lastUsedAt: '', tabCount: 1,
-        activeTabId: defaultTab.id, isDefault: true, storageKind: 'default', storageOriginCount: 0,
+        activeTabId: defaultTab.id, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] }
       },
       {
         id: 'workspace-2', name: 'Research', color: 'purple', createdAt: '', lastUsedAt: '', tabCount: 1,
-        activeTabId: research.id, isDefault: false, storageKind: 'isolated', storageOriginCount: 0,
+        activeTabId: research.id, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] }
       }
     ]

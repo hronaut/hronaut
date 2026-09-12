@@ -38,8 +38,6 @@ function workspace(id = 'workspace-1'): BrowserTabGroupState {
     lastUsedAt: '2026-08-22T09:00:00.000Z',
     tabCount: 0,
     activeTabId: null,
-    isDefault: false,
-    storageKind: 'isolated',
     storageOriginCount: 0,
     navigationPolicy: { mode: 'unrestricted', rules: [] }
   }

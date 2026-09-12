@@ -51,7 +51,6 @@ it('exposes tabless waiting only to its owner and blocks dispatch without allowi
   expect(text(blocked)).toContain('waiting for a human')
   expect(manager.requireTabInMcpGroup).not.toHaveBeenCalled()
   for (const args of [
-    { action: 'import-default', workspaceId },
     { action: 'create', name: 'Fork pending decision', storage: 'fork-workspace', sourceWorkspaceId: workspaceId }
   ]) {
     const storageBlocked = await call('browser_workspaces', args)
@@ -66,17 +65,6 @@ it('exposes tabless waiting only to its owner and blocks dispatch without allowi
   expect(cancelled.isError, text(cancelled)).not.toBe(true)
   expect(JSON.parse(text(cancelled))).toMatchObject({ state: 'CANCELLED', priorOutcome: 'OUTCOME_UNKNOWN' })
   expect(manager.requireWorkspaceContinuityReview).toHaveBeenCalledWith(workspaceId)
-  manager.transferWorkspaceStorage.mockImplementationOnce(async () => {
-    await waiting.create({ workspaceId, runId: otherWorkspaceId, decision: 'review-page', owner: 'operator', fallbackOwner: 'operator', timeoutMs: 60_000, priorOutcome: 'OUTCOME_UNKNOWN' }, () => undefined)
-    return {}
-  })
-  const interrupted = await call('browser_workspaces', { action: 'import-default', workspaceId })
-  expect(interrupted.isError).toBe(true)
-  expect(JSON.parse(text(interrupted))).toMatchObject({ status: 'OUTCOME_UNKNOWN', effects: 'possible' })
-  expect(manager.transferWorkspaceStorage).toHaveBeenCalledTimes(1)
-  expect(manager.suspendWorkspaceContinuity).toHaveBeenCalledWith(workspaceId, 'OUTCOME_UNKNOWN')
-  const pending = (await waiting.list(workspaceId, () => undefined)).find(item => item.state === 'WAITING_FOR_HUMAN')!
-  await waiting.change(workspaceId, pending.id, pending.revision, 'cancel', () => undefined)
   manager.createMcpTabGroup.mockImplementationOnce(async () => {
     await waiting.create({ workspaceId, runId: otherWorkspaceId, decision: 'review-page', owner: 'operator', fallbackOwner: 'operator', timeoutMs: 60_000, priorOutcome: 'OUTCOME_UNKNOWN' }, () => undefined)
     return { id: otherWorkspaceId }

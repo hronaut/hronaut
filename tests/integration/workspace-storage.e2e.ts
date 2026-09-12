@@ -1,15 +1,15 @@
 import { createServer } from 'node:http'
-import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
+import { seedWorkspaceProfile } from './workspace-profile.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-const legacyProfileTest = test.extend({
+const workspaceProfileTest = test.extend({
   profileDirectory: async ({ profileDirectory }, use) => {
-    await seedLegacyWorkspaceProfile(profileDirectory)
+    await seedWorkspaceProfile(profileDirectory)
     await use(profileDirectory)
   }
 })
 
-legacyProfileTest('isolates workspace profiles and explicitly forks or saves data through Default', async ({
+workspaceProfileTest('isolates workspace profiles and explicitly forks and copies data between workspaces', async ({
   appWindow,
   electronApp
 }) => {
@@ -48,7 +48,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
     const forkUrl = `${origin}/inspect-fork`
     const freshUrl = `${origin}/inspect-fresh`
 
-    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id)`) as string
+    const defaultWorkspaceId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.name === 'Personal')?.id)`) as string
     expect(defaultWorkspaceId).toBeTruthy()
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(defaultUrl)}, active: true, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
@@ -72,10 +72,10 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
 
     const scratchState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Scratch isolation', storage: 'scratch' })`) as {
       activeTabId: string
-      mcpTabGroups: Array<{ id: string; name: string; storageKind: string }>
+      mcpTabGroups: Array<{ id: string; name: string }>
     }
     const scratchWorkspace = scratchState.mcpTabGroups.find((workspace) => workspace.name === 'Scratch isolation')
-    expect(scratchWorkspace).toMatchObject({ storageKind: 'isolated' })
+    expect(scratchWorkspace?.id).toBeTruthy()
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(scratchState.activeTabId)}, url: ${JSON.stringify(scratchUrl)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === url)
@@ -134,8 +134,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
     }))`)).toMatchObject({
       workspace: {
         name: 'Scratch isolation',
-        tabCount: 2,
-        storageKind: 'isolated'
+        tabCount: 2
       },
       tabs: expect.arrayContaining([
         expect.objectContaining({ id: scratchState.activeTabId, url: scratchUrl, active: true }),
@@ -150,7 +149,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
       return (await heldSession.cookies.get({ url: `${input.origin}/` })).length
     }, { origin })).toBe(0)
 
-    const partialState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Partial fork', storage: 'fork-default', origins: [${JSON.stringify(origin)}] })`) as {
+    const partialState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Partial fork', storage: 'fork-workspace', sourceWorkspaceId: ${JSON.stringify(defaultWorkspaceId)}, origins: [${JSON.stringify(origin)}] })`) as {
       activeTabId: string
       mcpTabGroups: Array<{ id: string; name: string }>
     }
@@ -171,9 +170,9 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
     expect(excludedData).toEqual({ localStorage: null, cookies: [] })
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(partialWorkspace.id)})`)
 
-    const forkState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Forked default', storage: 'fork-default' })`) as {
+    const forkState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Forked default', storage: 'fork-workspace', sourceWorkspaceId: ${JSON.stringify(defaultWorkspaceId)} })`) as {
       activeTabId: string
-      mcpTabGroups: Array<{ id: string; name: string; storageKind: string }>
+      mcpTabGroups: Array<{ id: string; name: string }>
     }
     const forkWorkspace = forkState.mcpTabGroups.find((workspace) => workspace.name === 'Forked default')!
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(forkState.activeTabId)}, url: ${JSON.stringify(forkUrl)} })`)
@@ -256,7 +255,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
         return originalSet(...args)
       }
     }, forkUrl)
-    const failedImport = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ workspaceId: ${JSON.stringify(forkWorkspace.id)}, direction: 'from-default' }).then(() => 'copied', (error) => String(error.message ?? error))`)
+    const failedImport = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ sourceWorkspaceId: ${JSON.stringify(defaultWorkspaceId)}, targetWorkspaceId: ${JSON.stringify(forkWorkspace.id)}, mode: 'copy' }).then(() => 'copied', (error) => String(error.message ?? error))`)
     expect(failedImport).toContain('simulated partial workspace cookie copy failure')
     const cookieAfterRollback = await electronApp.evaluate(async ({ webContents }, input) => {
       const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === input.url)
@@ -284,7 +283,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
         return originalSet(...args)
       }
     }, forkUrl)
-    const pendingImport = appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ workspaceId: ${JSON.stringify(forkWorkspace.id)}, direction: 'from-default' })`) as Promise<{
+    const pendingImport = appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ sourceWorkspaceId: ${JSON.stringify(defaultWorkspaceId)}, targetWorkspaceId: ${JSON.stringify(forkWorkspace.id)}, mode: 'copy' })`) as Promise<{
       cookieCount: number
     }>
     try {
@@ -293,9 +292,9 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
       ))).toBe(true)
       const closeWhileCopying = await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(forkWorkspace.id)}).then(() => 'closed', (error) => String(error.message ?? error))`)
       expect(closeWhileCopying).toContain('is busy copying workspace data')
-      const secondCopy = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ workspaceId: ${JSON.stringify(forkWorkspace.id)}, direction: 'to-default' }).then(() => 'copied', (error) => String(error.message ?? error))`)
+      const secondCopy = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ sourceWorkspaceId: ${JSON.stringify(forkWorkspace.id)}, targetWorkspaceId: ${JSON.stringify(defaultWorkspaceId)}, mode: 'copy' }).then(() => 'copied', (error) => String(error.message ?? error))`)
       expect(secondCopy).toContain('Workspace storage is busy copying workspace data')
-      const forkWhileCopying = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Blocked fork', storage: 'fork-default' }).then(() => 'created', (error) => String(error.message ?? error))`)
+      const forkWhileCopying = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Blocked fork', storage: 'fork-workspace', sourceWorkspaceId: ${JSON.stringify(defaultWorkspaceId)} }).then(() => 'created', (error) => String(error.message ?? error))`)
       expect(forkWhileCopying).toContain('Workspace storage is busy copying workspace data')
       await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.some((workspace) => workspace.name === 'Blocked fork'))`)).toBe(false)
       const tabOpenedWhileCopying = await appWindow.evaluate(`window.hronaut.newTab({ url: 'about:blank', active: false, mcpGroupId: ${JSON.stringify(forkWorkspace.id)} })`) as {
@@ -321,7 +320,7 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
       await contents.executeJavaScript("localStorage.setItem('workspace-key', 'saved-from-fork')")
       await contents.session.cookies.set({ url, name: 'fork-only', value: 'saved', path: '/' })
     }, forkUrl)
-    const transfer = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ workspaceId: ${JSON.stringify(forkWorkspace.id)}, direction: 'to-default' })`) as {
+    const transfer = await appWindow.evaluate(`window.hronaut.transferWorkspaceStorage({ sourceWorkspaceId: ${JSON.stringify(forkWorkspace.id)}, targetWorkspaceId: ${JSON.stringify(defaultWorkspaceId)}, mode: 'copy' })`) as {
       cookieCount: number
       localStorageItemCount: number
     }
@@ -340,25 +339,25 @@ legacyProfileTest('isolates workspace profiles and explicitly forks or saves dat
 
     await electronApp.evaluate(({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find(candidate => candidate.getURL() === url)
-      if (!contents) throw new Error('Legacy workspace source must still exist before deletion')
-      ;(globalThis as typeof globalThis & { __legacyWorkspaceSession?: Electron.Session }).__legacyWorkspaceSession = contents.session
+      if (!contents) throw new Error('Source workspace source must still exist before deletion')
+      ;(globalThis as typeof globalThis & { __sourceWorkspaceSession?: Electron.Session }).__sourceWorkspaceSession = contents.session
     }, defaultUrl)
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(defaultWorkspaceId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.mcpTabGroups.some(group => group.id === ${JSON.stringify(defaultWorkspaceId)}))`)).toBe(false)
-    const deletedLegacyData = await electronApp.evaluate(async ({ WebContentsView }, url) => {
-      const globals = globalThis as typeof globalThis & { __legacyWorkspaceSession?: Electron.Session }
-      const browserSession = globals.__legacyWorkspaceSession
-      if (!browserSession) throw new Error('Legacy workspace session was not retained for deletion verification')
+    const deletedSourceData = await electronApp.evaluate(async ({ WebContentsView }, url) => {
+      const globals = globalThis as typeof globalThis & { __sourceWorkspaceSession?: Electron.Session }
+      const browserSession = globals.__sourceWorkspaceSession
+      if (!browserSession) throw new Error('Source workspace session was not retained for deletion verification')
       const view = new WebContentsView({ webPreferences: { session: browserSession, sandbox: true, contextIsolation: true } })
       try {
         await view.webContents.loadURL(url)
         return { cookies: await browserSession.cookies.get({}), localStorage: await view.webContents.executeJavaScript("localStorage.getItem('workspace-key')") }
       } finally {
         view.webContents.close()
-        delete globals.__legacyWorkspaceSession
+        delete globals.__sourceWorkspaceSession
       }
-    }, `${origin}/inspect-deleted-legacy`)
-    expect(deletedLegacyData).toEqual({ cookies: [], localStorage: null })
+    }, `${origin}/inspect-deleted-source`)
+    expect(deletedSourceData).toEqual({ cookies: [], localStorage: null })
 
     await appWindow.evaluate(`window.hronaut.closeWorkspace(${JSON.stringify(forkWorkspace.id)})`)
     const freshState = await appWindow.evaluate(`window.hronaut.createWorkspace({ name: 'Fresh after close', storage: 'scratch' })`) as { activeTabId: string }
@@ -535,8 +534,7 @@ test('keeps an isolated workspace profile across restart until the workspace is 
 
     instance = await launchHronaut(profileDirectory, mcpPort)
     await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then((state) => state.mcpTabGroups.find((workspace) => workspace.id === ${JSON.stringify(workspaceId)}))`)).toMatchObject({
-      name: 'Persistent isolated',
-      storageKind: 'isolated'
+      name: 'Persistent isolated'
     })
     await expect.poll(() => instance.app.evaluate(({ webContents }, targetUrl) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === targetUrl)

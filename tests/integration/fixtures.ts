@@ -71,7 +71,8 @@ export async function launchHronaut(
     await readFile(settingsPath, 'utf8')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    await writeFile(settingsPath, `${JSON.stringify({ interfaceScale }, null, 2)}\n`, 'utf8')
+    // The integration suite explicitly exercises the complete catalog; user profiles default to Essentials.
+    await writeFile(settingsPath, `${JSON.stringify({ interfaceScale, mcpToolSet: 'complete' }, null, 2)}\n`, 'utf8')
   }
   const environment = { ...process.env }
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT

@@ -13,8 +13,7 @@ import { isLanguagePreference } from '../shared/locale.js'
 import { DEFAULT_TAB_POSITION, isTabPosition } from '../shared/tab-position.js'
 import {
   DEFAULT_MCP_TOOL_SET,
-  isMcpToolSet,
-  LEGACY_MCP_TOOL_SET
+  isMcpToolSet
 } from '../shared/mcp-tool-sets.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
@@ -58,12 +57,10 @@ export class SettingsStore {
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return { ...DEFAULT_SETTINGS }
-      const value = parsed as Partial<AppSettings> & { autoUpdate?: unknown }
-      const checkForUpdatesOnStartup = typeof value.autoUpdate === 'boolean'
-        ? value.autoUpdate && (typeof value.checkForUpdatesOnStartup === 'boolean' ? value.checkForUpdatesOnStartup : true)
-        : typeof value.checkForUpdatesOnStartup === 'boolean'
-          ? value.checkForUpdatesOnStartup
-          : DEFAULT_SETTINGS.checkForUpdatesOnStartup
+      const value = parsed as Partial<AppSettings>
+      const checkForUpdatesOnStartup = typeof value.checkForUpdatesOnStartup === 'boolean'
+        ? value.checkForUpdatesOnStartup
+        : DEFAULT_SETTINGS.checkForUpdatesOnStartup
       return {
         theme: isThemeName(value.theme) ? value.theme : DEFAULT_SETTINGS.theme,
         interfaceScale: isInterfaceScale(value.interfaceScale) ? value.interfaceScale : DEFAULT_SETTINGS.interfaceScale,
@@ -90,9 +87,7 @@ export class SettingsStore {
         mcpPort: isValidMcpPort(value.mcpPort) ? value.mcpPort : DEFAULT_SETTINGS.mcpPort,
         mcpToolSet: isMcpToolSet(value.mcpToolSet)
           ? value.mcpToolSet
-          : value.mcpToolSet === undefined
-            ? LEGACY_MCP_TOOL_SET
-            : DEFAULT_MCP_TOOL_SET,
+          : DEFAULT_MCP_TOOL_SET,
         downloadDirectory: isDownloadDirectory(value.downloadDirectory) ? value.downloadDirectory : null,
         askWhereToSaveDownloads:
           typeof value.askWhereToSaveDownloads === 'boolean'

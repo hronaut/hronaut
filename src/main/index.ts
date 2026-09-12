@@ -1,3 +1,4 @@
+import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
 import { bindTrayActivation } from './tray-activation.js'
@@ -449,7 +450,6 @@ async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<App
   return { ...settings }
 }
 const activeMcpActivities = new Set<string>()
-let browsingDataClearInProgress = false
 
 function isLoopbackHost(host: string): boolean {
   return host === '127.0.0.1' || host === 'localhost' || host === '::1' || host === '[::1]'
@@ -578,15 +578,8 @@ function acquireTemporaryMcpPause(): () => void {
 }
 
 async function currentBrowsingDataSummary(): Promise<BrowsingDataSummary> {
-  if (!persistentSession) throw new Error('Persistent browser storage is unavailable')
   const history = historyStore?.list() ?? []
-  const [cookies, cacheBytes] = await Promise.all([
-    persistentSession.cookies.get({}),
-    persistentSession.getCacheSize()
-  ])
   return {
-    cookieCount: cookies.length,
-    cacheBytes,
     historyEntries: history.length,
     historyVisits: history.reduce((total, entry) => total + entry.visitCount, 0),
     bookmarkCount: bookmarkStore?.list().length ?? 0,
@@ -597,7 +590,7 @@ async function currentBrowsingDataSummary(): Promise<BrowsingDataSummary> {
 
 async function currentBrowsingDataSiteSummary(
   value: string,
-  browserSession: Session | undefined = persistentSession ?? undefined
+  browserSession: Session | undefined
 ): Promise<BrowsingDataSiteSummary> {
   if (!browserSession) throw new Error('Persistent browser storage is unavailable')
   let url: URL
@@ -656,16 +649,14 @@ async function clearWorkspaceSiteData(
 }
 
 async function currentBrowsingDataWebsites(): Promise<BrowsingDataWebsiteSummary[]> {
-  if (!persistentSession) throw new Error('Persistent browser storage is unavailable')
   const browserState = tabsManager?.getState()
-  const defaultWorkspaceId = browserState?.mcpTabGroups.find((workspace) => workspace.isDefault)?.id
   return buildBrowsingDataWebsiteInventory({
     history: historyStore?.list() ?? [],
-    cookies: await persistentSession.cookies.get({}),
+    cookies: [],
     bookmarks: bookmarkStore?.list() ?? [],
     credentials: credentialStore?.list() ?? [],
     permissions: sitePermissionStore?.list() ?? [],
-    tabs: browserState?.tabs.filter((tab) => tab.mcpGroupId === defaultWorkspaceId) ?? []
+    tabs: browserState?.tabs ?? []
   })
 }
 
@@ -680,56 +671,14 @@ function normalizeBrowsingDataOrigin(value: string | undefined): string | undefi
   }
 }
 
-async function clearBrowsingData(
-  options: BrowsingDataClearOptions,
-  activeMcpRequestAllowance = 0
-): Promise<BrowsingDataSummary> {
-  if (!persistentSession || !historyStore) throw new Error('Persistent browser storage is unavailable')
-  if (!options.history && !options.cookiesAndSiteData && !options.cache) {
-    throw new Error('Select at least one type of browsing data to clear')
-  }
-  if (browsingDataClearInProgress) throw new Error('Browsing data is already being cleared')
+async function clearBrowsingData(options: BrowsingDataClearOptions): Promise<BrowsingDataSummary> {
+  if (!historyStore) throw new Error('Browser history is unavailable')
+  if (!options.history) throw new Error('Select history to clear')
   const origin = normalizeBrowsingDataOrigin(options.origin)
-  const originScope = origin
-    ? { origins: [origin], originMatchingMode: 'origin-in-all-contexts' as const }
-    : {}
-  browsingDataClearInProgress = true
-  const releaseMcpPause = acquireTemporaryMcpPause()
-  try {
-    const deadline = Date.now() + 5_000
-    while ((mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount) > activeMcpRequestAllowance && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 25))
-    }
-    if ((mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount) > activeMcpRequestAllowance) {
-      throw new Error('Could not clear browsing data while an MCP command was still active')
-    }
-    if (options.history) {
-      if (origin) await historyStore.clearOrigin(origin)
-      else await historyStore.clear()
-      publishVisitHistory()
-    }
-    if (options.cookiesAndSiteData && options.cache) {
-      await persistentSession.clearData({
-        dataTypes: ['backgroundFetch', 'cache', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-        ...originScope
-      })
-    } else if (options.cookiesAndSiteData) {
-      await persistentSession.clearData({
-        dataTypes: ['backgroundFetch', 'cookies', 'fileSystems', 'indexedDB', 'localStorage', 'serviceWorkers', 'webSQL'],
-        ...originScope
-      })
-      await persistentSession.clearStorageData({
-        storages: ['cachestorage'],
-        ...(origin ? { origin } : {})
-      })
-    } else if (options.cache) {
-      await persistentSession.clearData({ dataTypes: ['cache'], ...originScope })
-    }
-    return currentBrowsingDataSummary()
-  } finally {
-    releaseMcpPause()
-    browsingDataClearInProgress = false
-  }
+  if (origin) await historyStore.clearOrigin(origin)
+  else await historyStore.clear()
+  publishVisitHistory()
+  return currentBrowsingDataSummary()
 }
 
 async function handleCredentialCandidate(candidate: BrowserCredentialCandidate): Promise<void> {
@@ -2525,7 +2474,7 @@ function registerIpc(): void {
     const candidate = value as Record<string, unknown>
     if (typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
-    if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-default' && candidate.storage !== 'fork-workspace') throw new TypeError('Invalid workspace storage mode')
+    if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-workspace') throw new TypeError('Invalid workspace storage mode')
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
       throw new TypeError('Invalid workspace storage origins')
     }
@@ -2553,25 +2502,13 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace storage transfer')
     const candidate = value as Record<string, unknown>
-    if ('sourceWorkspaceId' in candidate || 'targetWorkspaceId' in candidate || 'mode' in candidate) {
-      if (typeof candidate.sourceWorkspaceId !== 'string' || typeof candidate.targetWorkspaceId !== 'string') throw new TypeError('Source and destination workspaces are required')
-      if (candidate.mode !== 'copy' && candidate.mode !== 'move') throw new TypeError('Invalid workspace transfer mode')
-      if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) throw new TypeError('Invalid workspace storage origins')
-      return tabsManager!.transferWorkspaceStorage({
-        sourceWorkspaceId: candidate.sourceWorkspaceId,
-        targetWorkspaceId: candidate.targetWorkspaceId,
-        mode: candidate.mode,
-        ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
-      })
-    }
-    if (typeof candidate.workspaceId !== 'string') throw new TypeError('Invalid workspace ID')
-    if (candidate.direction !== 'from-default' && candidate.direction !== 'to-default') throw new TypeError('Invalid workspace storage direction')
-    if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
-      throw new TypeError('Invalid workspace storage origins')
-    }
+    if (typeof candidate.sourceWorkspaceId !== 'string' || typeof candidate.targetWorkspaceId !== 'string') throw new TypeError('Source and destination workspaces are required')
+    if (candidate.mode !== 'copy' && candidate.mode !== 'move') throw new TypeError('Invalid workspace transfer mode')
+    if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) throw new TypeError('Invalid workspace storage origins')
     return tabsManager!.transferWorkspaceStorage({
-      workspaceId: candidate.workspaceId,
-      direction: candidate.direction,
+      sourceWorkspaceId: candidate.sourceWorkspaceId,
+      targetWorkspaceId: candidate.targetWorkspaceId,
+      mode: candidate.mode,
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {})
     } satisfies BrowserWorkspaceStorageTransferOptions)
   })
@@ -2886,11 +2823,11 @@ function registerIpc(): void {
   ipcMain.handle('browsing-data:site-summary', (event, url: unknown, tabId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof url !== 'string') throw new TypeError('Invalid website')
-    if (tabId !== undefined && typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
-    if (typeof tabId !== 'string') return currentBrowsingDataSiteSummary(url)
+    if (typeof tabId !== 'string') throw new TypeError('Tab ID is required')
     const tab = tabsManager?.getState().tabs.find((candidate) => candidate.id === tabId)
     if (!tab) throw new Error(`Tab not found: ${tabId}`)
-    const browserSession = tab.mcpGroupId ? tabsManager?.workspaceSession(tab.mcpGroupId) : persistentSession ?? undefined
+    if (!tab.mcpGroupId) throw new Error('Website workspace is required')
+    const browserSession = tabsManager?.workspaceSession(tab.mcpGroupId)
     return currentBrowsingDataSiteSummary(url, browserSession)
   })
   ipcMain.handle('browsing-data:websites', (event) => {
@@ -2900,16 +2837,10 @@ function registerIpc(): void {
   ipcMain.handle('browsing-data:clear', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object') throw new TypeError('Invalid browsing-data options')
-    const { history, cookiesAndSiteData, cache, origin } = value as Record<string, unknown>
-    if (
-      typeof history !== 'boolean'
-      || typeof cookiesAndSiteData !== 'boolean'
-      || typeof cache !== 'boolean'
-      || (origin !== undefined && typeof origin !== 'string')
-    ) {
-      throw new TypeError('Invalid browsing-data options')
-    }
-    return clearBrowsingData({ history, cookiesAndSiteData, cache, ...(origin ? { origin } : {}) })
+    const { history, origin } = value as Record<string, unknown>
+    if (typeof history !== 'boolean' || (origin !== undefined && typeof origin !== 'string')
+      || Object.keys(value).some(key => key !== 'history' && key !== 'origin')) throw new TypeError('Invalid history clearing options')
+    return clearBrowsingData({ history, ...(origin ? { origin } : {}) })
   })
   ipcMain.handle('browser:set-tab-human-interaction-locked', (event, tabId: unknown, locked: unknown) => {
     assertTrustedShellSender(event)
@@ -3652,6 +3583,7 @@ function registerIpc(): void {
 async function loadAuthoritativeSettings(): Promise<void> {
   settingsStore = new SettingsStore(join(app.getPath('userData'), 'settings.json'))
   persistedSettings = await settingsStore.load()
+  await settingsStore.save(persistedSettings)
   settings = { ...persistedSettings }
   systemLocale = resolveSupportedLocale(app.getLocale())
   resolvedLocale = resolveLocalePreference(settings.languagePreference, systemLocale)
@@ -4362,6 +4294,7 @@ app.whenReady().then(async () => {
   configureAutoUpdater()
   await loadAuthoritativeSettings()
   installApplicationMenu()
+  await discardObsoleteBrowserData(app.getPath('userData'))
   await configurePersistentSession()
   registerHomeProtocol()
   await createWindow()

@@ -70,7 +70,6 @@ function createHarness() {
     addressSuggestionsOpen,
     findOpen,
     janitorSearch,
-    usesDefaultProfile: () => usesDefaultProfile.value,
     activeOrigin: () => siteSummary.origin,
     settingsEntryBlocked: () => settingsEntryBlocked.value,
     openSettingsSection,
@@ -151,26 +150,8 @@ describe('useAppSiteManagementFeatureController', () => {
     harness.controller.dispose()
   })
 
-  it('routes privacy to global settings or isolated site storage based on the active profile', async () => {
+  it('routes website data controls to the active workspace storage', async () => {
     const harness = createHarness()
-    harness.siteControlsOpen.value = true
-    harness.findOpen.value = true
-    harness.downloadsOpen.value = true
-
-    await harness.controller.openSitePrivacySettings()
-
-    expect(harness.siteControlsOpen.value).toBe(false)
-    expect(harness.openSettingsSection).toHaveBeenLastCalledWith('privacy')
-    expect(harness.janitorSearch.value).toBe('https://example.test')
-    expect(harness.downloadsOpen.value).toBe(false)
-    expect(harness.closeFind).toHaveBeenCalledOnce()
-    expect(harness.refreshPrivacySettings).toHaveBeenCalledOnce()
-
-    harness.settingsOpen.value = false
-    await nextTick()
-    expect(harness.janitorSearch.value).toBe('')
-
-    harness.usesDefaultProfile.value = false
     harness.siteControlsOpen.value = true
     harness.settingsOpen.value = true
     await harness.controller.openSitePrivacySettings()
@@ -180,7 +161,7 @@ describe('useAppSiteManagementFeatureController', () => {
     expect(harness.settingsOpen.value).toBe(false)
     expect(harness.resetSiteStorage).toHaveBeenCalledOnce()
     expect(harness.refreshSiteStorage).toHaveBeenCalledOnce()
-    expect(harness.openSettingsSection).toHaveBeenCalledTimes(1)
+    expect(harness.openSettingsSection).not.toHaveBeenCalled()
 
     harness.controller.dispose()
   })

@@ -8,8 +8,6 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowsingDataSummary, BrowsingDataWebsiteSummary } from '../../src/shared/types.js'
 
 const EMPTY_SUMMARY: BrowsingDataSummary = {
-  cookieCount: 0,
-  cacheBytes: 0,
   historyEntries: 0,
   historyVisits: 0,
   bookmarkCount: 0,
@@ -67,11 +65,11 @@ describe('PrivacySettingsPanel', () => {
     const user = userEvent.setup()
 
     expect(screen.getByRole('heading', { name: 'Workspaces & data' })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Global history & legacy data' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Global history' })).toBeVisible()
     expect(screen.getByText('Research')).toBeVisible()
     expect(screen.getByText(/Active · 2 tabs · 3 known websites/)).toBeVisible()
     expect(screen.getByText('example.test')).toBeVisible()
-    await user.type(screen.getByRole('searchbox', { name: 'Search legacy websites' }), 'missing')
+    await user.type(screen.getByRole('searchbox', { name: 'Search websites' }), 'missing')
 
     expect(screen.getByText('No matching websites')).toBeVisible()
     controller.dispose()

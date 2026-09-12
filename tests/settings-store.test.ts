@@ -109,7 +109,7 @@ describe('SettingsStore', () => {
     await writeFile(path, '{"theme":"neon","searchEngine":"yahoo"}', 'utf8')
     expect(await store.load()).toEqual({
       ...DEFAULT_SETTINGS,
-      mcpToolSet: 'complete'
+      mcpToolSet: 'essentials'
     })
   })
 
@@ -137,7 +137,7 @@ describe('SettingsStore', () => {
       followAgentActivity: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
-      mcpToolSet: 'complete',
+      mcpToolSet: 'essentials',
       downloadDirectory: null,
       askWhereToSaveDownloads: false,
       memorySaverEnabled: true,
@@ -147,12 +147,12 @@ describe('SettingsStore', () => {
     })
   })
 
-  it('preserves the complete catalog for existing profiles and defaults new profiles to essentials', async () => {
+  it('defaults missing tool sets to essentials for every profile', async () => {
     const { path, store } = await createStore()
     expect((await store.load()).mcpToolSet).toBe('essentials')
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, '{"theme":"dark"}\n', 'utf8')
-    expect((await store.load()).mcpToolSet).toBe('complete')
+    expect((await store.load()).mcpToolSet).toBe('essentials')
     await writeFile(path, '{"mcpToolSet":"qa"}\n', 'utf8')
     expect((await store.load()).mcpToolSet).toBe('qa')
     await writeFile(path, '{"mcpToolSet":"unknown"}\n', 'utf8')
@@ -209,10 +209,10 @@ describe('SettingsStore', () => {
   })
 
   it.each([
-    { autoUpdate: false, checkForUpdatesOnStartup: true, expected: false },
+    { autoUpdate: false, checkForUpdatesOnStartup: true, expected: true },
     { autoUpdate: true, checkForUpdatesOnStartup: false, expected: false },
     { autoUpdate: true, checkForUpdatesOnStartup: true, expected: true }
-  ])('migrates legacy update settings to their effective state', async ({
+  ])('ignores obsolete update settings', async ({
     autoUpdate,
     checkForUpdatesOnStartup,
     expected

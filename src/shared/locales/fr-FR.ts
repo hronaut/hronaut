@@ -322,7 +322,7 @@ export const frFR = {
     "privacy": {
       "heading": "Espaces de travail et données",
       description: "Examinez chaque espace du navigateur, gérez sa politique et copiez ou déplacez des données sélectionnées entre profils isolés.",
-      workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", legacyHeading: "Historique global et anciennes données", legacyDescription: "Effacez l’historique global de l’application ou les données de l’ancien profil par défaut.",
+      workspaces: "Espaces du navigateur", workspacesDescription: "Les espaces actifs et archivés conservent des cookies et un stockage local séparés.", createWorkspace: "Créer un espace", transferData: "Copier ou déplacer les données", manageWorkspace: "Gérer", workspaceActive: "Actif", workspaceArchived: "Archivé", workspaceTabs: "{count} onglet | {count} onglets", workspaceSites: "{count} site connu | {count} sites connus", historyHeading: "Historique global", historyDescription: "Effacez l’historique. Gérez les données des sites dans leur espace.",
       "whatToClear": "Données à effacer",
       "history": "Historique",
       "localVisits": "Visites locales",
@@ -331,26 +331,26 @@ export const frFR = {
       "cache": "Fichiers en cache",
       "slower": "Les rechargements peuvent être plus lents",
       "clearingAll": "Tout effacer…",
-      "clearAll": "Effacer tous les sites web… ({count})",
+      clearAll: "Effacer l’historique… ({count})",
       "totals": "{history} page d’historique | {history} pages d’historique",
       "totalsDetail": "{history} · {cookies} · cache {cache}",
-      "loadingTotals": "Chargement des totaux du profil…",
-      "websites": "Sites web",
-      websitesDescription: "Recherchez les données de l’ancien profil et les enregistrements globaux, puis effacez les catégories choisies pour un site.",
+      loadingTotals: "Chargement de l’historique…",
+      websites: "Sites visités",
+      websitesDescription: "Recherchez dans l’historique et les données globales des sites.",
       "refresh": "Actualiser",
-      "search": "Rechercher des sites web",
+      search: "Rechercher des sites",
       "range": "{shown} sur {total}",
-      "finding": "Recherche de sites web…",
-      checking: "Vérification des données de l’ancien profil et des enregistrements globaux.",
-      "empty": "Aucun site web",
-      "emptyDescription": "Les sites apparaissent après avoir été visités, ouverts, ajoutés aux favoris, autorisés, enregistrés avec un compte ou avoir stocké un cookie.",
+      finding: "Recherche des sites…",
+      checking: "Vérification de l’historique.",
+      empty: "Aucun site",
+      emptyDescription: "Les sites apparaissent dans l’historique et les données associées.",
       "noMatches": "Aucun site correspondant",
       "noMatchesDescription": "Essayez un nom d’hôte, un titre ou une origine complète.",
-      known: "Connu de l’ancien profil",
-      "clearSiteAria": "Effacer les données sélectionnées pour {origin}",
+      known: "Site connu",
+      clearSiteAria: "Effacer l’historique de {origin}",
       "clearing": "Effacement…",
       "clear": "Effacer…",
-      exclusions: "Les favoris ({bookmarks}), mots de passe ({passwords}), autorisations ({permissions}), téléchargements, réglages et onglets ouverts sont conservés. Les pages ne sont pas rechargées. Les nouvelles commandes MCP attendent pendant l’effacement. Les cookies, le cache et les données de sites appartiennent ici à l’ancien profil ; l’historique est global. Gérez les espaces individuels via leurs commandes d’espace ou de page. Chromium ne recense pas toutes les origines contenant uniquement du stockage. Des sous-domaines peuvent partager des cookies."
+      exclusions: "Les favoris ({bookmarks}), mots de passe ({passwords}), autorisations ({permissions}), téléchargements, réglages, onglets et données des espaces sont conservés."
     },
     "support": {
       "trialNotStarted": "L’essai de 10 jours commence au premier appel d’outil par un agent.",
@@ -435,18 +435,13 @@ export const frFR = {
     startingDescription: "Commencez sans données ou copiez des données sélectionnées depuis un autre espace.",
     "scratch": "Partir de zéro",
     "scratchDescription": "Utiliser un profil de navigateur isolé vide.",
-    "fork": "Dupliquer Par défaut",
     "forkDescription": "Copier les cookies et le stockage local sans lier les modifications futures.",
     websites: "Sites web",
     "clear": "Effacer",
     "selectAll": "Tout sélectionner",
     noOrigins: "Aucune origine de site connue. Les cookies de la source sélectionnée peuvent tout de même être copiés.",
-    defaultDescription: "Cet espace utilise un ancien profil du navigateur. Vous pouvez le renommer, l’archiver ou le supprimer.",
     "browserData": "Données du navigateur",
     browserDataDescription: "Transférez des données sélectionnées entre espaces sans lier leurs modifications futures.",
-    "transferDirection": "Sens du transfert de stockage",
-    "importDefault": "Importer depuis Par défaut",
-    "saveDefault": "Enregistrer dans Par défaut",
     "loading": "Chargement des sites web connus…",
     "noSourceOrigins": "Aucune origine de site web connue dans le profil source. Tous les cookies peuvent tout de même être copiés.",
     "copying": "Copie…",
@@ -454,7 +449,6 @@ export const frFR = {
     "saving": "Enregistrement de l’espace de travail…",
     "closing": "Fermeture de l’espace de travail…",
     "importSelected": "Importer les données sélectionnées",
-    "saveSelected": "Enregistrer les données sélectionnées dans Par défaut",
     "closePermanently": "Fermer définitivement l’espace de travail",
     "closeDescription": "Ferme ses onglets et supprime ses données de navigateur isolées.",
     "unlockTitle": "Déverrouillez tous les onglets avant de fermer un espace de travail",
@@ -503,7 +497,7 @@ export const frFR = {
       },
       "new-tab": {
         "label": "Nouvel onglet",
-        "description": "Ouvrir un onglet vide dans l’espace par défaut"
+        "description": "Ouvrir un onglet vide dans l’espace de travail actuel"
       },
       "search-tabs": {
         "label": "Rechercher des onglets",
@@ -1023,7 +1017,7 @@ export const frFR = {
       "splitClose": "Impossible de fermer la vue fractionnée."
     },
     "browsingData": {
-      "confirm": "Effacer les données de navigation sélectionnées pour tous les sites web ?\n\n{items}\n\nLes favoris, fichiers téléchargés, mots de passe enregistrés et décisions d’autorisation des sites seront conservés. Les pages ouvertes ne se rechargeront pas automatiquement.",
+      "confirm": "Effacer l’historique de navigation de tous les sites ?\n\n{items}\n\nLes données web des espaces de travail et les autres données de l’application seront conservées.",
       "item": "• {item}",
       "websiteConfirm": "Effacer {items} pour {origin} ? Les pages ouvertes ne se rechargeront pas automatiquement.",
       "cookieMeta": "{count} cookie | {count} cookies",
@@ -1031,7 +1025,6 @@ export const frFR = {
       "bookmarkMeta": "{count} favori | {count} favoris",
       "passwordMeta": "{count} compte enregistré | {count} comptes enregistrés",
       "permissionMeta": "{count} décision d’autorisation | {count} décisions d’autorisation",
-      "tabMeta": "{count} onglet Par défaut ouvert | {count} onglets Par défaut ouverts",
       "clearedSite": "Les données sélectionnées ont été effacées pour {origin}. Rechargez les pages ouvertes lorsque vous êtes prêt."
     },
     "permission": {
@@ -1047,7 +1040,7 @@ export const frFR = {
     "cookiesAll": "Cookies et données de sites (vous pourriez être déconnecté)",
     "cookiesSite": "Cookies et stockage du site (vous pourriez être déconnecté)",
     "cache": "Images et fichiers en cache",
-    "clearSiteConfirm": "Effacer les données sélectionnées pour {origin} ?\n\n{items}\n\nLes sous-domaines associés peuvent partager des cookies. Les favoris, mots de passe enregistrés, autorisations de sites, téléchargements, paramètres et onglets ouverts seront conservés.",
+    "clearSiteConfirm": "Effacer l’historique de navigation de {origin} ?\n\n{items}\n\nLes données web des espaces de travail et les autres données de l’application seront conservées.",
     "historyWithVisits": "{pages} page d’historique · {visits} visite | {pages} pages d’historique · {visits} visites",
     "openTabs": "{count} onglet ouvert | {count} onglets ouverts",
     "bookmarksKept": "{count} favori conservé | {count} favoris conservés",
@@ -1134,7 +1127,6 @@ export const frFR = {
       "list": "Onglets et espaces de travail du navigateur",
       "scrollBack": "Afficher les onglets précédents",
       "scrollForward": "Afficher les onglets suivants",
-      "defaultWorkspace": "Espace de travail par défaut pour les nouveaux onglets",
       "pageAttention": "La page requiert votre attention",
       "sleeping": "En veille pour économiser les ressources",
       "stackedVisible": "Visible dans la vue fractionnée empilée",
@@ -2841,8 +2833,8 @@ export const frFR = {
     "firstRun": {
       "kicker": "Premier succès",
       "heading": "Essayez Hronaut avec une tâche sûre",
-      "description": "Après la connexion, copiez cette consigne dans votre agent de programmation. Vous le verrez créer un espace de travail isolé et inspecter une page sans utiliser l’espace Par défaut.",
-      "prompt": "Avec Hronaut, crée un nouvel espace de travail isolé nommé « Premier lancement Hronaut », ouvre https://example.com, prends un instantané sémantique et indique-moi le titre de la page. N’utilise pas l’espace de travail Par défaut.",
+      "description": "Après la connexion, copiez cette demande dans votre agent de programmation. Il créera un espace de travail isolé et examinera une page.",
+      "prompt": "Avec Hronaut, crée un espace de travail isolé nommé « Premier essai Hronaut », ouvre https://example.com, prends un instantané sémantique et indique-moi le titre de la page. Utilise uniquement cet espace de travail.",
       "copy": "Copier la consigne"
     },
     "activity": {

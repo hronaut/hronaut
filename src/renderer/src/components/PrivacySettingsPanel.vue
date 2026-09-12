@@ -83,10 +83,10 @@ const {
         </article>
       </div>
     </section>
-    <section class="legacy-data-section" aria-labelledby="legacy-data-heading">
+    <section class="history-data-section" aria-labelledby="history-data-heading">
       <div class="setting-copy">
-        <h4 id="legacy-data-heading">{{ t('settings.privacy.legacyHeading') }}</h4>
-        <p>{{ t('settings.privacy.legacyDescription') }}</p>
+        <h4 id="history-data-heading">{{ t('settings.privacy.historyHeading') }}</h4>
+        <p>{{ t('settings.privacy.historyDescription') }}</p>
       </div>
     <fieldset class="privacy-category-options" :disabled="clearing">
       <legend>{{ t('settings.privacy.whatToClear') }}</legend>
@@ -94,20 +94,12 @@ const {
         <input id="clear-browsing-history" v-model="clearOptions.history" type="checkbox" />
         <span><strong>{{ t('settings.privacy.history') }}</strong><small>{{ t('settings.privacy.localVisits') }}</small></span>
       </label>
-      <label for="clear-cookies-site-data">
-        <input id="clear-cookies-site-data" v-model="clearOptions.cookiesAndSiteData" type="checkbox" />
-        <span><strong>{{ t('settings.privacy.cookies') }}</strong><small>{{ t('settings.privacy.signOut') }}</small></span>
-      </label>
-      <label for="clear-browser-cache">
-        <input id="clear-browser-cache" v-model="clearOptions.cache" type="checkbox" />
-        <span><strong>{{ t('settings.privacy.cache') }}</strong><small>{{ t('settings.privacy.slower') }}</small></span>
-      </label>
     </fieldset>
     <div class="privacy-data-actions">
       <UiButton appearance="application" class="clear-data-button" type="button" :disabled="!canClear" @click="clearSelected">
         {{ summaryState === 'clearing' ? t('settings.privacy.clearingAll') : t('settings.privacy.clearAll', { count: formatNumber(selectedCount) }) }}
       </UiButton>
-      <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totalsDetail', { history: t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries), cookies: t(summary.cookieCount === 1 ? 'shell.siteControls.cookie' : 'shell.siteControls.cookies', { count: formatNumber(summary.cookieCount) }), cache: formatBytes(summary.cacheBytes) }) : t('settings.privacy.loadingTotals')) }}</output>
+      <output class="privacy-data-status" :class="summaryState" aria-live="polite">{{ summaryMessage || (summary ? t('settings.privacy.totals', { history: formatNumber(summary.historyEntries) }, summary.historyEntries) : t('settings.privacy.loadingTotals')) }}</output>
     </div>
     <div class="privacy-websites-heading">
       <div>

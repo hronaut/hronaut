@@ -423,7 +423,7 @@ watch(
 watch(
   [
     () => props.state.tabs.map((tab) => `${tab.id}:${tab.title}:${tab.pinned}:${tab.mcpGroupId ?? ''}`).join('|'),
-    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}:${group.isDefault}`).join('|'),
+    () => props.state.mcpTabGroups.map((group) => `${group.id}:${group.name}`).join('|'),
     () => [...collapsedTabGroupIds.value].sort().join('|')
   ],
   async () => {

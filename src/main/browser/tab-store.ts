@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
 import {
   isBrowserSplitOrientation,
@@ -37,7 +37,7 @@ export interface PersistedTabGroup {
   createdAt: string
   lastUsedAt: string
   activeTabId?: string | null
-  storageId?: string
+  storageId: string
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
@@ -49,7 +49,7 @@ export interface PersistedSavedTabGroup {
   name: string
   color: BrowserTabGroupColor
   savedAt: string
-  storageId?: string
+  storageId: string
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
   navigationAudit?: BrowserWorkspaceNavigationAuditEntry[]
@@ -61,7 +61,6 @@ export interface PersistedBrowserState {
   activeTabId: string | null
   splitView?: BrowserSplitViewState
   allHumanInteractionLocked?: boolean
-  defaultHumanGroupId?: string
   tabs: PersistedTab[]
   mcpTabGroups?: PersistedTabGroup[]
   savedTabGroups?: PersistedSavedTabGroup[]
@@ -213,7 +212,7 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
     })),
     tabs: state.tabs.map((tab) => sanitizeTab(
       tab,
-      tab.mcpGroupId !== undefined && (tab.mcpGroupId !== state.defaultHumanGroupId || activePolicies.get(tab.mcpGroupId)?.mode === 'restricted'),
+      tab.mcpGroupId !== undefined,
       tab.mcpGroupId ? activePolicies.get(tab.mcpGroupId) : undefined
     )),
     savedTabGroups: state.savedTabGroups?.map((group) => ({
@@ -222,7 +221,7 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
       navigationAudit: persistedWorkspaceNavigationAudit(group.navigationAudit),
       tabs: group.tabs.map((tab) => sanitizeTab(
         tab,
-        group.id !== state.defaultHumanGroupId || savedPolicies.get(group.id)?.mode === 'restricted',
+        true,
         savedPolicies.get(group.id)
       ))
     }))
@@ -239,25 +238,34 @@ export class TabStateStore {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
       if (!isRecord(parsed)) return null
       const data = parsed
+      if (data.version !== TAB_STATE_VERSION) {
+        if (data.version === undefined || data.version === 0 || data.version === 1 || data.version === 2) {
+          await rm(this.path, { force: true })
+        }
+        return null
+      }
       if (
-        (data.version !== TAB_STATE_VERSION && data.version !== 2)
-        || !Array.isArray(data.tabs)
+        !Array.isArray(data.tabs)
         || !Array.isArray(data.mcpTabGroups)
         || !Array.isArray(data.savedTabGroups)
         || data.tabs.length > MAX_TABS
         || data.mcpTabGroups.length > MAX_ACTIVE_WORKSPACES
         || data.savedTabGroups.length > MAX_SAVED_WORKSPACES
-        || (data.defaultHumanGroupId !== undefined
-          && (typeof data.defaultHumanGroupId !== 'string' || !isUuidV7(data.defaultHumanGroupId)))
       ) return null
 
       const usedWorkspaceIds = new Set<string>()
       const activeWorkspaceIds = new Set<string>()
       const usedStorageIds = new Set<string>()
-      let repairedPersistedState = data.version !== TAB_STATE_VERSION
+      let repairedPersistedState = 'defaultHumanGroupId' in data
+      const discardedWorkspaceIds = new Set<string>()
       const mcpTabGroups: PersistedTabGroup[] = []
       for (const candidate of data.mcpTabGroups) {
         if (!isRecord(candidate)) return null
+        if (candidate.storageId === undefined && typeof candidate.id === 'string') {
+          discardedWorkspaceIds.add(candidate.id)
+          repairedPersistedState = true
+          continue
+        }
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
@@ -280,14 +288,12 @@ export class TabStateStore {
           || typeof candidate.createdAt !== 'string'
           || typeof candidate.lastUsedAt !== 'string'
           || (candidate.activeTabId !== null && candidate.activeTabId !== undefined && typeof candidate.activeTabId !== 'string')
-          || (candidate.id === data.defaultHumanGroupId
-            ? candidate.storageId !== undefined
-            : storageId === undefined)
-          || (storageId !== undefined && usedStorageIds.has(storageId))
+          || storageId === undefined
+          || usedStorageIds.has(storageId)
         ) return null
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
-        if (storageId) usedStorageIds.add(storageId)
+        usedStorageIds.add(storageId)
         mcpTabGroups.push({
           id: candidate.id,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
@@ -296,7 +302,7 @@ export class TabStateStore {
           createdAt: candidate.createdAt,
           lastUsedAt: candidate.lastUsedAt,
           activeTabId: typeof candidate.activeTabId === 'string' ? candidate.activeTabId : null,
-          ...(storageId ? { storageId } : {}),
+          storageId,
           origins: persistedWorkspaceOrigins(candidate.origins),
           navigationPolicy,
           navigationAudit
@@ -309,6 +315,11 @@ export class TabStateStore {
       const savedTabGroups: PersistedSavedTabGroup[] = []
       for (const candidate of data.savedTabGroups) {
         if (!isRecord(candidate) || !Array.isArray(candidate.tabs)) return null
+        if (candidate.storageId === undefined && typeof candidate.id === 'string') {
+          discardedWorkspaceIds.add(candidate.id)
+          repairedPersistedState = true
+          continue
+        }
         const storageId = persistedWorkspaceStorageId(candidate.storageId)
         let navigationPolicy: BrowserWorkspaceNavigationPolicy
         let navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
@@ -329,8 +340,8 @@ export class TabStateStore {
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.savedAt !== 'string'
-          || (candidate.id === data.defaultHumanGroupId ? candidate.storageId !== undefined : !storageId)
-          || (storageId !== undefined && usedStorageIds.has(storageId))
+          || !storageId
+          || usedStorageIds.has(storageId)
           || candidate.tabs.length > MAX_TABS
           || candidate.tabs.some((tab) => (
             !isRecord(tab)
@@ -339,22 +350,21 @@ export class TabStateStore {
           ))
         ) return null
         usedWorkspaceIds.add(candidate.id)
-        if (storageId) usedStorageIds.add(storageId)
+        usedStorageIds.add(storageId)
         savedTabGroups.push({
           id: candidate.id,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
           color: candidate.color,
           savedAt: candidate.savedAt,
-          ...(storageId ? { storageId } : {}),
+          storageId,
           origins: persistedWorkspaceOrigins(candidate.origins),
           navigationPolicy,
           navigationAudit,
           tabs: candidate.tabs.map((tab) => {
             const originalUrl = (tab as Record<string, unknown>).url as string
             const normalizedUrl = normalizePersistedTabUrl(originalUrl)!
-            const unrestrictedLegacy = candidate.id === data.defaultHumanGroupId && navigationPolicy.mode === 'unrestricted'
-            const url = unrestrictedLegacy || (isAgentWorkspaceNavigationUrl(normalizedUrl)
+            const url = (isAgentWorkspaceNavigationUrl(normalizedUrl)
               && evaluateWorkspaceNavigation(navigationPolicy, normalizedUrl).allowed)
               ? normalizedUrl
               : 'about:blank'
@@ -374,11 +384,14 @@ export class TabStateStore {
         }
       }
 
-      if (typeof data.defaultHumanGroupId === 'string' && !usedWorkspaceIds.has(data.defaultHumanGroupId)) return null
-
       const usedTabIds = new Set<string>()
       const tabs: PersistedTab[] = []
+      const discardedTabIds = new Set<string>()
       for (const candidate of data.tabs) {
+        if (isRecord(candidate) && typeof candidate.mcpGroupId === 'string' && discardedWorkspaceIds.has(candidate.mcpGroupId)) {
+          if (typeof candidate.id === 'string') discardedTabIds.add(candidate.id)
+          continue
+        }
         const url = isRecord(candidate) ? normalizePersistedTabUrl(candidate.url) : null
         if (
           !isRecord(candidate)
@@ -395,7 +408,6 @@ export class TabStateStore {
           ? mcpTabGroups.find((group) => group.id === candidate.mcpGroupId)?.navigationPolicy
           : undefined
         const normalizedUrl = typeof candidate.mcpGroupId === 'string'
-          && (candidate.mcpGroupId !== data.defaultHumanGroupId || owningPolicy?.mode === 'restricted')
           && (!isAgentWorkspaceNavigationUrl(url) || !owningPolicy || !evaluateWorkspaceNavigation(owningPolicy, url).allowed)
             ? 'about:blank'
             : url
@@ -412,12 +424,16 @@ export class TabStateStore {
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })
       }
-      const activeTabId = typeof data.activeTabId === 'string' ? data.activeTabId : null
+      const activeTabId = typeof data.activeTabId === 'string' && !discardedTabIds.has(data.activeTabId) ? data.activeTabId : null
       if (activeTabId !== null && !usedTabIds.has(activeTabId)) return null
       for (const group of mcpTabGroups) {
         if (group.activeTabId && !tabs.some((tab) => tab.id === group.activeTabId && tab.mcpGroupId === group.id)) return null
       }
 
+      if (isRecord(data.splitView) && (
+        discardedTabIds.has(String(data.splitView.firstTabId))
+        || discardedTabIds.has(String(data.splitView.secondTabId))
+      )) delete data.splitView
       const splitView = isRecord(data.splitView)
         && typeof data.splitView.firstTabId === 'string'
         && typeof data.splitView.secondTabId === 'string'
@@ -446,10 +462,9 @@ export class TabStateStore {
 
       const restored: PersistedBrowserState = {
         version: TAB_STATE_VERSION,
-        activeTabId: typeof data.activeTabId === 'string' ? data.activeTabId : null,
+        activeTabId,
         ...(splitView ? { splitView } : {}),
         allHumanInteractionLocked: data.allHumanInteractionLocked === true,
-        ...(typeof data.defaultHumanGroupId === 'string' ? { defaultHumanGroupId: data.defaultHumanGroupId } : {}),
         mcpTabGroups,
         savedTabGroups,
         ...(continuityWorkspaceIds ? { continuityWorkspaceIds } : {}),

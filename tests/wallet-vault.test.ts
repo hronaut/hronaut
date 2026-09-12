@@ -240,25 +240,22 @@ describe('WalletVault', () => {
     secret.material.fill(0)
   })
 
-  it('migrates the legacy vault envelope atomically and preserves authenticated records', async () => {
+  it.each([0, 1])('rejects obsolete wallet envelopes without migration (version=%s)', async version => {
     const path = await vaultPath()
     const wrapper = new SafeStorageWalletKeyWrapper(fakeSafeStorage())
     const created = new WalletVault(path, wrapper)
     await created.initialize()
     await created.add(descriptor(), { format: 'private-key', material: Buffer.from('migration secret') })
     const legacy = JSON.parse(await readFile(path, 'utf8')) as { version: number; authority?: unknown }
-    legacy.version = 0
+    legacy.version = version
     delete legacy.authority
     await writeFile(path, `${JSON.stringify(legacy, null, 2)}\n`, 'utf8')
 
     const restored = new WalletVault(path, wrapper)
-    await restored.load()
-
-    expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({ version: 2 })
-    expect(restored.list()).toEqual([descriptor()])
-    const secret = await restored.secret('wallet-1')
-    expect(secret.material.toString('utf8')).toBe('migration secret')
-    secret.material.fill(0)
+    await expect(restored.load()).rejects.toThrow('Wallet vault file is invalid')
+    expect(restored.list()).toEqual([])
+    expect(restored.isLocked()).toBe(true)
+    expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(version)
   })
 
   it('rewraps the data key after operating-system key rotation', async () => {

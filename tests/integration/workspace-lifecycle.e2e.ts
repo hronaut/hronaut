@@ -1,26 +1,24 @@
 import { createServer } from 'node:http'
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
-import { seedLegacyWorkspaceProfile } from './workspace-profile.js'
+import { seedWorkspaceProfile } from './workspace-profile.js'
 
-test('preserves legacy site data through rename and archive, then deletes Default without recreating it', async ({ profileDirectory }) => {
-  const { workspaceId } = await seedLegacyWorkspaceProfile(profileDirectory)
-  const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<title>Legacy data</title>') })
+test('preserves isolated site data through rename and archive, then deletes its workspace', async ({ profileDirectory }) => {
+  const { workspaceId } = await seedWorkspaceProfile(profileDirectory)
+  const server = createServer((_request, response) => { response.writeHead(200, { 'content-type': 'text/html' }); response.end('<title>Workspace data</title>') })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-  const url = `http://127.0.0.1:${address.port}/legacy`
+  const url = `http://127.0.0.1:${address.port}/workspace`
   let instance = await launchHronaut(profileDirectory)
   try {
     await instance.window.evaluate(`window.hronaut.newTab({url:${JSON.stringify(url)},mcpGroupId:${JSON.stringify(workspaceId)}})`)
     await expect.poll(() => instance.app.evaluate(({ webContents }, target) => webContents.getAllWebContents().some(entry => entry.getURL() === target), url)).toBe(true)
     await instance.app.evaluate(async ({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find(entry => entry.getURL() === url)!
-      await contents.session.cookies.set({ url, name: 'legacy-proof', value: 'preserved', httpOnly: true, expirationDate: Math.floor(Date.now() / 1000) + 3600 })
-      await contents.executeJavaScript(`localStorage.setItem('legacy-proof', 'preserved'); new Promise((resolve, reject) => {
-        const request = indexedDB.open('legacy-proof', 1);
+      await contents.session.cookies.set({ url, name: 'workspace-proof', value: 'preserved', httpOnly: true, expirationDate: Math.floor(Date.now() / 1000) + 3600 })
+      await contents.executeJavaScript(`localStorage.setItem('workspace-proof', 'preserved'); new Promise((resolve, reject) => {
+        const request = indexedDB.open('workspace-proof', 1);
         request.onupgradeneeded = () => request.result.createObjectStore('records');
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
@@ -30,13 +28,7 @@ test('preserves legacy site data through rename and archive, then deletes Defaul
         };
       })`)
     }, url)
-    // Reopen actual populated profile data through the version-2 migration,
-    // rather than only seeding data after migration has already finished.
     await closeHronaut(instance.app)
-    const statePath = join(profileDirectory, 'tabs.json')
-    const version2State = JSON.parse(await readFile(statePath, 'utf8'))
-    version2State.version = 2
-    await writeFile(statePath, JSON.stringify(version2State))
     instance = await launchHronaut(profileDirectory)
     await instance.window.evaluate(`window.hronaut.updateTabGroup(${JSON.stringify(workspaceId)},{name:'My existing profile',agentAccess:false})`)
     await instance.window.evaluate(`window.hronaut.saveAndCloseTabGroup(${JSON.stringify(workspaceId)})`)
@@ -51,9 +43,9 @@ test('preserves legacy site data through rename and archive, then deletes Defaul
       const contents = webContents.getAllWebContents().find(entry => entry.getURL() === url)!
       return {
         cookies: (await contents.session.cookies.get({})).map(cookie => cookie.value),
-        local: await contents.executeJavaScript("localStorage.getItem('legacy-proof')"),
+        local: await contents.executeJavaScript("localStorage.getItem('workspace-proof')"),
         indexed: await contents.executeJavaScript(`new Promise((resolve, reject) => {
-          const request = indexedDB.open('legacy-proof');
+          const request = indexedDB.open('workspace-proof');
           request.onerror = () => reject(request.error);
           request.onsuccess = () => { const db = request.result; const read = db.transaction('records').objectStore('records').get('proof'); read.onsuccess = () => { db.close(); resolve(read.result); }; read.onerror = () => reject(read.error); };
         })`)

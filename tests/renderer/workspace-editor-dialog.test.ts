@@ -17,7 +17,7 @@ describe('workspace editor outside interaction', () => {
       tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
       mcpUrl: '', profilePath: '', savedTabGroups: [],
       mcpTabGroups: [{ id: 'draft', name: 'Existing workspace', color: 'purple', createdAt: '', lastUsedAt: '',
-        tabCount: 0, activeTabId: null, isDefault: false, storageKind: 'isolated', storageOriginCount: 0,
+        tabCount: 0, activeTabId: null, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] } }]
     }
     Object.defineProperty(window, 'hronaut', { configurable: true, value: {
@@ -59,7 +59,7 @@ describe('workspace data and agent access controls', () => {
     const state: BrowserState = {
       tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: '', profilePath: '',
       mcpTabGroups: [{ id: 'personal', name: 'Personal', color: 'purple', createdAt: '', lastUsedAt: '',
-        tabCount: 0, activeTabId: null, isDefault: false, storageKind: 'isolated', storageOriginCount: 1,
+        tabCount: 0, activeTabId: null, storageOriginCount: 1,
         navigationPolicy: { mode: 'unrestricted', rules: [] } }],
       savedTabGroups: [{ id: 'saved', name: 'Saved research', color: 'blue', savedAt: '', storageOriginCount: 1,
         tabs: [], navigationPolicy: { mode: 'unrestricted', rules: [] } }]

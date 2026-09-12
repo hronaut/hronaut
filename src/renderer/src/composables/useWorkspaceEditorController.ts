@@ -40,12 +40,11 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const name = ref('')
   const color = ref<BrowserTabGroupColor>('purple')
   const error = ref('')
-  const storageMode = ref<'scratch' | 'fork-default' | 'fork-workspace'>('scratch')
+  const storageMode = ref<'scratch' | 'fork-workspace'>('scratch')
   const sourceWorkspaceId = ref('')
   const targetWorkspaceId = ref('')
   const transferMode = ref<'copy' | 'move'>('copy')
   const agentAccess = ref(true)
-  const transferDirection = ref<'from-default' | 'to-default'>('from-default')
   const originOptions = ref<string[]>([])
   const selectedOrigins = ref<string[]>([])
   const storageState = ref<'idle' | 'loading' | 'saving' | 'saved' | 'warning' | 'error'>('idle')
@@ -56,7 +55,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const navigationAudit = ref<BrowserWorkspaceNavigationAuditEntry[]>([])
   const navigationAuditState = ref<'idle' | 'loading' | 'error'>('idle')
   const originLoader = createWorkspaceOriginLoader((id) => options.browser.listWorkspaceStorageOrigins(id))
-  let suppressDirectionReload = false
+  let suppressOriginReload = false
   let presentationGeneration = 0
   let lastSuggestedName = ''
 
@@ -70,7 +69,6 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const sourceArchived = computed(() => availableWorkspaces.value.find(group => group.id === sourceWorkspaceId.value)?.archived === true)
   const validSource = computed(() => availableWorkspaces.value.some(group => group.id === sourceWorkspaceId.value))
   const validTarget = computed(() => targetWorkspaces.value.some(group => group.id === targetWorkspaceId.value))
-  const isDefault = computed(() => workspace.value?.isDefault === true)
   const actionPending = computed(() => actionState.value !== 'idle')
   const dismissBlocked = computed(() => actionPending.value || storageState.value === 'saving')
   const saveDisabled = computed(() => (
@@ -162,12 +160,11 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     navigationAudit.value = []
     navigationAuditState.value = 'loading'
     error.value = ''
-    suppressDirectionReload = true
-    transferDirection.value = 'from-default'
+    suppressOriginReload = true
     transferMode.value = 'copy'
     sourceWorkspaceId.value = next.mcpTabGroups.find(candidate => candidate.id !== id)?.id ?? ''
     targetWorkspaceId.value = id
-    suppressDirectionReload = false
+    suppressOriginReload = false
     storageMessage.value = ''
     const auditPromise = options.browser.listWorkspaceNavigationAudit(id)
           .then((entries) => {
@@ -201,13 +198,11 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     navigationAuditState.value = 'idle'
     error.value = ''
     storageMode.value = 'scratch'
-    suppressDirectionReload = true
-    transferDirection.value = 'from-default'
+    suppressOriginReload = true
     transferMode.value = 'copy'
-    sourceWorkspaceId.value = options.state.value.mcpTabGroups.find(group => group.isDefault)?.id
-      ?? availableWorkspaces.value[0]?.id ?? ''
+    sourceWorkspaceId.value = availableWorkspaces.value[0]?.id ?? ''
     targetWorkspaceId.value = ''
-    suppressDirectionReload = false
+    suppressOriginReload = false
     storageMessage.value = ''
     await loadOrigins()
   }
@@ -240,12 +235,12 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     storageState.value = 'idle'
     storageMessage.value = ''
     transferMode.value = 'copy'
-    suppressDirectionReload = true
+    suppressOriginReload = true
     const preferredSourceExists = availableWorkspaces.value.some(group => group.id === preferredSourceWorkspaceId)
     sourceWorkspaceId.value = preferredSourceExists ? (preferredSourceWorkspaceId ?? '') : next.savedTabGroups[0]?.id ?? availableWorkspaces.value[0]?.id ?? ''
     targetWorkspaceId.value = next.savedTabGroups.find(group => group.id !== sourceWorkspaceId.value)?.id
       ?? availableWorkspaces.value.find(group => group.id !== sourceWorkspaceId.value)?.id ?? ''
-    suppressDirectionReload = false
+    suppressOriginReload = false
     options.open.value = true
     await loadOrigins(next)
   }
@@ -394,15 +389,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     }
   }
 
-  watch(transferDirection, () => {
-    if (suppressDirectionReload || !options.open.value || mode.value !== 'edit') return
-    const defaultId = options.state.value.mcpTabGroups.find(group => group.isDefault)?.id ?? ''
-    sourceWorkspaceId.value = transferDirection.value === 'from-default' ? defaultId : workspaceId.value ?? ''
-    targetWorkspaceId.value = transferDirection.value === 'from-default' ? workspaceId.value ?? '' : defaultId
-  }, { flush: 'sync' })
-
   watch(sourceWorkspaceId, () => {
-    if (!suppressDirectionReload && options.open.value) void loadOrigins()
+    if (!suppressOriginReload && options.open.value) void loadOrigins()
   }, { flush: 'sync' })
 
   function dispose(): void {
@@ -425,7 +413,6 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     sourceArchived,
     targetArchived,
     transferDisabled,
-    transferDirection,
     originOptions,
     selectedOrigins,
     storageState,
@@ -439,7 +426,6 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     dismissBlocked,
     saveDisabled,
     workspace,
-    isDefault,
     openExisting,
     openNew,
     openTransfer,

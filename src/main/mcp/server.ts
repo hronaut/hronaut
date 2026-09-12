@@ -445,18 +445,15 @@ export function assertMcpToolRegistrationContract(
 const BROWSER_WORKSPACES_DESCRIPTION = [
   'Required first step: call browser_workspaces with action=create and a fresh task workspace before using any page tools.',
   'Creation choice 1 — from scratch: storage=scratch (the default) starts a clean isolated browser profile. Example: {"action":"create","name":"Task name","storage":"scratch"}.',
-  'Creation choice 2 — fork Default: storage=fork-default creates an isolated workspace after a one-time copy of reusable cookies and localStorage from the human Default profile. Example: {"action":"create","name":"Task name","storage":"fork-default"}. This is a copy, not a live link.',
-  'Creation choice 3 — fork any workspace: call action=list-fork-sources for active and archived source metadata, then create with storage=fork-workspace and sourceWorkspaceId. Even sources with direct agent access disabled can be forked. The fresh workspace inherits source navigation restrictions and permits direct agent access; the original remains unauthorized. Forks copy cookies and localStorage, not source tabs. Example: {"action":"create","name":"Task name","storage":"fork-workspace","sourceWorkspaceId":"<id from list-fork-sources>"}.',
-  'For fork-default, optionally pass task-relevant HTTP(S) origins you already know. Omit origins to copy all available cookies and known localStorage; MCP deliberately does not expose Default\'s origin inventory.',
-  'Optional merge-back: after the task, call action=save-default with your created workspaceId only if its resulting site state should be merged back into Default. Example: {"action":"save-default","workspaceId":"<id returned by create>"}. Use list-origins first when you want to select origins. Saving is another one-time merge, never ongoing synchronization.',
-  'Agents never browse Default directly and must never pass the workspace marked isDefault to page tools. Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
+  'Creation choice 2 — fork a workspace: call action=list-fork-sources for active and archived source metadata, then create with storage=fork-workspace and sourceWorkspaceId. Even sources with direct agent access disabled can be forked. The fresh workspace inherits source navigation restrictions and permits direct agent access; the original remains unauthorized. Forks copy cookies and localStorage, not source tabs. Example: {"action":"create","name":"Task name","storage":"fork-workspace","sourceWorkspaceId":"<id from list-fork-sources>"}.',
+  'Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
   'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
-  'action=list returns only owned or resumed workspaces whose direct agent access remains enabled. list-fork-sources separately exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks. Default aliases fail when Default is absent.'
+  'action=list returns only owned or resumed workspaces whose direct agent access remains enabled. list-fork-sources separately exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
 ].join('\n')
 
 export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
-  'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse in Default or reuse a workspace or tab created by another task.',
+  'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
   'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. Use coordinate-based visual tools only when the target has no usable semantic representation.',
   'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
@@ -1223,16 +1220,12 @@ function createBrowserMcpServer(
       savedWorkspaceIds.add(workspaceId)
       return
     }
-    const workspace = manager.requireMcpTabGroup(workspaceId)
-    if (workspace.isDefault) throw workspaceAuthorizationError()
+    manager.requireMcpTabGroup(workspaceId)
     activeWorkspaceIds.add(workspaceId)
   }
   const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
     if (!activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
     const workspace = manager.requireMcpTabGroup(workspaceId)
-    if (workspace.isDefault) {
-      throw workspaceAuthorizationError()
-    }
     return workspace
   }
   const requireSavedWorkspace = (workspaceId: string): void => {
@@ -1243,23 +1236,23 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_workspaces'),
       inputSchema: {
-        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'import-default', 'save-default']).default('list').describe('Start with create. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations. For create, choose storage=scratch, storage=fork-workspace with sourceWorkspaceId, or storage=fork-default. list-fork-sources shows metadata for all active and archived sources, including those with direct agent access disabled. import-default copies selected Default state into your existing workspace; save-default optionally merges selected workspace state back into Default. Both are one-time transfers, not synchronization. list-origins lists only your workspace and never reveals Default\'s origin inventory.'),
-        workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools and save-default. A rename changes only the human name, never this ID.'),
+        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins']).default('list').describe('Start with create. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations. For create, choose storage=scratch or storage=fork-workspace with sourceWorkspaceId. list-fork-sources shows metadata for all active and archived sources, including those with direct agent access disabled. list-origins lists only your workspace.'),
+        workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
         resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
         sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose an active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
-        storage: z.enum(['scratch', 'fork-default', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile; fork-default starts an isolated profile with a one-time copy of reusable cookies and localStorage from Default. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
-        origins: z.array(z.string().url()).max(100).optional().describe('Optional task-relevant HTTP(S) origins whose cookies and localStorage are copied during fork-workspace or fork-default create, import-default, or save-default. For fork-default/import-default, supply origins you already know or omit this field to copy all available cookies and known localStorage; Default\'s origin list is private. For save-default, use list-origins to review your workspace first.')
+        storage: z.enum(['scratch', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
+        origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.')
       }
     },
     tool(async ({ action, workspaceId, resumeKey, name, color, storage, origins, sourceWorkspaceId }: {
-      action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins' | 'import-default' | 'save-default'
+      action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins'
       workspaceId?: string
       resumeKey?: string
       name?: string
       color?: BrowserTabGroupColor
-      storage?: 'scratch' | 'fork-default' | 'fork-workspace'
+      storage?: 'scratch' | 'fork-workspace'
       sourceWorkspaceId?: string
       origins?: string[]
     }) => {
@@ -1269,11 +1262,10 @@ function createBrowserMcpServer(
         if (!name) throw new TypeError('name is required to create a workspace')
         if (storage === 'fork-workspace' && !sourceWorkspaceId) throw new TypeError('sourceWorkspaceId is required for fork-workspace')
         if (sourceWorkspaceId !== undefined && storage !== 'fork-workspace') throw new TypeError('sourceWorkspaceId is only supported with fork-workspace')
-        if (origins !== undefined && storage !== 'fork-default' && storage !== 'fork-workspace') {
+        if (origins !== undefined && storage !== 'fork-workspace') {
           throw new TypeError('origins can be selected only when forking workspace storage')
         }
-        const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId
-          : storage === 'fork-default' ? manager.listMcpTabGroups().find(workspace => workspace.isDefault)?.id : undefined
+        const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId : undefined
         const scopedOrigins = origins ?? (forkSourceId ? capabilityProfile?.origins : undefined)
         const forkRevision = actionTracker.controlRevision
         if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
@@ -1349,59 +1341,6 @@ function createBrowserMcpServer(
         return textResult(manager.updateMcpTabGroup(workspaceId, { name, color }, true))
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
-      if (action === 'import-default' || action === 'save-default') {
-        const revision = actionTracker.controlRevision
-        const scopedOrigins = origins ?? capabilityProfile?.origins
-        if (humanWaiting) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
-        manager.requireWorkspaceContinuityDispatch(workspaceId)
-        const defaultWorkspace = manager.listMcpTabGroups().find(workspace => workspace.isDefault)
-        if (defaultWorkspace && humanWaiting) await humanWaiting.requireDispatch(defaultWorkspace.id, () => { requireAgentWorkspace(workspaceId) })
-        requireAgentWorkspace(workspaceId)
-        manager.requireWorkspaceContinuityDispatch(workspaceId)
-        if (defaultWorkspace) manager.requireWorkspaceContinuityDispatch(defaultWorkspace.id)
-        if (action === 'save-default') {
-          const target = manager.listMcpTabGroups().find((workspace) => workspace.isDefault)
-          if (!target || !manager.isWorkspaceAgentAccessible(target.id)) throw workspaceAuthorizationError()
-        }
-        const affectedIds = [...new Set([workspaceId, ...(defaultWorkspace ? [defaultWorkspace.id] : [])])]
-        const finishes = affectedIds.map(id => manager.beginWorkspaceContinuityAction(id, false))
-        const contextStillCurrent = async (): Promise<boolean> => {
-          try {
-            if (humanWaiting) for (const id of affectedIds) await humanWaiting.requireDispatch(id, () => { requireAgentWorkspace(workspaceId) })
-            if (getPaused() || actionTracker.controlRevision !== revision) return false
-            requireAgentWorkspace(workspaceId)
-            for (const id of affectedIds) manager.requireWorkspaceContinuityDispatch(id)
-            if (action === 'save-default' && defaultWorkspace && !manager.isWorkspaceAgentAccessible(defaultWorkspace.id)) return false
-            return true
-          } catch { return false }
-        }
-        try {
-          if (!await contextStillCurrent()) {
-            throw new Error('MCP control changed before workspace storage transfer. Obtain fresh state before retrying.')
-          }
-          requireActiveCapabilityDispatch('browser_workspaces', {
-            action, workspaceId,
-            ...(scopedOrigins ? { origins: scopedOrigins } : {})
-          })
-          const settled = await manager.transferWorkspaceStorage({
-            workspaceId,
-            direction: action === 'import-default' ? 'from-default' : 'to-default',
-            ...(scopedOrigins !== undefined ? { origins: scopedOrigins } : {})
-          }).then(value => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }))
-          if (!await contextStillCurrent()) {
-            for (const id of affectedIds) manager.suspendWorkspaceContinuity(id, 'OUTCOME_UNKNOWN')
-            const outcome = {
-              status: 'OUTCOME_UNKNOWN', effects: 'possible',
-              nextAction: 'Inspect current workspace storage and obtain fresh review. Do not automatically repeat the transfer.'
-            }
-            return { ...textResult(outcome), structuredContent: outcome, isError: true }
-          }
-          if (!settled.ok) throw settled.error
-          return textResult(settled.value)
-        } finally {
-          for (const finish of finishes) finish()
-        }
-      }
       await manager.closeMcpTabGroup(workspaceId)
       activeWorkspaceIds.delete(workspaceId)
       return textResult(authorizedActiveWorkspaces())

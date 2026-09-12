@@ -593,20 +593,13 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(groupsTool?.description).toContain('Required first step: call browser_workspaces with action=create')
     expect(groupsTool?.description).toContain('Creation choice 1 — from scratch: storage=scratch (the default)')
     expect(groupsTool?.description).toContain('{"action":"create","name":"Task name","storage":"scratch"}')
-    expect(groupsTool?.description).toContain('Creation choice 2 — fork Default: storage=fork-default')
-    expect(groupsTool?.description).toContain('{"action":"create","name":"Task name","storage":"fork-default"}')
-    expect(groupsTool?.description).toContain('Optional merge-back: after the task, call action=save-default with your created workspaceId')
-    expect(groupsTool?.description).toContain('{"action":"save-default","workspaceId":"<id returned by create>"}')
-    expect(groupsTool?.description).toContain('never ongoing synchronization')
-    expect(groupsTool?.description).toContain("MCP deliberately does not expose Default's origin inventory")
-    expect(groupsTool?.description).toContain('Use list-origins first when you want to select origins')
     expect(groupsTool?.description).toContain('Pass the stable UUIDv7 id returned by your own create call as workspaceId')
     expect(groupsTool?.description).toContain('Create also returns a private resumeKey')
     expect(groupsTool?.description).toContain('action=list returns only owned or resumed workspaces whose direct agent access remains enabled')
     expect(groupsTool?.inputSchema).toMatchObject({
       properties: {
         action: {
-          description: expect.stringContaining('For create, choose storage=scratch, storage=fork-workspace with sourceWorkspaceId')
+          description: expect.stringContaining('For create, choose storage=scratch or storage=fork-workspace with sourceWorkspaceId')
         },
         workspaceId: {
           description: expect.stringContaining('Stable UUIDv7 id returned by your own create call')
@@ -615,12 +608,12 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
           description: expect.stringContaining('Private resume key returned')
         },
         storage: {
-          enum: ['scratch', 'fork-default', 'fork-workspace'],
+          enum: ['scratch', 'fork-workspace'],
           description: expect.stringContaining('scratch (the default when omitted) starts from a clean isolated profile')
         },
         origins: {
           type: 'array',
-          description: expect.stringContaining("Default's origin list is private")
+          description: expect.stringContaining('copied during fork-workspace')
         }
       }
     })
@@ -704,8 +697,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
       arguments: { action: 'import-default', workspaceId: firstGroupId, origins: [] }
     }) as CallToolResult
     expect(imported.isError).toBe(true)
-    expect(text(imported)).toContain('Default workspace is unavailable')
-    expect((await appWindow.evaluate('window.hronaut.getState()') as BrowserState).mcpTabGroups.some((group) => group.isDefault)).toBe(false)
+    expect(text(imported)).toContain('Invalid')
 
     const firstOpened = await first.callTool({
       name: 'browser_new_tab',
@@ -732,7 +724,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Another human tab</title><h1>Human two</h1>', active: false, mcpGroupId: ${JSON.stringify(defaultWorkspaceId)} })`)
     const humanState = await appWindow.evaluate(`window.hronaut.getState()`) as BrowserState
     const defaultGroup = humanState.mcpTabGroups.find((group) => group.id === defaultWorkspaceId)
-    expect(defaultGroup).toMatchObject({ name: 'Human workspace', isDefault: false, tabCount: 2 })
+    expect(defaultGroup).toMatchObject({ name: 'Human workspace', tabCount: 2 })
     expect(humanState.tabs.filter((tab) => tab.mcpGroupId === defaultGroup?.id)).toHaveLength(2)
     await expect(appWindow.locator('.tab-group-label', { hasText: 'Human workspace' })).toContainText('Human workspace')
 
@@ -750,7 +742,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     await expect(appWindow.locator(`.tab-group-label[title*="${firstGroupId}"]`)).toContainText('Checkout debugging')
     await expect(appWindow.locator(`.tab-group-label[title*="${secondGroupId}"]`)).toContainText('checkout debugging')
 
-    await first.callTool({
+    const popup = await first.callTool({
       name: 'browser_evaluate',
       arguments: {
         workspaceId: firstGroupId,
@@ -758,6 +750,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
         script: "window.open('data:text/html,<title>Checkout popup</title><h1>Popup</h1>'); true"
       }
     })
+    expect(popup.isError, text(popup as CallToolResult)).not.toBe(true)
     await expect.poll(async () => {
       const result = await first.callTool({ name: 'browser_tabs', arguments: { workspaceId: firstGroupId } }) as CallToolResult
       return (JSON.parse(text(result)) as unknown[]).length
@@ -1180,7 +1173,7 @@ test('restores workspace identity and tabs after an application restart', async 
       defaultGroup: state.mcpTabGroups.find((group) => group.id === ${JSON.stringify(defaultGroupId)}),
       humanGroupId: state.tabs.find((tab) => tab.title === 'Persistent human tab')?.mcpGroupId
     }))`)).toMatchObject({
-      defaultGroup: { id: defaultGroupId, name: 'Persistent human workspace', isDefault: false },
+      defaultGroup: { id: defaultGroupId, name: 'Persistent human workspace' },
       humanGroupId: defaultGroupId
     })
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
@@ -1274,19 +1267,16 @@ test('drops legacy tab state and starts with a fresh UUIDv7 workspace format', a
   const instance = await launchHronaut(profileDirectory, mcpPort)
   try {
     const fresh = await instance.window.evaluate(`window.hronaut.getState().then((state) => ({
-      defaultWorkspaceId: state.mcpTabGroups.find((workspace) => workspace.isDefault)?.id,
       workspaceNames: state.mcpTabGroups.map((workspace) => workspace.name),
       activeTabId: state.activeTabId,
       splitView: state.splitView,
       tabs: state.tabs.map((tab) => ({ id: tab.id, title: tab.title, url: tab.url }))
     }))`) as {
-      defaultWorkspaceId?: string
       workspaceNames: string[]
       activeTabId?: string
       splitView?: { firstTabId: string; secondTabId: string }
       tabs: Array<{ id: string; title: string; url: string }>
     }
-    expect(fresh.defaultWorkspaceId).toBeUndefined()
     expect(fresh.workspaceNames).toEqual([])
     expect(fresh.splitView).toBeUndefined()
     expect(fresh.tabs).toEqual([expect.objectContaining({

@@ -31,11 +31,11 @@ describe('MCP workspace authorization recovery', () => {
       lastUsedAt: '2026-08-31T00:00:00.000Z',
       activeTabId: null,
       tabCount: 0,
-      isDefault: false,
-      storageKind: 'isolated',
       storageOriginCount: 0
     }
     const manager = {
+      requireWorkspaceContinuityDispatch: () => undefined,
+      beginWorkspaceContinuityAction: () => () => undefined,
       createMcpTabGroup: vi.fn(async () => {
         throw new RetainedBrowserWorkspaceError(
           [new Error('copy failed'), new Error('cleanup failed')],
@@ -62,7 +62,7 @@ describe('MCP workspace authorization recovery', () => {
 
     const created = await client.callTool({
       name: 'browser_workspaces',
-      arguments: { action: 'create', name: 'Retained fork', storage: 'fork-default' }
+      arguments: { action: 'create', name: 'Retained fork', storage: 'fork-workspace', sourceWorkspaceId: workspaceId }
     }) as CallToolResult
     expect(created.isError).toBe(true)
     expect(JSON.parse(text(created))).toMatchObject({ workspaceId, resumeKey, retained: true })

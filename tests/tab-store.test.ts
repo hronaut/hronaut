@@ -34,11 +34,11 @@ function currentState(): PersistedBrowserState {
     version: TAB_STATE_VERSION,
     activeTabId: ACTIVE_TAB_ID,
     allHumanInteractionLocked: true,
-    defaultHumanGroupId: DEFAULT_WORKSPACE_ID,
     mcpTabGroups: [
       {
         id: DEFAULT_WORKSPACE_ID,
-        name: 'Default',
+        name: 'Personal',
+        storageId: '77777777-1111-4111-8111-111111111111',
         color: 'gray',
         createdAt: '2026-08-20T09:00:00.000Z',
         lastUsedAt: '2026-08-20T09:01:00.000Z',
@@ -312,7 +312,7 @@ describe('TabStateStore', () => {
   it.each([
     ['a non-UUIDv7 tab ID', (state: PersistedBrowserState) => { state.tabs[0]!.id = 'legacy-tab' }],
     ['a non-UUIDv7 workspace ID', (state: PersistedBrowserState) => { state.mcpTabGroups![1]!.id = 'legacy-workspace' }],
-    ['a missing isolated storage ID', (state: PersistedBrowserState) => { delete state.mcpTabGroups![1]!.storageId }],
+    ['a missing isolated storage ID', (state: PersistedBrowserState) => { state.mcpTabGroups![1]!.storageId = '' }],
     ['a tab owned by an archived workspace', (state: PersistedBrowserState) => { state.tabs[1]!.mcpGroupId = SAVED_WORKSPACE_ID }],
     ['a malformed active tab URL', (state: PersistedBrowserState) => { state.tabs[1]!.url = 'https://[' }],
     ['a malformed archived tab URL', (state: PersistedBrowserState) => { state.savedTabGroups![0]!.tabs[0]!.url = 'https://[' }],
@@ -371,108 +371,42 @@ describe('workspace direct agent access persistence', () => {
   })
 })
 
-describe('optional legacy workspace profile ownership', () => {
-  it('loads and round-trips an intentionally empty workspace collection without resurrecting Default', async () => {
-    const { store } = await createStore()
-    await store.save({ version: TAB_STATE_VERSION, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] })
-    const loaded = await store.load()
-    expect(loaded).toMatchObject({ version: TAB_STATE_VERSION, activeTabId: null, tabs: [], mcpTabGroups: [], savedTabGroups: [] })
-    expect(loaded).not.toHaveProperty('defaultHumanGroupId')
+describe('discarded obsolete workspace data', () => {
+  it.each([undefined, 0, 1, 2])('deletes unsupported tab snapshots (version=%s)', async version => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ ...currentState(), version }))
+    expect(await store.load()).toBeNull()
+    await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('loads isolated workspaces without a legacy profile and allows Default as an ordinary label', async () => {
-    const { store } = await createStore()
-    const state = currentState()
-    delete state.defaultHumanGroupId
-    state.mcpTabGroups!.shift()
-    state.mcpTabGroups![0]!.name = 'Default'
-    state.savedTabGroups![0]!.name = 'Default'
-    await store.save(state)
-    const loaded = await store.load()
-    expect(loaded?.mcpTabGroups?.[0]).toMatchObject({ name: 'Default', storageId: ACTIVE_STORAGE_ID })
-    expect(loaded?.savedTabGroups?.[0]).toMatchObject({ name: 'Default', storageId: SAVED_STORAGE_ID })
-    expect(loaded).not.toHaveProperty('defaultHumanGroupId')
-  })
-
-  it('preserves a renamed restricted legacy base profile and its disabled access', async () => {
-    const { store } = await createStore()
+  it.each([false, true])('drops base-profile workspaces and tabs while preserving isolated storage (archived=%s)', async archived => {
+    const { path, store } = await createStore()
     const state = currentState()
     const owner = state.mcpTabGroups![0]!
-    owner.name = 'Personal'
-    owner.agentAccess = false
-    owner.navigationPolicy = { mode: 'restricted', rules: ['https://allowed.example'] }
-    state.tabs[1]!.mcpGroupId = owner.id
-    state.mcpTabGroups![1]!.activeTabId = null
-    await store.save(state)
-    const loaded = await store.load()
-    expect(loaded?.defaultHumanGroupId).toBe(owner.id)
-    expect(loaded?.mcpTabGroups?.[0]).toMatchObject({ name: 'Personal', agentAccess: false, navigationPolicy: owner.navigationPolicy })
-    expect(loaded?.mcpTabGroups?.[0]).not.toHaveProperty('storageId')
-    expect(loaded?.tabs[1]?.url).toBe('about:blank')
-  })
-
-  it('retains an archived legacy profile without allocating a different storage partition', async () => {
-    const { store } = await createStore()
-    const state = currentState()
-    const owner = state.mcpTabGroups!.shift()!
-    state.savedTabGroups!.push({ id: owner.id, name: 'Personal archive', color: owner.color, savedAt: owner.lastUsedAt, agentAccess: false, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] })
-    await store.save(state)
-    const loaded = await store.load()
-    expect(loaded?.defaultHumanGroupId).toBe(owner.id)
-    expect(loaded?.savedTabGroups?.find((group) => group.id === owner.id)).toMatchObject({ name: 'Personal archive', agentAccess: false, tabs: [] })
-    expect(loaded?.savedTabGroups?.find((group) => group.id === owner.id)).not.toHaveProperty('storageId')
-    expect(loaded?.mcpTabGroups?.some((group) => group.id === owner.id)).toBe(false)
-  })
-
-  it.each([false, true])('preserves unrestricted legacy file tabs (archived=%s)', async (archived) => {
-    const { store } = await createStore()
-    const state = currentState()
-    const fileUrl = 'file:///tmp/personal-document.html'
-    const owner = state.mcpTabGroups![0]!
-    owner.name = 'Personal'
+    const obsolete = { ...owner, storageId: undefined }
     if (archived) {
       state.mcpTabGroups!.shift()
-      state.savedTabGroups!.push({ id: owner.id, name: owner.name, color: owner.color, savedAt: owner.lastUsedAt, tabs: [{ title: 'Personal document', url: fileUrl }] })
+      state.savedTabGroups!.push({ ...obsolete, savedAt: owner.lastUsedAt, tabs: [{ title: 'Old tab', url: 'https://old.example' }] } as never)
     } else {
-      state.tabs[1]!.mcpGroupId = owner.id
-      state.tabs[1]!.url = fileUrl
-      state.mcpTabGroups![1]!.activeTabId = null
+      state.mcpTabGroups![0] = obsolete as never
+      state.tabs.push({ id: SAVED_WORKSPACE_ID, mcpGroupId: owner.id, title: 'Old tab', url: 'https://old.example' })
+      state.activeTabId = SAVED_WORKSPACE_ID
+      state.splitView = { firstTabId: ACTIVE_TAB_ID, secondTabId: SAVED_WORKSPACE_ID, orientation: 'horizontal', ratio: 0.5 }
     }
-    await store.save(state)
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ ...state, defaultHumanGroupId: owner.id }))
     const loaded = await store.load()
     expect(loaded).not.toBeNull()
-    expect(archived
-      ? loaded?.savedTabGroups?.find((group) => group.id === owner.id)?.tabs[0]?.url
-      : loaded?.tabs[1]?.url).toBe(fileUrl)
-  })
-
-  it('migrates version 2 without changing workspace identity or partition ownership', async () => {
-    const { path, store } = await createStore()
-    const state = currentState()
-    await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify({ ...state, version: 2 }), 'utf8')
-    const loaded = await store.load()
-    expect(TAB_STATE_VERSION).toBe(3)
-    expect(loaded?.version).toBe(3)
-    expect(loaded?.defaultHumanGroupId).toBe(DEFAULT_WORKSPACE_ID)
-    expect(loaded?.mcpTabGroups?.[1]?.storageId).toBe(ACTIVE_STORAGE_ID)
-    expect(JSON.parse(await readFile(path, 'utf8')).version).toBe(3)
-    expect((await store.load())?.defaultHumanGroupId).toBe(DEFAULT_WORKSPACE_ID)
-  })
-
-  it.each(['missing-owner', 'second-base-profile', 'legacy-owner-with-storage', 'malformed-owner-storage'])('rejects ambiguous partition ownership: %s', async (corruption) => {
-    const { path, store } = await createStore()
-    const state = currentState()
-    if (corruption === 'missing-owner') state.defaultHumanGroupId = HOME_TAB_ID
-    if (corruption === 'second-base-profile') delete state.savedTabGroups![0]!.storageId
-    if (corruption === 'legacy-owner-with-storage') state.mcpTabGroups![0]!.storageId = SAVED_STORAGE_ID
-    if (corruption === 'malformed-owner-storage') state.mcpTabGroups![0]!.storageId = 'broken'
-    await mkdir(join(path, '..'), { recursive: true })
-    await writeFile(path, JSON.stringify(state), 'utf8')
-    expect(await store.load()).toBeNull()
+    expect(loaded?.mcpTabGroups?.map(group => group.id)).toEqual([ACTIVE_WORKSPACE_ID])
+    expect(loaded?.savedTabGroups?.map(group => group.id)).toEqual([SAVED_WORKSPACE_ID])
+    expect(loaded?.mcpTabGroups?.[0]?.storageId).toBe(ACTIVE_STORAGE_ID)
+    expect(loaded?.tabs.every(tab => tab.mcpGroupId !== owner.id)).toBe(true)
+    expect(loaded).not.toHaveProperty('defaultHumanGroupId')
+    expect(await store.load()).toEqual(loaded)
+    expect(await readFile(path, 'utf8')).not.toContain('old.example')
   })
 })
-
 
 describe('continuity checkpoint persistence', () => {
   it('round-trips guarded workspace identities without storing runtime evidence', async () => {

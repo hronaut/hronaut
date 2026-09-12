@@ -31,8 +31,6 @@ function workspace(id: string, name: string, isDefault = false): BrowserTabGroup
     lastUsedAt: '2026-08-22T00:00:00.000Z',
     tabCount: 0,
     activeTabId: null,
-    isDefault,
-    storageKind: isDefault ? 'default' : 'isolated',
     storageOriginCount: isDefault ? 2 : 1,
     navigationPolicy: isDefault
       ? { mode: 'unrestricted', rules: [] }
@@ -74,8 +72,9 @@ function createController(initialState = browserState()) {
       ? ['https://default.example', 'https://shared.example']
       : ['https://agent.example']),
     transferWorkspaceStorage: vi.fn(async (options: BrowserWorkspaceStorageTransferOptions): Promise<BrowserWorkspaceStorageTransferResult> => ({
-      workspaceId: 'workspaceId' in options ? options.workspaceId : options.targetWorkspaceId,
-      direction: 'direction' in options ? options.direction : 'from-default',
+      sourceWorkspaceId: options.sourceWorkspaceId,
+      targetWorkspaceId: options.targetWorkspaceId,
+      mode: options.mode,
       cookieCount: 2,
       localStorageOriginCount: 1,
       localStorageItemCount: 3,
@@ -109,12 +108,13 @@ describe('workspace editor controller', () => {
     controller.agentAccess.value = false
     await controller.save()
     expect(browser.createWorkspace).toHaveBeenCalledWith(expect.objectContaining({
-      storage: 'fork-workspace', sourceWorkspaceId: 'agent', agentAccess: false, origins: undefined
+      storage: 'fork-workspace',
+      sourceWorkspaceId: 'agent', agentAccess: false, origins: undefined
     }))
     expect(browser.createWorkspace.mock.calls[0][0]).not.toHaveProperty('tabs')
   })
 
-  it('keeps direct agent access editable and defaults legacy workspaces to allowed', async () => {
+  it('keeps direct agent access editable and defaults workspaces to allowed', async () => {
     const { controller, browser, state } = createController()
     await controller.openExisting('agent')
     expect(controller.agentAccess.value).toBe(true)
@@ -162,7 +162,7 @@ describe('workspace editor controller', () => {
     confirm.mockReturnValueOnce(false)
     await controller.transferStorage()
     expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
-    browser.transferWorkspaceStorage.mockResolvedValueOnce({ workspaceId: 'agent', direction: 'from-default',
+    browser.transferWorkspaceStorage.mockResolvedValueOnce({ sourceWorkspaceId: 'default', targetWorkspaceId: 'agent', mode: 'copy',
       cookieCount: 2, localStorageOriginCount: 1, localStorageItemCount: 3, origins: [], cleanupStatus: 'incomplete' })
     await controller.transferStorage()
     expect(browser.transferWorkspaceStorage).toHaveBeenCalledWith({ sourceWorkspaceId: 'archived', targetWorkspaceId: 'archived-target', mode: 'move', origins: undefined })
@@ -214,7 +214,7 @@ describe('workspace editor controller', () => {
     expect(browser.transferWorkspaceStorage).not.toHaveBeenCalled()
   })
 
-  it('allows renaming and closing a legacy Default workspace', async () => {
+  it('allows renaming and closing a a workspace named Default workspace', async () => {
     const { controller, browser } = createController()
     await controller.openExisting('default')
     controller.name.value = 'Personal browsing'
@@ -412,7 +412,7 @@ describe('workspace editor controller', () => {
     browser.listWorkspaceStorageOrigins.mockReturnValueOnce(pendingOrigins.promise)
 
     const opening = controller.openNew()
-    controller.storageMode.value = 'fork-default'
+    controller.storageMode.value = 'fork-workspace'
     await controller.save()
 
     expect(controller.storageState.value).toBe('loading')
@@ -428,7 +428,7 @@ describe('workspace editor controller', () => {
     const { open, browser, syncState, controller } = createController()
     await controller.openNew()
     controller.name.value = 'Focused fork'
-    controller.storageMode.value = 'fork-default'
+    controller.storageMode.value = 'fork-workspace'
     controller.selectedOrigins.value = ['https://shared.example']
 
     await controller.save()
@@ -436,7 +436,8 @@ describe('workspace editor controller', () => {
     expect(browser.createWorkspace).toHaveBeenCalledWith({
       name: 'Focused fork',
       color: 'purple',
-      storage: 'fork-default',
+      storage: 'fork-workspace',
+      sourceWorkspaceId: 'default',
       agentAccess: true,
       origins: ['https://shared.example'],
       navigationPolicy: { mode: 'unrestricted', rules: [] }
@@ -446,13 +447,14 @@ describe('workspace editor controller', () => {
     controller.dispose()
   })
 
-  it('reloads the source inventory when transfer direction changes and saves through syncState', async () => {
+  it('reloads the inventory when the source workspace changes and saves through syncState', async () => {
     const { browser, syncState, controller } = createController()
     await controller.openExisting('agent')
     expect(browser.listWorkspaceStorageOrigins).toHaveBeenCalledTimes(1)
     expect(browser.listWorkspaceStorageOrigins).toHaveBeenLastCalledWith('default')
 
-    controller.transferDirection.value = 'to-default'
+    controller.targetWorkspaceId.value = 'default'
+    controller.sourceWorkspaceId.value = 'agent'
     await vi.waitFor(() => expect(browser.listWorkspaceStorageOrigins).toHaveBeenLastCalledWith('agent'))
     await vi.waitFor(() => expect(controller.originOptions.value).toEqual(['https://agent.example']))
     await controller.transferStorage()
@@ -513,7 +515,7 @@ describe('workspace editor controller', () => {
     expect(controller.workspaceId.value).toBe('agent')
 
     pending.resolve({
-      workspaceId: 'agent', direction: 'from-default', cookieCount: 1,
+      sourceWorkspaceId: 'default', targetWorkspaceId: 'agent', mode: 'copy', cookieCount: 1,
       localStorageOriginCount: 1, localStorageItemCount: 1, origins: []
     })
     await transferring
@@ -536,7 +538,7 @@ describe('workspace editor controller', () => {
     expect(open.value).toBe(true)
 
     pending.resolve({
-      workspaceId: 'agent', direction: 'from-default', cookieCount: 1,
+      sourceWorkspaceId: 'default', targetWorkspaceId: 'agent', mode: 'copy', cookieCount: 1,
       localStorageOriginCount: 1, localStorageItemCount: 1, origins: []
     })
     await transferring

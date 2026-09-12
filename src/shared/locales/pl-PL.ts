@@ -322,7 +322,7 @@ export const plPL = {
     "privacy": {
       "heading": "Obszary robocze i dane",
       description: "Przeglądaj obszary przeglądarki, zarządzaj ich zasadami oraz kopiuj lub przenoś wybrane dane między izolowanymi profilami.",
-      workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", legacyHeading: "Historia globalna i starsze dane", legacyDescription: "Wyczyść historię całej aplikacji lub dane starszego domyślnego profilu przeglądarki.",
+      workspaces: "Obszary przeglądarki", workspacesDescription: "Aktywne i zarchiwizowane obszary przechowują osobne pliki cookie i dane lokalne.", createWorkspace: "Utwórz obszar", transferData: "Kopiuj lub przenieś dane", manageWorkspace: "Zarządzaj", workspaceActive: "Aktywny", workspaceArchived: "Zarchiwizowany", workspaceTabs: "{count} karta | {count} karty | {count} kart", workspaceSites: "{count} znana witryna | {count} znane witryny | {count} znanych witryn", historyHeading: "Historia globalna", historyDescription: "Wyczyść historię. Danymi witryn zarządzaj w ich obszarach.",
       "whatToClear": "Co wyczyścić",
       "history": "Historia",
       "localVisits": "Lokalne wizyty",
@@ -331,26 +331,26 @@ export const plPL = {
       "cache": "Pliki w pamięci podręcznej",
       "slower": "Ponowne ładowanie może być wolniejsze",
       "clearingAll": "Czyszczenie wszystkiego…",
-      "clearAll": "Wyczyść wszystkie witryny… ({count})",
+      clearAll: "Wyczyść historię… ({count})",
       "totals": "{history} strona historii | {history} strony historii | {history} stron historii",
       "totalsDetail": "{history} · {cookies} · pamięć podręczna {cache}",
-      "loadingTotals": "Wczytywanie sum profilu…",
-      "websites": "Witryny",
-      websitesDescription: "Wyszukaj dane wcześniejszego profilu i wpisy całej aplikacji, a następnie usuń wybrane kategorie dla witryny.",
+      loadingTotals: "Ładowanie historii…",
+      websites: "Odwiedzone witryny",
+      websitesDescription: "Przeszukaj historię i globalne wpisy witryn.",
       "refresh": "Odśwież",
-      "search": "Szukaj witryn",
+      search: "Szukaj witryn",
       "range": "{shown} z {total}",
-      "finding": "Wyszukiwanie witryn…",
-      checking: "Sprawdzanie danych wcześniejszego profilu i wpisów całej aplikacji.",
-      "empty": "Brak witryn",
-      "emptyDescription": "Witryny pojawiają się po odwiedzeniu, otwarciu, dodaniu do zakładek, przyznaniu uprawnienia, zapisaniu konta lub pliku cookie.",
+      finding: "Wyszukiwanie witryn…",
+      checking: "Sprawdzanie historii.",
+      empty: "Brak witryn",
+      emptyDescription: "Witryny pojawiają się w historii i powiązanych wpisach.",
       "noMatches": "Brak pasujących witryn",
       "noMatchesDescription": "Spróbuj nazwy hosta, tytułu lub pełnego źródła.",
-      known: "Znane wcześniejszemu profilowi",
-      "clearSiteAria": "Wyczyść wybrane dane dla {origin}",
+      known: "Znana witryna",
+      clearSiteAria: "Wyczyść historię dla {origin}",
       "clearing": "Czyszczenie…",
       "clear": "Wyczyść…",
-      exclusions: "Zakładki ({bookmarks}), hasła ({passwords}), uprawnienia ({permissions}), pobrane pliki, ustawienia i otwarte karty pozostają. Strony nie są przeładowywane. Nowe polecenia MCP czekają podczas usuwania. Cookies, pamięć podręczna i dane witryn dotyczą tutaj wcześniejszego profilu; historia jest wspólna dla aplikacji. Dane poszczególnych obszarów obsługuj przez obszar lub stronę. Chromium nie pokazuje wszystkich źródeł zawierających tylko dane pamięci. Subdomeny mogą współdzielić cookies."
+      exclusions: "Zakładki ({bookmarks}), hasła ({passwords}), uprawnienia ({permissions}), pobrania, ustawienia, karty i dane obszarów zostaną zachowane."
     },
     "support": {
       "trialNotStarted": "10-dniowa próba zaczyna się od pierwszego wywołania narzędzia przez agenta.",
@@ -435,18 +435,13 @@ export const plPL = {
     startingDescription: "Zacznij bez danych lub skopiuj wybrane dane przeglądarki z innego obszaru.",
     "scratch": "Zacznij od zera",
     "scratchDescription": "Użyj pustego, odizolowanego profilu przeglądarki.",
-    "fork": "Utwórz odgałęzienie Domyślnego",
     "forkDescription": "Skopiuj pliki cookie i pamięć lokalną bez łączenia przyszłych zmian.",
     websites: "Witryny",
     "clear": "Wyczyść",
     "selectAll": "Zaznacz wszystko",
     noOrigins: "Brak znanych źródeł witryn. Nadal można skopiować cookies z wybranego obszaru źródłowego.",
-    defaultDescription: "Ten obszar używa wcześniejszego profilu przeglądarki. Można go zmienić, zarchiwizować lub usunąć.",
     "browserData": "Dane przeglądarki",
     browserDataDescription: "Przenoś wybrane dane między obszarami bez łączenia przyszłych zmian.",
-    "transferDirection": "Kierunek transferu pamięci",
-    "importDefault": "Importuj z Domyślnego",
-    "saveDefault": "Zapisz w Domyślnym",
     "loading": "Wczytywanie znanych witryn…",
     "noSourceOrigins": "Brak znanych źródeł witryn w profilu źródłowym. Nadal można skopiować wszystkie pliki cookie.",
     "copying": "Kopiowanie…",
@@ -454,7 +449,6 @@ export const plPL = {
     "saving": "Zapisywanie obszaru roboczego…",
     "closing": "Zamykanie obszaru roboczego…",
     "importSelected": "Importuj wybrane dane",
-    "saveSelected": "Zapisz wybrane dane w Domyślnym",
     "closePermanently": "Zamknij obszar roboczy na stałe",
     "closeDescription": "Zamyka jego karty i usuwa odizolowane dane przeglądarki.",
     "unlockTitle": "Odblokuj wszystkie karty przed zamknięciem obszaru roboczego",
@@ -503,7 +497,7 @@ export const plPL = {
       },
       "new-tab": {
         "label": "Nowa karta",
-        "description": "Otwórz pustą kartę w domyślnym obszarze roboczym"
+        "description": "Otwórz pustą kartę w bieżącym obszarze roboczym"
       },
       "search-tabs": {
         "label": "Szukaj kart",
@@ -1023,7 +1017,7 @@ export const plPL = {
       "splitClose": "Nie udało się zamknąć widoku dzielonego."
     },
     "browsingData": {
-      "confirm": "Wyczyścić wybrane dane przeglądania dla wszystkich witryn?\n\n{items}\n\nZakładki, pobrane pliki, zapisane hasła i decyzje o uprawnieniach witryn pozostaną. Otwarte strony nie zostaną automatycznie odświeżone.",
+      "confirm": "Wyczyścić historię przeglądania wszystkich witryn?\n\n{items}\n\nDane witryn w obszarach roboczych i pozostałe dane aplikacji zostaną zachowane.",
       "item": "• {item}",
       "websiteConfirm": "Wyczyścić {items} dla {origin}? Otwarte strony nie zostaną automatycznie odświeżone.",
       "cookieMeta": "{count} plik cookie | {count} pliki cookie | {count} plików cookie",
@@ -1031,7 +1025,6 @@ export const plPL = {
       "bookmarkMeta": "{count} zakładka | {count} zakładki | {count} zakładek",
       "passwordMeta": "{count} zapisane konto | {count} zapisane konta | {count} zapisanych kont",
       "permissionMeta": "{count} decyzja o uprawnieniu | {count} decyzje o uprawnieniu | {count} decyzji o uprawnieniu",
-      "tabMeta": "{count} otwarta karta Domyślna | {count} otwarte karty Domyślne | {count} otwartych kart Domyślnych",
       "clearedSite": "Wybrane dane dla {origin} zostały wyczyszczone. Odśwież otwarte strony, gdy będziesz gotowy."
     },
     "permission": {
@@ -1047,7 +1040,7 @@ export const plPL = {
     "cookiesAll": "Pliki cookie i dane witryn (możesz zostać wylogowany)",
     "cookiesSite": "Pliki cookie i pamięć witryny (możesz zostać wylogowany)",
     "cache": "Obrazy i pliki w pamięci podręcznej",
-    "clearSiteConfirm": "Wyczyścić wybrane dane dla {origin}?\n\n{items}\n\nPowiązane subdomeny mogą współdzielić pliki cookie. Zakładki, zapisane hasła, uprawnienia witryn, pobrane pliki, ustawienia i otwarte karty pozostaną.",
+    "clearSiteConfirm": "Wyczyścić historię przeglądania dla {origin}?\n\n{items}\n\nDane witryn w obszarach roboczych i pozostałe dane aplikacji zostaną zachowane.",
     "historyWithVisits": "{pages} strona historii · {visits} wizyta | {pages} strony historii · {visits} wizyty | {pages} stron historii · {visits} wizyt",
     "openTabs": "{count} otwarta karta | {count} otwarte karty | {count} otwartych kart",
     "bookmarksKept": "Zachowano {count} zakładkę | Zachowano {count} zakładki | Zachowano {count} zakładek",
@@ -1134,7 +1127,6 @@ export const plPL = {
       "list": "Karty i obszary robocze przeglądarki",
       "scrollBack": "Pokaż poprzednie karty",
       "scrollForward": "Pokaż następne karty",
-      "defaultWorkspace": "Domyślny obszar roboczy dla nowych kart",
       "pageAttention": "Strona wymaga uwagi",
       "sleeping": "Uśpiona, aby oszczędzać zasoby",
       "stackedVisible": "Widoczna w pionowym widoku dzielonym",
@@ -2841,8 +2833,8 @@ export const plPL = {
     "firstRun": {
       "kicker": "Pierwszy sukces",
       "heading": "Wypróbuj Hronaut w jednym bezpiecznym zadaniu",
-      "description": "Po połączeniu skopiuj ten prompt do agenta programistycznego. Zobaczysz, jak tworzy odizolowany obszar roboczy i sprawdza stronę bez używania obszaru Domyślnego.",
-      "prompt": "Korzystając z Hronaut, utwórz nowy odizolowany obszar roboczy o nazwie „Pierwsze uruchomienie Hronaut”, otwórz https://example.com, wykonaj semantyczny zrzut i podaj nagłówek strony. Nie używaj obszaru roboczego Domyślnego.",
+      "description": "Po połączeniu skopiuj to polecenie do agenta programistycznego. Utworzy on izolowany obszar roboczy i sprawdzi stronę.",
+      "prompt": "Używając Hronaut, utwórz izolowany obszar roboczy „Pierwsze uruchomienie Hronaut”, otwórz https://example.com, wykonaj zrzut semantyczny i podaj nagłówek strony. Używaj tylko tego obszaru roboczego.",
       "copy": "Kopiuj prompt"
     },
     "activity": {

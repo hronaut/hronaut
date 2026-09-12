@@ -10,7 +10,6 @@ function createController(overrides: { defaultProfile?: boolean; blocked?: boole
   const closeTransientCollections = vi.fn()
   const controller = useSettingsNavigationController({
     closeSiteControls,
-    usesDefaultProfile: () => overrides.defaultProfile ?? true,
     activeOrigin: () => overrides.origin ?? 'https://example.test',
     openSiteStorage,
     openPrivacySettings,
@@ -31,16 +30,6 @@ function createController(overrides: { defaultProfile?: boolean; blocked?: boole
 }
 
 describe('useSettingsNavigationController', () => {
-  it('opens origin-filtered privacy settings for the default profile', async () => {
-    const harness = createController()
-
-    await harness.controller.openSitePrivacySettings()
-
-    expect(harness.closeSiteControls).toHaveBeenCalledOnce()
-    expect(harness.openPrivacySettings).toHaveBeenCalledWith('https://example.test')
-    expect(harness.openSiteStorage).not.toHaveBeenCalled()
-  })
-
   it('opens isolated site storage instead of global privacy settings', async () => {
     const harness = createController({ defaultProfile: false })
 

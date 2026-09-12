@@ -63,11 +63,6 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     options.credentials.value.filter((credential) => credential.origin === activeOrigin.value)
   ))
   const activeDownloads = computed(() => options.downloads.value.filter((download) => download.state === 'progressing'))
-  const activeTabUsesDefaultProfile = computed(() => {
-    const workspaceId = options.activeTab.value?.mcpGroupId
-    if (!workspaceId) return true
-    return options.state.value.mcpTabGroups.find((workspace) => workspace.id === workspaceId)?.isDefault !== false
-  })
   const currentBookmark = computed(() => (
     options.bookmarks.value.find((bookmark) => bookmark.url === activeWebUrl.value)
   ))
@@ -157,7 +152,6 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     activeAddressKind,
     activeCredentials,
     activeDownloads,
-    activeTabUsesDefaultProfile,
     currentBookmark,
     downloadButtonLabel,
     tabHumanInteractionLocked,

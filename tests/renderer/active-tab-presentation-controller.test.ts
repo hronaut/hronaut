@@ -55,8 +55,6 @@ function state(active: BrowserTabState): BrowserState {
       lastUsedAt: '2026-08-23T00:00:00.000Z',
       tabCount: 1,
       activeTabId: active.id,
-      isDefault: false,
-      storageKind: 'isolated',
       storageOriginCount: 1,
       navigationPolicy: { mode: 'unrestricted', rules: [] }
     }],
@@ -108,7 +106,6 @@ describe('active tab presentation controller', () => {
     expect(controller.activeSitePermissions.value.map((entry) => entry.origin)).toEqual(['https://example.test'])
     expect(controller.activeCredentials.value.map((entry) => entry.id)).toEqual(['credential'])
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
-    expect(controller.activeTabUsesDefaultProfile.value).toBe(false)
   })
 
   it('rejects non-web and malformed active addresses from site-scoped presentation', () => {

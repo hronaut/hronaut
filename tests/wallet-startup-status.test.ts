@@ -5,8 +5,7 @@ describe('walletStartupFailureStatus', () => {
   it.each([
     'Wallet audit history verification failed',
     'Wallet authority authentication failed',
-    'Wallet identity authentication failed',
-    'Wallet legacy policy store is invalid'
+    'Wallet identity authentication failed'
   ])('classifies validated persistence failure %s without exposing its input', (message) => {
     expect(walletStartupFailureStatus(new Error(message))).toMatchObject({
       managedWallets: 'disabled',

@@ -12,9 +12,7 @@ type PrivacySummaryState = 'idle' | 'loading' | 'clearing' | 'cleared' | 'error'
 type PrivacyWebsiteState = 'idle' | 'loading' | 'clearing' | 'cleared' | 'error'
 
 const DEFAULT_CLEAR_OPTIONS: BrowsingDataClearOptions = {
-  history: true,
-  cookiesAndSiteData: false,
-  cache: true
+  history: true
 }
 
 export interface PrivacySettingsControllerOptions {
@@ -38,9 +36,7 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   let websiteGeneration = 0
 
   const selectedCount = computed(() => [
-    clearOptions.value.history,
-    clearOptions.value.cookiesAndSiteData,
-    clearOptions.value.cache
+    clearOptions.value.history
   ].filter(Boolean).length)
 
   const clearing = computed(() => summaryState.value === 'clearing' || websiteState.value === 'clearing')
@@ -105,8 +101,6 @@ export function usePrivacySettingsController(options: PrivacySettingsControllerO
   function selectedLabels(siteScoped: boolean): string[] {
     const selected: string[] = []
     if (clearOptions.value.history) selected.push(options.translate(siteScoped ? 'privacyActions.historySite' : 'privacyActions.historyAll'))
-    if (clearOptions.value.cookiesAndSiteData) selected.push(options.translate(siteScoped ? 'privacyActions.cookiesSite' : 'privacyActions.cookiesAll'))
-    if (clearOptions.value.cache) selected.push(options.translate('privacyActions.cache'))
     return selected
   }
 

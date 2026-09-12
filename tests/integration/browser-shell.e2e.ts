@@ -806,7 +806,7 @@ test('copies Home setup natively, reports failures in shell chrome, and withhold
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
     .toContain('Hronaut first run')
   await expect.poll(() => electronApp.evaluate(({ clipboard }) => clipboard.readText()))
-    .toContain('Do not use the Default workspace')
+    .toContain('Use only this workspace.')
 
   await appWindow.evaluate(`window.hronaut.newTab({ url: 'data:text/html,<title>Clipboard boundary</title>', active: true })`)
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))

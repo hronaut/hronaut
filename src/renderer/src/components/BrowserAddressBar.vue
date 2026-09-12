@@ -70,7 +70,6 @@ const {
   activeHostname,
   activeSitePermissions,
   activeAddressKind,
-  activeTabUsesDefaultProfile
 } = props.activeTabPresentation
 const { activeEmulation, resetPending, label: emulationLabel, describe: emulationDescription } = props.emulationController
 const { activeNetworkRouteCount } = props.pageToolsPresentation
@@ -162,7 +161,6 @@ async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean>
       :state="siteDataState"
       :message="siteDataMessage"
       :permissions="activeSitePermissions"
-      :uses-default-profile="activeTabUsesDefaultProfile"
       :locale="locale"
       :permission-label="permissionLabel"
       :permission-pending="isSitePermissionPending"

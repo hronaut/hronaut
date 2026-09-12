@@ -111,7 +111,6 @@ function createHarness() {
           keepsSeparatePanelOpen: () => false,
           activeUrl: () => 'https://example.test/path',
           activeOrigin: () => 'https://example.test',
-          usesDefaultProfile: () => true,
           settingsEntryBlocked: () => false
         },
         address: {

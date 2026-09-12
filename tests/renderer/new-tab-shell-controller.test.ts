@@ -31,10 +31,8 @@ function workspace(id = 'workspace'): BrowserTabGroupState {
     color: 'blue',
     createdAt: '2026-08-25T00:00:00.000Z',
     lastUsedAt: '2026-08-25T00:00:00.000Z',
-    isDefault: false,
     tabCount: 0,
     activeTabId: null,
-    storageKind: 'isolated',
     storageOriginCount: 0,
     navigationPolicy: { mode: 'unrestricted', rules: [] }
   }
