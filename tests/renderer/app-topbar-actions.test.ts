@@ -71,7 +71,8 @@ describe('AppTopbarActions', () => {
 
     const downloads = screen.getByRole('button', { name: '1 download in progress' })
     expect(downloads).toHaveClass('active')
-    expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveAttribute('aria-description', '1 download in progress')
+    expect(downloads).toHaveAttribute('title', '1 download in progress')
+    expect(screen.getByRole('button', { name: 'Open command palette' })).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+P Meta+Shift+P')
     expect(screen.getByText('99')).toBeVisible()
 
     await user.click(screen.getByRole('button', { name: 'Open command palette' }))
@@ -114,7 +115,8 @@ describe('AppTopbarActions', () => {
     const follow = screen.getByRole('button', { name: 'Stop following agent activity' })
     expect(follow).toHaveAttribute('aria-pressed', 'true')
     expect(follow).toHaveClass('active')
-    expect(follow).toHaveTextContent('Following agents')
+    expect(follow).toHaveTextContent(/^$/)
+    expect(follow).toHaveAttribute('title', 'Stop following agent activity')
     expect(screen.getByRole('button', { name: 'Lock all tabs' })).toHaveAttribute('aria-pressed', 'false')
     rendered.mcpStatusController.dispose()
   })

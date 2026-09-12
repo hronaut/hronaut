@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import type { ElectronApplication, Locator } from '@playwright/test'
-import type { BrowserState, HronautApi } from '../../src/shared/types.js'
+import type { AppUpdateState, BrowserState, HronautApi } from '../../src/shared/types.js'
 import { expect, test } from './fixtures.js'
 
 async function captureChrome(app: ElectronApplication, path: string): Promise<void> {
@@ -53,6 +53,13 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
     await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true')
     await expect(appWindow.locator('.address-form')).toBeVisible()
     expect(await appWindow.evaluate('document.documentElement.scrollWidth <= innerWidth')).toBe(true)
+
+    await electronApp.evaluate(({ BrowserWindow, app }) => BrowserWindow.getAllWindows()[0]!.webContents.send('updates:changed', {
+      status: 'available', currentVersion: app.getVersion(), availableVersion: '99.0.0'
+    } satisfies AppUpdateState))
+    await expect(appWindow.locator('.update-status-pill')).toHaveClass(/available/)
+    await expect(appWindow.locator('.mcp-pill')).toBeVisible()
+    await captureChrome(electronApp, testInfo.outputPath(`${orientation}-scaled-update.png`))
 
     expect(await appWindow.locator('.topbar-actions button, .toolbar button').evaluateAll(elements => elements.filter(element => {
       const box = element.getBoundingClientRect()

@@ -87,11 +87,11 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
       const settings = appWindow.getByRole('dialog', { name: 'Settings', exact: true })
       await expect(settings).toBeVisible()
       await settings.getByRole('button', { name: 'Close settings', exact: true }).click()
-      // Secondary tools remain discoverable through the named command palette.
+      // The icon launcher retains its accessible name and keyboard behavior.
       for (const command of ['Search tabs', 'Show downloads', 'Show browsing history']) {
         await appWindow.locator('.app-home-button').focus()
         const launcher = appWindow.getByRole('button', { name: 'Open command palette', exact: true })
-        await expect(launcher).toHaveText('Commands')
+        await expect(launcher.locator('svg')).toBeVisible()
         await launcher.focus()
         await launcher.press('Enter')
         const palette = appWindow.getByRole('dialog', { name: 'Commands', exact: true })
@@ -102,7 +102,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
         await expect(palette).toBeHidden()
         await appWindow.keyboard.press('Escape')
       }
-      // Long translated labels and the available-update indicator share the
+      // Translated MCP status and the available-update indicator share the
       // same two action rows; none may collide with another control or tabs.
       for (const selector of ['.all-lock-button', '.follow-agent-button', '.mcp-pause-button']) {
         await appWindow.locator('.app-home-button').focus()

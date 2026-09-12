@@ -59,14 +59,11 @@ const { t } = useI18n({ useScope: 'global' })
       type="button"
       :title="t('shell.actions.commandsTitle')"
       :aria-label="t('shell.actions.commands')"
-      :aria-description="activeDownloads.length ? downloadButtonLabel : undefined"
       aria-keyshortcuts="Control+Shift+P Meta+Shift+P"
       :aria-expanded="commandPaletteOpen"
       @click="emit('toggleCommandPalette')"
     >
       <IconKeyboardCommandKey aria-hidden="true" />
-      <span class="compact-commands-label">{{ t('commandPalette.heading') }}</span>
-      <span v-if="activeDownloads.length" class="compact-download-status" :title="downloadButtonLabel" aria-hidden="true"><IconProgress class="state-spinner" /></span>
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button tab-search-button"
@@ -78,7 +75,6 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleTabSearch')"
     >
       <IconTabSearch aria-hidden="true" />
-      <span class="rail-action-label">{{ t('tabSearch.heading') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button downloads-button"
@@ -92,7 +88,6 @@ const { t } = useI18n({ useScope: 'global' })
       <IconProgress v-if="activeDownloads.length" class="state-spinner" aria-hidden="true" />
       <IconDownloadDone v-else-if="downloads[0]?.state === 'completed'" aria-hidden="true" />
       <IconDownload v-else aria-hidden="true" />
-      <span class="rail-action-label">{{ t('downloads.heading') }}</span>
       <span v-if="downloads.length" class="downloads-badge" aria-hidden="true">{{ Math.min(downloads.length, 99) }}</span>
     </UiButton>
     <UiButton appearance="application"
@@ -105,7 +100,18 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleHistory')"
     >
       <IconHistory aria-hidden="true" />
-      <span class="rail-action-label">{{ t('shell.actions.history') }}</span>
+    </UiButton>
+    <UiButton appearance="application"
+      class="topbar-icon-button browser-lock-button all-lock-button"
+      :class="{ locked: allInteractionLocked }"
+      type="button"
+      :title="allInteractionLockLabel"
+      :aria-label="allInteractionLockLabel"
+      :aria-pressed="allInteractionLocked"
+      @click="emit('toggleAllInteraction')"
+    >
+      <IconLock v-if="allInteractionLocked" aria-hidden="true" />
+      <IconLockOpen v-else aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button all-tabs-audio-button"
@@ -119,22 +125,8 @@ const { t } = useI18n({ useScope: 'global' })
       <IconVolumeOff v-if="allTabsMuted" aria-hidden="true" />
       <IconVolumeUp v-else aria-hidden="true" />
     </UiButton>
-    <span class="topbar-actions-divider" aria-hidden="true" />
     <UiButton appearance="application"
-      class="browser-lock-button all-lock-button"
-      :class="{ locked: allInteractionLocked }"
-      type="button"
-      :title="allInteractionLockLabel"
-      :aria-label="allInteractionLockLabel"
-      :aria-pressed="allInteractionLocked"
-      @click="emit('toggleAllInteraction')"
-    >
-      <IconLock v-if="allInteractionLocked" aria-hidden="true" />
-      <IconLockOpen v-else aria-hidden="true" />
-      {{ allInteractionLocked ? t('shell.tabs.locked') : t('shell.tabs.lock') }}
-    </UiButton>
-    <UiButton appearance="application"
-      class="browser-lock-button follow-agent-button"
+      class="topbar-icon-button browser-lock-button follow-agent-button"
       :class="{ active: followAgentActivity }"
       type="button"
       :title="t(followAgentActivity ? 'shell.actions.stopFollowingAgentActivityDescription' : 'shell.actions.followAgentActivityDescription')"
@@ -143,14 +135,7 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleFollowAgentActivity')"
     >
       <IconVisibility aria-hidden="true" />
-      {{ t(followAgentActivity ? 'shell.actions.followingAgents' : 'shell.actions.followAgents') }}
     </UiButton>
-    <UpdateNotification
-      v-if="showUpdateStatus"
-      mode="pill"
-      :state="updateState"
-      @open="emit('openUpdateSettings')"
-    />
     <McpStatusControls :controller="mcpStatusController" />
     <UiButton appearance="application"
       class="topbar-icon-button settings-button"
@@ -161,7 +146,12 @@ const { t } = useI18n({ useScope: 'global' })
       @click="emit('toggleSettings')"
     >
       <IconSettings aria-hidden="true" />
-      <span class="rail-action-label">{{ t('settings.heading') }}</span>
     </UiButton>
+    <UpdateNotification
+      v-if="showUpdateStatus"
+      mode="pill"
+      :state="updateState"
+      @open="emit('openUpdateSettings')"
+    />
   </div>
 </template>

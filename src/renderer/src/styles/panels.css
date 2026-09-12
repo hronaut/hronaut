@@ -115,9 +115,6 @@
 
 @media (max-width: 900px) {
   .browser-lock-button { @apply [width:30px] p-0 justify-center [font-size:0]; }
-  .mcp-pill { @apply hidden; }
-  .vertical-tabs-shell .browser-lock-button { @apply w-full [padding:0_8px] [font-size:12px]; }
-  .vertical-tabs-shell .mcp-pill { @apply flex; }
   .update-status-pill { @apply [max-width:160px]; }
   .page-problem-copy { @apply grid [gap:2px]; }
   .page-problem-copy code { @apply hidden; }
