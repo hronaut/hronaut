@@ -2,7 +2,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  assertMcpCapabilityClassificationContract,
   BROWSER_TOOL_CATALOG,
+  mcpCapabilityAction,
+  mcpCapabilityOperationClass,
   mcpCapabilityProfileInputFromPreset,
   McpHttpServer,
   mcpToolCatalogForSet
@@ -142,6 +145,26 @@ describe('MCP tool sets', () => {
       .toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true })
     expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'wallet_request')?.annotations)
       .toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true })
+  })
+
+  it('classifies every non-read tool explicitly and normalizes mixed-action aliases', () => {
+    expect(() => assertMcpCapabilityClassificationContract()).not.toThrow()
+    expect(() => assertMcpCapabilityClassificationContract([
+      ...BROWSER_TOOL_CATALOG,
+      {
+        ...BROWSER_TOOL_CATALOG.find(tool => tool.name === 'browser_show')!,
+        name: 'browser_future_mutation'
+      }
+    ])).toThrow('missing operation class: browser_future_mutation')
+
+    expect(mcpCapabilityAction('browser_console', {})).toBe('list')
+    expect(mcpCapabilityAction('browser_console', { clear: true })).toBe('clear')
+    expect(mcpCapabilityAction('browser_downloads', {})).toBe('list')
+    expect(mcpCapabilityAction('browser_downloads', { action: 'cancel' })).toBe('cancel')
+    expect(mcpCapabilityOperationClass('browser_console', {})).toBe('read')
+    expect(mcpCapabilityOperationClass('browser_console', { clear: true })).toBe('browser-state')
+    expect(mcpCapabilityOperationClass('browser_network', {})).toBe('read')
+    expect(mcpCapabilityOperationClass('browser_network', { clear: true })).toBe('network')
   })
 
   it('uses Browser Essentials for new profiles and accepts only named tool sets', () => {

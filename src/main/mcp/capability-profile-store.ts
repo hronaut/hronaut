@@ -58,8 +58,72 @@ export interface McpCapabilityRequest {
   origins?: string[]
 }
 
+export const MCP_CAPABILITY_DECISION_PRECEDENCE = [
+  'grant',
+  'lineage',
+  'session',
+  'tool',
+  'action',
+  'operation-class',
+  'workspace',
+  'origin'
+] as const
+
+export type McpCapabilityDecisionRule = typeof MCP_CAPABILITY_DECISION_PRECEDENCE[number]
+export type McpCapabilityDecisionPhase = 'admission' | 'consume' | 'active-dispatch'
+export type McpCapabilityDecisionReason =
+  | 'PERMITTED'
+  | 'GRANT_NOT_FOUND'
+  | 'GRANT_REVISION_CHANGED'
+  | 'CREDENTIAL_CHANGED'
+  | 'LINEAGE_INVALID'
+  | 'PROFILE_REVOKED'
+  | 'PROFILE_EXPIRED'
+  | 'USE_LIMIT_REACHED'
+  | 'TOOL_NOT_ALLOWED'
+  | 'ACTION_REQUIRED'
+  | 'ACTION_NOT_ALLOWED'
+  | 'OPERATION_CLASS_REQUIRED'
+  | 'OPERATION_CLASS_UNRECOGNIZED'
+  | 'OPERATION_CLASS_NOT_ALLOWED'
+  | 'WORKSPACE_REQUIRED'
+  | 'WORKSPACE_NOT_ALLOWED'
+  | 'ORIGIN_MALFORMED'
+  | 'ORIGIN_NOT_ALLOWED'
+
+export interface McpCapabilityDecisionCheck {
+  rule: McpCapabilityDecisionRule
+  result: 'passed' | 'denied' | 'not-applicable' | 'not-evaluated'
+  /** Root-to-leaf position of the first profile that denied this rule. */
+  authorizationIndex?: number
+}
+
+export interface McpCapabilityDecision {
+  decision: 'permitted' | 'denied'
+  reasonCode: McpCapabilityDecisionReason
+  firstDenyingRule: McpCapabilityDecisionRule | null
+  phase: McpCapabilityDecisionPhase
+  route: 'direct' | 'delegated'
+  lineageDepth: number
+  sessionGeneration: {
+    presented: number
+    active: number | 'missing'
+  }
+  request: {
+    tool: string | 'unrecognized'
+    action: string | 'none' | 'unrecognized'
+    operationClass: McpCapabilityOperationClass | 'missing' | 'unrecognized'
+    workspace: 'supplied' | 'missing'
+    origins: 'none' | 'supplied' | 'malformed'
+  }
+  checks: McpCapabilityDecisionCheck[]
+  permission: 'permitted' | 'denied'
+  dispatch: 'not-established'
+  postcondition: 'not-established'
+}
+
 export class McpCapabilityAuthorizationError extends Error {
-  constructor() {
+  constructor(readonly decision?: McpCapabilityDecision) {
     super('MCP capability does not authorize this operation')
     this.name = 'McpCapabilityAuthorizationError'
   }
@@ -395,27 +459,23 @@ export class McpCapabilityProfileStore {
   }
 
   authorize(grant: McpCapabilityGrant, request: McpCapabilityRequest): McpCapabilityProfile {
-    const profile = this.profiles.get(grant.profileId)
-    this.requireActiveGrant(grant)
-    if (!profile || !this.lineageAllows(profile, request)) throw new McpCapabilityAuthorizationError()
-    return publicProfile(profile, true)
+    const decision = this.evaluate(grant, request, 'admission')
+    if (decision.decision === 'denied') throw new McpCapabilityAuthorizationError(decision)
+    return publicProfile(this.profiles.get(grant.profileId)!, true)
   }
 
   authorizeActiveDispatch(grant: McpCapabilityGrant, request: McpCapabilityRequest): McpCapabilityProfile {
-    const profile = this.profiles.get(grant.profileId)
-    if (!profile || profile.revision !== grant.revision || profile.credentialId !== grant.credentialId
-      || !this.activeLineage(profile, true)
-      || !this.lineageAllows(profile, request)) throw new McpCapabilityAuthorizationError()
+    const decision = this.evaluate(grant, request, 'active-dispatch')
+    if (decision.decision === 'denied') throw new McpCapabilityAuthorizationError(decision)
+    const profile = this.profiles.get(grant.profileId)!
     return publicProfile(profile, this.activeLineage(profile, true))
   }
 
   async authorizeAndConsume(grant: McpCapabilityGrant, request: McpCapabilityRequest): Promise<McpCapabilityProfile> {
     return this.queueMutation(async () => {
-      const profile = this.profiles.get(grant.profileId)
-      if (!profile || profile.revision !== grant.revision || profile.credentialId !== grant.credentialId
-        || !this.activeLineage(profile, false) || !this.lineageAllows(profile, request)) {
-        throw new McpCapabilityAuthorizationError()
-      }
+      const decision = this.evaluate(grant, request, 'consume')
+      if (decision.decision === 'denied') throw new McpCapabilityAuthorizationError(decision)
+      const profile = this.profiles.get(grant.profileId)!
       const lineage = this.lineage(profile)
       if (!lineage) throw new McpCapabilityAuthorizationError()
       if (!lineage.some(candidate => candidate.maxUses !== undefined)) return publicProfile(profile, true)
@@ -430,6 +490,125 @@ export class McpCapabilityProfileStore {
       const nextProfile = next.get(profile.id)!
       return publicProfile(nextProfile, this.activeLineage(nextProfile, false))
     })
+  }
+
+  /** Returns a bounded, redacted decision trace. It never includes credentials,
+   * configured origins/workspaces, profile names, or caller payloads. */
+  evaluate(
+    grant: McpCapabilityGrant,
+    request: McpCapabilityRequest,
+    phase: McpCapabilityDecisionPhase = 'admission'
+  ): McpCapabilityDecision {
+    const profile = this.profiles.get(grant.profileId)
+    const route = profile?.parentAuthorization ? 'delegated' as const : 'direct' as const
+    const rawLineage = profile ? this.lineage(profile) : null
+    const lineage = rawLineage ? [...rawLineage].reverse() : []
+    const operationClass = request.operationClass === undefined ? 'missing'
+      : MCP_CAPABILITY_OPERATION_CLASSES.includes(request.operationClass)
+        ? request.operationClass : 'unrecognized'
+    const tool = TOOL_PATTERN.test(request.toolName) ? request.toolName : 'unrecognized'
+    const action = request.action === undefined ? 'none'
+      : ACTION_PATTERN.test(request.action) ? request.action : 'unrecognized'
+    const originSummary = request.origins === undefined || request.origins.length === 0 ? 'none'
+      : request.origins.some(origin => normalizeOrigin(origin) === null) ? 'malformed' : 'supplied'
+    const checks: McpCapabilityDecisionCheck[] = MCP_CAPABILITY_DECISION_PRECEDENCE.map(rule => ({
+      rule,
+      result: 'not-evaluated' as McpCapabilityDecisionCheck['result']
+    }))
+    const deny = (
+      rule: McpCapabilityDecisionRule,
+      reasonCode: McpCapabilityDecisionReason,
+      authorizationIndex?: number
+    ): McpCapabilityDecision => {
+      const check = checks.find(candidate => candidate.rule === rule)!
+      check.result = 'denied'
+      if (authorizationIndex !== undefined) check.authorizationIndex = authorizationIndex
+      return {
+        decision: 'denied', reasonCode, firstDenyingRule: rule, phase, route,
+        lineageDepth: lineage.length,
+        sessionGeneration: { presented: grant.revision, active: profile?.revision ?? 'missing' },
+        request: {
+          tool, action, operationClass,
+          workspace: request.workspaceId === undefined ? 'missing' : 'supplied',
+          origins: originSummary
+        },
+        checks, permission: 'denied', dispatch: 'not-established', postcondition: 'not-established'
+      }
+    }
+    const pass = (rule: McpCapabilityDecisionRule, result: 'passed' | 'not-applicable' = 'passed'): void => {
+      checks.find(candidate => candidate.rule === rule)!.result = result
+    }
+
+    if (!profile) return deny('grant', 'GRANT_NOT_FOUND')
+    if (profile.revision !== grant.revision) return deny('grant', 'GRANT_REVISION_CHANGED')
+    if (profile.credentialId !== grant.credentialId) return deny('grant', 'CREDENTIAL_CHANGED')
+    pass('grant')
+    if (!rawLineage) return deny('lineage', 'LINEAGE_INVALID')
+    pass('lineage')
+
+    const allowConsumed = phase === 'active-dispatch'
+    for (const [index, candidate] of lineage.entries()) {
+      if (candidate.revokedAt) return deny('session', 'PROFILE_REVOKED', index)
+      if (candidate.expiresAt && Date.parse(candidate.expiresAt) <= this.now().getTime()) {
+        return deny('session', 'PROFILE_EXPIRED', index)
+      }
+      if (candidate.maxUses !== undefined
+        && (allowConsumed ? candidate.useCount > candidate.maxUses : candidate.useCount >= candidate.maxUses)) {
+        return deny('session', 'USE_LIMIT_REACHED', index)
+      }
+    }
+    pass('session')
+
+    const firstToolDeny = lineage.findIndex(candidate => !candidate.allowedTools.includes(request.toolName))
+    if (firstToolDeny >= 0) return deny('tool', 'TOOL_NOT_ALLOWED', firstToolDeny)
+    pass('tool')
+
+    let actionApplicable = false
+    for (const [index, candidate] of lineage.entries()) {
+      const allowed = candidate.allowedActions?.[request.toolName]
+      if (!allowed) continue
+      actionApplicable = true
+      if (request.action === undefined) return deny('action', 'ACTION_REQUIRED', index)
+      if (!allowed.includes(request.action)) return deny('action', 'ACTION_NOT_ALLOWED', index)
+    }
+    pass('action', actionApplicable ? 'passed' : 'not-applicable')
+
+    if (operationClass === 'missing') return deny('operation-class', 'OPERATION_CLASS_REQUIRED')
+    if (operationClass === 'unrecognized') return deny('operation-class', 'OPERATION_CLASS_UNRECOGNIZED')
+    const firstClassDeny = lineage.findIndex(candidate => !candidate.operationClasses.includes(operationClass))
+    if (firstClassDeny >= 0) return deny('operation-class', 'OPERATION_CLASS_NOT_ALLOWED', firstClassDeny)
+    pass('operation-class')
+
+    const workspaceApplicable = lineage.some(candidate => candidate.workspaceIds !== undefined)
+    if (workspaceApplicable && request.workspaceId === undefined) return deny('workspace', 'WORKSPACE_REQUIRED')
+    const firstWorkspaceDeny = lineage.findIndex(candidate => candidate.workspaceIds
+      && !candidate.workspaceIds.includes(request.workspaceId!))
+    if (firstWorkspaceDeny >= 0) return deny('workspace', 'WORKSPACE_NOT_ALLOWED', firstWorkspaceDeny)
+    pass('workspace', workspaceApplicable ? 'passed' : 'not-applicable')
+
+    const originApplicable = lineage.some(candidate => candidate.origins !== undefined)
+      && request.origins !== undefined && request.origins.length > 0
+    if (originApplicable && originSummary === 'malformed') return deny('origin', 'ORIGIN_MALFORMED')
+    if (originApplicable) {
+      const firstOriginDeny = lineage.findIndex(candidate => candidate.origins && request.origins!.some(origin => {
+        const normalized = normalizeOrigin(origin)
+        return normalized === null || !candidate.origins!.includes(normalized)
+      }))
+      if (firstOriginDeny >= 0) return deny('origin', 'ORIGIN_NOT_ALLOWED', firstOriginDeny)
+    }
+    pass('origin', originApplicable ? 'passed' : 'not-applicable')
+
+    return {
+      decision: 'permitted', reasonCode: 'PERMITTED', firstDenyingRule: null, phase, route,
+      lineageDepth: lineage.length,
+      sessionGeneration: { presented: grant.revision, active: profile.revision },
+      request: {
+        tool, action, operationClass,
+        workspace: request.workspaceId === undefined ? 'missing' : 'supplied',
+        origins: originSummary
+      },
+      checks, permission: 'permitted', dispatch: 'not-established', postcondition: 'not-established'
+    }
   }
 
   flush(): Promise<void> {
@@ -461,11 +640,6 @@ export class McpCapabilityProfileStore {
   private activeLineage(profile: PersistedMcpCapabilityProfile, allowConsumed: boolean): boolean {
     const lineage = this.lineage(profile)
     return !!lineage && lineage.every(candidate => this.profileActive(candidate, allowConsumed))
-  }
-
-  private lineageAllows(profile: PersistedMcpCapabilityProfile, request: McpCapabilityRequest): boolean {
-    const lineage = this.lineage(profile)
-    return !!lineage && lineage.every(candidate => this.requestAllowed(candidate, request))
   }
 
   private isStrictSubset(child: McpCapabilityProfileInput, parent: PersistedMcpCapabilityProfile): boolean {
@@ -500,19 +674,6 @@ export class McpCapabilityProfileStore {
       || (parent.origins === undefined ? child.origins !== undefined : child.origins!.length < parent.origins.length)
       || (parentExpiry === undefined ? childExpiry !== undefined : childExpiry! < parentExpiry)
       || (parentRemainingUses === undefined ? child.maxUses !== undefined : child.maxUses! < parentRemainingUses)
-  }
-
-  private requestAllowed(profile: PersistedMcpCapabilityProfile, request: McpCapabilityRequest): boolean {
-    if (!profile.allowedTools.includes(request.toolName)
-      || !profile.operationClasses.includes(request.operationClass)) return false
-    const actions = profile.allowedActions?.[request.toolName]
-    if (actions && (request.action === undefined || !actions.includes(request.action))) return false
-    if (profile.workspaceIds && (request.workspaceId === undefined || !profile.workspaceIds.includes(request.workspaceId))) return false
-    if (profile.origins && (request.origins ?? []).some(origin => {
-      const normalized = normalizeOrigin(origin)
-      return normalized === null || !profile.origins!.includes(normalized)
-    })) return false
-    return true
   }
 
   private generateCredential(): string {

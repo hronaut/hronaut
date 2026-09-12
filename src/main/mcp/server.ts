@@ -345,25 +345,75 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_downloads: new Set(['list'])
 }
 
+const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOperationClass>> = {
+  browser_human_waiting: 'browser-state',
+  browser_continuity: 'browser-state',
+  browser_audit_receipts: 'browser-state',
+  browser_task_runs: 'browser-state',
+  browser_workspaces: 'browser-state',
+  browser_saved_workspaces: 'browser-state',
+  browser_show: 'browser-state',
+  browser_request_user_attention: 'browser-state',
+  browser_new_tab: 'navigate',
+  browser_select_tab: 'browser-state',
+  browser_close_tab: 'browser-state',
+  browser_bookmarks: 'browser-state',
+  browser_visit_history: 'browser-state',
+  browser_site_data: 'site-data',
+  browser_storage: 'site-data',
+  browser_storage_changes: 'browser-state',
+  browser_navigate: 'navigate',
+  browser_history: 'navigate',
+  browser_click: 'interact',
+  browser_dialog: 'interact',
+  browser_type: 'interact',
+  browser_select: 'interact',
+  browser_fill_form: 'interact',
+  browser_hover: 'interact',
+  browser_drag: 'interact',
+  browser_scroll: 'interact',
+  browser_press: 'interact',
+  browser_file_upload: 'external-request',
+  browser_emulate: 'browser-state',
+  browser_resize: 'browser-state',
+  browser_zoom: 'browser-state',
+  browser_audio: 'browser-state',
+  browser_screenshot: 'browser-state',
+  browser_pdf_save: 'external-request',
+  browser_performance: 'browser-state',
+  browser_code_coverage: 'browser-state',
+  browser_cpu_profile: 'browser-state',
+  browser_memory: 'browser-state',
+  browser_repro: 'browser-state',
+  browser_dom_changes: 'browser-state',
+  browser_visual_compare: 'browser-state',
+  browser_issues: 'browser-state',
+  browser_console: 'browser-state',
+  browser_diagnostic_logs: 'browser-state',
+  browser_network: 'network',
+  browser_network_replay: 'network',
+  browser_network_har: 'network',
+  browser_network_routes: 'network',
+  browser_downloads: 'external-request',
+  browser_evaluate: 'interact',
+  wallet_list: 'wallet',
+  wallet_balance: 'wallet',
+  wallet_prepare_transaction: 'wallet',
+  wallet_request: 'wallet',
+  wallet_request_status: 'wallet',
+  wallet_cancel_request: 'wallet'
+}
+
 export function mcpCapabilityOperationClass(
   toolName: string,
   input: Record<string, unknown>
 ): McpCapabilityOperationClass {
-  if (toolName.startsWith('wallet_')) return 'wallet'
   const action = mcpCapabilityAction(toolName, input)
   if (toolDefinition(toolName).annotations.readOnlyHint
     || (action !== undefined && READ_ONLY_MULTI_ACTIONS[toolName]?.has(action))) return 'read'
-  if (toolName === 'browser_navigate' || toolName === 'browser_history' || toolName === 'browser_new_tab') return 'navigate'
-  if (toolName === 'browser_storage' || toolName === 'browser_site_data') return 'site-data'
-  if (toolName.startsWith('browser_network')) return 'network'
-  if (toolName === 'browser_downloads' || toolName === 'browser_file_upload' || toolName === 'browser_pdf_save') {
-    return 'external-request'
-  }
-  if (['browser_click', 'browser_dialog', 'browser_type', 'browser_select', 'browser_fill_form',
-    'browser_hover', 'browser_drag', 'browser_scroll', 'browser_press', 'browser_evaluate'].includes(toolName)) {
-    return 'interact'
-  }
-  return 'browser-state'
+  const operationClass = MCP_NON_READ_OPERATION_CLASSES[toolName]
+  if (!operationClass) throw new Error(`MCP capability operation class is unrecognized for ${toolName}`)
+  return operationClass
 }
 
 export function mcpCapabilityAction(toolName: string, input: Record<string, unknown>): string | undefined {
@@ -669,6 +719,27 @@ export const BROWSER_TOOL_CATALOG: AdvertisedBrowserToolDefinition[] = BROWSER_T
   ...BROWSER_TOOL_METADATA[tool.name]
 }))
 
+export function assertMcpCapabilityClassificationContract(
+  catalog: readonly AdvertisedBrowserToolDefinition[] = BROWSER_TOOL_CATALOG
+): void {
+  const catalogNames = new Set(catalog.map(tool => tool.name))
+  const missing = catalog
+    .filter(tool => !tool.annotations.readOnlyHint && !MCP_NON_READ_OPERATION_CLASSES[tool.name])
+    .map(tool => tool.name)
+    .sort()
+  const unknown = Object.keys(MCP_NON_READ_OPERATION_CLASSES)
+    .filter(toolName => !catalogNames.has(toolName))
+    .sort()
+  if (missing.length || unknown.length) {
+    throw new Error([
+      ...missing.map(toolName => `missing operation class: ${toolName}`),
+      ...unknown.map(toolName => `unknown operation-class entry: ${toolName}`)
+    ].join('; '))
+  }
+}
+
+assertMcpCapabilityClassificationContract()
+
 const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_workspaces',
   'browser_saved_workspaces',
@@ -794,11 +865,27 @@ const textResult = (value: unknown): CallToolResult => ({
 const isTimeoutError = (error: unknown): boolean => error instanceof Error
   && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
 
-const errorResult = (error: unknown): CallToolResult => ({
-  isError: true,
-  content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-  ...(isTimeoutError(error) ? { structuredContent: { status: 'TIMED_OUT' } } : {})
-})
+const errorResult = (error: unknown): CallToolResult => {
+  const policyDecision = error instanceof McpCapabilityAuthorizationError ? error.decision : undefined
+  const message = policyDecision
+    ? `MCP capability denied this operation: ${policyDecision.reasonCode} at ${policyDecision.firstDenyingRule}.`
+    : error instanceof Error ? error.message : String(error)
+  return {
+    isError: true,
+    content: [{ type: 'text', text: message }],
+    ...(policyDecision ? {
+      structuredContent: {
+        status: 'POLICY_REJECTED',
+        reason: policyDecision.reasonCode,
+        policyDecision,
+        dispatch: 'not-dispatched',
+        effects: 'none',
+        postcondition: 'not-established',
+        reconciliationRequired: false
+      }
+    } : isTimeoutError(error) ? { structuredContent: { status: 'TIMED_OUT' } } : {})
+  }
+}
 
 export function closedTabWaitResult(error: unknown): CallToolResult | undefined {
   if (!(error instanceof Error) || !error.message.startsWith('The tab closed while waiting')) return undefined
@@ -1084,6 +1171,11 @@ function createBrowserMcpServer(
           const outcome = {
             status: readOnly ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
             effects: readOnly ? 'none' : 'possible',
+            permission: 'denied',
+            policyDecision: error.decision,
+            dispatch: 'dispatched',
+            postcondition: readOnly ? 'not-established' : 'unknown',
+            reconciliationRequired: !readOnly,
             retrySafe: false,
             nextAction: readOnly
               ? 'The capability changed while this observation was running. Obtain a fresh credential before reading again.'
