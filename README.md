@@ -59,6 +59,10 @@ Move reviewed setup between machines with [portable workspace templates](REFEREN
 
 ### Keep personal and agent work separate
 
+Open **Workspaces** in the sidebar or top bar to find a project, switch to its tabs, or create a new space. The **Open** and **Archived** views keep ongoing and saved work easy to find. Search by workspace name or page title. Each workspace card shows direct agent access and any site restrictions; choose **Manage** to edit them.
+
+Choose **Archive** when you finish a task. Tabs and sign-ins remain saved, and **Undo archive** restores an accidental archive immediately. Use **Restore workspace** in the Archived view to pick up where you left off. Permanent deletion asks for confirmation and removes the workspace’s website data.
+
 Hronaut starts on Home without creating a Default workspace. Opening your first tab creates an isolated workspace. Obsolete base-profile data and unsupported persistence formats are discarded.
 
 - **Fork a workspace** to reuse its cookies and local storage in an independent profile. Choose any active or archived source; the fork starts with a blank tab and keeps the source's site restrictions.

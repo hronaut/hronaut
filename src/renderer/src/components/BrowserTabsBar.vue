@@ -2,6 +2,7 @@
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconWorkspaces from '~icons/material-symbols/workspaces-outline-rounded'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconAddBox from '~icons/material-symbols/add-box-rounded'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
@@ -44,6 +45,7 @@ const emit = defineEmits<{
   showWorkspaceContextMenu: [groupId: string]
   newTab: [groupId?: string]
   createWorkspace: []
+  manageWorkspaces: []
   selectTab: [tabId: string]
   showTabContextMenu: [tabId: string]
   reorderTab: [details: { tabId: string; targetTabId: string; placement: 'before' | 'after' }]
@@ -543,6 +545,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <span>{{ t(railPinned ? 'shell.tabs.collapseRail' : 'shell.tabs.keepRailExpanded') }}</span>
   </UiButton>
   </div>
+  <UiButton class="workspace-library-launcher" variant="ghost" :title="t('workspaceLibrary.title')" :aria-label="t('workspaceLibrary.title')" @click="emit('manageWorkspaces')"><IconWorkspaces aria-hidden="true" /><span>{{ t('workspaceLibrary.title') }}</span><small>{{ state.mcpTabGroups.length }}</small></UiButton>
   <span class="topbar-divider" aria-hidden="true" />
   <div class="tabs-strip-shell" :class="{ 'has-tab-overflow': hasTabOverflow }">
     <UiButton appearance="application"

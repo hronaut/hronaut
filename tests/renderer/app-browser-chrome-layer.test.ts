@@ -213,6 +213,7 @@ function createHarness(home = false) {
     openHome: vi.fn(),
     newTabInWorkspace: vi.fn(),
     openNewWorkspaceEditor: vi.fn(),
+    openWorkspaceLibrary: vi.fn(),
     toggleCommandPalette: vi.fn(),
     toggleTabSearch: vi.fn(),
     openFind: vi.fn(),

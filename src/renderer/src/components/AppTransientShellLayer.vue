@@ -78,6 +78,7 @@ interface ZoomSurface {
 }
 
 interface WorkspaceEditorSurface {
+  openLibrary: () => void
   openTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openExisting: (groupId: string) => Promise<void>
   openNew: () => Promise<void>
@@ -133,6 +134,11 @@ async function openWorkspace(groupId: string): Promise<void> {
   await workspaceEditor.value?.openExisting(groupId)
 }
 
+function openWorkspaceLibrary(): void {
+  closeTabSearch()
+  workspaceEditor.value?.openLibrary()
+}
+
 async function openNewWorkspace(): Promise<void> {
   await workspaceEditor.value?.openNew()
 }
@@ -158,6 +164,7 @@ function closeCommandPalette(): void {
 }
 
 defineExpose({
+  openWorkspaceLibrary,
   openTabSearch,
   closeTabSearch,
   openFindForTab,

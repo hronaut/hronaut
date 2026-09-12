@@ -457,7 +457,7 @@ pause. Pause does not roll back an action already dispatched.
 
 ## Review workspace continuity
 
-People can open **Edit workspace → Workspace continuity** to read current
+People can open **Workspaces → Manage → Continuity & human decisions → Workspace continuity** to read current
 state, create a checkpoint, or confirm an exact reviewed state. Unknown prior
 outcomes require an explicit acknowledgment. These controls do not unpause
 agents, enable agent access, or repeat browser actions. If review fails because

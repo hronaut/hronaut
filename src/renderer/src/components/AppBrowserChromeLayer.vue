@@ -31,6 +31,7 @@ export interface AppBrowserChromeLayerActions {
   openHome: () => unknown
   newTabInWorkspace: (groupId?: string) => unknown
   openNewWorkspaceEditor: () => unknown
+  openWorkspaceLibrary: () => unknown
   toggleCommandPalette: () => unknown
   toggleTabSearch: () => unknown
   openFind: () => unknown
@@ -223,6 +224,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       @show-workspace-context-menu="runAction(() => showWorkspaceContextMenu($event))"
       @new-tab="runAction(() => actions.newTabInWorkspace($event))"
       @create-workspace="runAction(actions.openNewWorkspaceEditor)"
+      @manage-workspaces="runAction(actions.openWorkspaceLibrary)"
       @select-tab="selectTab"
       @show-tab-context-menu="runAction(() => browser.showTabContextMenu($event))"
       @reorder-tab="runAction(() => reorderTab($event))"

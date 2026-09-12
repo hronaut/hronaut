@@ -1,0 +1,67 @@
+import type { HronautApi } from '../../src/shared/types.js'
+import { expect, test } from './fixtures.js'
+
+test('manages workspaces from the library across themes and narrow windows', async ({ appWindow, electronApp }, testInfo) => {
+  await appWindow.evaluate(async () => {
+    const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+    await browser.createWorkspace({ name: 'Product research', color: 'purple', storage: 'scratch' })
+    await browser.createWorkspace({ name: 'Personal accounts', color: 'blue', storage: 'scratch', agentAccess: false })
+    await browser.createWorkspace({ name: 'Release checks', color: 'green', storage: 'scratch', navigationPolicy: { mode: 'restricted', rules: ['https://example.com'] } })
+    const state = await browser.createWorkspace({ name: 'Previous launch', color: 'orange', storage: 'scratch' })
+    await browser.saveAndCloseTabGroup(state.mcpTabGroups.find(group => group.name === 'Previous launch')!.id)
+  })
+  await appWindow.getByRole('button', { name: 'Workspaces', exact: true }).click()
+  const library = appWindow.getByRole('dialog', { name: 'Workspaces', exact: true })
+  await expect(library.getByRole('article')).toHaveCount(3)
+  await expect(library.getByText('Direct agent access off', { exact: true })).toBeVisible()
+  const search = library.getByRole('searchbox', { name: 'Search workspaces or tabs' })
+  await search.fill('personal')
+  await expect(library.getByRole('article')).toHaveCount(1)
+  await search.press('Enter')
+  await expect(library).toBeVisible()
+  await library.getByRole('article', { name: 'Personal accounts', exact: true }).getByRole('button', { name: 'Archive', exact: true }).click()
+  await expect(library.getByRole('status')).toContainText('Tabs and sign-ins are saved')
+  await library.getByRole('button', { name: 'Undo archive' }).click()
+  await expect(library.getByRole('article')).toHaveCount(1)
+  await search.fill('')
+  for (const theme of ['light', 'dark']) {
+    await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
+    for (const width of [1200, 640]) {
+      await electronApp.evaluate(({ BrowserWindow }, width) => {
+        const window = BrowserWindow.getAllWindows()[0]!
+        window.setMinimumSize(600, 600)
+        window.setSize(width, 800)
+      }, width)
+      await expect.poll(() => appWindow.evaluate(() => innerWidth)).toBe(width)
+      expect(await library.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+      await library.getByRole('article').last().scrollIntoViewIfNeeded()
+      await expect(library.getByRole('article').last().getByRole('button', { name: 'Open workspace', exact: true })).toBeInViewport()
+      await appWindow.screenshot({ path: testInfo.outputPath(`library-${theme}-${width}.png`), animations: 'disabled' })
+    }
+  }
+  await library.getByRole('tab', { name: 'Archived (1)', exact: true }).click()
+  await library.getByRole('article', { name: 'Previous launch' }).getByRole('button', { name: 'Restore workspace', exact: true }).click()
+  await expect(library).toBeHidden()
+  await expect.poll(() => appWindow.evaluate(async () => (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).savedTabGroups.length)).toBe(0)
+  await appWindow.getByRole('button', { name: 'Workspaces', exact: true }).click()
+  await library.getByRole('article', { name: 'Personal accounts' }).getByRole('button', { name: 'Manage', exact: true }).click()
+  const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+  await expect(editor.getByLabel('Workspace name', { exact: true })).toHaveValue('Personal accounts')
+  await expect(editor.locator('.workspace-access-disclosure')).not.toHaveAttribute('open', '')
+  await editor.getByLabel('Workspace name', { exact: true }).fill('Personal browsing')
+  await editor.getByRole('button', { name: 'Save changes' }).click()
+  await expect(editor).toBeHidden()
+  await appWindow.getByRole('button', { name: 'Workspaces', exact: true }).click()
+  await expect(library.getByRole('article', { name: 'Personal browsing' })).toBeVisible()
+  await library.getByRole('button', { name: 'Create workspace', exact: true }).click()
+  const create = appWindow.getByRole('dialog', { name: 'Create workspace', exact: true })
+  for (const theme of ['light', 'dark']) {
+    await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
+    await expect(create.locator('footer').getByRole('button', { name: 'Create workspace' })).toBeInViewport()
+    await appWindow.screenshot({ path: testInfo.outputPath(`create-${theme}.png`), animations: 'disabled' })
+  }
+  await create.getByRole('button', { name: 'All workspaces' }).click()
+  await expect(library).toBeVisible()
+  await library.press('Escape')
+  await expect(library).toBeHidden()
+})

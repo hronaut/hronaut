@@ -4,6 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-13
+
+### Added
+
+- Open the new Workspaces library directly from the browser sidebar or top bar. Search workspace names and page titles, see the current workspace and access settings, and switch between Open and Archived collections.
+- Open, manage, archive, restore, and delete workspaces with visible controls. Undo a workspace archive immediately; archived tabs and sign-ins stay available for later.
+
+### Changed
+
+- Simplify workspace creation with compact color choices and side-by-side choices for a fresh profile or copied sign-ins. Keep website restrictions, data transfers, and continuity reviews in clearly labeled expandable sections.
+- Keep library search and creation controls visible while scrolling. Adapt the workspace library and editor to small windows, light and dark themes, and all seven interface languages.
+
 ## [2.1.3] - 2026-09-13
 
 ### Fixed

@@ -5,6 +5,7 @@ import { useWorkspaceEditorShellController } from './useWorkspaceEditorShellCont
 type ZoomAction = 'in' | 'out' | 'reset'
 
 export interface AppTransientShellSurface {
+  openWorkspaceLibrary: () => void
   openTabSearch: () => Promise<void>
   closeTabSearch: () => void
   openFindForTab: (tab: BrowserTabState) => Promise<void>
@@ -85,6 +86,7 @@ export function useAppTransientShellLayerController() {
     workspaceEditorOpen: workspaceEditorController.open,
     openWorkspace: workspaceEditorController.openExisting,
     openWorkspaceTransfer: async (sourceWorkspaceId?: string) => { await layer.value?.openWorkspaceTransfer(sourceWorkspaceId) },
+    openWorkspaceLibrary: () => { layer.value?.openWorkspaceLibrary() },
     openNewWorkspace: workspaceEditorController.openNew,
     closeWorkspace: workspaceEditorController.close,
     openFindForTab,
