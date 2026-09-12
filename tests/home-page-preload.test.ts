@@ -27,6 +27,27 @@ afterEach(() => {
 })
 
 describe('Hronaut Home page preload', () => {
+  it('keeps workspace management out of website preload APIs', async () => {
+    vi.stubGlobal('location', { protocol: 'https:', hostname: 'example.com' })
+    vi.stubGlobal('addEventListener', vi.fn())
+    await import('../src/preload/page.js')
+    expect(electron.exposeInMainWorld.mock.calls.some(([name]) => name === 'hronautHome')).toBe(false)
+  })
+
+  it('forwards workspace inventory and actions only through the Home bridge', async () => {
+    vi.stubGlobal('location', { protocol: 'hronaut:', hostname: 'home' })
+    vi.stubGlobal('addEventListener', vi.fn())
+    await import('../src/preload/page.js')
+    const api = electron.exposeInMainWorld.mock.calls.find(([name]) => name === 'hronautHome')?.[1] as {
+      getWorkspaces: () => Promise<unknown>
+      workspaceAction: (input: unknown) => Promise<unknown>
+    }
+    await api.getWorkspaces()
+    await api.workspaceAction({ view: 'preferences', workspaceId: 'project', deletionProtected: true })
+    expect(electron.invoke).toHaveBeenCalledWith('hronaut-home:workspaces')
+    expect(electron.invoke).toHaveBeenCalledWith('hronaut-home:workspace-action', { view: 'preferences', workspaceId: 'project', deletionProtected: true })
+  })
+
   it('forwards only the selected client ID through its narrow guide bridge', async () => {
     vi.stubGlobal('location', { protocol: 'hronaut:', hostname: 'home' })
     vi.stubGlobal('addEventListener', vi.fn())

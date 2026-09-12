@@ -605,6 +605,7 @@ interface BrowserTab {
   faviconDataUrl?: string
   faviconRequestId: number
   audible: boolean
+  tabMuted: boolean
   muted: boolean
   view: WebContentsView
   // Keep the WebContents handle independently from WebContentsView. Electron
@@ -698,6 +699,8 @@ interface BrowserMemoryAllocationInternal {
 }
 
 interface BrowserTabGroup {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   id: string
   name: string
@@ -1194,6 +1197,7 @@ export class BrowserTabsManager {
       if (mode !== 'preview') this.changed(mode === 'commit')
     }
   })
+  private allTabsMuted = false
   private allHumanInteractionLocked = false
   private readonly agentInputWebContents = new Map<number, number>()
   private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
@@ -1295,6 +1299,7 @@ export class BrowserTabsManager {
     this.restoringLayout = true
     const saved = await this.store.load()
     for (const workspaceId of saved?.continuityWorkspaceIds ?? []) this.workspaceContinuity.restoreStale(workspaceId)
+    this.allTabsMuted = saved?.allTabsMuted === true
     this.allHumanInteractionLocked = saved?.allHumanInteractionLocked === true
     const persistedTabs = saved?.tabs ?? []
     for (const group of saved?.mcpTabGroups ?? []) {
@@ -1329,6 +1334,7 @@ export class BrowserTabsManager {
           title: isHronautHomeUrl(tab.url) ? undefined : tab.title,
           url: isHronautHomeUrl(tab.url) ? HRONAUT_HOME_URL : tab.url,
           pinned: tab.pinned === true && !isHronautHomeUrl(tab.url),
+          muted: tab.muted === true,
           humanInteractionLocked: tab.humanInteractionLocked === true,
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
@@ -1387,6 +1393,7 @@ export class BrowserTabsManager {
       closedTabs: [...this.closedTabs].reverse().map((tab) => ({ ...tab })),
       activeTabId: this.activeTabId,
       ...(this.splitView ? { splitView: { ...this.splitView } } : {}),
+      allTabsMuted: this.allTabsMuted,
       allHumanInteractionLocked: this.allHumanInteractionLocked,
       mcpUrl: this.mcpUrl,
       profilePath: this.options.profilePath,
@@ -1577,6 +1584,8 @@ export class BrowserTabsManager {
       lastUsedAt: group.lastUsedAt,
       activeTabId: group.activeTabId,
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
+      hiddenFromSidebar: group.hiddenFromSidebar === true,
+      deletionProtected: group.deletionProtected === true,
       agentAccess: group.agentAccess !== false,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
@@ -1594,6 +1603,8 @@ export class BrowserTabsManager {
         name: group.name,
         color: group.color,
         savedAt: group.savedAt,
+        hiddenFromSidebar: group.hiddenFromSidebar === true,
+        deletionProtected: group.deletionProtected === true,
         agentAccess: group.agentAccess !== false,
         storageOriginCount: group.origins.length,
         navigationPolicy: {
@@ -1707,10 +1718,10 @@ export class BrowserTabsManager {
 
   updateMcpTabGroup(
     groupId: string,
-    updates: { name?: string; color?: BrowserTabGroupColor; agentAccess?: boolean },
+    updates: { name?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
     allowDuplicateName = false
   ): BrowserTabGroupState {
-    if (updates.name === undefined && updates.color === undefined && updates.agentAccess === undefined) throw new TypeError('A workspace name or color is required.')
+    if (updates.name === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace name or color is required.')
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
     this.assertWorkspaceIdle(groupId)
@@ -1723,6 +1734,8 @@ export class BrowserTabsManager {
     }
     if (updates.color !== undefined) group.color = updates.color
     if (updates.agentAccess !== undefined) group.agentAccess = updates.agentAccess
+    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
+    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
     group.lastUsedAt = new Date().toISOString()
     this.changed()
     return this.listMcpTabGroups().find((candidate) => candidate.id === groupId)!
@@ -1739,6 +1752,8 @@ export class BrowserTabsManager {
       lastUsedAt: group.lastUsedAt,
       activeTabId: group.activeTabId,
       tabCount: [...this.tabs.values()].filter((tab) => tab.mcpGroupId === group.id).length,
+      hiddenFromSidebar: group.hiddenFromSidebar === true,
+      deletionProtected: group.deletionProtected === true,
       agentAccess: group.agentAccess !== false,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
@@ -1893,6 +1908,7 @@ export class BrowserTabsManager {
     try {
       if (workspace.activeTabId) this.selectTab(workspace.activeTabId)
       else await this.createTab({ url: 'about:blank', active: true, mcpGroupId: workspace.id })
+      this.updateMcpTabGroup(workspace.id, { hiddenFromSidebar: options.hiddenFromSidebar === true, deletionProtected: options.deletionProtected === true })
       return this.getState()
     } catch (error) {
       try {
@@ -2074,6 +2090,7 @@ export class BrowserTabsManager {
   private async closeMcpTabGroupInternal(groupId: string, preserveStorage = false): Promise<BrowserTabGroupState[]> {
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
+    if (!preserveStorage && group.deletionProtected) throw new Error(`Workspace "${group.name}" is protected from deletion. Turn off deletion protection in workspace settings first.`)
     const previousActiveTabId = this.activeTabId
     const previousGroupActiveTabId = group.activeTabId
     const tabs = this.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
@@ -2174,6 +2191,8 @@ export class BrowserTabsManager {
         name: group.name,
         color: group.color,
         savedAt: new Date().toISOString(),
+        hiddenFromSidebar: internalGroup.hiddenFromSidebar === true,
+        deletionProtected: internalGroup.deletionProtected === true,
         agentAccess: internalGroup.agentAccess !== false,
         storageOriginCount: internalGroup.origins.length,
         navigationPolicy: {
@@ -2194,6 +2213,8 @@ export class BrowserTabsManager {
         name: saved.name,
         color: saved.color,
         savedAt: saved.savedAt,
+        hiddenFromSidebar: saved.hiddenFromSidebar === true,
+        deletionProtected: saved.deletionProtected === true,
         agentAccess: saved.agentAccess !== false,
         storageOriginCount: saved.origins.length,
         navigationPolicy: {
@@ -2227,6 +2248,8 @@ export class BrowserTabsManager {
       createdAt: now,
       lastUsedAt: now,
       activeTabId: null,
+      hiddenFromSidebar: saved.hiddenFromSidebar === true,
+      deletionProtected: saved.deletionProtected === true,
       agentAccess: saved.agentAccess !== false,
       storageId: saved.storageId,
       origins: [...saved.origins],
@@ -2279,10 +2302,21 @@ export class BrowserTabsManager {
     })
   }
 
+  updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
+    const group = this.savedTabGroups.get(workspaceId)
+    if (!group) throw new Error('Archived workspace is unavailable.')
+    const operation = this.savedWorkspaceOperations.get(workspaceId)
+    if (operation) throw new Error(`Archived workspace "${group.name}" is busy ${operation.action}. Try again after that operation finishes.`)
+    if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
+    if (updates.deletionProtected !== undefined) group.deletionProtected = updates.deletionProtected
+    this.changed()
+  }
+
   async deleteSavedTabGroup(savedGroupId: string): Promise<BrowserSavedTabGroupState[]> {
     return this.withSavedWorkspaceOperation(savedGroupId, 'deleting the archived workspace', async () => {
       const saved = this.savedTabGroups.get(savedGroupId)
       if (!saved) throw new Error(`Unknown saved workspace: ${savedGroupId}.`)
+      if (saved.deletionProtected) throw new Error(`Workspace "${saved.name}" is protected from deletion. Turn off deletion protection in Home first.`)
       {
         await destroyWorkspaceStorage(
           workspacePartition(this.options.partition, saved.storageId),
@@ -2309,7 +2343,10 @@ export class BrowserTabsManager {
 
   async openHome(): Promise<BrowserState> {
     const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
-    if (home) return this.selectTab(home.id)
+    if (home) {
+      home.webContents.send('hronaut-home:show-workspaces')
+      return this.selectTab(home.id)
+    }
     await this.createTab({ url: HRONAUT_HOME_URL, active: true })
     return this.getState()
   }
@@ -3384,6 +3421,7 @@ export class BrowserTabsManager {
       {
         id: tab.muted ? 'unmute-tab' : 'mute-tab',
         label: this.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
+        enabled: !this.allTabsMuted,
         click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => this.setTabMuted(tab.id, !tab.muted))
       },
       { type: 'separator' },
@@ -4250,19 +4288,22 @@ export class BrowserTabsManager {
 
   setTabMuted(tabId: string, muted: boolean): BrowserState {
     const tab = this.getTab(tabId)
+    if (this.allTabsMuted) return this.getState()
+    tab.tabMuted = muted
     tab.webContents.setAudioMuted(muted)
     tab.muted = muted
-    this.changed(false)
+    this.changed()
     return this.getState()
   }
 
   setAllTabsMuted(muted: boolean): BrowserState {
+    this.allTabsMuted = muted
     for (const tab of this.tabs.values()) {
       if (isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) continue
-      tab.webContents.setAudioMuted(muted)
-      tab.muted = muted
+      tab.muted = muted || tab.tabMuted
+      tab.webContents.setAudioMuted(tab.muted)
     }
-    this.changed(false)
+    this.changed()
     return this.getState()
   }
 
@@ -7286,6 +7327,7 @@ export class BrowserTabsManager {
     title?: string
     url: string
     pinned?: boolean
+    muted?: boolean
     humanInteractionLocked?: boolean
     focus?: boolean
     navigationGeneration?: number
@@ -7351,7 +7393,8 @@ export class BrowserTabsManager {
       preserveDiagnosticLogs: true,
       faviconRequestId: 0,
       audible: false,
-      muted: false,
+      tabMuted: options.muted === true,
+      muted: (this.allTabsMuted || options.muted === true) && !isHronautHomeUrl(url),
       view,
       webContents: view.webContents,
       consoleMessages: [],
@@ -7369,6 +7412,7 @@ export class BrowserTabsManager {
       emulationExtraHttpHeaders: {},
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {})
     }
+    tab.webContents.setAudioMuted(tab.muted)
     this.tabs.set(id, tab)
     if (tab.mcpGroupId) {
       const group = this.mcpTabGroups.get(tab.mcpGroupId)!
@@ -8505,6 +8549,7 @@ export class BrowserTabsManager {
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
       ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
       audible: tab.audible,
+      tabMuted: tab.tabMuted,
       muted: tab.muted,
       devToolsOpen: !webContentsDestroyed && tab.webContents.isDevToolsOpened(),
       ...(this.hasEmulationOverrides(tab.emulation) ? { emulation: this.cloneEmulationState(tab.emulation) } : {}),
@@ -11005,6 +11050,7 @@ export class BrowserTabsManager {
       continuityWorkspaceIds: this.workspaceContinuity.guardedWorkspaceIds(),
       activeTabId: this.activeTabId,
       ...(this.splitView ? { splitView: { ...this.splitView, ratio: this.splitDivider.persistedRatio(this.splitView.ratio) } } : {}),
+      allTabsMuted: this.allTabsMuted,
       allHumanInteractionLocked: this.allHumanInteractionLocked,
       mcpTabGroups: [...this.mcpTabGroups.values()].map((group) => ({ ...group })),
       savedTabGroups: [...this.savedTabGroups.values()].map((group) => ({
@@ -11012,6 +11058,8 @@ export class BrowserTabsManager {
         name: group.name,
         color: group.color,
         savedAt: group.savedAt,
+        hiddenFromSidebar: group.hiddenFromSidebar === true,
+        deletionProtected: group.deletionProtected === true,
         agentAccess: group.agentAccess !== false,
         storageId: group.storageId,
         origins: [...group.origins],
@@ -11027,6 +11075,7 @@ export class BrowserTabsManager {
         title: tab.title,
         url: tab.url,
         pinned: tab.pinned,
+        muted: tab.tabMuted,
         humanInteractionLocked: tab.humanInteractionLocked,
         ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
       }))

@@ -6566,9 +6566,8 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(url)})?.id)`)
     if (typeof firstTabId !== 'string') throw new Error('First audio fixture tab was not found')
     await appWindow.evaluate(`window.hronaut.setTabMuted(${JSON.stringify(firstTabId)}, false)`)
-    const globalAudio = appWindow.getByRole('button', { name: 'Mute all tabs' })
-    await expect(globalAudio).toHaveAttribute('aria-pressed', 'false')
-    await globalAudio.click()
+    const globalAudio = appWindow.getByRole('button', { name: 'Unmute all tabs' })
+    await expect(globalAudio).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
       webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
     )), [url, secondUrl])).toEqual([true, true])

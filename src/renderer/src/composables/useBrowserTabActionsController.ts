@@ -107,7 +107,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     await enqueueToggle('audio', async () => {
       if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
-      if (!currentTab) return
+      if (!currentTab || options.state.value.allTabsMuted) return
       await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted))
     })
   }
@@ -115,9 +115,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   async function toggleAllTabsMuted(): Promise<void> {
     await enqueueToggle('audio', async () => {
       if (disposed) return
-      const websiteTabs = options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home'))
-      if (!websiteTabs.length) return
-      await options.syncState(options.browser.setAllTabsMuted(!websiteTabs.every((tab) => tab.muted)))
+      await options.syncState(options.browser.setAllTabsMuted(!options.state.value.allTabsMuted))
     })
   }
 

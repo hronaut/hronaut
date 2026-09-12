@@ -99,13 +99,13 @@ describe('AppTopbarActions', () => {
     rendered.mcpStatusController.dispose()
   })
 
-  it('reflects global tab audio state and disables the action without website tabs', async () => {
+  it('reflects browser mute mode and keeps it available without website tabs', async () => {
     const rendered = renderActions({ allTabsMuted: true })
     const audio = screen.getByRole('button', { name: 'Unmute all tabs' })
     expect(audio).toHaveAttribute('aria-pressed', 'true')
 
     await rendered.rerender({ hasWebsiteTabs: false })
-    expect(screen.getByRole('button', { name: 'Unmute all tabs' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Unmute all tabs' })).toBeEnabled()
     rendered.mcpStatusController.dispose()
   })
 

@@ -122,3 +122,34 @@ describe('workspace data and agent access controls', () => {
     } finally { wrapper.unmount() }
   })
 })
+
+it('keeps Home templates open when an older workspace editor read finishes', async () => {
+  const state = {
+    tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [],
+    mcpTabGroups: [{ id: 'old', name: 'Older request', color: 'purple', createdAt: '', lastUsedAt: '',
+      tabCount: 0, activeTabId: null, storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
+  } as BrowserState
+  let resolve!: (state: BrowserState) => void
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn(() => new Promise<BrowserState>(finish => { resolve = finish })),
+    listWorkspaceStorageOrigins: vi.fn(async () => []), listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    global: { plugins: [createHronautI18n('en-US')], stubs: { WorkspaceTemplatePanel: { template: '<div>Template content</div>' } } },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    const editor = wrapper.vm as unknown as { openExisting: (id: string) => Promise<void>; openTemplates: () => void }
+    const opening = editor.openExisting('old')
+    editor.openTemplates()
+    await flushPromises()
+    resolve(state)
+    await opening
+    await flushPromises()
+    expect(wrapper.get('#tab-group-editor-title').text()).toBe('Portable workspace templates')
+    expect(wrapper.find('#tab-group-name').exists()).toBe(false)
+    expect(wrapper.text()).toContain('Template content')
+  } finally { wrapper.unmount() }
+})

@@ -13,6 +13,7 @@ async function homeScript<T>(app: ElectronApplication, script: string): Promise<
 async function ready(app: ElectronApplication) {
   await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some(contents => contents.getURL().startsWith('hronaut://home')))).toBe(true)
   await expect.poll(() => homeScript(app, `Boolean(document.getElementById('guide-name')?.textContent)`)).toBe(true)
+  await homeScript(app, `document.querySelector('[data-home-view=connect]').click()`)
 }
 
 for (const [selector, status] of [
@@ -42,7 +43,7 @@ test('Home remembers the selected view and coding agent through reload', async (
     document.querySelector('[data-guide="qwen-code"]').click();
     document.querySelector('[data-home-view="overview"]').click();
   })()`)
-  await expect.poll(() => homeScript(electronApp, `localStorage.getItem('hronaut.home.view')`)).toBe('overview')
+  await expect.poll(() => homeScript(electronApp, `localStorage.getItem('hronaut.home.view.v2')`)).toBe('overview')
   await electronApp.evaluate(({ webContents }) => {
     webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))?.reload()
   })

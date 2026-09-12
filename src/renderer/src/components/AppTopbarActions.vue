@@ -115,8 +115,8 @@ const { t } = useI18n({ useScope: 'global' })
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button all-tabs-audio-button"
+      :class="{ active: allTabsMuted }"
       type="button"
-      :disabled="!hasWebsiteTabs"
       :title="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
       :aria-label="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
       :aria-pressed="allTabsMuted"

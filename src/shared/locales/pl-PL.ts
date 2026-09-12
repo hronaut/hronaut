@@ -2,6 +2,14 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
   workspaceLibrary: {
+    hidden: "Ukryty na pasku bocznym",
+    protected: "Chroniony przed usunięciem",
+    preferences: "Opcje obszaru roboczego",
+    hideFromSidebar: "Ukryj na lewym pasku bocznym",
+    hideDescription: "Obszar pozostaje dostępny na stronie głównej, a jego karty są ukryte na lewym pasku bocznym.",
+    protectDeletion: "Chroń przed usunięciem",
+    protectionDescription: "Zapobiega trwałemu usunięciu przez ludzi i agentów. Archiwizacja nadal jest dostępna.",
+
     "title": "Obszary robocze",
     "heading": "Miejsce dla każdego projektu",
     "description": "Oddziel projekty i logowania w osobnych obszarach przeglądarki. Wróć do pracy tam, gdzie ją zakończono.",

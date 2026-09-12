@@ -2,6 +2,14 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
   workspaceLibrary: {
+    hidden: "In der Seitenleiste ausgeblendet",
+    protected: "Vor Löschen geschützt",
+    preferences: "Arbeitsbereichsoptionen",
+    hideFromSidebar: "In der linken Seitenleiste ausblenden",
+    hideDescription: "Der Arbeitsbereich bleibt auf der Startseite erreichbar; seine Tabs werden links ausgeblendet.",
+    protectDeletion: "Vor Löschen schützen",
+    protectionDescription: "Verhindert endgültiges Löschen durch Menschen und Agenten. Archivieren bleibt möglich.",
+
     "title": "Arbeitsbereiche",
     "heading": "Ein Platz für jedes Projekt",
     "description": "Trennen Sie Projekte und Anmeldungen in eigenen Browserbereichen. Machen Sie dort weiter, wo Sie aufgehört haben.",

@@ -2,6 +2,14 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
   workspaceLibrary: {
+    hidden: "Oculto en la barra lateral",
+    protected: "Protegido contra eliminación",
+    preferences: "Opciones del espacio de trabajo",
+    hideFromSidebar: "Ocultar en la barra lateral izquierda",
+    hideDescription: "El espacio sigue disponible en Inicio; sus pestañas se ocultan en la barra lateral izquierda.",
+    protectDeletion: "Proteger contra eliminación",
+    protectionDescription: "Impide la eliminación permanente por personas y agentes. Se puede seguir archivando.",
+
     "title": "Espacios de trabajo",
     "heading": "Un lugar para cada proyecto",
     "description": "Separa proyectos e inicios de sesión en espacios de navegador independientes. Continúa donde lo dejaste.",

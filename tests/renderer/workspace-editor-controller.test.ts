@@ -434,6 +434,8 @@ describe('workspace editor controller', () => {
     await controller.save()
 
     expect(browser.createWorkspace).toHaveBeenCalledWith({
+      hiddenFromSidebar: false,
+      deletionProtected: false,
       name: 'Focused fork',
       color: 'purple',
       storage: 'fork-workspace',

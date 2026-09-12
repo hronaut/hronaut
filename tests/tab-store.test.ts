@@ -94,9 +94,12 @@ describe('TabStateStore', () => {
     expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(state)
     expect(await store.load()).toEqual({
       ...state,
+      allTabsMuted: false,
+      mcpTabGroups: state.mcpTabGroups?.map(group => ({ ...group, hiddenFromSidebar: false, deletionProtected: false })),
+      savedTabGroups: state.savedTabGroups?.map(group => ({ ...group, hiddenFromSidebar: false, deletionProtected: false })),
       tabs: [
-        { ...state.tabs[0], pinned: false, humanInteractionLocked: false },
-        state.tabs[1]
+        { ...state.tabs[0], muted: false, pinned: false, humanInteractionLocked: false },
+        { ...state.tabs[1], muted: false }
       ]
     })
   })

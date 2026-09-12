@@ -2,6 +2,14 @@ import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
   workspaceLibrary: {
+    hidden: "Masqué dans la barre latérale",
+    protected: "Suppression protégée",
+    preferences: "Options de l’espace de travail",
+    hideFromSidebar: "Masquer dans la barre latérale gauche",
+    hideDescription: "Cet espace reste accessible depuis l’accueil ; ses onglets sont masqués dans la barre latérale gauche.",
+    protectDeletion: "Protéger contre la suppression",
+    protectionDescription: "Empêche la suppression définitive par les personnes et les agents. L’archivage reste possible.",
+
     "title": "Espaces de travail",
     "heading": "Une place pour chaque projet",
     "description": "Séparez projets et connexions dans des espaces de navigateur distincts. Reprenez là où vous en étiez.",

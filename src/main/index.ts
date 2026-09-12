@@ -1,3 +1,4 @@
+import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
@@ -1190,6 +1191,7 @@ function registerHomeProtocol(): void {
         tokenPath: mcpTokenConfiguration?.tokenPath,
         authenticationDisabled: !settings.mcpAuthentication,
         initialState: homeDashboardState(),
+        workspaces: tabsManager ? homeWorkspaceState(tabsManager) : undefined,
         locale: resolvedLocale,
         platform: process.platform
       }),
@@ -2235,6 +2237,16 @@ function registerIpc(): void {
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
     await copyTextToClipboard(value)
   })
+  ipcMain.handle('hronaut-home:workspaces', (event) => {
+    assertHomePageSender(event)
+    return homeWorkspaceState(tabsManager!)
+  })
+  ipcMain.handle('hronaut-home:workspace-action', async (event, input: unknown) => {
+    assertHomePageSender(event)
+    return runHomeWorkspaceAction(tabsManager!, input, (request) => {
+      mainWindow?.webContents.send('browser:home-workspace-editor', request)
+    })
+  })
   ipcMain.handle('hronaut-home:copy-text', async (event, value: unknown) => {
     assertHomePageSender(event)
     if (typeof value !== 'string') throw new TypeError('Clipboard text must be a string')
@@ -2361,10 +2373,14 @@ function registerIpc(): void {
       throw new TypeError('Invalid workspace update request')
     }
     const candidate = updates as Record<string, unknown>
+    if (candidate.hiddenFromSidebar !== undefined && typeof candidate.hiddenFromSidebar !== 'boolean') throw new TypeError('Invalid workspace preference')
+    if (candidate.deletionProtected !== undefined && typeof candidate.deletionProtected !== 'boolean') throw new TypeError('Invalid workspace preference')
     if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
     if (candidate.name !== undefined && typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
     tabsManager!.updateMcpTabGroup(groupId, {
+      ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
+      ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
       ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
       ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {})
@@ -2478,6 +2494,8 @@ function registerIpc(): void {
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
       throw new TypeError('Invalid workspace storage origins')
     }
+    if (candidate.hiddenFromSidebar !== undefined && typeof candidate.hiddenFromSidebar !== 'boolean') throw new TypeError('Invalid workspace preference')
+    if (candidate.deletionProtected !== undefined && typeof candidate.deletionProtected !== 'boolean') throw new TypeError('Invalid workspace preference')
     if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
     if (candidate.storage === 'fork-workspace' && typeof candidate.sourceWorkspaceId !== 'string') throw new TypeError('Source workspace is required')
     const navigationPolicy = candidate.navigationPolicy === undefined
@@ -2488,6 +2506,8 @@ function registerIpc(): void {
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
       storage: candidate.storage,
       ...(typeof candidate.sourceWorkspaceId === 'string' ? { sourceWorkspaceId: candidate.sourceWorkspaceId } : {}),
+      ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
+      ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
       ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
       ...(Array.isArray(candidate.origins) ? { origins: candidate.origins as string[] } : {}),
       ...(navigationPolicy ? { navigationPolicy } : {})

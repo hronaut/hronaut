@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import type { CommandPaletteCommandId } from '../../../shared/command-palette.js'
 import type {
   BrowserState,
@@ -21,7 +21,7 @@ import ZoomBar from './ZoomBar.vue'
 
 type ZoomAction = 'in' | 'out' | 'reset'
 
-defineProps<{
+const props = defineProps<{
   state: BrowserState
   activeTab?: BrowserTabState
   mcpActivityByTab: Record<string, McpTabActivity>
@@ -78,7 +78,7 @@ interface ZoomSurface {
 }
 
 interface WorkspaceEditorSurface {
-  openLibrary: () => void
+  openTemplates: () => void
   openTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openExisting: (groupId: string) => Promise<void>
   openNew: () => Promise<void>
@@ -96,6 +96,20 @@ const zoomBar = ref<ZoomSurface | null>(null)
 const workspaceEditor = ref<WorkspaceEditorSurface | null>(null)
 const credentialPicker = ref<PickerSurface | null>(null)
 const commandPalette = ref<PickerSurface | null>(null)
+
+let unsubscribeHomeEditor: (() => void) | undefined
+onMounted(() => {
+  unsubscribeHomeEditor = props.browser.onHomeWorkspaceEditorRequested?.(request => {
+    const editor = workspaceEditor.value
+    if (!editor) return
+    const operation = request.view === 'create' ? editor.openNew()
+      : request.view === 'templates' ? editor.openTemplates()
+      : request.view === 'edit' ? editor.openExisting(request.workspaceId)
+      : editor.openTransfer(request.workspaceId)
+    void Promise.resolve(operation).catch(error => props.showError('Workspaces', String(error)))
+  })
+})
+onBeforeUnmount(() => unsubscribeHomeEditor?.())
 
 async function openTabSearch(): Promise<void> {
   await tabSearchPanel.value?.openPanel()
@@ -134,11 +148,6 @@ async function openWorkspace(groupId: string): Promise<void> {
   await workspaceEditor.value?.openExisting(groupId)
 }
 
-function openWorkspaceLibrary(): void {
-  closeTabSearch()
-  workspaceEditor.value?.openLibrary()
-}
-
 async function openNewWorkspace(): Promise<void> {
   await workspaceEditor.value?.openNew()
 }
@@ -164,7 +173,6 @@ function closeCommandPalette(): void {
 }
 
 defineExpose({
-  openWorkspaceLibrary,
   openTabSearch,
   closeTabSearch,
   openFindForTab,
