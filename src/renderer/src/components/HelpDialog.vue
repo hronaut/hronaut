@@ -64,11 +64,11 @@ useModalDialogFocus({
           <p>{{ t('help.description') }}</p>
         </div>
         <div class="about-actions">
-          <UiButton appearance="application" class="secondary-button" type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
-          <UiButton appearance="application" class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut')">{{ t('help.repository') }}</UiButton>
-          <UiButton appearance="application" class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('help.license') }}</UiButton>
-          <UiButton appearance="application" class="secondary-button" type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('help.contribute') }}</UiButton>
-          <UiButton appearance="application" variant="primary" class="primary-button" type="button" @click="openSupportSettings">{{ t('help.support') }}</UiButton>
+          <UiButton type="button" @click="releaseHistoryController.openDialog">{{ t('updates.history.view') }}</UiButton>
+          <UiButton type="button" @click="openUrl('https://github.com/hronaut/hronaut')">{{ t('help.repository') }}</UiButton>
+          <UiButton type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/LICENSE')">{{ t('help.license') }}</UiButton>
+          <UiButton type="button" @click="openUrl('https://github.com/hronaut/hronaut/blob/main/CONTRIBUTING.md')">{{ t('help.contribute') }}</UiButton>
+          <UiButton variant="primary" type="button" @click="openSupportSettings">{{ t('help.support') }}</UiButton>
         </div>
       </div>
     </section>

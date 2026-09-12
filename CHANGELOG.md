@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.1.2] - 2026-09-12
+
+### Fixed
+
+- Restore consistent buttons in What's new, Help, workspace editing, and wallet approval. Give release notes clearer headings, full-sized retry and pagination actions, readable download tables, and accessible warning colors.
+- Keep docked tool headers, close buttons, and footer actions reachable in narrow panels. Reflow Network filters, Site Storage categories and editors, and tool summary cards to fit the available space.
+- Improve dark-mode contrast for active page actions, storage actions, update and download indicators, and browser-tool warning and error feedback.
+
 ## [2.1.1] - 2026-09-12
 
 ### Changed

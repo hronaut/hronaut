@@ -16,6 +16,10 @@ recognize without competing with the website being inspected.
 | Settings | Eleven sections with descriptions require sidebar scrolling before some destinations are visible. | A searchable, compact navigation list; descriptions remain available to search, assistive technology, and hover. Enter opens the first result; Escape clears a query before closing the dialog. All seven locales have search and empty-state copy. |
 | Home | Returning users scroll through setup to find operational information. | Three dedicated views: Connect an agent, Overview, and Tool library. Remember the selected view; provide roving keyboard navigation. Keep setup, verification, and the first task together. Separate live metrics and clients from setup, and give the searchable catalog its own view. |
 | Settings actions | Several actions reset native button styles and lose their shared appearance; others use inconsistent custom spacing. | Use the shared button and icon-button components for ordinary actions. Reserve custom styling for selection cards. Keep consistent primary, secondary, destructive, disabled, and keyboard focus states. |
+| What's new | Refresh and version controls fell back to native beveled borders; retry and pagination targets were only 23px tall. Long download tables squeezed their labels. | Shared icon buttons and full-sized actions, clearer release headings and dates, stable table columns, wrapped long references, and readable warning text. Keep the header and pagination visible while release notes scroll. |
+| Help and workspace dialogs | About links, wallet approval actions, and workspace template entry points bypassed the shared button treatment. | Consistent ordinary actions, clear primary and destructive states, and full-sized approval targets. |
+| Docked tools | Headers sized to the entire window pushed close buttons outside narrow docks. Network filters, storage editors, and metric cards crowded their panels. | Size controls to their dock using container queries. Wrap header actions, keep close controls reachable, reflow filters and metric grids, and provide a scrolling body with persistent Network footer actions. |
+| Dark-mode feedback | Several controls assumed white text on the accent color; console and security badges assumed light backgrounds. | Use theme-aware action and danger colors and readable warning text across browser tools and release notes. |
 | Small windows | Hidden utilities and added controls make compact rails harder to use. | Keep all seven utility icons visible down to the 200px rail minimum with at least 24px-wide, 32px-high targets. Give top-tab windows a separate utility row below 1040px so the tab strip remains usable. Preserve adaptive Settings navigation and verify all sections at narrow widths. |
 
 The renderer continues to mirror main-process state. This redesign adds no new
@@ -43,6 +47,15 @@ descriptions expand on demand and retain focus through routine status polling.
 MCP-to-Settings keyboard order, translated compact layouts, and Settings action
 surfaces and focus. Both regression cases failed against 2.1.0 before the fixes.
 The Settings layout gallery checks every section at 1200px, 760px, and 640px.
+
+`tests/integration/application-ui-audit.e2e.ts` adds regression checks for native
+button fallback, full-sized dialog actions, keyboard focus, long release content,
+and loading, error, and loaded states. Loaded release notes receive WCAG A/AA checks. It captures twenty
+browser tool panels plus collections, workspace creation, Help, and wallet
+approval at compact and desktop sizes in light and dark, checking horizontal
+overflow, reachable close/footer controls, and text contrast. Release notes also
+cover Cyberpunk and 125% interface scaling. Existing page-action tests now verify
+the contrasting foreground on active capture, picker, and split controls.
 
 Existing Electron tests cover compact rails, resize/collapse, native input and
 title-bar geometry, scaled settings, all theme-picker contrast checks, and Home

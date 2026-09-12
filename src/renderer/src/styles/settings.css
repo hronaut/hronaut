@@ -372,7 +372,7 @@
 .update-status-pill.up-to-date { @apply [border-color:color-mix(in_srgb,_var(--success)_55%,_var(--pill-border))] [color:var(--success)] [background:color-mix(in_srgb,_var(--success)_10%,_var(--pill-bg))]; }
 .update-status-pill.error { @apply [border-color:rgba(217,_83,_79,_0.62)] [color:#d9534f] [background:rgba(217,_83,_79,_0.1)]; }
 .update-status-icon {
-  @apply grid [width:16px] [height:16px] [flex:0_0_16px] place-items-center rounded-full [color:#fff] bg-accent [font-size:11px] [font-weight:800];
+  @apply grid [width:16px] [height:16px] [flex:0_0_16px] place-items-center rounded-full text-button-copy bg-accent [font-size:11px] [font-weight:800];
 }
 .update-status-icon.busy,
 .update-status-card-icon.busy {
@@ -397,7 +397,7 @@
 .update-status-card.downloaded { @apply [border-color:color-mix(in_srgb,_var(--accent)_45%,_var(--border-soft))] [background:color-mix(in_srgb,_var(--accent-soft)_36%,_var(--surface))]; }
 .update-status-card.error { @apply [border-color:rgba(217,_83,_79,_0.48)] [background:rgba(217,_83,_79,_0.07)]; }
 .update-status-card-heading { @apply flex items-start [gap:11px]; }
-.update-status-card-icon { @apply grid [width:30px] [height:30px] [flex:0_0_30px] place-items-center rounded-full [color:#fff] bg-accent [font-size:14px] [font-weight:800]; }
+.update-status-card-icon { @apply grid [width:30px] [height:30px] [flex:0_0_30px] place-items-center rounded-full text-button-copy bg-accent [font-size:14px] [font-weight:800]; }
 .update-status-card-icon svg { @apply [width:16px] [height:16px]; }
 .update-status-card.up-to-date .update-status-card-icon { @apply [background:var(--success)]; }
 .update-status-card-heading strong { @apply block [font-size:15px] [line-height:1.35]; }
@@ -429,7 +429,7 @@
 .release-notes pre code { @apply p-0 border-0 bg-transparent; }
 .release-notes blockquote { @apply [margin:8px_0] [padding-left:10px] [border-left:3px_solid_var(--border-soft)] text-muted; }
 .release-notes hr { @apply [margin:10px_0] border-0 [border-top:1px_solid_var(--border-soft)]; }
-.release-notes table { @apply w-full [margin:8px_0] [border-collapse:collapse]; }
+.release-notes table { @apply w-full [margin:8px_0] [border-collapse:collapse] [table-layout:fixed] [overflow-wrap:anywhere]; }
 .release-notes th,
 .release-notes td { @apply [padding:4px_6px] [border:1px_solid_var(--border-soft)] text-left; }
 .release-notes .markdown-alert { @apply [margin:8px_0] [padding:7px_9px] [border-left:3px_solid_var(--accent)] [border-radius:0_5px_5px_0] [background:color-mix(in_srgb,_var(--accent-soft)_52%,_transparent)]; }
@@ -437,7 +437,7 @@
 .release-notes .markdown-alert-warning,
 .release-notes .markdown-alert-caution { @apply [border-left-color:#d58a24] [background:rgba(213,_138,_36,_0.09)]; }
 .release-notes .markdown-alert-warning .markdown-alert-title,
-.release-notes .markdown-alert-caution .markdown-alert-title { @apply [color:#b86c08]; }
+.release-notes .markdown-alert-caution .markdown-alert-title { @apply [color:color-mix(in_srgb,_var(--text)_80%,_var(--warning))]; }
 .update-status-card-actions { @apply flex justify-end [gap:8px] [margin-top:14px]; }
 .update-status-card-actions:empty { @apply hidden; }
 .update-status-card-actions button { @apply [min-width:104px]; }
