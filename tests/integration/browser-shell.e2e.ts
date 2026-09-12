@@ -977,6 +977,7 @@ test('keeps keyboard focus and selection state when switching Home setup guides'
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
+      document.querySelector('[data-home-view="connect"]').click();
       const button = document.querySelector('[data-guide="opencode"]');
       button.focus();
       button.click();
@@ -6566,9 +6567,8 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(url)})?.id)`)
     if (typeof firstTabId !== 'string') throw new Error('First audio fixture tab was not found')
     await appWindow.evaluate(`window.hronaut.setTabMuted(${JSON.stringify(firstTabId)}, false)`)
-    const globalAudio = appWindow.getByRole('button', { name: 'Mute all tabs' })
-    await expect(globalAudio).toHaveAttribute('aria-pressed', 'false')
-    await globalAudio.click()
+    const globalAudio = appWindow.getByRole('button', { name: 'Unmute all tabs' })
+    await expect(globalAudio).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
       webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
     )), [url, secondUrl])).toEqual([true, true])
@@ -7692,6 +7692,7 @@ test('locks website input and tab closing across Hronaut while keeping browser c
       const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
       if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
       const guidePoint = await home.executeJavaScript(`(async () => {
+        document.querySelector('[data-home-view="connect"]').click();
         const guide = document.querySelector('[data-guide="opencode"]')
         guide.scrollIntoView({ block: 'center', behavior: 'instant' })
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
@@ -9013,6 +9014,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(() => {
+      document.querySelector('[data-home-view="connect"]').click();
       document.querySelector('[data-guide="opencode"]')?.click();
       const result = {
         heading: document.querySelector('h1')?.textContent,

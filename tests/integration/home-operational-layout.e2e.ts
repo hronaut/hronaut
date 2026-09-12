@@ -1,7 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.js'
 
-test('Home gives client setup priority in a compact operational layout across themes and languages', async ({ electronApp, appWindow }, testInfo) => {
+test('Home keeps client setup accessible in a compact layout across themes and languages', async ({ electronApp, appWindow }, testInfo) => {
   const home = async <T>(source: string): Promise<T> => electronApp.evaluate(async ({ webContents }, script) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
     if (!page) throw new Error('Home contents unavailable')
@@ -17,6 +17,7 @@ test('Home gives client setup priority in a compact operational layout across th
       const page = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))
       if (!page) throw new Error('Home page unavailable')
       await page.emulateMedia({ colorScheme: null })
+      await home("document.querySelector('[data-home-view=connect]').click()")
       await expect.poll(() => home('matchMedia("(prefers-color-scheme: dark)").matches')).toBe(theme === 'dark')
       for (const width of [1200, 760]) {
         await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)

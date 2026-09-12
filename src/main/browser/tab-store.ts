@@ -25,11 +25,14 @@ export interface PersistedTab {
   title: string
   url: string
   pinned?: boolean
+  muted?: boolean
   humanInteractionLocked?: boolean
   mcpGroupId?: string
 }
 
 export interface PersistedTabGroup {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   id: string
   name: string
@@ -44,6 +47,8 @@ export interface PersistedTabGroup {
 }
 
 export interface PersistedSavedTabGroup {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   id: string
   name: string
@@ -60,6 +65,7 @@ export interface PersistedBrowserState {
   version: typeof TAB_STATE_VERSION
   activeTabId: string | null
   splitView?: BrowserSplitViewState
+  allTabsMuted?: boolean
   allHumanInteractionLocked?: boolean
   tabs: PersistedTab[]
   mcpTabGroups?: PersistedTabGroup[]
@@ -296,6 +302,8 @@ export class TabStateStore {
         usedStorageIds.add(storageId)
         mcpTabGroups.push({
           id: candidate.id,
+          hiddenFromSidebar: candidate.hiddenFromSidebar === true,
+          deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
           color: candidate.color,
@@ -353,6 +361,8 @@ export class TabStateStore {
         usedStorageIds.add(storageId)
         savedTabGroups.push({
           id: candidate.id,
+          hiddenFromSidebar: candidate.hiddenFromSidebar === true,
+          deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
           color: candidate.color,
@@ -420,6 +430,7 @@ export class TabStateStore {
             : normalizeTabTitle(candidate.title === candidate.url ? normalizedUrl : candidate.title, normalizedUrl),
           url: normalizedUrl,
           pinned: candidate.pinned === true,
+          muted: candidate.muted === true,
           humanInteractionLocked: candidate.humanInteractionLocked === true,
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })
@@ -464,6 +475,7 @@ export class TabStateStore {
         version: TAB_STATE_VERSION,
         activeTabId,
         ...(splitView ? { splitView } : {}),
+        allTabsMuted: data.allTabsMuted === true,
         allHumanInteractionLocked: data.allHumanInteractionLocked === true,
         mcpTabGroups,
         savedTabGroups,

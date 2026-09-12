@@ -87,7 +87,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     :title="audioLabel"
     :aria-label="t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
     :aria-pressed="Boolean(activeTab?.muted)"
-    :disabled="activeTabIsInternal"
+    :disabled="activeTabIsInternal || state.allTabsMuted"
     @click="activeTab && emit('toggleTabMuted', activeTab)"
   >
     <IconVolumeOff v-if="activeTab?.muted" aria-hidden="true" />

@@ -85,7 +85,9 @@ You can also check manually from Settings, the Hronaut application menu, or the 
 
 ## Hronaut Home
 
-The dedicated **Home** application button sits outside the browser tab list and opens **Hronaut Home**, an internal dashboard with its own application partition, separate from workspace site data. It is app navigation, not a reserved browser tab. New profiles use the left workspace rail; existing saved tab-layout choices are respected. While Home is active, Hronaut keeps the top strip for switching to open websites but removes the website-only Back, Forward, address, and page-action row, giving the dashboard the reclaimed space. Application-wide Search tabs, Downloads, History, Hronaut lock, MCP, and Settings controls remain in the same top-strip positions on Home and websites; only page-specific navigation and tools appear beside the address. Hronaut keeps Home as a singleton: clicking the button focuses the existing Home page or recreates it if needed. Regular new tabs remain blank. Home separates Connect an agent, Overview, and Tool library into keyboard-navigable views and remembers the selected view locally. New profiles start with Connect; a returning session with observed clients or completed calls starts with Overview unless a view was selected previously. Live status refreshes never switch the selected view. Home provides:
+The dedicated **Home** application button sits outside the browser tab list and opens **Hronaut Home**, an internal dashboard with its own application partition, separate from workspace site data. It is app navigation, not a reserved browser tab. New profiles use the left workspace rail; existing saved tab-layout choices are respected. While Home is active, Hronaut keeps the top strip for switching to open websites but removes the website-only Back, Forward, address, and page-action row, giving the dashboard the reclaimed space. Application-wide Search tabs, Downloads, History, Hronaut lock, MCP, and Settings controls remain in the same top-strip positions on Home and websites; only page-specific navigation and tools appear beside the address. Hronaut keeps Home as a singleton: clicking the button focuses the existing Home page or recreates it if needed. Regular new tabs remain blank. Home separates Workspaces, Connect an agent, Overview, and Tool library into keyboard-navigable views. Workspaces is the initial view after upgrading, and clicking Home returns to it. Other selected views survive a page refresh. Live status refreshes never switch the selected view. Home provides:
+
+- A searchable workspace hub with Open and Archived views, creation, settings, templates, archive undo, and restoration.
 
 - Copy-ready setup instructions for Codex, Claude Code, Cursor, VS Code / GitHub Copilot, OpenCode, Gemini CLI, Goose, Cline, Zoo Code, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, Grok Build, Qwen Code, and generic Streamable HTTP clients, including verification commands where the client provides one.
 - A live list of active requests and recently seen MCP clients.
@@ -98,6 +100,10 @@ Regular websites, including `https://google.com`, can be opened from the address
 The MCP tool set selected in **Settings → MCP security** applies to new connections. Each live connection keeps the names, schemas, annotations, descriptions, and server instructions it received when it connected. Reconnect an MCP client to adopt an intentional catalog change; Hronaut never rewrites that model-facing metadata within an established transport session.
 
 Right-click a website tab to create or edit its workspace, open another tab in that workspace, or archive its workspace. Fresh profiles start on Home without creating a Default workspace. Every website tab belongs to a workspace; creating the first website tab creates a normally named isolated workspace when none exists. Every tab and workspace has a UUIDv7 identity. Human-created workspace labels remain collision-checked, while isolated MCP clients may use the same task label without learning that another client already chose it. Renaming never changes the stable `workspaceId`. An MCP workspace ID identifies a target but does not grant access; live connections must have created it or resumed it with its private capability. Workspace membership is immutable, so tabs cannot move between workspaces.
+
+**Hide from left sidebar** hides a workspace and its tabs from the left navigation while keeping the workspace active and accessible from Home. It does not change agent access. **Protect from deletion** blocks permanent removal by people and agents at the browser lifecycle boundary; archiving and restoring preserve both preferences. Only a person can change deletion protection. Archived cards expose this preference under Workspace options.
+
+Browser mute is independent of the number of open tabs. It persists across restart and applies to newly opened and restored tabs. Individual mute controls cannot override browser mute; disabling browser mute restores each tab’s own mute setting.
 
 The workspace editor offers **Allow direct agent access**. Disabling it blocks direct agent actions and resume access to that original workspace. Agents can still discover its name in the fork-source catalog and copy its cookies and local storage into an independent fork. This setting does not prevent cloning. Forks inherit site restrictions and start with one blank tab; they do not copy open tabs.
 
@@ -457,7 +463,7 @@ pause. Pause does not roll back an action already dispatched.
 
 ## Review workspace continuity
 
-People can open **Workspaces → Manage → Continuity & human decisions → Workspace continuity** to read current
+People can open **Home → Workspaces → Manage → Continuity & human decisions → Workspace continuity** to read current
 state, create a checkpoint, or confirm an exact reviewed state. Unknown prior
 outcomes require an explicit acknowledgment. These controls do not unpause
 agents, enable agent access, or repeat browser actions. If review fails because

@@ -704,7 +704,6 @@ const appBrowserChromeFeatureController = useAppBrowserChromeFeatureController({
     openHome: openApplicationHome,
     newTabInWorkspace,
     openNewWorkspaceEditor,
-    openWorkspaceLibrary: appTransientShellLayerController.openWorkspaceLibrary,
     toggleCommandPalette,
     toggleTabSearch,
     openFind,

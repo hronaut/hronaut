@@ -209,6 +209,7 @@ export interface BrowserTabState {
   zoomPercent: number
   faviconDataUrl?: string
   audible: boolean
+  tabMuted?: boolean
   muted: boolean
   devToolsOpen: boolean
   emulation?: BrowserEmulationState
@@ -298,6 +299,8 @@ export interface BrowserWorkspaceNavigationAuditEntry {
 }
 
 export interface BrowserTabGroupState {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   id: string
   name: string
@@ -311,6 +314,8 @@ export interface BrowserTabGroupState {
 }
 
 export interface BrowserTabGroupUpdate {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   name?: string
   color?: BrowserTabGroupColor
@@ -323,6 +328,8 @@ export interface BrowserSavedTabGroupTab {
 }
 
 export interface BrowserSavedTabGroupState {
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   id: string
   name: string
@@ -338,6 +345,8 @@ export interface BrowserWorkspaceCreateOptions {
   color?: BrowserTabGroupColor
   storage: 'scratch' | 'fork-workspace'
   sourceWorkspaceId?: string
+  hiddenFromSidebar?: boolean
+  deletionProtected?: boolean
   agentAccess?: boolean
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
@@ -408,6 +417,7 @@ export interface BrowserState {
   closedTabs: BrowserClosedTabState[]
   activeTabId: string | null
   splitView?: import('./split-view.js').BrowserSplitViewState
+  allTabsMuted?: boolean
   allHumanInteractionLocked: boolean
   mcpUrl: string
   profilePath: string
@@ -2369,6 +2379,7 @@ export interface HronautApi {
   onMcpTabActivity(listener: (activity: McpTabActivity) => void): () => void
   onUserAttentionRequested(listener: () => void): () => void
   onShortcutRequested(listener: (action: import('./browser-shortcuts.js').BrowserShortcutAction) => void): () => void
+  onHomeWorkspaceEditorRequested(listener: (request: import('./home-workspaces.js').HomeWorkspaceEditorRequest) => void): () => void
   onTabGroupEditRequested(listener: (groupId: string) => void): () => void
 }
 

@@ -111,6 +111,17 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('hides a workspace and its tabs only from left navigation without losing its state', async () => {
+    const state = browserState({ mcpTabGroups: [{ ...workspace(), hiddenFromSidebar: true }] })
+    const view = renderTabs(state, true, 'vertical')
+    expect(screen.queryByRole('tab', { name: 'Page first' })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.tab-group-label')).toHaveLength(0)
+    expect(state.tabs).toHaveLength(2)
+    await view.rerender({ orientation: 'horizontal' })
+    expect(screen.getByRole('tab', { name: 'Page first' })).toBeInTheDocument()
+    expect(document.querySelectorAll('.tab-group-label')).toHaveLength(1)
+  })
+
   it.each(['horizontal', 'vertical'] as const)('keeps New tab reachable with no workspaces in the %s rail', async orientation => {
     const initial = browserState()
     const view = renderTabs({ ...initial, tabs: [initial.tabs[0]], mcpTabGroups: [] }, true, orientation)

@@ -228,6 +228,11 @@ const api: HronautApi = {
     ipcRenderer.on('browser:shortcut-requested', handler)
     return () => ipcRenderer.removeListener('browser:shortcut-requested', handler)
   },
+  onHomeWorkspaceEditorRequested: (listener: (request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: import('../shared/home-workspaces.js').HomeWorkspaceEditorRequest): void => listener(request)
+    ipcRenderer.on('browser:home-workspace-editor', handler)
+    return () => ipcRenderer.removeListener('browser:home-workspace-editor', handler)
+  },
   onTabGroupEditRequested: (listener: (groupId: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, groupId: string): void => listener(groupId)
     ipcRenderer.on('browser:edit-tab-group', handler)

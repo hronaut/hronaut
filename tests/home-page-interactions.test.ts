@@ -147,6 +147,7 @@ describe('Home setup journey', () => {
 
   it('keeps the selected view and focus when new activity arrives', () => {
     const home = mount()
+    button('[data-home-view="connect"]').click()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
     home.update({ ...state, clients: [{ id: 'client', name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
@@ -171,10 +172,10 @@ describe('Home setup journey', () => {
     expect(document.querySelector<HTMLElement>('#home-tools')?.hidden).toBe(false)
     expect(button('[data-home-view="overview"]').tabIndex).toBe(-1)
     button('[data-home-view="tools"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
-    window.localStorage.setItem('hronaut.home.view', '<invalid>')
+    expect(document.querySelector<HTMLElement>('#home-workspaces')?.hidden).toBe(false)
+    window.localStorage.setItem('hronaut.home.view.v2', '<invalid>')
     mount()
-    expect(button('[data-home-view="connect"]').getAttribute('aria-selected')).toBe('true')
+    expect(button('[data-home-view="workspaces"]').getAttribute('aria-selected')).toBe('true')
   })
 
   it('keeps troubleshooting recovery visible after activity succeeds', async () => {
@@ -223,5 +224,67 @@ describe('Home setup journey', () => {
     expect(document.activeElement).toBe(summary)
     home.update({ ...next, tools: [...next.tools, { name: 'browser_click', category: 'Interaction', description: 'Click an element' }] })
     expect(document.querySelector<HTMLDetailsElement>('[data-tool="browser_navigate"]')!.open).toBe(true)
+  })
+})
+
+describe('Home workspace hub', () => {
+  const workspace = {
+    id: 'project', name: 'Research <safe>', color: 'purple', createdAt: '2026-09-13', lastUsedAt: '2026-09-13',
+    activeTabId: null, tabCount: 0, storageOriginCount: 0,
+    navigationPolicy: { mode: 'unrestricted', rules: [] }
+  }
+  const inventory = { activeTabId: 'home', allHumanInteractionLocked: false, mcpTabGroups: [workspace], savedTabGroups: [], tabs: [] }
+
+  it('defaults to workspaces, searches labels safely, and keeps focus through polling', async () => {
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory) })
+    await settle()
+    expect(button('[data-home-view="workspaces"]').getAttribute('aria-selected')).toBe('true')
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(document.querySelector('.home-workspace-card h2')?.textContent).toBe('Research <safe>')
+    const search = document.querySelector<HTMLInputElement>('#workspace-search')!
+    search.focus()
+    search.value = 'research'
+    search.dispatchEvent(new Event('input'))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(document.activeElement).toBe(search)
+    expect(document.querySelectorAll('.home-workspace-card')).toHaveLength(1)
+    search.value = 'missing'
+    search.dispatchEvent(new Event('input'))
+    expect(document.querySelectorAll('.home-workspace-card')).toHaveLength(0)
+    expect(document.querySelector('.workspace-empty')?.textContent).toContain('No matching workspaces')
+  })
+
+  it('serializes mutations, reports failure, and allows retry without losing the card', async () => {
+    let fail!: (error: Error) => void
+    const action = vi.fn().mockImplementationOnce(() => new Promise((_, reject) => { fail = reject })).mockResolvedValue(inventory)
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory), workspaceAction: action })
+    await vi.advanceTimersByTimeAsync(2000)
+    button('[data-workspace-action="archive"]').click()
+    button('[data-workspace-action="create"]').click()
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(button('[data-workspace-action="archive"]').disabled).toBe(true)
+    fail(new Error('Archive failed'))
+    await settle()
+    expect(document.querySelector('#workspace-error')?.textContent).toBe('Archive failed')
+    expect(button('[data-workspace-action="archive"]').disabled).toBe(false)
+    button('[data-workspace-action="archive"]').click()
+    await settle()
+    expect(action).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let an older inventory read undo a completed preference change', async () => {
+    let finishRead!: (value: unknown) => void
+    const getWorkspaces = vi.fn().mockResolvedValueOnce(inventory).mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))
+    const next = { ...inventory, mcpTabGroups: [{ ...workspace, deletionProtected: true }] }
+    mount({ getWorkspaces, workspaceAction: vi.fn().mockResolvedValue(next) })
+    await settle()
+    await vi.advanceTimersByTimeAsync(2000)
+    const input = document.querySelector<HTMLInputElement>('[data-workspace-preference="deletionProtected"]')!
+    input.checked = true
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+    finishRead(inventory)
+    await settle()
+    expect(document.querySelector<HTMLInputElement>('[data-workspace-preference="deletionProtected"]')?.checked).toBe(true)
   })
 })

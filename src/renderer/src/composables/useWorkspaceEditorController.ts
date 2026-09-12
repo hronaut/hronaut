@@ -44,6 +44,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const sourceWorkspaceId = ref('')
   const targetWorkspaceId = ref('')
   const transferMode = ref<'copy' | 'move'>('copy')
+  const hiddenFromSidebar = ref(false)
+  const deletionProtected = ref(false)
   const agentAccess = ref(true)
   const originOptions = ref<string[]>([])
   const selectedOrigins = ref<string[]>([])
@@ -154,6 +156,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     workspaceId.value = id
     name.value = group.name
     color.value = group.color
+    hiddenFromSidebar.value = group.hiddenFromSidebar === true
+    deletionProtected.value = group.deletionProtected === true
     agentAccess.value = group.agentAccess !== false
     navigationMode.value = group.navigationPolicy.mode
     navigationRulesText.value = group.navigationPolicy.rules.join('\n')
@@ -191,6 +195,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     ])
     lastSuggestedName = name.value
     color.value = 'purple'
+    hiddenFromSidebar.value = false
+    deletionProtected.value = false
     agentAccess.value = true
     navigationMode.value = 'unrestricted'
     navigationRulesText.value = ''
@@ -287,6 +293,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
           storage: storageMode.value,
           ...(storageMode.value !== 'scratch' ? { origins: transferOrigins() } : {}),
           ...(storageMode.value === 'fork-workspace' ? { sourceWorkspaceId: sourceWorkspaceId.value } : {}),
+          hiddenFromSidebar: hiddenFromSidebar.value,
+          deletionProtected: deletionProtected.value,
           agentAccess: agentAccess.value,
           navigationPolicy: navigationPolicy()
         }))
@@ -294,6 +302,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
         const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
           color: color.value,
+          hiddenFromSidebar: hiddenFromSidebar.value,
+          deletionProtected: deletionProtected.value,
           agentAccess: agentAccess.value
         })
         if (!isPresentationCurrent(presentation)) return
@@ -369,7 +379,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
 
   async function closeWorkspace(): Promise<void> {
     const current = workspace.value
-    if (!current || actionPending.value || storageState.value === 'saving') return
+    if (!current || current.deletionProtected || actionPending.value || storageState.value === 'saving') return
     if (options.state.value.allHumanInteractionLocked) {
       error.value = options.translate('runtime.workspace.unlock')
       return
@@ -408,6 +418,8 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     targetWorkspaceId,
     transferMode,
     agentAccess,
+    hiddenFromSidebar,
+    deletionProtected,
     availableWorkspaces,
     targetWorkspaces,
     sourceArchived,

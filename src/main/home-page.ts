@@ -1,3 +1,6 @@
+import { HOME_WORKSPACES_SCRIPT, HOME_WORKSPACES_STYLES } from './home-workspaces-ui.js'
+import type { HomeWorkspaceState } from '../shared/home-workspaces.js'
+import { BROWSER_TAB_GROUP_COLOR_HEX } from '../shared/tab-groups.js'
 import type { McpDashboardState } from './mcp/server.js'
 import { localeMessages } from '../shared/i18n.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
@@ -6,6 +9,7 @@ import { HOME_PAGE_STYLES } from './home-page-styles.js'
 import type { SupportedLocale } from '../shared/locale.js'
 
 interface HomePageOptions {
+  workspaces?: HomeWorkspaceState
   endpoint: string
   tokenPath?: string
   authenticationDisabled?: boolean
@@ -405,6 +409,8 @@ function agentGuides(
 
 export function renderHomePage(options: HomePageOptions): string {
   const home = localeMessages[options.locale].home
+  const library = localeMessages[options.locale].workspaceLibrary
+  const labels = localeMessages[options.locale]
   const endpoint = escapeHtml(options.endpoint)
   const guides = agentGuides(
     options.endpoint,
@@ -425,15 +431,15 @@ export function renderHomePage(options: HomePageOptions): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(home.title)}</title>
-  <style>${HOME_PAGE_STYLES}</style>
+  <style>${HOME_PAGE_STYLES}${HOME_WORKSPACES_STYLES}</style>
 </head>
 <body>
   <main class="page">
     <header class="hero">
       <div class="hero-copy">
         <div class="brand"><span class="mark">H</span> ${escapeHtml(home.brand)}</div>
-        <h1 id="home-view-title">${escapeHtml(home.connect.heading)}</h1>
-        <p id="home-view-description" class="hero-description">${escapeHtml(home.connect.description)}</p>
+        <h1 id="home-view-title">${escapeHtml(library.heading)}</h1>
+        <p id="home-view-description" class="hero-description">${escapeHtml(library.description)}</p>
       </div>
       <div class="hero-status" aria-live="polite">
         <span id="server-state" class="status-label"><span class="dot"></span> ${escapeHtml(home.status.online)}</span>
@@ -443,12 +449,26 @@ export function renderHomePage(options: HomePageOptions): string {
     </header>
 
     <nav class="home-navigation" role="tablist" aria-label="${escapeHtml(home.navigation.label)}">
-      <button id="home-tab-connect" type="button" role="tab" data-home-view="connect" data-open-setup aria-selected="true" aria-controls="home-connect">${escapeHtml(home.navigation.connect)}</button>
+      <button id="home-tab-workspaces" type="button" role="tab" data-home-view="workspaces" aria-selected="true" aria-controls="home-workspaces">${escapeHtml(library.title)}</button>
+      <button id="home-tab-connect" type="button" role="tab" data-home-view="connect" data-open-setup aria-selected="false" tabindex="-1" aria-controls="home-connect">${escapeHtml(home.navigation.connect)}</button>
       <button id="home-tab-overview" type="button" role="tab" data-home-view="overview" data-home-section="activity" aria-selected="false" aria-controls="home-overview" tabindex="-1">${escapeHtml(home.navigation.overview)}</button>
       <button id="home-tab-tools" type="button" role="tab" data-home-view="tools" data-home-section="tools" aria-selected="false" aria-controls="home-tools" tabindex="-1">${escapeHtml(home.navigation.tools)}</button>
     </nav>
 
-    <section id="home-connect" class="home-view" role="tabpanel" aria-labelledby="home-tab-connect" tabindex="0">
+    <section id="home-workspaces" class="home-view" role="tabpanel" aria-labelledby="home-tab-workspaces">
+      <div class="workspace-toolbar">
+        <label class="search-field"><span>${escapeHtml(library.search)}</span><input id="workspace-search" type="search" autocomplete="off" aria-controls="workspace-grid"></label>
+        <button type="button" class="workspace-primary" data-workspace-action="create">${escapeHtml(labels.workspaceEditor.create)}</button>
+        <button type="button" data-workspace-action="templates">${escapeHtml(labels.workspaceTemplates.title)}</button>
+      </div>
+      <div class="workspace-feedback"><p id="workspace-notice" role="status"></p><button id="workspace-undo" type="button" hidden>${escapeHtml(library.undo)}</button></div>
+      <p id="workspace-error" role="alert" hidden></p>
+      <div class="workspace-collections" role="tablist" aria-label="${escapeHtml(library.views)}"><button id="workspaces-open" type="button" role="tab" aria-selected="true" aria-controls="workspace-grid">${escapeHtml(library.open)}</button><button id="workspaces-archived" type="button" role="tab" aria-selected="false" aria-controls="workspace-grid" tabindex="-1">${escapeHtml(library.archived)}</button></div>
+      <p id="workspace-hint"></p>
+      <div id="workspace-grid" role="tabpanel" aria-labelledby="workspaces-open"></div>
+    </section>
+
+    <section id="home-connect" class="home-view" role="tabpanel" aria-labelledby="home-tab-connect" tabindex="0" hidden>
       <div class="connect-layout">
         <section id="setup" class="panel setup-panel" aria-label="${escapeHtml(home.journey.setup)}">
           <header class="panel-heading"><h2 id="connect-title">${escapeHtml(home.connect.agentsLabel)}</h2><span class="count">${escapeHtml(home.connect.clients.replace('{count}', new Intl.NumberFormat(options.locale).format(guides.length)))}</span></header>
@@ -867,6 +887,7 @@ export function renderHomePage(options: HomePageOptions): string {
     let dashboardRefreshSequence = 0;
 
     async function refreshDashboard() {
+      void refreshWorkspaces();
       const sequence = ++dashboardRefreshSequence;
       try {
         const response = await fetch('/api/status', { cache: 'no-store' });
@@ -939,10 +960,15 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     });
 
-    const homeViews = ['connect', 'overview', 'tools'];
-    let selectedHomeView = (dashboard.clients.length || dashboard.completedToolCalls) ? 'overview' : 'connect';
+    const workspaceMessages = ${serialized(library)};
+    const workspaceLabels = ${serialized({ tabs: labels.settings.privacy.workspaceTabs, sites: labels.settings.privacy.workspaceSites, manage: labels.settings.privacy.manageWorkspace, transfer: labels.settings.privacy.transferData })};
+    const workspaceColors = ${serialized(BROWSER_TAB_GROUP_COLOR_HEX)};
+    const initialWorkspaces = ${serialized(options.workspaces ?? { mcpTabGroups: [], savedTabGroups: [], tabs: [], activeTabId: null, allHumanInteractionLocked: false })};
+    ${HOME_WORKSPACES_SCRIPT}
+    const homeViews = ['workspaces', 'connect', 'overview', 'tools'];
+    let selectedHomeView = 'workspaces';
     try {
-      const rememberedView = window.localStorage.getItem('hronaut.home.view');
+      const rememberedView = window.localStorage.getItem('hronaut.home.view.v2');
       if (homeViews.includes(rememberedView)) selectedHomeView = rememberedView;
     } catch { /* Home remains usable without preference storage. */ }
 
@@ -961,10 +987,10 @@ export function renderHomePage(options: HomePageOptions): string {
         button.tabIndex = selected ? 0 : -1;
       });
       homeViews.forEach(id => { document.getElementById('home-' + id).hidden = id !== view; });
-      document.getElementById('home-view-title').textContent = view === 'connect' ? messages.connect.heading : view === 'overview' ? messages.activity.heading : messages.navigation.tools;
-      document.getElementById('home-view-description').textContent = view === 'connect' ? messages.connect.description : view === 'overview' ? messages.activity.description : messages.tools.description;
+      document.getElementById('home-view-title').textContent = view === 'workspaces' ? workspaceMessages.heading : view === 'connect' ? messages.connect.heading : view === 'overview' ? messages.activity.heading : messages.navigation.tools;
+      document.getElementById('home-view-description').textContent = view === 'workspaces' ? workspaceMessages.description : view === 'connect' ? messages.connect.description : view === 'overview' ? messages.activity.description : messages.tools.description;
       if (focus) document.getElementById('home-tab-' + view).focus();
-      try { window.localStorage.setItem('hronaut.home.view', view); } catch { /* Optional local preference. */ }
+      try { window.localStorage.setItem('hronaut.home.view.v2', view); } catch { /* Optional local preference. */ }
       revealSelectedGuide();
     }
     document.querySelectorAll('[data-home-view]').forEach(button => {
@@ -981,6 +1007,7 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     });
     document.querySelectorAll('[data-open-view]').forEach(button => button.addEventListener('click', () => selectHomeView(button.dataset.openView, true)));
+    window.hronautHome?.onShowWorkspaces?.(() => selectHomeView('workspaces'));
     selectHomeView(selectedHomeView);
     document.getElementById('agent-search').addEventListener('input', (event) => {
       const query = event.target.value.trim().toLocaleLowerCase(locale);

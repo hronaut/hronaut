@@ -199,7 +199,7 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.showWorkspaceContextMenu).toHaveBeenCalledWith('workspace')
     expect(harness.browser.reorderTab).toHaveBeenCalledWith('first', 'second', 'after')
     expect(harness.browser.setTabMuted).toHaveBeenCalledWith('active', false)
-    expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(false)
+    expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
     expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', true)
     expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
   })
@@ -212,6 +212,7 @@ describe('browser tab actions controller', () => {
     }
     harness.browser.setAllTabsMuted.mockImplementation(async (muted) => ({
       ...harness.state.value,
+      allTabsMuted: muted,
       tabs: harness.state.value.tabs.map((candidate) => ({ ...candidate, muted }))
     }))
 
@@ -231,6 +232,7 @@ describe('browser tab actions controller', () => {
     harness.state.value = { ...harness.state.value, tabs: [first, second] }
     harness.browser.setAllTabsMuted.mockImplementation(async (muted) => ({
       ...harness.state.value,
+      allTabsMuted: muted,
       tabs: harness.state.value.tabs.map((candidate) => ({ ...candidate, muted }))
     }))
     harness.browser.setTabMuted.mockImplementation(async (tabId, muted) => ({
@@ -244,9 +246,9 @@ describe('browser tab actions controller', () => {
     ])
 
     expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
-    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('first', false)
+    expect(harness.browser.setTabMuted).not.toHaveBeenCalled()
     expect(harness.state.value.tabs).toEqual([
-      expect.objectContaining({ id: 'first', muted: false }),
+      expect.objectContaining({ id: 'first', muted: true }),
       expect.objectContaining({ id: 'second', muted: true })
     ])
   })

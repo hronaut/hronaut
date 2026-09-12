@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-09-13
+
+### Changed
+
+- Home is now the workspace hub, with searchable Open and Archived views, creation, settings, templates, archive undo, and restoration. Removed the separate Workspaces button from navigation; Home returns directly to workspace management.
+- Added options to hide individual workspaces from the left sidebar and protect them from permanent deletion by people or agents. Hidden workspaces remain accessible from Home; archiving, restoration, and restart retain both choices.
+- Browser mute can be enabled before any website tabs exist. It persists across restart, applies to future tabs, and preserves individual tab mute preferences when switched off.
+- Kept agent connection setup, activity, and the tool catalog accessible from Home, with workspace controls translated into all seven supported languages.
+
 ## [2.2.0] - 2026-09-13
 
 ### Added

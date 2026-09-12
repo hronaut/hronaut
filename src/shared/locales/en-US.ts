@@ -1,5 +1,13 @@
 export const enUS = {
   workspaceLibrary: {
+    hidden: "Hidden from sidebar",
+    protected: "Deletion protected",
+    preferences: "Workspace options",
+    hideFromSidebar: "Hide from left sidebar",
+    hideDescription: "Keep this workspace accessible from Home while hiding its tabs from the left sidebar.",
+    protectDeletion: "Protect from deletion",
+    protectionDescription: "Prevent permanent deletion by people and agents. Archiving is still available.",
+
     title: 'Workspaces', heading: 'A place for every project', description: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.',
     open: 'Open', archived: 'Archived', search: 'Search workspaces or tabs', views: 'Workspace views', current: 'Current', personal: 'Direct agent access off', agentAccess: 'Agent access on', restricted: 'Selected sites only',
     noTabs: 'No open pages yet', openWorkspace: 'Open workspace', restore: 'Restore workspace', archive: 'Archive', delete: 'Delete…', undo: 'Undo archive',
