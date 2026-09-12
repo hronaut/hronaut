@@ -31,9 +31,9 @@ test('Home gives client setup priority in a compact operational layout across th
           overflow: document.documentElement.scrollWidth - innerWidth,
           listHeight: document.getElementById('agent-list').getBoundingClientRect().height
         }))()`)
-        expect.soft(layout.setupTop, `${locale}/${theme}/${width}: setup starts near the status header`).toBeLessThan(230)
-        expect.soft(layout.copyTop, `${locale}/${theme}/${width}: primary setup action is immediately reachable`).toBeLessThan(520)
-        expect.soft(layout.guideBottom, `${locale}/${theme}/${width}: setup guide is above the fold`).toBeLessThan(660)
+        expect.soft(layout.setupTop, `${locale}/${theme}/${width}: setup starts near the navigation`).toBeLessThan(300)
+        expect.soft(layout.copyTop, `${locale}/${theme}/${width}: primary setup action is immediately reachable`).toBeLessThan(600)
+        expect.soft(layout.guideBottom, `${locale}/${theme}/${width}: setup guide is above the fold`).toBeLessThan(740)
         expect.soft(layout.titleSize).toBeLessThanOrEqual(28)
         expect.soft(layout.background).toBe('none')
         expect.soft(layout.overflow).toBeLessThanOrEqual(1)

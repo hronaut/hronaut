@@ -149,11 +149,11 @@ test('keeps supporting text readable in Settings and page tools', async ({ appWi
   await appWindow.getByRole('button', { name: /Workspaces & data/ }).click()
 
   const settingsSizes = await appWindow.evaluate(`(() => ({
-    navigation: Number.parseFloat(getComputedStyle(document.querySelector('.settings-nav-item small')).fontSize),
+    navigation: Number.parseFloat(getComputedStyle(document.querySelector('.settings-nav-item strong')).fontSize),
     description: Number.parseFloat(getComputedStyle(document.querySelector('.setting-copy p')).fontSize),
     privacyChoice: Number.parseFloat(getComputedStyle(document.querySelector('.privacy-category-options small')).fontSize)
   }))()`)
-  expect(settingsSizes).toEqual({ navigation: 12, description: 14, privacyChoice: 12 })
+  expect(settingsSizes).toEqual({ navigation: 13, description: 14, privacyChoice: 12 })
 
   await appWindow.getByRole('button', { name: 'Close', exact: true }).click()
   await appWindow.getByRole('button', { name: 'New tab' }).click()
@@ -279,7 +279,7 @@ test('resets every Appearance preference including interface size', async ({
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await appWindow.getByTestId('theme-cyberpunk').click()
   await appWindow.getByRole('combobox', { name: 'Interface size' }).selectOption('1.25')
-  await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('left')
+  await appWindow.getByRole('combobox', { name: 'Tab position' }).selectOption('top')
   await appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' }).uncheck()
   await appWindow.getByRole('checkbox', { name: 'Play attention sound' }).uncheck()
   await appWindow.locator('#setting-language').selectOption('uk-UA')
@@ -302,7 +302,7 @@ test('resets every Appearance preference including interface size', async ({
   await expect(appWindow.getByTestId('theme-system')).toHaveAttribute('aria-checked', 'true')
   await expect(appWindow.locator('#setting-language')).toHaveValue('system')
   await expect(appWindow.getByRole('combobox', { name: 'Interface size' })).toHaveValue('1')
-  await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('top')
+  await expect(appWindow.getByRole('combobox', { name: 'Tab position' })).toHaveValue('left')
   await expect(appWindow.getByRole('checkbox', { name: 'Hide in tray when closing' })).toBeChecked()
   await expect(appWindow.getByRole('checkbox', { name: 'Play attention sound' })).toBeChecked()
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => (
@@ -311,7 +311,7 @@ test('resets every Appearance preference including interface size', async ({
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8'))).toMatchObject({
     theme: 'system',
     interfaceScale: 1,
-    tabPosition: 'top',
+    tabPosition: 'left',
     hideInTray: true,
     attentionSound: true,
     attentionSoundCue: 'warning',

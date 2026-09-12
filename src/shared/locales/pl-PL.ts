@@ -207,6 +207,8 @@ export const plPL = {
     }
   },
   "settings": {
+    "searchSections": "Znajdź sekcję…",
+    "noMatchingSections": "Brak pasujących sekcji. Spróbuj innej nazwy.",
     "kicker": "Preferencje Hronaut",
     "heading": "Ustawienia",
     "close": "Zamknij ustawienia",
@@ -1115,6 +1117,7 @@ export const plPL = {
     "replayed": "Powtórzono XHR {method}. Nowe żądanie jest wybrane do sprawdzenia."
   },
   "shell": {
+    "audioControl": {"mute": "Wycisz", "muted": "Wyciszono"},
     "home": {
       "open": "Otwórz stronę główną Hronaut",
       "label": "Start"
@@ -2739,6 +2742,7 @@ export const plPL = {
     "recentlyClosedTabs": "Ostatnio zamknięte karty"
   },
   "home": {
+    "navigation": {"label": "Sekcje główne", "overview": "Przegląd", "connect": "Połącz agenta", "tools": "Biblioteka narzędzi"},
     journey: {
       heading: 'Zacznij od swojego agenta',
       connect: 'Połącz',

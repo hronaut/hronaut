@@ -41,8 +41,8 @@ describe('hybrid title bar configuration', () => {
         titleBarStyle: 'hidden',
         autoHideMenuBar: true,
         titleBarOverlay: {
-          color: '#20212c',
-          symbolColor: '#eeeef5',
+          color: '#202023',
+          symbolColor: '#ededf0',
           height: TITLE_BAR_BASE_HEIGHT
         }
       })

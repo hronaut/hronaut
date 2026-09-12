@@ -9155,7 +9155,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     }
     zooVerifyCommand: string
   }
-  expect(homeContent.heading).toBe('Your browser, ready for coding agents.')
+  expect(homeContent.heading).toBe('Connect your coding agent')
   expect(homeContent.agents).toEqual(['Codex', 'Claude Code', 'Cursor', 'VS Code / Copilot', 'OpenCode', 'Gemini CLI', 'Goose', 'Cline', 'Zoo Code', 'Kiro', 'Kilo Code', 'JetBrains Junie', 'Devin Local', 'Zed', 'Mistral Vibe', 'Warp', 'Windsurf', 'Grok Build', 'Qwen Code', 'Generic MCP client'])
   expect(homeContent.tools).toBe(BROWSER_TOOL_CATALOG.length)
   expect(homeContent.activeCount).toBe('0 active')

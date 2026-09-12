@@ -145,31 +145,36 @@ describe('Home setup journey', () => {
     expect(document.querySelector<HTMLElement>('#agent-empty')?.hidden).toBe(true)
   })
 
-  it('keeps setup open and focused when a client appears and allows explicit reopening', () => {
+  it('keeps the selected view and focus when new activity arrives', () => {
     const home = mount()
-    const setup = document.querySelector<HTMLDetailsElement>('#setup')!
-    button('[data-guide="opencode"]').focus()
-    const focus = document.activeElement
+    const guide = button('[data-guide="opencode"]')
+    guide.focus()
     home.update({ ...state, clients: [{ id: 'client', name: 'Example agent', version: '1', lastSeenAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, requestCount: 1 }] })
-    expect(setup.open).toBe(true)
-    expect(document.activeElement).toBe(focus)
+    expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
+    expect(document.activeElement).toBe(guide)
     expect(document.querySelector('#connection-note')?.textContent).toContain('A client has been seen')
-    setup.open = false
-    home.update(state)
-    expect(setup.open).toBe(false)
-    document.querySelector<HTMLAnchorElement>('[data-open-setup]')!.click()
-    expect(setup.open).toBe(true)
+    button('[data-home-view="overview"]').click()
+    expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(true)
+    expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
   })
 
-  it('remembers an explicit setup collapse and still provides the Connect shortcut', () => {
+  it('remembers a view, accepts only known destinations, and supports roving keyboard navigation', () => {
     mount()
-    const setup = document.querySelector<HTMLDetailsElement>('#setup')!
-    setup.open = false
-    setup.dispatchEvent(new Event('toggle'))
+    button('[data-home-view="overview"]').click()
     mount()
-    expect(document.querySelector<HTMLDetailsElement>('#setup')?.open).toBe(false)
-    document.querySelector<HTMLAnchorElement>('[data-open-setup]')!.click()
-    expect(document.querySelector<HTMLDetailsElement>('#setup')?.open).toBe(true)
+    expect(document.querySelector<HTMLElement>('#home-overview')?.hidden).toBe(false)
+    const overview = button('[data-home-view="overview"]')
+    overview.focus()
+    overview.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+    expect(button('[data-home-view="tools"]')).toBe(document.activeElement)
+    expect(button('[data-home-view="tools"]').getAttribute('aria-selected')).toBe('true')
+    expect(document.querySelector<HTMLElement>('#home-tools')?.hidden).toBe(false)
+    expect(button('[data-home-view="overview"]').tabIndex).toBe(-1)
+    button('[data-home-view="tools"]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    expect(document.querySelector<HTMLElement>('#home-connect')?.hidden).toBe(false)
+    window.localStorage.setItem('hronaut.home.view', '<invalid>')
+    mount()
+    expect(button('[data-home-view="connect"]').getAttribute('aria-selected')).toBe('true')
   })
 
   it('keeps troubleshooting recovery visible after activity succeeds', async () => {
@@ -202,5 +207,21 @@ describe('Home setup journey', () => {
     expect(document.querySelectorAll('#tool-grid .tool')).toHaveLength(1)
     expect(document.querySelector('#tool-grid')?.textContent).toContain('browser_navigate')
     expect(search.value).toBe('navigate')
+  })
+
+  it('preserves an expanded tool and keyboard focus while activity updates', () => {
+    const home = mount()
+    const next: McpDashboardState = { ...state, tools: [{ name: 'browser_navigate', category: 'Navigation', description: 'Open a page' }] }
+    home.update(next)
+    const entry = document.querySelector<HTMLDetailsElement>('#tool-grid details')!
+    entry.open = true
+    const summary = entry.querySelector('summary')!
+    summary.focus()
+    home.update({ ...next, totalRequests: 4 })
+    expect(document.querySelector('#tool-grid details')).toBe(entry)
+    expect(entry.open).toBe(true)
+    expect(document.activeElement).toBe(summary)
+    home.update({ ...next, tools: [...next.tools, { name: 'browser_click', category: 'Interaction', description: 'Click an element' }] })
+    expect(document.querySelector<HTMLDetailsElement>('[data-tool="browser_navigate"]')!.open).toBe(true)
   })
 })

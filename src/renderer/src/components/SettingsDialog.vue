@@ -27,6 +27,7 @@ import type { SettingsDialogController, SettingsSection } from '../composables/u
 import type { SitePermissionsController } from '../composables/useSitePermissionsController.js'
 import type { UpdateSettingsController } from '../composables/useUpdateSettingsController.js'
 import type { WalletsController } from '../composables/useWalletsController.js'
+import SettingsNavigation from './SettingsNavigation.vue'
 import AppearanceSettings from './AppearanceSettings.vue'
 import CredentialsSettingsPanel from './CredentialsSettingsPanel.vue'
 import DownloadSettingsPanel from './DownloadSettingsPanel.vue'
@@ -99,18 +100,6 @@ const navigation = computed<Array<{
   { section: 'support', label: t('settings.nav.support'), description: t('settings.nav.supportDescription'), icon: IconFavorite }
 ])
 
-function scrollNavigationWithWheel(event: WheelEvent): void {
-  if (event.ctrlKey || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
-  const navigation = event.currentTarget
-  if (!(navigation instanceof HTMLElement)) return
-  const maximum = Math.max(0, navigation.scrollWidth - navigation.clientWidth)
-  if (maximum === 0) return
-  const next = Math.min(maximum, Math.max(0, navigation.scrollLeft + event.deltaY))
-  if (next === navigation.scrollLeft) return
-  navigation.scrollLeft = next
-  event.preventDefault()
-}
-
 useModalDialogFocus({ open, panel })
 </script>
 
@@ -137,23 +126,7 @@ useModalDialogFocus({ open, panel })
         :aria-busy="resetBusy"
         :inert="resetBusy ? true : undefined"
       >
-        <nav class="settings-sidebar" :aria-label="t('settings.sections')" @wheel="scrollNavigationWithWheel">
-          <UiButton appearance="application"
-            v-for="item in navigation"
-            :key="item.section"
-            class="settings-nav-item"
-            :class="{ active: section === item.section }"
-            type="button"
-            :aria-current="section === item.section ? 'page' : undefined"
-            @click="section = item.section"
-          >
-            <span class="settings-nav-icon" aria-hidden="true"><component :is="item.icon" /></span>
-            <span>
-              <strong>{{ item.label }}</strong>
-              <small>{{ item.description }}</small>
-            </span>
-          </UiButton>
-        </nav>
+        <SettingsNavigation v-model="section" :items="navigation" />
 
         <AppearanceSettings
           v-if="section === 'appearance'"
