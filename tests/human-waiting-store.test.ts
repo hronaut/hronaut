@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { HumanWaitingStore } from '../src/main/mcp/human-waiting-store.js'
+import { HumanWaitingStore, humanWaitingArtifactHash } from '../src/main/mcp/human-waiting-store.js'
 
 const input = {
   workspaceId: '0198dc5b-4192-7000-8000-000000000001',
@@ -9,6 +9,13 @@ const input = {
   fallbackOwner: 'local-operator',
   timeoutMs: 1000,
   priorOutcome: 'OUTCOME_UNKNOWN' as const
+}
+const review = {
+  toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'unknown' as const,
+  representation: 'bounded-description' as const, description: 'Submit the visible form',
+  expectedPostcondition: 'A confirmation appears', artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64),
+  workspaceName: 'Checkout QA', profileName: 'Restricted QA', origin: 'https://example.com',
+  tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 4, humanInputGeneration: 2
 }
 
 describe('human waiting lifecycle', () => {
@@ -130,5 +137,54 @@ describe('human waiting lifecycle', () => {
     expect(() => store.create({ ...input, timeoutMs: Infinity })).toThrow()
     expect(() => store.create({ ...input, timeoutMs: 0 })).toThrow()
     expect(() => store.create({ ...input, owner: 'x'.repeat(129) })).toThrow()
+  })
+
+  it('hashes normalized JSON canonically without retaining proposed secrets', () => {
+    const first = humanWaitingArtifactHash('browser_click', { workspaceId: input.workspaceId, value: 'private-secret', nested: { b: 2, a: 1 } })
+    const second = humanWaitingArtifactHash('browser_click', { nested: { a: 1, b: 2 }, value: 'private-secret', workspaceId: input.workspaceId })
+    expect(first).toBe(second)
+    const store = new HumanWaitingStore()
+    store.create({ ...input, decision: 'approve-action', review: { ...review, artifactHash: first } })
+    expect(JSON.stringify(store.snapshot())).not.toContain('private-secret')
+  })
+
+  it('records approval, attempted dispatch, and verified outcome as a single-use timeline', () => {
+    const store = new HumanWaitingStore({ wallNow: () => 1000 })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    const reviewed = store.acknowledge(proposed.id, proposed.revision)
+    const approved = store.resolve(reviewed.id, reviewed.revision)
+    const attempt = store.beginReviewAttempt(approved.id, approved.revision, review)
+    expect(attempt).toMatchObject({ accepted: true, record: { state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } } })
+    const verified = store.finishReviewAttempt(attempt.record.id, attempt.record.revision, 'verified')
+    expect(verified.review?.receipts.map(receipt => receipt.status)).toEqual(['PROPOSED', 'REVIEWED', 'APPROVED', 'ATTEMPTED', 'VERIFIED'])
+    expect(() => store.beginReviewAttempt(approved.id, approved.revision, review)).toThrow(/stale/i)
+  })
+
+  it('expires an approval on exact mismatch and preserves an ambiguous attempted outcome across restart', () => {
+    const original = new HumanWaitingStore({ wallNow: () => 1000, monotonicNow: () => 0 })
+    const proposed = original.create({ ...input, decision: 'approve-action', review })
+    const approved = original.resolve(proposed.id, proposed.revision)
+    expect(original.beginReviewAttempt(approved.id, approved.revision, { ...review, artifactHash: 'c'.repeat(64) })).toMatchObject({ accepted: false, record: { state: 'EXPIRED' } })
+
+    const second = new HumanWaitingStore({ wallNow: () => 1000, monotonicNow: () => 0 })
+    const next = second.create({ ...input, decision: 'approve-action', review })
+    const nextApproved = second.resolve(next.id, next.revision)
+    second.beginReviewAttempt(nextApproved.id, nextApproved.revision, review)
+    const restored = new HumanWaitingStore({ wallNow: () => 1001, monotonicNow: () => 0 })
+    restored.restore(second.snapshot())
+    expect(restored.list(input.workspaceId)[0]).toMatchObject({ state: 'UNKNOWN', review: { status: 'UNKNOWN' } })
+  })
+
+  it('supports cheap rejection and cancellation and expires approved artifacts at the deadline', () => {
+    let now = 0
+    const store = new HumanWaitingStore({ monotonicNow: () => now })
+    const rejected = store.create({ ...input, decision: 'approve-action', review })
+    expect(store.reject(rejected.id, rejected.revision)).toMatchObject({ state: 'REJECTED', review: { status: 'REJECTED' } })
+    const cancelled = store.create({ ...input, decision: 'approve-action', review })
+    expect(store.cancel(cancelled.id, cancelled.revision)).toMatchObject({ state: 'CANCELLED', review: { status: 'CANCELLED' } })
+    const expiring = store.create({ ...input, decision: 'approve-action', review })
+    const approved = store.resolve(expiring.id, expiring.revision)
+    now = 1000
+    expect(store.list(input.workspaceId).find(record => record.id === approved.id)).toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
   })
 })
