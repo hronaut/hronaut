@@ -110,7 +110,7 @@ test('restores unresolved decisions with a fresh review handle and persists unat
   }
 })
 
-test('completes a fresh human review without replaying the page action', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
+test('binds a fresh human review to one exact page action without retaining its selector', async ({ appWindow, electronApp, mcpPort, mcpToken }, testInfo) => {
   const fixture = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Human review fixture</title><input id="draft" value="unsaved draft"><button onclick="window.writes++">Submit</button><script>window.writes=0</script>')
@@ -139,7 +139,14 @@ test('completes a fresh human review without replaying the page action', async (
     decode(await call('browser_new_tab', { ...args, url: origin }))
     await expect.poll(() => pageState().catch(() => null)).toEqual({ writes: 0, draft: 'unsaved draft' })
     decode(await call('browser_continuity', { ...args, action: 'checkpoint' }))
-    decode(await call('browser_human_waiting', { ...args, action: 'request', runId: randomUUID(), decision: 'approve-action', timeoutMs: 60_000 }))
+    const proposed = decode<HumanWaitingRecord>(await call('browser_human_waiting', {
+      ...args, action: 'request', runId: randomUUID(), decision: 'approve-action', timeoutMs: 60_000,
+      review: {
+        toolName: 'browser_click', arguments: { ...args, selector: 'button' }, reversibility: 'unknown',
+        representation: 'bounded-description', description: 'Submit the visible fixture form'
+      }
+    }))
+    expect(JSON.stringify(proposed)).not.toContain('selector')
     expect((await call('browser_click', { ...args, selector: 'button' })).isError).toBe(true)
     await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), workspace.id)
     const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
@@ -150,10 +157,14 @@ test('completes a fresh human review without replaying the page action', async (
     await expect(continuity.getByRole('status')).toHaveText('Review guard cleared; recheck before a fresh action')
     const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
     await waiting.getByRole('checkbox').check()
-    await waiting.getByRole('button', { name: 'Complete review', exact: true }).click()
+    await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
     await expect(waiting.getByText('Review completed', { exact: true })).toBeVisible()
-    expect(decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]).toMatchObject({ state: 'RESOLVED', priorOutcome: 'OUTCOME_UNKNOWN' })
+    const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
+    expect(approved).toMatchObject({ state: 'RESOLVED', priorOutcome: 'OUTCOME_UNKNOWN', review: { status: 'APPROVED' } })
     expect(await pageState()).toEqual({ writes: 0, draft: 'unsaved draft' })
+    decode(await call('browser_click', { ...args, selector: 'button', reviewId: approved.id, reviewRevision: approved.revision }))
+    await expect.poll(pageState).toEqual({ writes: 1, draft: 'unsaved draft' })
+    expect(decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]).toMatchObject({ state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } })
     await appWindow.screenshot({ path: testInfo.outputPath('human-waiting-completed.png') })
   } finally {
     await client.close()

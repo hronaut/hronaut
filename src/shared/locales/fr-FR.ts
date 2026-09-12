@@ -15,16 +15,28 @@ export const frFR = {
     "handle": "Identifiant de décision",
     "unknown": "Le résultat de l’action précédente reste inconnu.",
     "reviewed": "J’ai vérifié cette décision et l’état actuel de l’espace de travail.",
+    "reviewedExact": "J’ai vérifié cette action exacte et l’état lié de l’espace de travail.",
     "acknowledge": "Accuser réception",
     "resolve": "Terminer la vérification",
+    "approve": "Approuver l’action exacte",
+    "reject": "Rejeter l’action",
     "cancel": "Annuler la décision",
     "unavailable": "Indisponible",
     "states": {
       "WAITING_FOR_HUMAN": "En attente d’une personne",
       "ACKNOWLEDGED": "Reçue ; vérification en attente",
       "RESOLVED": "Vérification terminée",
+      "REJECTED": "Rejetée",
       "EXPIRED": "Expirée",
-      "CANCELLED": "Annulée"
+      "CANCELLED": "Annulée",
+      "ATTEMPTED": "Action tentée",
+      "VERIFIED": "Résultat vérifié",
+      "UNKNOWN": "Résultat inconnu"
+    },
+    "review": {
+      "heading": "Action conséquente", "expected": "Résultat attendu", "tool": "Outil", "actionClass": "Classe d’action", "reversibility": "Réversibilité", "workspace": "Espace de travail", "profile": "Profil de capacités", "origin": "Origine actuelle", "tab": "Onglet", "navigation": "Génération de navigation", "humanInput": "Génération d’entrée humaine", "artifact": "Empreinte exacte de l’artefact", "timeline": "Chronologie des reçus de vérification", "visibleOnly": "La modification ne peut pas être représentée sans risque sous forme de texte. Vérifiez le navigateur visible avant de décider.",
+      "statuses": { "PROPOSED": "Proposée", "REVIEWED": "Vérifiée", "APPROVED": "Approuvée", "REJECTED": "Rejetée", "CANCELLED": "Annulée", "EXPIRED": "Expirée", "ATTEMPTED": "Tentée", "VERIFIED": "Confirmée", "UNKNOWN": "Inconnue" },
+      "reversibilities": { "reversible": "Réversible", "conditionally-reversible": "Réversible sous conditions", "irreversible": "Irréversible", "unknown": "Inconnue" }
     },
     "decisions": {
       "review-page": "Vérifier la page",

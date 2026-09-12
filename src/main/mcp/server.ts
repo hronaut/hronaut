@@ -12,7 +12,8 @@ import type { AuditVerificationUpdate } from './audit-receipt-run.js'
 import type { AuditReceiptAuthorization } from './audit-receipt-store.js'
 import { runPostWriteVerification } from './post-write-verification-runner.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
-import type { HumanWaitingService } from './human-waiting-service.js'
+import type { HumanWaitingReviewBinding, HumanWaitingService } from './human-waiting-service.js'
+import { humanWaitingArtifactHash } from './human-waiting-store.js'
 import type { TaskRunService } from './task-run-service.js'
 import type { TaskRunCheckDefinition } from './task-run-store.js'
 import {
@@ -1156,9 +1157,9 @@ function createBrowserMcpServer(
       title: definition.title,
       annotations: definition.annotations
     } as never, (async (...args: unknown[]) => {
+      const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
+        ? args[0] as Record<string, unknown> : {}
       try {
-        const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
-          ? args[0] as Record<string, unknown> : {}
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
         await authorizeCapability(name, input, 'consume')
@@ -1185,6 +1186,13 @@ function createBrowserMcpServer(
         }
         return result
       } catch (error) {
+        if (error instanceof McpCapabilityAuthorizationError && humanWaiting
+          && typeof input.workspaceId === 'string' && typeof input.reviewId === 'string'
+          && typeof input.reviewRevision === 'string') {
+          try {
+            await humanWaiting.invalidateApprovedReview(input.workspaceId, input.reviewId, input.reviewRevision)
+          } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
+        }
         return errorResult(error)
       }
     }) as never)
@@ -1485,19 +1493,42 @@ function createBrowserMcpServer(
   // Explicit inspection operations remain available for reconciliation. Do not
   // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
   const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
+  const workspaceToolInputSchemas = new Map<string, z.ZodObject<Record<string, z.ZodType>>>()
+  const humanReviewSessionBinding = createHash('sha256')
+    .update('hronaut-human-review-session-v1\0')
+    .update(randomUUID())
+    .digest('hex')
+  const reviewedActionArguments = (input: Record<string, unknown>): Record<string, unknown> => {
+    const { reviewId: _reviewId, reviewRevision: _reviewRevision, ...arguments_ } = input
+    return arguments_
+  }
+  const reviewBinding = (name: string, input: Record<string, unknown>): HumanWaitingReviewBinding | undefined => {
+    if (typeof input.reviewId !== 'string' || typeof input.reviewRevision !== 'string') return undefined
+    return {
+      id: input.reviewId,
+      revision: input.reviewRevision,
+      toolName: name,
+      artifactHash: humanWaitingArtifactHash(name, reviewedActionArguments(input)),
+      sessionBinding: humanReviewSessionBinding
+    }
+  }
   type PostWriteRequest = BrowserPostcondition & { timeoutMs: number; maxAttempts: number; initialDelayMs: number }
   const registerWorkspaceTool = <T extends object>(name: string, config: {
     description?: string
     inputSchema?: Record<string, z.ZodType>
   }, handler: WorkspaceToolHandler<T>): void => {
+    const inputSchema: Record<string, z.ZodType> = {
+      workspaceId: workspaceIdSchema.describe('Stable UUIDv7 id returned by your own browser_workspaces create call or by reopening your own archive. After reconnecting, resume that workspace with its private resume key before using page tools.'),
+      reviewId: z.uuid().optional().describe('Approved consequential-review ID. Supply it together with reviewRevision only for the exact proposed action.'),
+      reviewRevision: z.uuid().optional().describe('Current approved consequential-review revision. The pair is single-use and bound to this exact normalized call.'),
+      ...(config.inputSchema ?? {})
+    }
+    workspaceToolInputSchemas.set(name, z.object(inputSchema))
     registerTool(
       name,
       {
         ...config,
-        inputSchema: {
-          workspaceId: workspaceIdSchema.describe('Stable UUIDv7 id returned by your own browser_workspaces create call or by reopening your own archive. After reconnecting, resume that workspace with its private resume key before using page tools.'),
-          ...(config.inputSchema ?? {})
-        }
+        inputSchema
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const controlRevision = actionTracker.controlRevision
@@ -1508,10 +1539,22 @@ function createBrowserMcpServer(
         }
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
-        requireActiveCapabilityDispatch(name, input)
+        if ((typeof input.reviewId === 'string') !== (typeof input.reviewRevision === 'string')) {
+          throw new Error('reviewId and reviewRevision must be supplied together')
+        }
+        const reviewedBinding = reviewBinding(name, input)
+        if (reviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
+        const actionInput = reviewedActionArguments(input)
+        requireActiveCapabilityDispatch(name, actionInput)
         requireAgentWorkspace(workspaceId)
-        const requireHumanDecision = async (): Promise<void> => {
-          if (humanWaiting && !continuityInspectionTools.has(name)) await humanWaiting.requireDispatch(workspaceId, () => { requireAgentWorkspace(workspaceId) })
+        const requireHumanDecision = async (withReviewedBinding = true): Promise<void> => {
+          if (humanWaiting && !continuityInspectionTools.has(name)) {
+            await humanWaiting.requireDispatch(
+              workspaceId,
+              () => { requireAgentWorkspace(workspaceId) },
+              withReviewedBinding ? reviewedBinding : undefined
+            )
+          }
         }
         await requireHumanDecision()
         requireAgentWorkspace(workspaceId)
@@ -1530,8 +1573,8 @@ function createBrowserMcpServer(
           ? undefined
           : manager.requireTabInMcpGroup(workspaceId, requestedTabId)
         const definition = toolDefinition(name)
-        const actionTarget = browserActionTarget(input)
-        const actionPayloadFingerprint = browserActionPayloadFingerprint(input)
+        const actionTarget = browserActionTarget(actionInput)
+        const actionPayloadFingerprint = browserActionPayloadFingerprint(actionInput)
         const actionAuthority = definition.annotations.destructiveHint && resolvedTabId
           ? captureBrowserActionAuthority({
               state: manager.getMcpGroupState(workspaceId), workspaceId, tabId: resolvedTabId,
@@ -1540,8 +1583,8 @@ function createBrowserMcpServer(
               payloadFingerprint: actionPayloadFingerprint
             })
           : undefined
-        const postWrite = name === 'browser_click' && input.postcondition
-          ? input.postcondition as PostWriteRequest : undefined
+        const postWrite = name === 'browser_click' && actionInput.postcondition
+          ? actionInput.postcondition as PostWriteRequest : undefined
         if (postWrite && (!resolvedTabId || !auditReceipts?.isRecording(workspaceId))) {
           throw new Error('Post-write verification requires an active browser_audit_receipts run and a page tab target')
         }
@@ -1572,7 +1615,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
-          requireActiveCapabilityDispatch(name, input)
+          requireActiveCapabilityDispatch(name, actionInput)
           requireContinuity()
           requireCurrentControl()
           requireCurrentHumanInput()
@@ -1597,14 +1640,14 @@ function createBrowserMcpServer(
           if (!authorityReason) {
             let permitted = true
             try {
-              requireActiveCapabilityDispatch(name, input)
+              requireActiveCapabilityDispatch(name, actionInput)
               requireAgentWorkspace(workspaceId)
             } catch { permitted = false }
             authorityReason = browserActionAuthorityReason({
               expected: actionAuthority, state: state!, workspaceId, tabId: resolvedTabId,
-              target: browserActionTarget(input), permitted,
+              target: browserActionTarget(actionInput), permitted,
               authorizationFingerprint: capabilityAuthorizationFingerprint,
-              payloadFingerprint: browserActionPayloadFingerprint(input)
+              payloadFingerprint: browserActionPayloadFingerprint(actionInput)
             })
           }
           if (!authorityReason) return undefined
@@ -1617,6 +1660,15 @@ function createBrowserMcpServer(
             nextAction: 'Inspect the current visible page and obtain fresh runtime state before issuing a new action.'
           }
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
+        }
+        let reviewAttempt: { id: string; revision: string } | undefined
+        const finishReviewedAttempt = async (outcome: 'verified' | 'unknown'): Promise<void> => {
+          if (!reviewAttempt || !humanWaiting) return
+          const attempt = reviewAttempt
+          reviewAttempt = undefined
+          await humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
+            requireAgentWorkspace(workspaceId)
+          })
         }
         const operation = async (): Promise<CallToolResult> => {
           const admissionRejection = authorityRejection()
@@ -1644,15 +1696,25 @@ function createBrowserMcpServer(
             const dispatchRejection = authorityRejection()
             if (dispatchRejection) return dispatchRejection
             requireCurrentTarget()
+            requirePostWriteContext()
+            if (reviewedBinding && humanWaiting) {
+              const attempted = await humanWaiting.beginReviewedDispatch(
+                workspaceId,
+                reviewedBinding,
+                () => { requireAgentWorkspace(workspaceId) },
+                () => { requireCurrentTarget(); requirePostWriteContext() }
+              )
+              reviewAttempt = { id: attempted.id, revision: attempted.revision }
+            }
             activityDispatched = true
             const result = toolsWithoutWorkspaceTabTarget.has(name)
-              ? await handler(input as unknown as T)
+              ? await handler(actionInput as unknown as T)
               : await handler({
-                ...input,
+                ...actionInput,
                 tabId: resolvedTabId
               } as unknown as T)
             try {
-              await requireHumanDecision()
+              await requireHumanDecision(false)
               requireCurrentControl()
               requireAgentWorkspace(workspaceId)
               if (name !== 'browser_close_tab') requireCurrentHumanInput()
@@ -1667,9 +1729,12 @@ function createBrowserMcpServer(
                 retrySafe: false,
                 nextAction: 'The workspace context changed while this tool was running. Its result was discarded. Inspect the visible page and obtain fresh state before deciding what to do next; do not automatically repeat a possible side effect.'
               }
+              await finishReviewedAttempt('unknown')
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            return scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
+            const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
+            if (scoped.isError) await finishReviewedAttempt('unknown')
+            return scoped
           } finally {
             finishContinuityAction()
           }
@@ -1706,6 +1771,7 @@ function createBrowserMcpServer(
             finishActivity(result, false)
             return result
           } catch (error) {
+            await finishReviewedAttempt('unknown')
             finishActivity(undefined, true, error)
             throw error
           }
@@ -1792,7 +1858,7 @@ function createBrowserMcpServer(
                   },
                   signal,
                   read: async readSignal => {
-                    await requireHumanDecision()
+                    await requireHumanDecision(false)
                     requireCurrentTarget()
                     return manager.readPostWritePostcondition(
                       workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal
@@ -1811,10 +1877,13 @@ function createBrowserMcpServer(
           operation
           })
         } catch (error) {
+          await finishReviewedAttempt('unknown')
           finishActivity(undefined, true, error)
           throw error
         }
         const finalResult = verificationResult ? withPostWriteVerification(result, verificationResult) : result
+        if (verificationResult?.status === 'verified') await finishReviewedAttempt('verified')
+        else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
         finishActivity(finalResult, false)
         return finalResult
       })
@@ -1833,10 +1902,36 @@ function createBrowserMcpServer(
         owner: z.string().trim().min(1).max(128).default('local-operator'),
         fallbackOwner: z.string().trim().min(1).max(128).default('local-operator'),
         timeoutMs: z.number().int().min(1).max(86_400_000).default(900_000),
-        id: z.uuid().optional(), revision: z.uuid().optional()
+        id: z.uuid().optional(), revision: z.uuid().optional(),
+        review: z.object({
+          toolName: z.string().regex(/^(?:browser|wallet)_[a-z0-9_]{1,80}$/),
+          arguments: z.record(z.string(), z.unknown()),
+          reversibility: z.enum(['reversible', 'conditionally-reversible', 'irreversible', 'unknown']),
+          representation: z.enum(['bounded-description', 'visible-browser-only']),
+          description: z.string().trim().min(1).max(512).optional(),
+          expectedPostcondition: z.string().trim().min(1).max(512).optional()
+        }).strict().optional()
       }
     },
-    tool(async (input: { workspaceId: string; action: 'request' | 'list' | 'cancel'; runId?: string; decision?: 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'; owner: string; fallbackOwner: string; timeoutMs: number; id?: string; revision?: string }) => {
+    tool(async (input: {
+      workspaceId: string
+      action: 'request' | 'list' | 'cancel'
+      runId?: string
+      decision?: 'review-page' | 'approve-action' | 'provide-input' | 'resolve-unknown'
+      owner: string
+      fallbackOwner: string
+      timeoutMs: number
+      id?: string
+      revision?: string
+      review?: {
+        toolName: string
+        arguments: Record<string, unknown>
+        reversibility: 'reversible' | 'conditionally-reversible' | 'irreversible' | 'unknown'
+        representation: 'bounded-description' | 'visible-browser-only'
+        description?: string
+        expectedPostcondition?: string
+      }
+    }) => {
       const authorize = (): void => {
         if ((!activeWorkspaceIds.has(input.workspaceId) && !savedWorkspaceIds.has(input.workspaceId)) || !manager.isWorkspaceAgentAccessible(input.workspaceId)) throw workspaceAuthorizationError()
       }
@@ -1849,11 +1944,59 @@ function createBrowserMcpServer(
       }
       requireAgentWorkspace(input.workspaceId)
       if (!input.runId || !input.decision) throw new Error('Run ID and decision kind are required')
+      if ((input.review !== undefined) !== (input.decision === 'approve-action')) {
+        throw new Error('An approve-action request requires exactly one consequential review artifact')
+      }
+      let reviewArtifact: import('../../shared/human-waiting.js').HumanWaitingReviewInput | undefined
+      if (input.review) {
+        const definition = toolDefinition(input.review.toolName)
+        if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')
+        if ('reviewId' in input.review.arguments || 'reviewRevision' in input.review.arguments) {
+          throw new Error('A proposed action cannot include an existing review binding')
+        }
+        const schema = workspaceToolInputSchemas.get(input.review.toolName)
+        if (!schema) throw new Error('Consequential review target must be a workspace browser tool')
+        const normalized = schema.parse(input.review.arguments)
+        if (normalized.workspaceId !== input.workspaceId) throw new Error('Reviewed action must target this workspace')
+        requireActiveCapabilityDispatch(input.review.toolName, normalized)
+        const state = manager.getMcpGroupState(input.workspaceId)
+        const tabId = typeof normalized.tabId === 'string' ? normalized.tabId : state.activeTabId ?? undefined
+        const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
+        if (tabId && !tab) throw workspaceAuthorizationError()
+        let origin: string | undefined
+        if (tab) {
+          try {
+            const url = new URL(tab.url)
+            origin = url.origin === 'null' ? url.protocol : url.origin
+          } catch { /* The visible tab remains reviewable without persisting a malformed URL. */ }
+        }
+        const workspace = manager.listMcpTabGroups().find(candidate => candidate.id === input.workspaceId)
+        if (!workspace) throw workspaceAuthorizationError()
+        reviewArtifact = {
+          toolName: input.review.toolName,
+          actionClass: mcpCapabilityOperationClass(input.review.toolName, normalized),
+          reversibility: input.review.reversibility,
+          representation: input.review.representation,
+          ...(input.review.description ? { description: input.review.description } : {}),
+          ...(input.review.expectedPostcondition ? { expectedPostcondition: input.review.expectedPostcondition } : {}),
+          artifactHash: humanWaitingArtifactHash(input.review.toolName, reviewedActionArguments(normalized)),
+          sessionBinding: humanReviewSessionBinding,
+          workspaceName: workspace.name,
+          profileName: capabilityProfile?.name ?? 'Full access',
+          ...(origin ? { origin } : {}),
+          ...(tab ? {
+            tabId: tab.id,
+            navigationGeneration: tab.navigationGeneration,
+            humanInputGeneration: tab.humanInteractionGeneration ?? 0
+          } : {})
+        }
+      }
       // Establish durable continuity recovery before asking for a human decision.
       if (!await manager.requireWorkspaceContinuityReview(input.workspaceId)) throw new Error('Workspace recovery could not be saved')
       authorize()
       const record = await humanWaiting.create({ workspaceId: input.workspaceId, runId: input.runId, decision: input.decision,
-        owner: input.owner, fallbackOwner: input.fallbackOwner, timeoutMs: input.timeoutMs, priorOutcome: 'OUTCOME_UNKNOWN' }, authorize)
+        owner: input.owner, fallbackOwner: input.fallbackOwner, timeoutMs: input.timeoutMs, priorOutcome: 'OUTCOME_UNKNOWN',
+        ...(reviewArtifact ? { review: reviewArtifact } : {}) }, authorize)
       if (record.state !== 'WAITING_FOR_HUMAN') return textResult(record)
       return textResult(await humanWaiting.notify(input.workspaceId, record.id, authorize, async () => {
         await requestUserAttention({ workspaceId: input.workspaceId, reason: `Human decision required: ${input.decision}`, expiresAt: record.deadlineAt, humanWaitingDecisionId: record.id })

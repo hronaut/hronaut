@@ -2438,7 +2438,7 @@ function registerIpc(): void {
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
       || workspaceId.length > 128 || id.length > 128 || revision.length > 128
-      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'resolve') || !humanWaiting) throw new Error('Waiting decision unavailable')
+      || (action !== 'acknowledge' && action !== 'cancel' && action !== 'reject' && action !== 'resolve') || !humanWaiting) throw new Error('Waiting decision unavailable')
     let checkpointId: string | null | undefined
     const validateFresh = async (): Promise<void> => {
       const report = await tabsManager!.inspectWorkspaceContinuity(workspaceId)
