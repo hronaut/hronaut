@@ -581,6 +581,7 @@ export function renderHomePage(options: HomePageOptions): string {
     .activity-meta { margin-top: 4px; color: var(--muted); font-size: 12px; }
     .outcome { align-self: center; color: var(--accent-2); font-size: 12px; font-weight: 800; }
     .outcome.failed { color: #df625e; }
+    .outcome.attention { color: #d69b36; }
     .privacy-note { margin: 10px 2px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
     .support-card { padding: 0 0 0 24px; border-left: 1px solid var(--border); }
     .support-card span { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; }
@@ -1073,7 +1074,14 @@ export function renderHomePage(options: HomePageOptions): string {
         activityList.innerHTML = '<div class="empty"><div><strong>' + escapeText(messages.activity.emptyHeading) + '</strong><span>' + escapeText(messages.activity.emptyDescription) + '</span></div></div>';
       } else {
         activityList.innerHTML = dashboard.recentActivity.slice(0, 8).map((activity) =>
-          '<div class="activity-item"><div><code>' + escapeText(activity.toolName) + '</code><div class="activity-meta">' + escapeText(relativeTime(activity.completedAt)) + ' · ' + escapeText(duration(activity.durationMs)) + '</div></div><span class="outcome ' + (activity.outcome === 'failed' ? 'failed' : '') + '">' + (activity.outcome === 'failed' ? escapeText(messages.activity.failed) : escapeText(messages.activity.done)) + '</span></div>'
+          (() => {
+            const outcome = activity.result?.outcome || (activity.outcome === 'failed' ? 'failed' : 'succeeded');
+            const labels = { succeeded: messages.activity.done, failed: messages.activity.failed, cancelled: messages.activity.cancelled,
+              blocked: messages.activity.blocked, 'timed-out': messages.activity.timedOut, interrupted: messages.activity.interrupted,
+              'outcome-unknown': messages.activity.unknown };
+            const tone = outcome === 'succeeded' ? '' : outcome === 'failed' ? 'failed' : 'attention';
+            return '<div class="activity-item"><div><code>' + escapeText(activity.toolName) + '</code><div class="activity-meta">' + escapeText(relativeTime(activity.completedAt)) + ' · ' + escapeText(duration(activity.durationMs)) + '</div></div><span class="outcome ' + tone + '">' + escapeText(labels[outcome] || messages.activity.failed) + '</span></div>';
+          })()
         ).join('');
       }
 

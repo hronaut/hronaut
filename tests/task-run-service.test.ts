@@ -71,6 +71,23 @@ describe('durable task-run owner', () => {
     expect(restored.get(run.id)).toMatchObject({ state: 'TIMED_OUT', terminalReason: 'HEARTBEAT_EXPIRED' })
   })
 
+  it('persists explicit cancellation and returns its bounded outcome classification', async () => {
+    let saved: ReturnType<TaskRunStore['snapshot']> | undefined
+    const service = new TaskRunService({
+      load: async () => null,
+      save: async (snapshot) => { saved = structuredClone(snapshot) }
+    })
+    const run = await service.create(request, authorize)
+    const cancelled = await service.complete(WORKSPACE_ID, run.id, run.revision, 'CANCELLED', authorize)
+    expect(cancelled).toMatchObject({
+      state: 'CANCELLED', outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
+      evidenceSource: 'caller-supplied', effects: 'not-established'
+    })
+    const restored = new TaskRunStore()
+    restored.restore(saved)
+    expect(restored.get(run.id)).toMatchObject({ state: 'CANCELLED', outcome: 'cancelled' })
+  })
+
   it('persists a second expiry observed after an earlier timeout save', async () => {
     let now = 0
     let saved: ReturnType<TaskRunStore['snapshot']> | undefined

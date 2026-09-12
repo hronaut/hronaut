@@ -82,9 +82,18 @@ it.each([
     } })
     settle()
     await expect.poll(() => actionTracker.activeCount).toBe(0)
+    const expectedOutcome = replaceEndpoint ? 'cancelled' : 'outcome-unknown'
+    const expectedReason = replaceEndpoint ? 'REQUEST_CANCELLED' : 'CONTEXT_CHANGED'
     expect(currentServer.getDashboardState().recentActivity).toMatchObject([
-      { toolName: 'browser_select_tab', tabId, outcome: 'failed' }
+      {
+        toolName: 'browser_select_tab', tabId, outcome: 'failed',
+        result: {
+          outcome: expectedOutcome, reasonCode: expectedReason, dispatch: 'dispatched',
+          effects: 'possible', evidenceSource: 'hronaut-observed'
+        }
+      }
     ])
+    expect(currentServer.getDashboardState().outcomeTotals).toMatchObject({ [expectedOutcome]: 1 })
     expect(currentServer.getDashboardState().completedToolCalls).toBe(1)
     expect(await (await fetch(endpoint)).json()).toMatchObject({ handoff: {
       state: 'PAUSED', activeCommands: 0, priorActionOutcome: 'NOT_ESTABLISHED'

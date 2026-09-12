@@ -106,6 +106,33 @@ describe('bounded browser task-run contracts', () => {
     expect(() => store.heartbeat(run.id, failed.revision)).toThrow('unavailable or stale')
   })
 
+  it('publishes stable privacy-safe outcome reasons without claiming browser effects', () => {
+    const store = new TaskRunStore()
+    const create = (checks: Parameters<TaskRunStore['create']>[0]['checks'] = []) => store.create({
+      workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks
+    })
+    const failed = create()
+    const cancelled = create()
+    const blocked = create()
+    const rejected = create([{ id: 'page', type: 'page-settled', tabId: TAB_ID }])
+
+    expect(store.complete(failed.id, failed.revision, 'FAILED', [])).toMatchObject({
+      outcome: 'failed', reasonCode: 'CALLER_REPORTED_FAILURE', evidenceSource: 'caller-supplied', effects: 'not-established'
+    })
+    expect(store.complete(cancelled.id, cancelled.revision, 'CANCELLED', [])).toMatchObject({
+      state: 'CANCELLED', outcome: 'cancelled', reasonCode: 'CALLER_REPORTED_CANCELLED',
+      evidenceSource: 'caller-supplied', effects: 'not-established'
+    })
+    expect(store.complete(blocked.id, blocked.revision, 'BLOCKED', [])).toMatchObject({
+      outcome: 'blocked', reasonCode: 'CALLER_REPORTED_BLOCKED', evidenceSource: 'caller-supplied'
+    })
+    expect(store.complete(rejected.id, rejected.revision, 'SUCCEEDED', [{ id: 'page', status: 'FAIL' }])).toMatchObject({
+      state: 'BLOCKED', outcome: 'verifier-rejected', reasonCode: 'COMPLETION_CHECK_FAILED',
+      evidenceSource: 'hronaut-observed', effects: 'not-established'
+    })
+    expect(JSON.stringify(store.snapshot())).not.toContain('caller-supplied')
+  })
+
   it('fails closed when the monotonic clock rolls back', () => {
     const time = clock()
     const store = new TaskRunStore({ monotonicNow: time.monotonicNow, wallNow: time.wallNow })

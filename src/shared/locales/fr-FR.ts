@@ -2856,7 +2856,12 @@ export const frFR = {
       "emptyHeading": "Aucune action d’onglet",
       "emptyDescription": "Les appels d’outils apparaîtront ici après qu’un agent aura commencé à travailler.",
       "failed": "Échec",
-      "done": "Terminé"
+      "done": "Terminé",
+      "cancelled": "Annulé",
+      "blocked": "Bloqué",
+      "timedOut": "Délai dépassé",
+      "interrupted": "Interrompu",
+      "unknown": "Résultat inconnu"
     },
     "support": {
       "kicker": "Connexion",

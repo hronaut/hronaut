@@ -54,6 +54,7 @@ import type {
   BrowsingDataSiteSummary,
   McpServerStatus,
   McpTabActivity,
+  McpActivityResult,
   McpCapabilityProfileCreateInput
 } from '../../shared/types.js'
 import { BROWSER_NETWORK_ABORT_REASONS } from '../../shared/types.js'
@@ -298,6 +299,7 @@ export interface McpDashboardState {
   clients: McpClientActivity[]
   recentActivity: McpToolActivity[]
   toolMetrics: McpToolMetric[]
+  outcomeTotals?: Partial<Record<import('../../shared/types.js').McpActivityOutcome, number>>
   tools: BrowserToolDefinition[]
 }
 
@@ -789,9 +791,13 @@ const textResult = (value: unknown): CallToolResult => ({
   content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 2) }]
 })
 
+const isTimeoutError = (error: unknown): boolean => error instanceof Error
+  && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
+
 const errorResult = (error: unknown): CallToolResult => ({
   isError: true,
-  content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }]
+  content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+  ...(isTimeoutError(error) ? { structuredContent: { status: 'TIMED_OUT' } } : {})
 })
 
 export function closedTabWaitResult(error: unknown): CallToolResult | undefined {
@@ -864,6 +870,50 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
         return { ...item, text: JSON.stringify({ ...value, postWriteVerification: verification }, null, 2) }
       } catch { return item }
     })
+  }
+}
+
+export function classifyMcpActivityResult(input: {
+  readOnly: boolean
+  dispatched: boolean
+  cancelled: boolean
+  timedOut: boolean
+  threw: boolean
+  isError: boolean
+  status?: string
+  invalidatedOutcome?: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected'
+  verificationStatus?: string
+}): McpActivityResult {
+  const base = {
+    dispatch: input.dispatched ? 'dispatched' as const : 'not-dispatched' as const,
+    evidenceSource: 'hronaut-observed' as const
+  }
+  const effects = (confirmed = false): McpActivityResult['effects'] => input.readOnly || !input.dispatched
+    ? 'none' : confirmed ? 'confirmed' : 'possible'
+  if (input.cancelled) return { ...base, outcome: 'cancelled', reasonCode: 'REQUEST_CANCELLED', effects: effects() }
+  if (input.timedOut || input.status === 'TIMEOUT' || input.status === 'TIMED_OUT') {
+    return { ...base, outcome: 'timed-out', reasonCode: 'TIMEOUT', effects: effects() }
+  }
+  if (input.invalidatedOutcome === 'provenance-rejected'
+    || ['BLOCKED', 'POLICY_REJECTED', 'STALE_PRECONDITION', 'UNTRUSTED_TARGET'].includes(input.status ?? '')) {
+    return { ...base, outcome: 'blocked', reasonCode: 'POLICY_REJECTED', effects: effects() }
+  }
+  if (input.invalidatedOutcome === 'outcome-unknown' || input.status === 'OUTCOME_UNKNOWN') {
+    return { ...base, outcome: 'outcome-unknown', reasonCode: 'CONTEXT_CHANGED', effects: effects() }
+  }
+  if (input.invalidatedOutcome === 'stale-observation' || input.status === 'STALE_OBSERVATION') {
+    return { ...base, outcome: 'interrupted', reasonCode: 'CONTEXT_CHANGED', effects: effects() }
+  }
+  if (input.verificationStatus && input.verificationStatus !== 'verified') {
+    return { ...base, outcome: 'outcome-unknown', reasonCode: 'POSTCONDITION_NOT_VERIFIED', effects: effects() }
+  }
+  if (input.isError) return { ...base, outcome: 'failed', reasonCode: 'RESULT_ERROR', effects: effects() }
+  if (input.threw) return { ...base, outcome: 'failed', reasonCode: 'COMMAND_FAILED', effects: effects() }
+  return {
+    ...base,
+    outcome: 'succeeded',
+    reasonCode: input.verificationStatus === 'verified' ? 'POSTCONDITION_VERIFIED' : 'COMPLETED',
+    effects: effects(input.verificationStatus === 'verified')
   }
 }
 
@@ -1441,6 +1491,9 @@ function createBrowserMcpServer(
         }
         let invalidatedOutcome: 'outcome-unknown' | 'stale-observation' | 'provenance-rejected' | undefined
         let authorityReason: BrowserActionAuthorityReason | undefined
+        let activityStarted = false
+        let activityDispatched = false
+        let verificationResult: { status: string; reason: string; attempt: number } | undefined
         const authorityRejection = (): CallToolResult | undefined => {
           if (!actionAuthority || !resolvedTabId) return undefined
           let state: BrowserState
@@ -1479,6 +1532,7 @@ function createBrowserMcpServer(
           requireCurrentTarget()
           requirePostWriteContext()
           if (activityId && activityToolName && resolvedTabId) {
+            activityStarted = true
             onTabActivity?.({
               activityId,
               tabId: resolvedTabId,
@@ -1488,7 +1542,6 @@ function createBrowserMcpServer(
             })
           }
           const finishContinuityAction = manager.beginWorkspaceContinuityAction(workspaceId, toolDefinition(name).annotations.readOnlyHint)
-          let phase: McpTabActivity['phase'] = 'finished'
           try {
             if (resolvedTabId && (handler.resolvedTargetWakePolicy ?? 'before-handler') === 'before-handler') {
               await manager.wakeTab(resolvedTabId)
@@ -1499,6 +1552,7 @@ function createBrowserMcpServer(
             const dispatchRejection = authorityRejection()
             if (dispatchRejection) return dispatchRejection
             requireCurrentTarget()
+            activityDispatched = true
             const result = toolsWithoutWorkspaceTabTarget.has(name)
               ? await handler(input as unknown as T)
               : await handler({
@@ -1515,7 +1569,6 @@ function createBrowserMcpServer(
               if (resolvedTabId && name !== 'browser_close_tab'
                 && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
             } catch {
-              phase = 'failed'
               invalidatedOutcome = toolDefinition(name).annotations.readOnlyHint ? 'stale-observation' : 'outcome-unknown'
               const outcome = {
                 status: toolDefinition(name).annotations.readOnlyHint ? 'STALE_OBSERVATION' : 'OUTCOME_UNKNOWN',
@@ -1524,27 +1577,48 @@ function createBrowserMcpServer(
               }
               return { ...textResult(outcome), structuredContent: outcome, isError: true }
             }
-            if (result.isError) phase = 'failed'
             return scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
-          } catch (error) {
-            phase = 'failed'
-            throw error
           } finally {
             finishContinuityAction()
-            if (activityId && activityToolName && resolvedTabId) {
-              onTabActivity?.({
-                activityId,
-                tabId: resolvedTabId,
-                toolName: activityToolName,
-                phase,
-                occurredAt: Date.now()
-              })
-            }
           }
         }
-        if (!auditReceipts || !name.startsWith('browser_')) return operation()
+        const finishActivity = (result: CallToolResult | undefined, threw: boolean, error?: unknown): void => {
+          if (!activityStarted || !activityId || !activityToolName || !resolvedTabId) return
+          activityStarted = false
+          const structured = result?.structuredContent
+          const status = structured && typeof structured === 'object' && !Array.isArray(structured)
+            && typeof structured.status === 'string' ? structured.status : undefined
+          const activityResult = classifyMcpActivityResult({
+            readOnly: toolDefinition(name).annotations.readOnlyHint,
+            dispatched: activityDispatched,
+            cancelled: extra?.signal?.aborted === true,
+            timedOut: isTimeoutError(error),
+            threw,
+            isError: result?.isError === true,
+            status,
+            invalidatedOutcome,
+            verificationStatus: verificationResult?.status
+          })
+          onTabActivity?.({
+            activityId,
+            tabId: resolvedTabId,
+            toolName: activityToolName,
+            phase: activityResult.outcome === 'succeeded' ? 'finished' : 'failed',
+            occurredAt: Date.now(),
+            result: activityResult
+          })
+        }
+        if (!auditReceipts || !name.startsWith('browser_')) {
+          try {
+            const result = await operation()
+            finishActivity(result, false)
+            return result
+          } catch (error) {
+            finishActivity(undefined, true, error)
+            throw error
+          }
+        }
         let initialOrigin: string | undefined = actionAuthority?.topLevelOrigin
-        let verificationResult: { status: string; reason: string; attempt: number } | undefined
         const observeAuditState = () => {
           const state = manager.getMcpGroupState(workspaceId)
           const tab = state.tabs.find(tab => tab.id === (resolvedTabId ?? state.activeTabId))
@@ -1568,7 +1642,9 @@ function createBrowserMcpServer(
             } : {})
           }
         }
-        const result = await auditReceipts.execute(workspaceId, {
+        let result: CallToolResult
+        try {
+          result = await auditReceipts.execute(workspaceId, {
           toolName: name,
           readOnly: toolDefinition(name).annotations.readOnlyHint,
           authorization: auditAuthorization,
@@ -1641,8 +1717,14 @@ function createBrowserMcpServer(
             }
           } : {}),
           operation
-        })
-        return verificationResult ? withPostWriteVerification(result, verificationResult) : result
+          })
+        } catch (error) {
+          finishActivity(undefined, true, error)
+          throw error
+        }
+        const finalResult = verificationResult ? withPostWriteVerification(result, verificationResult) : result
+        finishActivity(finalResult, false)
+        return finalResult
       })
     )
   }
@@ -1840,7 +1922,7 @@ function createBrowserMcpServer(
           z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('expected-origin'), tabId: tabIdSchema, expectedOrigin: z.string().url() }).strict(),
           z.object({ id: z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/), type: z.literal('audit-run'), runId: z.uuid() }).strict()
         ])).max(8).optional().describe('Typed completion checks. Expected origins are persisted only as fingerprints; audit references contain no artifact body.'),
-        outcome: z.enum(['SUCCEEDED', 'FAILED', 'BLOCKED', 'OUTCOME_UNKNOWN']).optional()
+        outcome: z.enum(['SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED', 'OUTCOME_UNKNOWN']).optional()
       }
     },
     tool(async ({ workspaceId, action, taskRunId, revision, deadlineMs, heartbeatTimeoutMs, checks, outcome }: {
@@ -1855,7 +1937,7 @@ function createBrowserMcpServer(
         | { id: string; type: 'expected-origin'; tabId: string; expectedOrigin: string }
         | { id: string; type: 'audit-run'; runId: string }
       >
-      outcome?: 'SUCCEEDED' | 'FAILED' | 'BLOCKED' | 'OUTCOME_UNKNOWN'
+      outcome?: 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'BLOCKED' | 'OUTCOME_UNKNOWN'
     }) => {
       if (!taskRuns) throw new Error('Task-run storage is unavailable')
       const authorizeActive = (): void => { requireAgentWorkspace(workspaceId) }

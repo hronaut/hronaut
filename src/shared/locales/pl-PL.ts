@@ -2856,7 +2856,12 @@ export const plPL = {
       "emptyHeading": "Brak działań na kartach",
       "emptyDescription": "Wywołania narzędzi pojawią się tutaj po rozpoczęciu pracy przez agenta.",
       "failed": "Niepowodzenie",
-      "done": "Gotowe"
+      "done": "Gotowe",
+      "cancelled": "Anulowano",
+      "blocked": "Zablokowano",
+      "timedOut": "Przekroczono limit czasu",
+      "interrupted": "Przerwano",
+      "unknown": "Wynik nieznany"
     },
     "support": {
       "kicker": "Połączenie",

@@ -90,7 +90,7 @@ The dedicated **Home** application button sits outside the browser tab list and 
 - Copy-ready setup instructions for Codex, Claude Code, Cursor, VS Code / GitHub Copilot, OpenCode, Gemini CLI, Goose, Cline, Zoo Code, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, Grok Build, Qwen Code, and generic Streamable HTTP clients, including verification commands where the client provides one.
 - A live list of active requests and recently seen MCP clients.
 - The current browser tool catalog, grouped by session, navigation, interaction, and inspection.
-- A privacy-safe activity dashboard with recent tab actions, duration, outcome, and per-launch impact totals. It records no URLs, selectors, typed text, screenshots, or page content.
+- A privacy-safe activity dashboard with recent tab actions, duration, bounded outcome and reason categories, dispatch/effect certainty, and per-launch and per-tool totals. Legacy `finished`/`failed` fields remain available to dashboard consumers. It records no URLs, selectors, typed text, screenshots, or page content.
 - The local MCP endpoint and authentication guidance.
 
 Regular websites, including `https://google.com`, can be opened from the address bar, a new-tab request with a URL, or `browser_navigate`.
@@ -336,7 +336,11 @@ admission, then every check must pass again before success is published. A faile
 Missing heartbeats or the overall deadline produce `TIMED_OUT` with a fixed
 reason. An unfinished run restored after application restart becomes
 `OUTCOME_UNKNOWN`; Hronaut never resumes work or infers success. Callers may
-also explicitly finish with `FAILED`, `BLOCKED`, or `OUTCOME_UNKNOWN`. The
+also explicitly finish with `FAILED`, `CANCELLED`, `BLOCKED`, or
+`OUTCOME_UNKNOWN`. Every summary adds a stable lowercase `outcome`, bounded
+`reasonCode`, and `evidenceSource` while retaining `state` and `terminalReason`
+for compatibility. `effects` remains `not-established`: stopping a run does not
+prove that earlier browser effects were rolled back. The
 profile retains at most 100 runs and evicts only the oldest terminal record when
 full. Corrupt or oversized history makes the service unavailable rather than
 silently resetting it.

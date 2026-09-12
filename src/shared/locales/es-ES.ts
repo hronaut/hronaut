@@ -2856,7 +2856,12 @@ export const esES = {
       "emptyHeading": "Aún no hay acciones de pestaña",
       "emptyDescription": "Las llamadas de herramientas aparecerán aquí cuando un agente empiece a trabajar.",
       "failed": "Falló",
-      "done": "Hecho"
+      "done": "Hecho",
+      "cancelled": "Cancelado",
+      "blocked": "Bloqueado",
+      "timedOut": "Tiempo agotado",
+      "interrupted": "Interrumpido",
+      "unknown": "Resultado desconocido"
     },
     "support": {
       "kicker": "Conexión",
