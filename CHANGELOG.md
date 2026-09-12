@@ -8,7 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Keep Commands, Tabs, Downloads, History, input blocking, mute all tabs, and agent following in one row of named utility icons. Place Settings directly after MCP status and retain access to every utility in narrow and short workspace rails.
+- Keep Commands, Tabs, Downloads, History, input blocking, mute all tabs, and agent following in one row of named utility icons. Place Settings directly after MCP status and retain access to every utility in narrow and short workspace rails. Give utilities their own row in smaller top-tab windows so workspace tabs remain usable.
 - Use consistent button sizes, borders, icons, keyboard focus, and primary or destructive states throughout Settings, including workspace data, MCP credentials, downloads, wallets, and updates.
 
 ### Fixed

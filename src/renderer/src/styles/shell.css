@@ -209,7 +209,7 @@
   .browser-tabs-bar.horizontal .tab-group-default-badge { @apply hidden; }
   .browser-tabs-bar.horizontal .tab:not(.pinned) { @apply [width:112px] [flex-basis:112px]; }
 }
-@media (max-width: 720px) {
+@media (max-width: 1040px) {
   .shell:not(.vertical-tabs-shell) .topbar,
   .custom-title-bar:not(.vertical-tabs-shell) .topbar[data-titlebar-drag-surface] {
     @apply flex-wrap [height:auto] [row-gap:3px];
@@ -218,6 +218,10 @@
   .shell:not(.vertical-tabs-shell) .topbar-actions {
     @apply [flex:0_0_100%] justify-end [margin-left:0];
   }
+  .shell:not(.vertical-tabs-shell) .update-status-pill { @apply [width:32px] [max-width:32px] [min-width:32px] justify-center p-0; }
+  .shell:not(.vertical-tabs-shell) :is(.update-status-label, .update-status-chevron) { @apply hidden; }
+}
+@media (max-width: 720px) {
   .shell .toolbar { @apply [gap:2px]; }
   .shell:not(.vertical-tabs-shell) .toolbar { @apply [padding-inline:8px]; }
   .shell .address-form { @apply [min-width:100px] [margin-inline:2px]; }

@@ -43,17 +43,19 @@ test('shows update status beside MCP ready and opens update details without movi
   const upToDatePill = appWindow.getByRole('button', { name: /Open software updates: Hronaut is up to date/ })
   await expect(upToDatePill).toBeVisible()
 
-  const [topbarBounds, pillBounds, mcpBounds] = await Promise.all([
+  const [topbarBounds, pillBounds, mcpBounds, settingsBounds] = await Promise.all([
     appWindow.locator('.topbar').boundingBox(),
     upToDatePill.boundingBox(),
-    appWindow.getByRole('button', { name: /MCP ready/ }).boundingBox()
+    appWindow.locator('.mcp-controls').boundingBox(),
+    appWindow.getByRole('button', { name: 'Settings', exact: true }).boundingBox()
   ])
   expect(topbarBounds).not.toBeNull()
   expect(pillBounds).not.toBeNull()
   expect(mcpBounds).not.toBeNull()
   expect(pillBounds!.y).toBeGreaterThanOrEqual(topbarBounds!.y)
   expect(pillBounds!.y + pillBounds!.height).toBeLessThanOrEqual(topbarBounds!.y + topbarBounds!.height)
-  expect(pillBounds!.x + pillBounds!.width).toBeLessThanOrEqual(mcpBounds!.x)
+  expect(mcpBounds!.x + mcpBounds!.width).toBeLessThanOrEqual(settingsBounds!.x)
+  expect(settingsBounds!.x + settingsBounds!.width).toBeLessThanOrEqual(pillBounds!.x)
   await expect.poll(browserViewY).toBe(initialBrowserViewY)
   await expect(upToDatePill).toBeHidden({ timeout: 6_000 })
 
