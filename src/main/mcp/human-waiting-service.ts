@@ -3,6 +3,13 @@ import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
 
 type Authorization = () => void
 type WaitingInput = Parameters<HumanWaitingStore['create']>[0]
+export interface HumanWaitingReviewBinding {
+  id: string
+  revision: string
+  toolName: string
+  artifactHash: string
+  sessionBinding: string
+}
 
 /** One main-process owner. Serialization makes returned decisions durable and
  * prevents queued operations from using a superseded revision. Browser actions
@@ -79,7 +86,7 @@ export class HumanWaitingService {
     })
   }
 
-  change(workspaceId: string, id: string, revision: string, action: 'acknowledge' | 'cancel' | 'resolve', authorize: Authorization, validateFresh?: () => Promise<void>) {
+  change(workspaceId: string, id: string, revision: string, action: 'acknowledge' | 'cancel' | 'reject' | 'resolve', authorize: Authorization, validateFresh?: () => Promise<void>) {
     return this.serialize(async () => {
       authorize()
       if (!this.store.list(workspaceId).some(record => record.id === id)) throw new Error('Waiting decision unavailable')
@@ -110,7 +117,7 @@ export class HumanWaitingService {
     return record
   }
 
-  requireDispatch(workspaceId: string, authorize: Authorization): Promise<void> {
+  requireDispatch(workspaceId: string, authorize: Authorization, review?: HumanWaitingReviewBinding): Promise<void> {
     return this.serialize(async () => {
       authorize()
       // Dispatch checks also observe expiry. Persist that transition before
@@ -118,11 +125,86 @@ export class HumanWaitingService {
       const snapshot = this.store.snapshot()
       if (JSON.stringify(snapshot.records) !== this.persistedRecords) await this.save()
       authorize()
-      if (snapshot.records.some(record => record.workspaceId === workspaceId && (record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED'))) {
+      const workspaceRecords = snapshot.records.filter(record => record.workspaceId === workspaceId)
+      if (workspaceRecords.some(record => record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED')) {
         throw new Error('Workspace is waiting for a human decision')
       }
+      const approved = workspaceRecords.find(record => record.review?.status === 'APPROVED')
+      if (approved) {
+        if (!review) {
+          throw new Error('An approved review is waiting for its exact proposed action')
+        }
+        if (review.id !== approved.id || review.revision !== approved.revision) {
+          this.store.invalidateResolution(approved.id)
+          await this.save()
+          throw new Error('The reviewed action binding changed; create a fresh review')
+        }
+        const artifact = this.store.approvedReview(review.id, review.revision).review!
+        if (artifact.toolName !== review.toolName || artifact.artifactHash !== review.artifactHash
+          || artifact.sessionBinding !== review.sessionBinding) {
+          this.store.invalidateResolution(review.id)
+          await this.save()
+          throw new Error('The reviewed action or session changed; create a fresh review')
+        }
+      } else if (review) {
+        throw new Error('Approved review unavailable or stale')
+      }
+      authorize()
       // Terminal waiting status grants no permission. The caller still checks
       // continuity, current ownership, pause state, and action authorization.
+    })
+  }
+
+  beginReviewedDispatch(
+    workspaceId: string,
+    review: HumanWaitingReviewBinding,
+    authorize: Authorization,
+    validateFresh: () => void | Promise<void>
+  ) {
+    return this.serialize(async () => {
+      authorize()
+      const approved = this.store.approvedReview(review.id, review.revision)
+      if (approved.workspaceId !== workspaceId) throw new Error('Approved review unavailable or stale')
+      try {
+        await validateFresh()
+        authorize()
+      } catch {
+        this.store.invalidateResolution(review.id)
+        await this.save()
+        throw new Error('Browser context changed before reviewed dispatch; create a fresh review')
+      }
+      const attempted = this.store.beginReviewAttempt(review.id, review.revision, review)
+      await this.save()
+      if (!attempted.accepted) throw new Error('The reviewed action or session changed; create a fresh review')
+      try {
+        await validateFresh()
+        authorize()
+      } catch {
+        this.store.invalidateReviewAttempt(attempted.record.id, attempted.record.revision)
+        await this.save()
+        throw new Error('Browser context changed before reviewed dispatch; create a fresh review')
+      }
+      return this.current(workspaceId, attempted.record.id)
+    })
+  }
+
+  finishReviewedDispatch(workspaceId: string, id: string, revision: string, outcome: 'verified' | 'unknown', authorize: Authorization) {
+    return this.serialize(async () => {
+      authorize()
+      if (!this.store.list(workspaceId).some(record => record.id === id)) throw new Error('Reviewed attempt unavailable')
+      const result = this.store.finishReviewAttempt(id, revision, outcome)
+      await this.save()
+      authorize()
+      return this.current(workspaceId, result.id)
+    })
+  }
+
+  invalidateApprovedReview(workspaceId: string, id: string, revision: string): Promise<void> {
+    return this.serialize(async () => {
+      const approved = this.store.approvedReview(id, revision)
+      if (approved.workspaceId !== workspaceId) throw new Error('Approved review unavailable or stale')
+      this.store.invalidateResolution(id)
+      await this.save()
     })
   }
 

@@ -60,3 +60,31 @@ it('loads current decisions when the workspace controls become available', async
   expect(browser.listHumanWaiting).toHaveBeenCalledExactlyOnceWith('first')
   expect(view.text()).toContain('Operator')
 })
+
+it('shows a bounded exact-action receipt and offers cheap rejection', async () => {
+  const reviewedRecord: HumanWaitingRecord = {
+    ...record,
+    decision: 'approve-action',
+    review: {
+      toolName: 'browser_click', actionClass: 'interact', reversibility: 'unknown',
+      representation: 'bounded-description', description: 'Submit the visible form', expectedPostcondition: 'Confirmation appears',
+      artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64), workspaceName: 'Checkout QA', profileName: 'Restricted QA',
+      origin: 'https://example.com', tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 3,
+      humanInputGeneration: 1, status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }]
+    }
+  }
+  const browser = {
+    listHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord[]> => [reviewedRecord]),
+    changeHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord> => ({ ...reviewedRecord, state: 'REJECTED' }))
+  }
+  const view = mount(HumanWaitingPanel, { props: { workspaceId: 'first', browser }, global: { plugins: [createHronautI18n('en-US')] } })
+  dispose.push(() => view.unmount())
+  await flushPromises()
+  expect(view.text()).toContain('Submit the visible form')
+  expect(view.text()).toContain('Checkout QA')
+  expect(view.text()).toContain('Restricted QA')
+  expect(view.text()).toContain('a'.repeat(64))
+  const reject = view.findAll('button').find(item => item.text() === 'Reject action')!
+  await reject.trigger('click'); await flushPromises()
+  expect(browser.changeHumanWaiting).toHaveBeenCalledExactlyOnceWith('first', 'decision', 'revision', 'reject')
+})
