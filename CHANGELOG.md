@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.4] - 2026-09-14
+
 ### Added
 
 - Publish a version-matched, informational operator manifest with each release so agent clients can discover supported tool sets, local prerequisites, authority boundaries, result states, and independent read-back requirements.
