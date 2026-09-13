@@ -1337,6 +1337,7 @@ export class BrowserTabsManager {
           pinned: tab.pinned === true && !isHronautHomeUrl(tab.url),
           muted: tab.muted === true,
           humanInteractionLocked: tab.humanInteractionLocked === true,
+          faviconDataUrl: tab.faviconDataUrl,
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
             : tab.mcpGroupId,
@@ -4231,7 +4232,7 @@ export class BrowserTabsManager {
 
   async findInPage(
     query: string,
-    options: { tabId?: string; forward?: boolean; findNext?: boolean } = {}
+    options: { tabId?: string; forward?: boolean; findNext?: boolean; caseSensitive?: boolean } = {}
   ): Promise<{ activeMatchOrdinal: number; matches: number }> {
     if (!query || query.length > MAX_FIND_QUERY_LENGTH) throw new Error('Find query must contain between 1 and 1,000 characters')
     const webContents = this.getTab(options.tabId).webContents
@@ -4259,7 +4260,8 @@ export class BrowserTabsManager {
       webContents.once('destroyed', onDestroyed)
       requestId = webContents.findInPage(query, {
         forward: options.forward ?? true,
-        findNext: options.findNext ?? true
+        findNext: options.findNext ?? true,
+        matchCase: options.caseSensitive ?? false
       })
     })
   }
@@ -7330,6 +7332,7 @@ export class BrowserTabsManager {
     pinned?: boolean
     muted?: boolean
     humanInteractionLocked?: boolean
+    faviconDataUrl?: string
     focus?: boolean
     navigationGeneration?: number
     suppressInitialHistory?: boolean
@@ -7392,6 +7395,7 @@ export class BrowserTabsManager {
       lastActiveAt: Date.now(),
       humanInteractionLocked: options.humanInteractionLocked === true,
       preserveDiagnosticLogs: true,
+      ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
       faviconRequestId: 0,
       audible: false,
       tabMuted: options.muted === true,
@@ -7941,7 +7945,7 @@ export class BrowserTabsManager {
         details.preventDefault()
       }
     })
-    webContents.on('did-start-navigation', (_event, _url, isSameDocument, isMainFrame) => {
+    webContents.on('did-start-navigation', (_event, _navigationUrl, isSameDocument, isMainFrame) => {
       if (tab.sleeping || !isMainFrame) return
       tab.navigationGeneration += 1
       this.invalidateTabOverviewPreview(tab)
@@ -7950,7 +7954,6 @@ export class BrowserTabsManager {
       ))
       if (isSameDocument) return
       tab.faviconRequestId += 1
-      tab.faviconDataUrl = undefined
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
@@ -7985,9 +7988,13 @@ export class BrowserTabsManager {
       this.trackWorkspaceOrigin(tab, url)
       tab.memoryBaseline = undefined
       try {
-        if (new URL(tab.url).origin !== new URL(url).origin) tab.storageComparison = undefined
+        if (new URL(tab.url).origin !== new URL(url).origin) {
+          tab.storageComparison = undefined
+          tab.faviconDataUrl = undefined
+        }
       } catch {
         tab.storageComparison = undefined
+        tab.faviconDataUrl = undefined
       }
       tab.pendingHistoryUrl = isWebUrl(url) ? url : null
       syncNavigation()
@@ -8335,7 +8342,7 @@ export class BrowserTabsManager {
           const parsed = new URL(faviconUrl)
           if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
           const response = await tab.webContents.session.fetch(parsed.href, {
-            credentials: 'omit',
+            credentials: 'include',
             signal: AbortSignal.timeout(5_000)
           })
           if (!response.ok) continue
@@ -11089,6 +11096,7 @@ export class BrowserTabsManager {
         pinned: tab.pinned,
         muted: tab.tabMuted,
         humanInteractionLocked: tab.humanInteractionLocked,
+        ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
         ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
       }))
     }

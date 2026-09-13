@@ -27,6 +27,7 @@ export interface PersistedTab {
   pinned?: boolean
   muted?: boolean
   humanInteractionLocked?: boolean
+  faviconDataUrl?: string
   mcpGroupId?: string
 }
 
@@ -80,6 +81,8 @@ const MAX_ACTIVE_WORKSPACES = 50
 const MAX_SAVED_WORKSPACES = 50
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
+const MAX_PERSISTED_FAVICON_DATA_URL_LENGTH = 128 * 1024
+const PERSISTED_FAVICON_DATA_URL_PATTERN = /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -179,6 +182,19 @@ function normalizePersistedTabUrl(value: unknown): string | null {
   } catch {
     return null
   }
+}
+
+function persistedFaviconDataUrl(value: unknown): string | undefined {
+  if (typeof value !== 'string'
+    || value.length > MAX_PERSISTED_FAVICON_DATA_URL_LENGTH
+    || !PERSISTED_FAVICON_DATA_URL_PATTERN.test(value)) return undefined
+  const encoded = value.slice('data:image/png;base64,'.length)
+  const bytes = Buffer.from(encoded, 'base64')
+  return bytes.length >= 8
+    && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+    && bytes.toString('base64') === encoded
+    ? value
+    : undefined
 }
 
 function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrowserState {
@@ -422,6 +438,8 @@ export class TabStateStore {
             ? 'about:blank'
             : url
         if (normalizedUrl !== candidate.url) repairedPersistedState = true
+        const faviconDataUrl = persistedFaviconDataUrl(candidate.faviconDataUrl)
+        if (candidate.faviconDataUrl !== undefined && faviconDataUrl === undefined) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({
           id: candidate.id,
@@ -432,6 +450,7 @@ export class TabStateStore {
           pinned: candidate.pinned === true,
           muted: candidate.muted === true,
           humanInteractionLocked: candidate.humanInteractionLocked === true,
+          ...(faviconDataUrl ? { faviconDataUrl } : {}),
           ...(typeof candidate.mcpGroupId === 'string' ? { mcpGroupId: candidate.mcpGroupId } : {})
         })
       }

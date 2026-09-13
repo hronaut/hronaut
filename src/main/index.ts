@@ -2736,14 +2736,15 @@ function registerIpc(): void {
   ipcMain.handle('browser:find-in-page', (event, options: unknown) => {
     assertTrustedShellSender(event)
     if (typeof options !== 'object' || options === null) throw new TypeError('Invalid find options')
-    const { query, tabId, forward, findNext } = options as Record<string, unknown>
+    const { query, tabId, forward, findNext, caseSensitive } = options as Record<string, unknown>
     if (
       typeof query !== 'string'
       || (tabId !== undefined && typeof tabId !== 'string')
       || (forward !== undefined && typeof forward !== 'boolean')
       || (findNext !== undefined && typeof findNext !== 'boolean')
+      || (caseSensitive !== undefined && typeof caseSensitive !== 'boolean')
     ) throw new TypeError('Invalid find options')
-    return tabsManager!.findInPage(query, { tabId, forward, findNext })
+    return tabsManager!.findInPage(query, { tabId, forward, findNext, caseSensitive })
   })
   ipcMain.handle('browser:stop-find-in-page', (event, tabId: unknown) => {
     assertTrustedShellSender(event)

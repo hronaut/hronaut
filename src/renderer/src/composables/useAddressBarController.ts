@@ -95,6 +95,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (disposed) return
     cancelBlur()
     selection.value = -1
+    // Clear any pending native-overlay dismissal before reopening. A renderer
+    // can focus the address bar again before the destroyed overlay's dismissal
+    // event has completed its IPC round trip.
+    if (!open.value) options.overlay?.hide()
     open.value = true
     options.onOpen()
   }

@@ -104,6 +104,22 @@ describe('TabStateStore', () => {
     })
   })
 
+  it('restores bounded PNG favicons and repairs invalid persisted favicon data', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.faviconDataUrl = 'data:image/png;base64,iVBORw0KGgo='
+    await store.save(state)
+
+    expect((await store.load())?.tabs[1]?.faviconDataUrl).toBe(state.tabs[1]!.faviconDataUrl)
+
+    const persisted = JSON.parse(await readFile(path, 'utf8')) as PersistedBrowserState
+    persisted.tabs[1]!.faviconDataUrl = `data:image/png;base64,${'A'.repeat(128 * 1024)}`
+    await writeFile(path, JSON.stringify(persisted), 'utf8')
+
+    expect((await store.load())?.tabs[1]?.faviconDataUrl).toBeUndefined()
+    expect(JSON.parse(await readFile(path, 'utf8')).tabs[1]).not.toHaveProperty('faviconDataUrl')
+  })
+
   it('serializes concurrent saves and keeps the last queued browser state', async () => {
     const { path, store } = await createStore()
     const states = Array.from({ length: 20 }, (_value, index) => {

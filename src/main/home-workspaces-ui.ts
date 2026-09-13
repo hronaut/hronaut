@@ -48,6 +48,7 @@ export const HOME_WORKSPACES_SCRIPT = String.raw`
           + workspaceButton('open', group.archived ? workspaceMessages.restore : workspaceMessages.openWorkspace, group.id, false, true)
           + workspaceButton(group.archived ? 'transfer' : 'edit', group.archived ? workspaceLabels.transfer : workspaceLabels.manage, group.id)
           + workspaceButton(group.archived ? 'delete' : 'archive', group.archived ? workspaceMessages.delete : workspaceMessages.archive, group.id, workspaceState.allHumanInteractionLocked || (group.archived && group.deletionProtected))
+          + (group.archived ? '' : workspaceButton('clear', workspaceMessages.clear, group.id, group.deletionProtected))
           + '</footer><details class="workspace-quick-settings"><summary>' + escapeText(workspaceMessages.preferences) + '</summary><label><input type="checkbox" data-workspace-preference="hiddenFromSidebar" data-workspace-id="' + escapeText(group.id) + '"' + (group.hiddenFromSidebar ? ' checked' : '') + (workspacePending ? ' disabled' : '') + '>' + escapeText(workspaceMessages.hideFromSidebar) + '</label><label><input type="checkbox" data-workspace-preference="deletionProtected" data-workspace-id="' + escapeText(group.id) + '"' + (group.deletionProtected ? ' checked' : '') + (workspacePending ? ' disabled' : '') + '>' + escapeText(workspaceMessages.protectDeletion) + '</label></details></article>';
       }).join('') : '<div class="workspace-empty"><h2>' + escapeText(workspaceMessages[query ? 'noMatches' : workspaceView === 'archived' ? 'noArchived' : 'empty']) + '</h2><p>' + escapeText(workspaceMessages[query ? 'searchHelp' : workspaceView === 'archived' ? 'archiveHelp' : 'emptyHelp']) + '</p></div>';
       // Preserve focused controls and expanded preferences during status polling.
@@ -63,9 +64,11 @@ export const HOME_WORKSPACES_SCRIPT = String.raw`
     }
     async function workspaceAction(request) {
       if (workspacePending) return;
-      if (request.view === 'delete') {
-        const group = workspaceState.savedTabGroups.find(group => group.id === request.workspaceId);
-        if (!group || group.deletionProtected || !window.confirm(interpolate(workspaceMessages.deleteConfirm, { name: group.name }))) return;
+      if (request.view === 'delete' || request.view === 'clear') {
+        const group = request.view === 'delete'
+          ? workspaceState.savedTabGroups.find(group => group.id === request.workspaceId)
+          : workspaceState.mcpTabGroups.find(group => group.id === request.workspaceId);
+        if (!group || group.deletionProtected || !window.confirm(interpolate(workspaceMessages[request.view === 'clear' ? 'clearConfirm' : 'deleteConfirm'], { name: group.name }))) return;
       }
       workspacePending = true;
       const revision = ++workspaceRevision;
@@ -82,9 +85,9 @@ export const HOME_WORKSPACES_SCRIPT = String.raw`
         if (request.view === 'archive') {
           undoWorkspaceId = request.workspaceId;
           workspaceNotice.textContent = interpolate(workspaceMessages.archiveNotice, { name: group.name });
-        } else if (request.view === 'restore' || request.view === 'delete') {
+        } else if (request.view === 'restore' || request.view === 'delete' || request.view === 'clear') {
           undoWorkspaceId = null;
-          workspaceNotice.textContent = interpolate(workspaceMessages[request.view === 'restore' ? 'restoreNotice' : 'deleteNotice'], { name: group.name });
+          workspaceNotice.textContent = interpolate(workspaceMessages[request.view === 'restore' ? 'restoreNotice' : request.view === 'clear' ? 'clearNotice' : 'deleteNotice'], { name: group.name });
         }
       } catch (cause) {
         if (revision === workspaceRevision) {

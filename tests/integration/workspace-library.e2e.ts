@@ -105,6 +105,7 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
   const card = home.getByRole('article', { name: 'Private research', exact: true })
   await expect(card).toBeVisible()
   await expect(card.getByText('Deletion protected', { exact: true })).toBeVisible()
+  await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeDisabled()
   await card.getByRole('button', { name: 'Open workspace', exact: true }).click()
   await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(s => s.tabs.find(t => t.active)?.mcpGroupId)')).toBeTruthy()
   await expect(appWindow.locator('.tab-group-label', { hasText: 'Private research' })).toHaveCount(0)
@@ -125,6 +126,30 @@ test('creates a hidden protected workspace from Home at enlarged scale and keeps
   await card.locator('summary').click()
   await card.getByLabel('Protect from deletion', { exact: true }).uncheck()
   await expect(card.getByRole('button', { name: 'Delete…', exact: true })).toBeEnabled()
+})
+
+test('clears an open workspace from Home while website input is locked', async ({ appWindow, electronApp }) => {
+  const state = await appWindow.evaluate(async () => {
+    const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+    const created = await browser.createWorkspace({ name: 'Stuck workspace', storage: 'scratch' })
+    await browser.setAllHumanInteractionLocked(true)
+    await browser.openHome()
+    return created
+  })
+  const workspaceId = state.mcpTabGroups.find(group => group.name === 'Stuck workspace')!.id
+  const home = await homePage(electronApp)
+  const card = home.getByRole('article', { name: 'Stuck workspace', exact: true })
+
+  await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
+  await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeEnabled()
+  home.once('dialog', dialog => dialog.accept())
+  await card.getByRole('button', { name: 'Clear…', exact: true }).click()
+
+  await expect(card).toBeHidden()
+  await expect.poll(() => appWindow.evaluate(id => (
+    (window as unknown as { hronaut: HronautApi }).hronaut.getState()
+      .then(state => state.mcpTabGroups.some(group => group.id === id))
+  ), workspaceId)).toBe(false)
 })
 
 test('persists deletion protection and browser mute without requiring a website tab', async ({ profileDirectory }) => {

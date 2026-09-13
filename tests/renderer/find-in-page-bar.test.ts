@@ -62,7 +62,8 @@ describe('FindInPageBar', () => {
       tabId: 'first',
       query: 'needle',
       forward: true,
-      findNext: true
+      findNext: true,
+      caseSensitive: false
     }))
     expect(screen.getByText('1 / 3')).toBeVisible()
 
@@ -71,14 +72,31 @@ describe('FindInPageBar', () => {
       tabId: 'first',
       query: 'needle',
       forward: true,
-      findNext: false
+      findNext: false,
+      caseSensitive: false
     })
     await user.click(screen.getByRole('button', { name: 'Previous match' }))
     expect(browser.findInPage).toHaveBeenLastCalledWith({
       tabId: 'first',
       query: 'needle',
       forward: false,
-      findNext: false
+      findNext: false,
+      caseSensitive: false
+    })
+  })
+
+  it('restarts the current search when match case changes', async () => {
+    const { browser } = renderBar()
+    const user = userEvent.setup()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'Needle')
+
+    const matchCase = screen.getByRole('button', { name: 'Match case' })
+    expect(matchCase).toHaveAttribute('aria-pressed', 'false')
+    await user.click(matchCase)
+
+    expect(matchCase).toHaveAttribute('aria-pressed', 'true')
+    expect(browser.findInPage).toHaveBeenLastCalledWith({
+      tabId: 'first', query: 'Needle', forward: true, findNext: true, caseSensitive: true
     })
   })
 

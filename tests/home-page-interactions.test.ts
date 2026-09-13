@@ -272,6 +272,25 @@ describe('Home workspace hub', () => {
     expect(action).toHaveBeenCalledTimes(2)
   })
 
+  it('confirms and clears an open workspace beside Archive even while website input is locked', async () => {
+    const locked = { ...inventory, allHumanInteractionLocked: true }
+    const cleared = { ...locked, mcpTabGroups: [] }
+    const action = vi.fn().mockResolvedValue(cleared)
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(locked), workspaceAction: action })
+    await settle()
+
+    const actions = [...document.querySelectorAll<HTMLButtonElement>('.home-workspace-card footer button')]
+    expect(actions.map(item => item.textContent)).toEqual(['Open workspace', 'Manage', 'Archive', 'Clear…'])
+    expect(button('[data-workspace-action="clear"]').disabled).toBe(false)
+    button('[data-workspace-action="clear"]').click()
+    await settle()
+
+    expect(confirm).toHaveBeenCalledWith('Permanently clear “Research <safe>”, close its pages, and delete its website data? This cannot be undone.')
+    expect(action).toHaveBeenCalledWith({ view: 'clear', workspaceId: 'project' })
+    expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
+  })
+
   it('does not let an older inventory read undo a completed preference change', async () => {
     let finishRead!: (value: unknown) => void
     const getWorkspaces = vi.fn().mockResolvedValueOnce(inventory).mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))

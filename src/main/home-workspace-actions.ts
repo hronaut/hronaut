@@ -14,7 +14,7 @@ export function homeWorkspaceState(manager: Pick<BrowserTabsManager, 'getState'>
 }
 
 export async function runHomeWorkspaceAction(
-  manager: Pick<BrowserTabsManager, 'getState' | 'openHome' | 'selectTab' | 'newTab' | 'saveAndCloseTabGroup' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'updateMcpTabGroup' | 'updateArchivedWorkspacePreferences'>,
+  manager: Pick<BrowserTabsManager, 'getState' | 'openHome' | 'selectTab' | 'newTab' | 'saveAndCloseTabGroup' | 'closeWorkspace' | 'restoreSavedTabGroup' | 'deleteSavedTabGroup' | 'updateMcpTabGroup' | 'updateArchivedWorkspacePreferences'>,
   input: unknown,
   edit: (request: HomeWorkspaceEditorRequest) => void
 ): Promise<HomeWorkspaceState> {
@@ -48,6 +48,10 @@ export async function runHomeWorkspaceAction(
     case 'archive':
       if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before archiving a workspace.')
       await manager.saveAndCloseTabGroup(request.workspaceId)
+      break
+    case 'clear':
+      if (!active) throw new Error('Only an open workspace can be cleared from this view.')
+      await manager.closeWorkspace(request.workspaceId)
       break
     case 'delete':
       if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before deleting a workspace.')

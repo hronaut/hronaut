@@ -114,6 +114,24 @@ async function connect(broker: WalletBroker): Promise<void> {
 }
 
 describe('WalletBroker', () => {
+  it('shares one approval when a website requests the same wallet connection twice', async () => {
+    const { service, wallet } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    const first = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    const second = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.operation === 'connect-account' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const request = broker.listPending().find((entry) => entry.operation === 'connect-account')!
+
+    await broker.approve(request.id)
+
+    await expect(first).resolves.toEqual([wallet.publicAddress])
+    await expect(second).resolves.toEqual([wallet.publicAddress])
+    expect(broker.listPending().filter((entry) => entry.operation === 'connect-account')).toHaveLength(1)
+  })
+
   it('rejects public human approval while a request is still in policy-decision', async () => {
     const { service, wallet } = await setup('testnet')
     const now = new Date()

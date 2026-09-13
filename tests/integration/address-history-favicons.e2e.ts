@@ -87,3 +87,60 @@ for (const format of ['svg', 'ico', 'data-svg', 'png'] as const) {
     }
   })
 }
+
+test('loads an authenticated favicon and retains it while the same page reloads', async ({ appWindow, electronApp }) => {
+  const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
+  let pageRequests = 0
+  let releaseReload!: () => void
+  const reloadBlocked = new Promise<void>((resolve) => { releaseReload = resolve })
+  const server = createServer(async (request, response) => {
+    if (request.url === '/favicon') {
+      if (!request.headers.cookie?.includes('favicon-session=allowed')) {
+        response.writeHead(401, { 'cache-control': 'no-store' })
+        response.end('authentication required')
+        return
+      }
+      response.writeHead(200, {
+        'cache-control': 'no-store',
+        'content-type': 'image/png',
+        'content-length': png.length
+      })
+      response.end(png)
+      return
+    }
+    pageRequests += 1
+    if (pageRequests > 1) await reloadBlocked
+    response.writeHead(200, {
+      'cache-control': 'no-store',
+      'content-type': 'text/html',
+      'set-cookie': 'favicon-session=allowed; Path=/; SameSite=Lax'
+    })
+    response.end('<!doctype html><title>Authenticated icon</title><link rel="icon" href="/favicon"><main>Authenticated icon</main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const serverAddress = server.address()
+    if (!serverAddress || typeof serverAddress === 'string') throw new Error('Authenticated favicon server is unavailable')
+    const url = `http://127.0.0.1:${serverAddress.port}/page`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    const favicon = appWindow.locator('.tab.active .favicon-image')
+    await expect(favicon).toHaveAttribute('src', /^data:image\/png;base64,/)
+    const initialIcon = await favicon.getAttribute('src')
+
+    await electronApp.evaluate(({ webContents }, targetUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === targetUrl)
+      if (!page) throw new Error('Authenticated favicon page is unavailable')
+      page.reload()
+    }, url)
+    await expect.poll(() => pageRequests).toBe(2)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.faviconDataUrl)'))
+      .toBe(initialIcon)
+
+    releaseReload()
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.loading)')).toBe(false)
+    await expect(favicon).toHaveAttribute('src', initialIcon!)
+  } finally {
+    releaseReload?.()
+    await closeFixtureServer(server)
+  }
+})

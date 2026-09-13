@@ -1826,6 +1826,7 @@ export interface BrowserFindOptions {
   query: string
   forward?: boolean
   findNext?: boolean
+  caseSensitive?: boolean
 }
 
 export interface BrowserFindResult {

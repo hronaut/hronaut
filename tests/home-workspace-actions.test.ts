@@ -11,7 +11,7 @@ function harness() {
   } as unknown as BrowserState
   const manager = {
     getState: () => state, openHome: vi.fn(), selectTab: vi.fn(), newTab: vi.fn(),
-    saveAndCloseTabGroup: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
+    saveAndCloseTabGroup: vi.fn(), closeWorkspace: vi.fn(), restoreSavedTabGroup: vi.fn(), deleteSavedTabGroup: vi.fn(),
     updateMcpTabGroup: vi.fn(), updateArchivedWorkspacePreferences: vi.fn()
   }
   const edit = vi.fn()
@@ -55,5 +55,15 @@ describe('trusted Home workspace actions', () => {
     await expect(h.run({ view: 'delete', workspaceId: 'archived' })).rejects.toThrow('Unlock')
     expect(h.manager.saveAndCloseTabGroup).not.toHaveBeenCalled()
     expect(h.manager.deleteSavedTabGroup).not.toHaveBeenCalled()
+  })
+
+  it('clears an active workspace from trusted Home even while website input is locked', async () => {
+    const h = harness()
+    h.state.allHumanInteractionLocked = true
+
+    await h.run({ view: 'clear', workspaceId: 'active' })
+
+    expect(h.manager.closeWorkspace).toHaveBeenCalledWith('active')
+    expect(h.manager.saveAndCloseTabGroup).not.toHaveBeenCalled()
   })
 })
