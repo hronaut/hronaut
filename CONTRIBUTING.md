@@ -91,8 +91,9 @@ Always run the complete `test:integration:docker` gate before submitting or
 delivering the change; unlike the fast preflight, it proves an immutable source
 image.
 
-The complete Docker gate distributes individual test cases across six isolated
-Electron shards by default, so a large test file cannot dominate one shard. On
+The complete Docker gate distributes individual test cases across four isolated
+Electron shards by default, which keeps a six-CPU Docker VM saturated without
+slowing renderer startup through excess contention. On
 a memory-constrained machine, reduce concurrency without changing the suite:
 
 ```bash

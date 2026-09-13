@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-shard_count="${HRONAUT_INTEGRATION_SHARDS:-6}"
+shard_count="${HRONAUT_INTEGRATION_SHARDS:-4}"
 case "$shard_count" in
   1|2|3|4|5|6|7|8) ;;
   *)

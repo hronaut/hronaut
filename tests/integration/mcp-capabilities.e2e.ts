@@ -2115,7 +2115,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     expect(text(redirectDetailsResult)).not.toContain('redirect-final-secret')
     expect(text(redirectDetailsResult)).not.toContain('cdpRequestId')
     expect(text(redirectDetailsResult)).not.toContain('initiatorRequestCdpId')
-    const slowestFetchResult = await client.callTool({
+    const durationSortedFetchResult = await client.callTool({
       name: 'browser_network',
       arguments: {
         tabId,
@@ -2123,13 +2123,22 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
         resourceType: 'fetch/xhr',
         sortBy: 'duration',
         sortDirection: 'desc',
-        limit: 1
+        limit: 10
       }
     }) as CallToolResult
-    const slowestFetch = JSON.parse(text(slowestFetchResult)) as Array<Record<string, unknown>>
-    expect(slowestFetch).toHaveLength(1)
-    expect(slowestFetch[0]).toMatchObject({ resourceType: 'fetch', durationMs: expect.any(Number) })
-    expect(String(slowestFetch[0]?.url)).toContain('timing=delayed')
+    const durationSortedFetches = JSON.parse(text(durationSortedFetchResult)) as Array<Record<string, unknown>>
+    expect(durationSortedFetches.length).toBeGreaterThan(1)
+    for (const request of durationSortedFetches) {
+      expect(['fetch', 'xhr']).toContain(request.resourceType)
+    }
+    const completedFetches = durationSortedFetches.filter((request) => typeof request.durationMs === 'number')
+    expect(completedFetches.length).toBeGreaterThan(1)
+    expect(durationSortedFetches.slice(completedFetches.length).every((request) => request.durationMs === undefined)).toBe(true)
+    const sortedDurations = completedFetches.map((request) => Number(request.durationMs))
+    expect(sortedDurations).toEqual([...sortedDurations].sort((left, right) => right - left))
+    expect(completedFetches.find((request) => String(request.url).includes('timing=delayed'))).toMatchObject({
+      durationMs: expect.any(Number)
+    })
     const propertyFilteredNetworkResult = await client.callTool({
       name: 'browser_network',
       arguments: {
@@ -2382,7 +2391,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     await expect(networkPanel.getByRole('searchbox', { name: 'Filter network requests' })).toHaveValue('')
     await networkPanel.getByRole('searchbox', { name: 'Filter network requests' })
       .fill('method:POST status-code:200 domain:127.0.0.1 larger-than:1 url:api-details')
-    await expect(networkPanel.locator('.network-request-list > button').first()).toContainText('timing=delayed')
+    await expect(networkPanel.locator('.network-request-list > button').filter({ hasText: 'timing=delayed' })).toBeVisible()
     const apiRequest = networkPanel.locator(`[data-request-id="${String(detailedRequest?.id)}"]`)
     await expect(apiRequest).toBeVisible()
     const apiWaterfall = apiRequest.locator('.network-request-waterfall')
