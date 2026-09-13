@@ -50,8 +50,10 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
 }) => {
   // This end-to-end capability tour performs hundreds of assertions across
   // independent tools. Keep normal expect deadlines, but allow the
-  // complete workflow more time than a single-feature Electron scenario.
-  test.slow()
+  // complete workflow enough time when six Docker shards contend for CPU.
+  // A focused run takes about 50 seconds, while the same path has exceeded
+  // the generic 135-second slow-test allowance under full-suite load.
+  test.setTimeout(180_000)
   let memorySaverTicks = 0
   let cacheProbeRequests = 0
   const openPageTool = async (name: string | RegExp): Promise<void> => {
