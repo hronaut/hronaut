@@ -31,7 +31,8 @@ describe('MCP tool sets', () => {
       'browser_click', 'browser_audio', 'browser_zoom', 'wallet_request_status'
     ]))
     expect(profile.allowedActions).toMatchObject({
-      browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list']
+      browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list'],
+      browser_task_runs: ['get', 'list', 'metrics']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
     expect(profile.argumentValueDigests).toEqual({

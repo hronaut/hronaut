@@ -353,6 +353,15 @@ profile retains at most 100 runs and evicts only the oldest terminal record when
 full. Corrupt or oversized history makes the service unavailable rather than
 silently resetting it.
 
+Call `metrics` to correlate retained human-decision records whose `runId`
+matches a retained task. The workspace report includes per-task and total counts
+for interruptions, interruptions per completed task, approvals, rejections,
+completed tasks, ambiguous outcomes, and decision time. `errorsCaught` counts machine-check failures and approved
+actions invalidated before dispatch; it does not treat every prompt or rejection
+as an error. Unknown correlation IDs are ignored. The report contains only
+opaque IDs, bounded states, counts, and millisecond durations, and is available
+to read-only capability profiles.
+
 Task-run files contain only workspace, tab, run and revision IDs, timestamps,
 typed check state, origin fingerprints, and opaque audit-run references. They do
 not contain prompts, page text, URLs, tool arguments or results, credentials,

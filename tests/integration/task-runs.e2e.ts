@@ -169,6 +169,34 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
       state: 'CANCELLED', terminalReason: 'CALLER_REPORTED_CANCELLED', outcome: 'cancelled',
       reasonCode: 'CALLER_REPORTED_CANCELLED', evidenceSource: 'caller-supplied', effects: 'not-established'
     })
+
+    const interruption = await call<{ id: string; revision: string }>(owner, 'browser_human_waiting', {
+      workspaceId: workspace.id, action: 'request', runId: changed.id, decision: 'review-page'
+    })
+    await call(owner, 'browser_human_waiting', {
+      workspaceId: workspace.id, action: 'cancel', id: interruption.id, revision: interruption.revision
+    })
+    const unlinked = await call<{ id: string; revision: string }>(owner, 'browser_human_waiting', {
+      workspaceId: workspace.id, action: 'request',
+      runId: '018f4d10-7b4a-7000-8000-000000000099', decision: 'review-page'
+    })
+    await call(owner, 'browser_human_waiting', {
+      workspaceId: workspace.id, action: 'cancel', id: unlinked.id, revision: unlinked.revision
+    })
+    const metrics = await call<{
+      totals: { taskCount: number; completedTasks: number; interruptions: number; errorsCaught: number; ambiguousOutcomes: number }
+      tasks: Array<{ taskRunId: string; interruptions: number; errorsCaught: number }>
+    }>(owner, 'browser_task_runs', { workspaceId: workspace.id, action: 'metrics' })
+    expect(metrics.totals).toMatchObject({
+      taskCount: 5, completedTasks: 5, interruptions: 1, errorsCaught: 1, ambiguousOutcomes: 1
+    })
+    expect(metrics.tasks.find(task => task.taskRunId === changed.id)).toMatchObject({
+      interruptions: 1, errorsCaught: 1
+    })
+    const metricsExport = JSON.stringify(metrics)
+    for (const privateValue of [origin, changedOrigin, 'private-path', 'private-token', 'private completion canary', mcpToken]) {
+      expect(metricsExport).not.toContain(privateValue)
+    }
   } finally {
     await Promise.allSettled(clients.map(client => client.close()))
     await Promise.all([closeFixtureServer(firstSite), closeFixtureServer(secondSite)])

@@ -16,6 +16,7 @@ import type { HumanWaitingReviewBinding, HumanWaitingService } from './human-wai
 import { humanWaitingArtifactHash } from './human-waiting-store.js'
 import type { TaskRunService } from './task-run-service.js'
 import type { TaskRunCheckDefinition } from './task-run-store.js'
+import { taskReviewMetrics } from './task-review-metrics.js'
 import {
   MCP_CAPABILITY_OPERATION_CLASSES,
   McpCapabilityAuthorizationError,
@@ -329,7 +330,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_human_waiting: new Set(['list']),
   browser_continuity: new Set(['status']),
   browser_audit_receipts: new Set(['list', 'read', 'evidence']),
-  browser_task_runs: new Set(['get', 'list']),
+  browser_task_runs: new Set(['get', 'list', 'metrics']),
   browser_workspaces: new Set(['list', 'list-fork-sources', 'resume', 'list-origins']),
   browser_saved_workspaces: new Set(['list']),
   browser_bookmarks: new Set(['list']),
@@ -602,7 +603,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   },
   {
     name: 'browser_task_runs', category: 'Session',
-    description: 'Register, heartbeat, inspect, or complete a bounded browser-workflow contract. Hronaut derives success from configured current-page or retained-audit checks; a caller message alone cannot mark success. Missing heartbeats, deadlines, unavailable evidence, restarts, and evidence drift remain explicit terminal states. Stores no prompt, page text, result body, credentials, or arbitrary artifact contents. This workflow contract is separate from the MCP Tasks extension for deferred execution of one tool call.'
+    description: 'Register, heartbeat, inspect, complete, or report privacy-safe review metrics for a bounded browser-workflow contract. Hronaut derives success from configured current-page or retained-audit checks; a caller message alone cannot mark success. Reports distinguish interruptions, approvals, rejections, system-caught errors, decision time, completed tasks, and ambiguous outcomes using retained correlation IDs and timestamps only. Missing heartbeats, deadlines, unavailable evidence, restarts, and evidence drift remain explicit terminal states. Stores no prompt, page text, result body, credentials, or arbitrary artifact contents. This workflow contract is separate from the MCP Tasks extension for deferred execution of one tool call.'
   },
   {
     name: 'browser_workspaces',
@@ -2095,7 +2096,7 @@ function createBrowserMcpServer(
       description: toolDescription('browser_task_runs'),
       inputSchema: {
         workspaceId: workspaceIdSchema.describe('Authorized workspace UUID. Start and heartbeat require an active workspace; retained runs may be inspected after archiving and resuming ownership.'),
-        action: z.enum(['start', 'heartbeat', 'get', 'list', 'complete']).default('list'),
+        action: z.enum(['start', 'heartbeat', 'get', 'list', 'metrics', 'complete']).default('list'),
         taskRunId: z.uuid().optional(),
         revision: z.uuid().optional().describe('Latest optimistic revision returned by start, heartbeat, get, or list.'),
         deadlineMs: z.number().int().min(1_000).max(604_800_000).optional().describe('Overall run deadline, from one second through seven days.'),
@@ -2110,7 +2111,7 @@ function createBrowserMcpServer(
     },
     tool(async ({ workspaceId, action, taskRunId, revision, deadlineMs, heartbeatTimeoutMs, checks, outcome }: {
       workspaceId: string
-      action: 'start' | 'heartbeat' | 'get' | 'list' | 'complete'
+      action: 'start' | 'heartbeat' | 'get' | 'list' | 'metrics' | 'complete'
       taskRunId?: string
       revision?: string
       deadlineMs?: number
@@ -2150,6 +2151,13 @@ function createBrowserMcpServer(
         }, authorizeActive))
       }
       if (action === 'list') return textResult(await taskRuns.list(workspaceId, authorizeRetained))
+      if (action === 'metrics') {
+        if (!humanWaiting) throw new Error('Human waiting storage is unavailable')
+        const runs = await taskRuns.list(workspaceId, authorizeRetained)
+        const decisions = await humanWaiting.list(workspaceId, authorizeRetained)
+        authorizeRetained()
+        return textResult(taskReviewMetrics(workspaceId, runs, decisions))
+      }
       if (!taskRunId) throw new TypeError(`taskRunId is required to ${action} a task run`)
       if (action === 'get') return textResult(await taskRuns.get(workspaceId, taskRunId, authorizeRetained))
       if (!revision) throw new TypeError(`revision is required to ${action} a task run`)
