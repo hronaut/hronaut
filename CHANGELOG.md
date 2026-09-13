@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-13
+
 ### Added
 
 - Add a trusted Home action to clear an open workspace, including its tabs and isolated website data, even when website input is locked.
