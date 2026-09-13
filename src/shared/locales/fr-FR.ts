@@ -87,7 +87,7 @@ export const frFR = {
       "UNKNOWN": "Résultat inconnu"
     },
     "review": {
-      "heading": "Action conséquente", "expected": "Résultat attendu", "tool": "Outil", "actionClass": "Classe d’action", "reversibility": "Réversibilité", "workspace": "Espace de travail", "profile": "Profil de capacités", "origin": "Origine actuelle", "tab": "Onglet", "navigation": "Génération de navigation", "humanInput": "Génération d’entrée humaine", "artifact": "Empreinte exacte de l’artefact", "timeline": "Chronologie des reçus de vérification", "visibleOnly": "La modification ne peut pas être représentée sans risque sous forme de texte. Vérifiez le navigateur visible avant de décider.",
+      "heading": "Action conséquente", "expected": "Résultat attendu", "tool": "Outil", "actionClass": "Classe d’action", "reversibility": "Réversibilité", "workspace": "Espace de travail", "profile": "Profil de capacités", "authority": "Génération d’autorisation", "origin": "Origine actuelle", "tab": "Onglet", "navigation": "Génération de navigation", "humanInput": "Génération d’entrée humaine", "artifact": "Empreinte exacte de l’artefact", "timeline": "Chronologie des reçus de vérification", "visibleOnly": "La modification ne peut pas être représentée sans risque sous forme de texte. Vérifiez le navigateur visible avant de décider.",
       "statuses": { "PROPOSED": "Proposée", "REVIEWED": "Vérifiée", "APPROVED": "Approuvée", "REJECTED": "Rejetée", "CANCELLED": "Annulée", "EXPIRED": "Expirée", "ATTEMPTED": "Tentée", "VERIFIED": "Confirmée", "UNKNOWN": "Inconnue" },
       "reversibilities": { "reversible": "Réversible", "conditionally-reversible": "Réversible sous conditions", "irreversible": "Irréversible", "unknown": "Inconnue" }
     },

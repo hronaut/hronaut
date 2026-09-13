@@ -87,7 +87,7 @@ export const esES = {
       "UNKNOWN": "Resultado desconocido"
     },
     "review": {
-      "heading": "Acción con consecuencias", "expected": "Resultado esperado", "tool": "Herramienta", "actionClass": "Clase de acción", "reversibility": "Reversibilidad", "workspace": "Espacio de trabajo", "profile": "Perfil de capacidades", "origin": "Origen actual", "tab": "Pestaña", "navigation": "Generación de navegación", "humanInput": "Generación de entrada humana", "artifact": "Hash exacto del artefacto", "timeline": "Cronología de recibos de revisión", "visibleOnly": "La modificación no se puede representar de forma segura como texto. Revisa el navegador visible antes de decidir.",
+      "heading": "Acción con consecuencias", "expected": "Resultado esperado", "tool": "Herramienta", "actionClass": "Clase de acción", "reversibility": "Reversibilidad", "workspace": "Espacio de trabajo", "profile": "Perfil de capacidades", "authority": "Generación de autoridad", "origin": "Origen actual", "tab": "Pestaña", "navigation": "Generación de navegación", "humanInput": "Generación de entrada humana", "artifact": "Hash exacto del artefacto", "timeline": "Cronología de recibos de revisión", "visibleOnly": "La modificación no se puede representar de forma segura como texto. Revisa el navegador visible antes de decidir.",
       "statuses": { "PROPOSED": "Propuesta", "REVIEWED": "Revisada", "APPROVED": "Aprobada", "REJECTED": "Rechazada", "CANCELLED": "Cancelada", "EXPIRED": "Caducada", "ATTEMPTED": "Intentada", "VERIFIED": "Verificada", "UNKNOWN": "Desconocida" },
       "reversibilities": { "reversible": "Reversible", "conditionally-reversible": "Reversible con condiciones", "irreversible": "Irreversible", "unknown": "Desconocida" }
     },
