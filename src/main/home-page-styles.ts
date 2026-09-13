@@ -25,7 +25,7 @@ export const HOME_PAGE_STYLES = `
   --accent-2: ${CYBERPUNK_TURBO_COLORS.secondary}; --code: #12121e; --code-text: #d8e9f0;
 }
 * { box-sizing: border-box; }
-html { min-width: 320px; min-height: 100%; background: var(--bg); scrollbar-color: var(--border) var(--bg); }
+html { min-width: 320px; min-height: 100%; background: var(--bg); scrollbar-color: var(--border) var(--bg); scrollbar-gutter: stable; }
 body { min-height: 100vh; margin: 0; color: var(--text); background: var(--bg); }
 button, input { font: inherit; }
 button { color: inherit; cursor: pointer; }

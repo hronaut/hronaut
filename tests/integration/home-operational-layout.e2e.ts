@@ -1,6 +1,31 @@
 import { writeFile } from 'node:fs/promises'
 import { expect, test } from './fixtures.js'
 
+test('Home keeps its content width and position when switching between short and scrollable tabs', async ({ electronApp }) => {
+  await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+  const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+  await expect(home.locator('#home-tab-workspaces')).toBeVisible()
+  for (const width of [1200, 760]) {
+    await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)
+    await expect.poll(() => home.evaluate(() => innerWidth)).toBe(width)
+    await home.locator('#home-tab-workspaces').click()
+    const measure = () => home.evaluate(() => {
+      const page = document.querySelector('.page')!.getBoundingClientRect()
+      return { x: page.x, width: page.width, scrollable: document.documentElement.scrollHeight > innerHeight }
+    })
+    const initial = await measure()
+    const scrollStates = new Set([initial.scrollable])
+    for (const tab of ['connect', 'tools', 'overview', 'workspaces']) {
+      await home.locator(`#home-tab-${tab}`).click()
+      const current = await measure()
+      scrollStates.add(current.scrollable)
+      expect.soft(current.width, `${width}/${tab}: content width`).toBe(initial.width)
+      expect.soft(current.x, `${width}/${tab}: content position`).toBe(initial.x)
+    }
+    expect(scrollStates.size, `${width}: exercised both short and scrollable Home tabs`).toBe(2)
+  }
+})
+
 test('Home keeps client setup accessible in a compact layout across themes and languages', async ({ electronApp, appWindow }, testInfo) => {
   const home = async <T>(source: string): Promise<T> => electronApp.evaluate(async ({ webContents }, script) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))

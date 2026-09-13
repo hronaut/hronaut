@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.3.1] - 2026-09-13
+
+### Fixed
+
+- Show history and bookmark address suggestions reliably when typing while the suggestion popup starts.
+- Display website SVG and ICO favicons across platforms, and keep tab icons when embedded frames load or navigate.
+- Keep Home content width and alignment stable when switching between tabs with and without a vertical scrollbar.
+
 ## [2.3.0] - 2026-09-13
 
 ### Changed

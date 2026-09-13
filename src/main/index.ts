@@ -1680,8 +1680,10 @@ function hideAddressSuggestionOverlay(): void {
 }
 
 async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> {
-  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) return addressSuggestionSurface
+  // A view exists before its preload and renderer are ready to receive state.
+  // Every concurrent typing update must wait for that same initial load.
   if (addressSuggestionSurfaceLoad) return addressSuggestionSurfaceLoad
+  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) return addressSuggestionSurface
   addressSuggestionSurfaceLoad = (async () => {
     const expectedUrl = trustedAddressOverlayUrl()
     const view = new WebContentsView({
