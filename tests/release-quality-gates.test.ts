@@ -149,6 +149,7 @@ describe('release quality gates', () => {
     expect(validate).not.toContain('run: npm run lint')
     expect(validate).not.toContain('run: npm test')
     expect(validate).not.toContain('run: npm run build\n')
+    expect(releaseCandidate).toContain("if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'release/')")
     expect(releaseCandidate).toContain('command: package:linux')
     expect(releaseCandidate).toContain('command: package:mac')
     expect(releaseCandidate).toContain('command: package:win')
