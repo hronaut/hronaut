@@ -69,6 +69,25 @@ describe('CredentialStore', () => {
     expect(await restored.password(saved.id)).toBe('correct horse battery staple')
   })
 
+  it('returns a password after transparently re-encrypting the same credential', async () => {
+    let encryptionCount = 0
+    const rotatingEncryption: CredentialEncryption = {
+      encrypt: async (value) => Buffer.from(`encrypted-${++encryptionCount}:${value}`, 'utf8'),
+      decrypt: async (value) => ({
+        result: value.toString('utf8').replace(/^encrypted-\d+:/, ''),
+        shouldReEncrypt: true
+      })
+    }
+    const { path, store } = await createStore(rotatingEncryption)
+    const saved = await store.save('https://example.com', 'person', 'private password')
+
+    await expect(store.password(saved.id)).resolves.toBe('private password')
+
+    const persisted = await readFile(path, 'utf8')
+    expect(persisted).toContain(Buffer.from('encrypted-2:private password').toString('base64'))
+    expect(persisted).not.toContain('private password')
+  })
+
   it.skipIf(process.platform === 'win32')('does not follow a pre-existing temporary-file symlink while saving the vault', async () => {
     const { path, store } = await createStore()
     const unrelatedPath = join(dirname(path), 'unrelated.txt')
@@ -186,6 +205,40 @@ describe('CredentialStore', () => {
     expect(store.list()).toEqual([])
     const restored = new CredentialStore(path, encryption)
     expect(await restored.load()).toEqual([])
+  })
+
+  it.each([
+    ['updated', async (store: CredentialStore, id: string) => {
+      await expect(store.save('https://example.com/account', 'person', 'new password')).resolves.toMatchObject({ id })
+    }],
+    ['removed', async (store: CredentialStore, id: string) => {
+      await expect(store.remove(id)).resolves.toBe(true)
+    }],
+    ['cleared', async (store: CredentialStore) => {
+      await store.clear()
+    }]
+  ] as const)('rejects a decrypted password after its credential is %s', async (_operation, mutate) => {
+    let releaseDecryption: () => void = () => undefined
+    const decryptionGate = new Promise<void>((resolve) => { releaseDecryption = resolve })
+    let decryptionStarted: () => void = () => undefined
+    const decryptionStart = new Promise<void>((resolve) => { decryptionStarted = resolve })
+    const delayedDecryption: CredentialEncryption = {
+      ...encryption,
+      decrypt: async (value) => {
+        decryptionStarted()
+        await decryptionGate
+        return { ...await encryption.decrypt(value), shouldReEncrypt: true }
+      }
+    }
+    const { store } = await createStore(delayedDecryption)
+    const saved = await store.save('https://example.com', 'person', 'old password')
+
+    const pendingPassword = store.password(saved.id)
+    await decryptionStart
+    await mutate(store, saved.id)
+    releaseDecryption()
+
+    await expect(pendingPassword).rejects.toThrow('Saved credential changed during access')
   })
 
   it('repairs duplicate persisted accounts by keeping the newest password', async () => {

@@ -184,20 +184,24 @@ export class CredentialStore {
   async password(id: string): Promise<string> {
     const entry = this.entries.get(id)
     if (!entry) throw new Error('Saved credential not found')
-    const decrypted = await this.encryption.decrypt(Buffer.from(entry.encryptedPassword, 'base64'))
+    let expectedEntry: PersistedCredential = entry
+    const decrypted = await this.encryption.decrypt(Buffer.from(expectedEntry.encryptedPassword, 'base64'))
     if (decrypted.shouldReEncrypt) {
       await this.queueMutation(async () => {
-        if (this.entries.get(id) !== entry) return
+        if (this.entries.get(id) !== expectedEntry) return
         const nextEntries = new Map(this.entries)
-        nextEntries.set(id, {
-          ...entry,
+        const reEncryptedEntry = {
+          ...expectedEntry,
           encryptedPassword: (await this.encryption.encrypt(decrypted.result)).toString('base64'),
           updatedAt: new Date().toISOString()
-        })
+        }
+        nextEntries.set(id, reEncryptedEntry)
         await this.persist(nextEntries.values())
         this.replaceEntries(nextEntries)
+        expectedEntry = reEncryptedEntry
       })
     }
+    if (this.entries.get(id) !== expectedEntry) throw new Error('Saved credential changed during access')
     return decrypted.result
   }
 
