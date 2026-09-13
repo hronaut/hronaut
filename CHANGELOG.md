@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Persist website favicons even when their fetch finishes after the navigation state save, so delayed icons survive crashes and forced restarts.
+- Reject a saved-password fill when that credential is updated, removed, or cleared while its secret is being decrypted.
 
 ## [2.4.0] - 2026-09-13
 
