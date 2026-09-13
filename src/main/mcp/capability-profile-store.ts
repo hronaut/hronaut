@@ -23,6 +23,8 @@ export interface McpCapabilityProfileInput {
   operationClasses: McpCapabilityOperationClass[]
   workspaceIds?: string[]
   origins?: string[]
+  /** Tool-qualified argument paths mapped to allowed canonical-value digests. */
+  argumentValueDigests?: Record<string, string[]>
   expiresAt?: string
   maxUses?: number
 }
@@ -56,6 +58,7 @@ export interface McpCapabilityRequest {
   operationClass: McpCapabilityOperationClass
   workspaceId?: string
   origins?: string[]
+  arguments?: Record<string, unknown>
 }
 
 export const MCP_CAPABILITY_DECISION_PRECEDENCE = [
@@ -66,7 +69,8 @@ export const MCP_CAPABILITY_DECISION_PRECEDENCE = [
   'action',
   'operation-class',
   'workspace',
-  'origin'
+  'origin',
+  'argument'
 ] as const
 
 export type McpCapabilityDecisionRule = typeof MCP_CAPABILITY_DECISION_PRECEDENCE[number]
@@ -90,6 +94,8 @@ export type McpCapabilityDecisionReason =
   | 'WORKSPACE_NOT_ALLOWED'
   | 'ORIGIN_MALFORMED'
   | 'ORIGIN_NOT_ALLOWED'
+  | 'ARGUMENT_REQUIRED'
+  | 'ARGUMENT_NOT_ALLOWED'
 
 export interface McpCapabilityDecisionCheck {
   rule: McpCapabilityDecisionRule
@@ -115,6 +121,7 @@ export interface McpCapabilityDecision {
     operationClass: McpCapabilityOperationClass | 'missing' | 'unrecognized'
     workspace: 'supplied' | 'missing'
     origins: 'none' | 'supplied' | 'malformed'
+    arguments: 'none' | 'supplied'
   }
   checks: McpCapabilityDecisionCheck[]
   permission: 'permitted' | 'denied'
@@ -142,7 +149,30 @@ const CREDENTIAL_PATTERN = /^hrc1_[A-Za-z0-9_-]{43}$/
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/
 const TOOL_PATTERN = /^(?:browser|wallet)_[a-z0-9_]{1,80}$/
 const ACTION_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/
+const ARGUMENT_CONSTRAINT_PATTERN = /^(?:browser|wallet)_[a-z0-9_]{1,80}\.[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*){0,7}$/
 const MAX_PROFILE_ITEMS = 256
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+      .join(',')}}`
+  }
+  throw new TypeError('Capability argument constraint values must be JSON-safe')
+}
+
+/** Converts a private exact value into the only representation retained by a capability profile. */
+export function mcpCapabilityArgumentValueDigest(value: unknown): string {
+  return createHash('sha256')
+    .update('hronaut-mcp-capability-argument-v1\0')
+    .update(canonicalJson(value))
+    .digest('hex')
+}
 
 function credentialDigest(credential: string): string {
   return createHash('sha256').update(credential, 'utf8').digest('hex')
@@ -166,6 +196,21 @@ function normalizeOrigin(value: string): string | null {
   } catch {
     return null
   }
+}
+
+function argumentAtPath(
+  arguments_: Record<string, unknown> | undefined,
+  toolName: string,
+  qualifiedPath: string
+): { found: boolean; value?: unknown } {
+  if (!arguments_ || !qualifiedPath.startsWith(`${toolName}.`)) return { found: false }
+  let current: unknown = arguments_
+  for (const segment of qualifiedPath.slice(toolName.length + 1).split('.')) {
+    if (!current || typeof current !== 'object' || Array.isArray(current)
+      || !Object.prototype.hasOwnProperty.call(current, segment)) return { found: false }
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return { found: true, value: current }
 }
 
 function normalizeProfileInput(input: McpCapabilityProfileInput, now: Date): McpCapabilityProfileInput {
@@ -206,6 +251,25 @@ function normalizeProfileInput(input: McpCapabilityProfileInput, now: Date): Mcp
     if (normalized.some(value => value === null)) throw new TypeError('Capability profile origins are invalid')
     origins = uniqueSorted(normalized as string[])
   }
+  let argumentValueDigests: Record<string, string[]> | undefined
+  if (input.argumentValueDigests !== undefined) {
+    if (!input.argumentValueDigests || typeof input.argumentValueDigests !== 'object'
+      || Array.isArray(input.argumentValueDigests)
+      || Object.keys(input.argumentValueDigests).length > MAX_PROFILE_ITEMS) {
+      throw new TypeError('Capability profile argument constraints are invalid')
+    }
+    argumentValueDigests = {}
+    for (const [path, digests] of Object.entries(input.argumentValueDigests)) {
+      const tool = path.slice(0, path.indexOf('.'))
+      if (!ARGUMENT_CONSTRAINT_PATTERN.test(path) || !allowedToolSet.has(tool)
+        || !Array.isArray(digests) || !digests.length || digests.length > MAX_PROFILE_ITEMS
+        || digests.some(digest => !DIGEST_PATTERN.test(digest))) {
+        throw new TypeError('Capability profile argument constraints are invalid')
+      }
+      argumentValueDigests[path] = uniqueSorted(digests)
+    }
+    if (!Object.keys(argumentValueDigests).length) argumentValueDigests = undefined
+  }
   let expiresAt: string | undefined
   if (input.expiresAt !== undefined) {
     const expiry = new Date(input.expiresAt)
@@ -224,6 +288,7 @@ function normalizeProfileInput(input: McpCapabilityProfileInput, now: Date): Mcp
     operationClasses: uniqueSorted(input.operationClasses) as McpCapabilityOperationClass[],
     ...(workspaceIds ? { workspaceIds } : {}),
     ...(origins ? { origins } : {}),
+    ...(argumentValueDigests ? { argumentValueDigests } : {}),
     ...(expiresAt ? { expiresAt } : {}),
     ...(input.maxUses !== undefined ? { maxUses: input.maxUses } : {})
   }
@@ -530,7 +595,8 @@ export class McpCapabilityProfileStore {
         request: {
           tool, action, operationClass,
           workspace: request.workspaceId === undefined ? 'missing' : 'supplied',
-          origins: originSummary
+          origins: originSummary,
+          arguments: request.arguments === undefined ? 'none' : 'supplied'
         },
         checks, permission: 'denied', dispatch: 'not-established', postcondition: 'not-established'
       }
@@ -598,6 +664,24 @@ export class McpCapabilityProfileStore {
     }
     pass('origin', originApplicable ? 'passed' : 'not-applicable')
 
+    let argumentApplicable = false
+    for (const [index, candidate] of lineage.entries()) {
+      for (const [path, allowedDigests] of Object.entries(candidate.argumentValueDigests ?? {})) {
+        if (!path.startsWith(`${request.toolName}.`)) continue
+        argumentApplicable = true
+        const resolved = argumentAtPath(request.arguments, request.toolName, path)
+        if (!resolved.found) return deny('argument', 'ARGUMENT_REQUIRED', index)
+        let digest: string
+        try {
+          digest = mcpCapabilityArgumentValueDigest(resolved.value)
+        } catch {
+          return deny('argument', 'ARGUMENT_NOT_ALLOWED', index)
+        }
+        if (!allowedDigests.includes(digest)) return deny('argument', 'ARGUMENT_NOT_ALLOWED', index)
+      }
+    }
+    pass('argument', argumentApplicable ? 'passed' : 'not-applicable')
+
     return {
       decision: 'permitted', reasonCode: 'PERMITTED', firstDenyingRule: null, phase, route,
       lineageDepth: lineage.length,
@@ -605,7 +689,8 @@ export class McpCapabilityProfileStore {
       request: {
         tool, action, operationClass,
         workspace: request.workspaceId === undefined ? 'missing' : 'supplied',
-        origins: originSummary
+        origins: originSummary,
+        arguments: request.arguments === undefined ? 'none' : 'supplied'
       },
       checks, permission: 'permitted', dispatch: 'not-established', postcondition: 'not-established'
     }
@@ -656,6 +741,14 @@ export class McpCapabilityProfileStore {
     )
     if (!boundedSubset(child.workspaceIds, parent.workspaceIds)
       || !boundedSubset(child.origins, parent.origins)) return false
+    const childArgumentConstraints = child.argumentValueDigests ?? {}
+    const parentArgumentConstraints = parent.argumentValueDigests ?? {}
+    for (const [path, parentDigests] of Object.entries(parentArgumentConstraints)) {
+      const tool = path.slice(0, path.indexOf('.'))
+      if (!child.allowedTools.includes(tool)) continue
+      const childDigests = childArgumentConstraints[path]
+      if (!childDigests || !subset(childDigests, parentDigests)) return false
+    }
     const parentExpiry = parent.expiresAt === undefined ? undefined : Date.parse(parent.expiresAt)
     const childExpiry = child.expiresAt === undefined ? undefined : Date.parse(child.expiresAt)
     if (parentExpiry !== undefined && (childExpiry === undefined || childExpiry > parentExpiry)) return false
@@ -667,11 +760,16 @@ export class McpCapabilityProfileStore {
       const childActions = child.allowedActions?.[tool]
       return parentActions === undefined ? childActions !== undefined : childActions!.length < parentActions.length
     })
+    const narrowerArguments = Object.entries(childArgumentConstraints).some(([path, digests]) => {
+      const parentDigests = parentArgumentConstraints[path]
+      return parentDigests === undefined || digests.length < parentDigests.length
+    })
     return child.allowedTools.length < parent.allowedTools.length
       || child.operationClasses.length < parent.operationClasses.length
       || narrowerActions
       || (parent.workspaceIds === undefined ? child.workspaceIds !== undefined : child.workspaceIds!.length < parent.workspaceIds.length)
       || (parent.origins === undefined ? child.origins !== undefined : child.origins!.length < parent.origins.length)
+      || narrowerArguments
       || (parentExpiry === undefined ? childExpiry !== undefined : childExpiry! < parentExpiry)
       || (parentRemainingUses === undefined ? child.maxUses !== undefined : child.maxUses! < parentRemainingUses)
   }

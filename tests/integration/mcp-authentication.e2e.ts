@@ -17,6 +17,7 @@ test('creates a digest-only restricted credential and revokes its active MCP ses
   const created = await appWindow.evaluate(() => (window as unknown as { hronautSettings: HronautSettingsApi }).hronautSettings.createMcpCapabilityProfile({
     name: 'Electron read-only client',
     preset: 'read-only',
+    argumentConstraints: { 'browser_workspaces.action': ['list'] },
     expiresInMinutes: 60
   }))
   expect(created.credential).toMatch(/^hrc1_[A-Za-z0-9_-]{43}$/)
@@ -24,6 +25,7 @@ test('creates a digest-only restricted credential and revokes its active MCP ses
   const persisted = await readFile(join(profileDirectory, 'mcp-capability-profiles.json'), 'utf8')
   expect(persisted).not.toContain(created.credential)
   expect(persisted).toMatch(/"credentialDigest": "[0-9a-f]{64}"/)
+  expect(persisted).toMatch(/"browser_workspaces\.action": \[\s+"[0-9a-f]{64}"/)
 
   const client = new Client({ name: 'electron-restricted-client', version: '1.0.0' })
   const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
@@ -34,6 +36,18 @@ test('creates a digest-only restricted credential and revokes its active MCP ses
     const tools = await client.listTools()
     expect(tools.tools.map(tool => tool.name)).toContain('browser_snapshot')
     expect(tools.tools.map(tool => tool.name)).not.toContain('browser_click')
+    await expect(client.callTool({ name: 'browser_workspaces', arguments: {} })).resolves.toMatchObject({
+      content: [{ type: 'text', text: '[]' }]
+    })
+    await expect(client.callTool({
+      name: 'browser_workspaces', arguments: { action: 'list-fork-sources' }
+    })).resolves.toMatchObject({
+      isError: true,
+      structuredContent: {
+        status: 'POLICY_REJECTED', reason: 'ARGUMENT_NOT_ALLOWED',
+        policyDecision: { firstDenyingRule: 'argument' }
+      }
+    })
     await expect(client.callTool({ name: 'browser_click', arguments: {} })).resolves.toMatchObject({ isError: true })
 
     await appWindow.evaluate(

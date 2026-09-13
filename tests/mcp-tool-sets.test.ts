@@ -14,11 +14,13 @@ import {
   DEFAULT_MCP_TOOL_SET,
   isMcpToolSet
 } from '../src/shared/mcp-tool-sets.js'
+import { mcpCapabilityArgumentValueDigest } from '../src/main/mcp/capability-profile-store.js'
 
 describe('MCP tool sets', () => {
   it('builds a read-only capability preset with exact read actions for mixed tools', () => {
     const profile = mcpCapabilityProfileInputFromPreset({
-      name: 'Reader', preset: 'read-only', expiresInMinutes: 60, singleUse: true
+      name: 'Reader', preset: 'read-only', expiresInMinutes: 60, singleUse: true,
+      argumentConstraints: { 'browser_snapshot.tabId': ['private-tab'] }
     }, new Date('2026-09-11T12:00:00.000Z'))
 
     expect(profile.operationClasses).toEqual(['read'])
@@ -32,6 +34,10 @@ describe('MCP tool sets', () => {
       browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
+    expect(profile.argumentValueDigests).toEqual({
+      'browser_snapshot.tabId': [mcpCapabilityArgumentValueDigest('private-tab')]
+    })
+    expect(JSON.stringify(profile)).not.toContain('private-tab')
   })
 
   let server: McpHttpServer | undefined

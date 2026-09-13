@@ -3398,6 +3398,26 @@ function registerIpc(): void {
       throw new TypeError('MCP capability profile input is required')
     }
     const input = value as Partial<McpCapabilityProfileCreateInput>
+    const argumentConstraints = input.argumentConstraints
+    const jsonSafe = (candidate: unknown, depth = 0): boolean => {
+      if (candidate === null || typeof candidate === 'string' || typeof candidate === 'boolean') return true
+      if (typeof candidate === 'number') return Number.isFinite(candidate)
+      if (depth >= 12) return false
+      if (Array.isArray(candidate)) return candidate.length <= 256
+        && candidate.every(entry => jsonSafe(entry, depth + 1))
+      return !!candidate && typeof candidate === 'object'
+        && Object.keys(candidate).length <= 256
+        && Object.values(candidate as Record<string, unknown>).every(entry => jsonSafe(entry, depth + 1))
+    }
+    const invalidArgumentConstraints = argumentConstraints !== undefined && (
+      !argumentConstraints || typeof argumentConstraints !== 'object' || Array.isArray(argumentConstraints)
+      || Object.keys(argumentConstraints).length > 256
+      || Object.values(argumentConstraints).some(values => !Array.isArray(values) || !values.length
+        || values.length > 256 || !values.every(entry => jsonSafe(entry)))
+      || (() => {
+        try { return JSON.stringify(argumentConstraints).length > 65_536 } catch { return true }
+      })()
+    )
     if (typeof input.name !== 'string'
       || typeof input.preset !== 'string'
       || (input.parentProfileId !== undefined && typeof input.parentProfileId !== 'string')
@@ -3405,6 +3425,7 @@ function registerIpc(): void {
         || input.workspaceIds.some(id => typeof id !== 'string')))
       || (input.origins !== undefined && (!Array.isArray(input.origins)
         || input.origins.some(origin => typeof origin !== 'string')))
+      || invalidArgumentConstraints
       || (input.expiresInMinutes !== undefined && typeof input.expiresInMinutes !== 'number')
       || (input.singleUse !== undefined && typeof input.singleUse !== 'boolean')) {
       throw new TypeError('MCP capability profile input is invalid')

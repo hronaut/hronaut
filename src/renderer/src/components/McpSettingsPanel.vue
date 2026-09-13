@@ -43,6 +43,7 @@ const profilePreset = ref<McpCapabilityProfilePreset>('read-only')
 const profileParentId = ref('')
 const profileWorkspaceIds = ref('')
 const profileOrigins = ref('')
+const profileArguments = ref('')
 const profileExpiry = ref('1440')
 const profileSingleUse = ref(false)
 
@@ -51,14 +52,32 @@ function lines(value: string): string[] | undefined {
   return entries.length ? entries : undefined
 }
 
+function argumentConstraints(value: string): Record<string, unknown[]> | undefined {
+  const result: Record<string, unknown[]> = {}
+  for (const line of value.split(/\r?\n/u).map(entry => entry.trim()).filter(Boolean)) {
+    const separator = line.indexOf('=')
+    if (separator <= 0) return { '': [] }
+    const path = line.slice(0, separator).trim()
+    const serialized = line.slice(separator + 1).trim()
+    let parsed: unknown = serialized
+    if (serialized) {
+      try { parsed = JSON.parse(serialized) } catch { /* Treat unquoted text as an exact string. */ }
+    }
+    ;(result[path] ??= []).push(parsed)
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
 async function submitCapabilityProfile(): Promise<void> {
   const expiresInMinutes = profileExpiry.value ? Number(profileExpiry.value) : undefined
+  const constraints = argumentConstraints(profileArguments.value)
   if (await createCapabilityProfile({
     name: profileName.value,
     preset: profilePreset.value,
     ...(profileParentId.value ? { parentProfileId: profileParentId.value } : {}),
     workspaceIds: lines(profileWorkspaceIds.value),
     origins: lines(profileOrigins.value),
+    ...(constraints ? { argumentConstraints: constraints } : {}),
     expiresInMinutes,
     singleUse: profileSingleUse.value
   })) profileName.value = ''
@@ -222,6 +241,11 @@ function handlePortKeydown(event: KeyboardEvent): void {
           <textarea v-model="profileOrigins" rows="2" :placeholder="t('settings.mcp.capabilities.originsPlaceholder')" :disabled="capabilityBusy" />
         </label>
         <label>
+          <strong>{{ t('settings.mcp.capabilities.arguments') }}</strong>
+          <textarea v-model="profileArguments" rows="3" maxlength="65536" :aria-label="t('settings.mcp.capabilities.arguments')" :placeholder="t('settings.mcp.capabilities.argumentsPlaceholder')" :disabled="capabilityBusy" />
+          <small>{{ t('settings.mcp.capabilities.argumentsDescription') }}</small>
+        </label>
+        <label>
           <strong>{{ t('settings.mcp.capabilities.expiry') }}</strong>
           <select v-model="profileExpiry" :disabled="capabilityBusy">
             <option value="60">{{ t('settings.mcp.capabilities.oneHour') }}</option>
@@ -269,6 +293,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
             <code>{{ profile.allowedTools.join(', ') }}</code>
             <small v-if="profile.workspaceIds?.length">{{ profile.workspaceIds.join(', ') }}</small>
             <small v-if="profile.origins?.length">{{ profile.origins.join(', ') }}</small>
+            <small v-if="profile.argumentValueDigests && Object.keys(profile.argumentValueDigests).length">{{ t('settings.mcp.capabilities.argumentScope', { paths: Object.keys(profile.argumentValueDigests).join(', ') }) }}</small>
           </details>
         </article>
       </div>
