@@ -38,7 +38,7 @@ describe('MCPB release package', () => {
     ])
   })
 
-  it('keeps manifest and registry metadata aligned with the desktop release', async () => {
+  it('keeps adapter, registry, and operator metadata aligned with the desktop release', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
     const artifactName = `hronaut-mcp-adapter-${packageJson.version}.mcpb`
     const artifact = await readFile(join(outputDirectory, artifactName))
@@ -56,6 +56,24 @@ describe('MCPB release package', () => {
     })
     expect(metadata.packages[0].fileSha256)
       .toBe(createHash('sha256').update(artifact).digest('hex'))
+    const operatorManifest = JSON.parse(await readFile(
+      join(outputDirectory, 'hronaut-operator-manifest.json'),
+      'utf8'
+    ))
+    expect(operatorManifest).toMatchObject({
+      schemaVersion: '1.0',
+      hronautVersion: packageJson.version,
+      kind: 'hronaut-operator-contract',
+      informationalOnly: true,
+      interfaces: {
+        mcp: {
+          networkScope: 'loopback-only',
+          stdioAdapterArtifact: artifactName,
+          endpointAndCredentialsIncluded: false
+        }
+      }
+    })
+    expect(operatorManifest.toolSets.complete).toEqual(operatorManifest.tools.map(({ name }: { name: string }) => name))
 
     const entries = readStoredZipEntries(artifact)
     const manifestEntry = entries.find(({ name }) => name === 'manifest.json')

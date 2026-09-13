@@ -6,6 +6,7 @@ describe('release asset labels', () => {
     ['release-history.json', 'Verified release history'],
     ['hashes.txt', 'SHA-256 checksums'],
     ['hronaut-mcp-server.json', 'MCP Registry metadata'],
+    ['hronaut-operator-manifest.json', 'Version-matched agent operator contract'],
     ['hronaut-mcp-adapter-1.11.35.mcpb', 'MCPB adapter'],
     ['hronaut-1.11.35-x64-setup.exe', 'Windows x64 installer'],
     ['hronaut-1.11.35-x64-windows-portable.exe', 'Windows x64 portable app'],
