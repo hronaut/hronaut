@@ -4,7 +4,7 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [2.4.2] - 2026-09-13
+## [2.4.3] - 2026-09-14
 
 ### Added
 
