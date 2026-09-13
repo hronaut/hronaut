@@ -1,5 +1,6 @@
 import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { AddressSuggestionOverlayRequest } from '../../src/shared/address-suggestions.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
@@ -141,6 +142,45 @@ test('loads an authenticated favicon and retains it while the same page reloads'
     await expect(favicon).toHaveAttribute('src', initialIcon!)
   } finally {
     releaseReload?.()
+    await closeFixtureServer(server)
+  }
+})
+
+test('persists a favicon that finishes after the navigation state save', async ({ appWindow, profileDirectory }) => {
+  const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
+  let releaseFavicon!: () => void
+  const faviconBlocked = new Promise<void>((resolve) => { releaseFavicon = resolve })
+  const server = createServer(async (request, response) => {
+    if (request.url === '/favicon') {
+      await faviconBlocked
+      response.writeHead(200, { 'content-type': 'image/png', 'content-length': png.length })
+      response.end(png)
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Delayed icon</title><link rel="icon" href="/favicon"><main>Delayed icon</main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Delayed favicon server is unavailable')
+    const url = `http://127.0.0.1:${address.port}/page`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    const statePath = join(profileDirectory, 'tabs.json')
+    await expect.poll(async () => {
+      const state = JSON.parse(await readFile(statePath, 'utf8')) as { tabs: Array<{ url: string; faviconDataUrl?: string }> }
+      const tab = state.tabs.find((candidate) => candidate.url === url)
+      return tab ? { found: true, favicon: tab.faviconDataUrl } : { found: false }
+    }).toEqual({ found: true, favicon: undefined })
+
+    releaseFavicon()
+    await expect(appWindow.locator('.tab.active .favicon-image')).toHaveAttribute('src', /^data:image\/png;base64,/)
+    await expect.poll(async () => {
+      const state = JSON.parse(await readFile(statePath, 'utf8')) as { tabs: Array<{ url: string; faviconDataUrl?: string }> }
+      return state.tabs.find((candidate) => candidate.url === url)?.faviconDataUrl
+    }).toMatch(/^data:image\/png;base64,/)
+  } finally {
+    releaseFavicon?.()
     await closeFixtureServer(server)
   }
 })

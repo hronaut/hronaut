@@ -47,21 +47,24 @@ function onKeydown(event: KeyboardEvent): void {
 
 <template>
   <div class="ui-tabs">
-    <div ref="tabList" class="ui-tabs__list" role="tablist" :aria-label="label" @keydown="onKeydown">
-      <UiButton
-        v-for="item in items"
-        :id="`${idPrefix}-tab-${item.id}`"
-        :key="item.id"
-        class="ui-tabs__tab"
-        variant="ghost"
-        role="tab"
-        :data-ui-tab="item.id"
-        :aria-selected="model === item.id"
-        :aria-controls="`${idPrefix}-panel-${item.id}`"
-        :tabindex="model === item.id ? 0 : -1"
-        :disabled="item.disabled"
-        @click="model = item.id"
-      >{{ item.label }}</UiButton>
+    <div class="ui-tabs__header">
+      <slot name="header" />
+      <div ref="tabList" class="ui-tabs__list" role="tablist" :aria-label="label" @keydown="onKeydown">
+        <UiButton
+          v-for="item in items"
+          :id="`${idPrefix}-tab-${item.id}`"
+          :key="item.id"
+          class="ui-tabs__tab"
+          variant="ghost"
+          role="tab"
+          :data-ui-tab="item.id"
+          :aria-selected="model === item.id"
+          :aria-controls="`${idPrefix}-panel-${item.id}`"
+          :tabindex="model === item.id ? 0 : -1"
+          :disabled="item.disabled"
+          @click="model = item.id"
+        >{{ item.label }}</UiButton>
+      </div>
     </div>
     <div
       :id="`${idPrefix}-panel-${model}`"

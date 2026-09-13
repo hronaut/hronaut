@@ -8372,7 +8372,10 @@ export class BrowserTabsManager {
         const dataUrl = `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
         if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
         tab.faviconDataUrl = dataUrl
-        this.changed(false)
+        // A favicon can finish well after navigation's debounced state save.
+        // Persist this update explicitly so a later crash or forced restart
+        // does not replace the restored tab icon with the generic globe.
+        this.changed()
         return
       } catch {
         // Try the next favicon candidate supplied by the page.

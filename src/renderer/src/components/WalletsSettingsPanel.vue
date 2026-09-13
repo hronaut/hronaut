@@ -33,7 +33,6 @@ const activeTab = ref('wallets')
 const settingsTabs = computed(() => [
   { id: 'wallets', label: t('wallets.yourWallets') },
   { id: 'add', label: t('wallets.addWallet') },
-  { id: 'access', label: t('wallets.accessTab') },
   { id: 'activity', label: t('wallets.activityTab') }
 ])
 let navigationGeneration = 0
@@ -456,12 +455,13 @@ async function addPolicy(): Promise<void> {
 
 <template>
   <div class="settings-content wallet-settings">
-    <div class="setting-copy">
-      <h3>{{ t('wallets.heading') }}</h3>
-      <p>{{ t('wallets.description') }}</p>
-    </div>
-
     <UiTabs v-model="activeTab" :items="settingsTabs" :label="t('wallets.settingsTabs')" class="wallet-settings-tabs">
+      <template #header>
+        <div class="setting-copy">
+          <h3>{{ t('wallets.heading') }}</h3>
+          <p>{{ t('wallets.description') }}</p>
+        </div>
+      </template>
       <div class="settings-info" :class="{ 'security-warning': controller.status.value.managedWallets === 'disabled' }">
         <span class="info-dot" aria-hidden="true">{{ t('common.hronaut').slice(0, 1) }}</span>
         <p>{{ statusCopy }}</p>
@@ -513,19 +513,9 @@ async function addPolicy(): Promise<void> {
           <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
           <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</UiButton></div></form>
           <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</UiButton></div></form>
-          <div class="wallet-actions"><UiButton type="button" @click="activeTab = 'access'">{{ t('wallets.manageAccess') }}</UiButton><UiButton v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</UiButton><UiButton v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</UiButton><UiButton variant="danger" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</UiButton></div>
-
-        </section>
-      </section>
-
-      <section v-if="activeTab === 'access'" class="wallet-card">
-        <div class="wallet-section-heading"><h4>{{ t('wallets.accessTab') }}</h4><p>{{ t('wallets.accessDescription') }}</p></div>
-        <div v-if="!controller.wallets.value.length" class="wallet-empty-state">
-          <strong>{{ t('wallets.noWalletsConfigured') }}</strong><p>{{ t('wallets.accessEmptyDescription') }}</p>
-          <UiButton variant="primary" @click="activeTab = 'add'">{{ t('wallets.addWallet') }}</UiButton>
-        </div>
-        <label v-else class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select v-model="selectedWalletId" class="wallet-selector" :disabled="controller.busy.value"><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
-        <template v-if="selectedWallet">
+          <div class="wallet-actions"><UiButton v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</UiButton><UiButton v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</UiButton><UiButton variant="danger" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</UiButton></div>
+          <section class="wallet-wallet-access" :aria-label="t('wallets.accessTab')">
+            <div class="wallet-section-heading"><h5>{{ t('wallets.accessTab') }}</h5><p>{{ t('wallets.accessDescription') }}</p></div>
           <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">
             <div class="wallet-access-heading"><h5 id="wallet-configured-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
             <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
@@ -547,8 +537,9 @@ async function addPolicy(): Promise<void> {
             <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
           </div>
 
-          <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
-        </template>
+            <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
+          </section>
+        </section>
       </section>
 
       <section v-if="activeTab === 'add'" class="wallet-card">

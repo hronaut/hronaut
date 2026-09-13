@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Place access, workspace assignment, and automation controls in each wallet's details instead of a separate wallet settings tab.
+- Keep the Wallets heading visible together with its sticky tab bar while scrolling long wallet settings.
+
+### Fixed
+
+- Persist website favicons even when their fetch finishes after the navigation state save, so delayed icons survive crashes and forced restarts.
+
 ## [2.4.0] - 2026-09-13
 
 ### Added
