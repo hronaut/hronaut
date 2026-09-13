@@ -339,7 +339,11 @@ describe('release quality gates', () => {
       expect(integration).toContain('retention-days: 7')
     }
     expect(pullRequestIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"')
-    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARDS: "1"')
+    expect(releaseIntegration).toContain('fail-fast: false')
+    expect(releaseIntegration).toContain('shard: [1, 2, 3]')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
+    expect(releaseIntegration).toContain('release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}')
     expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
     expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
     expect(playwright).toContain("trace: process.env.CI ? 'retain-on-failure' : 'off'")

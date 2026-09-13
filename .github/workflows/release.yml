@@ -104,8 +104,13 @@ jobs:
           echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
 
   test-integration:
+    name: Electron integration shard ${{ matrix.shard }}/3
     needs: prepare-release
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
@@ -115,17 +120,15 @@ jobs:
 
       - name: Run Electron integration tests in Docker
         env:
-          # Release publication values determinism over throughput. Running two
-          # Electron shards on one hosted runner has produced unrelated cold
-          # renderer and shell-readiness flakes under CPU contention.
-          HRONAUT_INTEGRATION_SHARDS: "1"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"
+          HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 
       - name: Upload Electron failure diagnostics
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}
+          name: release-playwright-electron-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: ci-artifacts/
           if-no-files-found: ignore
           retention-days: 7
