@@ -3752,7 +3752,14 @@ async function createWindow(): Promise<void> {
       })
     },
     onShortcutRequested: (action) => {
-      if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('browser:shortcut-requested', action)
+      if (mainWindow && !mainWindow.webContents.isDestroyed()) {
+        // The page WebContentsView owns native focus when a website shortcut is
+        // pressed. Move it to trusted chrome before the renderer focuses a
+        // field, otherwise the DOM selection is visible while typed keys keep
+        // going to the website.
+        if (action === 'find') mainWindow.webContents.focus()
+        mainWindow.webContents.send('browser:shortcut-requested', action)
+      }
     },
     copyText: copyTextToClipboard,
     copyImageAt: copyPageImageToClipboard,

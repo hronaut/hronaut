@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Move native focus from the website to the Find field when `Ctrl/Cmd+F` opens Find in page, so immediate typing enters the query.
+
 ## [2.4.1] - 2026-09-13
 
 ### Changed

@@ -6622,7 +6622,15 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
     await expect(findBar).toBeVisible()
     const findInput = findBar.getByRole('searchbox', { name: 'Find text' })
     await expect(findInput).toBeFocused()
-    await findInput.fill('needle')
+    await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+      webContents.getFocusedWebContents()?.getURL()
+    ))).toBe(appWindow.url())
+    await electronApp.evaluate(({ webContents }, value) => {
+      const focused = webContents.getFocusedWebContents()
+      if (!focused) throw new Error('Find shortcut did not leave a focused web contents')
+      for (const character of value) focused.sendInputEvent({ type: 'char', keyCode: character })
+    }, 'needle')
+    await expect(findInput).toHaveValue('needle')
     await expect(findBar.locator('.find-count')).toHaveText('1 / 3')
     await findBar.getByRole('button', { name: 'Next match' }).click()
     await expect(findBar.locator('.find-count')).toHaveText('2 / 3')
