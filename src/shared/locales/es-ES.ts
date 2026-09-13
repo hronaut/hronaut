@@ -447,7 +447,29 @@ export const esES = {
       "issue": "Informar de un problema ↗"
     }
   },
-  "wallets": enUS.wallets,
+  wallets: {
+    ...enUS.wallets,
+    description: "Gestiona monederos locales de EVM, Solana y Tron y controla cómo pueden usarlos los sitios web y los agentes.",
+    noWalletsConfiguredDescription: "Añade un monedero para crear una cuenta, importar una existente o seguir una dirección pública.",
+    settingsTabs: "Ajustes de monederos",
+    accessTab: "Acceso y automatización",
+    activityTab: "Actividad",
+    walletListDescription: "Selecciona un monedero para ver sus datos o realizar cambios.",
+    manageAccess: "Gestionar acceso",
+    accessDescription: "Selecciona un monedero para gestionar el acceso de los espacios de trabajo, las reglas de firma y los permisos de sitios web.",
+    accessEmptyDescription: "Añade un monedero antes de configurar el acceso y la automatización.",
+    noPolicies: "Este monedero no tiene políticas de automatización configuradas.",
+    noPermissions: "Este monedero no tiene permisos de sitios web concedidos.",
+    noActivity: "Aún no hay actividad de monederos",
+    activityDescription: "Aquí aparecerán los eventos recientes de los monederos.",
+    yourWallets: "Tus monederos",
+    addWallet: "Añadir monedero",
+    kinds: {
+      "managed": "Monedero de firma",
+      "agent": "Monedero de agente",
+      "watch-only": "Solo lectura",
+    }
+  },
   "workspaceNavigationAudit": { "reasonCredentials": "credenciales incrustadas", "reasonMalformed": "dirección no válida", "reasonUnsupportedScheme": "esquema no compatible", "reasonNoMatch": "fuera de la lista permitida", "sourceDirect": "dirección o solicitud del agente", "sourcePage": "navegación de página", "sourceRedirect": "redirección", "sourcePopup": "ventana emergente", "sourceHistory": "atrás o adelante", "sourcePolicyChange": "cambio de política", "sourceRestore": "restauración de sesión" },
   "workspaceEditor": {
     transferData: "Transferir datos del navegador",

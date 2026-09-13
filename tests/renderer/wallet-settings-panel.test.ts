@@ -71,14 +71,140 @@ function deferred<T>() {
 }
 
 describe('WalletsSettingsPanel', () => {
-  it('makes wallet onboarding choices and the empty managed-wallet state explicit', async () => {
+  it('opens the wallet list first and provides keyboard navigation between focused tabs', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
 
+    expect(screen.getByRole('tablist', { name: 'Wallet settings' })).toBeVisible()
+    expect(screen.getAllByRole('tab')).toHaveLength(4)
+    expect(screen.getByRole('tabpanel', { name: 'Your wallets' })).toBeVisible()
+    expect(screen.getByText('No wallets configured yet')).toBeVisible()
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add wallet' }))
+    expect(screen.getByRole('tabpanel', { name: 'Add wallet' })).toBeVisible()
+    expect(screen.queryByText('No wallets configured yet')).not.toBeInTheDocument()
+
+    screen.getByRole('tab', { name: 'Add wallet' }).focus()
+    await user.keyboard('{ArrowRight}')
+    expect(screen.getByRole('tab', { name: 'Access & automation' })).toHaveFocus()
+    expect(screen.getByText('Add a wallet before configuring access and automation.')).toBeVisible()
+    await user.keyboard('{End}')
+    expect(screen.getByRole('tab', { name: 'Activity' })).toHaveFocus()
+    expect(screen.getByText('No wallet activity yet')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(wallets.refreshDetails).toHaveBeenCalledOnce()
+    screen.getByRole('tab', { name: 'Activity' }).focus()
+    await user.keyboard('{Home}')
+    expect(screen.getByRole('tab', { name: 'Your wallets' })).toHaveFocus()
+  })
+
+  it('keeps the selected wallet consistent between the visible list and access settings', async () => {
+    const wallets = controller({ wallets: ref([wallet('a', 'Wallet A', []), wallet('b', 'Wallet B', [])]) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+
+    expect(within(screen.getByRole('list', { name: 'Your wallets' })).getAllByRole('listitem')).toHaveLength(2)
+    await user.click(screen.getByRole('button', { name: /Wallet B/ }))
+    expect(screen.getByRole('heading', { name: 'Wallet B' })).toBeVisible()
+    expect(screen.queryByText('Bounded agent automation')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Manage access' }))
+    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toHaveValue('b')
+    expect(screen.getByText('No automation policies configured for this wallet.')).toBeVisible()
+    expect(screen.getByText('No website permissions granted for this wallet.')).toBeVisible()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'a')
+    await user.click(screen.getByRole('tab', { name: 'Your wallets' }))
+    expect(screen.getByRole('button', { name: /Wallet A/ })).toHaveAttribute('aria-pressed', 'true')
+
+    wallets.wallets.value = [wallet('b', 'Wallet B', [])]
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Wallet B' })).toBeVisible())
+    wallets.wallets.value = []
+    await waitFor(() => expect(screen.getByText('No wallets configured yet')).toBeVisible())
+    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
+  })
+
+  it('clears unsubmitted secrets when leaving Add wallet while retaining non-secret choices', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'My wallet')
+    const recovery = screen.getByLabelText<HTMLTextAreaElement>('Mnemonic / recovery phrase')
+    await user.type(recovery, 'unsubmitted recovery material')
+    await user.click(screen.getByRole('tab', { name: 'Activity' }))
+    expect(recovery.value).toBe('')
+    expect(screen.queryByLabelText('Mnemonic / recovery phrase')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    expect(screen.getByLabelText('Name')).toHaveValue('My wallet')
+    expect(screen.getByLabelText('Mnemonic / recovery phrase')).toHaveValue('')
+    expect(wallets.prepareImport).not.toHaveBeenCalled()
+  })
+
+  it('discards late import preparation after the user leaves and returns to Add wallet', async () => {
+    const preparation = deferred<Awaited<ReturnType<WalletsController['prepareImport']>>>()
+    const wallets = controller({ prepareImport: vi.fn(() => preparation.promise) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Pending import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test recovery material')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await user.click(screen.getByRole('tab', { name: 'Your wallets' }))
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    preparation.resolve({ token: 'late-token', chainFamily: 'evm', publicAddress: '0x1234', expiresAt: '2026-09-13T12:00:00Z' })
+
+    await waitFor(() => expect(wallets.cancelImport).toHaveBeenCalledWith('late-token'))
+    expect(screen.queryByText('Wallet validated')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Name')).toBeEnabled()
+  })
+
+  it('preserves validated import review across tabs without retaining recovery input', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    await user.click(screen.getByRole('button', { name: 'Import' }))
+    await user.type(screen.getByLabelText('Name'), 'Reviewed import')
+    await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test recovery material')
+    await user.click(screen.getByRole('button', { name: 'Validate and review' }))
+    await user.click(screen.getByRole('tab', { name: 'Activity' }))
+    expect(screen.queryByText('Wallet validated')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    expect(screen.getByText('Wallet validated')).toBeVisible()
+    expect(screen.queryByLabelText('Mnemonic / recovery phrase')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add encrypted wallet' }))
+    expect(wallets.confirmImport).toHaveBeenCalledWith('import-token', expect.objectContaining({ name: 'Reviewed import' }))
+  })
+
+  it('does not switch tabs or overwrite a newer draft when wallet creation finishes late', async () => {
+    const creation = deferred<WalletDescriptor>()
+    const wallets = controller({ generate: vi.fn(() => creation.promise) })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    await user.type(screen.getByLabelText('Name'), 'First wallet')
+    await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
+    await user.click(screen.getByRole('tab', { name: 'Activity' }))
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+    await user.clear(screen.getByLabelText('Name'))
+    await user.type(screen.getByLabelText('Name'), 'Next wallet')
+    creation.resolve(wallet('created', 'First wallet', []))
+    await waitFor(() => expect(wallets.generate).toHaveResolved())
+    expect(screen.getByRole('tab', { name: 'Add wallet' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByLabelText('Name')).toHaveValue('Next wallet')
+  })
+
+  it('makes wallet onboarding choices and the empty managed-wallet state explicit', async () => {
+    const wallets = controller()
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
+
     expect(screen.getByText('Create a new signing account and recovery phrase.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Generate wallet' })).toBeVisible()
-    expect(screen.getByText('No wallets configured yet')).toBeVisible()
+    expect(screen.queryByText('No wallets configured yet')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Lock signing keys' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
@@ -94,6 +220,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     expect(screen.getByLabelText('Network preset')).toHaveValue('evm-11155111')
     expect(screen.getByLabelText('EVM chain ID')).toHaveValue('11155111')
@@ -114,6 +241,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     expect(screen.getByText(/built-in public RPCs are convenient defaults/i)).toBeVisible()
     await user.selectOptions(screen.getByLabelText('Network preset'), 'evm-31337')
@@ -124,6 +252,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.type(screen.getByLabelText('Name'), 'Invalid EVM wallet')
     await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
@@ -140,6 +269,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.type(screen.getByLabelText('Name'), 'Whitespace network')
     await user.selectOptions(screen.getByLabelText('Chain'), 'solana')
@@ -156,6 +286,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.type(screen.getByLabelText('Name'), 'Whitespace EVM')
     await user.selectOptions(screen.getByLabelText('Network preset'), 'custom')
@@ -170,6 +301,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.selectOptions(screen.getByLabelText('Chain'), 'solana')
     expect(screen.getByLabelText('Network preset')).toHaveValue('solana-devnet')
@@ -188,6 +320,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.type(screen.getByLabelText('Name'), 'Base wallet')
     await user.selectOptions(screen.getByLabelText('Network preset'), 'evm-8453')
     await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
@@ -220,6 +353,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.type(screen.getByLabelText('Name'), 'New wallet')
     await user.click(screen.getByLabelText('Dedicated agent wallet'))
@@ -227,16 +361,20 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
     expect(generate).toHaveBeenCalledOnce()
+    expect(screen.getByRole('tab', { name: 'Your wallets' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'New wallet' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /New wallet/ })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     expect(screen.getByLabelText('Name')).toHaveValue('')
     expect(screen.getByLabelText('Dedicated agent wallet')).not.toBeChecked()
     expect(screen.getAllByLabelText('Agent workspace')[0]).not.toBeChecked()
-    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toHaveValue('created')
   })
 
   it('freezes the validated chain and network until an import is confirmed or cancelled', async () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Prepared EVM wallet')
     await user.type(screen.getByLabelText('Mnemonic / recovery phrase'), 'test secret phrase never retained in Vue state')
@@ -262,6 +400,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Abandoned import')
@@ -287,6 +426,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller({ prepareImport, cancelImport })
     const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Late prepared import')
@@ -316,6 +456,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller({ cancelImport })
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Import being cancelled')
@@ -338,6 +479,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller({ cancelImport: vi.fn(async () => false) })
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Expired import')
@@ -357,6 +499,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller({ cancelImport })
     const view = render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Closing import')
@@ -391,9 +534,12 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.type(screen.getByLabelText('Name'), 'Independent wallet')
     await user.click(screen.getAllByLabelText('New wallet workspace')[0])
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
     await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'b')
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
     expect(wallets.generate).toHaveBeenCalledWith(expect.objectContaining({
@@ -419,6 +565,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
 
     await user.selectOptions(screen.getByLabelText('Policy workspace'), 'workspace-b')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
@@ -433,7 +580,7 @@ describe('WalletsSettingsPanel', () => {
     }))
   })
 
-  it('does not offer new signing automation for a watch-only wallet', () => {
+  it('does not offer new signing automation for a watch-only wallet', async () => {
     const wallets = controller({
       wallets: ref([wallet('watch', 'Read-only treasury', ['workspace-a'])])
     })
@@ -444,6 +591,8 @@ describe('WalletsSettingsPanel', () => {
       },
       global
     })
+
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Access & automation' }))
 
     expect(screen.getByText(/watch-only wallets cannot sign/i)).toBeVisible()
     expect(screen.getByText('Bounded agent automation')).toBeVisible()
@@ -466,6 +615,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
 
     await user.type(screen.getByLabelText('Allowed origin'), 'https://wallet-a.example')
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
@@ -497,6 +647,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
 
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
@@ -585,7 +736,7 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Save RPC endpoint' }))
 
     expect(update).toHaveBeenCalledWith('a', { rpcUrl: 'http://127.0.0.1:9545' })
-    expect(screen.getAllByLabelText('JSON-RPC URL')).toHaveLength(1)
+    expect(screen.queryByLabelText('JSON-RPC URL')).not.toBeInTheDocument()
   })
 
   it('keeps an RPC draft open when persistence fails', async () => {
@@ -648,6 +799,8 @@ describe('WalletsSettingsPanel', () => {
     })
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
 
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Add wallet' }))
+
     await userEvent.setup().click(screen.getByRole('button', { name: 'Watch only' }))
 
     expect(screen.getByRole('button', { name: 'Add watch-only wallet' })).toBeDisabled()
@@ -657,6 +810,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.click(screen.getByRole('button', { name: 'Import' }))
     await user.type(screen.getByLabelText('Name'), 'Imported wallet')
     const recovery = screen.getByLabelText<HTMLTextAreaElement>('Mnemonic / recovery phrase')
@@ -672,6 +826,7 @@ describe('WalletsSettingsPanel', () => {
     const wallets = controller()
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.click(screen.getByRole('button', { name: 'Import' }))
 
     const mnemonic = screen.getByLabelText('Mnemonic / recovery phrase')
@@ -693,6 +848,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.type(screen.getByLabelText('Name'), 'QA agent wallet')
     await user.click(screen.getByLabelText('Dedicated agent wallet'))
     await user.click(screen.getByLabelText('Agent workspace'))
@@ -716,6 +872,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
 
     expect(screen.getByText(/marks this account as dedicated to agent-requested work/i)).toBeVisible()
     expect(screen.getByText(/does not let an agent approve its own request/i)).toBeVisible()
@@ -743,8 +900,10 @@ describe('WalletsSettingsPanel', () => {
       },
       global
     })
-    const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
+    const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
+
 
     await user.click(accessPanel.getByLabelText('Any workspace'))
     expect(accessPanel.getByLabelText('Existing workspace')).toBeDisabled()
@@ -757,7 +916,7 @@ describe('WalletsSettingsPanel', () => {
     })
   })
 
-  it('blocks workspace access saves while another wallet operation is still refreshing', () => {
+  it('blocks workspace access saves while another wallet operation is still refreshing', async () => {
     const configured = wallet('configured-wallet', 'Configured wallet', ['workspace-1'])
     const wallets = controller({
       wallets: ref([configured]),
@@ -770,12 +929,16 @@ describe('WalletsSettingsPanel', () => {
       },
       global
     })
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Access & automation' }))
+
     const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
 
     expect(screen.getByRole('button', { name: 'Save workspace access' })).toBeDisabled()
     expect(accessPanel.getByLabelText('Selected workspaces')).toBeDisabled()
     expect(accessPanel.getByLabelText('Any workspace')).toBeDisabled()
     expect(accessPanel.getByLabelText('Existing workspace')).toBeDisabled()
+    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toBeDisabled()
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Your wallets' }))
     expect(screen.getByRole('button', { name: 'Rename' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Change RPC endpoint' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
@@ -799,6 +962,7 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
 
     expect(screen.getByText(/matching agent transactions run without a per-request approval dialog/i)).toBeVisible()
     await user.click(screen.getByLabelText('Bypass Approve mode'))

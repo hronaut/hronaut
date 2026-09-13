@@ -20,14 +20,14 @@ Copying an older complete profile can also roll the entire locally authenticated
 
 ## Wallet types and onboarding
 
-Open **Settings → Wallets** to:
+Open **Settings → Wallets**. Settings are organized into four tabs:
 
-- generate a Hronaut-managed wallet;
-- import a mnemonic or private key;
-- add a watch-only public address;
-- designate a generated or imported account as a dedicated agent wallet;
-- rename/remove wallets and choose either selected-workspace access or explicit **Any workspace** access, including future workspaces;
-- configure policies, revoke website/agent account permissions, and inspect pending requests or audit history.
+- **Your wallets** lists existing wallets with their names, networks, account types, and public addresses. Select one to inspect its details, rename it, change its RPC endpoint, or remove it. Signing-vault locking is available here for managed accounts.
+- **Add wallet** lets you generate a wallet, import a mnemonic or private key, or add a watch-only address. Generated and imported wallets can be designated as dedicated agent wallets. Choose workspace access during setup. Successful onboarding selects the new wallet in **Your wallets**.
+- **Access & automation** lets you select a wallet and manage selected-workspace or **Any workspace** access, bounded signing policies, and website permissions.
+- **Activity** shows request and audit-event counts and the latest 20 audit events, with a refresh action.
+
+Vault setup, unlock controls, and errors remain visible across tabs. Switching tabs clears any unsubmitted recovery phrase or private key; non-secret form choices remain available. A validated import can be reviewed again in **Add wallet** until confirmed, cancelled, or expired.
 
 Create separate accounts for EVM, Solana, and Tron unless you intentionally accept the larger blast radius of reusing recovery material. Hronaut never silently derives all three families from one seed.
 

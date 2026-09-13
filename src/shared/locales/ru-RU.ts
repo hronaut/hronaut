@@ -447,7 +447,29 @@ export const ruRU = {
       "issue": "Сообщить о проблеме ↗"
     }
   },
-  "wallets": enUS.wallets,
+  wallets: {
+    ...enUS.wallets,
+    description: "Управляйте локальными кошельками EVM, Solana и Tron и настраивайте доступ сайтов и агентов к ним.",
+    noWalletsConfiguredDescription: "Добавьте кошелёк, чтобы создать новый аккаунт, импортировать существующий или отслеживать публичный адрес.",
+    settingsTabs: "Настройки кошельков",
+    accessTab: "Доступ и автоматизация",
+    activityTab: "Активность",
+    walletListDescription: "Выберите кошелёк, чтобы просмотреть его данные или внести изменения.",
+    manageAccess: "Управлять доступом",
+    accessDescription: "Выберите кошелёк, чтобы настроить доступ рабочих пространств, правила подписания и разрешения сайтов.",
+    accessEmptyDescription: "Добавьте кошелёк, прежде чем настраивать доступ и автоматизацию.",
+    noPolicies: "Для этого кошелька нет политик автоматизации.",
+    noPermissions: "Для этого кошелька нет разрешений сайтов.",
+    noActivity: "Активности кошельков пока нет",
+    activityDescription: "Здесь будут появляться последние события кошельков.",
+    yourWallets: "Ваши кошельки",
+    addWallet: "Добавить кошелёк",
+    kinds: {
+      "managed": "Кошелёк для подписания",
+      "agent": "Кошелёк агента",
+      "watch-only": "Только просмотр",
+    }
+  },
   "workspaceNavigationAudit": { "reasonCredentials": "встроенные учётные данные", "reasonMalformed": "некорректный адрес", "reasonUnsupportedScheme": "неподдерживаемая схема", "reasonNoMatch": "нет в списке разрешённых", "sourceDirect": "адрес или запрос агента", "sourcePage": "переход со страницы", "sourceRedirect": "перенаправление", "sourcePopup": "всплывающее окно", "sourceHistory": "назад или вперёд", "sourcePolicyChange": "изменение политики", "sourceRestore": "восстановление сеанса" },
   "workspaceEditor": {
     transferData: "Перенести данные браузера",

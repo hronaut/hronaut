@@ -131,15 +131,18 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect.poll(() => appWindow.locator('.settings-overlay').evaluate((element) => (
     getComputedStyle(element).getPropertyValue('-webkit-app-region')
   ))).toBe('no-drag')
-  await expect.poll(() => panel.getByText('Name', { exact: true }).evaluate((element) => (
+  await expect.poll(() => panel.getByRole('heading', { name: 'Wallets', exact: true }).evaluate((element) => (
     getComputedStyle(element).getPropertyValue('-webkit-app-region')
   ))).toBe('no-drag')
   await expect(panel.getByRole('heading', { name: 'Wallets', exact: true })).toBeVisible()
-  await expect(panel.getByText(/trusted main process/i)).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Generate', exact: true })).toBeVisible()
+  await expect(panel.getByText(/control how websites and agents can use them/i)).toBeVisible()
+  await expect(panel.getByRole('tab', { name: 'Your wallets' })).toHaveAttribute('aria-selected', 'true')
+  await expect(panel.getByRole('button', { name: 'Generate', exact: true })).toHaveCount(0)
   await expect(panel.getByRole('heading', { name: 'Your wallets' })).toBeVisible()
   await expect(panel.getByText('1 configured')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Lock signing keys' })).toHaveCount(0)
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-list-desktop.png') })
+  await panel.getByRole('tab', { name: 'Access & automation' }).click()
   const watchOnlyAutomationNote = panel.getByText(/watch-only wallets cannot sign/i)
   await expect(watchOnlyAutomationNote).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Add bounded policy' })).toHaveCount(0)
@@ -148,6 +151,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await panel.getByLabel('Wallet to manage').scrollIntoViewIfNeeded()
   await appWindow.screenshot({ path: testInfo.outputPath('wallets-vault-control.png') })
 
+  await panel.getByRole('tab', { name: 'Add wallet' }).click()
   await panel.getByRole('button', { name: 'Import' }).click()
   await expect(panel.getByRole('textbox', { name: 'Mnemonic / recovery phrase' })).toHaveJSProperty('tagName', 'TEXTAREA')
   await panel.getByRole('combobox', { name: 'Secret format' }).selectOption('private-key')
@@ -155,7 +159,8 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(privateKey).toHaveAttribute('type', 'password')
   await panel.getByRole('button', { name: 'Generate' }).click()
 
-  await panel.getByRole('button', { name: 'Rename' }).click()
+  await panel.getByRole('tab', { name: 'Your wallets' }).click()
+  await panel.getByRole('button', { name: 'Rename', exact: true }).click()
   const renameInput = panel.getByRole('textbox', { name: 'Wallet name' })
   await expect(renameInput).toHaveValue('Wallet to rename')
   await renameInput.fill('Renamed inside Electron')
@@ -174,6 +179,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.network.rpcUrl
   )`)).toBe('http://127.0.0.1:9545')
 
+  await panel.getByRole('button', { name: 'Manage access' }).click()
   const configuredAccess = panel.locator('.wallet-configured-access')
   await configuredAccess.getByLabel('Any workspace').click()
   await expect(configuredAccess.getByText(/includes workspaces created later/i)).toBeVisible()
@@ -182,6 +188,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.availableInAllWorkspaces
   )`)).toBe(true)
 
+  await panel.getByRole('tab', { name: 'Add wallet' }).click()
   const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
   await walletName.scrollIntoViewIfNeeded()
   const walletNameBounds = await walletName.boundingBox()
@@ -204,6 +211,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toHaveAttribute('aria-pressed', 'false')
   await appWindow.getByRole('button', { name: 'Settings' }).click()
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  await panel.getByRole('tab', { name: 'Add wallet' }).click()
   await walletName.click()
   await expect(walletName).toBeFocused()
   await appWindow.keyboard.type('QA wallet after unlock')
@@ -325,6 +333,13 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   expect(layout.visiblePanelHeight).toBeGreaterThan(120)
   expect(layout.left).toBeGreaterThanOrEqual(0)
   expect(layout.right).toBeLessThanOrEqual(layout.viewport)
+
+  for (const tab of ['Your wallets', 'Access & automation', 'Activity', 'Add wallet']) {
+    await panel.getByRole('tab', { name: tab, exact: true }).click()
+    await expect(panel.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible()
+    expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+    await appWindow.screenshot({ path: testInfo.outputPath(`wallet-tab-${tab.split(' ')[0]?.toLowerCase()}-minimum.png`) })
+  }
 })
 
 test('discards a generated wallet when recovery material is not confirmed', async ({ appWindow, electronApp }) => {
@@ -347,6 +362,51 @@ test('discards a generated wallet when recovery material is not confirmed', asyn
   await expect.poll(() => appWindow.evaluate('window.hronautWallets.list()')).toEqual([])
 })
 
+test('shows a selectable wallet list and readable tabs across themes and translated layouts', async ({ appWindow }, testInfo) => {
+  await appWindow.setViewportSize({ width: 1200, height: 900 })
+  await appWindow.evaluate(`(async () => {
+    const status = await window.hronautWallets.status()
+    if (status.managedWallets === 'passphrase-setup-required') {
+      await window.hronautWallets.setupPassphrase('wallet-tabs-visual-test-passphrase')
+    }
+    for (const [name, address] of [['Treasury', '1'], ['Development', '2']]) {
+      await window.hronautWallets.addWatchOnly({
+        name, chainFamily: 'evm', publicAddress: '0x' + address.padStart(40, '0'),
+        network: { id: '11155111', name: 'Sepolia', environment: 'testnet', rpcUrl: 'https://11155111.rpc.thirdweb.com' },
+        workspaceIds: []
+      })
+    }
+  })()`)
+  await appWindow.getByRole('button', { name: 'Settings', exact: true }).click()
+  const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
+  const panel = appWindow.locator('.wallet-settings')
+  await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  const accounts = panel.getByRole('list', { name: 'Your wallets' })
+  await expect(accounts.getByRole('listitem')).toHaveCount(2)
+  await accounts.getByRole('button', { name: /Development/ }).click()
+  await expect(panel.getByRole('heading', { name: 'Development', exact: true })).toBeVisible()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-settings-light.png') })
+  await panel.getByRole('button', { name: 'Manage access' }).click()
+  await expect(panel.getByLabel('Wallet to manage').locator('option:checked')).toContainText('Development')
+
+  await dialog.getByRole('button', { name: 'Appearance Theme and window' }).click()
+  await dialog.getByTestId('theme-dark').click()
+  await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-settings-dark.png') })
+  await panel.getByRole('tab', { name: 'Add wallet' }).click()
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-add-dark.png') })
+
+  await appWindow.setViewportSize({ width: 760, height: 520 })
+  await appWindow.evaluate(`(async () => { await window.hronautSettings.setInterfaceScale(1.25); await window.hronautSettings.setLanguagePreference('de-DE') })()`)
+  await expect(panel.getByRole('tab', { name: 'Wallet hinzufügen' })).toBeVisible()
+  for (const tab of ['Ihre Wallets', 'Wallet hinzufügen', 'Zugriff & Automatisierung', 'Aktivität']) {
+    await panel.getByRole('tab', { name: tab, exact: true }).click()
+    await expect(panel.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible()
+    expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
+  }
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-tabs-german-minimum.png') })
+})
+
 test('confirms a validated private-key import through the trusted Settings IPC boundary', async ({ appWindow }, testInfo) => {
   await appWindow.evaluate(`(async () => {
     const status = await window.hronautWallets.status()
@@ -359,6 +419,7 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   const dialog = appWindow.getByRole('dialog', { name: 'Settings' })
   await dialog.getByRole('button', { name: 'Wallets Web3 accounts and policies' }).click()
   const panel = dialog.locator('.wallet-settings')
+  await panel.getByRole('tab', { name: 'Add wallet' }).click()
   await panel.getByRole('button', { name: 'Import' }).click()
   const walletName = panel.getByRole('textbox', { name: 'Name', exact: true })
   await walletName.fill('Imported through Settings')
@@ -372,10 +433,11 @@ test('confirms a validated private-key import through the trusted Settings IPC b
   await appWindow.screenshot({ path: testInfo.outputPath('wallet-import-review.png') })
   await panel.getByRole('button', { name: 'Add encrypted wallet' }).click()
 
-  const walletSelector = panel.getByRole('combobox', { name: 'Wallet to manage' })
-  await expect(walletName).toHaveValue('')
-  await expect(walletSelector).toBeFocused()
-  await expect(walletSelector.locator('option:checked')).toContainText('Imported through Settings')
+  await expect(panel.getByRole('tab', { name: 'Your wallets' })).toHaveAttribute('aria-selected', 'true')
+  await expect(walletName).toHaveCount(0)
+  await expect(panel.getByRole('heading', { name: 'Imported through Settings' })).toBeFocused()
+  await expect(panel.getByRole('button', { name: /Imported through Settings/ })).toHaveAttribute('aria-pressed', 'true')
+  await appWindow.screenshot({ path: testInfo.outputPath('wallet-import-complete.png') })
   await expect.poll(() => appWindow.evaluate(`window.hronautWallets.list().then(
     (wallets) => wallets.some((wallet) => wallet.name === 'Imported through Settings')
   )`)).toBe(true)

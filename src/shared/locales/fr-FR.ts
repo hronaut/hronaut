@@ -447,7 +447,29 @@ export const frFR = {
       "issue": "Signaler un problème ↗"
     }
   },
-  "wallets": enUS.wallets,
+  wallets: {
+    ...enUS.wallets,
+    description: "Gérez vos portefeuilles locaux EVM, Solana et Tron et contrôlez leur utilisation par les sites et les agents.",
+    noWalletsConfiguredDescription: "Ajoutez un portefeuille pour créer un compte, en importer un ou suivre une adresse publique.",
+    settingsTabs: "Paramètres des portefeuilles",
+    accessTab: "Accès et automatisation",
+    activityTab: "Activité",
+    walletListDescription: "Sélectionnez un portefeuille pour consulter ses détails ou le modifier.",
+    manageAccess: "Gérer les accès",
+    accessDescription: "Sélectionnez un portefeuille pour gérer les accès des espaces de travail, les règles de signature et les autorisations des sites.",
+    accessEmptyDescription: "Ajoutez un portefeuille avant de configurer les accès et l’automatisation.",
+    noPolicies: "Aucune règle d’automatisation pour ce portefeuille.",
+    noPermissions: "Aucune autorisation de site accordée pour ce portefeuille.",
+    noActivity: "Aucune activité pour le moment",
+    activityDescription: "Les événements récents des portefeuilles apparaîtront ici.",
+    yourWallets: "Vos portefeuilles",
+    addWallet: "Ajouter un portefeuille",
+    kinds: {
+      "managed": "Portefeuille de signature",
+      "agent": "Portefeuille d’agent",
+      "watch-only": "Lecture seule",
+    }
+  },
   "workspaceNavigationAudit": { "reasonCredentials": "identifiants intégrés", "reasonMalformed": "adresse invalide", "reasonUnsupportedScheme": "schéma non pris en charge", "reasonNoMatch": "absent de la liste autorisée", "sourceDirect": "adresse ou demande d’agent", "sourcePage": "navigation de page", "sourceRedirect": "redirection", "sourcePopup": "fenêtre contextuelle", "sourceHistory": "précédent ou suivant", "sourcePolicyChange": "changement de politique", "sourceRestore": "restauration de session" },
   "workspaceEditor": {
     transferData: "Transférer des données du navigateur",

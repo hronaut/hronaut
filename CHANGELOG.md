@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Organize Web3 wallet settings into Your wallets, Add wallet, Access & automation, and Activity tabs, with a selectable wallet list, focused onboarding, and explicit empty states in all seven interface languages.
+
 ### Added
 
 - Add reviewable consequential browser handoffs with privacy-safe exact-action hashes, visible workspace and capability context, cheap reject and cancel controls, single-use approval bindings, drift and reconnect invalidation, and durable attempted, verified, and unknown receipts.

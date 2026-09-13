@@ -447,7 +447,29 @@ export const deDE = {
       "issue": "Problem melden ↗"
     }
   },
-  "wallets": enUS.wallets,
+  wallets: {
+    ...enUS.wallets,
+    description: "Verwalten Sie lokale EVM-, Solana- und Tron-Wallets und steuern Sie den Zugriff durch Websites und Agenten.",
+    noWalletsConfiguredDescription: "Fügen Sie eine Wallet hinzu, um ein Konto zu erstellen, ein bestehendes zu importieren oder eine öffentliche Adresse zu beobachten.",
+    settingsTabs: "Wallet-Einstellungen",
+    accessTab: "Zugriff & Automatisierung",
+    activityTab: "Aktivität",
+    walletListDescription: "Wählen Sie eine Wallet, um Details anzuzeigen oder Änderungen vorzunehmen.",
+    manageAccess: "Zugriff verwalten",
+    accessDescription: "Wählen Sie eine Wallet, um Arbeitsbereichszugriff, Signierregeln und Website-Berechtigungen zu verwalten.",
+    accessEmptyDescription: "Fügen Sie eine Wallet hinzu, bevor Sie Zugriff und Automatisierung konfigurieren.",
+    noPolicies: "Für diese Wallet sind keine Automatisierungsrichtlinien eingerichtet.",
+    noPermissions: "Für diese Wallet wurden keine Website-Berechtigungen erteilt.",
+    noActivity: "Noch keine Wallet-Aktivität",
+    activityDescription: "Hier erscheinen die letzten Wallet-Ereignisse.",
+    yourWallets: "Ihre Wallets",
+    addWallet: "Wallet hinzufügen",
+    kinds: {
+      "managed": "Signierende Wallet",
+      "agent": "Agenten-Wallet",
+      "watch-only": "Nur beobachten",
+    }
+  },
   "workspaceNavigationAudit": { "reasonCredentials": "eingebettete Zugangsdaten", "reasonMalformed": "ungültige Adresse", "reasonUnsupportedScheme": "nicht unterstütztes Schema", "reasonNoMatch": "nicht auf der Positivliste", "sourceDirect": "Adresse oder Agentenanfrage", "sourcePage": "Seitennavigation", "sourceRedirect": "Weiterleitung", "sourcePopup": "Pop-up", "sourceHistory": "Zurück oder Vor", "sourcePolicyChange": "Richtlinienänderung", "sourceRestore": "Sitzungswiederherstellung" },
   "workspaceEditor": {
     transferData: "Browserdaten übertragen",

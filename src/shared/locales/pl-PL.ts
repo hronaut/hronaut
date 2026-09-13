@@ -447,7 +447,29 @@ export const plPL = {
       "issue": "Zgłoś problem ↗"
     }
   },
-  "wallets": enUS.wallets,
+  wallets: {
+    ...enUS.wallets,
+    description: "Zarządzaj lokalnymi portfelami EVM, Solana i Tron oraz kontroluj ich używanie przez witryny i agentów.",
+    noWalletsConfiguredDescription: "Dodaj portfel, aby utworzyć konto, zaimportować istniejące lub obserwować adres publiczny.",
+    settingsTabs: "Ustawienia portfeli",
+    accessTab: "Dostęp i automatyzacja",
+    activityTab: "Aktywność",
+    walletListDescription: "Wybierz portfel, aby zobaczyć jego szczegóły lub wprowadzić zmiany.",
+    manageAccess: "Zarządzaj dostępem",
+    accessDescription: "Wybierz portfel, aby zarządzać dostępem obszarów roboczych, regułami podpisywania i uprawnieniami witryn.",
+    accessEmptyDescription: "Dodaj portfel przed skonfigurowaniem dostępu i automatyzacji.",
+    noPolicies: "Ten portfel nie ma skonfigurowanych zasad automatyzacji.",
+    noPermissions: "Temu portfelowi nie przyznano uprawnień witryn.",
+    noActivity: "Brak aktywności portfeli",
+    activityDescription: "Tutaj pojawią się ostatnie zdarzenia portfeli.",
+    yourWallets: "Twoje portfele",
+    addWallet: "Dodaj portfel",
+    kinds: {
+      "managed": "Portfel do podpisywania",
+      "agent": "Portfel agenta",
+      "watch-only": "Tylko podgląd",
+    }
+  },
   "workspaceNavigationAudit": { "reasonCredentials": "osadzone dane logowania", "reasonMalformed": "nieprawidłowy adres", "reasonUnsupportedScheme": "nieobsługiwany schemat", "reasonNoMatch": "poza listą dozwolonych", "sourceDirect": "adres lub żądanie agenta", "sourcePage": "nawigacja strony", "sourceRedirect": "przekierowanie", "sourcePopup": "wyskakujące okno", "sourceHistory": "wstecz lub dalej", "sourcePolicyChange": "zmiana zasad", "sourceRestore": "przywrócenie sesji" },
   "workspaceEditor": {
     transferData: "Przenieś dane przeglądarki",

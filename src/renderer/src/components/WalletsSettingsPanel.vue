@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import UiButton from "../ui/UiButton.vue"
+import UiButton from '../ui/UiButton.vue'
+import UiTabs from '../ui/UiTabs.vue'
+import IconWallet from '~icons/material-symbols/account-balance-wallet-outline-rounded'
+import IconAdd from '~icons/material-symbols/add-rounded'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -25,6 +28,15 @@ const props = defineProps<{
   workspaces: Array<{ id: string; name: string }>
 }>()
 const { t } = useI18n({ useScope: 'global' })
+
+const activeTab = ref('wallets')
+const settingsTabs = computed(() => [
+  { id: 'wallets', label: t('wallets.yourWallets') },
+  { id: 'add', label: t('wallets.addWallet') },
+  { id: 'access', label: t('wallets.accessTab') },
+  { id: 'activity', label: t('wallets.activityTab') }
+])
+let navigationGeneration = 0
 
 const mode = ref<'generate' | 'import' | 'watch'>('generate')
 const walletModes = ['generate', 'import', 'watch'] as const
@@ -60,8 +72,7 @@ const preparingImport = ref(false)
 const cancellingImport = ref(false)
 const preparedImportReview = ref<HTMLElement | null>(null)
 const addImportedWalletButton = ref<HTMLButtonElement | null>(null)
-const configuredWalletsSection = ref<HTMLElement | null>(null)
-const walletSelector = ref<HTMLSelectElement | null>(null)
+const walletDetailsHeading = ref<HTMLElement | null>(null)
 const policyOrigin = ref('')
 const policyWorkspaceId = ref('')
 const policyDestination = ref('')
@@ -223,6 +234,15 @@ watch(selectedWallet, (wallet) => {
   resetPolicyDraft()
 }, { immediate: true })
 
+watch(activeTab, () => {
+  navigationGeneration += 1
+  if (recoveryInput.value) recoveryInput.value.value = ''
+  if (preparingImport.value) {
+    importPreparationGeneration += 1
+    preparingImport.value = false
+  }
+}, { flush: 'sync' })
+
 watch(secretFormat, () => {
   if (recoveryInput.value) recoveryInput.value.value = ''
 })
@@ -244,20 +264,24 @@ function network(): WalletNetwork {
   }
 }
 
-async function finishOnboarding(wallet: { id: string } | undefined): Promise<void> {
-  if (!wallet) return
+async function finishOnboarding(wallet: { id: string } | undefined, generation: number): Promise<void> {
+  if (!wallet || unmounted || generation !== navigationGeneration) return
   name.value = ''
   watchAddress.value = ''
   dedicatedAgent.value = false
   onboardingWorkspaceScope.value = 'selected'
   onboardingWorkspaceIds.value = []
   selectedWalletId.value = wallet.id
+  activeTab.value = 'wallets'
+  const completedGeneration = navigationGeneration
   await nextTick()
-  configuredWalletsSection.value?.scrollIntoView?.({ block: 'start' })
-  walletSelector.value?.focus({ preventScroll: true })
+  if (unmounted || completedGeneration !== navigationGeneration) return
+  walletDetailsHeading.value?.scrollIntoView?.({ block: 'nearest' })
+  walletDetailsHeading.value?.focus({ preventScroll: true })
 }
 
 async function submitOnboarding(): Promise<void> {
+  const generation = navigationGeneration
   const availableInAllWorkspaces = onboardingWorkspaceScope.value === 'all'
   const input = {
     name: name.value.trim(),
@@ -267,9 +291,9 @@ async function submitOnboarding(): Promise<void> {
     availableInAllWorkspaces
   }
   if (mode.value === 'generate') {
-    await finishOnboarding(await props.controller.generate({ ...input, dedicatedAgent: dedicatedAgent.value }))
+    await finishOnboarding(await props.controller.generate({ ...input, dedicatedAgent: dedicatedAgent.value }), generation)
   } else if (mode.value === 'watch') {
-    await finishOnboarding(await props.controller.addWatchOnly({ ...input, publicAddress: watchAddress.value.trim() }))
+    await finishOnboarding(await props.controller.addWatchOnly({ ...input, publicAddress: watchAddress.value.trim() }), generation)
   } else {
     const secret = recoveryInput.value?.value ?? ''
     if (recoveryInput.value) recoveryInput.value.value = ''
@@ -315,10 +339,11 @@ async function confirmPreparedImport(): Promise<void> {
     availableInAllWorkspaces: pending.details.availableInAllWorkspaces,
     dedicatedAgent: pending.details.dedicatedAgent
   }
+  const generation = navigationGeneration
   const confirmed = await props.controller.confirmImport(pending.token, details)
   if (confirmed) {
     preparedImport.value = null
-    await finishOnboarding(confirmed)
+    await finishOnboarding(confirmed, generation)
   }
 }
 
@@ -436,111 +461,145 @@ async function addPolicy(): Promise<void> {
       <p>{{ t('wallets.description') }}</p>
     </div>
 
-    <div class="settings-info" :class="{ 'security-warning': controller.status.value.managedWallets === 'disabled' }">
-      <span class="info-dot" aria-hidden="true">{{ t('common.hronaut').slice(0, 1) }}</span>
-      <p>{{ statusCopy }}</p>
-    </div>
-    <output v-if="controller.errorMessage.value" class="site-controls-error wallet-error" role="alert">{{ controller.errorMessage.value }}</output>
-
-    <form v-if="controller.status.value.managedWallets === 'passphrase-setup-required'" class="wallet-card" @submit.prevent="submitPassphrase('setup')">
-      <h4>{{ t('wallets.createPassphrase') }}</h4>
-      <p>{{ t('wallets.createPassphraseDescription') }}</p>
-      <label>{{ t('wallets.createPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="new-password" required></label>
-      <UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.createEncryptedVault') }}</UiButton>
-    </form>
-    <form v-else-if="controller.status.value.managedWallets === 'locked' && vaultUsesPassphrase" class="wallet-card wallet-unlock-card" @submit.prevent="submitPassphrase('unlock')">
-      <div><h4>{{ t('wallets.unlockVault') }}</h4><p>{{ t('wallets.unlockPassphraseDescription') }}</p></div>
-      <label>{{ t('wallets.vaultPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="current-password" required></label>
-      <UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.unlock') }}</UiButton>
-    </form>
-    <section v-else-if="controller.status.value.managedWallets === 'locked'" class="wallet-card wallet-unlock-card">
-      <div><h4>{{ t('wallets.signingLocked') }}</h4><p>{{ t('wallets.signingLockedDescription') }}</p></div>
-      <UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value" @click="unlockSystemStorage">{{ t('wallets.unlockSystemStorage') }}</UiButton>
-    </section>
-
-    <section class="wallet-card">
-      <div class="wallet-card-heading"><h4>{{ t('wallets.addWallet') }}</h4><span>{{ t('wallets.secretsNotCopied') }}</span></div>
-      <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
-        <UiButton appearance="application" v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-label="t(`wallets.modes.${entry}`)" :aria-pressed="mode === entry" :disabled="onboardingLocked" @click="mode = entry"><strong>{{ t(`wallets.modes.${entry}`) }}</strong><small>{{ t(`wallets.modeDescriptions.${entry}`) }}</small></UiButton>
+    <UiTabs v-model="activeTab" :items="settingsTabs" :label="t('wallets.settingsTabs')" class="wallet-settings-tabs">
+      <div class="settings-info" :class="{ 'security-warning': controller.status.value.managedWallets === 'disabled' }">
+        <span class="info-dot" aria-hidden="true">{{ t('common.hronaut').slice(0, 1) }}</span>
+        <p>{{ statusCopy }}</p>
       </div>
-      <form v-if="!preparedImport" class="wallet-form" @submit.prevent="submitOnboarding">
-        <p v-if="mode === 'import'" class="wallet-wide wallet-import-step">{{ t('wallets.importValidateStep') }}</p>
-        <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="onboardingLocked"></label>
-        <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="onboardingLocked"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
-        <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="onboardingLocked" />
-        <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required :disabled="onboardingLocked"></label>
-        <template v-if="mode === 'import'">
-          <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat" :disabled="onboardingLocked"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
-          <label v-if="secretFormat === 'mnemonic'" class="wallet-wide">{{ t('wallets.mnemonicInput') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></textarea></label>
-          <label v-else class="wallet-wide">{{ t('wallets.privateKey') }} <input ref="recoveryInput" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></label>
-        </template>
-        <label v-if="mode !== 'watch'" class="wallet-wide wallet-choice-card"><input v-model="dedicatedAgent" type="checkbox" :aria-label="t('wallets.dedicatedAgent')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.dedicatedAgent') }}</strong><small>{{ t('wallets.dedicatedAgentDescription') }}</small></span></label>
-        <section class="wallet-wide wallet-access-panel" aria-labelledby="wallet-onboarding-access-heading">
-          <div class="wallet-access-heading"><h5 id="wallet-onboarding-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
-          <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
-            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
-            <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
-          </div>
-          <fieldset :disabled="onboardingLocked || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
-        </section>
-        <UiButton variant="primary" class="primary-button wallet-submit-button" type="submit" :disabled="onboardingLocked || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</UiButton>
+      <output v-if="controller.errorMessage.value" class="site-controls-error wallet-error" role="alert">{{ controller.errorMessage.value }}</output>
+
+      <form v-if="controller.status.value.managedWallets === 'passphrase-setup-required'" class="wallet-card" @submit.prevent="submitPassphrase('setup')">
+        <h4>{{ t('wallets.createPassphrase') }}</h4>
+        <p>{{ t('wallets.createPassphraseDescription') }}</p>
+        <label>{{ t('wallets.createPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="new-password" required></label>
+        <UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.createEncryptedVault') }}</UiButton>
       </form>
-      <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status" :aria-busy="cancellingImport || undefined">
-        <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>
-        <div class="wallet-import-confirm-heading"><span aria-hidden="true"><IconCheck /></span><div><strong>{{ t('wallets.walletValidated') }}</strong><p>{{ t('wallets.importValidatedDescription') }}</p></div></div>
-        <dl class="wallet-import-review">
-          <div><dt>{{ t('wallets.name') }}</dt><dd>{{ preparedImport.details.name }}</dd></div>
-          <div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ preparedImport.publicAddress }}</code></dd></div>
-          <div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: preparedImport.details.network.name, environment: preparedImport.details.network.environment }) }}</dd></div>
-          <div><dt>{{ t('wallets.workspaceAccess') }}</dt><dd>{{ preparedImportWorkspaceLabel }}</dd></div>
-        </dl>
-        <div class="wallet-actions">
-          <UiButton variant="primary" ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</UiButton>
-          <UiButton class="secondary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="cancelPreparedImport"><IconProgress v-if="cancellingImport" class="state-spinner" aria-hidden="true" />{{ t('wallets.cancel') }}</UiButton>
-        </div>
-      </div>
-    </section>
+      <form v-else-if="controller.status.value.managedWallets === 'locked' && vaultUsesPassphrase" class="wallet-card wallet-unlock-card" @submit.prevent="submitPassphrase('unlock')">
+        <div><h4>{{ t('wallets.unlockVault') }}</h4><p>{{ t('wallets.unlockPassphraseDescription') }}</p></div>
+        <label>{{ t('wallets.vaultPassphrase') }} <input ref="passphraseInput" type="password" minlength="12" maxlength="1024" autocomplete="current-password" required></label>
+        <UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value">{{ t('wallets.unlock') }}</UiButton>
+      </form>
+      <section v-else-if="controller.status.value.managedWallets === 'locked'" class="wallet-card wallet-unlock-card">
+        <div><h4>{{ t('wallets.signingLocked') }}</h4><p>{{ t('wallets.signingLockedDescription') }}</p></div>
+        <UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value" @click="unlockSystemStorage">{{ t('wallets.unlockSystemStorage') }}</UiButton>
+      </section>
 
-    <section ref="configuredWalletsSection" class="wallet-card">
-      <div class="wallet-card-heading"><h4>{{ t('wallets.yourWallets') }}</h4><span class="wallet-count">{{ t('wallets.configuredCount', { count: controller.wallets.value.length }) }}</span></div>
-      <div v-if="controller.wallets.value.length === 0" class="wallet-empty-state">
-        <strong>{{ t('wallets.noWalletsConfigured') }}</strong>
-        <p>{{ t('wallets.noWalletsConfiguredDescription') }}</p>
-      </div>
-      <div v-if="controller.status.value.managedWallets === 'ready' && hasSigningWallet" class="wallet-vault-control">
-        <div><strong>{{ t('wallets.signingVault') }}</strong><small>{{ t('wallets.lockVaultDescription') }}</small></div>
-        <UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.lock">{{ t('wallets.lockSigningKeys') }}</UiButton>
-      </div>
-      <label v-if="controller.wallets.value.length > 0" class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select ref="walletSelector" v-model="selectedWalletId" class="wallet-selector"><option value="" disabled>{{ t('wallets.selectWallet') }}</option><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
-      <template v-if="selectedWallet">
-        <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
-        <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">
-          <div class="wallet-access-heading"><h5 id="wallet-configured-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
-          <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
-            <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
-            <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
-          </div>
-          <fieldset :disabled="controller.busy.value || configuredWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
-          <p class="wallet-access-security-note">{{ t('wallets.workspaceAccessSecurity') }}</p>
+      <section v-if="activeTab === 'wallets'" class="wallet-card">
+        <div class="wallet-card-heading">
+          <div class="wallet-section-heading"><h4>{{ t('wallets.yourWallets') }} <span class="wallet-count">{{ t('wallets.configuredCount', { count: controller.wallets.value.length }) }}</span></h4><p>{{ t('wallets.walletListDescription') }}</p></div>
+          <UiButton v-if="controller.wallets.value.length" variant="primary" @click="activeTab = 'add'"><IconAdd aria-hidden="true" />{{ t('wallets.addWallet') }}</UiButton>
+        </div>
+        <div v-if="controller.wallets.value.length === 0" class="wallet-empty-state">
+          <IconWallet class="wallet-empty-icon" aria-hidden="true" />
+          <strong>{{ t('wallets.noWalletsConfigured') }}</strong>
+          <p>{{ t('wallets.noWalletsConfiguredDescription') }}</p>
+          <UiButton variant="primary" @click="activeTab = 'add'"><IconAdd aria-hidden="true" />{{ t('wallets.addWallet') }}</UiButton>
+        </div>
+        <div v-if="controller.status.value.managedWallets === 'ready' && hasSigningWallet" class="wallet-vault-control">
+          <div><strong>{{ t('wallets.signingVault') }}</strong><small>{{ t('wallets.lockVaultDescription') }}</small></div>
+          <UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="controller.lock">{{ t('wallets.lockSigningKeys') }}</UiButton>
+        </div>
+        <ul v-if="controller.wallets.value.length" class="wallet-account-list" :aria-label="t('wallets.yourWallets')">
+          <li v-for="wallet in controller.wallets.value" :key="wallet.id">
+            <UiButton appearance="application" class="wallet-account" :aria-label="t('wallets.walletOption', { name: wallet.name, chain: wallet.network.name, kind: t(`wallets.kinds.${wallet.kind}`) })" :aria-pressed="selectedWalletId === wallet.id" :disabled="controller.busy.value" @click="selectedWalletId = wallet.id">
+              <span class="wallet-account-icon" aria-hidden="true"><IconWallet /></span>
+              <span class="wallet-account-summary"><strong>{{ wallet.name }}</strong><small>{{ wallet.network.name }} · {{ t(`wallets.kinds.${wallet.kind}`) }}</small><code>{{ wallet.publicAddress }}</code></span>
+              <IconCheck v-if="selectedWalletId === wallet.id" class="wallet-account-check" aria-hidden="true" />
+            </UiButton>
+          </li>
+        </ul>
+        <section v-if="selectedWallet" class="wallet-details" :aria-label="selectedWallet.name">
+          <h5 ref="walletDetailsHeading" tabindex="-1">{{ selectedWallet.name }}</h5>
+          <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
+          <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</UiButton></div></form>
+          <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</UiButton></div></form>
+          <div class="wallet-actions"><UiButton type="button" @click="activeTab = 'access'">{{ t('wallets.manageAccess') }}</UiButton><UiButton v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</UiButton><UiButton v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</UiButton><UiButton variant="danger" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</UiButton></div>
+
         </section>
-        <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</UiButton></div></form>
-        <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</UiButton></div></form>
-        <div class="wallet-actions"><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</UiButton><UiButton v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</UiButton><UiButton v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</UiButton><UiButton variant="danger" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</UiButton></div>
+      </section>
 
-        <div class="wallet-subsection"><h5>{{ t('wallets.boundedHeading') }}</h5><p>{{ t('wallets.boundedDescription') }}</p>
-          <template v-if="selectedWalletCanSign">
-            <label v-if="mainnetBypassSupported" class="wallet-choice-card wallet-bypass-option"><input v-model="policyBypassApprove" type="checkbox" :aria-label="t('wallets.bypassApprove')"><span><strong>{{ t('wallets.bypassApprove') }}</strong><small>{{ t('wallets.bypassApproveDescription') }}</small></span></label>
-            <p v-else-if="selectedWalletIsMainnet" class="wallet-mainnet-bypass-unavailable">{{ t('wallets.bypassApproveUnavailable') }}</p>
-            <div class="wallet-form"><label class="wallet-wide">{{ t('wallets.policyWorkspace') }} <select v-model="policyWorkspaceId" required :disabled="policyWorkspaceOptions.length === 0"><option value="" disabled>{{ t('wallets.selectPolicyWorkspace') }}</option><option v-for="workspace in policyWorkspaceOptions" :key="workspace.id" :value="workspace.id">{{ workspace.name }}</option></select></label><p v-if="policyWorkspaceOptions.length === 0" class="wallet-wide wallet-form-note">{{ t('wallets.policyWorkspaceRequired') }}</p><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" required :placeholder="t('wallets.originPlaceholder')"></label><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination" required></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" required :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" :max="selectedWalletIsMainnet ? 100 : 1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value || !canAddBoundedPolicy" @click="addPolicy">{{ selectedWalletIsMainnet ? t('wallets.enableBypassApprove') : t('wallets.addBoundedPolicy') }}</UiButton></div>
-          </template>
-          <p v-else class="wallet-mainnet-bypass-unavailable">{{ t('wallets.watchOnlyAutomationUnavailable') }}</p>
-          <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
+      <section v-if="activeTab === 'access'" class="wallet-card">
+        <div class="wallet-section-heading"><h4>{{ t('wallets.accessTab') }}</h4><p>{{ t('wallets.accessDescription') }}</p></div>
+        <div v-if="!controller.wallets.value.length" class="wallet-empty-state">
+          <strong>{{ t('wallets.noWalletsConfigured') }}</strong><p>{{ t('wallets.accessEmptyDescription') }}</p>
+          <UiButton variant="primary" @click="activeTab = 'add'">{{ t('wallets.addWallet') }}</UiButton>
         </div>
+        <label v-else class="wallet-selector-label">{{ t('wallets.walletToManage') }}<select v-model="selectedWalletId" class="wallet-selector" :disabled="controller.busy.value"><option v-for="wallet in controller.wallets.value" :key="wallet.id" :value="wallet.id">{{ t('wallets.walletOption', { name: wallet.name, chain: wallet.chainFamily, kind: wallet.kind }) }}</option></select></label>
+        <template v-if="selectedWallet">
+          <section class="wallet-access-panel wallet-configured-access" aria-labelledby="wallet-configured-access-heading">
+            <div class="wallet-access-heading"><h5 id="wallet-configured-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
+            <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
+              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="configuredWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="controller.busy.value"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
+            </div>
+            <fieldset :disabled="controller.busy.value || configuredWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="configuredWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
+            <p class="wallet-access-security-note">{{ t('wallets.workspaceAccessSecurity') }}</p>
+            <UiButton variant="primary" type="button" :disabled="controller.busy.value" @click="attachWorkspaces">{{ t('wallets.saveWorkspaceAccess') }}</UiButton>
+          </section>
+          <div class="wallet-subsection"><h5>{{ t('wallets.boundedHeading') }}</h5><p>{{ t('wallets.boundedDescription') }}</p>
+            <template v-if="selectedWalletCanSign">
+              <label v-if="mainnetBypassSupported" class="wallet-choice-card wallet-bypass-option"><input v-model="policyBypassApprove" type="checkbox" :aria-label="t('wallets.bypassApprove')"><span><strong>{{ t('wallets.bypassApprove') }}</strong><small>{{ t('wallets.bypassApproveDescription') }}</small></span></label>
+              <p v-else-if="selectedWalletIsMainnet" class="wallet-mainnet-bypass-unavailable">{{ t('wallets.bypassApproveUnavailable') }}</p>
+              <div class="wallet-form"><label class="wallet-wide">{{ t('wallets.policyWorkspace') }} <select v-model="policyWorkspaceId" required :disabled="policyWorkspaceOptions.length === 0"><option value="" disabled>{{ t('wallets.selectPolicyWorkspace') }}</option><option v-for="workspace in policyWorkspaceOptions" :key="workspace.id" :value="workspace.id">{{ workspace.name }}</option></select></label><p v-if="policyWorkspaceOptions.length === 0" class="wallet-wide wallet-form-note">{{ t('wallets.policyWorkspaceRequired') }}</p><label>{{ t('wallets.allowedOrigin') }} <input v-model="policyOrigin" type="url" required :placeholder="t('wallets.originPlaceholder')"></label><label>{{ t('wallets.destinationContract') }} <input v-model="policyDestination" required></label><label>{{ t('wallets.methodInstruction') }} <input v-model="policyMethod" required :placeholder="t('wallets.methodPlaceholder')"></label><label>{{ t('wallets.maxNativeAmount') }} <input v-model="policyMaxAmount" inputmode="decimal"></label><label>{{ t('wallets.maxTokenAmount') }} <input v-model="policyMaxTokenAmount" inputmode="decimal"></label><label>{{ t('wallets.maxFee') }} <input v-model="policyMaxFee" inputmode="decimal"></label><label>{{ t('wallets.sessionSpend') }} <input v-model="policySessionLimit" inputmode="decimal"></label><label>{{ t('wallets.dailySpend') }} <input v-model="policyDailyLimit" inputmode="decimal"></label><label>{{ t('wallets.operationCount') }} <input v-model.number="policyMaximumOperations" type="number" min="1" :max="selectedWalletIsMainnet ? 100 : 1000000"></label><label>{{ t('wallets.expires') }} <input v-model="policyExpiry" type="datetime-local"></label><UiButton variant="primary" class="primary-button" type="button" :disabled="controller.busy.value || !canAddBoundedPolicy" @click="addPolicy">{{ selectedWalletIsMainnet ? t('wallets.enableBypassApprove') : t('wallets.addBoundedPolicy') }}</UiButton></div>
+            </template>
+            <p v-else class="wallet-mainnet-bypass-unavailable">{{ t('wallets.watchOnlyAutomationUnavailable') }}</p>
+            <p v-if="selectedPolicies.length === 0" class="wallet-form-note">{{ t('wallets.noPolicies') }}</p>
+            <ul class="wallet-list"><li v-for="policy in selectedPolicies" :key="policy.id"><span><strong>{{ policy.name }}</strong><small>{{ policy.allowMainnetAgentAutomation ? t('wallets.policyBypassValue', { origins: policy.origins.join(', ') }) : t('wallets.policyValue', { mode: policy.mode, origins: policy.origins.join(', ') }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.removePolicy(policy.id)">{{ t('wallets.remove') }}</UiButton></li></ul>
+          </div>
 
-        <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
-      </template>
-    </section>
+          <div class="wallet-subsection"><h5>{{ t('wallets.websitePermissions') }}</h5><p v-if="selectedPermissions.length === 0">{{ t('wallets.noPermissions') }}</p><ul class="wallet-list"><li v-for="permission in selectedPermissions" :key="permission.id"><span><strong>{{ permission.origin }}</strong><small>{{ t('wallets.permissionValue', { workspace: permission.workspaceId, expires: new Date(permission.expiresAt).toLocaleString() }) }}</small></span><UiButton variant="danger" size="small" type="button" :disabled="controller.busy.value" @click="controller.revokePermission(permission.id)">{{ t('wallets.revoke') }}</UiButton></li></ul></div>
+        </template>
+      </section>
 
-    <section class="wallet-card"><h4>{{ t('wallets.requestsAudit') }}</h4><p>{{ t('wallets.requestsAuditCount', { requests: controller.requests.value.length, events: controller.audit.value.length }) }}</p><UiButton class="secondary-button" type="button" @click="controller.refreshDetails">{{ t('wallets.refresh') }}</UiButton><details><summary>{{ t('wallets.recentAudit') }}</summary><ul class="wallet-list"><li v-for="entry in controller.audit.value.slice(-20).reverse()" :key="entry.sequence"><span><strong>{{ entry.type }}</strong><small>{{ t('wallets.auditValue', { time: new Date(entry.timestamp).toLocaleString(), sequence: entry.sequence }) }}</small></span></li></ul></details></section>
+      <section v-if="activeTab === 'add'" class="wallet-card">
+        <div class="wallet-card-heading"><h4>{{ t('wallets.addWallet') }}</h4><span>{{ t('wallets.secretsNotCopied') }}</span></div>
+        <div class="wallet-mode-tabs" role="group" :aria-label="t('wallets.walletType')">
+          <UiButton appearance="application" v-for="entry in walletModes" :key="entry" type="button" :class="{ active: mode === entry }" :aria-label="t(`wallets.modes.${entry}`)" :aria-pressed="mode === entry" :disabled="onboardingLocked" @click="mode = entry"><strong>{{ t(`wallets.modes.${entry}`) }}</strong><small>{{ t(`wallets.modeDescriptions.${entry}`) }}</small></UiButton>
+        </div>
+        <form v-if="!preparedImport" class="wallet-form" @submit.prevent="submitOnboarding">
+          <p v-if="mode === 'import'" class="wallet-wide wallet-import-step">{{ t('wallets.importValidateStep') }}</p>
+          <label>{{ t('wallets.name') }} <input v-model="name" maxlength="128" required :disabled="onboardingLocked"></label>
+          <label>{{ t('wallets.chain') }} <select v-model="chainFamily" :disabled="onboardingLocked"><option value="evm">{{ t('wallets.chains.evm') }}</option><option value="solana">{{ t('wallets.chains.solana') }}</option><option value="tron">{{ t('wallets.chains.tron') }}</option></select></label>
+          <WalletNetworkFields v-model="networkDraft" v-model:preset-id="networkPresetId" :chain-family="chainFamily" :disabled="onboardingLocked" />
+          <label v-if="mode === 'watch'" class="wallet-wide">{{ t('wallets.publicAddress') }} <input v-model="watchAddress" maxlength="256" required :disabled="onboardingLocked"></label>
+          <template v-if="mode === 'import'">
+            <label>{{ t('wallets.secretFormat') }} <select v-model="secretFormat" :disabled="onboardingLocked"><option value="mnemonic">{{ t('wallets.mnemonic') }}</option><option value="private-key">{{ t('wallets.privateKey') }}</option></select></label>
+            <label v-if="secretFormat === 'mnemonic'" class="wallet-wide">{{ t('wallets.mnemonicInput') }} <textarea ref="recoveryInput" rows="3" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></textarea></label>
+            <label v-else class="wallet-wide">{{ t('wallets.privateKey') }} <input ref="recoveryInput" type="password" required autocomplete="off" autocapitalize="off" spellcheck="false" :disabled="onboardingLocked"></label>
+          </template>
+          <label v-if="mode !== 'watch'" class="wallet-wide wallet-choice-card"><input v-model="dedicatedAgent" type="checkbox" :aria-label="t('wallets.dedicatedAgent')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.dedicatedAgent') }}</strong><small>{{ t('wallets.dedicatedAgentDescription') }}</small></span></label>
+          <section class="wallet-wide wallet-access-panel" aria-labelledby="wallet-onboarding-access-heading">
+            <div class="wallet-access-heading"><h5 id="wallet-onboarding-access-heading">{{ t('wallets.workspaceAccessHeading') }}</h5><p>{{ t('wallets.workspaceAccessDescription') }}</p></div>
+            <div class="wallet-scope-options" role="radiogroup" :aria-label="t('wallets.workspaceAccessHeading')">
+              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="selected" :aria-label="t('wallets.selectedWorkspaces')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.selectedWorkspaces') }}</strong><small>{{ t('wallets.selectedWorkspacesDescription') }}</small></span></label>
+              <label class="wallet-choice-card"><input v-model="onboardingWorkspaceScope" type="radio" value="all" :aria-label="t('wallets.anyWorkspace')" :disabled="onboardingLocked"><span><strong>{{ t('wallets.anyWorkspace') }}</strong><small>{{ t('wallets.anyWorkspaceDescription') }}</small></span></label>
+            </div>
+            <fieldset :disabled="onboardingLocked || onboardingWorkspaceScope === 'all'"><legend>{{ t('wallets.chooseWorkspaces') }}</legend><label v-for="workspace in workspaces" :key="workspace.id"><input v-model="onboardingWorkspaceIds" type="checkbox" :value="workspace.id"> {{ workspace.name }}</label><p v-if="workspaces.length === 0">{{ t('wallets.noWorkspaces') }}</p></fieldset>
+          </section>
+          <UiButton variant="primary" class="primary-button wallet-submit-button" type="submit" :disabled="onboardingLocked || controller.busy.value || !onboardingNetworkValid || (mode === 'watch' ? !controller.status.value.watchOnlyAvailable : controller.status.value.managedWallets !== 'ready')">{{ onboardingSubmitLabel }}</UiButton>
+        </form>
+        <div v-if="preparedImport" ref="preparedImportReview" class="wallet-import-confirm" role="status" :aria-busy="cancellingImport || undefined">
+          <p class="wallet-import-step">{{ t('wallets.importAddStep') }}</p>
+          <div class="wallet-import-confirm-heading"><span aria-hidden="true"><IconCheck /></span><div><strong>{{ t('wallets.walletValidated') }}</strong><p>{{ t('wallets.importValidatedDescription') }}</p></div></div>
+          <dl class="wallet-import-review">
+            <div><dt>{{ t('wallets.name') }}</dt><dd>{{ preparedImport.details.name }}</dd></div>
+            <div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ preparedImport.publicAddress }}</code></dd></div>
+            <div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: preparedImport.details.network.name, environment: preparedImport.details.network.environment }) }}</dd></div>
+            <div><dt>{{ t('wallets.workspaceAccess') }}</dt><dd>{{ preparedImportWorkspaceLabel }}</dd></div>
+          </dl>
+          <div class="wallet-actions">
+            <UiButton variant="primary" ref="addImportedWalletButton" class="primary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="confirmPreparedImport">{{ t('wallets.addEncryptedWallet') }}</UiButton>
+            <UiButton class="secondary-button" type="button" :disabled="controller.busy.value || cancellingImport" @click="cancelPreparedImport"><IconProgress v-if="cancellingImport" class="state-spinner" aria-hidden="true" />{{ t('wallets.cancel') }}</UiButton>
+          </div>
+        </div>
+      </section>
+
+      <section v-if="activeTab === 'activity'" class="wallet-card">
+        <div class="wallet-card-heading"><div class="wallet-section-heading"><h4>{{ t('wallets.requestsAudit') }}</h4><p>{{ t('wallets.requestsAuditCount', { requests: controller.requests.value.length, events: controller.audit.value.length }) }}</p></div><UiButton :disabled="controller.busy.value" @click="controller.refreshDetails">{{ t('wallets.refresh') }}</UiButton></div>
+        <h5>{{ t('wallets.recentAudit') }}</h5>
+        <div v-if="!controller.audit.value.length" class="wallet-empty-state"><strong>{{ t('wallets.noActivity') }}</strong><p>{{ t('wallets.activityDescription') }}</p></div>
+        <ul v-else class="wallet-list"><li v-for="entry in controller.audit.value.slice(-20).reverse()" :key="entry.sequence"><span><strong>{{ entry.type }}</strong><small>{{ t('wallets.auditValue', { time: new Date(entry.timestamp).toLocaleString(), sequence: entry.sequence }) }}</small></span></li></ul>
+      </section>
+    </UiTabs>
   </div>
 </template>
