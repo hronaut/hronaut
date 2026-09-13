@@ -87,7 +87,7 @@ export const deDE = {
       "UNKNOWN": "Ergebnis unbekannt"
     },
     "review": {
-      "heading": "Folgenreiche Aktion", "expected": "Erwartetes Ergebnis", "tool": "Werkzeug", "actionClass": "Aktionsklasse", "reversibility": "Umkehrbarkeit", "workspace": "Arbeitsbereich", "profile": "Berechtigungsprofil", "origin": "Aktueller Ursprung", "tab": "Tab", "navigation": "Navigationsgeneration", "humanInput": "Generation menschlicher Eingaben", "artifact": "Exakter Artefakt-Hash", "timeline": "Zeitverlauf der Prüfbelege", "visibleOnly": "Die Änderung kann nicht sicher als Text dargestellt werden. Prüfen Sie vor der Entscheidung den sichtbaren Browser.",
+      "heading": "Folgenreiche Aktion", "expected": "Erwartetes Ergebnis", "tool": "Werkzeug", "actionClass": "Aktionsklasse", "reversibility": "Umkehrbarkeit", "workspace": "Arbeitsbereich", "profile": "Berechtigungsprofil", "authority": "Berechtigungsgeneration", "origin": "Aktueller Ursprung", "tab": "Tab", "navigation": "Navigationsgeneration", "humanInput": "Generation menschlicher Eingaben", "artifact": "Exakter Artefakt-Hash", "timeline": "Zeitverlauf der Prüfbelege", "visibleOnly": "Die Änderung kann nicht sicher als Text dargestellt werden. Prüfen Sie vor der Entscheidung den sichtbaren Browser.",
       "statuses": { "PROPOSED": "Vorgeschlagen", "REVIEWED": "Geprüft", "APPROVED": "Genehmigt", "REJECTED": "Abgelehnt", "CANCELLED": "Abgebrochen", "EXPIRED": "Abgelaufen", "ATTEMPTED": "Versucht", "VERIFIED": "Bestätigt", "UNKNOWN": "Unbekannt" },
       "reversibilities": { "reversible": "Umkehrbar", "conditionally-reversible": "Bedingt umkehrbar", "irreversible": "Nicht umkehrbar", "unknown": "Unbekannt" }
     },

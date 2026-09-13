@@ -158,6 +158,8 @@ test('binds a fresh human review to one exact page action without retaining its 
     await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
     await expect(continuity.getByRole('status')).toHaveText('Review guard cleared; recheck before a fresh action')
     const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
+    await expect(waiting.getByText('Authority generation', { exact: true })).toBeVisible()
+    await expect(waiting.getByText(proposed.review!.sessionBinding.slice(0, 12), { exact: true })).toBeVisible()
     await waiting.getByRole('checkbox').check()
     await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
     await expect(waiting.getByText('Review completed', { exact: true })).toBeVisible()

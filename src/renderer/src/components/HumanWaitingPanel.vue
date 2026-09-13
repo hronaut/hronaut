@@ -78,6 +78,7 @@ onBeforeUnmount(() => { generation += 1 })
             <dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${record.review.reversibility}`) }}</dd>
             <dt>{{ t('humanWaiting.review.workspace') }}</dt><dd>{{ record.review.workspaceName }}</dd>
             <dt>{{ t('humanWaiting.review.profile') }}</dt><dd>{{ record.review.profileName }}</dd>
+            <dt>{{ t('humanWaiting.review.authority') }}</dt><dd><code>{{ record.review.sessionBinding.slice(0, 12) }}</code></dd>
             <template v-if="record.review.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ record.review.origin }}</dd></template>
             <template v-if="record.review.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ record.review.tabId }}</dd></template>
             <template v-if="record.review.navigationGeneration !== undefined"><dt>{{ t('humanWaiting.review.navigation') }}</dt><dd>{{ record.review.navigationGeneration }}</dd></template>

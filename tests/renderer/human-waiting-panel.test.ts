@@ -83,6 +83,8 @@ it('shows a bounded exact-action receipt and offers cheap rejection', async () =
   expect(view.text()).toContain('Submit the visible form')
   expect(view.text()).toContain('Checkout QA')
   expect(view.text()).toContain('Restricted QA')
+  expect(view.text()).toContain('Authority generation')
+  expect(view.text()).toContain('bbbbbbbbbbbb')
   expect(view.text()).toContain('a'.repeat(64))
   const reject = view.findAll('button').find(item => item.text() === 'Reject action')!
   await reject.trigger('click'); await flushPromises()

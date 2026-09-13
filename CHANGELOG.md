@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Show the bound authority generation in consequential action reviews so people can distinguish approvals created under different MCP sessions.
 - Place access, workspace assignment, and automation controls in each wallet's details instead of a separate wallet settings tab.
 - Keep the Wallets heading visible together with its sticky tab bar while scrolling long wallet settings.
 
