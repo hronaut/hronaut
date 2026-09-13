@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-09-13
+
 ### Added
 
 - Add privacy-safe review metrics to bounded task runs, including interruptions, approvals, rejections, decision time, system-caught errors, completed tasks, and ambiguous outcomes.
