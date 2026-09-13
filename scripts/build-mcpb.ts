@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 import { build } from 'esbuild'
@@ -12,6 +13,8 @@ const version = packageJson.version
 const artifactName = `hronaut-mcp-adapter-${version}.mcpb`
 const artifactPath = join(outputDirectory, artifactName)
 const registryPath = join(outputDirectory, 'hronaut-mcp-server.json')
+const operatorManifestPath = join(outputDirectory, 'hronaut-operator-manifest.json')
+const operatorGeneratorPath = join(stagingDirectory, 'operator-manifest.mjs')
 
 const manifest = {
   manifest_version: '0.3',
@@ -66,6 +69,25 @@ const manifest = {
 await rm(stagingDirectory, { recursive: true, force: true })
 await mkdir(join(stagingDirectory, 'server'), { recursive: true })
 await build({
+  entryPoints: [join(root, 'scripts/operator-manifest.ts')],
+  outfile: operatorGeneratorPath,
+  bundle: true,
+  packages: 'external',
+  platform: 'node',
+  format: 'esm',
+  target: 'node22',
+  legalComments: 'none',
+  sourcemap: false
+})
+const operatorGeneration = spawnSync(
+  process.execPath,
+  [operatorGeneratorPath, version, operatorManifestPath],
+  { cwd: root, encoding: 'utf8' }
+)
+if (operatorGeneration.status !== 0) {
+  throw new Error(operatorGeneration.stderr || operatorGeneration.stdout || 'Operator manifest generation failed')
+}
+await build({
   entryPoints: [join(root, 'scripts/mcpb-adapter.ts')],
   outfile: join(stagingDirectory, 'server/index.mjs'),
   bundle: true,
@@ -104,4 +126,4 @@ const registryMetadata = {
 }
 await writeFile(registryPath, `${JSON.stringify(registryMetadata, null, 2)}\n`)
 await rm(stagingDirectory, { recursive: true, force: true })
-process.stdout.write(`Built ${basename(artifactPath)} (${digest}) and ${basename(registryPath)}\n`)
+process.stdout.write(`Built ${basename(artifactPath)} (${digest}), ${basename(registryPath)}, and ${basename(operatorManifestPath)}\n`)

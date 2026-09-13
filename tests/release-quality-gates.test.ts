@@ -221,6 +221,7 @@ describe('release quality gates', () => {
     expect(testMcpb).toContain('npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts')
     expect(buildMcpb).toContain('- test-mcpb')
     expect(buildMcpb).toContain('npm run package:mcpb')
+    expect(buildMcpb).toContain('dist/hronaut-operator-manifest.json')
   })
 
   it('binds release execution to the selected mainline tag and treats corrected notes as data', async () => {

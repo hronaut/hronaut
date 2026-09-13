@@ -305,6 +305,27 @@ Use a Streamable HTTP MCP configuration and start Hronaut before the client conn
 
 The exact schema depends on the MCP client; Hronaut Home includes separate current instructions for the major coding agents. Disconnecting or closing that client does not close Hronaut.
 
+Each GitHub release also publishes `hronaut-operator-manifest.json`. Its
+`hronautVersion` matches that release, and its tool sets are generated from the
+same runtime catalog Hronaut advertises to MCP clients. The manifest describes
+local prerequisites, context invalidation, human takeover, bounded privacy
+rules, and the `unsupported`, `blocked`, `unknown`,
+`reconciliation_required`, and `verified` result states. Download it beside a
+matching release with:
+
+```bash
+gh release download vVERSION --repo hronaut/hronaut --pattern hronaut-operator-manifest.json
+```
+
+A client flow reads the matching manifest, establishes the named workspace and
+current browser context, makes a fresh bounded observation, requests or
+dispatches the exact operation through the available MCP tool, and performs an
+independent bounded read-back from the target system. Only that read-back can
+support `verified`; a timeout or possible side effect remains `unknown` or
+`reconciliation_required` before any retry. The manifest does not grant
+authority, approve an operation, contain the live endpoint or credentials, or
+replace current host policy.
+
 Optional environment variables:
 
 - `HRONAUT_MCP_PORT`: override the saved listen port for the current launch. Without the override, the port can be changed under **Settings → MCP security** and defaults to `47812` for new profiles.

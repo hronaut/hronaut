@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Publish a version-matched, informational operator manifest with each release so agent clients can discover supported tool sets, local prerequisites, authority boundaries, result states, and independent read-back requirements.
+
 ### Changed
 
 - Run four local Docker integration shards by default to reduce CPU contention and avoid slower, flaky renderer startup on six-CPU Docker hosts.

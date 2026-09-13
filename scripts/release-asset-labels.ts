@@ -21,6 +21,7 @@ function releaseAssetLabel(path: string): string | undefined {
   if (name === 'release-history.json') return 'Verified release history'
   if (name === 'hashes.txt') return 'SHA-256 checksums'
   if (name === 'hronaut-mcp-server.json') return 'MCP Registry metadata'
+  if (name === 'hronaut-operator-manifest.json') return 'Version-matched agent operator contract'
   const mcpbMatch = name.match(/^hronaut-mcp-adapter-(.+)\.mcpb$/u)
   if (mcpbMatch?.[1] && RELEASE_VERSION_PATTERN.test(mcpbMatch[1])) return 'MCPB adapter'
   if (!name.startsWith('hronaut-')) return undefined
