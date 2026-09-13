@@ -197,6 +197,7 @@ export class WalletBroker {
   private readonly adapters: Record<WalletChainFamily, WalletChainAdapter>
   private readonly policy = new WalletPolicyEngine()
   private readonly pending = new Map<string, PendingResult>()
+  private readonly pendingConnections = new Map<string, Promise<unknown>>()
   private readonly pendingMessages = new Map<string, WalletMessageSigningInput>()
   private readonly requestExpiryCancellations = new Map<string, () => void>()
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -781,8 +782,27 @@ export class WalletBroker {
 
   private async connect(context: WalletBrokerContext, wallet: WalletDescriptor): Promise<unknown> {
     if (this.hasAddressPermission(context, wallet)) return [wallet.publicAddress]
-    const record = await this.createAddressPermissionRequest(context, wallet)
-    return this.wait(record.id)
+    const key = JSON.stringify([
+      wallet.id,
+      context.workspaceId,
+      context.tabId,
+      context.navigationGeneration,
+      context.topLevelOrigin,
+      context.requester.type,
+      context.requester.id
+    ])
+    const existing = this.pendingConnections.get(key)
+    if (existing) return existing
+    const connection = (async () => {
+      const record = await this.createAddressPermissionRequest(context, wallet)
+      return this.wait(record.id)
+    })()
+    this.pendingConnections.set(key, connection)
+    try {
+      return await connection
+    } finally {
+      if (this.pendingConnections.get(key) === connection) this.pendingConnections.delete(key)
+    }
   }
 
   private async transactionRequest(

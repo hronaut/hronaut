@@ -300,6 +300,35 @@ describe('address bar controller', () => {
     expect(rendered.unsubscribeDismissed).toHaveBeenCalledOnce()
   })
 
+  it('acknowledges a stale native dismissal before reopening history suggestions', async () => {
+    const rendered = createHarness({
+      history: [{
+        url: 'https://visited.example/path',
+        title: 'Previously visited',
+        visitCount: 2,
+        visitedAt: '2026-01-01T00:00:00.000Z',
+        id: 'visited-history'
+      }]
+    })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'visited')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+
+    rendered.dismissOverlay()
+    rendered.overlay.hide.mockClear()
+    rendered.overlay.show.mockClear()
+    await fireEvent.update(input, 'visited.example')
+
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    expect(rendered.overlay.hide.mock.invocationCallOrder[0]).toBeLessThan(
+      rendered.overlay.show.mock.invocationCallOrder[0]
+    )
+    expect(rendered.overlay.show.mock.calls.at(-1)?.[0].suggestions).toEqual([
+      expect.objectContaining({ kind: 'history', url: 'https://visited.example/path' })
+    ])
+  })
+
   it('rolls back the selected listener when dismissed-listener registration fails', () => {
     const unsubscribeSelected = vi.fn()
     const registrationError = new Error('dismissed listener unavailable')

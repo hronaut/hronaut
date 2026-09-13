@@ -2432,8 +2432,11 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
         window.addEventListener('eip6963:announceProvider', (event) => {
           if (window.__walletConnectState !== 'waiting-provider' || event.detail?.info?.rdns !== 'dev.hronaut.wallet') return;
           window.__walletConnectState = 'pending';
-          void event.detail.provider.request({ method: 'eth_requestAccounts' }).then(
-            () => { window.__walletConnectState = 'resolved' },
+          void Promise.all([
+            event.detail.provider.request({ method: 'eth_requestAccounts' }),
+            event.detail.provider.request({ method: 'eth_requestAccounts' })
+          ]).then(
+            (results) => { window.__walletConnectState = 'resolved:' + results.length },
             (error) => { window.__walletConnectState = 'rejected:' + error.message }
           );
         });
@@ -2464,7 +2467,7 @@ test('cancels a pending wallet approval as soon as its website renderer is destr
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript('window.__walletConnectState')
-    }, url)).toBe('resolved')
+    }, url)).toBe('resolved:2')
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow, WebContentsView }, requestedUrl) => {
       const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
       const pageView = window?.contentView.children.find((view) => (
@@ -6589,7 +6592,7 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
       <main>
         <p>First needle result.</p>
         <p>Second needle result.</p>
-        <p>Third needle result.</p>
+        <p>Third Needle result.</p>
       </main>`)
   })
   await new Promise<void>((resolve, reject) => {
@@ -6617,12 +6620,31 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
 
     const findBar = appWindow.getByRole('search', { name: 'Find in page' })
     await expect(findBar).toBeVisible()
-    await findBar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
+    const findInput = findBar.getByRole('searchbox', { name: 'Find text' })
+    await expect(findInput).toBeFocused()
+    await findInput.fill('needle')
     await expect(findBar.locator('.find-count')).toHaveText('1 / 3')
     await findBar.getByRole('button', { name: 'Next match' }).click()
     await expect(findBar.locator('.find-count')).toHaveText('2 / 3')
+
+    await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Find fixture web contents was not found')
+      page.focus()
+      const modifiers = process.platform === 'darwin' ? ['meta'] as const : ['control'] as const
+      page.sendInputEvent({ type: 'keyDown', keyCode: 'F', modifiers: [...modifiers] })
+      page.sendInputEvent({ type: 'keyUp', keyCode: 'F', modifiers: [...modifiers] })
+    }, url)
+    await expect(findInput).toBeFocused()
+    expect(await findInput.evaluate(element => {
+      const input = element as HTMLInputElement
+      return { start: input.selectionStart, end: input.selectionEnd }
+    })).toEqual({ start: 0, end: 6 })
+
+    await findBar.getByRole('button', { name: 'Match case' }).click()
+    await expect(findBar.locator('.find-count')).toHaveText('1 / 2')
     await findBar.getByRole('button', { name: 'Previous match' }).click()
-    await expect(findBar.locator('.find-count')).toHaveText('1 / 3')
+    await expect(findBar.locator('.find-count')).toHaveText('2 / 2')
 
     await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(homeTabId)})`)
     await expect(findBar).toBeHidden()
@@ -6631,7 +6653,7 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
 
     await appWindow.getByRole('button', { name: 'Find in page' }).click()
     await expect(findBar).toBeVisible()
-    await expect(findBar.locator('.find-count')).toHaveText('1 / 3')
+    await expect(findBar.locator('.find-count')).toHaveText('1 / 2')
     await appWindow.keyboard.press('Escape')
     await expect(findBar).toBeHidden()
   } finally {

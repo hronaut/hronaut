@@ -25,6 +25,7 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const input = ref<HTMLInputElement | null>(null)
 const query = ref('')
+const caseSensitive = ref(false)
 const result = ref<BrowserFindResult>({ activeMatchOrdinal: 0, matches: 0 })
 let targetTabId: string | undefined
 let requestSequence = 0
@@ -45,7 +46,8 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
       tabId,
       query: normalizedQuery,
       forward,
-      findNext: newSearch
+      findNext: newSearch,
+      caseSensitive: caseSensitive.value
     })
     if (sequence === requestSequence && tabId === targetTabId) result.value = next
   } catch {
@@ -59,6 +61,11 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || event.key !== 'Enter') return
   event.preventDefault()
   void search(!event.shiftKey, false)
+}
+
+function toggleCaseSensitive(): void {
+  caseSensitive.value = !caseSensitive.value
+  void search(true, true)
 }
 
 async function activate(tab: BrowserTabState | undefined): Promise<void> {
@@ -130,6 +137,14 @@ defineExpose({ close, openForTab })
     <output class="find-count" aria-live="polite">
       {{ query ? `${result.activeMatchOrdinal} / ${result.matches}` : '0 / 0' }}
     </output>
+    <UiButton appearance="application"
+      class="find-action find-option"
+      type="button"
+      :title="t('find.matchCaseTitle')"
+      :aria-label="t('find.matchCase')"
+      :aria-pressed="caseSensitive"
+      @click="toggleCaseSensitive"
+    >{{ t('find.matchCaseShort') }}</UiButton>
     <UiButton appearance="application"
       class="find-action"
       type="button"

@@ -4,14 +4,21 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a trusted Home action to clear an open workspace, including its tabs and isolated website data, even when website input is locked.
+- Add a compact Match case option to Find in page and keep Ctrl/Cmd+F focused on the selected search text.
+- Add reviewable consequential browser handoffs with privacy-safe exact-action hashes, visible workspace and capability context, cheap reject and cancel controls, single-use approval bindings, drift and reconnect invalidation, and durable attempted, verified, and unknown receipts.
+- Let capability profiles restrict exact tool argument paths for tabs, wallets, recipients, targets, and payloads while persisting only canonical value hashes; delegated children can only narrow inherited constraints.
+
 ### Changed
 
 - Organize Web3 wallet settings into Your wallets, Add wallet, Access & automation, and Activity tabs, with a selectable wallet list, focused onboarding, and explicit empty states in all seven interface languages.
 
-### Added
+### Fixed
 
-- Add reviewable consequential browser handoffs with privacy-safe exact-action hashes, visible workspace and capability context, cheap reject and cancel controls, single-use approval bindings, drift and reconnect invalidation, and durable attempted, verified, and unknown receipts.
-- Let capability profiles restrict exact tool argument paths for tabs, wallets, recipients, targets, and payloads while persisting only canonical value hashes; delegated children can only narrow inherited constraints.
+- Restore authenticated website favicons with workspace cookies, retain them across reloads and app restarts, and recover history suggestions after their native popup is recreated.
+- Coalesce repeated website wallet-connection calls into one approval so checkout flows do not fail while the first request is still active.
 
 ## [2.3.1] - 2026-09-13
 

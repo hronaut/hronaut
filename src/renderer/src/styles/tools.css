@@ -149,6 +149,8 @@
 .find-action:hover:not(:disabled) { @apply bg-hover; }
 .find-action:disabled { @apply cursor-default [opacity:.35]; }
 .find-action svg { @apply [width:20px] [height:20px]; }
+.find-option { @apply [font-size:12px] [font-weight:800]; }
+.find-option[aria-pressed=true] { @apply text-accent-copy bg-accent-soft; }
 
 .zoom-bar {
   @apply relative [z-index:2] flex [height:50px] items-center justify-end [gap:7px] [padding:6px_13px_9px] [border-top:1px_solid_var(--border-soft)] [background:var(--toolbar)];
