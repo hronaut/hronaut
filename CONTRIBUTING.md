@@ -99,9 +99,10 @@ a memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Hosted and release CI use two shards by default to avoid CPU-contention timeouts
-on constrained runners; hosted CI assigns those shards to separate runners,
-while an explicit `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
+Hosted pull-request CI assigns its three shards to separate runners. Release CI
+runs one shard on its single runner so parallel Electron processes cannot turn
+cold renderer startup into unrelated flakes. An explicit
+`HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
 validation job runs the complete TypeScript graph. The standalone Docker command
 still performs the full typecheck before building and testing. Hosted jobs use
