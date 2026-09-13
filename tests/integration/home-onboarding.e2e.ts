@@ -10,9 +10,20 @@ async function homeScript<T>(app: ElectronApplication, script: string): Promise<
   }, script) as Promise<T>
 }
 
+const HOME_READY_TIMEOUT_MS = 20_000
+
 async function ready(app: ElectronApplication) {
-  await expect.poll(() => app.evaluate(({ webContents }) => webContents.getAllWebContents().some(contents => contents.getURL().startsWith('hronaut://home')))).toBe(true)
-  await expect.poll(() => homeScript(app, `Boolean(document.getElementById('guide-name')?.textContent)`)).toBe(true)
+  // A cold Electron renderer can exceed the global assertion timeout when CI
+  // runs both release shards together. Keep the readiness budget explicit;
+  // the layout assertions below remain strict once Home has mounted.
+  await expect.poll(
+    () => app.evaluate(({ webContents }) => webContents.getAllWebContents().some(contents => contents.getURL().startsWith('hronaut://home'))),
+    { timeout: HOME_READY_TIMEOUT_MS }
+  ).toBe(true)
+  await expect.poll(
+    () => homeScript(app, `Boolean(document.getElementById('guide-name')?.textContent)`),
+    { timeout: HOME_READY_TIMEOUT_MS }
+  ).toBe(true)
   await homeScript(app, `document.querySelector('[data-home-view=connect]').click()`)
 }
 

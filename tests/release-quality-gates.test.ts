@@ -324,8 +324,10 @@ describe('release quality gates', () => {
       readFile('scripts/run-integration-ci.sh', 'utf8'),
       readFile('playwright.config.ts', 'utf8')
     ])
+    const pullRequestIntegration = job(ciWorkflow, 'integration-shard')
+    const releaseIntegration = job(releaseWorkflow, 'test-integration')
 
-    for (const integration of [job(ciWorkflow, 'integration-shard'), job(releaseWorkflow, 'test-integration')]) {
+    for (const integration of [pullRequestIntegration, releaseIntegration]) {
       expect(integration).toContain('run: bash scripts/run-integration-ci.sh')
       expect(integration).not.toContain('docker/build-push-action')
       expect(integration).not.toContain('type=gha,scope=hronaut-integration')
@@ -335,6 +337,8 @@ describe('release quality gates', () => {
       expect(integration).toContain('path: ci-artifacts/')
       expect(integration).toContain('retention-days: 7')
     }
+    expect(pullRequestIntegration).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"')
+    expect(releaseIntegration).toContain('HRONAUT_INTEGRATION_SHARDS: "1"')
     expect(playwright).toContain('retries: process.env.CI ? 1 : 0')
     expect(playwright).toContain('failOnFlakyTests: Boolean(process.env.CI)')
     expect(playwright).toContain("trace: process.env.CI ? 'retain-on-failure' : 'off'")

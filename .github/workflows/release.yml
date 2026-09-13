@@ -114,6 +114,11 @@ jobs:
           persist-credentials: false
 
       - name: Run Electron integration tests in Docker
+        env:
+          # Release publication values determinism over throughput. Running two
+          # Electron shards on one hosted runner has produced unrelated cold
+          # renderer and shell-readiness flakes under CPU contention.
+          HRONAUT_INTEGRATION_SHARDS: "1"
         run: bash scripts/run-integration-ci.sh
 
       - name: Upload Electron failure diagnostics
