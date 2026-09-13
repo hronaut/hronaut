@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-09-13
+
 ### Changed
 
 - Show the bound authority generation in consequential action reviews so people can distinguish approvals created under different MCP sessions.
