@@ -196,12 +196,18 @@ describe('McpSettingsPanel', () => {
     await user.type(screen.getByLabelText('Profile name'), 'QA reader')
     await user.type(screen.getByLabelText('Workspace IDs (optional)'), '01912345-6789-7abc-8def-0123456789ab')
     await user.type(screen.getByLabelText('Website origins (optional)'), 'https://allowed.example/path')
+    await fireEvent.update(screen.getByLabelText('Exact argument constraints (optional)'), [
+      'browser_snapshot.tabId=tab-1',
+      'browser_snapshot.tabId="tab-2"'
+    ].join('\n'))
     await user.click(screen.getByRole('button', { name: 'Create profile' }))
 
     expect(createCapabilityProfile).toHaveBeenCalledWith({
       name: 'QA reader', preset: 'read-only',
       workspaceIds: ['01912345-6789-7abc-8def-0123456789ab'],
-      origins: ['https://allowed.example/path'], expiresInMinutes: 1440, singleUse: false
+      origins: ['https://allowed.example/path'],
+      argumentConstraints: { 'browser_snapshot.tabId': ['tab-1', 'tab-2'] },
+      expiresInMinutes: 1440, singleUse: false
     })
     expect(screen.getByText(`hrc1_${'a'.repeat(43)}`)).toBeVisible()
     expect(screen.getByText('QA reader')).toBeVisible()

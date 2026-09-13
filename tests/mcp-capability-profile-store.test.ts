@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   McpCapabilityAuthorizationError,
+  mcpCapabilityArgumentValueDigest,
   McpCapabilityProfileStore,
   type McpCapabilityProfileInput,
   type McpCapabilityRequest
@@ -126,7 +127,7 @@ describe('MCP capability profile store', () => {
       permission: 'permitted', dispatch: 'not-established', postcondition: 'not-established',
       request: {
         tool: 'browser_storage', action: 'get', operationClass: 'site-data',
-        workspace: 'supplied', origins: 'supplied'
+        workspace: 'supplied', origins: 'supplied', arguments: 'none'
       },
       checks: [
         { rule: 'grant', result: 'passed' },
@@ -136,7 +137,8 @@ describe('MCP capability profile store', () => {
         { rule: 'action', result: 'passed' },
         { rule: 'operation-class', result: 'passed' },
         { rule: 'workspace', result: 'passed' },
-        { rule: 'origin', result: 'passed' }
+        { rule: 'origin', result: 'passed' },
+        { rule: 'argument', result: 'not-applicable' }
       ]
     })
 
@@ -365,6 +367,94 @@ describe('MCP capability profile store', () => {
       expiresAt: '2026-09-11T12:30:00.000Z',
       maxUses: 1
     })).rejects.toThrow(McpCapabilityAuthorizationError)
+  })
+
+  it('hashes exact resource constraints and prevents delegated argument widening', async () => {
+    const value = await store()
+    const digest = mcpCapabilityArgumentValueDigest
+    const privateRecipient = '0x1234567890abcdef1234567890abcdef12345678'
+    const otherRecipient = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd'
+    const parent = await value.create({
+      name: 'Bound wallet sender',
+      allowedTools: ['wallet_request'],
+      allowedActions: { wallet_request: ['sign-and-send'] },
+      operationClasses: ['wallet'],
+      argumentValueDigests: {
+        'wallet_request.walletId': [digest('wallet-1'), digest('wallet-2')],
+        'wallet_request.transaction.to': [digest(privateRecipient), digest(otherRecipient)]
+      }
+    })
+    const grant = value.authenticate(parent.credential)!
+    const child = await value.derive(grant, {
+      name: 'One recipient',
+      allowedTools: ['wallet_request'],
+      allowedActions: { wallet_request: ['sign-and-send'] },
+      operationClasses: ['wallet'],
+      argumentValueDigests: {
+        'wallet_request.walletId': [digest('wallet-1')],
+        'wallet_request.transaction.to': [digest(privateRecipient)]
+      }
+    })
+    const childGrant = value.authenticate(child.credential)!
+    const request: McpCapabilityRequest = {
+      toolName: 'wallet_request', action: 'sign-and-send', operationClass: 'wallet',
+      arguments: { walletId: 'wallet-1', transaction: { to: privateRecipient, value: '1' } }
+    }
+
+    expect(value.evaluate(childGrant, request)).toMatchObject({
+      decision: 'permitted',
+      request: { arguments: 'supplied' },
+      checks: expect.arrayContaining([{ rule: 'argument', result: 'passed' }])
+    })
+    for (const arguments_ of [
+      { transaction: { to: privateRecipient } },
+      { walletId: 'wallet-1', transaction: {} },
+      { walletId: 'wallet-2', transaction: { to: privateRecipient } },
+      { walletId: 'wallet-1', transaction: { to: otherRecipient } }
+    ]) {
+      const decision = value.evaluate(childGrant, { ...request, arguments: arguments_ })
+      expect(decision).toMatchObject({
+        decision: 'denied', firstDenyingRule: 'argument', permission: 'denied'
+      })
+      expect(JSON.stringify(decision)).not.toContain(privateRecipient)
+      expect(JSON.stringify(decision)).not.toContain(otherRecipient)
+      expect(JSON.stringify(decision)).not.toContain(digest(privateRecipient))
+    }
+
+    await expect(value.derive(grant, {
+      name: 'Widened recipient',
+      allowedTools: ['wallet_request'],
+      allowedActions: { wallet_request: ['sign-and-send'] },
+      operationClasses: ['wallet'],
+      argumentValueDigests: {
+        'wallet_request.walletId': [digest('wallet-1')],
+        'wallet_request.transaction.to': [digest(privateRecipient), digest('0xnot-authorized')]
+      }
+    })).rejects.toThrow(McpCapabilityAuthorizationError)
+
+    const persisted = await readFile(join(directory!, 'mcp-capability-profiles.json'), 'utf8')
+    expect(persisted).not.toContain(privateRecipient)
+    expect(persisted).not.toContain(otherRecipient)
+    expect(persisted).toContain(digest(privateRecipient))
+  })
+
+  it('rejects malformed argument constraints and constraints for tools outside the profile', async () => {
+    const value = await store()
+    const base = {
+      name: 'Invalid constraint',
+      allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'] as const
+    }
+    await expect(value.create({
+      ...base,
+      operationClasses: [...base.operationClasses],
+      argumentValueDigests: { 'browser_snapshot': [mcpCapabilityArgumentValueDigest('tab-1')] }
+    })).rejects.toThrow('Capability profile argument constraints are invalid')
+    await expect(value.create({
+      ...base,
+      operationClasses: [...base.operationClasses],
+      argumentValueDigests: { 'browser_click.ref': [mcpCapabilityArgumentValueDigest('e12')] }
+    })).rejects.toThrow('Capability profile argument constraints are invalid')
   })
 
   it('shares bounded uses with ancestors and invalidates descendants when lineage changes', async () => {

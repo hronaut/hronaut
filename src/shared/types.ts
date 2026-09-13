@@ -2504,6 +2504,8 @@ export interface McpCapabilityProfileCreateInput {
   parentProfileId?: string
   workspaceIds?: string[]
   origins?: string[]
+  /** Exact JSON-safe values keyed by tool-qualified argument path. Values are hashed before persistence. */
+  argumentConstraints?: Record<string, unknown[]>
   expiresInMinutes?: number
   singleUse?: boolean
 }
@@ -2518,6 +2520,7 @@ export interface McpCapabilityProfileSummary {
   operationClasses: string[]
   workspaceIds?: string[]
   origins?: string[]
+  argumentValueDigests?: Record<string, string[]>
   expiresAt?: string
   maxUses?: number
   useCount: number

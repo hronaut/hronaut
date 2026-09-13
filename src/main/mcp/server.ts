@@ -19,6 +19,7 @@ import type { TaskRunCheckDefinition } from './task-run-store.js'
 import {
   MCP_CAPABILITY_OPERATION_CLASSES,
   McpCapabilityAuthorizationError,
+  mcpCapabilityArgumentValueDigest,
   type McpCapabilityGrant,
   type McpCapabilityOperationClass,
   type McpCapabilityProfile,
@@ -830,6 +831,12 @@ export function mcpCapabilityProfileInputFromPreset(
         return actions ? [[tool.name, [...actions]]] : []
       }))
     : undefined
+  const argumentValueDigests = input.argumentConstraints
+    ? Object.fromEntries(Object.entries(input.argumentConstraints).map(([path, values]) => [
+        path,
+        values.map(mcpCapabilityArgumentValueDigest)
+      ]))
+    : undefined
   return {
     name: input.name,
     allowedTools: catalog.map(tool => tool.name),
@@ -837,6 +844,7 @@ export function mcpCapabilityProfileInputFromPreset(
     operationClasses: input.preset === 'read-only' ? ['read'] : [...MCP_CAPABILITY_OPERATION_CLASSES],
     ...(input.workspaceIds ? { workspaceIds: input.workspaceIds } : {}),
     ...(input.origins ? { origins: input.origins } : {}),
+    ...(argumentValueDigests && Object.keys(argumentValueDigests).length ? { argumentValueDigests } : {}),
     ...(input.expiresInMinutes !== undefined
       ? { expiresAt: new Date(now.getTime() + input.expiresInMinutes * 60_000).toISOString() }
       : {}),
@@ -1115,7 +1123,8 @@ function createBrowserMcpServer(
       ...(mcpCapabilityAction(name, input) ? { action: mcpCapabilityAction(name, input) } : {}),
       operationClass: mcpCapabilityOperationClass(name, input),
       ...(workspaceId ? { workspaceId } : {}),
-      ...(origins.length ? { origins: [...new Set(origins)] } : {})
+      ...(origins.length ? { origins: [...new Set(origins)] } : {}),
+      arguments: input
     }
   }
   const authorizeCapability = async (

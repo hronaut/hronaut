@@ -4,7 +4,10 @@ import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { McpCapabilityProfileStore } from '../src/main/mcp/capability-profile-store.js'
+import {
+  McpCapabilityProfileStore,
+  mcpCapabilityArgumentValueDigest
+} from '../src/main/mcp/capability-profile-store.js'
 import {
   assertMcpToolRegistrationContract,
   MCP_FAILED_AUTH_LIMIT,
@@ -204,12 +207,42 @@ describe('MCP capability profile authentication', () => {
           phase: 'admission', route: 'direct', lineageDepth: 1,
           request: {
             tool: 'browser_workspaces', action: 'create', operationClass: 'browser-state',
-            workspace: 'missing', origins: 'none'
+            workspace: 'missing', origins: 'none', arguments: 'supplied'
           },
           permission: 'denied', dispatch: 'not-established', postcondition: 'not-established'
         }
       }
     })
+  })
+
+  it('enforces exact argument constraints after schema defaults without exposing values or hashes', async () => {
+    const digest = mcpCapabilityArgumentValueDigest('list')
+    await connectProfile({
+      name: 'Exact workspace listing',
+      allowedTools: ['browser_workspaces'],
+      allowedActions: { browser_workspaces: ['list', 'list-fork-sources'] },
+      operationClasses: ['read'],
+      argumentValueDigests: { 'browser_workspaces.action': [digest] }
+    })
+
+    await expect(client!.callTool({ name: 'browser_workspaces', arguments: {} })).resolves.toMatchObject({
+      content: [{ type: 'text', text: '[]' }]
+    })
+    const denied = await client!.callTool({
+      name: 'browser_workspaces', arguments: { action: 'list-fork-sources' }
+    })
+    expect(denied).toMatchObject({
+      isError: true,
+      content: [{ type: 'text', text: 'MCP capability denied this operation: ARGUMENT_NOT_ALLOWED at argument.' }],
+      structuredContent: {
+        status: 'POLICY_REJECTED', reason: 'ARGUMENT_NOT_ALLOWED',
+        policyDecision: {
+          firstDenyingRule: 'argument',
+          request: { arguments: 'supplied' }
+        }
+      }
+    })
+    expect(JSON.stringify(denied)).not.toContain(digest)
   })
 
   it('invalidates an active transport after profile revocation', async () => {
