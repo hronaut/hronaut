@@ -9,6 +9,7 @@ import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { SplitDividerController } from './split-divider-controller.js'
+import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { existsSync, readFileSync } from 'node:fs'
@@ -7921,8 +7922,6 @@ export class BrowserTabsManager {
       tab.sleeping = false
       tab.lastActiveAt = Date.now()
       tab.pageProblem = undefined
-      tab.faviconRequestId += 1
-      tab.faviconDataUrl = undefined
       this.changed(false)
     })
     webContents.on('will-frame-navigate', (details) => {
@@ -7950,6 +7949,8 @@ export class BrowserTabsManager {
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
       ))
       if (isSameDocument) return
+      tab.faviconRequestId += 1
+      tab.faviconDataUrl = undefined
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
@@ -8318,11 +8319,18 @@ export class BrowserTabsManager {
   private async loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
     const requestId = ++tab.faviconRequestId
     for (const faviconUrl of favicons.slice(0, 8)) {
+      if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
       try {
         let image = nativeImage.createEmpty()
         if (faviconUrl.startsWith('data:')) {
           if (faviconUrl.length > MAX_FAVICON_BYTES * 2) continue
-          image = nativeImage.createFromDataURL(faviconUrl)
+          // Node's data-URL decoder does not make a network request. Chromium's
+          // session.fetch does not support fetching this scheme.
+          const response = await fetch(faviconUrl)
+          const bytes = Buffer.from(await response.arrayBuffer())
+          if (bytes.length > MAX_FAVICON_BYTES) continue
+          if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
+          image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', this.window.webContents)
         } else {
           const parsed = new URL(faviconUrl)
           if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
@@ -8332,7 +8340,10 @@ export class BrowserTabsManager {
           })
           if (!response.ok) continue
           const declaredLength = Number(response.headers.get('content-length') ?? 0)
-          if (declaredLength > MAX_FAVICON_BYTES) continue
+          if (declaredLength > MAX_FAVICON_BYTES) {
+            await response.body?.cancel()
+            continue
+          }
           const reader = response.body?.getReader()
           if (!reader) continue
           const chunks: Buffer[] = []
@@ -8347,7 +8358,8 @@ export class BrowserTabsManager {
             }
             chunks.push(Buffer.from(value))
           }
-          image = nativeImage.createFromBuffer(Buffer.concat(chunks))
+          if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
+          image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', this.window.webContents)
         }
         if (image.isEmpty()) continue
         const dataUrl = `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
