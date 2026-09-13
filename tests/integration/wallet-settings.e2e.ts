@@ -142,13 +142,23 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   await expect(panel.getByText('1 configured')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Lock signing keys' })).toHaveCount(0)
   await appWindow.screenshot({ path: testInfo.outputPath('wallet-list-desktop.png') })
-  await panel.getByRole('tab', { name: 'Access & automation' }).click()
   const watchOnlyAutomationNote = panel.getByText(/watch-only wallets cannot sign/i)
   await expect(watchOnlyAutomationNote).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Add bounded policy' })).toHaveCount(0)
   await watchOnlyAutomationNote.scrollIntoViewIfNeeded()
+  const walletHeading = panel.getByRole('heading', { name: 'Wallets', exact: true })
+  const walletTabs = panel.getByRole('tablist', { name: 'Wallet settings' })
+  const stickyPosition = {
+    heading: (await walletHeading.boundingBox())?.y,
+    tabs: (await walletTabs.boundingBox())?.y
+  }
+  await panel.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await expect(walletHeading).toBeInViewport()
+  await expect(walletTabs).toBeInViewport()
+  expect((await walletHeading.boundingBox())?.y).toBeCloseTo(stickyPosition.heading!, 0)
+  expect((await walletTabs.boundingBox())?.y).toBeCloseTo(stickyPosition.tabs!, 0)
   await appWindow.screenshot({ path: testInfo.outputPath('wallet-watch-only-automation.png') })
-  await panel.getByLabel('Wallet to manage').scrollIntoViewIfNeeded()
+  await panel.getByRole('heading', { name: 'Access & automation' }).scrollIntoViewIfNeeded()
   await appWindow.screenshot({ path: testInfo.outputPath('wallets-vault-control.png') })
 
   await panel.getByRole('tab', { name: 'Add wallet' }).click()
@@ -179,7 +189,6 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
     (wallets) => wallets.find((wallet) => wallet.publicAddress === '0x0000000000000000000000000000000000000001')?.network.rpcUrl
   )`)).toBe('http://127.0.0.1:9545')
 
-  await panel.getByRole('button', { name: 'Manage access' }).click()
   const configuredAccess = panel.locator('.wallet-configured-access')
   await configuredAccess.getByLabel('Any workspace').click()
   await expect(configuredAccess.getByText(/includes workspaces created later/i)).toBeVisible()
@@ -334,7 +343,7 @@ test('keeps trusted Wallets settings usable at desktop and minimum window sizes'
   expect(layout.left).toBeGreaterThanOrEqual(0)
   expect(layout.right).toBeLessThanOrEqual(layout.viewport)
 
-  for (const tab of ['Your wallets', 'Access & automation', 'Activity', 'Add wallet']) {
+  for (const tab of ['Your wallets', 'Activity', 'Add wallet']) {
     await panel.getByRole('tab', { name: tab, exact: true }).click()
     await expect(panel.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible()
     expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)
@@ -386,8 +395,8 @@ test('shows a selectable wallet list and readable tabs across themes and transla
   await accounts.getByRole('button', { name: /Development/ }).click()
   await expect(panel.getByRole('heading', { name: 'Development', exact: true })).toBeVisible()
   await appWindow.screenshot({ path: testInfo.outputPath('wallet-settings-light.png') })
-  await panel.getByRole('button', { name: 'Manage access' }).click()
-  await expect(panel.getByLabel('Wallet to manage').locator('option:checked')).toContainText('Development')
+  await expect(panel.getByRole('heading', { name: 'Access & automation' })).toBeVisible()
+  await expect(panel.getByLabel('Wallet to manage')).toHaveCount(0)
 
   await dialog.getByRole('button', { name: 'Appearance Theme and window' }).click()
   await dialog.getByTestId('theme-dark').click()
@@ -399,7 +408,7 @@ test('shows a selectable wallet list and readable tabs across themes and transla
   await appWindow.setViewportSize({ width: 760, height: 520 })
   await appWindow.evaluate(`(async () => { await window.hronautSettings.setInterfaceScale(1.25); await window.hronautSettings.setLanguagePreference('de-DE') })()`)
   await expect(panel.getByRole('tab', { name: 'Wallet hinzufügen' })).toBeVisible()
-  for (const tab of ['Ihre Wallets', 'Wallet hinzufügen', 'Zugriff & Automatisierung', 'Aktivität']) {
+  for (const tab of ['Ihre Wallets', 'Wallet hinzufügen', 'Aktivität']) {
     await panel.getByRole('tab', { name: tab, exact: true }).click()
     await expect(panel.getByRole('tabpanel', { name: tab, exact: true })).toBeVisible()
     expect(await panel.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1)

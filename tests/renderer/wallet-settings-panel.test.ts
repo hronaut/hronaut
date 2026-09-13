@@ -77,7 +77,7 @@ describe('WalletsSettingsPanel', () => {
     const user = userEvent.setup()
 
     expect(screen.getByRole('tablist', { name: 'Wallet settings' })).toBeVisible()
-    expect(screen.getAllByRole('tab')).toHaveLength(4)
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
     expect(screen.getByRole('tabpanel', { name: 'Your wallets' })).toBeVisible()
     expect(screen.getByText('No wallets configured yet')).toBeVisible()
     expect(screen.queryByLabelText('Name')).not.toBeInTheDocument()
@@ -87,9 +87,6 @@ describe('WalletsSettingsPanel', () => {
 
     screen.getByRole('tab', { name: 'Add wallet' }).focus()
     await user.keyboard('{ArrowRight}')
-    expect(screen.getByRole('tab', { name: 'Access & automation' })).toHaveFocus()
-    expect(screen.getByText('Add a wallet before configuring access and automation.')).toBeVisible()
-    await user.keyboard('{End}')
     expect(screen.getByRole('tab', { name: 'Activity' })).toHaveFocus()
     expect(screen.getByText('No wallet activity yet')).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
@@ -99,7 +96,7 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.getByRole('tab', { name: 'Your wallets' })).toHaveFocus()
   })
 
-  it('keeps the selected wallet consistent between the visible list and access settings', async () => {
+  it('shows access and automation for the wallet selected in the visible list', async () => {
     const wallets = controller({ wallets: ref([wallet('a', 'Wallet A', []), wallet('b', 'Wallet B', [])]) })
     render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
     const user = userEvent.setup()
@@ -107,13 +104,11 @@ describe('WalletsSettingsPanel', () => {
     expect(within(screen.getByRole('list', { name: 'Your wallets' })).getAllByRole('listitem')).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: /Wallet B/ }))
     expect(screen.getByRole('heading', { name: 'Wallet B' })).toBeVisible()
-    expect(screen.queryByText('Bounded agent automation')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Manage access' }))
-    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toHaveValue('b')
+    expect(screen.getByText('Bounded agent automation')).toBeVisible()
     expect(screen.getByText('No automation policies configured for this wallet.')).toBeVisible()
     expect(screen.getByText('No website permissions granted for this wallet.')).toBeVisible()
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'a')
-    await user.click(screen.getByRole('tab', { name: 'Your wallets' }))
+    expect(screen.queryByRole('combobox', { name: 'Wallet to manage' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Wallet A/ }))
     expect(screen.getByRole('button', { name: /Wallet A/ })).toHaveAttribute('aria-pressed', 'true')
 
     wallets.wallets.value = [wallet('b', 'Wallet B', [])]
@@ -537,8 +532,8 @@ describe('WalletsSettingsPanel', () => {
     await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.type(screen.getByLabelText('Name'), 'Independent wallet')
     await user.click(screen.getAllByLabelText('New wallet workspace')[0])
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'b')
+    await user.click(screen.getByRole('tab', { name: 'Your wallets' }))
+    await user.click(screen.getByRole('button', { name: /Wallet B/ }))
     await user.click(screen.getByRole('tab', { name: 'Add wallet' }))
     await user.click(screen.getByRole('button', { name: 'Generate wallet' }))
 
@@ -565,8 +560,6 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     await user.selectOptions(screen.getByLabelText('Policy workspace'), 'workspace-b')
     expect(screen.getByRole('button', { name: 'Add bounded policy' })).toBeDisabled()
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
@@ -592,8 +585,6 @@ describe('WalletsSettingsPanel', () => {
       global
     })
 
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     expect(screen.getByText(/watch-only wallets cannot sign/i)).toBeVisible()
     expect(screen.getByText('Bounded agent automation')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Add bounded policy' })).not.toBeInTheDocument()
@@ -615,15 +606,13 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     await user.type(screen.getByLabelText('Allowed origin'), 'https://wallet-a.example')
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
     await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
     await user.type(screen.getByLabelText('Max native amount'), '1')
     await user.clear(screen.getByLabelText('Operation count'))
     await user.type(screen.getByLabelText('Operation count'), '7')
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Wallet to manage' }), 'b')
+    await user.click(screen.getByRole('button', { name: /Signing wallet B/ }))
 
     expect(screen.getByLabelText('Allowed origin')).toHaveValue('')
     expect(screen.getByLabelText('Destination / contract')).toHaveValue('')
@@ -647,8 +636,6 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')
     await user.type(screen.getByLabelText('Destination / contract'), '0x0000000000000000000000000000000000000001')
     await user.type(screen.getByLabelText('Method / instruction'), 'transfer')
@@ -901,7 +888,6 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
     const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
 
 
@@ -929,16 +915,13 @@ describe('WalletsSettingsPanel', () => {
       },
       global
     })
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     const accessPanel = within(container.querySelector('.wallet-configured-access') as HTMLElement)
 
     expect(screen.getByRole('button', { name: 'Save workspace access' })).toBeDisabled()
     expect(accessPanel.getByLabelText('Selected workspaces')).toBeDisabled()
     expect(accessPanel.getByLabelText('Any workspace')).toBeDisabled()
     expect(accessPanel.getByLabelText('Existing workspace')).toBeDisabled()
-    expect(screen.getByRole('combobox', { name: 'Wallet to manage' })).toBeDisabled()
-    await userEvent.setup().click(screen.getByRole('tab', { name: 'Your wallets' }))
+    expect(screen.queryByRole('combobox', { name: 'Wallet to manage' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Rename' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Change RPC endpoint' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Remove' })).toBeDisabled()
@@ -962,8 +945,6 @@ describe('WalletsSettingsPanel', () => {
       global
     })
     const user = userEvent.setup()
-    await user.click(screen.getByRole('tab', { name: 'Access & automation' }))
-
     expect(screen.getByText(/matching agent transactions run without a per-request approval dialog/i)).toBeVisible()
     await user.click(screen.getByLabelText('Bypass Approve mode'))
     await user.type(screen.getByLabelText('Allowed origin'), 'https://dapp.example')

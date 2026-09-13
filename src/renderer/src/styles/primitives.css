@@ -114,6 +114,7 @@
 .ui-setting-row--stacked .ui-setting-row__control { @apply w-full; }
 
 .ui-tabs { @apply grid gap-3; }
+.ui-tabs__header { @apply grid gap-3; }
 .ui-tabs__list { @apply flex gap-1 border-b border-border-soft; }
 .ui-tabs__tab { @apply -mb-px rounded-t-md rounded-b-none border-0 border-b-2 border-b-transparent; }
 .ui-tabs__tab[aria-selected="true"] { @apply border-b-accent bg-accent-soft text-accent; }
