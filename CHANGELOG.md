@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add privacy-safe review metrics to bounded task runs, including interruptions, approvals, rejections, decision time, system-caught errors, completed tasks, and ambiguous outcomes.
+
 ### Fixed
 
 - Move native focus from the website to the Find field when `Ctrl/Cmd+F` opens Find in page, so immediate typing enters the query.
