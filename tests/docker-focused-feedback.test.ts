@@ -101,7 +101,7 @@ describe('focused Docker integration feedback', () => {
       'docker compose --file compose.test.ci.yaml run --build --rm integration'
     )
     expect(dockerfile).toContain('CMD ["bash", "scripts/run-integration-suite-docker.sh"]')
-    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-6}"')
+    expect(compose).toContain('HRONAUT_INTEGRATION_SHARDS: "${HRONAUT_INTEGRATION_SHARDS:-4}"')
     expect(compose).toContain('HRONAUT_INTEGRATION_SKIP_TYPECHECK: "${HRONAUT_INTEGRATION_SKIP_TYPECHECK:-false}"')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"')
     expect(ciRunner).toContain('HRONAUT_INTEGRATION_SKIP_TYPECHECK="true"')

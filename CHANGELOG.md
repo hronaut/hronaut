@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Run four local Docker integration shards by default to reduce CPU contention and avoid slower, flaky renderer startup on six-CPU Docker hosts.
+
+### Fixed
+
+- Verify network timing sort order without assuming a fixed-delay request must remain the slowest under heavy host load.
+
 ## [2.4.3] - 2026-09-14
 
 ### Added

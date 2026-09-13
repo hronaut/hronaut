@@ -82,7 +82,7 @@ npm run test:integration:docker
 ```
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
-inside the pinned Docker/Xvfb image. Local runs use six isolated Xvfb shards
+inside the pinned Docker/Xvfb image. Local runs use four isolated Xvfb shards
 after one application build; hosted CI gives each of three shards an isolated
 runner to avoid CPU contention. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
