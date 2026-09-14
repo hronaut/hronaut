@@ -7,5 +7,5 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-npm run build:app
+bash scripts/build-app-if-needed.sh
 xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' npm run test:integration:run -- "$@"

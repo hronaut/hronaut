@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Speed up repeated focused Docker integration tests by reusing content-verified Electron build output when its inputs are unchanged.
 - Fan release Electron integration tests across three isolated hosted runners, preserving full coverage while reducing the release gate from one sequential suite to three concurrent partitions.
 
 ### Fixed

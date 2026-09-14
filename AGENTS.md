@@ -108,8 +108,10 @@ Arguments after `--` are passed directly to Vitest or Playwright respectively.
 The Docker dependency layer and focused `node_modules` volume are keyed to the
 lockfile and dependency-image definition, so repeat runs reuse them safely. Use
 `npm run test:docker:cache:prune` to remove old focused dependency volumes.
-Focused Electron runs compile the application without repeating the separate
-type-analysis gate. A focused Docker pass is not a substitute for
+Focused Electron runs reuse a content-verified application build when both its
+inputs and `out/` are unchanged, and compile again after any input or output
+change. They do not repeat the separate type-analysis gate. A focused Docker
+pass is not a substitute for
 `npm run test:integration:docker` before delivery.
 
 When a change spans many Electron cases, run the complete live-checkout suite
