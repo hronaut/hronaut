@@ -714,6 +714,15 @@ Unit tests live in `tests/*.test.ts` and use Vitest. Real-application integratio
 
 Run `npm run evaluate:browser:docker` for the opt-in local browser-boundary evaluation. It launches Hronaut in Docker against loopback-only synthetic pages and exercises navigation and reconnect drift, expired authentication, an unattended human-review expiry, a flaky read, and a possible write followed by ambiguous browser state and independent fixture read-back. The command writes `test-results/browser-evaluation/report.json`; use `-- --output <repository-relative-path>` to choose another location. The deterministic report records pinned fixture, client, and Hronaut versions; stable logical task and action-attempt identities; fixed context roles; capability and approval transitions; tool, dispatch, transport, postcondition, and final reconciliation states. Its closed schema cannot carry raw URLs, selectors, page content, cookies, credentials, resume keys, MCP tokens, or live account identifiers. These disposable scenarios evaluate failure handling and do not establish production correctness.
 
+Run `npm run example:scheduled-browser-task:docker` for the same real-Electron
+fixture with its report written to
+`test-results/scheduled-browser-task/report.json`. The report also records the
+external scheduler, calling agent, Hronaut, and target-system ownership boundary;
+stable synthetic trigger, task, session, and action-attempt identities; and a
+cancellation-before-dispatch case. The complete orchestration, cancellation,
+reconnect, retry, and receipt interpretation is in the
+[scheduled browser workflow](SCHEDULED_BROWSER_WORKFLOW.md).
+
 ```bash
 npm run lint
 npm test

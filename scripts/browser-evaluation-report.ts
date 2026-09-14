@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const BROWSER_EVALUATION_SCHEMA_VERSION = '1.0'
+export const BROWSER_EVALUATION_SCHEMA_VERSION = '1.1'
 export const BROWSER_EVALUATION_FIXTURE_VERSION = '1.0.0'
 export const BROWSER_EVALUATION_CLIENT_VERSION = '1.0.0'
 export const BROWSER_EVALUATION_MAX_REPORT_CHARS = 10_000
@@ -10,15 +10,16 @@ export const BROWSER_EVALUATION_SCENARIOS = [
   'reconnect-drift',
   'expired-authentication',
   'blocked-human-takeover',
+  'scheduler-cancel-before-dispatch',
   'flaky-read-response',
   'ambiguous-write-response'
 ] as const
 
 export type BrowserEvaluationScenarioId = typeof BROWSER_EVALUATION_SCENARIOS[number]
-export type BrowserEvaluationOutcome = 'invalidated' | 'blocked' | 'recovered' | 'reconciled' | 'reconciliation_required'
+export type BrowserEvaluationOutcome = 'invalidated' | 'blocked' | 'cancelled' | 'recovered' | 'reconciled' | 'reconciliation_required'
 export type BrowserEvaluationContextStatus = 'matches' | 'navigation-changed' | 'control-changed' | 'signed-out' | 'unavailable'
 export type BrowserEvaluationApprovalStatus = 'not-required' | 'waiting' | 'expired' | 'invalidated'
-export type BrowserEvaluationToolResult = 'accepted' | 'invalidated' | 'blocked' | 'unknown'
+export type BrowserEvaluationToolResult = 'not-run' | 'accepted' | 'invalidated' | 'blocked' | 'unknown'
 export type BrowserEvaluationDispatchStatus = 'not-dispatched' | 'dispatched-once'
 export type BrowserEvaluationTransportStatus = 'not-started' | 'failed' | 'succeeded' | 'ambiguous'
 export type BrowserEvaluationPostconditionStatus = 'not-established' | 'not-verified' | 'verified' | 'context-changed'
@@ -65,6 +66,11 @@ function expectedObservation(id: BrowserEvaluationScenarioId): Omit<BrowserEvalu
   if (id === 'blocked-human-takeover') return {
     outcome: 'blocked', contextStatus: 'matches', approvalStatus: 'expired',
     toolResult: 'blocked', dispatchStatus: 'not-dispatched', transportStatus: 'not-started',
+    postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false
+  }
+  if (id === 'scheduler-cancel-before-dispatch') return {
+    outcome: 'cancelled', contextStatus: 'matches', approvalStatus: 'not-required',
+    toolResult: 'not-run', dispatchStatus: 'not-dispatched', transportStatus: 'not-started',
     postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false
   }
   if (id === 'flaky-read-response') return {
@@ -120,6 +126,17 @@ export function buildBrowserEvaluationReport(hronautVersion: string, observation
       includesPageContent: false,
       includesLiveAccountIdentifiers: false
     },
+    workflowOwnership: {
+      triggerAndJobLifecycle: 'external-scheduler',
+      planningAndDrafts: 'calling-agent',
+      browserWorkspaceAndHumanTakeover: 'hronaut',
+      authoritativeOutcome: 'target-system'
+    },
+    lifecycleRules: {
+      cancellation: 'cancel-before-dispatch-or-reconcile-possible-effects',
+      retry: 'fresh-context-and-authoritative-readback-required',
+      completion: 'transport-acknowledgement-is-not-authoritative-outcome'
+    },
     contextVocabulary: {
       workspace: 'synthetic-evaluation-workspace',
       profile: 'scratch-profile',
@@ -133,8 +150,11 @@ export function buildBrowserEvaluationReport(hronautVersion: string, observation
       return {
         scenarioId,
         scenarioVersion,
+        triggerId: fixtureUuid(`trigger\0${scenarioId}\0${scenarioVersion}`),
         logicalTaskId: fixtureUuid(`task\0${scenarioId}\0${scenarioVersion}`),
+        sessionId: fixtureUuid(`session\0${scenarioId}\0${scenarioVersion}`),
         actionAttemptId: fixtureUuid(`attempt\0${scenarioId}\0${scenarioVersion}`),
+        schedulerAttempt: 1,
         expectedContext: 'synthetic-evaluation-workspace/scratch-profile/synthetic-account/loopback-fixture/scenario-tab',
         observedContext: observation.contextStatus,
         capabilityTransition: observation.outcome === 'invalidated' ? 'invalidated' : 'unchanged',

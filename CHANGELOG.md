@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add durable workspace descriptions so people and agents can record and recover each workspace's purpose, current work, and stored browser context.
+- Add a runnable Docker reference for externally scheduled browser tasks, including explicit ownership, stable trigger/session identities, cancellation before dispatch, and reconciliation-safe retry rules.
 
 ## [2.4.6] - 2026-09-14
 

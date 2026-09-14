@@ -153,6 +153,19 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
       workspaceId: workspace.id, action: 'list'
     })).find(record => record.id === waiting.id)?.state).toBe('EXPIRED')
 
+    const cancelledRun = decode<{ id: string; revision: string }>(await call(client, 'browser_task_runs', {
+      workspaceId: workspace.id, action: 'start', deadlineMs: 60_000, heartbeatTimeoutMs: 10_000
+    }))
+    expect(decode<{ state: string; terminalReason: string; effects: string }>(await call(client, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'complete',
+      taskRunId: cancelledRun.id,
+      revision: cancelledRun.revision,
+      outcome: 'CANCELLED'
+    }))).toMatchObject({
+      state: 'CANCELLED', terminalReason: 'CALLER_REPORTED_CANCELLED', effects: 'not-established'
+    })
+
     const readWorkspace = decode<{ id: string }>(await call(client, 'browser_workspaces', {
       action: 'create', storage: 'scratch', name: 'Synthetic response evaluation'
     }))
@@ -202,6 +215,7 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
       { scenarioId: 'reconnect-drift', outcome: 'invalidated', contextStatus: 'control-changed', approvalStatus: 'not-required', toolResult: 'invalidated', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
       { scenarioId: 'expired-authentication', outcome: 'reconciliation_required', contextStatus: 'signed-out', approvalStatus: 'not-required', toolResult: 'invalidated', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'context-changed', authoritativeReadback: 'unavailable', retryAllowed: false },
       { scenarioId: 'blocked-human-takeover', outcome: 'blocked', contextStatus: 'matches', approvalStatus: 'expired', toolResult: 'blocked', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
+      { scenarioId: 'scheduler-cancel-before-dispatch', outcome: 'cancelled', contextStatus: 'matches', approvalStatus: 'not-required', toolResult: 'not-run', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
       { scenarioId: 'flaky-read-response', outcome: 'recovered', contextStatus: 'matches', approvalStatus: 'not-required', toolResult: 'accepted', dispatchStatus: 'not-dispatched', transportStatus: 'succeeded', postconditionStatus: 'verified', authoritativeReadback: 'verified', retryAllowed: true },
       { scenarioId: 'ambiguous-write-response', outcome: 'reconciled', contextStatus: 'signed-out', approvalStatus: 'not-required', toolResult: 'unknown', dispatchStatus: 'dispatched-once', transportStatus: 'succeeded', postconditionStatus: 'not-verified', authoritativeReadback: 'verified', retryAllowed: false }
     ]

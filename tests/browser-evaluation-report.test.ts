@@ -11,6 +11,7 @@ const observations: BrowserEvaluationObservation[] = [
   { scenarioId: 'reconnect-drift', outcome: 'invalidated', contextStatus: 'control-changed', approvalStatus: 'not-required', toolResult: 'invalidated', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
   { scenarioId: 'expired-authentication', outcome: 'reconciliation_required', contextStatus: 'signed-out', approvalStatus: 'not-required', toolResult: 'invalidated', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'context-changed', authoritativeReadback: 'unavailable', retryAllowed: false },
   { scenarioId: 'blocked-human-takeover', outcome: 'blocked', contextStatus: 'matches', approvalStatus: 'expired', toolResult: 'blocked', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
+  { scenarioId: 'scheduler-cancel-before-dispatch', outcome: 'cancelled', contextStatus: 'matches', approvalStatus: 'not-required', toolResult: 'not-run', dispatchStatus: 'not-dispatched', transportStatus: 'not-started', postconditionStatus: 'not-established', authoritativeReadback: 'not-performed', retryAllowed: false },
   { scenarioId: 'flaky-read-response', outcome: 'recovered', contextStatus: 'matches', approvalStatus: 'not-required', toolResult: 'accepted', dispatchStatus: 'not-dispatched', transportStatus: 'succeeded', postconditionStatus: 'verified', authoritativeReadback: 'verified', retryAllowed: true },
   { scenarioId: 'ambiguous-write-response', outcome: 'reconciled', contextStatus: 'signed-out', approvalStatus: 'not-required', toolResult: 'unknown', dispatchStatus: 'dispatched-once', transportStatus: 'succeeded', postconditionStatus: 'not-verified', authoritativeReadback: 'verified', retryAllowed: false }
 ]
@@ -24,8 +25,21 @@ describe('privacy-safe browser evaluation report', () => {
     expect(first.scenarios.map(scenario => scenario.scenarioId)).toEqual(BROWSER_EVALUATION_SCENARIOS)
     expect(first.scenarios).toEqual(expect.arrayContaining([
       expect.objectContaining({ scenarioId: 'navigation-drift', outcome: 'invalidated', retryAllowed: false }),
+      expect.objectContaining({ scenarioId: 'scheduler-cancel-before-dispatch', outcome: 'cancelled', dispatch: 'not-dispatched', retryAllowed: false }),
       expect.objectContaining({ scenarioId: 'ambiguous-write-response', initialOutcome: 'reconciliation_required', outcome: 'reconciled', dispatch: 'dispatched-once', toolPostcondition: 'not-verified', authoritativeReadback: 'verified', retryAllowed: false })
     ]))
+    expect(first.workflowOwnership).toEqual({
+      triggerAndJobLifecycle: 'external-scheduler',
+      planningAndDrafts: 'calling-agent',
+      browserWorkspaceAndHumanTakeover: 'hronaut',
+      authoritativeOutcome: 'target-system'
+    })
+    expect(first.scenarios.every(scenario => (
+      scenario.triggerId !== scenario.logicalTaskId
+      && scenario.logicalTaskId !== scenario.sessionId
+      && scenario.sessionId !== scenario.actionAttemptId
+      && scenario.schedulerAttempt === 1
+    ))).toBe(true)
     expect(JSON.stringify(first).length).toBeLessThan(BROWSER_EVALUATION_MAX_REPORT_CHARS)
   })
 
