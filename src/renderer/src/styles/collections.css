@@ -82,7 +82,7 @@
   @apply flex [min-height:35px] items-center [gap:8px] m-0 [padding:7px_3px] text-copy [font-size:13px] [font-weight:800];
 }
 .tab-overview-workspace > h3 > span:last-child { @apply [margin-left:auto] text-muted [font-size:11px] [font-variant-numeric:tabular-nums]; }
-.tab-overview-workspace-dot { @apply [width:8px] [height:8px] flex-none rounded-full [background:var(--tab-group-color)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--tab-group-color)_18%,_transparent)]; }
+.tab-overview-workspace-dot { @apply [width:10px] [height:10px] flex-none rounded-full [background:var(--tab-group-color)] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--tab-group-color)_28%,_transparent)]; }
 .tab-overview-grid { @apply grid [grid-template-columns:repeat(auto-fit,_minmax(220px,_1fr))] [gap:12px]; }
 .tab-overview-card {
   @apply relative min-w-0 overflow-hidden [border:1px_solid_var(--border-soft)] [border-radius:11px] bg-surface [box-shadow:0_3px_12px_rgba(0,_0,_0,_.09)];
