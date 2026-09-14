@@ -334,7 +334,7 @@ onBeforeUnmount(() => { dispose(); pagePreview.dispose() })
                     :disabled="actionPending"
                     @click="togglePinnedTab($event, tab)"
                   ><IconKeep aria-hidden="true" /></UiButton>
-                  <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending || state.allHumanInteractionLocked" data-lock-protected-tab-close @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
+                  <UiButton appearance="application" class="tab-search-close" type="button" :aria-label="t('tabSearch.closeTabAria', { title: tab.title || t('tabSearch.newTabTitle') })" :title="t('tabSearch.closeTab')" :disabled="actionPending" @click="closeOpenTab($event, tab.id)"><IconClose aria-hidden="true" /></UiButton>
                 </span>
               </article>
             </div>

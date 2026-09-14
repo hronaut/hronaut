@@ -220,7 +220,7 @@ describe('app shell interaction feature controller', () => {
     harness.controller.dispose()
   })
 
-  it('keeps trusted approval and interaction locks ahead of browser shortcuts', async () => {
+  it('keeps trusted approval modal while allowing tab escape from a page-input lock', async () => {
     const harness = createHarness()
     harness.refs.walletApproval.value = true
     const approvalShortcut = new KeyboardEvent('keydown', {
@@ -237,8 +237,8 @@ describe('app shell interaction feature controller', () => {
 
     harness.refs.walletApproval.value = false
     harness.state.value = browserState(true)
-    await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(false)
-    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    await expect(harness.controller.runBrowserShortcut('close-tab')).resolves.toBe(true)
+    expect(harness.browser.closeTab).toHaveBeenCalledWith('active')
     harness.controller.dispose()
   })
 

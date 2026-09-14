@@ -105,8 +105,6 @@
 .shell.all-human-interaction-locked .all-lock-button {
   @apply [box-shadow:0_0_0_3px_color-mix(in_srgb,_#e49a32_14%,_transparent)];
 }
-.shell.all-human-interaction-locked .tab-close,
-.shell.all-human-interaction-locked .tab-search-close:disabled,
 .shell.all-human-interaction-locked [data-lock-protected-tab-close]:disabled {
   @apply cursor-not-allowed [opacity:0.38];
 }

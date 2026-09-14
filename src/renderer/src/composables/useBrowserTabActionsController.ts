@@ -99,7 +99,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   }
 
   async function closeTab(tabId: string): Promise<void> {
-    if (disposed || options.state.value.allHumanInteractionLocked) return
+    if (disposed) return
     await options.syncState(options.browser.closeTab(tabId))
   }
 

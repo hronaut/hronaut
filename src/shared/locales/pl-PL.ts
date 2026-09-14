@@ -877,14 +877,12 @@ export const plPL = {
     },
     "locks": {
       "websiteOnly": "Blokada karty jest dostępna w witrynach",
-      "allLocked": "Wprowadzanie danych przez człowieka na stronach i zamykanie kart są zablokowane; elementy Hronaut i agenci nadal działają",
+      "allLocked": "Wprowadzanie danych przez człowieka na stronach jest zablokowane; zaufane elementy sterujące Hronaut i agenci nadal działają",
       "unlockTab": "Odblokuj wprowadzanie danych na tej karcie",
       "lockTab": "Zablokuj wprowadzanie danych na tej karcie",
-      "unlockAll": "Zezwól na wprowadzanie danych przez człowieka i zamykanie wszystkich kart witryn. Ochrona fokusu pozostaje automatyczna.",
-      "lockAll": "Zablokuj wprowadzanie danych przez człowieka i zamykanie wszystkich kart witryn; elementy Hronaut i agenci nadal działają. Ochrona fokusu pozostaje automatyczna.",
-      "unlockToClose": "Odblokuj wszystkie karty, aby zamknąć tę kartę",
+      "unlockAll": "Zezwól na wprowadzanie danych przez człowieka we wszystkich kartach witryn. Ochrona fokusu pozostaje automatyczna.",
+      "lockAll": "Zablokuj wprowadzanie danych przez człowieka we wszystkich kartach witryn; zaufane elementy sterujące Hronaut i agenci nadal działają. Ochrona fokusu pozostaje automatyczna.",
       "closeShortcut": "Zamknij kartę (Ctrl/Cmd+W)",
-      "closeUnavailable": "Nie można zamknąć karty, gdy wszystkie karty są zablokowane",
       "inputLocked": "Wprowadzanie danych na stronie jest zablokowane",
       "inputLock": "Blokada wprowadzania danych na stronie"
     },

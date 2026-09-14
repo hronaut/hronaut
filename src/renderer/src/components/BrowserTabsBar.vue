@@ -286,7 +286,6 @@ function activateTab(tabId: string): void {
 
 function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
   if (event.key === 'Delete') {
-    if (props.state.allHumanInteractionLocked) return
     event.preventDefault()
     emit('closeTab', tab.id)
     return
@@ -318,8 +317,7 @@ function handleTabKeyDown(event: KeyboardEvent, tab: BrowserTabState): void {
 }
 
 function tabKeyboardShortcuts(tab: BrowserTabState): string | undefined {
-  const shortcuts: string[] = []
-  if (!props.state.allHumanInteractionLocked) shortcuts.push('Delete')
+  const shortcuts: string[] = ['Delete']
   if (tab.audible || tab.muted) shortcuts.push('M')
   return shortcuts.length ? shortcuts.join(' ') : undefined
 }
@@ -327,7 +325,6 @@ function tabKeyboardShortcuts(tab: BrowserTabState): string | undefined {
 function handleTabAuxClick(event: MouseEvent, tab: BrowserTabState): void {
   if (event.button !== 1) return
   event.preventDefault()
-  if (props.state.allHumanInteractionLocked) return
   emit('closeTab', tab.id)
 }
 
@@ -666,9 +663,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           </span>
           <span
             class="tab-close"
-            :title="state.allHumanInteractionLocked ? t('runtime.locks.unlockToClose') : t('runtime.locks.closeShortcut')"
+            :title="t('runtime.locks.closeShortcut')"
             aria-hidden="true"
-            data-lock-protected-tab-close
             @click.stop="emit('closeTab', tab.id)"
           ><IconClose aria-hidden="true" /></span>
         </UiButton>

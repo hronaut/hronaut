@@ -406,7 +406,6 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
 
   async function closeOpenTab(event: MouseEvent, tabId: string): Promise<void> {
     event.stopPropagation()
-    if (options.state.value.allHumanInteractionLocked) return
     const action = beginAction()
     if (!action) return
     try {

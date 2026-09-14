@@ -225,13 +225,13 @@ describe('browser shortcut controller', () => {
     harness.controller.dispose()
   })
 
-  it('blocks close-tab while human interaction is globally locked', async () => {
+  it('keeps close-tab available while website interaction is globally locked', async () => {
     const harness = createController()
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
 
-    await expect(harness.controller.run('close-tab')).resolves.toBe(false)
+    await expect(harness.controller.run('close-tab')).resolves.toBe(true)
 
-    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    expect(harness.browser.closeTab).toHaveBeenCalledWith('second')
     expect(harness.callbacks.onError).not.toHaveBeenCalled()
     harness.controller.dispose()
   })
