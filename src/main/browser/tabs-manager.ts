@@ -613,6 +613,7 @@ interface BrowserTab {
   preserveDiagnosticLogs: boolean
   faviconDataUrl?: string
   faviconRequestId: number
+  faviconAbortController?: AbortController
   audible: boolean
   tabMuted: boolean
   muted: boolean
@@ -7767,6 +7768,8 @@ export class BrowserTabsManager {
   private attachTabEvents(tab: BrowserTab): void {
     const webContents = tab.webContents
     webContents.once('destroyed', () => {
+      tab.faviconAbortController?.abort()
+      tab.faviconAbortController = undefined
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPendingCaptures.delete(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -8127,6 +8130,8 @@ export class BrowserTabsManager {
         this.options.onWalletNavigation?.(tab.id, tab.navigationGeneration)
       ))
       if (isSameDocument) return
+      tab.faviconAbortController?.abort()
+      tab.faviconAbortController = undefined
       tab.faviconRequestId += 1
       this.cancelNativeSelectionSessions(tab)
       tab.inspectorIssues = []
@@ -8498,63 +8503,69 @@ export class BrowserTabsManager {
   }
 
   private async loadFavicon(tab: BrowserTab, favicons: string[]): Promise<void> {
+    tab.faviconAbortController?.abort()
+    const controller = new AbortController()
+    tab.faviconAbortController = controller
     const requestId = ++tab.faviconRequestId
-    for (const faviconUrl of favicons.slice(0, 8)) {
+    try {
+      const dataUrl = await Promise.any(favicons.slice(0, 8).map(faviconUrl => (
+        this.loadFaviconCandidate(tab, faviconUrl, controller.signal)
+      )))
       if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-      try {
-        let image = nativeImage.createEmpty()
-        if (faviconUrl.startsWith('data:')) {
-          if (faviconUrl.length > MAX_FAVICON_BYTES * 2) continue
-          // Node's data-URL decoder does not make a network request. Chromium's
-          // session.fetch does not support fetching this scheme.
-          const response = await fetch(faviconUrl)
-          const bytes = Buffer.from(await response.arrayBuffer())
-          if (bytes.length > MAX_FAVICON_BYTES) continue
-          if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-          image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', this.window.webContents)
-        } else {
-          const parsed = new URL(faviconUrl)
-          if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue
-          const response = await tab.webContents.session.fetch(parsed.href, {
-            credentials: 'include',
-            signal: AbortSignal.timeout(5_000)
-          })
-          if (!response.ok) continue
-          const declaredLength = Number(response.headers.get('content-length') ?? 0)
-          if (declaredLength > MAX_FAVICON_BYTES) {
-            await response.body?.cancel()
-            continue
-          }
-          const reader = response.body?.getReader()
-          if (!reader) continue
-          const chunks: Buffer[] = []
-          let total = 0
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            total += value.byteLength
-            if (total > MAX_FAVICON_BYTES) {
-              await reader.cancel()
-              throw new Error('Favicon exceeds the safe size limit')
-            }
-            chunks.push(Buffer.from(value))
-          }
-          if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-          image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', this.window.webContents)
-        }
-        if (image.isEmpty()) continue
-        const dataUrl = `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
-        if (this.destroyed || tab.webContents.isDestroyed() || tab.faviconRequestId !== requestId) return
-        tab.faviconDataUrl = dataUrl
-        // A favicon can finish well after navigation's debounced state save.
-        // Persist this update explicitly so a later crash or forced restart
-        // does not replace the restored tab icon with the generic globe.
-        this.changed()
-        return
-      } catch {
-        // Try the next favicon candidate supplied by the page.
-      }
+      tab.faviconDataUrl = dataUrl
+      // A favicon can finish well after navigation's debounced state save.
+      // Persist this update explicitly so a later crash or forced restart
+      // does not replace the restored tab icon with the generic globe.
+      this.changed()
+    } catch {
+      // Keep the existing icon when every candidate is invalid or unavailable.
+    } finally {
+      controller.abort()
+      if (tab.faviconAbortController === controller) tab.faviconAbortController = undefined
     }
+  }
+
+  private async loadFaviconCandidate(tab: BrowserTab, faviconUrl: string, cancellation: AbortSignal): Promise<string> {
+    let image = nativeImage.createEmpty()
+    if (faviconUrl.startsWith('data:')) {
+      if (faviconUrl.length > MAX_FAVICON_BYTES * 2) throw new Error('Favicon exceeds the safe encoded size limit')
+      // Node's data-URL decoder does not make a network request. Chromium's
+      // session.fetch does not support fetching this scheme.
+      const response = await fetch(faviconUrl, { signal: cancellation })
+      const bytes = Buffer.from(await response.arrayBuffer())
+      if (bytes.length > MAX_FAVICON_BYTES) throw new Error('Favicon exceeds the safe size limit')
+      image = await decodeWebsiteFavicon(bytes, response.headers.get('content-type') ?? '', this.window.webContents)
+    } else {
+      const parsed = new URL(faviconUrl)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Unsupported favicon URL')
+      const response = await tab.webContents.session.fetch(parsed.href, {
+        credentials: 'include',
+        signal: AbortSignal.any([cancellation, AbortSignal.timeout(5_000)])
+      })
+      if (!response.ok) throw new Error('Favicon request failed')
+      const declaredLength = Number(response.headers.get('content-length') ?? 0)
+      if (declaredLength > MAX_FAVICON_BYTES) {
+        await response.body?.cancel()
+        throw new Error('Favicon exceeds the safe size limit')
+      }
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Favicon response body is unavailable')
+      const chunks: Buffer[] = []
+      let total = 0
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        total += value.byteLength
+        if (total > MAX_FAVICON_BYTES) {
+          await reader.cancel()
+          throw new Error('Favicon exceeds the safe size limit')
+        }
+        chunks.push(Buffer.from(value))
+      }
+      image = await decodeWebsiteFavicon(Buffer.concat(chunks), response.headers.get('content-type') ?? '', this.window.webContents)
+    }
+    if (image.isEmpty()) throw new Error('Favicon could not be decoded')
+    return `data:image/png;base64,${image.resize({ width: 32, height: 32, quality: 'best' }).toPNG().toString('base64')}`
   }
 
   private watchCredentialSubmission(tab: BrowserTab): void {
