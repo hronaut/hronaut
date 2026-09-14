@@ -3,7 +3,7 @@ import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function template(names: string[], url = ''): string {
-  return JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'windows', workspaces: names.map(name => ({ name, color: 'blue', startPages: url ? [`${url}/${name}`] : [] })) })
+  return JSON.stringify({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'windows', workspaces: names.map(name => ({ name, description: '', color: 'blue', startPages: url ? [`${url}/${name}`] : [] })) })
 }
 
 test('imports fresh isolated profiles without sharing authenticated storage or selecting their tabs', async ({ appWindow, electronApp }) => {
@@ -154,7 +154,7 @@ test('reviews templates through the editor before export and resolves import col
   await save.click()
   await expect(panel.getByRole('status')).toHaveText('The reviewed template was saved.')
   const exported = JSON.parse(await readFile(destination, 'utf8'))
-  expect(exported).toEqual({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Existing', color: 'blue', startPages: [] }] })
+  expect(exported).toEqual({ format: 'hronaut-workspace-template', version: 1, sourcePlatform: 'linux', workspaces: [{ name: 'Existing', description: '', color: 'blue', startPages: [] }] })
   await panel.getByRole('button', { name: 'Open workspace template', exact: true }).click()
   await expect(panel.getByRole('alert')).toContainText('Rename these entries')
   await expect(review).not.toBeChecked()
