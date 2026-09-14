@@ -4612,12 +4612,22 @@ export class BrowserTabsManager {
   async accessibilityAudit(options: BrowserAccessibilityAuditOptions = {}): Promise<BrowserAccessibilityAudit> {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before running an accessibility audit')
+    const navigationGeneration = tab.navigationGeneration
     const normalized = normalizeAccessibilityAuditOptions(options)
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       ACCESSIBILITY_AUDIT_WORLD_ID,
       [{ code: accessibilityAuditPageScript(axe.source, normalized) }],
       false
     ) as Omit<BrowserAccessibilityAudit, 'tabId' | 'standard'>
+    const current = this.tabs.get(tab.id)
+    if (
+      !current
+      || current !== tab
+      || current.webContents.isDestroyed()
+      || current.navigationGeneration !== navigationGeneration
+    ) {
+      throw new Error('The page changed during the accessibility audit. Run a fresh audit.')
+    }
     return {
       tabId: tab.id,
       standard: normalized.standard,
