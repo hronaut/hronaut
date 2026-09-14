@@ -22,7 +22,7 @@ test('forks disabled archived workspace data without source access and honors cl
   const client = new Client({ name: 'arbitrary-workspace-fork', version: '1' })
   const call = async (name: string, args: Record<string, unknown>): Promise<CallToolResult> => await client.callTool({ name, arguments: args }) as CallToolResult
   try {
-    const state = await appWindow.evaluate(`window.hronaut.createWorkspace(${JSON.stringify({ name: 'Human restricted source', storage: 'scratch', agentAccess: false, navigationPolicy: { mode: 'restricted', rules: [origin] } })})`) as BrowserState
+    const state = await appWindow.evaluate(`window.hronaut.createWorkspace(${JSON.stringify({ name: 'Human restricted source', description: 'Authenticated source state for the fork test.', storage: 'scratch', agentAccess: false, navigationPolicy: { mode: 'restricted', rules: [origin] } })})`) as BrowserState
     const source = state.mcpTabGroups.find((workspace) => workspace.name === 'Human restricted source')!
     expect(source.agentAccess).toBe(false)
     const sourceUrl = `${origin}/source`
@@ -38,7 +38,7 @@ test('forks disabled archived workspace data without source access and honors cl
     const catalog = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(catalog.isError, resultText(catalog)).not.toBe(true)
     const entry = JSON.parse(resultText(catalog)).find((workspace: { id: string }) => workspace.id === source.id)
-    expect(entry).toEqual({ id: source.id, name: source.name, color: source.color, archived: true, agentAccess: false })
+    expect(entry).toEqual({ id: source.id, name: source.name, description: source.description, color: source.color, archived: true, agentAccess: false })
     const created = await call('browser_workspaces', { action: 'create', name: 'Isolated agent fork', storage: 'fork-workspace', sourceWorkspaceId: source.id })
     expect(created.isError, resultText(created)).not.toBe(true)
     const fork = JSON.parse(resultText(created)) as { id: string; resumeKey: string; agentAccess: boolean }
