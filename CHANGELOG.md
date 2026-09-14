@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.5] - 2026-09-14
+
 ### Added
 
 - Add bounded semantic snapshot baselines and deltas for repeated agent inspection, with explicit unchanged results, complete change counts, output truncation, and stable invalidation reasons across navigation, tab, format, and workspace-control drift.
