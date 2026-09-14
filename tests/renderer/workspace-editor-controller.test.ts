@@ -26,6 +26,7 @@ function workspace(id: string, name: string, isDefault = false): BrowserTabGroup
   return {
     id,
     name,
+    description: isDefault ? 'Everyday signed-in browsing' : 'Investigate agent checkout flow',
     color: isDefault ? 'blue' : 'purple',
     createdAt: '2026-08-22T00:00:00.000Z',
     lastUsedAt: '2026-08-22T00:00:00.000Z',
@@ -128,6 +129,17 @@ describe('workspace editor controller', () => {
     expect(controller.agentAccess.value).toBe(true)
   })
 
+  it('loads and saves durable workspace context', async () => {
+    const { controller, browser } = createController()
+    await controller.openExisting('agent')
+    expect(controller.description.value).toBe('Investigate agent checkout flow')
+    controller.description.value = 'Reproduce checkout failures and keep the test account signed in'
+    await controller.save()
+    expect(browser.updateTabGroup).toHaveBeenCalledWith('agent', expect.objectContaining({
+      description: 'Reproduce checkout failures and keep the test account signed in'
+    }))
+  })
+
   it('blocks transfers while source inventory is loading and rejects a same or missing destination', async () => {
     const { controller, browser, state } = createController()
     await controller.openExisting('agent')
@@ -150,9 +162,9 @@ describe('workspace editor controller', () => {
 
   it('requires confirmation before moving data and preserves incomplete cleanup feedback', async () => {
     const { controller, browser, confirm, state } = createController()
-    state.value.savedTabGroups = [{ id: 'archived', name: 'Archived workspace', color: 'purple', savedAt: '',
+    state.value.savedTabGroups = [{ id: 'archived', name: 'Archived workspace', description: '', color: 'purple', savedAt: '',
       storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] },
-    { id: 'archived-target', name: 'Archived destination', color: 'blue', savedAt: '',
+    { id: 'archived-target', name: 'Archived destination', description: '', color: 'blue', savedAt: '',
       storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }]
     await controller.openExisting('agent')
     controller.sourceWorkspaceId.value = 'archived'
@@ -187,7 +199,7 @@ describe('workspace editor controller', () => {
   it('opens standalone transfer controls with only archived workspaces and never creates a dummy workspace', async () => {
     const { controller, browser, state, open } = createController()
     state.value.mcpTabGroups = []
-    state.value.savedTabGroups = ['source', 'target'].map(id => ({ id, name: id, color: 'purple', savedAt: '',
+    state.value.savedTabGroups = ['source', 'target'].map(id => ({ id, name: id, description: '', color: 'purple', savedAt: '',
       storageOriginCount: 1, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }))
     await controller.openTransfer('target')
     expect(open.value).toBe(true)
@@ -268,7 +280,7 @@ describe('workspace editor controller', () => {
     try {
       state.value.mcpTabGroups.push(workspace('same', ' curious otter '))
       state.value.savedTabGroups.push({
-        id: 'archive', name: 'CURIOUS OTTER 2', color: 'purple', tabs: [],
+        id: 'archive', name: 'CURIOUS OTTER 2', description: '', color: 'purple', tabs: [],
         savedAt: '2026-09-05T00:00:00Z', storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] }
       })
@@ -437,6 +449,7 @@ describe('workspace editor controller', () => {
       hiddenFromSidebar: false,
       deletionProtected: false,
       name: 'Focused fork',
+      description: '',
       color: 'purple',
       storage: 'fork-workspace',
       sourceWorkspaceId: 'default',

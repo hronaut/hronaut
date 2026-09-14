@@ -32,10 +32,10 @@ async function connectClient(name: string, port: number, token: string): Promise
   return client
 }
 
-async function createWorkspaceAccess(client: Client, name: string, color?: string): Promise<{ id: string; resumeKey: string }> {
+async function createWorkspaceAccess(client: Client, name: string, color?: string, description?: string): Promise<{ id: string; resumeKey: string }> {
   const result = await client.callTool({
     name: 'browser_workspaces',
-    arguments: { action: 'create', name, ...(color ? { color } : {}) }
+    arguments: { action: 'create', name, ...(color ? { color } : {}), ...(description ? { description } : {}) }
   }) as CallToolResult
   expect(result.isError, text(result)).not.toBe(true)
   const workspace = JSON.parse(text(result)) as { id: string; resumeKey: string }
@@ -649,13 +649,13 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(unscoped.isError).toBe(true)
     expect(text(unscoped)).toContain('workspaceId')
 
-    const firstGroupId = await createWorkspace(first, 'Checkout agent', 'blue')
+    const firstGroupId = (await createWorkspaceAccess(first, 'Checkout agent', 'blue', 'Reproduce and diagnose checkout failures')).id
     const secondGroupId = await createWorkspace(second, 'Documentation agent', 'cyan')
     expect(firstGroupId).toMatch(UUID_V7_PATTERN)
     expect(secondGroupId).toMatch(UUID_V7_PATTERN)
     const listed = await first.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(listed))).toEqual([
-      expect.objectContaining({ id: firstGroupId, name: 'Checkout agent', color: 'blue', tabCount: 0 })
+      expect.objectContaining({ id: firstGroupId, name: 'Checkout agent', description: 'Reproduce and diagnose checkout failures', color: 'blue', tabCount: 0 })
     ])
     expect(text(listed)).not.toContain(secondGroupId)
 
@@ -682,10 +682,10 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     })
     const recolored = await first.callTool({
       name: 'browser_workspaces',
-      arguments: { action: 'update', workspaceId: firstGroupId, color: 'orange' }
+      arguments: { action: 'update', workspaceId: firstGroupId, description: 'Checkout regression investigation', color: 'orange' }
     }) as CallToolResult
     expect(recolored.isError, text(recolored)).not.toBe(true)
-    expect(JSON.parse(text(recolored))).toMatchObject({ id: firstGroupId, name: 'Checkout debugging', color: 'orange' })
+    expect(JSON.parse(text(recolored))).toMatchObject({ id: firstGroupId, name: 'Checkout debugging', description: 'Checkout regression investigation', color: 'orange' })
     const listedOrigins = await first.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'list-origins', workspaceId: firstGroupId }
@@ -901,7 +901,7 @@ test('caps new and restored workspaces so profiles cannot grow without bound', a
 test('archives an agent workspace and reopens it with the same stable workspace id', async ({ mcpPort, mcpToken }) => {
   const client = await connectClient('saved-group-test', mcpPort, mcpToken)
   try {
-    const workspaceId = await createWorkspace(client, 'Deferred investigation', 'pink')
+    const workspaceId = (await createWorkspaceAccess(client, 'Deferred investigation', 'pink', 'Preserve this investigation for later')).id
     await client.callTool({
       name: 'browser_new_tab',
       arguments: { workspaceId, url: 'data:text/html,<title>Deferred tab</title><h1>Later</h1>' }
@@ -911,23 +911,23 @@ test('archives an agent workspace and reopens it with the same stable workspace 
       arguments: { action: 'save', workspaceId }
     }) as CallToolResult
     expect(savedResult.isError, text(savedResult)).not.toBe(true)
-    const saved = JSON.parse(text(savedResult)) as { id: string; name: string; color: string; tabs: Array<{ url: string }> }
+    const saved = JSON.parse(text(savedResult)) as { id: string; name: string; description: string; color: string; tabs: Array<{ url: string }> }
     expect(saved.id).toMatch(UUID_V7_PATTERN)
-    expect(saved).toMatchObject({ name: 'Deferred investigation', color: 'pink' })
+    expect(saved).toMatchObject({ name: 'Deferred investigation', description: 'Preserve this investigation for later', color: 'pink' })
     expect(saved.tabs).toEqual([expect.objectContaining({ url: expect.stringContaining('<title>Deferred tab</title>') })])
 
     const activeGroups = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(activeGroups))).not.toContainEqual(expect.objectContaining({ id: workspaceId }))
     const listedSaved = await client.callTool({ name: 'browser_saved_workspaces', arguments: { action: 'list' } }) as CallToolResult
-    expect(JSON.parse(text(listedSaved))).toContainEqual(expect.objectContaining({ id: saved.id, name: 'Deferred investigation' }))
+    expect(JSON.parse(text(listedSaved))).toContainEqual(expect.objectContaining({ id: saved.id, name: 'Deferred investigation', description: 'Preserve this investigation for later' }))
 
     const openedResult = await client.callTool({
       name: 'browser_saved_workspaces',
       arguments: { action: 'open', savedWorkspaceId: saved.id }
     }) as CallToolResult
     expect(openedResult.isError, text(openedResult)).not.toBe(true)
-    const opened = JSON.parse(text(openedResult)) as { id: string; name: string; color: string; tabCount: number }
-    expect(opened).toMatchObject({ name: 'Deferred investigation', color: 'pink', tabCount: 1 })
+    const opened = JSON.parse(text(openedResult)) as { id: string; name: string; description: string; color: string; tabCount: number }
+    expect(opened).toMatchObject({ name: 'Deferred investigation', description: 'Preserve this investigation for later', color: 'pink', tabCount: 1 })
     expect(opened.id).toMatch(UUID_V7_PATTERN)
     expect(opened.id).toBe(workspaceId)
     const emptySaved = await client.callTool({ name: 'browser_saved_workspaces', arguments: { action: 'list' } }) as CallToolResult

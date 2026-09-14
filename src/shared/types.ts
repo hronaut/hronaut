@@ -304,6 +304,7 @@ export interface BrowserTabGroupState {
   agentAccess?: boolean
   id: string
   name: string
+  description: string
   color: BrowserTabGroupColor
   createdAt: string
   lastUsedAt: string
@@ -318,6 +319,7 @@ export interface BrowserTabGroupUpdate {
   deletionProtected?: boolean
   agentAccess?: boolean
   name?: string
+  description?: string
   color?: BrowserTabGroupColor
 }
 
@@ -333,6 +335,7 @@ export interface BrowserSavedTabGroupState {
   agentAccess?: boolean
   id: string
   name: string
+  description: string
   color: BrowserTabGroupColor
   savedAt: string
   storageOriginCount: number
@@ -342,6 +345,7 @@ export interface BrowserSavedTabGroupState {
 
 export interface BrowserWorkspaceCreateOptions {
   name: string
+  description?: string
   color?: BrowserTabGroupColor
   storage: 'scratch' | 'fork-workspace'
   sourceWorkspaceId?: string

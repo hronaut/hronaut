@@ -1,4 +1,5 @@
 import { isBrowserTabGroupColor, type BrowserTabGroupColor } from './tab-groups.js'
+import { normalizeWorkspaceDescription } from './workspace-description.js'
 
 export const WORKSPACE_TEMPLATE_MAX_BYTES = 256 * 1024
 export const WORKSPACE_TEMPLATE_MAX_WORKSPACES = 20
@@ -6,6 +7,7 @@ export const WORKSPACE_TEMPLATE_MAX_START_PAGES = 20
 
 export interface WorkspaceTemplateEntry {
   name: string
+  description: string
   color: BrowserTabGroupColor
   startPages: string[]
 }
@@ -73,19 +75,21 @@ export function parseWorkspaceTemplate(text: string): WorkspaceTemplate {
   }
   const names = new Set<string>()
   const workspaces = root.workspaces.map(value => {
-    const entry = record(value, ['name', 'color', 'startPages'], 'workspace entry')
+    const entry = record(value, ['name', 'description', 'color', 'startPages'], 'workspace entry')
     if (typeof entry.name !== 'string') throw new TypeError('Invalid template workspace name.')
     const name = entry.name.trim().normalize('NFC')
     if (!name || name.length > 80 || /[\u0000-\u001f\u007f]/u.test(name)) throw new TypeError('Invalid template workspace name.')
     if (names.has(nameKey(name))) throw new TypeError('Duplicate template workspace names.')
     names.add(nameKey(name))
+    if (entry.description !== undefined && typeof entry.description !== 'string') throw new TypeError('Invalid template workspace description.')
+    const description = normalizeWorkspaceDescription(entry.description ?? '')
     if (!isBrowserTabGroupColor(entry.color)) throw new TypeError('Invalid template workspace color.')
     if (!Array.isArray(entry.startPages) || entry.startPages.length > WORKSPACE_TEMPLATE_MAX_START_PAGES) {
       throw new TypeError('Invalid template start pages.')
     }
     const pages = entry.startPages.map(startPage)
     if (new Set(pages).size !== pages.length) throw new TypeError('Duplicate template start pages.')
-    return { name, color: entry.color, startPages: pages }
+    return { name, description, color: entry.color, startPages: pages }
   })
   return { format: 'hronaut-workspace-template', version: 1, sourcePlatform: root.sourcePlatform, workspaces }
 }

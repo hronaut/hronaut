@@ -7,7 +7,7 @@ function manifest(overrides: Record<string, unknown> = {}): string {
 
 describe('portable workspace template input', () => {
   it.each(['linux', 'windows', 'macos'])('accepts the same portable setup from %s', sourcePlatform => {
-    expect(parseWorkspaceTemplate(manifest({ sourcePlatform })).workspaces[0]).toEqual({ name: 'Demo', color: 'blue', startPages: ['https://example.com/'] })
+    expect(parseWorkspaceTemplate(manifest({ sourcePlatform })).workspaces[0]).toEqual({ name: 'Demo', description: '', color: 'blue', startPages: ['https://example.com/'] })
   })
   it.each(['null', '[]', '{', '"a"'])('rejects malformed root %s', text => {
     expect(() => parseWorkspaceTemplate(text)).toThrow()
@@ -42,6 +42,11 @@ describe('portable workspace template input', () => {
     expect(existing).toEqual(['Other', 'ＤＥＭＯ'])
     expect(text).toBe(manifest())
     expect(previewWorkspaceTemplate(text, ['Other'])).toMatchObject({ canImport: true, collisions: [] })
+  })
+  it('normalizes descriptions while keeping older templates compatible', () => {
+    expect(parseWorkspaceTemplate(manifest({ workspaces: [{ name: 'Demo', description: '  QA\r\ncheckout  ', color: 'blue', startPages: [] }] })).workspaces[0]?.description)
+      .toBe('QA\ncheckout')
+    expect(() => parseWorkspaceTemplate(manifest({ workspaces: [{ name: 'Demo', description: 'x'.repeat(1001), color: 'blue', startPages: [] }] }))).toThrow('1000')
   })
   it('bounds counts and detects canonical duplicate start pages', () => {
     const entry = { name: 'Demo', color: 'blue', startPages: [] }

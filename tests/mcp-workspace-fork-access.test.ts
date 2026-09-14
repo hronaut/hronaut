@@ -91,7 +91,7 @@ describe('MCP workspace fork sources and direct access', () => {
     const fork = await call('browser_workspaces', { action: 'create', name: 'Task', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(fork.isError).not.toBe(true)
     expect(parsed(fork)).toMatchObject({ id: ownId, resumeKey: key })
-    expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId)
+    expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId, undefined)
     expect((await call('browser_tabs', { workspaceId: sourceId })).isError).toBe(true)
     expect((await call('browser_workspaces', { action: 'resume', workspaceId: sourceId, resumeKey: key })).isError).toBe(true)
   })

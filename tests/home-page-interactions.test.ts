@@ -230,6 +230,7 @@ describe('Home setup journey', () => {
 describe('Home workspace hub', () => {
   const workspace = {
     id: 'project', name: 'Research <safe>', color: 'purple', createdAt: '2026-09-13', lastUsedAt: '2026-09-13',
+    description: 'Investigate <checkout> regressions and retain the signed-in test account',
     activeTabId: null, tabCount: 0, storageOriginCount: 0,
     navigationPolicy: { mode: 'unrestricted', rules: [] }
   }
@@ -241,12 +242,17 @@ describe('Home workspace hub', () => {
     expect(button('[data-home-view="workspaces"]').getAttribute('aria-selected')).toBe('true')
     await vi.advanceTimersByTimeAsync(2000)
     expect(document.querySelector('.home-workspace-card h2')?.textContent).toBe('Research <safe>')
+    expect(document.querySelector('.home-workspace-description')?.textContent).toBe('Investigate <checkout> regressions and retain the signed-in test account')
+    expect(document.querySelector('.home-workspace-description')?.innerHTML).toContain('&lt;checkout&gt;')
     const search = document.querySelector<HTMLInputElement>('#workspace-search')!
     search.focus()
     search.value = 'research'
     search.dispatchEvent(new Event('input'))
     await vi.advanceTimersByTimeAsync(2000)
     expect(document.activeElement).toBe(search)
+    expect(document.querySelectorAll('.home-workspace-card')).toHaveLength(1)
+    search.value = 'signed-in test account'
+    search.dispatchEvent(new Event('input'))
     expect(document.querySelectorAll('.home-workspace-card')).toHaveLength(1)
     search.value = 'missing'
     search.dispatchEvent(new Event('input'))

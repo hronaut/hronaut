@@ -38,6 +38,7 @@ function currentState(): PersistedBrowserState {
       {
         id: DEFAULT_WORKSPACE_ID,
         name: 'Personal',
+        description: 'Everyday signed-in browsing',
         storageId: '77777777-1111-4111-8111-111111111111',
         color: 'gray',
         createdAt: '2026-08-20T09:00:00.000Z',
@@ -50,6 +51,7 @@ function currentState(): PersistedBrowserState {
       {
         id: ACTIVE_WORKSPACE_ID,
         name: 'Checkout debugging',
+        description: 'Reproduce checkout failures',
         color: 'orange',
         createdAt: '2026-08-20T09:02:00.000Z',
         lastUsedAt: '2026-08-20T09:03:00.000Z',
@@ -63,6 +65,7 @@ function currentState(): PersistedBrowserState {
     savedTabGroups: [{
       id: SAVED_WORKSPACE_ID,
       name: 'Saved checkout research',
+      description: 'Reference material for checkout work',
       color: 'blue',
       savedAt: '2026-08-20T09:04:00.000Z',
       storageId: SAVED_STORAGE_ID,
@@ -102,6 +105,35 @@ describe('TabStateStore', () => {
         { ...state.tabs[1], muted: false }
       ]
     })
+  })
+
+  it('loads legacy workspaces without descriptions as empty context', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    delete state.mcpTabGroups?.[0]?.description
+    delete state.savedTabGroups?.[0]?.description
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.mcpTabGroups?.[0]?.description).toBe('')
+    expect(restored?.savedTabGroups?.[0]?.description).toBe('')
+  })
+
+  it('repairs malformed descriptions without discarding workspace state', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![0]!.description = 'x'.repeat(1001)
+    state.savedTabGroups![0]!.description = 'unsafe\u0000context'
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.mcpTabGroups).toHaveLength(2)
+    expect(restored?.mcpTabGroups?.[0]?.description).toBe('')
+    expect(restored?.savedTabGroups?.[0]?.description).toBe('')
   })
 
   it('restores bounded PNG favicons and repairs invalid persisted favicon data', async () => {

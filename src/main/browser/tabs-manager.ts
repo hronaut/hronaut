@@ -7,6 +7,7 @@ import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
 import { withWorkspaceMoveGuard } from './workspace-move-guard.js'
 import { suggestWorkspaceName } from '../../shared/workspace-names.js'
+import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import { reconcilePresentedViewVisibility, watchPresentedViewVisibility } from './presented-view-visibility.js'
 import { SplitDividerController } from './split-divider-controller.js'
 import { decodeWebsiteFavicon } from './favicon.js'
@@ -717,6 +718,7 @@ interface BrowserTabGroup {
   agentAccess?: boolean
   id: string
   name: string
+  description: string
   color: BrowserTabGroupColor
   createdAt: string
   lastUsedAt: string
@@ -1320,6 +1322,7 @@ export class BrowserTabsManager {
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
+        description: normalizeWorkspaceDescription(group.description ?? ''),
         activeTabId: group.activeTabId ?? null,
         origins: [...(group.origins ?? [])],
         navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
@@ -1329,6 +1332,7 @@ export class BrowserTabsManager {
     for (const group of saved?.savedTabGroups ?? []) {
       this.savedTabGroups.set(group.id, {
         ...group,
+        description: normalizeWorkspaceDescription(group.description ?? ''),
         storageOriginCount: group.origins?.length ?? 0,
         origins: [...(group.origins ?? [])],
         navigationPolicy: normalizeWorkspaceNavigationPolicy(group.navigationPolicy),
@@ -1595,6 +1599,7 @@ export class BrowserTabsManager {
     return [...this.mcpTabGroups.values()].map((group) => ({
       id: group.id,
       name: group.name,
+      description: group.description,
       color: group.color,
       createdAt: group.createdAt,
       lastUsedAt: group.lastUsedAt,
@@ -1617,6 +1622,7 @@ export class BrowserTabsManager {
       .map((group) => ({
         id: group.id,
         name: group.name,
+        description: group.description,
         color: group.color,
         savedAt: group.savedAt,
         hiddenFromSidebar: group.hiddenFromSidebar === true,
@@ -1631,12 +1637,12 @@ export class BrowserTabsManager {
       }))
   }
 
-  listWorkspaceForkSources(): Array<{ id: string; name: string; color: BrowserTabGroupColor; archived: boolean; agentAccess: boolean }> {
+  listWorkspaceForkSources(): Array<{ id: string; name: string; description: string; color: BrowserTabGroupColor; archived: boolean; agentAccess: boolean }> {
     return [
       ...[...this.mcpTabGroups.values()].map((group) => ({ group, archived: false })),
       ...[...this.savedTabGroups.values()].map((group) => ({ group, archived: true }))
     ].map(({ group, archived }) => ({
-      id: group.id, name: group.name, color: group.color, archived,
+      id: group.id, name: group.name, description: group.description, color: group.color, archived,
       agentAccess: group.agentAccess !== false
     }))
   }
@@ -1653,7 +1659,8 @@ export class BrowserTabsManager {
     origins?: string[],
     allowDuplicateName = false,
     navigationPolicy?: BrowserWorkspaceNavigationPolicy,
-    sourceWorkspaceId?: string
+    sourceWorkspaceId?: string,
+    description = ''
   ): Promise<BrowserTabGroupState> {
     const normalizedName = normalizedWorkspaceName(name)
     this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
@@ -1664,6 +1671,7 @@ export class BrowserTabsManager {
     const group: BrowserTabGroup = {
       id,
       name: normalizedName,
+      description: normalizeWorkspaceDescription(description),
       color: color ?? defaultTabGroupColor(id),
       createdAt: now,
       lastUsedAt: now,
@@ -1734,10 +1742,10 @@ export class BrowserTabsManager {
 
   updateMcpTabGroup(
     groupId: string,
-    updates: { name?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
+    updates: { name?: string; description?: string; color?: BrowserTabGroupColor; agentAccess?: boolean; hiddenFromSidebar?: boolean; deletionProtected?: boolean },
     allowDuplicateName = false
   ): BrowserTabGroupState {
-    if (updates.name === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace name or color is required.')
+    if (updates.name === undefined && updates.description === undefined && updates.color === undefined && updates.agentAccess === undefined && updates.hiddenFromSidebar === undefined && updates.deletionProtected === undefined) throw new TypeError('A workspace change is required.')
     const group = this.mcpTabGroups.get(groupId)
     if (!group) throw new Error(`Unknown workspace: ${groupId}. List workspaces with browser_workspaces or create one first.`)
     this.assertWorkspaceIdle(groupId)
@@ -1748,6 +1756,7 @@ export class BrowserTabsManager {
       }
       group.name = name
     }
+    if (updates.description !== undefined) group.description = normalizeWorkspaceDescription(updates.description)
     if (updates.color !== undefined) group.color = updates.color
     if (updates.agentAccess !== undefined) group.agentAccess = updates.agentAccess
     if (updates.hiddenFromSidebar !== undefined) group.hiddenFromSidebar = updates.hiddenFromSidebar
@@ -1763,6 +1772,7 @@ export class BrowserTabsManager {
     return {
       id: group.id,
       name: group.name,
+      description: group.description,
       color: group.color,
       createdAt: group.createdAt,
       lastUsedAt: group.lastUsedAt,
@@ -1895,7 +1905,7 @@ export class BrowserTabsManager {
       existingWorkspaces: () => [...this.mcpTabGroups.values(), ...this.savedTabGroups.values()]
         .map(({ id, name }) => ({ id, name })),
       create: async (entry) => {
-        const workspace = await this.createMcpTabGroup(entry.name, entry.color, 'scratch')
+        const workspace = await this.createMcpTabGroup(entry.name, entry.color, 'scratch', undefined, false, undefined, undefined, entry.description)
         this.updateMcpTabGroup(workspace.id, { agentAccess: false })
         return workspace.id
       },
@@ -1918,7 +1928,8 @@ export class BrowserTabsManager {
       options.origins,
       false,
       options.navigationPolicy,
-      options.sourceWorkspaceId
+      options.sourceWorkspaceId,
+      options.description
     )
     if (options.agentAccess !== undefined) this.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
     try {
@@ -2205,6 +2216,7 @@ export class BrowserTabsManager {
       const saved: BrowserSavedTabGroupInternal = {
         id: group.id,
         name: group.name,
+        description: internalGroup.description,
         color: group.color,
         savedAt: new Date().toISOString(),
         hiddenFromSidebar: internalGroup.hiddenFromSidebar === true,
@@ -2227,6 +2239,7 @@ export class BrowserTabsManager {
       return {
         id: saved.id,
         name: saved.name,
+        description: saved.description,
         color: saved.color,
         savedAt: saved.savedAt,
         hiddenFromSidebar: saved.hiddenFromSidebar === true,
@@ -2260,6 +2273,7 @@ export class BrowserTabsManager {
     const restoredGroup: BrowserTabGroup = {
       id: saved.id,
       name: saved.name,
+      description: saved.description,
       color: saved.color,
       createdAt: now,
       lastUsedAt: now,
@@ -7621,6 +7635,7 @@ export class BrowserTabsManager {
     this.mcpTabGroups.set(id, {
       id,
       name: suggestWorkspaceName([...this.mcpTabGroups.values(), ...this.savedTabGroups.values()].map(group => group.name)),
+      description: '',
       color: defaultTabGroupColor(id),
       storageId: randomUUID(),
       createdAt: now,
@@ -11237,6 +11252,7 @@ export class BrowserTabsManager {
       savedTabGroups: [...this.savedTabGroups.values()].map((group) => ({
         id: group.id,
         name: group.name,
+        description: group.description,
         color: group.color,
         savedAt: group.savedAt,
         hiddenFromSidebar: group.hiddenFromSidebar === true,

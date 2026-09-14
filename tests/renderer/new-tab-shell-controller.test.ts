@@ -28,6 +28,7 @@ function workspace(id = 'workspace'): BrowserTabGroupState {
   return {
     id,
     name: 'QA workspace',
+    description: '',
     color: 'blue',
     createdAt: '2026-08-25T00:00:00.000Z',
     lastUsedAt: '2026-08-25T00:00:00.000Z',

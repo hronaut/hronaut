@@ -33,6 +33,7 @@ function workspace(id = 'workspace-1'): BrowserTabGroupState {
   return {
     id,
     name: 'Research',
+    description: '',
     color: 'purple',
     createdAt: '2026-08-22T09:00:00.000Z',
     lastUsedAt: '2026-08-22T09:00:00.000Z',

@@ -2379,12 +2379,14 @@ function registerIpc(): void {
     if (candidate.deletionProtected !== undefined && typeof candidate.deletionProtected !== 'boolean') throw new TypeError('Invalid workspace preference')
     if (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean') throw new TypeError('Invalid workspace agent access')
     if (candidate.name !== undefined && typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
+    if (candidate.description !== undefined && typeof candidate.description !== 'string') throw new TypeError('Invalid workspace description')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
     tabsManager!.updateMcpTabGroup(groupId, {
       ...(typeof candidate.hiddenFromSidebar === 'boolean' ? { hiddenFromSidebar: candidate.hiddenFromSidebar } : {}),
       ...(typeof candidate.deletionProtected === 'boolean' ? { deletionProtected: candidate.deletionProtected } : {}),
       ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
       ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
+      ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {})
     } satisfies BrowserTabGroupUpdate)
     return tabsManager!.getState()
@@ -2491,6 +2493,7 @@ function registerIpc(): void {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid workspace creation request')
     const candidate = value as Record<string, unknown>
     if (typeof candidate.name !== 'string') throw new TypeError('Invalid workspace name')
+    if (candidate.description !== undefined && typeof candidate.description !== 'string') throw new TypeError('Invalid workspace description')
     if (candidate.color !== undefined && !isBrowserTabGroupColor(candidate.color)) throw new TypeError('Invalid workspace color')
     if (candidate.storage !== 'scratch' && candidate.storage !== 'fork-workspace') throw new TypeError('Invalid workspace storage mode')
     if (candidate.origins !== undefined && (!Array.isArray(candidate.origins) || candidate.origins.some((origin) => typeof origin !== 'string'))) {
@@ -2505,6 +2508,7 @@ function registerIpc(): void {
       : normalizeWorkspaceNavigationPolicy(candidate.navigationPolicy)
     return tabsManager!.createWorkspace({
       name: candidate.name,
+      ...(typeof candidate.description === 'string' ? { description: candidate.description } : {}),
       ...(isBrowserTabGroupColor(candidate.color) ? { color: candidate.color } : {}),
       storage: candidate.storage,
       ...(typeof candidate.sourceWorkspaceId === 'string' ? { sourceWorkspaceId: candidate.sourceWorkspaceId } : {}),

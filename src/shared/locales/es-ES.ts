@@ -137,8 +137,8 @@ export const esES = {
   workspaceTemplates: {
     remove: "Eliminar espacio de trabajo {number}",
     title: "Plantillas portátiles de espacios de trabajo",
-    scope: "Las plantillas solo contienen nombres, colores y páginas iniciales seleccionadas. Excluyen cookies, almacenamiento local, contraseñas, tokens, identidades de espacios, reglas de acceso a sitios y permisos del navegador.",
-    privacy: "Los nombres y las URL pueden contener información privada. Revisa cada entrada antes de guardar o importar. La exportación comienza con un nombre genérico y sin páginas.",
+    scope: "Las plantillas solo contienen nombres, descripciones, colores y páginas iniciales seleccionadas. Excluyen cookies, almacenamiento local, contraseñas, tokens, identidades de espacios, reglas de acceso a sitios y permisos del navegador.",
+    privacy: "Los nombres, las descripciones y las URL pueden contener información privada. Revisa cada entrada antes de guardar o importar. La exportación comienza con metadatos genéricos y sin páginas.",
     newExport: "Preparar exportación",
     source: "Plataforma de origen: {platform}",
     entry: "Espacio de trabajo {number}",
@@ -158,6 +158,7 @@ export const esES = {
     addSource: "Añadir el color de origen como nueva entrada",
     chooseDetails: "Estos datos no se incluyen automáticamente. Seleccionar un nombre o una página los añade a la última entrada de abajo.",
     includeName: "Incluir el nombre de origen en la última entrada",
+    includeDescription: "Incluir la descripción de origen en la última entrada",
     openFile: "Abrir plantilla de espacio de trabajo",
     saveFile: "Guardar plantilla de espacio de trabajo",
     readFailed: "No se pudo leer la plantilla. Elige una plantilla JSON UTF-8 válida de hasta 256 KiB.",
@@ -503,6 +504,9 @@ export const esES = {
 
     "kicker": "Espacio de trabajo del navegador",
     "create": "Crear espacio de trabajo",
+    "description": "Descripción",
+    "descriptionPlaceholder": "Propósito, trabajo actual y estado útil del navegador",
+    "descriptionHelp": "Se guarda localmente con este espacio y se muestra a los agentes al enumerarlo o reanudarlo.",
     "edit": "Editar espacio de trabajo",
     "close": "Cerrar el editor del espacio de trabajo",
     "name": "Nombre del espacio de trabajo",

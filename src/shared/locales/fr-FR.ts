@@ -137,8 +137,8 @@ export const frFR = {
   workspaceTemplates: {
     remove: "Retirer l’espace de travail {number}",
     title: "Modèles portables d’espaces de travail",
-    scope: "Les modèles contiennent uniquement les noms, couleurs et pages de démarrage sélectionnées. Ils excluent cookies, stockage local, mots de passe, jetons, identités des espaces, règles d’accès aux sites et autorisations du navigateur.",
-    privacy: "Les noms et URL peuvent contenir des informations privées. Vérifiez chaque entrée avant d’enregistrer ou d’importer. L’export commence avec un nom générique et aucune page.",
+    scope: "Les modèles contiennent uniquement les noms, descriptions, couleurs et pages de démarrage sélectionnées. Ils excluent cookies, stockage local, mots de passe, jetons, identités des espaces, règles d’accès aux sites et autorisations du navigateur.",
+    privacy: "Les noms, descriptions et URL peuvent contenir des informations privées. Vérifiez chaque entrée avant d’enregistrer ou d’importer. L’export commence avec des métadonnées génériques et aucune page.",
     newExport: "Préparer l’export",
     source: "Plateforme source : {platform}",
     entry: "Espace de travail {number}",
@@ -158,6 +158,7 @@ export const frFR = {
     addSource: "Ajouter la couleur source comme nouvelle entrée",
     chooseDetails: "Ces informations ne sont pas incluses automatiquement. Sélectionner un nom ou une page l’ajoute à la dernière entrée ci-dessous.",
     includeName: "Inclure le nom source dans la dernière entrée",
+    includeDescription: "Inclure la description source dans la dernière entrée",
     openFile: "Ouvrir un modèle d’espace de travail",
     saveFile: "Enregistrer le modèle d’espace de travail",
     readFailed: "Impossible de lire le modèle. Choisissez un modèle JSON UTF-8 valide de 256 Kio maximum.",
@@ -503,6 +504,9 @@ export const frFR = {
 
     "kicker": "Espace de travail du navigateur",
     "create": "Créer un espace de travail",
+    "description": "Description",
+    "descriptionPlaceholder": "Objectif, travail en cours et état utile du navigateur",
+    "descriptionHelp": "Stockée localement avec cet espace et affichée aux agents lors de son affichage ou de sa reprise.",
     "edit": "Modifier l’espace de travail",
     "close": "Fermer l’éditeur d’espace de travail",
     "name": "Nom de l’espace de travail",

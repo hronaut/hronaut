@@ -50,6 +50,7 @@ function state(active: BrowserTabState): BrowserState {
     mcpTabGroups: [{
       id: 'isolated',
       name: 'Research',
+      description: '',
       color: 'blue',
       createdAt: '2026-08-23T00:00:00.000Z',
       lastUsedAt: '2026-08-23T00:00:00.000Z',

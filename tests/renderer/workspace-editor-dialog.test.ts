@@ -16,7 +16,7 @@ describe('workspace editor outside interaction', () => {
     const state: BrowserState = {
       tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
       mcpUrl: '', profilePath: '', savedTabGroups: [],
-      mcpTabGroups: [{ id: 'draft', name: 'Existing workspace', color: 'purple', createdAt: '', lastUsedAt: '',
+      mcpTabGroups: [{ id: 'draft', name: 'Existing workspace', description: 'Keep the QA account and investigate checkout', color: 'purple', createdAt: '', lastUsedAt: '',
         tabCount: 0, activeTabId: null, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] } }]
     }
@@ -37,11 +37,15 @@ describe('workspace editor outside interaction', () => {
       else await editor.openExisting('draft')
       await nextTick()
       const input = wrapper.get<HTMLInputElement>('#tab-group-name')
+      const description = wrapper.get<HTMLTextAreaElement>('#workspace-description')
+      expect(description.element.value).toBe(mode === 'edit' ? 'Keep the QA account and investigate checkout' : '')
       await input.setValue('My unfinished launch checks')
+      await description.setValue('Do not lose this investigation context')
       const overlay = wrapper.get('.tab-group-editor-overlay')
       await overlay.trigger('click')
       expect(wrapper.find('[role=dialog]').exists()).toBe(true)
       expect(input.element.value).toBe('My unfinished launch checks')
+      expect(description.element.value).toBe('Do not lose this investigation context')
       await input.trigger('mousedown')
       await overlay.trigger('mouseup')
       await overlay.trigger('click')
@@ -58,10 +62,10 @@ describe('workspace data and agent access controls', () => {
   it('offers archived fork sources, starts blank, and saves the unchecked direct-access preference', async () => {
     const state: BrowserState = {
       tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: '', profilePath: '',
-      mcpTabGroups: [{ id: 'personal', name: 'Personal', color: 'purple', createdAt: '', lastUsedAt: '',
+      mcpTabGroups: [{ id: 'personal', name: 'Personal', description: '', color: 'purple', createdAt: '', lastUsedAt: '',
         tabCount: 0, activeTabId: null, storageOriginCount: 1,
         navigationPolicy: { mode: 'unrestricted', rules: [] } }],
-      savedTabGroups: [{ id: 'saved', name: 'Saved research', color: 'blue', savedAt: '', storageOriginCount: 1,
+      savedTabGroups: [{ id: 'saved', name: 'Saved research', description: '', color: 'blue', savedAt: '', storageOriginCount: 1,
         tabs: [], navigationPolicy: { mode: 'unrestricted', rules: [] } }]
     }
     const createWorkspace = vi.fn(async () => state)
@@ -95,7 +99,7 @@ describe('workspace data and agent access controls', () => {
   it('keeps legacy Default editable and explains why active-source Move is disabled', async () => {
     const state: BrowserState = {
       tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false, mcpUrl: '', profilePath: '', savedTabGroups: [],
-      mcpTabGroups: ['default', 'other'].map(id => ({ id, name: id === 'default' ? 'Default' : 'Other',
+      mcpTabGroups: ['default', 'other'].map(id => ({ id, name: id === 'default' ? 'Default' : 'Other', description: '',
         color: 'purple', createdAt: '', lastUsedAt: '', tabCount: 0, activeTabId: null,
         isDefault: id === 'default', storageKind: id === 'default' ? 'default' : 'isolated', storageOriginCount: 1,
         navigationPolicy: { mode: 'unrestricted', rules: [] } }))
@@ -127,7 +131,7 @@ it('keeps Home templates open when an older workspace editor read finishes', asy
   const state = {
     tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
     mcpUrl: '', profilePath: '', savedTabGroups: [],
-    mcpTabGroups: [{ id: 'old', name: 'Older request', color: 'purple', createdAt: '', lastUsedAt: '',
+    mcpTabGroups: [{ id: 'old', name: 'Older request', description: '', color: 'purple', createdAt: '', lastUsedAt: '',
       tabCount: 0, activeTabId: null, storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] } }]
   } as BrowserState
   let resolve!: (state: BrowserState) => void

@@ -9,6 +9,7 @@ import { isUuidV7 } from '../uuid-v7.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
+import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import {
   evaluateWorkspaceNavigation,
   normalizeWorkspaceNavigationPolicy
@@ -37,6 +38,7 @@ export interface PersistedTabGroup {
   agentAccess?: boolean
   id: string
   name: string
+  description?: string
   color: BrowserTabGroupColor
   createdAt: string
   lastUsedAt: string
@@ -53,6 +55,7 @@ export interface PersistedSavedTabGroup {
   agentAccess?: boolean
   id: string
   name: string
+  description?: string
   color: BrowserTabGroupColor
   savedAt: string
   storageId: string
@@ -105,6 +108,11 @@ function persistedWorkspaceOrigins(value: unknown): string[] {
 
 function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
+}
+
+function persistedWorkspaceDescription(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  try { return normalizeWorkspaceDescription(value) } catch { return '' }
 }
 
 function persistedWorkspaceNavigationAudit(value: unknown): BrowserWorkspaceNavigationAuditEntry[] {
@@ -322,6 +330,7 @@ export class TabStateStore {
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
+          description: persistedWorkspaceDescription(candidate.description),
           color: candidate.color,
           createdAt: candidate.createdAt,
           lastUsedAt: candidate.lastUsedAt,
@@ -381,6 +390,7 @@ export class TabStateStore {
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
+          description: persistedWorkspaceDescription(candidate.description),
           color: candidate.color,
           savedAt: candidate.savedAt,
           storageId,
