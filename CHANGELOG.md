@@ -8,6 +8,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Align workspace name and description fields with the app's form design, keep description help below the input, and improve editor spacing and scrolling in narrow windows and at larger interface sizes.
 - Show workspace descriptions beneath their names in the left navigation panel, with compact two-line previews and the full description on hover.
+- Keep address-history suggestions aligned with final client-rendered page titles without counting title changes as extra visits.
+- Resume live tab previews after a timed-out native capture eventually settles, without allowing unresolved captures to accumulate.
 
 ## [2.4.8] - 2026-09-14
 

@@ -995,6 +995,7 @@ export interface TabsManagerOptions {
   onClipboardCopyFailed?: (error: unknown) => void
   onActionFailed?: (action: string, error: unknown) => void
   onPageVisited?: (visit: { url: string; title: string }) => void
+  onPageTitleUpdated?: (page: { url: string; title: string }) => void
   onStateChanged?: (state: BrowserState) => void
   onWorkspaceNavigationDecision?: (workspaceId: string, decision: WorkspaceNavigationDecision, source: BrowserWorkspaceNavigationAuditSource) => void
   onWorkspaceClosed?: (workspaceId: string) => void
@@ -8123,7 +8124,15 @@ export class BrowserTabsManager {
     }
     webContents.on('page-title-updated', (_event, title) => {
       if (tab.sleeping) return
-      tab.title = normalizeTabTitle(title, tab.title)
+      const nextTitle = normalizeTabTitle(title, tab.title)
+      const titleChanged = nextTitle !== tab.title
+      tab.title = nextTitle
+      if (titleChanged) {
+        this.options.onPageTitleUpdated?.({
+          url: webContents.getURL() || tab.url,
+          title: nextTitle
+        })
+      }
       this.changed()
     })
     webContents.on('did-start-loading', () => {
@@ -11200,13 +11209,14 @@ export class BrowserTabsManager {
     const navigationGeneration = tab.navigationGeneration
     let captureTimeout: NodeJS.Timeout | undefined
     let captureTimedOut = false
+    let nativeCapture: Promise<NativeImage> | undefined
     let captured: NativeImage
     try {
-      const capture = mode === 'overview'
+      nativeCapture = mode === 'overview'
         ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
         : tab.webContents.capturePage()
       captured = await Promise.race([
-        capture,
+        nativeCapture,
         new Promise<never>((_resolve, reject) => {
           captureTimeout = setTimeout(() => {
             captureTimedOut = true
@@ -11218,7 +11228,13 @@ export class BrowserTabsManager {
     } catch (error) {
       // A renderer that cannot paint must not permanently block the
       // process-wide preview queue or accumulate repeated native captures.
-      if (captureTimedOut) this.tabOverviewPreviewableTabs.delete(tab.id)
+      if (captureTimedOut && nativeCapture) {
+        this.tabOverviewPreviewableTabs.delete(tab.id)
+        void nativeCapture.then(
+          () => this.resumeTabOverviewPreviewAfterLateCapture(tab),
+          () => undefined
+        )
+      }
       throw error
     } finally {
       if (captureTimeout) clearTimeout(captureTimeout)
@@ -11255,6 +11271,30 @@ export class BrowserTabsManager {
       height: size.height
     })
     this.tabOverviewPreviewableTabs.add(tab.id)
+  }
+
+  private resumeTabOverviewPreviewAfterLateCapture(tab: BrowserTab): void {
+    setImmediate(() => {
+      if (
+        this.destroyed
+        || this.window.isDestroyed()
+        || this.tabs.get(tab.id) !== tab
+        || tab.webContents.isDestroyed()
+        || tab.sleeping
+      ) return
+      this.tabOverviewPreviewableTabs.add(tab.id)
+      if (
+        this.window.isVisible()
+        && this.window.isFocused()
+        && this.browserContentOccluded
+        && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+      ) {
+        const sequence = ++tab.overviewPreviewSequence
+        void this.captureTabOverviewPreview(tab, sequence, 'overview').catch(() => undefined)
+        return
+      }
+      this.scheduleTabOverviewPreview(tab)
+    })
   }
 
   private invalidateTabOverviewPreview(tab: BrowserTab): void {

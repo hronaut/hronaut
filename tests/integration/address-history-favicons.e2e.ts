@@ -39,6 +39,42 @@ test('shows the latest history suggestions when requests arrive during popup sta
   })).toMatchObject({ visible: true, text: expect.stringContaining('Latest history match') })
 })
 
+test('updates address history when a client-rendered page sets its final title', async ({ appWindow, electronApp }) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Loading account</title><main>Account application</main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('History title fixture is unavailable')
+    const url = `http://127.0.0.1:${address.port}/dashboard`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate(async (targetUrl) => {
+      const history = (window as unknown as {
+        hronautHistory: { list(): Promise<Array<{ url: string; title: string; visitCount: number }>> }
+      }).hronautHistory
+      return (await history.list()).find((entry) => entry.url === targetUrl)?.title
+    }, url)).toBe('Loading account')
+
+    await electronApp.evaluate(async ({ webContents }, targetUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === targetUrl)
+      if (!page) throw new Error('History title fixture page is unavailable')
+      await page.executeJavaScript("document.title = 'Account dashboard'")
+    }, url)
+
+    await expect.poll(() => appWindow.evaluate(async (targetUrl) => {
+      const history = (window as unknown as {
+        hronautHistory: { list(): Promise<Array<{ url: string; title: string; visitCount: number }>> }
+      }).hronautHistory
+      const entry = (await history.list()).find((candidate) => candidate.url === targetUrl)
+      return entry ? { title: entry.title, visitCount: entry.visitCount } : null
+    }, url)).toEqual({ title: 'Account dashboard', visitCount: 1 })
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 for (const format of ['svg', 'ico', 'data-svg', 'png'] as const) {
   test(`renders a website ${format} favicon as PNG and keeps it after iframe navigation`, async ({ appWindow, electronApp }) => {
     const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))

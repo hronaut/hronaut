@@ -3793,6 +3793,11 @@ async function createWindow(): Promise<void> {
         .then(() => publishVisitHistory())
         .catch((error) => console.error('[history] Failed to record visit:', error))
     },
+    onPageTitleUpdated: ({ url, title }) => {
+      void historyStore?.updateTitle({ url, title })
+        .then((updated) => { if (updated) publishVisitHistory() })
+        .catch((error) => console.error('[history] Failed to update page title:', error))
+    },
     onCredentialSubmitted: (candidate) => {
       void handleCredentialCandidate(candidate).catch((error) => {
         console.error('[credentials] Failed to save password:', error)
