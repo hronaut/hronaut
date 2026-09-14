@@ -13,6 +13,17 @@ const review = {
   representation: 'bounded-description' as const, description: 'Submit the visible form',
   artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64), workspaceName: 'QA', profileName: 'Full access'
 }
+const groupedReview = {
+  ...review,
+  steps: [{
+    toolName: review.toolName, actionClass: review.actionClass, reversibility: review.reversibility,
+    representation: review.representation, description: review.description, artifactHash: review.artifactHash
+  }, {
+    toolName: review.toolName, actionClass: review.actionClass, reversibility: review.reversibility,
+    representation: review.representation, description: 'Confirm the second step', artifactHash: 'c'.repeat(64)
+  }],
+  currentStep: 0
+}
 
 describe('durable waiting owner', () => {
   it('does not admit dispatch when expiry cannot be saved', async () => {
@@ -200,6 +211,20 @@ describe('durable waiting owner', () => {
     const binding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
     const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
     expect(await service.finishReviewedDispatch(input.workspaceId, attempted.id, attempted.revision, 'unknown', authorize)).toMatchObject({ state: 'UNKNOWN', review: { status: 'UNKNOWN' } })
+  })
+
+  it('persists a fresh continuation binding between verified grouped steps', async () => {
+    const saved: Array<ReturnType<HumanWaitingStore['snapshot']>> = []
+    const service = new HumanWaitingService({ load: async () => null, save: async snapshot => { saved.push(structuredClone(snapshot)) } })
+    const proposed = await service.create({ ...input, decision: 'approve-action', review: groupedReview }, authorize)
+    const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
+    const firstBinding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, firstBinding, authorize, async () => undefined)
+    const continued = await service.finishReviewedDispatch(input.workspaceId, attempted.id, attempted.revision, 'verified', authorize)
+    expect(continued).toMatchObject({ state: 'RESOLVED', review: { status: 'APPROVED', currentStep: 1, artifactHash: 'c'.repeat(64) } })
+    expect(continued.revision).not.toBe(approved.revision)
+    await expect(service.requireDispatch(input.workspaceId, authorize, firstBinding)).rejects.toThrow(/changed|stale/i)
+    expect(saved.at(-1)?.records[0]).toMatchObject({ state: 'EXPIRED' })
   })
 
   it('expires an approved review when its capability is revoked before dispatch', async () => {

@@ -75,7 +75,9 @@ editing its own prompt.
    a candidate is not a precondition check.
 5. For a consequential action, request a bounded `browser_human_waiting`
    review or use the application's own approval system. Bind approval to the
-   exact target, action, context, expiry and expected postcondition.
+   exact target, action, context, expiry and expected postcondition. A same-page
+   transition can request two to four exact click steps; follow only the fresh
+   `reviewContinuation` returned after each independently verified step.
 6. Record a new action-attempt ID, dispatch the browser action once, and retain
    transport acknowledgement separately. Do not automatically repeat a timed
    out or disconnected write.

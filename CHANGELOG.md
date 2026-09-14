@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add bounded approval groups for two to four exact, ordered browser clicks, with per-step postconditions, fresh continuation revisions, drift invalidation, and explicit review of the whole sequence.
 - Add durable workspace descriptions so people and agents can record and recover each workspace's purpose, current work, and stored browser context.
 - Add a runnable Docker reference for externally scheduled browser tasks, including explicit ownership, stable trigger/session identities, cancellation before dispatch, and reconciliation-safe retry rules.
 

@@ -4,7 +4,7 @@ export type HumanWaitingState = 'WAITING_FOR_HUMAN' | 'ACKNOWLEDGED' | 'RESOLVED
 export type HumanWaitingReviewStatus = 'PROPOSED' | 'REVIEWED' | 'APPROVED' | 'REJECTED'
   | 'CANCELLED' | 'EXPIRED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
 
-export interface HumanWaitingReviewInput {
+export interface HumanWaitingReviewStep {
   toolName: string
   actionClass: 'read' | 'navigate' | 'interact' | 'browser-state' | 'site-data' | 'network' | 'external-request' | 'wallet'
   reversibility: 'reversible' | 'conditionally-reversible' | 'irreversible' | 'unknown'
@@ -12,13 +12,20 @@ export interface HumanWaitingReviewInput {
   description?: string
   expectedPostcondition?: string
   artifactHash: string
-  sessionBinding: string
-  workspaceName: string
-  profileName: string
   origin?: string
   tabId?: string
   navigationGeneration?: number
   humanInputGeneration?: number
+}
+
+export interface HumanWaitingReviewInput extends HumanWaitingReviewStep {
+  sessionBinding: string
+  workspaceName: string
+  profileName: string
+  /** Present only for a bounded ordered group. The top-level fields mirror the
+   * currently authorized step so older clients remain fail-closed. */
+  steps?: HumanWaitingReviewStep[]
+  currentStep?: number
 }
 
 export interface HumanWaitingReviewArtifact extends HumanWaitingReviewInput {

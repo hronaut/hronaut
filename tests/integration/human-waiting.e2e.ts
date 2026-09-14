@@ -175,3 +175,88 @@ test('binds a fresh human review to one exact page action without retaining its 
     await closeFixtureServer(fixture)
   }
 })
+
+test('runs an approved action group in order and advances only after verified postconditions', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const fixture = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>Grouped review fixture</title>
+      <p id="account">QA Account</p><p id="state">initial</p>
+      <button id="first" onclick="document.querySelector('#state').textContent='ready';document.querySelector('#second').disabled=false">Prepare</button>
+      <button id="second" disabled onclick="document.querySelector('#state').textContent='done'">Confirm</button>`)
+  })
+  await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const address = fixture.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture address')
+  const origin = `http://127.0.0.1:${address.port}`
+  const client = new Client({ name: 'grouped-human-review-qa', version: '1' })
+  const call = async (name: string, args: Record<string, unknown>): Promise<CallToolResult> => await client.callTool({ name, arguments: args }) as CallToolResult
+  const decode = <T>(result: CallToolResult): T => {
+    const value = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    expect(result.isError, value).not.toBe(true)
+    return JSON.parse(value) as T
+  }
+  const postcondition = (expectedText: string) => ({
+    expectedOrigin: origin, accountSelector: '#account', expectedAccount: 'QA Account',
+    stateSelector: '#state', expectedText, timeoutMs: 1000, maxAttempts: 2, initialDelayMs: 50
+  })
+  const pageState = () => electronApp.evaluate(async ({ webContents }, fixtureOrigin) => {
+    const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(fixtureOrigin))
+    if (!page) return null
+    return page.executeJavaScript('document.querySelector("#state").textContent') as Promise<string>
+  }, origin)
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Grouped review QA' }))
+    const args = { workspaceId: workspace.id }
+    decode(await call('browser_new_tab', { ...args, url: origin }))
+    await expect.poll(pageState).toBe('initial')
+    decode(await call('browser_continuity', { ...args, action: 'checkpoint' }))
+    decode(await call('browser_audit_receipts', { ...args, action: 'start' }))
+    const firstArguments = { ...args, selector: '#first', postcondition: postcondition('ready') }
+    const secondArguments = { ...args, selector: '#second', postcondition: postcondition('done') }
+    const proposed = decode<HumanWaitingRecord>(await call('browser_human_waiting', {
+      ...args, action: 'request', runId: randomUUID(), decision: 'approve-action', timeoutMs: 60_000,
+      review: { steps: [
+        { toolName: 'browser_click', arguments: firstArguments, reversibility: 'reversible', representation: 'bounded-description', description: 'Prepare the visible operation', expectedPostcondition: 'The state reads ready' },
+        { toolName: 'browser_click', arguments: secondArguments, reversibility: 'irreversible', representation: 'bounded-description', description: 'Confirm the visible operation', expectedPostcondition: 'The state reads done' }
+      ] }
+    }))
+    expect(proposed.review).toMatchObject({ currentStep: 0, steps: [{ description: 'Prepare the visible operation' }, { description: 'Confirm the visible operation' }] })
+    expect(JSON.stringify(proposed)).not.toContain('#first')
+    expect(JSON.stringify(proposed)).not.toContain('#second')
+
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), workspace.id)
+    const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+    await editor.locator('.workspace-activity-disclosure > summary').click()
+    const continuity = editor.getByRole('region', { name: 'Workspace continuity', exact: true })
+    await continuity.getByRole('button', { name: 'Read current state', exact: true }).click()
+    await continuity.getByRole('checkbox').check()
+    await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
+    const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
+    await expect(waiting.getByText('Step 1 of 2 · browser_click', { exact: true })).toBeVisible()
+    await expect(waiting.getByText('Step 2 of 2 · browser_click', { exact: true })).toBeVisible()
+    await waiting.getByRole('checkbox').check()
+    await waiting.getByRole('button', { name: 'Approve exact group', exact: true }).click()
+    const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
+
+    const firstResult = decode<{ reviewContinuation: { id: string; revision: string; nextStep: number; totalSteps: number } }>(await call('browser_click', {
+      ...firstArguments, reviewId: approved.id, reviewRevision: approved.revision
+    }))
+    expect(firstResult.reviewContinuation).toMatchObject({ id: approved.id, nextStep: 2, totalSteps: 2 })
+    await expect.poll(pageState).toBe('ready')
+    const continued = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
+    expect(continued).toMatchObject({ state: 'RESOLVED', revision: firstResult.reviewContinuation.revision, review: { status: 'APPROVED', currentStep: 1 } })
+
+    decode(await call('browser_click', {
+      ...secondArguments, reviewId: firstResult.reviewContinuation.id, reviewRevision: firstResult.reviewContinuation.revision
+    }))
+    await expect.poll(pageState).toBe('done')
+    expect(decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]).toMatchObject({
+      state: 'VERIFIED', review: { status: 'VERIFIED', currentStep: 1 }
+    })
+  } finally {
+    await client.close()
+    await closeFixtureServer(fixture)
+  }
+})

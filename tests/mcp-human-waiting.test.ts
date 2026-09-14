@@ -64,6 +64,15 @@ it('exposes tabless waiting only to its owner and blocks dispatch without allowi
   const cancelled = await call('browser_human_waiting', { workspaceId, action: 'cancel', ...record })
   expect(cancelled.isError, text(cancelled)).not.toBe(true)
   expect(JSON.parse(text(cancelled))).toMatchObject({ state: 'CANCELLED', priorOutcome: 'OUTCOME_UNKNOWN' })
+  const readReview = await call('browser_human_waiting', {
+    workspaceId, action: 'request', runId: otherWorkspaceId, decision: 'approve-action',
+    review: {
+      toolName: 'browser_snapshot', arguments: { workspaceId }, reversibility: 'reversible',
+      representation: 'bounded-description', description: 'Read the page'
+    }
+  })
+  expect(readReview.isError).toBe(true)
+  expect(text(readReview)).toContain('mutating browser tools')
   const consequential = await call('browser_human_waiting', {
     workspaceId, action: 'request', runId: otherWorkspaceId, decision: 'approve-action',
     review: {

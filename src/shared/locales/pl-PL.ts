@@ -69,9 +69,11 @@ export const plPL = {
     "unknown": "Wynik wcześniejszego działania pozostaje nieznany.",
     "reviewed": "Sprawdzono tę decyzję i bieżący stan obszaru roboczego.",
     "reviewedExact": "Sprawdzono tę dokładną czynność i powiązany stan obszaru roboczego.",
+    "reviewedGroup": "Sprawdzono każdą czynność w tej dokładnie uporządkowanej grupie i powiązany stan obszaru roboczego.",
     "acknowledge": "Potwierdź odbiór",
     "resolve": "Zakończ przegląd",
     "approve": "Zatwierdź dokładną czynność",
+    "approveGroup": "Zatwierdź dokładną grupę",
     "reject": "Odrzuć czynność",
     "cancel": "Anuluj decyzję",
     "unavailable": "Niedostępne",
@@ -87,7 +89,7 @@ export const plPL = {
       "UNKNOWN": "Wynik nieznany"
     },
     "review": {
-      "heading": "Czynność niosąca skutki", "expected": "Oczekiwany wynik", "tool": "Narzędzie", "actionClass": "Klasa czynności", "reversibility": "Odwracalność", "workspace": "Obszar roboczy", "profile": "Profil uprawnień", "authority": "Generacja uprawnień", "origin": "Bieżące źródło", "tab": "Karta", "navigation": "Generacja nawigacji", "humanInput": "Generacja działania człowieka", "artifact": "Dokładny skrót artefaktu", "timeline": "Oś potwierdzeń przeglądu", "visibleOnly": "Zmiany nie można bezpiecznie przedstawić jako tekstu. Przed decyzją sprawdź widoczną przeglądarkę.",
+      "heading": "Czynność niosąca skutki", "step": "Krok {current} z {total}", "expected": "Oczekiwany wynik", "tool": "Narzędzie", "actionClass": "Klasa czynności", "reversibility": "Odwracalność", "workspace": "Obszar roboczy", "profile": "Profil uprawnień", "authority": "Generacja uprawnień", "origin": "Bieżące źródło", "tab": "Karta", "navigation": "Generacja nawigacji", "humanInput": "Generacja działania człowieka", "artifact": "Dokładny skrót artefaktu", "timeline": "Oś potwierdzeń przeglądu", "visibleOnly": "Zmiany nie można bezpiecznie przedstawić jako tekstu. Przed decyzją sprawdź widoczną przeglądarkę.",
       "statuses": { "PROPOSED": "Zaproponowano", "REVIEWED": "Sprawdzono", "APPROVED": "Zatwierdzono", "REJECTED": "Odrzucono", "CANCELLED": "Anulowano", "EXPIRED": "Wygasło", "ATTEMPTED": "Podjęto próbę", "VERIFIED": "Zweryfikowano", "UNKNOWN": "Nieznany" },
       "reversibilities": { "reversible": "Odwracalna", "conditionally-reversible": "Warunkowo odwracalna", "irreversible": "Nieodwracalna", "unknown": "Nieznana" }
     },
