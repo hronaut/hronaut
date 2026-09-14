@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Add bounded semantic snapshot baselines and deltas for repeated agent inspection, with explicit unchanged results, complete change counts, output truncation, and stable invalidation reasons across navigation, tab, format, and workspace-control drift.
+- Add an opt-in Docker browser-evaluation runner with pinned local failure scenarios and a deterministic privacy-safe evidence report.
 
 ### Changed
 

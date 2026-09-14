@@ -712,6 +712,8 @@ Wallet access is scoped to the wallet, workspace, top-level origin, account, net
 
 Unit tests live in `tests/*.test.ts` and use Vitest. Real-application integration tests live in `tests/integration/*.e2e.ts` and use Playwright's Electron API with reusable fixtures from `tests/integration/fixtures.ts`. Every integration test launches Hronaut with an isolated temporary profile and cleans it up afterward. The suite covers the visible shell, tabs, MCP, Home, themes, site permissions, restart persistence, and updater settings without contacting the live release feed. Application, test, preload, website, and build configuration source is TypeScript.
 
+Run `npm run evaluate:browser:docker` for the opt-in local browser-boundary evaluation. It launches Hronaut in Docker against loopback-only synthetic pages and exercises navigation and reconnect drift, expired authentication, an unattended human-review expiry, a flaky read, and a possible write followed by ambiguous browser state and independent fixture read-back. The command writes `test-results/browser-evaluation/report.json`; use `-- --output <repository-relative-path>` to choose another location. The deterministic report records pinned fixture, client, and Hronaut versions; stable logical task and action-attempt identities; fixed context roles; capability and approval transitions; tool, dispatch, transport, postcondition, and final reconciliation states. Its closed schema cannot carry raw URLs, selectors, page content, cookies, credentials, resume keys, MCP tokens, or live account identifiers. These disposable scenarios evaluate failure handling and do not establish production correctness.
+
 ```bash
 npm run lint
 npm test
