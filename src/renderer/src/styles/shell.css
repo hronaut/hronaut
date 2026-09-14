@@ -94,6 +94,12 @@
 .browser-tabs-bar.vertical .tab-group-label {
   @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1] [background:color-mix(in_srgb,_var(--tab-group-color)_8%,_var(--toolbar))];
 }
+.browser-tabs-bar.vertical .workspace-tab-description {
+  @apply min-w-0 [grid-column:1_/_-1] m-0 [padding:0_6px_2px_25px] overflow-hidden text-muted [font-size:11px] [line-height:1.45] whitespace-pre-line [overflow-wrap:anywhere];
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .browser-tabs-bar.vertical .workspace-new-tab {
   @apply w-full [height:28px] m-0 [grid-column:1_/_-1];
 }
@@ -150,6 +156,7 @@
 }
 .browser-tabs-bar.vertical.rail-collapsed .app-home-button > .app-home-label,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-label > span,
+.browser-tabs-bar.vertical.rail-collapsed .workspace-tab-description,
 .browser-tabs-bar.vertical.rail-collapsed .tab-group-default-badge,
 .browser-tabs-bar.vertical.rail-collapsed .tab-title,
 .browser-tabs-bar.vertical.rail-collapsed .tab-close,

@@ -512,10 +512,6 @@
 .workspace-editor-pending > svg { @apply [width:15px] [height:15px] flex-none; }
 .workspace-editor-header-actions .panel-close:disabled { @apply [opacity:.35] cursor-default; }
 .workspace-editor-body { @apply overflow-y-auto [padding:18px]; }
-.workspace-editor-body > label { @apply block [margin:0_0_7px] [font-size:13px] [font-weight:750]; }
-.workspace-editor-body > label:not(:first-child) { @apply [margin-top:18px]; }
-.workspace-editor-body > input { @apply w-full [padding:10px_11px] [border:1px_solid_var(--border)] [border-radius:8px] [outline:0] text-copy bg-surface [font-size:14px]; }
-.workspace-editor-body > input:focus { @apply border-accent [box-shadow:0_0_0_3px_var(--accent-soft)]; }
 .tab-group-color-options { @apply grid [grid-template-columns:repeat(9,_1fr)] [gap:7px]; }
 .tab-group-color-option { @apply grid w-full [aspect-ratio:1] place-items-center p-0 [border:2px_solid_transparent] [border-radius:999px] [outline:0] [color:#fff] [background:var(--tab-group-color)] cursor-pointer; }
 .tab-group-color-option:hover { @apply [transform:scale(1.08)]; }

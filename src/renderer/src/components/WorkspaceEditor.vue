@@ -4,6 +4,9 @@ import WorkspaceContinuityPanel from './WorkspaceContinuityPanel.vue'
 import HumanWaitingPanel from './HumanWaitingPanel.vue'
 import WorkspaceTemplatePanel from './WorkspaceTemplatePanel.vue'
 import UiButton from "../ui/UiButton.vue"
+import UiField from '../ui/UiField.vue'
+import UiInput from '../ui/UiInput.vue'
+import UiTextarea from '../ui/UiTextarea.vue'
 import { computed, onBeforeUnmount, ref, toRef, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
@@ -175,27 +178,32 @@ onBeforeUnmount(dispose)
       <div v-else class="workspace-editor-body">
         <p v-if="mode !== 'transfer'" class="workspace-editor-intro">{{ t(mode === 'create' ? 'workspaceLibrary.createHelp' : 'workspaceLibrary.basicsHelp') }}</p>
         <template v-if="mode !== 'transfer'">
-        <label for="tab-group-name">{{ t('workspaceEditor.name') }}</label>
-        <input id="tab-group-name" v-model="name" type="text" maxlength="80" autocomplete="off" autofocus :disabled="dismissBlocked" />
-        <label for="workspace-description">{{ t('workspaceEditor.description') }}</label>
-        <textarea id="workspace-description" v-model="description" maxlength="1000" rows="4" :placeholder="t('workspaceEditor.descriptionPlaceholder')" :disabled="dismissBlocked" />
-        <small>{{ t('workspaceEditor.descriptionHelp') }}</small>
-        <label id="tab-group-color-label">{{ t('workspaceEditor.color') }}</label>
-        <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
-          <UiButton appearance="application"
-            v-for="option in BROWSER_TAB_GROUP_COLORS"
-            :key="option"
-            class="tab-group-color-option"
-            :class="{ selected: color === option }"
-            :style="colorStyle(option)"
-            type="button"
-            role="radio"
-            :aria-label="tabGroupColorLabel(option)"
-            :aria-checked="color === option"
-            :title="tabGroupColorLabel(option)"
-            :disabled="dismissBlocked"
-            @click="color = option"
-          ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>
+        <div class="workspace-editor-basics">
+          <UiField for-id="tab-group-name" :label="t('workspaceEditor.name')" :disabled="dismissBlocked">
+            <UiInput v-model="name" maxlength="80" autocomplete="off" autofocus />
+          </UiField>
+          <UiField for-id="workspace-description" :label="t('workspaceEditor.description')" :hint="t('workspaceEditor.descriptionHelp')" :disabled="dismissBlocked">
+            <UiTextarea v-model="description" maxlength="1000" rows="4" :placeholder="t('workspaceEditor.descriptionPlaceholder')" />
+          </UiField>
+          <div class="ui-field">
+            <span id="tab-group-color-label" class="ui-field__label">{{ t('workspaceEditor.color') }}</span>
+            <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
+              <UiButton appearance="application"
+                v-for="option in BROWSER_TAB_GROUP_COLORS"
+                :key="option"
+                class="tab-group-color-option"
+                :class="{ selected: color === option }"
+                :style="colorStyle(option)"
+                type="button"
+                role="radio"
+                :aria-label="tabGroupColorLabel(option)"
+                :aria-checked="color === option"
+                :title="tabGroupColorLabel(option)"
+                :disabled="dismissBlocked"
+                @click="color = option"
+              ><IconCheck v-if="color === option" aria-hidden="true" /></UiButton>
+            </div>
+          </div>
         </div>
         <section v-if="mode === 'create'" class="workspace-storage-section workspace-starting-data">
           <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.startingData') }}</strong><span>{{ t('workspaceEditor.startingDescription') }}</span></div></div>

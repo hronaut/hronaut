@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Align workspace name and description fields with the app's form design, keep description help below the input, and improve editor spacing and scrolling in narrow windows and at larger interface sizes.
+- Show workspace descriptions beneath their names in the left navigation panel, with compact two-line previews and the full description on hover.
+
 ## [2.4.8] - 2026-09-14
 
 ### Fixed

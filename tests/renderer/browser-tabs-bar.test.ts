@@ -112,6 +112,33 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('shows live workspace descriptions in left navigation and keeps them when tabs are folded', async () => {
+    const description = 'Compare checkout flows.\nKeep the signed-in QA session.'
+    const state = browserState({ mcpTabGroups: [{ ...workspace(), description }] })
+    const view = renderTabs(state, true, 'vertical')
+    const header = document.querySelector('.tab-group-label')!
+    expect(document.querySelector('.workspace-tab-description')).toHaveTextContent(description.replace('\n', ' '))
+    expect(header).toHaveAccessibleDescription(description)
+    expect(header.getAttribute('title')).toContain(description)
+    await fireEvent.click(header)
+    expect(header).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('.workspace-tab-description')).toHaveTextContent('Compare checkout flows.')
+    await view.rerender({ state: { ...state, mcpTabGroups: [{ ...workspace(), description: 'Verify the saved cart.' }] } })
+    expect(header).toHaveAccessibleDescription('Verify the saved cart.')
+    expect(screen.getByText('Verify the saved cart.')).toBeInTheDocument()
+    await view.rerender({ state: { ...state, mcpTabGroups: [workspace()] } })
+    expect(document.querySelector('.workspace-tab-description')).toBeNull()
+    expect(header).not.toHaveAttribute('aria-describedby')
+  })
+
+  it('keeps descriptions out of the horizontal tab strip', async () => {
+    const description = 'Release checks and saved browser context.'
+    const view = renderTabs(browserState({ mcpTabGroups: [{ ...workspace(), description }] }))
+    expect(screen.queryByText(description)).not.toBeInTheDocument()
+    await view.rerender({ orientation: 'vertical' })
+    expect(screen.getByText(description)).toBeInTheDocument()
+  })
+
   it('hides a workspace and its tabs only from left navigation without losing its state', async () => {
     const state = browserState({ mcpTabGroups: [{ ...workspace(), hiddenFromSidebar: true }] })
     const view = renderTabs(state, true, 'vertical')
