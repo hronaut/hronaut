@@ -6,7 +6,13 @@ interface PublicFacts {
   schemaVersion: number
   factSetVersion: string
   lastReviewedAt: string
-  product: { name: string; sourceAvailability: string; licenseName: string; licensePath: string }
+  product: {
+    name: string
+    sourceAvailability: string
+    licenseName: string
+    licenseIdentifier: string
+    licensePath: string
+  }
   subscription: {
     trialDays: number
     trialStartsAt: string
@@ -18,6 +24,16 @@ interface PublicFacts {
     activeDevicesPerSeat: number
   }
   urls: { homepage: string; setup: string; downloads: string; repository: string }
+  directoryListing: {
+    description: string
+    deployment: string
+    remoteDeploymentSupported: boolean
+    install: string
+    transport: string
+    networkScope: string
+    visibleBrowser: boolean
+    humanTakeover: boolean
+  }
   platforms: Array<{ name: string; architectures: string[] }>
   clients: Array<{ id: string; name: string; setupUrl: string }>
   historicalPublications: Array<{ url: string; status: string; correctionPath: string }>
@@ -34,6 +50,22 @@ report(/^\d{4}-\d{2}-\d{2}\.\d+$/u.test(facts.factSetVersion), 'PUBLIC_FACTS.jso
 report(/^\d{4}-\d{2}-\d{2}$/u.test(facts.lastReviewedAt), 'PUBLIC_FACTS.json has an invalid lastReviewedAt date')
 report(facts.product.name === 'Hronaut', 'PUBLIC_FACTS.json has an unexpected product name')
 report(facts.product.licensePath === 'LICENSE', 'PUBLIC_FACTS.json must point at LICENSE')
+report(/^LicenseRef-[A-Za-z0-9.-]+$/u.test(facts.product.licenseIdentifier),
+  'PUBLIC_FACTS.json must use a valid custom SPDX license reference')
+report(facts.directoryListing.deployment === 'local-only', 'PUBLIC_FACTS.json must classify Hronaut as local-only')
+report(facts.directoryListing.remoteDeploymentSupported === false,
+  'PUBLIC_FACTS.json must reject remote deployment support')
+report(facts.directoryListing.transport === 'streamable-http',
+  'PUBLIC_FACTS.json has an unexpected MCP transport')
+report(facts.directoryListing.networkScope === 'loopback-only',
+  'PUBLIC_FACTS.json must keep the MCP server loopback-only')
+report(facts.directoryListing.visibleBrowser && facts.directoryListing.humanTakeover,
+  'PUBLIC_FACTS.json must preserve visible browser and human takeover facts')
+report(facts.directoryListing.description.length >= 40 && facts.directoryListing.description.length <= 240,
+  'PUBLIC_FACTS.json must provide a bounded directory description')
+report(facts.directoryListing.install.includes('Hronaut desktop application')
+  && facts.directoryListing.install.includes('Hronaut Home'),
+'PUBLIC_FACTS.json must describe the local desktop installation flow')
 report(facts.subscription.annualReferenceTotal === facts.subscription.monthlyPerNamedUser * 12,
   'The annual reference total does not equal twelve monthly payments')
 report(facts.subscription.annualSavingsPercent
@@ -55,11 +87,23 @@ for (const [label, value] of [
   }
 }
 
-const currentSurfaces = ['README.md', 'REFERENCE.md', 'website/index.html'] as const
+const currentSurfaces = [
+  'README.md',
+  'REFERENCE.md',
+  'website/index.html',
+  'docs/DIRECTORY_LISTINGS.md'
+] as const
 const staleClaims = [
   { pattern: /PolyForm Noncommercial/iu, description: 'superseded PolyForm license wording' },
   { pattern: /\$10\s*(?:\/|per(?:\s+named\s+user)?\s+per)\s*month/iu, description: 'superseded monthly price' },
   { pattern: /\$60\s*(?:\/|per(?:\s+named\s+user)?\s+per)\s*year/iu, description: 'superseded annual price' }
+] as const
+const unsupportedDeploymentClaims = [
+  /remote deployment (?:is )?supported/iu,
+  /supports remote deployment/iu,
+  /one-click deploy(?:ment)? (?:of )?Hronaut/iu,
+  /wait for Hronaut to deploy/iu,
+  /hosted Hronaut (?:browser|connector|server)/iu
 ] as const
 
 function checkCurrentClaims(label: string, source: string): void {
@@ -71,7 +115,17 @@ function checkCurrentClaims(label: string, source: string): void {
   for (const stale of staleClaims) report(!stale.pattern.test(source), `${label} contains ${stale.description}`)
 }
 
-for (const path of currentSurfaces) checkCurrentClaims(path, read(path))
+for (const path of currentSurfaces) {
+  const source = read(path)
+  checkCurrentClaims(path, source)
+  for (const claim of unsupportedDeploymentClaims) {
+    report(!claim.test(source), `${path} contains an unsupported remote deployment claim`)
+  }
+}
+for (const path of ['scripts/build-mcpb.ts'] as const) {
+  const source = read(path)
+  for (const stale of staleClaims) report(!stale.pattern.test(source), `${path} contains ${stale.description}`)
+}
 
 const readme = read('README.md')
 for (const client of facts.clients) {
@@ -97,6 +151,9 @@ for (const argument of process.argv.slice(2)) {
     report(statSync(path).size <= 1_048_576, `${label} exceeds the 1 MiB public-copy review limit`)
     const source = readFileSync(path, 'utf8')
     for (const stale of staleClaims) report(!stale.pattern.test(source), `${label} contains ${stale.description}`)
+    for (const claim of unsupportedDeploymentClaims) {
+      report(!claim.test(source), `${label} contains an unsupported remote deployment claim`)
+    }
     if (/\b(?:price|pricing|subscription|trial|license)\b|\$\d/iu.test(source)) checkCurrentClaims(label, source)
   } catch (error) {
     errors.push(`${label} could not be read: ${error instanceof Error ? error.message : String(error)}`)

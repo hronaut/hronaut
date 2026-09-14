@@ -239,6 +239,7 @@ docs/*
 !docs/MCPB_ADAPTER.md
 !docs/PUBLIC_FACTS.json
 !docs/PUBLISHING_CHECKLIST.md
+!docs/DIRECTORY_LISTINGS.md
 playwright-report/
 storybook-static/
 test-results/

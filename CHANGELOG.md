@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Align MCPB release metadata with Hronaut's current Subscription and Trial License instead of the superseded PolyForm identifier.
+
+### Documentation
+
+- Add reviewed local-only directory metadata, a schema-valid Glama maintainer file, and an owner workflow for correcting misleading hosted-deployment instructions.
+
 ## [2.4.5] - 2026-09-14
 
 ### Added

@@ -14,6 +14,7 @@ interface PublicFacts {
     name: string
     sourceAvailability: string
     licenseName: string
+    licenseIdentifier: string
     licensePath: string
   }
   subscription: {
@@ -27,6 +28,16 @@ interface PublicFacts {
     activeDevicesPerSeat: number
   }
   urls: Record<string, string>
+  directoryListing: {
+    description: string
+    deployment: string
+    remoteDeploymentSupported: boolean
+    install: string
+    transport: string
+    networkScope: string
+    visibleBrowser: boolean
+    humanTakeover: boolean
+  }
   platforms: Array<{ name: string; architectures: string[] }>
   clients: Array<{ id: string; name: string; setupUrl: string }>
   historicalPublications: Array<{ url: string; status: string; correctionPath: string }>
@@ -52,6 +63,7 @@ describe('canonical public facts', () => {
         name: 'Hronaut',
         sourceAvailability: 'source-available',
         licenseName: 'Hronaut Subscription and Trial License',
+        licenseIdentifier: 'LicenseRef-Hronaut-Subscription-and-Trial',
         licensePath: 'LICENSE'
       },
       subscription: {
@@ -69,6 +81,16 @@ describe('canonical public facts', () => {
         setup: 'https://hronaut.dev/setup',
         downloads: 'https://github.com/hronaut/hronaut/releases/latest',
         repository: 'https://github.com/hronaut/hronaut'
+      },
+      directoryListing: {
+        description: 'A visible desktop browser with persistent, isolated workspaces controlled by local coding agents through MCP.',
+        deployment: 'local-only',
+        remoteDeploymentSupported: false,
+        install: 'Download and start the Hronaut desktop application, then copy its local MCP setup from Hronaut Home.',
+        transport: 'streamable-http',
+        networkScope: 'loopback-only',
+        visibleBrowser: true,
+        humanTakeover: true
       }
     })
     expect(value.factSetVersion).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/u)
@@ -87,14 +109,17 @@ describe('canonical public facts', () => {
 
   it('keeps repository distribution surfaces aligned and documents historical corrections', async () => {
     const value = await facts()
-    const [readme, reference, website, checklist, packageSource, scoopSource] = await Promise.all([
+    const [readme, reference, website, checklist, directoryGuide, glamaSource, packageSource, scoopSource] = await Promise.all([
       readFile('README.md', 'utf8'),
       readFile('REFERENCE.md', 'utf8'),
       readFile('website/index.html', 'utf8'),
       readFile('docs/PUBLISHING_CHECKLIST.md', 'utf8'),
+      readFile('docs/DIRECTORY_LISTINGS.md', 'utf8'),
+      readFile('glama.json', 'utf8'),
       readFile('package.json', 'utf8'),
       readFile('packaging/scoop/hronaut.json', 'utf8')
     ])
+    const glama = JSON.parse(glamaSource) as Record<string, unknown>
     const packageJson = JSON.parse(packageSource) as { homepage?: string; license?: string; scripts?: Record<string, string> }
     const scoop = JSON.parse(scoopSource) as { homepage?: string; license?: string }
 
@@ -112,6 +137,13 @@ describe('canonical public facts', () => {
     expect(checklist).toContain('[`PUBLIC_FACTS.json`](PUBLIC_FACTS.json)')
     expect(checklist).toContain('npm run check:public-copy -- path/to/draft.md')
     expect(checklist).toContain('historical')
+    expect(directoryGuide).toContain('[`PUBLIC_FACTS.json`](PUBLIC_FACTS.json)')
+    expect(directoryGuide).toMatch(/Remote deployment is not\s+supported/u)
+    expect(directoryGuide).toMatch(/Do not submit the loopback MCP\s+URL as a remote connector endpoint/u)
+    expect(glama).toEqual({
+      $schema: 'https://glama.ai/mcp/schemas/server.json',
+      maintainers: ['hronaut']
+    })
     expect(value.historicalPublications).toEqual(expect.arrayContaining([
       expect.objectContaining({
         url: 'https://www.reddit.com/r/mcp/comments/1w9c6hv/hronaut_a_local_browser_mcp_that_keeps_its/',
@@ -123,7 +155,7 @@ describe('canonical public facts', () => {
     }
   })
 
-  it('validates current surfaces and rejects stale public pricing copy', async () => {
+  it('validates current surfaces and rejects stale pricing or remote-deployment copy', async () => {
     expect(spawnSync(process.execPath, [verifier], { encoding: 'utf8' })).toMatchObject({ status: 0 })
 
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-public-copy-'))
@@ -134,5 +166,11 @@ describe('canonical public facts', () => {
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('announcement.md')
     expect(result.stderr).toContain('superseded')
+
+    const misleadingDirectoryCopy = join(directory, 'directory-listing.md')
+    await writeFile(misleadingDirectoryCopy, 'Click Deploy Server and wait for Hronaut to deploy as a hosted Hronaut connector.')
+    const directoryResult = spawnSync(process.execPath, [verifier, misleadingDirectoryCopy], { encoding: 'utf8' })
+    expect(directoryResult.status).toBe(1)
+    expect(directoryResult.stderr).toContain('unsupported remote deployment claim')
   })
 })

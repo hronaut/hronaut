@@ -40,6 +40,9 @@ describe('MCPB release package', () => {
 
   it('keeps adapter, registry, and operator metadata aligned with the desktop release', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
+    const publicFacts = JSON.parse(await readFile('docs/PUBLIC_FACTS.json', 'utf8')) as {
+      product: { licenseIdentifier: string }
+    }
     const artifactName = `hronaut-mcp-adapter-${packageJson.version}.mcpb`
     const artifact = await readFile(join(outputDirectory, artifactName))
     const metadata = JSON.parse(await readFile(join(outputDirectory, 'hronaut-mcp-server.json'), 'utf8'))
@@ -83,7 +86,7 @@ describe('MCPB release package', () => {
       manifest_version: '0.3',
       name: 'hronaut-mcp-adapter',
       version: packageJson.version,
-      license: 'PolyForm-Noncommercial-1.0.0',
+      license: publicFacts.product.licenseIdentifier,
       tools_generated: true,
       server: { type: 'node', entry_point: 'server/index.mjs' },
       user_config: { token: { sensitive: true, required: false } }
