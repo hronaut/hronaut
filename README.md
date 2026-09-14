@@ -45,6 +45,8 @@ A successful run stays visible in Hronaut, creates an isolated workspace, and re
 
 Ready for a real task? Use the [copy-ready starter workflows](STARTER_WORKFLOWS.md) for authenticated handoff, localhost QA, and responsive review without weakening Hronaut's workspace and privacy boundaries.
 
+For recurring work, run the [scheduled and triggered browser workflow](SCHEDULED_BROWSER_WORKFLOW.md). Its disposable Docker fixture shows which component owns triggers, browser authority, human takeover, retries, cancellation, and authoritative outcome reconciliation.
+
 Hronaut automates **web pages in its own browser**, not native desktop applications or other application windows. See [browser and native testing boundaries](AUTOMATION_BOUNDARIES.md#browser-pages-and-native-desktop-applications) to choose the right test surface, and [approval boundaries](AUTOMATION_BOUNDARIES.md#browser-approval-and-downstream-authorization) before consequential actions.
 
 ### Choose a persistent profile or Hronaut workspaces

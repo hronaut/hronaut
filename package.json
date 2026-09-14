@@ -76,6 +76,7 @@
     "test:integration:docker:focused": "node scripts/run-focused-docker.ts integration",
     "test:integration:docker:fast": "node scripts/run-focused-docker.ts integration-all",
     "evaluate:browser:docker": "node scripts/run-browser-evaluation.ts",
+    "example:scheduled-browser-task:docker": "node scripts/run-browser-evaluation.ts --output test-results/scheduled-browser-task/report.json",
     "test:docker:cache:prune": "node scripts/run-focused-docker.ts prune",
     "test:integration:docker": "docker compose --file compose.test.ci.yaml run --build --rm integration",
     "test:package:smoke": "node scripts/packaged-mcp-smoke.ts",
