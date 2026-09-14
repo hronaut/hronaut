@@ -9,6 +9,9 @@ const root = resolve(import.meta.dirname, '..')
 const outputDirectory = resolve(root, process.argv[2] || 'dist')
 const stagingDirectory = join(outputDirectory, '.mcpb-staging')
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string }
+const publicFacts = JSON.parse(await readFile(join(root, 'docs/PUBLIC_FACTS.json'), 'utf8')) as {
+  product: { licenseIdentifier: string }
+}
 const version = packageJson.version
 const artifactName = `hronaut-mcp-adapter-${version}.mcpb`
 const artifactPath = join(outputDirectory, artifactName)
@@ -42,7 +45,7 @@ const manifest = {
   },
   tools_generated: true,
   keywords: ['browser', 'automation', 'coding-agents', 'mcp'],
-  license: 'PolyForm-Noncommercial-1.0.0',
+  license: publicFacts.product.licenseIdentifier,
   privacy_policies: ['https://hronaut.dev/privacy'],
   compatibility: {
     platforms: ['darwin', 'win32', 'linux'],

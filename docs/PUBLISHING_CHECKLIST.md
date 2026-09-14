@@ -23,6 +23,11 @@ other launch copy:
 6. Remove credentials, bearer values, account identifiers, private URLs, page
    content, and unrestricted transcripts before review or publication.
 
+For MCP directories, also follow the
+[directory listing guide](DIRECTORY_LISTINGS.md). Keep Hronaut classified as a
+local-only desktop server, never submit its loopback endpoint as a connector,
+and verify the signed-out public instructions after any owner-side edit.
+
 For an existing post with obsolete claims, edit it and verify the public result
 when the platform permits. If it cannot be edited, keep an entry under
 `historicalPublications` in the fact set, label the post as historical wherever

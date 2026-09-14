@@ -291,6 +291,15 @@ npm run test:integration:headless
 
 Release packaging and publishing are centralized in [`.github/workflows/release.yml`](.github/workflows/release.yml). Every local package command uses `--publish never`.
 
+## Directory and registry listings
+
+Hronaut is a local-only desktop application, not a remotely deployable MCP
+connector. Directory maintainers should use the reviewed
+[public fact set](docs/PUBLIC_FACTS.json) and
+[listing guide](docs/DIRECTORY_LISTINGS.md) for current setup, supported-client,
+license, trial, pricing, and ownership details. The MCP endpoint remains on
+loopback and must not be submitted to a hosted directory or gateway.
+
 ## License
 
 Hronaut is source-available under the [Subscription and Trial License](LICENSE). The 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.

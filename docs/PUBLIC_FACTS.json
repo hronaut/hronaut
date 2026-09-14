@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "factSetVersion": "2026-09-10.1",
-  "lastReviewedAt": "2026-09-10",
+  "factSetVersion": "2026-09-14.1",
+  "lastReviewedAt": "2026-09-14",
   "product": {
     "name": "Hronaut",
     "sourceAvailability": "source-available",
     "licenseName": "Hronaut Subscription and Trial License",
+    "licenseIdentifier": "LicenseRef-Hronaut-Subscription-and-Trial",
     "licensePath": "LICENSE"
   },
   "subscription": {
@@ -23,6 +24,16 @@
     "setup": "https://hronaut.dev/setup",
     "downloads": "https://github.com/hronaut/hronaut/releases/latest",
     "repository": "https://github.com/hronaut/hronaut"
+  },
+  "directoryListing": {
+    "description": "A visible desktop browser with persistent, isolated workspaces controlled by local coding agents through MCP.",
+    "deployment": "local-only",
+    "remoteDeploymentSupported": false,
+    "install": "Download and start the Hronaut desktop application, then copy its local MCP setup from Hronaut Home.",
+    "transport": "streamable-http",
+    "networkScope": "loopback-only",
+    "visibleBrowser": true,
+    "humanTakeover": true
   },
   "platforms": [
     { "name": "Windows", "architectures": ["x64"] },
