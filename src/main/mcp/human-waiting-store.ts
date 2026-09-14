@@ -3,14 +3,34 @@ import { z } from 'zod'
 import type {
   HumanWaitingInput as WaitingInput,
   HumanWaitingRecord as WaitingRecord,
+  HumanWaitingReviewArtifact,
+  HumanWaitingReviewStep,
   HumanWaitingReviewStatus as ReviewStatus,
   HumanWaitingState as WaitingState
 } from '../../shared/human-waiting.js'
 
+export function currentHumanWaitingReviewStep(review: HumanWaitingReviewArtifact): HumanWaitingReviewStep {
+  return review.steps?.[review.currentStep ?? 0] ?? review
+}
+
+function sameReviewStep(left: HumanWaitingReviewStep, right: HumanWaitingReviewStep): boolean {
+  return left.toolName === right.toolName
+    && left.actionClass === right.actionClass
+    && left.reversibility === right.reversibility
+    && left.representation === right.representation
+    && left.description === right.description
+    && left.expectedPostcondition === right.expectedPostcondition
+    && left.artifactHash === right.artifactHash
+    && left.origin === right.origin
+    && left.tabId === right.tabId
+    && left.navigationGeneration === right.navigationGeneration
+    && left.humanInputGeneration === right.humanInputGeneration
+}
+
 const reviewStatusSchema = z.enum([
   'PROPOSED', 'REVIEWED', 'APPROVED', 'REJECTED', 'CANCELLED', 'EXPIRED', 'ATTEMPTED', 'VERIFIED', 'UNKNOWN'
 ])
-const reviewInputSchema = z.object({
+const reviewStepSchema = z.object({
   toolName: z.string().regex(/^(?:browser|wallet)_[a-z0-9_]{1,80}$/),
   actionClass: z.enum(['read', 'navigate', 'interact', 'browser-state', 'site-data', 'network', 'external-request', 'wallet']),
   reversibility: z.enum(['reversible', 'conditionally-reversible', 'irreversible', 'unknown']),
@@ -18,15 +38,25 @@ const reviewInputSchema = z.object({
   description: z.string().trim().min(1).max(512).optional(),
   expectedPostcondition: z.string().trim().min(1).max(512).optional(),
   artifactHash: z.string().regex(/^[a-f0-9]{64}$/),
-  sessionBinding: z.string().regex(/^[a-f0-9]{64}$/),
-  workspaceName: z.string().trim().min(1).max(128),
-  profileName: z.string().trim().min(1).max(128),
   origin: z.string().max(2048).optional(),
   tabId: z.uuid().optional(),
   navigationGeneration: z.number().int().min(0).safe().optional(),
   humanInputGeneration: z.number().int().min(0).safe().optional()
 }).strict().refine(review => review.representation === 'visible-browser-only' || review.description !== undefined, {
   message: 'A bounded review description is required'
+})
+const reviewInputSchema = reviewStepSchema.safeExtend({
+  sessionBinding: z.string().regex(/^[a-f0-9]{64}$/),
+  workspaceName: z.string().trim().min(1).max(128),
+  profileName: z.string().trim().min(1).max(128),
+  steps: z.array(reviewStepSchema).min(2).max(4).optional(),
+  currentStep: z.number().int().min(0).max(3).optional()
+}).refine(review => (review.steps === undefined) === (review.currentStep === undefined), {
+  message: 'Grouped reviews require a current step'
+}).refine(review => review.steps === undefined || review.currentStep! < review.steps.length, {
+  message: 'Grouped review step is out of range'
+}).refine(review => review.steps === undefined || sameReviewStep(review, review.steps[review.currentStep!]!), {
+  message: 'Grouped review current step does not match its top-level binding'
 })
 
 const inputSchema = z.object({
@@ -113,6 +143,19 @@ export class HumanWaitingStore {
     if (!record.review || record.review.status === status) return
     record.review.status = status
     record.review.receipts.push({ status, at: this.wallNow() })
+  }
+
+  private advanceReview(record: WaitingRecord): boolean {
+    const review = record.review
+    if (!review?.steps || review.currentStep === undefined || review.currentStep + 1 >= review.steps.length) return false
+    const nextIndex = review.currentStep + 1
+    const next = review.steps[nextIndex]!
+    Object.assign(review, next, { currentStep: nextIndex })
+    for (const key of ['description', 'expectedPostcondition', 'origin', 'tabId', 'navigationGeneration', 'humanInputGeneration'] as const) {
+      if (!(key in next)) delete review[key]
+    }
+    this.transition(record, 'RESOLVED')
+    return true
   }
 
   private transition(record: WaitingRecord, state: WaitingState): void {
@@ -238,13 +281,22 @@ export class HumanWaitingStore {
     toolName: string
     artifactHash: string
     sessionBinding: string
+    origin?: string
+    tabId?: string
+    navigationGeneration?: number
+    humanInputGeneration?: number
   }): { accepted: boolean; record: WaitingRecord } {
     const record = this.approvedReview(id, revision)
     const current = this.records.get(record.id)!.record
     const review = current.review!
-    const accepted = review.toolName === binding.toolName
-      && review.artifactHash === binding.artifactHash
+    const step = currentHumanWaitingReviewStep(review)
+    const accepted = step.toolName === binding.toolName
+      && step.artifactHash === binding.artifactHash
       && review.sessionBinding === binding.sessionBinding
+      && step.origin === binding.origin
+      && step.tabId === binding.tabId
+      && step.navigationGeneration === binding.navigationGeneration
+      && step.humanInputGeneration === binding.humanInputGeneration
     this.transition(current, accepted ? 'ATTEMPTED' : 'EXPIRED')
     return { accepted, record: structuredClone(current) }
   }
@@ -254,7 +306,7 @@ export class HumanWaitingStore {
     const record = this.records.get(id)?.record
     if (!record || record.revision !== revision || record.state !== 'ATTEMPTED'
       || record.review?.status !== 'ATTEMPTED') throw new Error('Reviewed attempt unavailable or stale')
-    this.transition(record, outcome === 'verified' ? 'VERIFIED' : 'UNKNOWN')
+    if (outcome !== 'verified' || !this.advanceReview(record)) this.transition(record, outcome === 'verified' ? 'VERIFIED' : 'UNKNOWN')
     return structuredClone(record)
   }
 

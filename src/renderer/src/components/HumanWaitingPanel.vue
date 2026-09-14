@@ -17,6 +17,7 @@ const busy = ref(false)
 const error = ref(false)
 let generation = 0
 const active = (record: HumanWaitingRecord) => record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED'
+const isGroup = (record: HumanWaitingRecord) => (record.review?.steps?.length ?? 0) > 1
 const deadline = (value: number): string => {
   try { return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(value) } catch { return t('humanWaiting.unavailable') }
 }
@@ -69,21 +70,38 @@ onBeforeUnmount(() => { generation += 1 })
         <p>{{ t(`humanWaiting.states.${record.state}`) }}</p>
         <div v-if="record.review" class="waiting-artifact">
           <p><strong>{{ t('humanWaiting.review.heading') }}</strong> · {{ t(`humanWaiting.review.statuses.${record.review.status}`) }}</p>
-          <p v-if="record.review.representation === 'visible-browser-only'">{{ t('humanWaiting.review.visibleOnly') }}</p>
-          <p v-else-if="record.review.description">{{ record.review.description }}</p>
-          <p v-if="record.review.expectedPostcondition"><strong>{{ t('humanWaiting.review.expected') }}:</strong> {{ record.review.expectedPostcondition }}</p>
+          <ol v-if="record.review.steps" class="waiting-steps">
+            <li v-for="(step, index) in record.review.steps" :key="step.artifactHash" :class="{ current: index === record.review.currentStep }">
+              <p><strong>{{ t('humanWaiting.review.step', { current: index + 1, total: record.review.steps.length }) }} · {{ step.toolName }}</strong></p>
+              <p v-if="step.representation === 'visible-browser-only'">{{ t('humanWaiting.review.visibleOnly') }}</p>
+              <p v-else-if="step.description">{{ step.description }}</p>
+              <p v-if="step.expectedPostcondition"><strong>{{ t('humanWaiting.review.expected') }}:</strong> {{ step.expectedPostcondition }}</p>
+              <dl>
+                <dt>{{ t('humanWaiting.review.actionClass') }}</dt><dd>{{ step.actionClass }}</dd>
+                <dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${step.reversibility}`) }}</dd>
+                <template v-if="step.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ step.origin }}</dd></template>
+                <template v-if="step.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ step.tabId }}</dd></template>
+                <dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ step.artifactHash }}</dd>
+              </dl>
+            </li>
+          </ol>
+          <template v-else>
+            <p v-if="record.review.representation === 'visible-browser-only'">{{ t('humanWaiting.review.visibleOnly') }}</p>
+            <p v-else-if="record.review.description">{{ record.review.description }}</p>
+            <p v-if="record.review.expectedPostcondition"><strong>{{ t('humanWaiting.review.expected') }}:</strong> {{ record.review.expectedPostcondition }}</p>
+          </template>
           <dl>
-            <dt>{{ t('humanWaiting.review.tool') }}</dt><dd>{{ record.review.toolName }}</dd>
-            <dt>{{ t('humanWaiting.review.actionClass') }}</dt><dd>{{ record.review.actionClass }}</dd>
-            <dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${record.review.reversibility}`) }}</dd>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.tool') }}</dt><dd>{{ record.review.toolName }}</dd></template>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.actionClass') }}</dt><dd>{{ record.review.actionClass }}</dd></template>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${record.review.reversibility}`) }}</dd></template>
             <dt>{{ t('humanWaiting.review.workspace') }}</dt><dd>{{ record.review.workspaceName }}</dd>
             <dt>{{ t('humanWaiting.review.profile') }}</dt><dd>{{ record.review.profileName }}</dd>
             <dt>{{ t('humanWaiting.review.authority') }}</dt><dd><code>{{ record.review.sessionBinding.slice(0, 12) }}</code></dd>
-            <template v-if="record.review.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ record.review.origin }}</dd></template>
-            <template v-if="record.review.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ record.review.tabId }}</dd></template>
+            <template v-if="!record.review.steps && record.review.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ record.review.origin }}</dd></template>
+            <template v-if="!record.review.steps && record.review.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ record.review.tabId }}</dd></template>
             <template v-if="record.review.navigationGeneration !== undefined"><dt>{{ t('humanWaiting.review.navigation') }}</dt><dd>{{ record.review.navigationGeneration }}</dd></template>
             <template v-if="record.review.humanInputGeneration !== undefined"><dt>{{ t('humanWaiting.review.humanInput') }}</dt><dd>{{ record.review.humanInputGeneration }}</dd></template>
-            <dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ record.review.artifactHash }}</dd>
+            <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ record.review.artifactHash }}</dd></template>
           </dl>
           <ol class="waiting-receipts" :aria-label="t('humanWaiting.review.timeline')">
             <li v-for="(receipt, index) in record.review.receipts" :key="`${receipt.status}-${index}`">
@@ -100,10 +118,10 @@ onBeforeUnmount(() => { generation += 1 })
         </dl>
         <p v-if="record.priorOutcome === 'OUTCOME_UNKNOWN'">{{ t('humanWaiting.unknown') }}</p>
         <template v-if="active(record)">
-          <label class="waiting-review"><input v-model="reviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t(record.review ? 'humanWaiting.reviewedExact' : 'humanWaiting.reviewed') }}</label>
+          <label class="waiting-review"><input v-model="reviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t(isGroup(record) ? 'humanWaiting.reviewedGroup' : record.review ? 'humanWaiting.reviewedExact' : 'humanWaiting.reviewed') }}</label>
           <div class="waiting-actions">
             <UiButton appearance="standard" type="button" :disabled="busy || disabled || record.state === 'ACKNOWLEDGED'" @click="change(record, 'acknowledge')">{{ t('humanWaiting.acknowledge') }}</UiButton>
-            <UiButton appearance="standard" type="button" :disabled="busy || disabled || !reviewed[record.id]" @click="change(record, 'resolve')">{{ t(record.review ? 'humanWaiting.approve' : 'humanWaiting.resolve') }}</UiButton>
+            <UiButton appearance="standard" type="button" :disabled="busy || disabled || !reviewed[record.id]" @click="change(record, 'resolve')">{{ t(isGroup(record) ? 'humanWaiting.approveGroup' : record.review ? 'humanWaiting.approve' : 'humanWaiting.resolve') }}</UiButton>
             <UiButton v-if="record.review" appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'reject')">{{ t('humanWaiting.reject') }}</UiButton>
             <UiButton appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'cancel')">{{ t('humanWaiting.cancel') }}</UiButton>
           </div>
@@ -122,6 +140,9 @@ onBeforeUnmount(() => { generation += 1 })
 .waiting-record dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.35rem 0.7rem; margin: 0; }
 .waiting-record dd { margin: 0; overflow-wrap: anywhere; }
 .waiting-receipts { margin: 0; padding-inline-start: 1.4rem; }
+.waiting-steps { display: grid; gap: 0.55rem; margin: 0; padding-inline-start: 1.6rem; }
+.waiting-steps > li { padding: 8px; border: 1px solid var(--border-soft); border-radius: 0.4rem; }
+.waiting-steps > li.current { border-color: var(--accent); }
 .waiting-review { display: flex; align-items: flex-start; gap: 0.6rem; }
 .waiting-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 </style>

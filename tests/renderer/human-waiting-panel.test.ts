@@ -90,3 +90,33 @@ it('shows a bounded exact-action receipt and offers cheap rejection', async () =
   await reject.trigger('click'); await flushPromises()
   expect(browser.changeHumanWaiting).toHaveBeenCalledExactlyOnceWith('first', 'decision', 'revision', 'reject')
 })
+
+it('shows every step in an ordered review group before approval', async () => {
+  const firstStep = {
+    toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'unknown' as const,
+    representation: 'bounded-description' as const, description: 'Open the confirmation',
+    expectedPostcondition: 'Confirmation is visible', artifactHash: 'a'.repeat(64), origin: 'https://example.com'
+  }
+  const secondStep = {
+    ...firstStep, description: 'Confirm the operation', expectedPostcondition: 'Success is visible', artifactHash: 'c'.repeat(64)
+  }
+  const grouped: HumanWaitingRecord = {
+    ...record, decision: 'approve-action', review: {
+      ...firstStep, sessionBinding: 'b'.repeat(64), workspaceName: 'Grouped QA', profileName: 'Restricted QA',
+      steps: [firstStep, secondStep], currentStep: 0, status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }]
+    }
+  }
+  const browser = {
+    listHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord[]> => [grouped]),
+    changeHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord> => ({ ...grouped, state: 'RESOLVED' }))
+  }
+  const view = mount(HumanWaitingPanel, { props: { workspaceId: 'first', browser }, global: { plugins: [createHronautI18n('en-US')] } })
+  dispose.push(() => view.unmount())
+  await flushPromises()
+  expect(view.text()).toContain('Step 1 of 2 · browser_click')
+  expect(view.text()).toContain('Step 2 of 2 · browser_click')
+  expect(view.text()).toContain('Open the confirmation')
+  expect(view.text()).toContain('Confirm the operation')
+  expect(view.text()).toContain('I reviewed every action in this exact ordered group')
+  expect(view.findAll('button').find(item => item.text() === 'Approve exact group')).toBeDefined()
+})

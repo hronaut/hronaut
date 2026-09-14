@@ -1,4 +1,4 @@
-import { HumanWaitingStore } from './human-waiting-store.js'
+import { HumanWaitingStore, currentHumanWaitingReviewStep } from './human-waiting-store.js'
 import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
 
 type Authorization = () => void
@@ -9,6 +9,10 @@ export interface HumanWaitingReviewBinding {
   toolName: string
   artifactHash: string
   sessionBinding: string
+  origin?: string
+  tabId?: string
+  navigationGeneration?: number
+  humanInputGeneration?: number
 }
 
 /** One main-process owner. Serialization makes returned decisions durable and
@@ -140,7 +144,8 @@ export class HumanWaitingService {
           throw new Error('The reviewed action binding changed; create a fresh review')
         }
         const artifact = this.store.approvedReview(review.id, review.revision).review!
-        if (artifact.toolName !== review.toolName || artifact.artifactHash !== review.artifactHash
+        const step = currentHumanWaitingReviewStep(artifact)
+        if (step.toolName !== review.toolName || step.artifactHash !== review.artifactHash
           || artifact.sessionBinding !== review.sessionBinding) {
           this.store.invalidateResolution(review.id)
           await this.save()

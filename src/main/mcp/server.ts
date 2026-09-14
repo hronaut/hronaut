@@ -587,7 +587,7 @@ type BrowserToolName = keyof typeof BROWSER_TOOL_METADATA
 const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'title' | 'annotations'> & { name: BrowserToolName }> = [
   {
     name: 'browser_human_waiting', category: 'Session',
-    description: 'Request, list, or cancel a bounded human decision in your workspace, including when no tab is open. Supply only non-secret local owner labels and a decision kind. Acknowledgment and resolution require the trusted local UI. Waiting blocks consequential dispatch; cancellation does not clear continuity review or replay an action. IDs are correlation handles, never capabilities.'
+    description: 'Request, list, or cancel a bounded human decision in your workspace, including when no tab is open. An approve-action review may describe one exact mutation or 2–4 ordered browser_click steps with declarative postconditions. Acknowledgment and resolution require the trusted local UI. Waiting blocks consequential dispatch; cancellation does not clear continuity review or replay an action. IDs are correlation handles, never capabilities.'
   },
   {
     name: 'browser_continuity', category: 'Session',
@@ -967,6 +967,28 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
   }
 }
 
+function withReviewContinuation(result: CallToolResult, continuation: {
+  id: string
+  revision: string
+  nextStep: number
+  totalSteps: number
+}): CallToolResult {
+  const structured = result.structuredContent
+  return {
+    ...result,
+    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
+      ? { structuredContent: { ...structured, reviewContinuation: continuation } } : {}),
+    content: result.content.map(item => {
+      if (item.type !== 'text') return item
+      try {
+        const value = JSON.parse(item.text) as unknown
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
+        return { ...item, text: JSON.stringify({ ...value, reviewContinuation: continuation }, null, 2) }
+      } catch { return item }
+    })
+  }
+}
+
 export function classifyMcpActivityResult(input: {
   readOnly: boolean
   dispatched: boolean
@@ -1249,6 +1271,22 @@ function createBrowserMcpServer(
   const requireSavedWorkspace = (workspaceId: string): void => {
     if (!savedWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
   }
+  const consequentialReviewStepSchema = z.object({
+    toolName: z.string().regex(/^(?:browser|wallet)_[a-z0-9_]{1,80}$/),
+    arguments: z.record(z.string(), z.unknown()),
+    reversibility: z.enum(['reversible', 'conditionally-reversible', 'irreversible', 'unknown']),
+    representation: z.enum(['bounded-description', 'visible-browser-only']),
+    description: z.string().trim().min(1).max(512).optional(),
+    expectedPostcondition: z.string().trim().min(1).max(512).optional()
+  }).strict().refine(review => review.representation === 'visible-browser-only' || review.description !== undefined, {
+    message: 'A bounded review description is required'
+  })
+  const consequentialReviewSchema = z.union([
+    consequentialReviewStepSchema,
+    z.object({ steps: z.array(consequentialReviewStepSchema).min(2).max(4) }).strict()
+  ])
+  type ConsequentialReviewStepRequest = z.infer<typeof consequentialReviewStepSchema>
+
   registerTool(
     'browser_workspaces',
     {
@@ -1455,12 +1493,30 @@ function createBrowserMcpServer(
   }
   const reviewBinding = (name: string, input: Record<string, unknown>): HumanWaitingReviewBinding | undefined => {
     if (typeof input.reviewId !== 'string' || typeof input.reviewRevision !== 'string') return undefined
+    const workspaceId = input.workspaceId
+    if (typeof workspaceId !== 'string') return undefined
+    const state = manager.getMcpGroupState(workspaceId)
+    const tabId = typeof input.tabId === 'string' ? input.tabId : state.activeTabId ?? undefined
+    const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
+    let origin: string | undefined
+    if (tab) {
+      try {
+        const url = new URL(tab.url)
+        origin = url.origin === 'null' ? url.protocol : url.origin
+      } catch { /* A malformed current URL cannot match a persisted reviewed origin. */ }
+    }
     return {
       id: input.reviewId,
       revision: input.reviewRevision,
       toolName: name,
       artifactHash: humanWaitingArtifactHash(name, reviewedActionArguments(input)),
-      sessionBinding: humanReviewSessionBinding
+      sessionBinding: humanReviewSessionBinding,
+      ...(origin ? { origin } : {}),
+      ...(tab ? {
+        tabId: tab.id,
+        navigationGeneration: tab.navigationGeneration,
+        humanInputGeneration: tab.humanInteractionGeneration ?? 0
+      } : {})
     }
   }
   type PostWriteRequest = BrowserPostcondition & { timeoutMs: number; maxAttempts: number; initialDelayMs: number }
@@ -1493,11 +1549,12 @@ function createBrowserMcpServer(
         if ((typeof input.reviewId === 'string') !== (typeof input.reviewRevision === 'string')) {
           throw new Error('reviewId and reviewRevision must be supplied together')
         }
-        const reviewedBinding = reviewBinding(name, input)
-        if (reviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
+        const hasReviewedBinding = typeof input.reviewId === 'string'
+        if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
         const actionInput = reviewedActionArguments(input)
         requireActiveCapabilityDispatch(name, actionInput)
         requireAgentWorkspace(workspaceId)
+        const reviewedBinding = reviewBinding(name, input)
         const requireHumanDecision = async (withReviewedBinding = true): Promise<void> => {
           if (humanWaiting && !continuityInspectionTools.has(name)) {
             await humanWaiting.requireDispatch(
@@ -1613,11 +1670,11 @@ function createBrowserMcpServer(
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         let reviewAttempt: { id: string; revision: string } | undefined
-        const finishReviewedAttempt = async (outcome: 'verified' | 'unknown'): Promise<void> => {
+        const finishReviewedAttempt = async (outcome: 'verified' | 'unknown'): Promise<import('../../shared/human-waiting.js').HumanWaitingRecord | undefined> => {
           if (!reviewAttempt || !humanWaiting) return
           const attempt = reviewAttempt
           reviewAttempt = undefined
-          await humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
+          return humanWaiting.finishReviewedDispatch(workspaceId, attempt.id, attempt.revision, outcome, () => {
             requireAgentWorkspace(workspaceId)
           })
         }
@@ -1832,8 +1889,18 @@ function createBrowserMcpServer(
           finishActivity(undefined, true, error)
           throw error
         }
-        const finalResult = verificationResult ? withPostWriteVerification(result, verificationResult) : result
-        if (verificationResult?.status === 'verified') await finishReviewedAttempt('verified')
+        let finalResult = verificationResult ? withPostWriteVerification(result, verificationResult) : result
+        if (verificationResult?.status === 'verified') {
+          const completed = await finishReviewedAttempt('verified')
+          if (completed?.state === 'RESOLVED' && completed.review?.steps && completed.review.currentStep !== undefined) {
+            finalResult = withReviewContinuation(finalResult, {
+              id: completed.id,
+              revision: completed.revision,
+              nextStep: completed.review.currentStep + 1,
+              totalSteps: completed.review.steps.length
+            })
+          }
+        }
         else if (verificationResult?.status === 'unknown' || finalResult.isError) await finishReviewedAttempt('unknown')
         finishActivity(finalResult, false)
         return finalResult
@@ -1854,14 +1921,7 @@ function createBrowserMcpServer(
         fallbackOwner: z.string().trim().min(1).max(128).default('local-operator'),
         timeoutMs: z.number().int().min(1).max(86_400_000).default(900_000),
         id: z.uuid().optional(), revision: z.uuid().optional(),
-        review: z.object({
-          toolName: z.string().regex(/^(?:browser|wallet)_[a-z0-9_]{1,80}$/),
-          arguments: z.record(z.string(), z.unknown()),
-          reversibility: z.enum(['reversible', 'conditionally-reversible', 'irreversible', 'unknown']),
-          representation: z.enum(['bounded-description', 'visible-browser-only']),
-          description: z.string().trim().min(1).max(512).optional(),
-          expectedPostcondition: z.string().trim().min(1).max(512).optional()
-        }).strict().optional()
+        review: consequentialReviewSchema.optional()
       }
     },
     tool(async (input: {
@@ -1874,14 +1934,7 @@ function createBrowserMcpServer(
       timeoutMs: number
       id?: string
       revision?: string
-      review?: {
-        toolName: string
-        arguments: Record<string, unknown>
-        reversibility: 'reversible' | 'conditionally-reversible' | 'irreversible' | 'unknown'
-        representation: 'bounded-description' | 'visible-browser-only'
-        description?: string
-        expectedPostcondition?: string
-      }
+      review?: ConsequentialReviewStepRequest | { steps: ConsequentialReviewStepRequest[] }
     }) => {
       const authorize = (): void => {
         if ((!activeWorkspaceIds.has(input.workspaceId) && !savedWorkspaceIds.has(input.workspaceId)) || !manager.isWorkspaceAgentAccessible(input.workspaceId)) throw workspaceAuthorizationError()
@@ -1896,50 +1949,65 @@ function createBrowserMcpServer(
       requireAgentWorkspace(input.workspaceId)
       if (!input.runId || !input.decision) throw new Error('Run ID and decision kind are required')
       if ((input.review !== undefined) !== (input.decision === 'approve-action')) {
-        throw new Error('An approve-action request requires exactly one consequential review artifact')
+        throw new Error('An approve-action request requires one consequential review artifact or bounded review group')
       }
       let reviewArtifact: import('../../shared/human-waiting.js').HumanWaitingReviewInput | undefined
       if (input.review) {
-        const definition = toolDefinition(input.review.toolName)
-        if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')
-        if ('reviewId' in input.review.arguments || 'reviewRevision' in input.review.arguments) {
-          throw new Error('A proposed action cannot include an existing review binding')
-        }
-        const schema = workspaceToolInputSchemas.get(input.review.toolName)
-        if (!schema) throw new Error('Consequential review target must be a workspace browser tool')
-        const normalized = schema.parse(input.review.arguments)
-        if (normalized.workspaceId !== input.workspaceId) throw new Error('Reviewed action must target this workspace')
-        requireActiveCapabilityDispatch(input.review.toolName, normalized)
-        const state = manager.getMcpGroupState(input.workspaceId)
-        const tabId = typeof normalized.tabId === 'string' ? normalized.tabId : state.activeTabId ?? undefined
-        const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
-        if (tabId && !tab) throw workspaceAuthorizationError()
-        let origin: string | undefined
-        if (tab) {
-          try {
-            const url = new URL(tab.url)
-            origin = url.origin === 'null' ? url.protocol : url.origin
-          } catch { /* The visible tab remains reviewable without persisting a malformed URL. */ }
-        }
+        const requestedSteps = 'steps' in input.review ? input.review.steps : [input.review]
+        const grouped = requestedSteps.length > 1
         const workspace = manager.listMcpTabGroups().find(candidate => candidate.id === input.workspaceId)
         if (!workspace) throw workspaceAuthorizationError()
+        const state = manager.getMcpGroupState(input.workspaceId)
+        const steps = requestedSteps.map((requested): import('../../shared/human-waiting.js').HumanWaitingReviewStep => {
+          const definition = toolDefinition(requested.toolName)
+          if (!definition.annotations.destructiveHint) throw new Error('Consequential review is only available for mutating browser tools')
+          if ('reviewId' in requested.arguments || 'reviewRevision' in requested.arguments) {
+            throw new Error('A proposed action cannot include an existing review binding')
+          }
+          const schema = workspaceToolInputSchemas.get(requested.toolName)
+          if (!schema) throw new Error('Consequential review target must be a workspace browser tool')
+          const normalized = schema.parse(requested.arguments)
+          if (normalized.workspaceId !== input.workspaceId) throw new Error('Reviewed action must target this workspace')
+          requireActiveCapabilityDispatch(requested.toolName, normalized)
+          if (grouped && (requested.toolName !== 'browser_click' || !normalized.postcondition || !requested.expectedPostcondition)) {
+            throw new Error('Every grouped review step must be a browser_click with a declarative and human-readable postcondition')
+          }
+          const tabId = typeof normalized.tabId === 'string' ? normalized.tabId : state.activeTabId ?? undefined
+          const tab = tabId ? state.tabs.find(candidate => candidate.id === tabId) : undefined
+          if (tabId && !tab) throw workspaceAuthorizationError()
+          if (grouped && !tab) throw new Error('Grouped review steps require one current page tab')
+          let origin: string | undefined
+          if (tab) {
+            try {
+              const url = new URL(tab.url)
+              origin = url.origin === 'null' ? url.protocol : url.origin
+            } catch { /* The visible tab remains reviewable without persisting a malformed URL. */ }
+          }
+          return {
+            toolName: requested.toolName,
+            actionClass: mcpCapabilityOperationClass(requested.toolName, normalized),
+            reversibility: requested.reversibility,
+            representation: requested.representation,
+            ...(requested.description ? { description: requested.description } : {}),
+            ...(requested.expectedPostcondition ? { expectedPostcondition: requested.expectedPostcondition } : {}),
+            artifactHash: humanWaitingArtifactHash(requested.toolName, reviewedActionArguments(normalized)),
+            ...(origin ? { origin } : {}),
+            ...(tab ? {
+              tabId: tab.id,
+              navigationGeneration: tab.navigationGeneration,
+              humanInputGeneration: tab.humanInteractionGeneration ?? 0
+            } : {})
+          }
+        })
+        if (grouped && steps.some(step => step.tabId !== steps[0]!.tabId || step.origin !== steps[0]!.origin)) {
+          throw new Error('Grouped review steps must target the same tab and origin')
+        }
         reviewArtifact = {
-          toolName: input.review.toolName,
-          actionClass: mcpCapabilityOperationClass(input.review.toolName, normalized),
-          reversibility: input.review.reversibility,
-          representation: input.review.representation,
-          ...(input.review.description ? { description: input.review.description } : {}),
-          ...(input.review.expectedPostcondition ? { expectedPostcondition: input.review.expectedPostcondition } : {}),
-          artifactHash: humanWaitingArtifactHash(input.review.toolName, reviewedActionArguments(normalized)),
+          ...steps[0]!,
           sessionBinding: humanReviewSessionBinding,
           workspaceName: workspace.name,
           profileName: capabilityProfile?.name ?? 'Full access',
-          ...(origin ? { origin } : {}),
-          ...(tab ? {
-            tabId: tab.id,
-            navigationGeneration: tab.navigationGeneration,
-            humanInputGeneration: tab.humanInteractionGeneration ?? 0
-          } : {})
+          ...(grouped ? { steps, currentStep: 0 } : {})
         }
       }
       // Establish durable continuity recovery before asking for a human decision.

@@ -17,6 +17,20 @@ const review = {
   workspaceName: 'Checkout QA', profileName: 'Restricted QA', origin: 'https://example.com',
   tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 4, humanInputGeneration: 2
 }
+const secondReviewStep = {
+  toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'reversible' as const,
+  representation: 'bounded-description' as const, description: 'Confirm the visible choice',
+  expectedPostcondition: 'The second confirmation appears', artifactHash: 'c'.repeat(64),
+  origin: review.origin, tabId: review.tabId, navigationGeneration: review.navigationGeneration,
+  humanInputGeneration: review.humanInputGeneration
+}
+const groupedReview = { ...review, steps: [{
+  toolName: review.toolName, actionClass: review.actionClass, reversibility: review.reversibility,
+  representation: review.representation, description: review.description,
+  expectedPostcondition: review.expectedPostcondition, artifactHash: review.artifactHash,
+  origin: review.origin, tabId: review.tabId, navigationGeneration: review.navigationGeneration,
+  humanInputGeneration: review.humanInputGeneration
+}, secondReviewStep], currentStep: 0 }
 
 describe('human waiting lifecycle', () => {
   it('restores an unresolved decision with a fresh revision and its remaining deadline', () => {
@@ -158,6 +172,55 @@ describe('human waiting lifecycle', () => {
     const verified = store.finishReviewAttempt(attempt.record.id, attempt.record.revision, 'verified')
     expect(verified.review?.receipts.map(receipt => receipt.status)).toEqual(['PROPOSED', 'REVIEWED', 'APPROVED', 'ATTEMPTED', 'VERIFIED'])
     expect(() => store.beginReviewAttempt(approved.id, approved.revision, review)).toThrow(/stale/i)
+  })
+
+  it('advances an exact ordered group only after verification and issues a fresh revision', () => {
+    const store = new HumanWaitingStore({ wallNow: () => 1000 })
+    const proposed = store.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const approved = store.resolve(proposed.id, proposed.revision)
+    const first = store.beginReviewAttempt(approved.id, approved.revision, review)
+    const continued = store.finishReviewAttempt(first.record.id, first.record.revision, 'verified')
+    expect(continued).toMatchObject({
+      state: 'RESOLVED', review: { status: 'APPROVED', currentStep: 1, ...secondReviewStep }
+    })
+    expect(continued.revision).not.toBe(approved.revision)
+    expect(continued.review?.receipts.map(receipt => receipt.status)).toEqual(['PROPOSED', 'APPROVED', 'ATTEMPTED', 'APPROVED'])
+    const second = store.beginReviewAttempt(continued.id, continued.revision, {
+      ...secondReviewStep, sessionBinding: review.sessionBinding
+    })
+    expect(store.finishReviewAttempt(second.record.id, second.record.revision, 'verified')).toMatchObject({
+      state: 'VERIFIED', review: { status: 'VERIFIED', currentStep: 1 }
+    })
+  })
+
+  it('expires a grouped approval on an out-of-order step and stops after an ambiguous result', () => {
+    const mismatched = new HumanWaitingStore()
+    const proposed = mismatched.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const approved = mismatched.resolve(proposed.id, proposed.revision)
+    expect(mismatched.beginReviewAttempt(approved.id, approved.revision, {
+      ...secondReviewStep, sessionBinding: review.sessionBinding
+    })).toMatchObject({ accepted: false, record: { state: 'EXPIRED', review: { status: 'EXPIRED' } } })
+
+    const ambiguous = new HumanWaitingStore()
+    const next = ambiguous.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const nextApproved = ambiguous.resolve(next.id, next.revision)
+    const attempted = ambiguous.beginReviewAttempt(nextApproved.id, nextApproved.revision, review)
+    expect(ambiguous.finishReviewAttempt(attempted.record.id, attempted.record.revision, 'unknown')).toMatchObject({
+      state: 'UNKNOWN', review: { status: 'UNKNOWN', currentStep: 0 }
+    })
+
+    const drifted = new HumanWaitingStore()
+    const driftProposal = drifted.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const driftApproval = drifted.resolve(driftProposal.id, driftProposal.revision)
+    expect(drifted.beginReviewAttempt(driftApproval.id, driftApproval.revision, {
+      ...review, navigationGeneration: review.navigationGeneration + 1
+    })).toMatchObject({ accepted: false, record: { state: 'EXPIRED', review: { status: 'EXPIRED' } } })
+
+    const rejected = new HumanWaitingStore()
+    const rejectedGroup = rejected.create({ ...input, decision: 'approve-action', review: groupedReview })
+    expect(rejected.reject(rejectedGroup.id, rejectedGroup.revision)).toMatchObject({
+      state: 'REJECTED', review: { status: 'REJECTED', currentStep: 0 }
+    })
   })
 
   it('expires an approval on exact mismatch and preserves an ambiguous attempted outcome across restart', () => {
