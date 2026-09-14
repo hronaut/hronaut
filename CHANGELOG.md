@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Fan release Electron integration tests across three isolated hosted runners, preserving full coverage while reducing the release gate from one sequential suite to three concurrent partitions.
+
+### Fixed
+
+- Run cross-platform package candidates for actual `release/` pull requests without triggering them for unrelated branch names that happen to contain `release-`.
+
 ## [2.4.4] - 2026-09-14
 
 ### Added
