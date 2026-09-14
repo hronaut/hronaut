@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep tab close controls available while website input is locked, including for unavailable pages being reloaded by an agent.
+
 ## [2.4.7] - 2026-09-14
 
 ### Fixed

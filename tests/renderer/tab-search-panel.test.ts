@@ -119,7 +119,7 @@ describe('TabSearchPanel', () => {
     }
   })
 
-  it('keeps selection and pin available while tab locking disables only close', async () => {
+  it('keeps tab lifecycle controls available while website input is locked', async () => {
     const browserState = { ...state(), allHumanInteractionLocked: true }
     const browser = {
       closeTab: vi.fn(async () => browserState),
@@ -152,8 +152,10 @@ describe('TabSearchPanel', () => {
     try {
       const close = screen.getByRole('button', { name: 'Close Tab beta' })
       const pin = screen.getByRole('button', { name: 'Pin Tab beta' })
-      expect(close).toBeDisabled()
+      expect(close).toBeEnabled()
       expect(pin).toBeEnabled()
+      await userEvent.setup().click(close)
+      expect(browser.closeTab).toHaveBeenCalledWith('beta')
       await userEvent.setup().click(pin)
       expect(browser.setTabPinned).toHaveBeenCalledWith('beta', true)
       const alphaTab = document.getElementById('tab-search-open-alpha')

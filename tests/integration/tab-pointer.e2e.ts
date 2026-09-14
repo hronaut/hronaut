@@ -58,14 +58,11 @@ for (const position of ['top', 'left']) {
     await appWindow.evaluate(async () => {
       await (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(true)
     })
-    await expect(close).toHaveCSS('cursor', 'not-allowed')
-    await close.click()
-    await expect(tab).toBeVisible()
-    await appWindow.evaluate(async () => {
-      await (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(false)
-    })
     await expect(close).toHaveCSS('cursor', 'pointer')
     await close.click()
     await expect(tab).toBeHidden()
+    await appWindow.evaluate(async () => {
+      await (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(false)
+    })
   })
 }

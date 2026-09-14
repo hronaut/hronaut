@@ -3529,25 +3529,24 @@ export class BrowserTabsManager {
       {
         id: 'close-tab',
         label: this.text('native.context.closeTab'),
-        enabled: !this.allHumanInteractionLocked,
         click: () => runAction('close the tab', () => this.closeTab(tab.id, true))
       },
       {
         id: 'close-other-tabs',
         label: this.text('native.context.closeOthers'),
-        enabled: !this.allHumanInteractionLocked && otherTabs.length > 0,
+        enabled: otherTabs.length > 0,
         click: () => runAction('close other tabs', () => this.closeTabs(otherTabs.map((candidate) => candidate.id), true, true))
       },
       {
         id: 'close-tabs-to-right',
         label: this.text(verticalTabs ? 'native.context.closeBelow' : 'native.context.closeRight'),
-        enabled: !this.allHumanInteractionLocked && tabsToRight.length > 0,
+        enabled: tabsToRight.length > 0,
         click: () => runAction('close tabs to the right', () => this.closeTabs(tabsToRight.map((candidate) => candidate.id), true, true))
       },
       {
         id: 'close-duplicate-tabs',
         label: this.text('native.context.closeDuplicates'),
-        enabled: !this.allHumanInteractionLocked && duplicateTabs.length > 0,
+        enabled: duplicateTabs.length > 0,
         click: () => runAction('close duplicate tabs', () => this.closeTabs(duplicateTabs.map((candidate) => candidate.id), true, true))
       },
       { type: 'separator' },
@@ -3808,8 +3807,8 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async closeTab(tabId: string, respectGlobalInteractionLock = false): Promise<BrowserState> {
-    return this.closeTabInternal(tabId, true, respectGlobalInteractionLock)
+  async closeTab(tabId: string, respectBeforeUnload = false): Promise<BrowserState> {
+    return this.closeTabInternal(tabId, true, respectBeforeUnload)
   }
 
   private stageBeforeUnloadClose(tab: BrowserTab): {
@@ -3961,9 +3960,9 @@ export class BrowserTabsManager {
   private closeTabInternal(
     tabId: string,
     ensureReplacement: boolean,
-    respectGlobalInteractionLock = false
+    respectBeforeUnload = false
   ): Promise<BrowserState> {
-    if (!respectGlobalInteractionLock) {
+    if (!respectBeforeUnload) {
       return this.performCloseTab(tabId, ensureReplacement, false, true)
     }
     const tab = this.getTab(tabId)
@@ -3980,11 +3979,10 @@ export class BrowserTabsManager {
   private async performCloseTab(
     tabId: string,
     ensureReplacement: boolean,
-    respectGlobalInteractionLock: boolean,
+    respectBeforeUnload: boolean,
     forceClose: boolean
   ): Promise<BrowserState> {
     const tab = this.getTab(tabId)
-    if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
     const webContents = tab.webContents
     // A WebContentsView may be destroyed independently (renderer failure,
     // devtools teardown, or an Electron close race). Purge those stale siblings
@@ -3998,12 +3996,8 @@ export class BrowserTabsManager {
     }
     if (!(await this.prepareActiveCloseReplacement(tab))) return this.getState()
     if (this.tabs.get(tab.id) !== tab) return this.getState()
-    // The close may have yielded while waking a sleeping successor. Re-check
-    // the global guard before committing any irreversible tab state so a lock
-    // engaged during that wake takes effect immediately.
-    if (respectGlobalInteractionLock && this.allHumanInteractionLocked) return this.getState()
     let stagedClose: ReturnType<BrowserTabsManager['stageBeforeUnloadClose']> | undefined
-    if (respectGlobalInteractionLock && !forceClose && !webContents.isDestroyed()) {
+    if (respectBeforeUnload && !forceClose && !webContents.isDestroyed()) {
       const navigationGeneration = tab.navigationGeneration
       stagedClose = this.stageBeforeUnloadClose(tab)
       this.expectedTabClosures.add(webContents)
@@ -4042,7 +4036,6 @@ export class BrowserTabsManager {
           || tab.webContents !== webContents
           || webContents.isDestroyed()
           || tab.navigationGeneration !== navigationGeneration
-          || this.allHumanInteractionLocked
         ) return this.getState()
         return this.performCloseTab(tabId, ensureReplacement, true, true)
       }
@@ -4136,13 +4129,13 @@ export class BrowserTabsManager {
   private async closeTabs(
     tabIds: string[],
     ensureReplacement = true,
-    respectGlobalInteractionLock = false
+    respectBeforeUnload = false
   ): Promise<BrowserState> {
     for (const tabId of tabIds) {
       if (this.tabs.has(tabId)) {
         const requestedTab = this.tabs.get(tabId)
-        await this.closeTabInternal(tabId, ensureReplacement, respectGlobalInteractionLock)
-        if (respectGlobalInteractionLock && this.tabs.get(tabId) === requestedTab) break
+        await this.closeTabInternal(tabId, ensureReplacement, respectBeforeUnload)
+        if (respectBeforeUnload && this.tabs.get(tabId) === requestedTab) break
       }
     }
     return this.getState()
@@ -7940,7 +7933,7 @@ export class BrowserTabsManager {
       }) : null
       if (this.shouldBlockHumanKeyboardInput(tab, input)) {
         event.preventDefault()
-        if (shortcut && (!this.allHumanInteractionLocked || shortcut !== 'close-tab')) {
+        if (shortcut) {
           this.options.onUserInteraction?.()
           this.options.onShortcutRequested?.(shortcut)
         }

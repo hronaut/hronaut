@@ -170,12 +170,12 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.reload).toHaveBeenCalledWith('active')
   })
 
-  it('preserves global and Home interaction guards', async () => {
+  it('keeps tab close available while preserving page interaction guards', async () => {
     const harness = createHarness()
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }
     await harness.controller.closeTab('active')
     await harness.controller.toggleTabHumanInteraction()
-    expect(harness.browser.closeTab).not.toHaveBeenCalled()
+    expect(harness.browser.closeTab).toHaveBeenCalledWith('active')
     expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
 
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: false }

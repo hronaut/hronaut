@@ -498,7 +498,7 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('closeTab')).toEqual([[audible.id]])
   })
 
-  it('keeps the keyboard close shortcut unavailable while all tab closing is locked', async () => {
+  it('keeps the keyboard close shortcut available while website input is locked', async () => {
     const audible = tab('audible', { active: true, audible: true })
     const view = renderTabs(browserState({
       tabs: [audible],
@@ -508,12 +508,12 @@ describe('BrowserTabsBar', () => {
     const user = userEvent.setup()
     const control = screen.getByRole('tab', { name: /Page audible/ })
 
-    expect(control).toHaveAttribute('aria-keyshortcuts', 'M')
+    expect(control).toHaveAttribute('aria-keyshortcuts', 'Delete M')
     control.focus()
     await user.keyboard('{Delete}')
     await user.keyboard('m')
 
-    expect(view.emitted('closeTab')).toBeUndefined()
+    expect(view.emitted('closeTab')).toEqual([[audible.id]])
     expect(view.emitted('toggleTabMuted')).toEqual([[audible]])
   })
 
@@ -597,7 +597,7 @@ describe('BrowserTabsBar', () => {
     expect(view.emitted('selectTab')).toBeUndefined()
   })
 
-  it('does not middle-click close tabs while all browser interaction is locked', async () => {
+  it('middle-click closes tabs while website interaction is locked', async () => {
     const first = tab('first', { active: true })
     const view = renderTabs(browserState({
       tabs: [first],
@@ -609,7 +609,7 @@ describe('BrowserTabsBar', () => {
     screen.getByRole('tab', { name: 'Page first' }).dispatchEvent(event)
 
     expect(event.defaultPrevented).toBe(true)
-    expect(view.emitted('closeTab')).toBeUndefined()
+    expect(view.emitted('closeTab')).toEqual([[first.id]])
   })
 
   it('rejects drag targets from another workspace before showing a drop affordance', async () => {

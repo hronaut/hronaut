@@ -877,14 +877,12 @@ export const frFR = {
     },
     "locks": {
       "websiteOnly": "Le verrouillage des onglets est disponible sur les sites",
-      "allLocked": "La saisie humaine dans les pages et la fermeture des onglets sont bloquées ; les commandes Hronaut et les agents continuent de fonctionner",
+      "allLocked": "La saisie humaine dans les pages est bloquée ; les contrôles Hronaut fiables et les agents continuent de fonctionner",
       "unlockTab": "Déverrouiller la saisie dans cet onglet",
       "lockTab": "Verrouiller la saisie dans cet onglet",
-      "unlockAll": "Autoriser la saisie humaine et la fermeture de tous les onglets de sites. La protection du focus reste automatique.",
-      "lockAll": "Bloquer la saisie humaine et la fermeture de tous les onglets de sites ; les commandes Hronaut et les agents continuent de fonctionner. La protection du focus reste automatique.",
-      "unlockToClose": "Déverrouillez tous les onglets pour fermer celui-ci",
+      "unlockAll": "Autoriser la saisie humaine dans tous les onglets de sites web. La protection du focus reste automatique.",
+      "lockAll": "Bloquer la saisie humaine dans tous les onglets de sites web ; les contrôles Hronaut fiables et les agents continuent de fonctionner. La protection du focus reste automatique.",
       "closeShortcut": "Fermer l’onglet (Ctrl/Cmd+W)",
-      "closeUnavailable": "Impossible de fermer l’onglet lorsque tous les onglets sont verrouillés",
       "inputLocked": "La saisie dans la page est verrouillée",
       "inputLock": "Verrouillage de la saisie dans la page"
     },

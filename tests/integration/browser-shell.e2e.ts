@@ -2137,6 +2137,55 @@ test('shows a recoverable site error and retries the failed address', async ({ a
   }
 })
 
+test('closes an unavailable tab while an agent retries it and website input is locked', async ({ appWindow }) => {
+  const server = createServer((_request, response) => response.end())
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Unavailable-tab fixture did not expose a port')
+  const failedUrl = `http://127.0.0.1:${address.port}/agent-retry`
+  await closeFixtureServer(server)
+
+  const tabId = await appWindow.evaluate(async (url) => {
+    const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+    const state = await browser.newTab({ url, active: true })
+    return state.activeTabId
+  }, failedUrl)
+  expect(tabId).toBeTruthy()
+  await expect.poll(() => appWindow.evaluate((id) => (
+    window as unknown as { hronaut: HronautApi }
+  ).hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === id)?.pageProblem), tabId)).toMatchObject({
+    kind: 'load-error',
+    errorDescription: 'ERR_CONNECTION_REFUSED'
+  })
+
+  try {
+    await appWindow.evaluate(async (id) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      await browser.setAllHumanInteractionLocked(true)
+      const shell = globalThis as typeof globalThis & { __hronautUnavailableRetry?: number }
+      shell.__hronautUnavailableRetry = window.setInterval(() => {
+        void browser.reload(id).catch(() => undefined)
+      }, 25)
+    }, tabId!)
+
+    const tab = appWindow.locator(`[data-tab-id="${tabId}"]`)
+    await tab.locator('.tab-close').click()
+    await expect.poll(() => appWindow.evaluate((id) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((state) => state.tabs.some((tab) => tab.id === id)), tabId)).toBe(false)
+  } finally {
+    await appWindow.evaluate(async () => {
+      const shell = globalThis as typeof globalThis & { __hronautUnavailableRetry?: number }
+      if (shell.__hronautUnavailableRetry !== undefined) window.clearInterval(shell.__hronautUnavailableRetry)
+      delete shell.__hronautUnavailableRetry
+      await (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(false)
+    }).catch(() => undefined)
+  }
+})
+
 test('does not report a superseded address navigation as failed', async ({ appWindow }) => {
   let markSlowRequested: (() => void) | undefined
   let markSlowAborted: (() => void) | undefined
@@ -4209,7 +4258,7 @@ test('keeps the visual tab overview grouped, responsive, lock-safe, and passive 
     const singleCardBounds = await defaultCard.boundingBox()
     expect(singleCardBounds).not.toBeNull()
     expect(singleCardBounds!.width).toBeLessThanOrEqual(420)
-    await expect(defaultCard.getByRole('button', { name: 'Close Overview default target' })).toBeDisabled()
+    await expect(defaultCard.getByRole('button', { name: 'Close Overview default target' })).toBeEnabled()
     await search.press('Enter')
     await expect(overview).toBeHidden()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'))
@@ -5116,7 +5165,7 @@ test('keeps the active tab when a sleeping close replacement cannot wake', async
   }
 })
 
-test('does not finish a pending tab close after the global interaction lock engages', async ({
+test('finishes a pending tab close after the website interaction lock engages', async ({
   appWindow,
   electronApp
 }) => {
@@ -5205,8 +5254,8 @@ test('does not finish a pending tab close after the global interaction lock enga
     })
 
     expect(state.allHumanInteractionLocked).toBe(true)
-    expect(state.activeTabId).toBe(activeTabId)
-    expect(state.tabs.some((tab) => tab.id === activeTabId)).toBe(true)
+    expect(state.activeTabId).toBe(replacementTabId)
+    expect(state.tabs.some((tab) => tab.id === activeTabId)).toBe(false)
   } finally {
     await electronApp.evaluate(() => {
       const control = (globalThis as typeof globalThis & {
@@ -7465,7 +7514,7 @@ test('keeps human input blocked while an agent acts in a locked tab', async ({
   }
 })
 
-test('locks website input and tab closing across Hronaut while keeping browser chrome usable', async ({
+test('locks website input while keeping trusted browser chrome usable', async ({
   appWindow,
   electronApp
 }) => {
@@ -7686,7 +7735,16 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await appWindow.getByRole('button', { name: 'Close settings' }).click()
     await expect(appWindow.getByRole('dialog', { name: 'Settings' })).not.toBeVisible()
 
-    await appWindow.getByRole('tab', { name: /Interaction lock second/ }).locator('.tab-close').evaluate((element) => {
+    const closeEscapeTabId = await appWindow.evaluate(async () => {
+      const api = (window as unknown as { hronaut: HronautApi }).hronaut
+      return (await api.newTab({
+        url: 'data:text/html,<title>Locked close escape</title>',
+        active: false
+      })).tabs.find((tab) => tab.url.includes('Locked close escape'))?.id
+    })
+    expect(closeEscapeTabId).toBeTruthy()
+    await expect(appWindow.getByRole('tab')).toHaveCount(3)
+    await appWindow.locator(`[data-tab-id="${closeEscapeTabId}"]`).locator('.tab-close').evaluate((element) => {
       ;(element as unknown as { click: () => void }).click()
     })
     await expect(appWindow.getByRole('tab')).toHaveCount(2)
@@ -7704,9 +7762,9 @@ test('locks website input and tab closing across Hronaut while keeping browser c
         .map((id) => ({ id, enabled: menu?.getMenuItemById(id)?.enabled,
           ...(menu?.getMenuItemById(id) ? {} : { observedMenuIds: menu?.items.map(item => item.id) ?? [] }) }))
     })).toEqual([
-      { id: 'close-tab', enabled: false },
-      { id: 'close-other-tabs', enabled: false },
-      { id: 'close-tabs-to-right', enabled: false },
+      { id: 'close-tab', enabled: true },
+      { id: 'close-other-tabs', enabled: true },
+      { id: 'close-tabs-to-right', enabled: true },
       { id: 'close-duplicate-tabs', enabled: false }
     ])
     await expect.poll(() => electronApp.evaluate(() => {
@@ -7764,18 +7822,15 @@ test('locks website input and tab closing across Hronaut while keeping browser c
     await expect.poll(() => fixtureScrollY(secondPath)).toBe(0)
     await expect.poll(() => fixtureWheelEvents(secondPath)).toBe(0)
     const firstTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(firstPath)})).id)`)
-    const secondTabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.url.includes(${JSON.stringify(secondPath)})).id)`)
     await appWindow.getByRole('tab', { name: /Interaction lock first/ }).click()
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
     await clickFixture(firstPath)
     await expect.poll(() => fixtureClicks(firstPath)).toBe(2)
 
+    await appWindow.keyboard.press('Control+T')
+    await expect(appWindow.getByRole('tab')).toHaveCount(3)
     await appWindow.keyboard.press('Control+W')
     await expect(appWindow.getByRole('tab')).toHaveCount(2)
-    await appWindow.keyboard.press('Control+Tab')
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(secondTabId)
-    await appWindow.keyboard.press('Control+Shift+Tab')
-    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(firstTabId)
 
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
     await expect(appWindow.getByRole('button', { name: /Block human page input/ })).toHaveAttribute('aria-pressed', 'false')

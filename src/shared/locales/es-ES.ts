@@ -877,14 +877,12 @@ export const esES = {
     },
     "locks": {
       "websiteOnly": "El bloqueo de pestaña está disponible en sitios web",
-      "allLocked": "La entrada humana en las páginas y el cierre de pestañas están bloqueados; los controles de Hronaut y los agentes siguen funcionando",
+      "allLocked": "La entrada humana en las páginas está bloqueada; los controles de confianza de Hronaut y los agentes siguen funcionando",
       "unlockTab": "Desbloquear la entrada en esta pestaña",
       "lockTab": "Bloquear la entrada en esta pestaña",
-      "unlockAll": "Permitir la entrada humana y el cierre de todas las pestañas de sitios. La protección del foco sigue siendo automática.",
-      "lockAll": "Bloquear la entrada humana y el cierre de todas las pestañas de sitios; los controles de Hronaut y los agentes siguen funcionando. La protección del foco sigue siendo automática.",
-      "unlockToClose": "Desbloquea todas las pestañas para cerrar esta",
+      "unlockAll": "Permitir la entrada humana en todas las pestañas de sitios web. La protección del foco sigue siendo automática.",
+      "lockAll": "Bloquear la entrada humana en todas las pestañas de sitios web; los controles de confianza de Hronaut y los agentes siguen funcionando. La protección del foco sigue siendo automática.",
       "closeShortcut": "Cerrar pestaña (Ctrl/Cmd+W)",
-      "closeUnavailable": "No se puede cerrar una pestaña mientras todas están bloqueadas",
       "inputLocked": "La entrada en la página está bloqueada",
       "inputLock": "Bloqueo de entrada en la página"
     },

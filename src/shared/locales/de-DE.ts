@@ -877,14 +877,12 @@ export const deDE = {
     },
     "locks": {
       "websiteOnly": "Tab-Sperre ist auf Websites verfügbar",
-      "allLocked": "Menschliche Seiteneingabe und das Schließen von Tabs sind blockiert; Hronaut-Bedienelemente und Agenten arbeiten weiter",
+      "allLocked": "Menschliche Seiteneingabe ist blockiert; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter",
       "unlockTab": "Seiteneingabe in diesem Tab entsperren",
       "lockTab": "Seiteneingabe in diesem Tab sperren",
-      "unlockAll": "Menschliche Seiteneingabe und das Schließen aller Website-Tabs zulassen. Der Fokusschutz bleibt automatisch aktiv.",
-      "lockAll": "Menschliche Seiteneingabe und das Schließen aller Website-Tabs blockieren; Hronaut-Bedienelemente und Agenten arbeiten weiter. Der Fokusschutz bleibt automatisch aktiv.",
-      "unlockToClose": "Entsperre alle Tabs, um diesen Tab zu schließen",
+      "unlockAll": "Menschliche Seiteneingabe in allen Website-Tabs zulassen. Der Fokusschutz bleibt automatisch aktiv.",
+      "lockAll": "Menschliche Seiteneingabe in allen Website-Tabs blockieren; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter. Der Fokusschutz bleibt automatisch aktiv.",
       "closeShortcut": "Tab schließen (Ctrl/Cmd+W)",
-      "closeUnavailable": "Tab kann nicht geschlossen werden, solange alle Tabs gesperrt sind",
       "inputLocked": "Seiteneingabe ist gesperrt",
       "inputLock": "Seiteneingabesicherung"
     },

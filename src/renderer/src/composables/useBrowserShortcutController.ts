@@ -151,7 +151,6 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
     if (
       disposed
       || !options.canRunAction(action)
-      || (options.state.value.allHumanInteractionLocked && action === 'close-tab')
     ) return false
     const operationGeneration = generation
     try {

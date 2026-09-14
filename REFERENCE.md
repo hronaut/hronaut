@@ -137,7 +137,7 @@ Browser CSV exports contain readable passwords. Delete the export after confirmi
 
 ## Prevent accidental human interaction
 
-Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock the entire app. Both block human mouse, wheel, context-menu, and keyboard input. A full-app lock leaves only its own unlock button active, so it is still easy to release. MCP inspection and interaction continue to work while human input is locked.
+Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
 
 ## Right-click webpage actions
 
