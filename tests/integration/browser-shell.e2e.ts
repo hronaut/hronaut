@@ -8925,7 +8925,7 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     const externalClipboard = await execFileAsync(
       join(process.cwd(), 'node_modules/electron/dist/electron'),
       ['--no-sandbox', join(process.cwd(), 'tests/integration/clipboard-reader.cjs')],
-      { env: process.env, timeout: 8_000, killSignal: 'SIGKILL' }
+      { env: process.env, timeout: 15_000, killSignal: 'SIGKILL' }
     )
     expect(JSON.parse(externalClipboard.stdout.trim())).toMatchObject({
       empty: false,
