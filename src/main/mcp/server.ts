@@ -458,7 +458,7 @@ export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
-  'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. Use coordinate-based visual tools only when the target has no usable semantic representation.',
+  'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. For repeated inspection, set a browser_snapshot baseline and request bounded deltas; establish a fresh baseline after any invalidation. Use coordinate-based visual tools only when the target has no usable semantic representation.',
   'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
 ].join('\n')
@@ -660,7 +660,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   },
   { name: 'browser_navigate', category: 'Navigation', description: 'Navigate to a URL or search phrase.' },
   { name: 'browser_history', category: 'Navigation', description: 'Go back, forward, reload normally or without cache, or stop loading.' },
-  { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded.' },
+  { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs, or set and compare a volatile bounded semantic baseline. Delta results distinguish unchanged, changed, truncated, and invalidated context; navigation or workspace-control drift requires a fresh baseline. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded. A baseline is not authority or proof of an external postcondition.' },
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
@@ -2544,9 +2544,40 @@ function createBrowserMcpServer(
     'browser_snapshot',
     {
       description: toolDescription('browser_snapshot'),
-      inputSchema: { tabId: tabIdSchema.optional(), maxChars: z.number().int().min(1_000).max(100_000).optional() }
+      inputSchema: {
+        action: z.enum(['capture', 'set-baseline', 'delta', 'clear-baseline']).default('capture'),
+        tabId: tabIdSchema.optional(),
+        maxChars: z.number().int().min(1_000).max(100_000).optional()
+          .describe('Bounded snapshot size for capture or set-baseline.'),
+        baselineId: z.string().uuid().optional()
+          .describe('Opaque baseline handle required by delta and optional for clear-baseline.'),
+        maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
+          .describe('Maximum compact JSON characters returned by delta.'),
+        advanceBaseline: z.boolean().optional()
+          .describe('Advance a complete, untruncated baseline after delta; defaults to true.')
+      }
     },
-    tabTool('browser_snapshot', async ({ tabId, maxChars }: { tabId?: string; maxChars?: number }) => {
+    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline }: {
+      action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline'
+      tabId?: string
+      maxChars?: number
+      baselineId?: string
+      maxOutputChars?: number
+      advanceBaseline?: boolean
+    }) => {
+      if (action === 'set-baseline') {
+        const snapshot = await manager.setSnapshotBaseline(tabId, maxChars)
+        return { ...textResult(snapshot.text), structuredContent: snapshot }
+      }
+      if (action === 'delta') {
+        if (!baselineId) throw new TypeError('baselineId is required for a snapshot delta')
+        const delta = await manager.snapshotDelta({ tabId, baselineId, maxOutputChars, advanceBaseline })
+        return { content: [{ type: 'text', text: JSON.stringify(delta) }], structuredContent: delta }
+      }
+      if (action === 'clear-baseline') {
+        const cleared = manager.clearSnapshotBaseline(tabId, baselineId)
+        return { ...textResult(cleared), structuredContent: cleared }
+      }
       const snapshot = await manager.snapshotDetails(tabId, maxChars)
       return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
     })

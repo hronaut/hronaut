@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add bounded semantic snapshot baselines and deltas for repeated agent inspection, with explicit unchanged results, complete change counts, output truncation, and stable invalidation reasons across navigation, tab, format, and workspace-control drift.
+
 ### Changed
 
 - Fan release Electron integration tests across three isolated hosted runners, preserving full coverage while reducing the release gate from one sequential suite to three concurrent partitions.
