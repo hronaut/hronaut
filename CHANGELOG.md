@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 - Show workspace descriptions beneath their names in the left navigation panel, with compact two-line previews and the full description on hover.
 - Keep address-history suggestions aligned with final client-rendered page titles without counting title changes as extra visits.
 - Resume live tab previews after a timed-out native capture eventually settles, without allowing unresolved captures to accumulate.
-- Make workspace colors easier to distinguish in dark themes with persistent color markers, stronger container tinting, and larger overview indicators.
+- Make workspace colors easier to distinguish in dark themes with persistent color markers, stronger container tinting and borders, and larger indicators.
 
 ## [2.4.8] - 2026-09-14
 

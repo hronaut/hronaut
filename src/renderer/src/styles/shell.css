@@ -266,6 +266,18 @@
 .tab-group-label.active {
   @apply [color:var(--text)];
 }
+:root[data-theme="dark"] .workspace-tab-section {
+  @apply [border-width:2px] [border-color:color-mix(in_srgb,_var(--tab-group-color)_62%,_var(--border-soft))] [background:color-mix(in_srgb,_var(--tab-group-color)_18%,_var(--shell-bottom))];
+}
+:root[data-theme="dark"] .tab-group-label {
+  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_24%,_var(--toolbar))];
+}
+:root[data-theme="dark"] .tab-group-label::before {
+  @apply [width:5px] [height:18px] [box-shadow:0_0_0_3px_color-mix(in_srgb,_var(--tab-group-color)_34%,_transparent)];
+}
+:root[data-theme="dark"] .tab-group-label.active {
+  @apply [background:color-mix(in_srgb,_var(--tab-group-color)_32%,_var(--toolbar))];
+}
 .tab-group-count {
   @apply [min-width:14px] [padding:0_2px] text-muted [font-size:11px] [font-weight:500] text-center;
 }
