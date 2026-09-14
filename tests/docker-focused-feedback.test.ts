@@ -157,9 +157,10 @@ describe('focused Docker integration feedback', () => {
   })
 
   it('avoids repeated type analysis in fast build feedback and caches lint results', async () => {
-    const [packageSource, focusedRunner, typecheckRunner] = await Promise.all([
+    const [packageSource, focusedRunner, focusedBuildCache, typecheckRunner] = await Promise.all([
       readFile('package.json', 'utf8'),
       readFile('scripts/run-focused-integration-docker.sh', 'utf8'),
+      readFile('scripts/build-app-if-needed.sh', 'utf8'),
       readFile('scripts/run-typecheck-projects.ts', 'utf8')
     ])
     const packageJson = JSON.parse(packageSource) as {
@@ -182,8 +183,10 @@ describe('focused Docker integration feedback', () => {
     expect(typecheckRunner).toContain("'tsconfig.web.json'")
     expect(typecheckRunner).toContain("'tsconfig.website.json'")
     expect(packageJson.scripts['build:app']).toBe('electron-vite build')
-    expect(focusedRunner).toContain('npm run build:app')
+    expect(focusedRunner).toContain('bash scripts/build-app-if-needed.sh')
     expect(focusedRunner).not.toContain('npm run build\n')
+    expect(focusedBuildCache).toContain('npm run build:app')
+    expect(focusedBuildCache).toContain('cached_output')
   })
 
   it('runs independent static gates concurrently and allows CI worker tuning', async () => {

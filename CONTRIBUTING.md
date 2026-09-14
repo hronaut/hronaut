@@ -76,6 +76,9 @@ volume keyed by the lockfile and dependency-image definition, then bind-mount
 the current checkout.
 Source and test edits therefore take effect immediately without rebuilding the
 full source image, while dependency changes still trigger `npm ci` in Docker.
+Focused Electron runs also reuse the generated application when its inputs and
+output hash are unchanged. Editing application source or configuration, or
+changing generated output, forces a fresh build automatically.
 Old focused dependency volumes can be removed explicitly with
 `npm run test:docker:cache:prune`.
 
