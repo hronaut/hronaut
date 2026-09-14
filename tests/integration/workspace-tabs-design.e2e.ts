@@ -45,15 +45,19 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
           return {
             marker: marker.backgroundColor,
             markerWidth: marker.width,
+            markerShadow: marker.boxShadow,
             labelBackground: label.backgroundColor,
             sectionBackground: section.backgroundColor,
-            sectionBorder: section.borderColor
+            sectionBorder: section.borderColor,
+            sectionBorderWidth: section.borderWidth
           }
         })
         expect(workspaceColor.marker).toBe('rgb(139, 124, 246)')
-        expect(workspaceColor.markerWidth).toBe('3px')
+        expect(workspaceColor.markerWidth).toBe('5px')
+        expect(workspaceColor.markerShadow).not.toBe('none')
         expect(workspaceColor.labelBackground).not.toBe(workspaceColor.sectionBackground)
         expect(workspaceColor.sectionBorder).not.toBe('rgb(50, 50, 57)')
+        expect(workspaceColor.sectionBorderWidth).toBe('2px')
       }
       await captureChrome(appWindow, testInfo.outputPath(`${orientation}-${theme}-two-workspaces.png`))
     }
