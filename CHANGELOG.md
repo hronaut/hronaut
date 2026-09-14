@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.7] - 2026-09-14
+
 ### Fixed
 
 - Load advertised favicon candidates concurrently so a stalled icon URL cannot leave a valid website icon waiting behind repeated network timeouts.
