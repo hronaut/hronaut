@@ -4057,6 +4057,48 @@ test('bootstraps a live tab preview when its first capture finishes after the ov
   }
 })
 
+test('resumes a live tab preview after a timed-out native capture eventually settles', async ({
+  appWindow,
+  electronApp
+}) => {
+  const url = 'data:text/html,<title>Late overview capture</title><main style="min-height:600px;background:%23ffffff">Before timeout</main>'
+  const state = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`) as BrowserState
+  const tabId = state.activeTabId
+  if (!tabId) throw new Error('Late overview capture tab was not created')
+
+  await appWindow.getByRole('button', { name: 'Search tabs' }).click()
+  const overview = appWindow.getByRole('dialog', { name: 'Tabs' })
+  const card = overview.locator('.tab-overview-card', { hasText: 'Late overview capture' })
+  const preview = card.locator('.tab-overview-preview > img')
+  await expect(preview).toHaveAttribute('src', /^data:image\/jpeg;base64,/)
+  const initialPreview = await preview.getAttribute('src')
+  expect(initialPreview).toBeTruthy()
+
+  await electronApp.evaluate(({ webContents }, targetUrl) => {
+    const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === targetUrl)
+    if (!contents) throw new Error('Late overview capture page is unavailable')
+    const capturePage = contents.capturePage.bind(contents)
+    const state = { calls: 0 }
+    ;(globalThis as typeof globalThis & { __hronautLateOverviewCapture?: typeof state }).__hronautLateOverviewCapture = state
+    contents.capturePage = async (...args: Parameters<typeof contents.capturePage>) => {
+      state.calls += 1
+      if (state.calls === 1) await new Promise((resolve) => setTimeout(resolve, 2_250))
+      return capturePage(...args)
+    }
+  }, url)
+  await electronApp.evaluate(async ({ webContents }, targetUrl) => {
+    const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === targetUrl)
+    if (!contents) throw new Error('Late overview capture page is unavailable')
+    await contents.executeJavaScript("document.querySelector('main').style.background = '#006b5b'; document.querySelector('main').textContent = 'After timeout'")
+  }, url)
+  await appWindow.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}])`)
+
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & { __hronautLateOverviewCapture?: { calls: number } }
+  ).__hronautLateOverviewCapture?.calls ?? 0), { timeout: 8_000 }).toBeGreaterThanOrEqual(2)
+  await expect.poll(() => preview.getAttribute('src'), { timeout: 8_000 }).not.toBe(initialPreview)
+})
+
 test('keeps the visual tab overview grouped, responsive, lock-safe, and passive for sleeping tabs', async ({
   appWindow,
   electronApp

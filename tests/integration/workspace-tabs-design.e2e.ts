@@ -34,8 +34,27 @@ for (const orientation of ['horizontal', 'vertical'] as const) {
     const empty = await createWorkspace(appWindow, 'Empty review', 'cyan')
     for (const theme of ['light', 'dark']) {
       await appWindow.evaluate(`window.hronautSettings.setTheme('${theme}')`)
-      await expect(appWindow.locator('.tab-group-label', { hasText: 'Research' })).toBeInViewport()
+      const researchLabel = appWindow.locator('.tab-group-label', { hasText: 'Research' })
+      await expect(researchLabel).toBeInViewport()
       await expect(appWindow.locator('.tab-group-label', { hasText: 'Empty review' })).toBeInViewport()
+      if (theme === 'dark') {
+        const workspaceColor = await researchLabel.evaluate(element => {
+          const label = getComputedStyle(element)
+          const marker = getComputedStyle(element, '::before')
+          const section = getComputedStyle(element.closest('.workspace-tab-section')!)
+          return {
+            marker: marker.backgroundColor,
+            markerWidth: marker.width,
+            labelBackground: label.backgroundColor,
+            sectionBackground: section.backgroundColor,
+            sectionBorder: section.borderColor
+          }
+        })
+        expect(workspaceColor.marker).toBe('rgb(139, 124, 246)')
+        expect(workspaceColor.markerWidth).toBe('3px')
+        expect(workspaceColor.labelBackground).not.toBe(workspaceColor.sectionBackground)
+        expect(workspaceColor.sectionBorder).not.toBe('rgb(50, 50, 57)')
+      }
       await captureChrome(appWindow, testInfo.outputPath(`${orientation}-${theme}-two-workspaces.png`))
     }
     await appWindow.evaluate("window.hronautSettings.setTheme('light')")

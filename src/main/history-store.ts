@@ -141,6 +141,23 @@ export class HistoryStore {
     })
   }
 
+  async updateTitle(value: { url: string; title: string }): Promise<BrowserHistoryEntry | null> {
+    const url = normalizeHistoryUrl(value.url)
+    if (!url) return null
+    return this.queueMutation(async () => {
+      const existing = [...this.entries.values()].find((entry) => entry.url === url)
+      if (!existing) return null
+      const title = normalizeTitle(value.title, url, value.url)
+      if (title === existing.title) return { ...existing }
+      const nextEntries = new Map(this.entries)
+      const updated = { ...existing, title }
+      nextEntries.set(existing.id, updated)
+      await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      return { ...updated }
+    })
+  }
+
   async remove(id: string): Promise<boolean> {
     return this.queueMutation(async () => {
       if (!this.entries.has(id)) return false

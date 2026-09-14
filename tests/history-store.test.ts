@@ -43,6 +43,27 @@ describe('HistoryStore', () => {
     expect(restored.list()).toEqual(store.list())
   })
 
+  it('updates a recorded page title without counting another visit', async () => {
+    const { path, store } = await storeAt()
+    await store.record({ url: 'https://example.com/dashboard#loading', title: 'Loading account' })
+
+    await expect(store.updateTitle({
+      url: 'https://example.com/dashboard#ready',
+      title: 'Account dashboard'
+    })).resolves.toMatchObject({ title: 'Account dashboard', visitCount: 1 })
+
+    expect(store.list()).toEqual([
+      expect.objectContaining({
+        url: 'https://example.com/dashboard',
+        title: 'Account dashboard',
+        visitCount: 1
+      })
+    ])
+    const restored = new HistoryStore(path, () => Date.UTC(2026, 7, 13))
+    await restored.load()
+    expect(restored.list()).toEqual(store.list())
+  })
+
   it('lets shutdown wait for already-queued history writes', async () => {
     const { path, store } = await storeAt()
     const recording = store.record({

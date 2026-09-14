@@ -92,7 +92,7 @@
   @apply flex-col items-stretch [grid-column:1_/_-1] [padding-left:5px];
 }
 .browser-tabs-bar.vertical .tab-group-label {
-  @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1] [background:color-mix(in_srgb,_var(--tab-group-color)_8%,_var(--toolbar))];
+  @apply sticky [top:0] [z-index:4] w-full [max-width:none] [height:28px] m-0 [grid-column:1_/_-1] [background:color-mix(in_srgb,_var(--tab-group-color)_16%,_var(--toolbar))];
 }
 .browser-tabs-bar.vertical .workspace-tab-description {
   @apply min-w-0 [grid-column:1_/_-1] m-0 [padding:0_6px_2px_25px] overflow-hidden text-muted [font-size:11px] [line-height:1.45] whitespace-pre-line [overflow-wrap:anywhere];
@@ -197,12 +197,12 @@
 }
 .tabs-strip::-webkit-scrollbar { @apply hidden; }
 .workspace-tab-section {
-  @apply flex [flex:0_1_auto] [min-width:min-content] items-center [gap:4px] [height:37px] [padding:3px] [border:1px_solid_var(--border-soft)] [border-radius:8px] [background:color-mix(in_srgb,_var(--tab-group-color)_4%,_var(--shell-bottom))];
+  @apply flex [flex:0_1_auto] [min-width:min-content] items-center [gap:4px] [height:37px] [padding:3px] [border:1px_solid_color-mix(in_srgb,_var(--tab-group-color)_38%,_var(--border-soft))] [border-radius:8px] [background:color-mix(in_srgb,_var(--tab-group-color)_10%,_var(--shell-bottom))];
 }
 .workspace-tab-list { @apply flex min-w-0 items-center [gap:3px]; }
 .workspace-tab-list:empty { @apply hidden; }
 .browser-tabs-bar.horizontal .tab-group-label {
-  @apply sticky [left:0] [z-index:4] [background:color-mix(in_srgb,_var(--tab-group-color)_8%,_var(--toolbar))];
+  @apply sticky [left:0] [z-index:4] [background:color-mix(in_srgb,_var(--tab-group-color)_16%,_var(--toolbar))];
 }
 @media (max-width: 1300px) {
   .browser-tabs-bar.horizontal .new-workspace { @apply [width:28px] p-0 justify-center; }
@@ -247,6 +247,10 @@
 }
 .tab-group-label > svg {
   @apply [width:14px] [height:14px] flex-none;
+}
+.tab-group-label::before {
+  @apply [width:3px] [height:16px] flex-none [border-radius:999px] [background:var(--tab-group-color)] [box-shadow:0_0_0_2px_color-mix(in_srgb,_var(--tab-group-color)_22%,_transparent)];
+  content: "";
 }
 .tab-group-label > .tab-group-default-badge { @apply [width:13px] [height:13px] [opacity:.84]; }
 .tab-group-label > span:not(.tab-group-count) {
