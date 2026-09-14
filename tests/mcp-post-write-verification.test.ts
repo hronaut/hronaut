@@ -8,9 +8,15 @@ it('removes private verification predicates before constructing a page-world cli
       expectedOrigin: 'https://example.invalid', accountSelector: '#account',
       expectedAccount: 'private-account-canary', stateSelector: '#state',
       expectedText: 'private-state-canary'
+    },
+    reconciliation: {
+      mode: 'update', logicalItemKey: 'private-logical-key', targetIdentity: 'private-target',
+      sourceRevision: 'private-source', expectedOrigin: 'https://example.invalid',
+      accountSelector: '#account', expectedAccount: 'private-account-canary', stateSelector: '#state',
+      expectedCurrentText: 'old', expectedText: 'private-state-canary'
     }
   }
   const pageInput = browserClickPageInput(input)
   expect(pageInput).toEqual({ tabId: 'tab', selector: '#submit' })
-  expect(JSON.stringify(pageInput)).not.toMatch(/private-account-canary|private-state-canary/)
+  expect(JSON.stringify(pageInput)).not.toMatch(/private-account-canary|private-state-canary|private-logical-key|private-target|private-source/)
 })

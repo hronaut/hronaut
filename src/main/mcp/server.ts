@@ -12,6 +12,11 @@ import type { AuditVerificationUpdate } from './audit-receipt-run.js'
 import type { AuditReceiptAuthorization } from './audit-receipt-store.js'
 import { runPostWriteVerification } from './post-write-verification-runner.js'
 import type { BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import {
+  classifyBrowserReconciliation,
+  type BrowserReconciliationCondition,
+  type BrowserReconciliationResult
+} from '../../shared/browser-reconciliation.js'
 import type { HumanWaitingReviewBinding, HumanWaitingService } from './human-waiting-service.js'
 import { humanWaitingArtifactHash } from './human-waiting-store.js'
 import type { TaskRunService } from './task-run-service.js'
@@ -509,6 +514,7 @@ const BROWSER_TOOL_METADATA = {
   browser_preflight: readOnlyTool('Check workspace readiness'),
   browser_audit_receipts: destructiveTool('Manage action audit receipts', false, false),
   browser_task_runs: destructiveTool('Manage task-run contracts', false, false),
+  browser_reconciliation: readOnlyTool('Reconcile a browser record'),
   browser_workspaces: destructiveTool('Manage browser workspaces', false, false),
   browser_saved_workspaces: destructiveTool('Manage saved workspaces', false, false),
   browser_status: readOnlyTool('Show browser status'),
@@ -604,6 +610,10 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   {
     name: 'browser_task_runs', category: 'Session',
     description: 'Register, heartbeat, inspect, complete, or report privacy-safe review metrics for a bounded browser-workflow contract. Hronaut derives success from configured current-page or retained-audit checks; a caller message alone cannot mark success. Reports distinguish interruptions, approvals, rejections, system-caught errors, decision time, completed tasks, and ambiguous outcomes using retained correlation IDs and timestamps only. Missing heartbeats, deadlines, unavailable evidence, restarts, and evidence drift remain explicit terminal states. Stores no prompt, page text, result body, credentials, or arbitrary artifact contents. This workflow contract is separate from the MCP Tasks extension for deferred execution of one tool call.'
+  },
+  {
+    name: 'browser_reconciliation', category: 'Session',
+    description: 'Perform a bounded, read-only lookup of one logical item and target before a visible browser write. Returns new, already_present, changed, not_found, blocked, or unknown from exact isolated-world origin, account, and target comparisons. Identifiers and page values are returned only as domain-separated fingerprints. Repeat the same reconciliation as a browser_click precondition to prevent stale preparation from dispatching a write.'
   },
   {
     name: 'browser_workspaces',
@@ -782,6 +792,7 @@ const QA_TOOL_NAMES = new Set([
   'browser_continuity',
   'browser_audit_receipts',
   'browser_task_runs',
+  'browser_reconciliation',
   'browser_element_inspect',
   'browser_generate_locator',
   'browser_emulate',
@@ -967,6 +978,66 @@ function withPostWriteVerification(result: CallToolResult, verification: { statu
   }
 }
 
+type PublicBrowserReconciliation = BrowserReconciliationResult & {
+  logicalItemFingerprint: string
+  targetFingerprint: string
+  sourceRevisionFingerprint: string
+}
+
+function reconciliationFingerprint(kind: 'logical-item' | 'target' | 'source-revision', value: string): string {
+  return createHash('sha256').update(`hronaut-reconciliation-${kind}-v1\0`).update(value, 'utf8').digest('hex')
+}
+
+function publicBrowserReconciliation(
+  input: { logicalItemKey: string; targetIdentity: string; sourceRevision: string; mode: BrowserReconciliationCondition['mode'] },
+  evidence: import('../../shared/browser-reconciliation.js').BrowserReconciliationEvidence
+): PublicBrowserReconciliation {
+  return {
+    ...classifyBrowserReconciliation(input.mode, evidence),
+    logicalItemFingerprint: reconciliationFingerprint('logical-item', input.logicalItemKey),
+    targetFingerprint: reconciliationFingerprint('target', input.targetIdentity),
+    sourceRevisionFingerprint: reconciliationFingerprint('source-revision', input.sourceRevision)
+  }
+}
+
+function withPreWriteReconciliation(result: CallToolResult, reconciliation: PublicBrowserReconciliation): CallToolResult {
+  const structured = result.structuredContent
+  return {
+    ...result,
+    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
+      ? { structuredContent: { ...structured, preWriteReconciliation: reconciliation } } : {}),
+    content: result.content.map(item => {
+      if (item.type !== 'text') return item
+      try {
+        const value = JSON.parse(item.text) as unknown
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
+        return { ...item, text: JSON.stringify({ ...value, preWriteReconciliation: reconciliation }, null, 2) }
+      } catch { return item }
+    })
+  }
+}
+
+function withReconciliationOutcome(result: CallToolResult, outcome: {
+  status: 'verified' | 'blocked' | 'reconciliation_required'
+  authoritativeReadback: 'verified' | 'not-verified'
+  dispatch: 'not-dispatched' | 'dispatched-once'
+}): CallToolResult {
+  const structured = result.structuredContent
+  return {
+    ...result,
+    ...(structured && typeof structured === 'object' && !Array.isArray(structured)
+      ? { structuredContent: { ...structured, reconciliationOutcome: outcome } } : {}),
+    content: result.content.map(item => {
+      if (item.type !== 'text') return item
+      try {
+        const value = JSON.parse(item.text) as unknown
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return item
+        return { ...item, text: JSON.stringify({ ...value, reconciliationOutcome: outcome }, null, 2) }
+      } catch { return item }
+    })
+  }
+}
+
 function withReviewContinuation(result: CallToolResult, continuation: {
   id: string
   revision: string
@@ -1033,8 +1104,8 @@ export function classifyMcpActivityResult(input: {
   }
 }
 
-export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown }): Omit<T, 'postcondition'> {
-  const { postcondition: _postcondition, ...pageInput } = input
+export function browserClickPageInput<T extends object>(input: T & { postcondition?: unknown; reconciliation?: unknown }): Omit<T, 'postcondition' | 'reconciliation'> {
+  const { postcondition: _postcondition, reconciliation: _reconciliation, ...pageInput } = input
   return pageInput
 }
 
@@ -1286,6 +1357,25 @@ function createBrowserMcpServer(
     z.object({ steps: z.array(consequentialReviewStepSchema).min(2).max(4) }).strict()
   ])
   type ConsequentialReviewStepRequest = z.infer<typeof consequentialReviewStepSchema>
+  const reconciliationConditionSchema = z.object({
+    mode: z.enum(['create', 'update', 'upsert']),
+    expectedOrigin: z.string().max(2048).describe('Exact HTTP(S) origin for the authoritative visible record.'),
+    accountSelector: z.string().trim().min(1).max(256).describe('Unique selector whose bounded text identifies the expected account.'),
+    expectedAccount: z.string().trim().min(1).max(512).describe('Exact account marker. Used transiently and excluded from receipts.'),
+    stateSelector: z.string().trim().min(1).max(256).describe('Unique selector for the target record state.'),
+    expectedText: z.string().max(512).describe('Exact desired target text. Used transiently and excluded from receipts.'),
+    expectedCurrentText: z.string().max(512).optional().describe('Exact pre-write target text. Required for update and rechecked at dispatch.')
+  }).strict().superRefine((value, context) => {
+    if (value.mode === 'update' && value.expectedCurrentText === undefined) {
+      context.addIssue({ code: 'custom', path: ['expectedCurrentText'], message: 'Update reconciliation requires expectedCurrentText' })
+    }
+  })
+  type ReconciliationConditionRequest = z.infer<typeof reconciliationConditionSchema>
+  const reconciliationRequestSchema = reconciliationConditionSchema.safeExtend({
+    logicalItemKey: z.string().min(1).max(512),
+    targetIdentity: z.string().min(1).max(512),
+    sourceRevision: z.string().min(1).max(512)
+  })
 
   registerTool(
     'browser_workspaces',
@@ -1481,7 +1571,7 @@ function createBrowserMcpServer(
   ])
   // Explicit inspection operations remain available for reconciliation. Do not
   // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
-  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention'])
+  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention', 'browser_reconciliation'])
   const workspaceToolInputSchemas = new Map<string, z.ZodObject<Record<string, z.ZodType>>>()
   const humanReviewSessionBinding = createHash('sha256')
     .update('hronaut-human-review-session-v1\0')
@@ -1593,9 +1683,25 @@ function createBrowserMcpServer(
           : undefined
         const postWrite = name === 'browser_click' && actionInput.postcondition
           ? actionInput.postcondition as PostWriteRequest : undefined
+        const reconciliation = name === 'browser_click' && actionInput.reconciliation
+          ? actionInput.reconciliation as ReconciliationConditionRequest & {
+            logicalItemKey: string
+            targetIdentity: string
+            sourceRevision: string
+          } : undefined
         if (postWrite && (!resolvedTabId || !auditReceipts?.isRecording(workspaceId))) {
           throw new Error('Post-write verification requires an active browser_audit_receipts run and a page tab target')
         }
+        if (reconciliation && (!resolvedTabId || !postWrite)) {
+          throw new Error('Pre-write reconciliation requires a page tab target and postcondition')
+        }
+        if (reconciliation && postWrite && (
+          reconciliation.expectedOrigin !== postWrite.expectedOrigin
+          || reconciliation.accountSelector !== postWrite.accountSelector
+          || reconciliation.expectedAccount !== postWrite.expectedAccount
+          || reconciliation.stateSelector !== postWrite.stateSelector
+          || reconciliation.expectedText !== postWrite.expectedText
+        )) throw new Error('Pre-write reconciliation and postcondition must describe the same authoritative target')
         const postWriteCondition: BrowserPostcondition | undefined = postWrite ? {
           expectedOrigin: postWrite.expectedOrigin,
           accountSelector: postWrite.accountSelector,
@@ -1670,6 +1776,7 @@ function createBrowserMcpServer(
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
         let reviewAttempt: { id: string; revision: string } | undefined
+        let preWriteReconciliation: PublicBrowserReconciliation | undefined
         const finishReviewedAttempt = async (outcome: 'verified' | 'unknown'): Promise<import('../../shared/human-waiting.js').HumanWaitingRecord | undefined> => {
           if (!reviewAttempt || !humanWaiting) return
           const attempt = reviewAttempt
@@ -1683,6 +1790,36 @@ function createBrowserMcpServer(
           if (admissionRejection) return admissionRejection
           requireCurrentTarget()
           requirePostWriteContext()
+          if (reconciliation && resolvedTabId) {
+            const condition: BrowserReconciliationCondition = {
+              mode: reconciliation.mode,
+              expectedOrigin: reconciliation.expectedOrigin,
+              accountSelector: reconciliation.accountSelector,
+              expectedAccount: reconciliation.expectedAccount,
+              stateSelector: reconciliation.stateSelector,
+              expectedText: reconciliation.expectedText,
+              ...(reconciliation.expectedCurrentText !== undefined
+                ? { expectedCurrentText: reconciliation.expectedCurrentText } : {})
+            }
+            const evidence = await manager.readBrowserReconciliation(
+              workspaceId, resolvedTabId, condition, requireCurrentTarget, extra?.signal
+            )
+            requireCurrentTarget()
+            requirePostWriteContext()
+            preWriteReconciliation = publicBrowserReconciliation(reconciliation, evidence)
+            if (!preWriteReconciliation.actionable) {
+              const alreadyPresent = preWriteReconciliation.status === 'already_present'
+              const outcome = {
+                status: alreadyPresent ? 'SKIPPED_ALREADY_PRESENT' : 'RECONCILIATION_BLOCKED',
+                retrySafe: false,
+                preWriteReconciliation,
+                nextAction: alreadyPresent
+                  ? 'Treat the authoritative target as already satisfied; do not dispatch or retry this write.'
+                  : 'Inspect the authoritative target and prepare a fresh reconciliation before deciding whether to write.'
+              }
+              return { ...textResult(outcome), structuredContent: outcome, ...(!alreadyPresent ? { isError: true } : {}) }
+            }
+          }
           if (activityId && activityToolName && resolvedTabId) {
             activityStarted = true
             onTabActivity?.({
@@ -1742,7 +1879,7 @@ function createBrowserMcpServer(
             }
             const scoped = scopeBrowserStateResult(result, manager.getMcpGroupState(workspaceId))
             if (scoped.isError) await finishReviewedAttempt('unknown')
-            return scoped
+            return preWriteReconciliation ? withPreWriteReconciliation(scoped, preWriteReconciliation) : scoped
           } finally {
             finishContinuityAction()
           }
@@ -1890,6 +2027,14 @@ function createBrowserMcpServer(
           throw error
         }
         let finalResult = verificationResult ? withPostWriteVerification(result, verificationResult) : result
+        if (preWriteReconciliation) {
+          finalResult = withReconciliationOutcome(finalResult, {
+            status: verificationResult?.status === 'verified' ? 'verified'
+              : activityDispatched ? 'reconciliation_required' : 'blocked',
+            authoritativeReadback: verificationResult?.status === 'verified' ? 'verified' : 'not-verified',
+            dispatch: activityDispatched ? 'dispatched-once' : 'not-dispatched'
+          })
+        }
         if (verificationResult?.status === 'verified') {
           const completed = await finishReviewedAttempt('verified')
           if (completed?.state === 'RESOLVED' && completed.review?.steps && completed.review.currentStep !== undefined) {
@@ -2705,6 +2850,31 @@ function createBrowserMcpServer(
     }) => textResult(await manager.generatePlaywrightLocator(options)))
   )
   registerWorkspaceTool(
+    'browser_reconciliation',
+    {
+      description: toolDescription('browser_reconciliation'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        ...reconciliationRequestSchema.shape
+      }
+    },
+    tabTool('browser_reconciliation', async (input: ReconciliationConditionRequest & {
+      workspaceId: string
+      tabId: string
+      logicalItemKey: string
+      targetIdentity: string
+      sourceRevision: string
+    }) => {
+      const evidence = await manager.readBrowserReconciliation(
+        input.workspaceId,
+        input.tabId,
+        input,
+        () => { requireAgentWorkspace(input.workspaceId) }
+      )
+      return textResult(publicBrowserReconciliation(input, evidence))
+    })
+  )
+  registerWorkspaceTool(
     'browser_click',
     {
       description: toolDescription('browser_click'),
@@ -2731,7 +2901,8 @@ function createBrowserMcpServer(
           timeoutMs: z.number().int().min(250).max(30_000).default(10_000),
           maxAttempts: z.number().int().min(1).max(5).default(4),
           initialDelayMs: z.number().int().min(50).max(5_000).default(250)
-        }).strict().optional().describe('After one click, perform bounded read-only checks with backoff. Requires an active action-receipt run; Hronaut never repeats the click.')
+        }).strict().optional().describe('After one click, perform bounded read-only checks with backoff. Requires an active action-receipt run; Hronaut never repeats the click.'),
+        reconciliation: reconciliationRequestSchema.optional().describe('Repeat a bounded pre-write lookup immediately before dispatch. Must describe the same target and desired state as postcondition; a missing, stale, ambiguous, or already-satisfied target prevents the click.')
       }
     },
     tabTool('browser_click', async (input: {
@@ -2745,6 +2916,11 @@ function createBrowserMcpServer(
       dialogAction?: 'accept' | 'dismiss'
       promptText?: string
       postcondition?: PostWriteRequest
+      reconciliation?: ReconciliationConditionRequest & {
+        logicalItemKey: string
+        targetIdentity: string
+        sourceRevision: string
+      }
     }) => textResult(await manager.click(browserClickPageInput(input))))
   )
   registerWorkspaceTool(

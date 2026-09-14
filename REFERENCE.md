@@ -441,6 +441,32 @@ exact retained verification receipt instead of a live browser surface.
 
 ### Verify a delayed browser write
 
+Use `browser_reconciliation` before a visible system-of-record write when the
+workflow needs to distinguish a new target, an already-satisfied target, a
+changed target, a missing update target, blocked context, or an ambiguous read.
+Supply a stable logical item key, target identity, source revision, create,
+update, or upsert mode, and exact origin/account/target markers. Update mode
+also requires the exact current target text. Hronaut reads once in an isolated
+world and returns only fixed status fields plus domain-separated SHA-256
+fingerprints for the logical item, target, and source revision. Raw identifiers,
+selectors, account text, and target text are not returned or added to audit
+receipts.
+
+Preparation is read-only and grants no authority. Repeat the same object as
+`browser_click.reconciliation` and provide a matching click `postcondition`.
+Hronaut repeats the lookup immediately before dispatch. Create proceeds only
+when the target is absent; update proceeds only when the exact expected current
+text still exists; upsert accepts either condition. A target that already has
+the desired value returns `SKIPPED_ALREADY_PRESENT` without clicking. Origin,
+account, precondition, navigation, control, workspace, or human-input drift;
+duplicate matches; unavailable reads; and missing update targets prevent the
+click. The preparation and click share no reusable capability, and Hronaut does
+not infer idempotency from HTTP or tool success. The click result keeps
+pre-write, dispatch, transport, and read-back states separate under
+`preWriteReconciliation`, `postWriteVerification`, and
+`reconciliationOutcome`; only an authoritative match produces `verified`, while
+a possible dispatch without that match remains `reconciliation_required`.
+
 `browser_click` accepts an optional `postcondition` when an action-receipt run is
 active. It binds the click to the current workspace, tab, HTTP(S) origin, account
 marker, and expected visible state before dispatch. After the click transport
