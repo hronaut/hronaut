@@ -319,7 +319,7 @@ interface McpTransportSession {
 }
 
 type McpRequestAuthorization =
-  | { kind: 'full-access' }
+  | { kind: 'full-access'; generation: string }
   | { kind: 'capability-profile'; grant: McpCapabilityGrant }
 
 const MCP_REQUEST_AUTHORIZATION = Symbol('mcp-request-authorization')
@@ -4018,6 +4018,7 @@ export class McpHttpServer {
   private totalRequests = 0
   private paused = false
   private token: string | undefined
+  private fullAccessAuthorityGeneration = randomUUID()
   private toolSet: McpToolSet
   private readonly clients = new Map<string, McpClientActivity>()
   private readonly transportSessions = new Map<string, McpTransportSession>()
@@ -4037,7 +4038,10 @@ export class McpHttpServer {
   }
 
   setAuthenticationToken(token: string | undefined): void {
+    if (this.token === token) return
     this.token = token
+    this.fullAccessAuthorityGeneration = randomUUID()
+    this.actionTracker.invalidatePendingDispatches()
   }
 
   setToolSet(toolSet: McpToolSet): void {
@@ -4280,26 +4284,31 @@ export class McpHttpServer {
   }
 
   private authenticateRequest(authorization: string | undefined): McpRequestAuthorization | null {
-    if (this.token === undefined) return { kind: 'full-access' }
+    if (this.token === undefined) return { kind: 'full-access', generation: this.fullAccessAuthorityGeneration }
     const bearer = authorization?.match(/^Bearer +(\S+)$/i)?.[1]
     if (!bearer) return null
-    if (bearer === this.token) return { kind: 'full-access' }
+    if (bearer === this.token) return { kind: 'full-access', generation: this.fullAccessAuthorityGeneration }
     const grant = this.options.capabilityProfiles?.authenticate(bearer)
     return grant ? { kind: 'capability-profile', grant } : null
   }
 
   private sameAuthorization(left: McpRequestAuthorization, right: McpRequestAuthorization): boolean {
     if (left.kind !== right.kind) return false
-    if (left.kind === 'full-access' || right.kind === 'full-access') return true
-    return left.grant.profileId === right.grant.profileId
-      && left.grant.revision === right.grant.revision
-      && left.grant.credentialId === right.grant.credentialId
+    if (left.kind === 'full-access' && right.kind === 'full-access') {
+      return left.generation === right.generation
+    }
+    if (left.kind === 'capability-profile' && right.kind === 'capability-profile') {
+      return left.grant.profileId === right.grant.profileId
+        && left.grant.revision === right.grant.revision
+        && left.grant.credentialId === right.grant.credentialId
+    }
+    return false
   }
 
   private beginRequest(
     request: Request,
-    sessionClient?: McpClientActivity,
-    authorization: McpRequestAuthorization = { kind: 'full-access' }
+    sessionClient: McpClientActivity | undefined,
+    authorization: McpRequestAuthorization
   ): McpClientActivity {
     const body = (request.body ?? {}) as {
       method?: unknown

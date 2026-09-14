@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Invalidate existing full-access MCP sessions and pending browser dispatches when the authentication mode or token changes, so approvals cannot survive credential rotation.
+- Keep workspace descriptions available from workspace-header hover text without permanently taking space in the tab navigation.
+
 ## [2.4.9] - 2026-09-15
 
 ### Fixed
