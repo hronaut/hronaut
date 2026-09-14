@@ -146,6 +146,55 @@ test('loads an authenticated favicon and retains it while the same page reloads'
   }
 })
 
+test('uses a valid favicon promptly while an earlier advertised candidate is stalled', async ({ appWindow, electronApp }) => {
+  const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
+  let releaseStalled!: () => void
+  const stalled = new Promise<void>((resolve) => { releaseStalled = resolve })
+  let stalledRequests = 0
+  let validRequests = 0
+  const server = createServer(async (request, response) => {
+    if (request.url === '/stalled-icon') {
+      stalledRequests += 1
+      await stalled
+      response.writeHead(503)
+      response.end()
+      return
+    }
+    if (request.url === '/valid-icon') {
+      validRequests += 1
+      releaseStalled()
+      response.writeHead(200, { 'content-type': 'image/png', 'content-length': png.length })
+      response.end(png)
+      return
+    }
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Fallback icon</title><main>Fallback icon</main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Fallback favicon server is unavailable')
+    const url = `http://127.0.0.1:${address.port}/page`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.loading)')).toBe(false)
+    await electronApp.evaluate(({ webContents }, fixture) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === fixture.url)
+      if (!page) throw new Error('Fallback favicon page is unavailable')
+      page.emit('page-favicon-updated', {} as never, [fixture.stalled, fixture.valid])
+    }, {
+      url,
+      stalled: `http://127.0.0.1:${address.port}/stalled-icon`,
+      valid: `http://127.0.0.1:${address.port}/valid-icon`
+    })
+    await expect.poll(() => stalledRequests).toBeGreaterThan(0)
+    await expect.poll(() => validRequests, { timeout: 3_000 }).toBeGreaterThan(0)
+    await expect(appWindow.locator('.tab.active .favicon-image')).toHaveAttribute('src', /^data:image\/png;base64,/)
+  } finally {
+    releaseStalled?.()
+    await closeFixtureServer(server)
+  }
+})
+
 test('persists a favicon that finishes after the navigation state save', async ({ appWindow, profileDirectory }) => {
   const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
   let releaseFavicon!: () => void

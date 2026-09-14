@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Load advertised favicon candidates concurrently so a stalled icon URL cannot leave a valid website icon waiting behind repeated network timeouts.
+
 ### Added
 
 - Add durable workspace descriptions so people and agents can record and recover each workspace's purpose, current work, and stored browser context.
