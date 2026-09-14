@@ -573,9 +573,9 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         class="tab-group-label"
         :class="{ active: tabGroupContainsActiveTab(workspace.id) }"
         :style="tabGroupColorStyle(workspace.color)"
-        :title="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), vertical ? workspace.description : ''].filter(Boolean).join('\n\n')"
+        :title="[t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expand' : 'runtime.tabs.collapse', { name: workspace.name, id: workspace.id }), workspace.description].filter(Boolean).join('\n\n')"
         :aria-label="t(isTabGroupCollapsed(workspace.id) ? 'runtime.tabs.expandAria' : 'runtime.tabs.collapseAria', { name: workspace.name, count: formatNumber(tabGroupTabCount(workspace.id)) }, tabGroupTabCount(workspace.id))"
-        :aria-describedby="vertical && workspace.description ? `workspace-tab-description-${workspace.id}` : undefined"
+        :aria-description="workspace.description || undefined"
         :aria-expanded="!isTabGroupCollapsed(workspace.id)"
         type="button"
         @click="toggleTabGroup(workspace.id)"
@@ -586,12 +586,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
         <span>{{ workspace.name }}</span>
         <span class="tab-group-count" aria-hidden="true">{{ tabGroupTabCount(workspace.id) }}</span>
       </UiButton>
-      <p
-        v-if="vertical && workspace.description"
-        :id="`workspace-tab-description-${workspace.id}`"
-        class="workspace-tab-description"
-        :title="workspace.description"
-      >{{ workspace.description }}</p>
       <div
         class="workspace-tab-list"
         role="tablist"

@@ -8,6 +8,7 @@ import {
   McpCapabilityProfileStore,
   mcpCapabilityArgumentValueDigest
 } from '../src/main/mcp/capability-profile-store.js'
+import { McpActionTracker } from '../src/main/mcp/action-tracker.js'
 import {
   assertMcpToolRegistrationContract,
   MCP_FAILED_AUTH_LIMIT,
@@ -37,9 +38,12 @@ describe('MCP HTTP authentication', () => {
 
 describe('MCP HTTP authentication middleware order', () => {
   let server: McpHttpServer | undefined
+  let client: Client | undefined
 
   afterEach(async () => {
+    await client?.close().catch(() => undefined)
     await server?.stop()
+    client = undefined
     server = undefined
   })
 
@@ -100,6 +104,71 @@ describe('MCP HTTP authentication middleware order', () => {
     })
     expect(authorized.status).toBe(200)
     await expect(authorized.json()).resolves.toMatchObject({ ok: true, name: 'hronaut' })
+  })
+
+  it.each([
+    ['token rotates', `${TOKEN}-rotated`],
+    ['authentication is disabled', undefined]
+  ])('requires a fresh transport session when the full-access %s', async (_change, nextToken) => {
+    const manager = {
+      listMcpTabGroups: () => [],
+      listSavedTabGroups: () => [],
+      listWorkspaceForkSources: () => []
+    }
+    const actionTracker = new McpActionTracker()
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', token: TOKEN,
+      actionTracker,
+      showWindowInactive: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never,
+      history: {} as never,
+      siteData: {} as never
+    })
+    const endpoint = await server.start()
+    const headers = new Headers({ authorization: `Bearer ${TOKEN}` })
+    client = new Client({ name: 'rotated-full-access-client', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint), { requestInit: { headers } }))
+    await expect(client.listTools()).resolves.toHaveProperty('tools')
+
+    const initialControlRevision = actionTracker.controlRevision
+    server.setAuthenticationToken(nextToken)
+    expect(actionTracker.controlRevision).toBe(initialControlRevision + 1)
+    if (nextToken) headers.set('authorization', `Bearer ${nextToken}`)
+    else headers.delete('authorization')
+
+    await expect(client.listTools()).rejects.toThrow()
+  })
+
+  it('preserves a full-access transport when the configured token is unchanged', async () => {
+    const manager = {
+      listMcpTabGroups: () => [],
+      listSavedTabGroups: () => [],
+      listWorkspaceForkSources: () => []
+    }
+    const actionTracker = new McpActionTracker()
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', token: TOKEN,
+      actionTracker,
+      showWindowInactive: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never,
+      history: {} as never,
+      siteData: {} as never
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'unchanged-full-access-client', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: { headers: { authorization: `Bearer ${TOKEN}` } }
+    }))
+    const initialControlRevision = actionTracker.controlRevision
+
+    server.setAuthenticationToken(TOKEN)
+
+    expect(actionTracker.controlRevision).toBe(initialControlRevision)
+    await expect(client.listTools()).resolves.toHaveProperty('tools')
   })
 })
 
