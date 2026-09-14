@@ -1,6 +1,18 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { expect, test } from './fixtures.js'
+
+const injectedUpdateTest = test.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({
+      checkForUpdatesOnStartup: false,
+      interfaceScale: 1,
+      tabPosition: 'top',
+      mcpToolSet: 'complete'
+    }))
+    await use(profileDirectory)
+  }
+})
 
 test('configures and checks updates through the Settings dialog', async ({ appWindow, profileDirectory }) => {
   await appWindow.getByRole('button', { name: 'Settings' }).click()
@@ -20,7 +32,7 @@ test('configures and checks updates through the Settings dialog', async ({ appWi
   await expect(updateStatus).toContainText('Update checks are available in packaged builds.')
 })
 
-test('shows update status beside MCP ready and opens update details without moving the webpage', async ({
+injectedUpdateTest('shows update status beside MCP ready and opens update details without moving the webpage', async ({
   appWindow,
   electronApp
 }) => {
@@ -76,7 +88,7 @@ test('shows update status beside MCP ready and opens update details without movi
   await expect(updatePanel.getByRole('button', { name: 'Download update' })).toBeVisible()
 })
 
-test('renders formatted release notes and removes unsafe update content', async ({ appWindow, electronApp }) => {
+injectedUpdateTest('renders formatted release notes and removes unsafe update content', async ({ appWindow, electronApp }) => {
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeVisible()
   await electronApp.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.webContents.send('updates:changed', {
@@ -125,7 +137,7 @@ test('renders formatted release notes and removes unsafe update content', async 
   await expect(notes.locator('.markdown-alert-note')).toContainText('Restart Hronaut after installation.')
 })
 
-test('offers installation retry after system authorization fails', async ({ appWindow, electronApp }) => {
+injectedUpdateTest('offers installation retry after system authorization fails', async ({ appWindow, electronApp }) => {
   await expect(appWindow.getByRole('button', { name: 'Settings' })).toBeVisible()
   await electronApp.evaluate(({ BrowserWindow }) => {
     BrowserWindow.getAllWindows()[0]?.webContents.send('updates:changed', {
