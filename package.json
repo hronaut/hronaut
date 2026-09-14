@@ -75,6 +75,7 @@
     "test:unit:docker:focused": "node scripts/run-focused-docker.ts unit",
     "test:integration:docker:focused": "node scripts/run-focused-docker.ts integration",
     "test:integration:docker:fast": "node scripts/run-focused-docker.ts integration-all",
+    "evaluate:browser:docker": "node scripts/run-browser-evaluation.ts",
     "test:docker:cache:prune": "node scripts/run-focused-docker.ts prune",
     "test:integration:docker": "docker compose --file compose.test.ci.yaml run --build --rm integration",
     "test:package:smoke": "node scripts/packaged-mcp-smoke.ts",
