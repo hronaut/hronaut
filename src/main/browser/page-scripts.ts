@@ -1,3 +1,5 @@
+import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../../shared/snapshot.js'
+
 export function snapshotScript(maxChars: number, includeMetadata = false): string {
   return `(() => {
     const MAX_CHARS = ${maxChars};
@@ -59,7 +61,7 @@ export function snapshotScript(maxChars: number, includeMetadata = false): strin
     omitted.bodyText = bodyText.length > Math.max(0, MAX_CHARS - lines.join('\\n').length - (lines.length ? 1 : 0) - 6);
     if (bodyText) add('TEXT: ' + bodyText.slice(0, Math.max(0, MAX_CHARS - lines.join('\\n').length)));
     const text = lines.join('\\n').slice(0, MAX_CHARS);
-    return ${includeMetadata} ? { text, maxChars: MAX_CHARS, returnedChars: text.length,
+    return ${includeMetadata} ? { formatVersion: ${BROWSER_SNAPSHOT_FORMAT_VERSION}, text, maxChars: MAX_CHARS, returnedChars: text.length,
       truncated: Object.values(omitted).some(Boolean), omitted } : text;
   })()`
 }

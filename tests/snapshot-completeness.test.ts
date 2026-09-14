@@ -1,6 +1,7 @@
 import { runInNewContext } from 'node:vm'
 import { expect, it } from 'vitest'
 import { snapshotScript } from '../src/main/browser/page-scripts.js'
+import { BROWSER_SNAPSHOT_FORMAT_VERSION } from '../src/shared/snapshot.js'
 
 const capture = (body: string, limit = 1000) => runInNewContext(snapshotScript(limit, true), {
   URL,
@@ -10,7 +11,7 @@ const capture = (body: string, limit = 1000) => runInNewContext(snapshotScript(l
 
 it('reports an under-limit snapshot without exposing redacted URL values', () => {
   const result = capture('Small page')
-  expect(result).toMatchObject({ truncated: false, maxChars: 1000, returnedChars: expect.any(Number) })
+  expect(result).toMatchObject({ formatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION, truncated: false, maxChars: 1000, returnedChars: expect.any(Number) })
   expect(result.returnedChars).toBe(result.text.length)
   expect(result.text).toContain('Small page')
   expect(JSON.stringify(result)).not.toContain('private-canary')

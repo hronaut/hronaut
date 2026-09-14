@@ -47,6 +47,12 @@ import type { SupportedLocale } from '../../shared/locale.js'
 import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import type { BrowserSnapshot } from '../../shared/snapshot.js'
+import {
+  BROWSER_SNAPSHOT_FORMAT_VERSION,
+  boundedSnapshotDelta,
+  snapshotDeltaInvalidationReason,
+  type BrowserSnapshotDeltaContext
+} from '../../shared/snapshot-delta.js'
 import { safeNavigationHistorySnapshot } from './navigation-history.js'
 import { McpActivityFollowController } from './mcp-activity-follow-controller.js'
 import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard.js'
@@ -338,6 +344,7 @@ const MAX_TABS = MAX_BROWSER_TABS
 const MAX_SAVED_TAB_GROUPS = 50
 const MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES = 50
 const MAX_ACTIVE_WORKSPACES = 50
+const MAX_SNAPSHOT_BASELINES = 64
 const MAX_CLOSED_TABS = MAX_TABS
 const MAX_WORKSPACE_NAME_LENGTH = 80
 const WORKSPACE_OPERATION_DRAIN_TIMEOUT_MS = 8_000
@@ -657,6 +664,11 @@ interface BrowserTab {
     baseline: BrowserStorageSnapshot
     current?: BrowserStorageSnapshot
   }
+}
+
+interface BrowserSnapshotBaselineRecord {
+  context: BrowserSnapshotDeltaContext
+  snapshot: BrowserSnapshot
 }
 
 type TabOverviewPreviewCaptureMode = 'visible' | 'overview'
@@ -1172,6 +1184,8 @@ export class BrowserTabsManager {
   }
 
   private readonly tabs = new Map<string, BrowserTab>()
+  private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
+  private readonly snapshotBaselineIdsByTab = new Map<string, string>()
   private readonly mcpTabGroups = new Map<string, BrowserTabGroup>()
   private readonly savedTabGroups = new Map<string, BrowserSavedTabGroupInternal>()
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
@@ -4103,6 +4117,7 @@ export class BrowserTabsManager {
     this.runWalletLifecycleAction('cancel wallet requests after closing a tab', () => (
       this.options.onWalletTabClosed?.(tab.id)
     ))
+    this.deleteSnapshotBaselineForTab(tab.id)
     this.tabs.delete(tab.id)
     this.mcpActivitiesByTab.delete(tab.id)
     this.mcpActivityFollower.removeTab(tab.id)
@@ -4386,7 +4401,151 @@ export class BrowserTabsManager {
 
   async snapshotDetails(tabId?: string, maxChars = 30_000): Promise<BrowserSnapshot> {
     const tab = this.getTab(tabId)
-    return tab.webContents.executeJavaScript(snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true), true)
+    const context = this.snapshotDeltaContext(tab)
+    const snapshot = await tab.webContents.executeJavaScript(
+      snapshotScript(Math.min(Math.max(maxChars, 1_000), 100_000), true),
+      true
+    ) as BrowserSnapshot
+    if (snapshot.formatVersion !== BROWSER_SNAPSHOT_FORMAT_VERSION) {
+      throw new Error('The page snapshot format changed during capture. Capture a fresh snapshot.')
+    }
+    const current = this.tabs.get(tab.id)
+    if (!current || current !== tab || current.webContents.isDestroyed()) {
+      throw new Error('The snapshot tab changed while it was being observed. Capture a fresh snapshot.')
+    }
+    const invalidation = snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(current))
+    if (invalidation) {
+      throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
+    }
+    return snapshot
+  }
+
+  async setSnapshotBaseline(tabId?: string, maxChars = 30_000) {
+    const tab = this.getTab(tabId)
+    const snapshot = await this.snapshotDetails(tab.id, maxChars)
+    const context = this.snapshotDeltaContext(this.getTab(tab.id))
+    this.deleteSnapshotBaselineForTab(tab.id)
+    while (this.snapshotBaselines.size >= MAX_SNAPSHOT_BASELINES) {
+      const oldestId = this.snapshotBaselines.keys().next().value as string | undefined
+      if (!oldestId) break
+      const oldest = this.snapshotBaselines.get(oldestId)
+      this.snapshotBaselines.delete(oldestId)
+      if (oldest && this.snapshotBaselineIdsByTab.get(oldest.context.tabId) === oldestId) {
+        this.snapshotBaselineIdsByTab.delete(oldest.context.tabId)
+      }
+    }
+    const baselineId = randomUUID()
+    this.snapshotBaselines.set(baselineId, { context, snapshot })
+    this.snapshotBaselineIdsByTab.set(tab.id, baselineId)
+    return { action: 'set-baseline' as const, status: 'baseline' as const, baselineId, context, ...snapshot }
+  }
+
+  clearSnapshotBaseline(tabId?: string, baselineId?: string) {
+    const tab = this.getTab(tabId)
+    const currentId = this.snapshotBaselineIdsByTab.get(tab.id)
+    const cleared = Boolean(currentId && (!baselineId || baselineId === currentId))
+    if (cleared) this.deleteSnapshotBaselineForTab(tab.id)
+    return {
+      action: 'clear-baseline' as const,
+      status: 'cleared' as const,
+      baselineId: baselineId ?? currentId ?? null,
+      cleared
+    }
+  }
+
+  async snapshotDelta(options: {
+    tabId?: string
+    baselineId: string
+    maxOutputChars?: number
+    advanceBaseline?: boolean
+  }) {
+    const tab = this.getTab(options.tabId)
+    const context = this.snapshotDeltaContext(tab)
+    const baseline = this.snapshotBaselines.get(options.baselineId)
+    const maxOutputChars = options.maxOutputChars ?? 12_000
+    if (!baseline) {
+      return {
+        action: 'delta' as const,
+        status: 'invalidated' as const,
+        baselineId: options.baselineId,
+        context,
+        invalidationReason: 'baseline-not-found' as const,
+        maxOutputChars,
+        truncated: false,
+        changes: []
+      }
+    }
+    const invalidationReason = snapshotDeltaInvalidationReason(baseline.context, context)
+    if (invalidationReason) {
+      return {
+        action: 'delta' as const,
+        status: 'invalidated' as const,
+        baselineId: options.baselineId,
+        context,
+        invalidationReason,
+        maxOutputChars,
+        truncated: false,
+        changes: []
+      }
+    }
+
+    let snapshot: BrowserSnapshot
+    try {
+      snapshot = await this.snapshotDetails(tab.id, baseline.snapshot.maxChars)
+    } catch (error) {
+      const current = this.tabs.get(tab.id)
+      if (current && !current.webContents.isDestroyed()) {
+        const changedDuringCapture = snapshotDeltaInvalidationReason(
+          baseline.context,
+          this.snapshotDeltaContext(current)
+        )
+        if (changedDuringCapture) {
+          return {
+            action: 'delta' as const,
+            status: 'invalidated' as const,
+            baselineId: options.baselineId,
+            context: this.snapshotDeltaContext(current),
+            invalidationReason: changedDuringCapture,
+            maxOutputChars,
+            truncated: false,
+            changes: []
+          }
+        }
+      }
+      throw error
+    }
+    const { text, ...sourceSnapshot } = snapshot
+    const result = boundedSnapshotDelta(baseline.snapshot.text, text, maxOutputChars, {
+      action: 'delta',
+      baselineId: options.baselineId,
+      context,
+      sourceSnapshot,
+      baselineAdvanced: false,
+      authorityGranted: false
+    })
+    if (options.advanceBaseline !== false && result.truncated === false) {
+      baseline.context = context
+      baseline.snapshot = snapshot
+      result.baselineAdvanced = true
+    }
+    return result
+  }
+
+  private snapshotDeltaContext(tab: BrowserTab): BrowserSnapshotDeltaContext {
+    return {
+      tabId: tab.id,
+      workspaceId: tab.mcpGroupId ?? null,
+      navigationGeneration: tab.navigationGeneration,
+      observationGeneration: tab.observationGeneration,
+      humanInteractionGeneration: tab.humanInteractionGeneration,
+      snapshotFormatVersion: BROWSER_SNAPSHOT_FORMAT_VERSION
+    }
+  }
+
+  private deleteSnapshotBaselineForTab(tabId: string): void {
+    const baselineId = this.snapshotBaselineIdsByTab.get(tabId)
+    if (baselineId) this.snapshotBaselines.delete(baselineId)
+    this.snapshotBaselineIdsByTab.delete(tabId)
   }
 
   async findSnapshot(options: SnapshotSearchOptions & { tabId?: string }): Promise<SnapshotSearchResult & { tabId: string; sourceSnapshot: Omit<BrowserSnapshot, 'text'> }> {
