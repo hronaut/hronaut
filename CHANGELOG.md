@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.6] - 2026-09-14
+
 ### Fixed
 
 - Align MCPB release metadata with Hronaut's current Subscription and Trial License instead of the superseded PolyForm identifier.
