@@ -1258,17 +1258,19 @@ function createBrowserMcpServer(
         workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
         resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
+        description: z.string().max(1_000).optional().describe('Durable workspace purpose and context. Describe why it exists, current work, and what useful browser state it stores. Returned by list and resume.'),
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
         sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose an active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
         storage: z.enum(['scratch', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
         origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.')
       }
     },
-    tool(async ({ action, workspaceId, resumeKey, name, color, storage, origins, sourceWorkspaceId }: {
+    tool(async ({ action, workspaceId, resumeKey, name, description, color, storage, origins, sourceWorkspaceId }: {
       action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins'
       workspaceId?: string
       resumeKey?: string
       name?: string
+      description?: string
       color?: BrowserTabGroupColor
       storage?: 'scratch' | 'fork-workspace'
       sourceWorkspaceId?: string
@@ -1313,10 +1315,10 @@ function createBrowserMcpServer(
             throw new Error('MCP control changed before workspace creation. Obtain fresh state before retrying.')
           }
           requireActiveCapabilityDispatch('browser_workspaces', {
-            action, name, color, storage, sourceWorkspaceId,
+            action, name, description, color, storage, sourceWorkspaceId,
             ...(scopedOrigins ? { origins: scopedOrigins } : {})
           })
-          const created = await manager.createMcpTabGroup(name, color, storage, scopedOrigins, true, undefined, sourceWorkspaceId)
+          const created = await manager.createMcpTabGroup(name, color, storage, scopedOrigins, true, undefined, sourceWorkspaceId, description)
           activeWorkspaceIds.add(created.id)
           if (!await forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
@@ -1355,8 +1357,8 @@ function createBrowserMcpServer(
         return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
       }
       if (action === 'update') {
-        if (!name && !color) throw new TypeError('name or color is required to update a workspace')
-        return textResult(manager.updateMcpTabGroup(workspaceId, { name, color }, true))
+        if (name === undefined && description === undefined && color === undefined) throw new TypeError('name, description, or color is required to update a workspace')
+        return textResult(manager.updateMcpTabGroup(workspaceId, { name, description, color }, true))
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
       await manager.closeMcpTabGroup(workspaceId)

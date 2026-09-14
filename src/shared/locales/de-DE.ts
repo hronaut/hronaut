@@ -137,8 +137,8 @@ export const deDE = {
   workspaceTemplates: {
     remove: "Arbeitsbereich {number} entfernen",
     title: "Tragbare Arbeitsbereichsvorlagen",
-    scope: "Vorlagen enthalten nur Namen, Farben und ausgewählte Startseiten. Cookies, lokaler Speicher, Passwörter, Token, Arbeitsbereichsidentitäten, Website-Zugriffsregeln und Browserberechtigungen sind ausgeschlossen.",
-    privacy: "Namen und URLs können private Informationen enthalten. Prüfen Sie jeden Eintrag vor dem Speichern oder Importieren. Ein Export beginnt mit einem allgemeinen Namen und ohne Seiten.",
+    scope: "Vorlagen enthalten nur Namen, Beschreibungen, Farben und ausgewählte Startseiten. Cookies, lokaler Speicher, Passwörter, Token, Arbeitsbereichsidentitäten, Website-Zugriffsregeln und Browserberechtigungen sind ausgeschlossen.",
+    privacy: "Namen, Beschreibungen und URLs können private Informationen enthalten. Prüfen Sie jeden Eintrag vor dem Speichern oder Importieren. Ein Export beginnt mit allgemeinen Metadaten und ohne Seiten.",
     newExport: "Export vorbereiten",
     source: "Quellplattform: {platform}",
     entry: "Arbeitsbereich {number}",
@@ -158,6 +158,7 @@ export const deDE = {
     addSource: "Quellfarbe als neuen Eintrag hinzufügen",
     chooseDetails: "Diese Angaben werden nicht automatisch übernommen. Ein ausgewählter Name oder eine Seite wird dem letzten Eintrag unten hinzugefügt.",
     includeName: "Quellnamen im letzten Eintrag übernehmen",
+    includeDescription: "Quellbeschreibung im letzten Eintrag übernehmen",
     openFile: "Arbeitsbereichsvorlage öffnen",
     saveFile: "Arbeitsbereichsvorlage speichern",
     readFailed: "Die Vorlage konnte nicht gelesen werden. Wählen Sie eine gültige UTF-8-JSON-Vorlage mit höchstens 256 KiB.",
@@ -503,6 +504,9 @@ export const deDE = {
 
     "kicker": "Browser-Arbeitsbereich",
     "create": "Arbeitsbereich erstellen",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Zweck, aktuelle Arbeit und nützlicher Browserzustand",
+    "descriptionHelp": "Wird lokal mit diesem Arbeitsbereich gespeichert und Agenten beim Auflisten oder Fortsetzen angezeigt.",
     "edit": "Arbeitsbereich bearbeiten",
     "close": "Arbeitsbereichseditor schließen",
     "name": "Name des Arbeitsbereichs",

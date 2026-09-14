@@ -31,7 +31,7 @@ const sourcePages = computed(() => {
 })
 function addSource(): void {
   if (busy.value || !draft.value || !selectedSource.value || draft.value.workspaces.length >= 20) return
-  draft.value.workspaces.push({ name: nextWorkspaceTemplateName(draft.value.workspaces), color: selectedSource.value.color, startPages: [] })
+  draft.value.workspaces.push({ name: nextWorkspaceTemplateName(draft.value.workspaces), description: '', color: selectedSource.value.color, startPages: [] })
 }
 let disposed = false
 onBeforeUnmount(() => { disposed = true })
@@ -64,7 +64,7 @@ function newExport(): void {
   if (busy.value || retained.value.length) return
   reviewed.value = false
   const platform = window.hronautShell?.windowChrome.platform
-  draft.value = { format: 'hronaut-workspace-template', version: 1, sourcePlatform: platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : 'linux', workspaces: [{ name: 'Workspace 1', color: 'blue', startPages: [] }] }
+  draft.value = { format: 'hronaut-workspace-template', version: 1, sourcePlatform: platform === 'darwin' ? 'macos' : platform === 'win32' ? 'windows' : 'linux', workspaces: [{ name: 'Workspace 1', description: '', color: 'blue', startPages: [] }] }
   mode.value = 'export'; error.value = ''; message.value = ''; completed.value = false
 }
 async function commit(): Promise<void> {
@@ -114,6 +114,7 @@ async function cleanup(): Promise<void> {
         <template v-if="selectedSource">
           <p>{{ t('workspaceTemplates.chooseDetails') }}</p>
           <UiButton type="button" :disabled="busy" @click="draft.workspaces[draft.workspaces.length - 1]!.name = selectedSource.name">{{ t('workspaceTemplates.includeName') }}</UiButton>
+          <UiButton type="button" :disabled="busy" @click="draft.workspaces[draft.workspaces.length - 1]!.description = selectedSource.description">{{ t('workspaceTemplates.includeDescription') }}</UiButton>
           <label v-for="url in sourcePages" :key="url"><input v-model="draft.workspaces[draft.workspaces.length - 1]!.startPages" type="checkbox" :value="url" :disabled="busy" />{{ url }}</label>
         </template>
       </div>
@@ -122,10 +123,11 @@ async function cleanup(): Promise<void> {
         <legend>{{ t('workspaceTemplates.entry', { number: index + 1 }) }}</legend>
         <UiButton type="button" :disabled="draft.workspaces.length <= 1" @click="draft.workspaces.splice(index, 1)">{{ t('workspaceTemplates.remove', { number: index + 1 }) }}</UiButton>
         <label>{{ t('workspaceEditor.name') }}<input v-model="entry.name" maxlength="80" autocomplete="off" /></label>
+        <label>{{ t('workspaceEditor.description') }}<textarea v-model="entry.description" maxlength="1000" rows="3" /></label>
         <label>{{ t('workspaceEditor.color') }}<select v-model="entry.color"><option v-for="color in BROWSER_TAB_GROUP_COLORS" :key="color" :value="color">{{ color }}</option></select></label>
         <label>{{ t('workspaceTemplates.pages') }}<textarea :value="entry.startPages.join('\n')" rows="3" spellcheck="false" @input="reviewed = false" @change="entry.startPages = ($event.target as HTMLTextAreaElement).value.split('\n').filter(line => line.trim()).map(line => line.trim())" /></label>
       </fieldset>
-      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces), color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
+      <UiButton v-if="mode === 'export'" type="button" :disabled="busy || completed || draft.workspaces.length >= 20" @click="draft.workspaces.push({ name: nextWorkspaceTemplateName(draft.workspaces), description: '', color: 'blue', startPages: [] })">{{ t('workspaceTemplates.add') }}</UiButton>
       <p v-if="validation.error" role="alert">{{ validation.error }}</p>
       <p v-if="validation.collisions.length && !completed" role="alert">{{ t('workspaceTemplates.collisions', { names: validation.collisions.join(', ') }) }}</p>
       <p v-if="mode === 'import'">{{ t('workspaceTemplates.importEffect') }}</p>

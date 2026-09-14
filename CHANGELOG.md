@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add durable workspace descriptions so people and agents can record and recover each workspace's purpose, current work, and stored browser context.
+
 ## [2.4.6] - 2026-09-14
 
 ### Fixed

@@ -18,7 +18,10 @@ describe('workspace template file boundary', () => {
   it('round trips only validated metadata with owner-only export permissions', async () => {
     const path = join(await fixture(), 'template.json')
     await writeWorkspaceTemplateFile(path, manifest)
-    expect(JSON.parse(await readWorkspaceTemplateFile(path))).toEqual(JSON.parse(manifest))
+    expect(JSON.parse(await readWorkspaceTemplateFile(path))).toEqual({
+      ...JSON.parse(manifest),
+      workspaces: [{ name: 'Demo', description: '', color: 'blue', startPages: [] }]
+    })
     if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
   })
   it('does not overwrite an existing file when validation fails', async () => {

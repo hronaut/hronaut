@@ -29,7 +29,7 @@ export const HOME_WORKSPACES_SCRIPT = String.raw`
       ].sort((a, b) => b.timestamp.localeCompare(a.timestamp) || a.name.localeCompare(b.name));
       const query = workspaceSearch.value.trim().toLocaleLowerCase(locale);
       const visible = groups.filter(group => group.archived === (workspaceView === 'archived'))
-        .filter(group => (group.name + ' ' + group.tabs.map(tab => tab.title + ' ' + tab.url).join(' ')).toLocaleLowerCase(locale).includes(query));
+        .filter(group => (group.name + ' ' + (group.description || '') + ' ' + group.tabs.map(tab => tab.title + ' ' + tab.url).join(' ')).toLocaleLowerCase(locale).includes(query));
       for (const view of ['open', 'archived']) {
         const button = document.getElementById('workspaces-' + view);
         button.textContent = workspaceMessages[view] + ' (' + groups.filter(group => group.archived === (view === 'archived')).length + ')';
@@ -44,7 +44,7 @@ export const HOME_WORKSPACES_SCRIPT = String.raw`
         if (group.hiddenFromSidebar) badges.push(workspaceMessages.hidden);
         if (group.deletionProtected) badges.push(workspaceMessages.protected);
         if (group.navigationPolicy.mode === 'restricted') badges.push(workspaceMessages.restricted);
-        return '<article class="home-workspace-card" aria-label="' + escapeText(group.name) + '"><header><span class="workspace-symbol" style="--workspace-color:' + workspaceColors[group.color] + '" aria-hidden="true">' + (group.archived ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8v12h16V8M3 4h18v4H3zM9 12h6"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7V5h7l2 3h9v12H3V7z"/></svg>') + '</span><div><h2>' + escapeText(group.name) + '</h2><span>' + escapeText(workspaceCount(workspaceLabels.tabs, group.tabs.length)) + ' · ' + escapeText(workspaceCount(workspaceLabels.sites, group.storageOriginCount || 0)) + '</span></div></header><div class="home-workspace-badges">' + badges.map(label => '<span>' + escapeText(label) + '</span>').join('') + '</div><p class="home-workspace-preview">' + escapeText(group.tabs.slice(0, 2).map(tab => tab.title || tab.url).join(' · ') || workspaceMessages.noTabs) + '</p><footer>'
+        return '<article class="home-workspace-card" aria-label="' + escapeText(group.name) + '"><header><span class="workspace-symbol" style="--workspace-color:' + workspaceColors[group.color] + '" aria-hidden="true">' + (group.archived ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 8v12h16V8M3 4h18v4H3zM9 12h6"/></svg>' : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7V5h7l2 3h9v12H3V7z"/></svg>') + '</span><div><h2>' + escapeText(group.name) + '</h2><span>' + escapeText(workspaceCount(workspaceLabels.tabs, group.tabs.length)) + ' · ' + escapeText(workspaceCount(workspaceLabels.sites, group.storageOriginCount || 0)) + '</span></div></header><div class="home-workspace-badges">' + badges.map(label => '<span>' + escapeText(label) + '</span>').join('') + '</div>' + (group.description ? '<p class="home-workspace-description">' + escapeText(group.description) + '</p>' : '') + '<p class="home-workspace-preview">' + escapeText(group.tabs.slice(0, 2).map(tab => tab.title || tab.url).join(' · ') || workspaceMessages.noTabs) + '</p><footer>'
           + workspaceButton('open', group.archived ? workspaceMessages.restore : workspaceMessages.openWorkspace, group.id, false, true)
           + workspaceButton(group.archived ? 'transfer' : 'edit', group.archived ? workspaceLabels.transfer : workspaceLabels.manage, group.id)
           + workspaceButton(group.archived ? 'delete' : 'archive', group.archived ? workspaceMessages.delete : workspaceMessages.archive, group.id, workspaceState.allHumanInteractionLocked || (group.archived && group.deletionProtected))
@@ -158,6 +158,7 @@ export const HOME_WORKSPACES_STYLES = `
 .workspace-symbol { flex: 0 0 42px; display: grid; place-items: center; height: 42px; font-size: 32px; color: var(--workspace-color); border-radius: 10px; background: color-mix(in srgb, var(--workspace-color) 12%, transparent); }
 .home-workspace-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
 .home-workspace-badges span { background: var(--soft); color: var(--muted); padding: 4px 7px; border-radius: 5px; font-size: 11px; }
+.home-workspace-description { margin: 14px 0 0; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .home-workspace-preview { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 14px 0 20px; }
 .home-workspace-card footer { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
 .workspace-quick-settings { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }

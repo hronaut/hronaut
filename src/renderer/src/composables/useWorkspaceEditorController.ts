@@ -38,6 +38,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
   const mode = ref<'create' | 'edit' | 'transfer'>('edit')
   const workspaceId = ref<string | null>(null)
   const name = ref('')
+  const description = ref('')
   const color = ref<BrowserTabGroupColor>('purple')
   const error = ref('')
   const storageMode = ref<'scratch' | 'fork-workspace'>('scratch')
@@ -155,6 +156,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     options.open.value = true
     workspaceId.value = id
     name.value = group.name
+    description.value = group.description
     color.value = group.color
     hiddenFromSidebar.value = group.hiddenFromSidebar === true
     deletionProtected.value = group.deletionProtected === true
@@ -195,6 +197,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     ])
     lastSuggestedName = name.value
     color.value = 'purple'
+    description.value = ''
     hiddenFromSidebar.value = false
     deletionProtected.value = false
     agentAccess.value = true
@@ -289,6 +292,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       if (currentMode === 'create') {
         await options.syncState(options.browser.createWorkspace({
           name: name.value,
+          description: description.value,
           color: color.value,
           storage: storageMode.value,
           ...(storageMode.value !== 'scratch' ? { origins: transferOrigins() } : {}),
@@ -301,6 +305,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       } else if (currentWorkspaceId) {
         const updated = await options.browser.updateTabGroup(currentWorkspaceId, {
           name: name.value,
+          description: description.value,
           color: color.value,
           hiddenFromSidebar: hiddenFromSidebar.value,
           deletionProtected: deletionProtected.value,
@@ -411,6 +416,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
     mode,
     workspaceId,
     name,
+    description,
     color,
     error,
     storageMode,

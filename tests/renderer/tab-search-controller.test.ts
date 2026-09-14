@@ -43,6 +43,7 @@ function savedGroup(id: string): BrowserSavedTabGroupState {
   return {
     id,
     name: `Saved ${id}`,
+    description: '',
     color: 'purple',
     savedAt: '2026-08-22T00:00:00.000Z',
     storageOriginCount: 0,
@@ -235,12 +236,12 @@ describe('tab search controller', () => {
     const initial = browserState([research, loose, defaultTab])
     initial.mcpTabGroups = [
       {
-        id: 'workspace-1', name: 'Default', color: 'gray', createdAt: '', lastUsedAt: '', tabCount: 1,
+        id: 'workspace-1', name: 'Default', description: '', color: 'gray', createdAt: '', lastUsedAt: '', tabCount: 1,
         activeTabId: defaultTab.id, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] }
       },
       {
-        id: 'workspace-2', name: 'Research', color: 'purple', createdAt: '', lastUsedAt: '', tabCount: 1,
+        id: 'workspace-2', name: 'Research', description: '', color: 'purple', createdAt: '', lastUsedAt: '', tabCount: 1,
         activeTabId: research.id, storageOriginCount: 0,
         navigationPolicy: { mode: 'unrestricted', rules: [] }
       }

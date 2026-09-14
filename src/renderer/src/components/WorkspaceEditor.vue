@@ -44,6 +44,7 @@ const {
   mode,
   workspaceId,
   name,
+  description,
   color,
   error,
   storageMode,
@@ -176,6 +177,9 @@ onBeforeUnmount(dispose)
         <template v-if="mode !== 'transfer'">
         <label for="tab-group-name">{{ t('workspaceEditor.name') }}</label>
         <input id="tab-group-name" v-model="name" type="text" maxlength="80" autocomplete="off" autofocus :disabled="dismissBlocked" />
+        <label for="workspace-description">{{ t('workspaceEditor.description') }}</label>
+        <textarea id="workspace-description" v-model="description" maxlength="1000" rows="4" :placeholder="t('workspaceEditor.descriptionPlaceholder')" :disabled="dismissBlocked" />
+        <small>{{ t('workspaceEditor.descriptionHelp') }}</small>
         <label id="tab-group-color-label">{{ t('workspaceEditor.color') }}</label>
         <div class="tab-group-color-options" role="radiogroup" aria-labelledby="tab-group-color-label">
           <UiButton appearance="application"

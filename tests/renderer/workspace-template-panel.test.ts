@@ -25,7 +25,7 @@ function setup() {
 describe('workspace template review', () => {
   it.each(['Add workspace', 'Add source color as a new entry'])('allocates a unique default name after removal via %s', async (action) => {
     const { wrapper, browser, button } = setup()
-    await wrapper.setProps({ state: { ...state, savedTabGroups: [{ id: 'source', name: 'Source', color: 'purple', savedAt: '', storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }] } })
+    await wrapper.setProps({ state: { ...state, savedTabGroups: [{ id: 'source', name: 'Source', description: '', color: 'purple', savedAt: '', storageOriginCount: 0, navigationPolicy: { mode: 'unrestricted', rules: [] }, tabs: [] }] } })
     await button('Prepare export').trigger('click')
     await button('Add workspace').trigger('click')
     await button('Remove workspace 1').trigger('click')
@@ -65,7 +65,7 @@ describe('workspace template review', () => {
 
   it('copies only source color until its name and page are explicitly selected', async () => {
     const { wrapper, browser, button } = setup()
-    await wrapper.setProps({ state: { ...state, savedTabGroups: [{ id: 'private-source', name: 'Private project', color: 'purple', savedAt: '', storageOriginCount: 1, navigationPolicy: { mode: 'restricted', rules: ['https://example.com'] }, tabs: [{ title: 'Private title', url: 'https://example.com/private-path', pinned: false }] }] } })
+    await wrapper.setProps({ state: { ...state, savedTabGroups: [{ id: 'private-source', name: 'Private project', description: 'Retain the private QA session', color: 'purple', savedAt: '', storageOriginCount: 1, navigationPolicy: { mode: 'restricted', rules: ['https://example.com'] }, tabs: [{ title: 'Private title', url: 'https://example.com/private-path', pinned: false }] }] } })
     await button('Prepare export').trigger('click')
     await wrapper.get('.template-source select').setValue('private-source')
     await button('Add source color as a new entry').trigger('click')
@@ -78,10 +78,11 @@ describe('workspace template review', () => {
     expect(JSON.parse(exported)).toMatchObject({ workspaces: [{ name: 'Workspace 1', color: 'blue', startPages: [] }, { name: 'Workspace 2', color: 'purple', startPages: [] }] })
     await button('Prepare export').trigger('click')
     await button('Include source name in last entry').trigger('click')
+    await button('Include source description in last entry').trigger('click')
     await wrapper.get('.template-source input[type=checkbox]').setValue(true)
     await wrapper.get('.template-review input').setValue(true)
     await button('Save workspace template').trigger('click'); await flushPromises()
-    expect(JSON.parse(browser.saveWorkspaceTemplateFile.mock.calls.at(1)?.[0] ?? '{}')).toMatchObject({ workspaces: [{ name: 'Private project', startPages: ['https://example.com/private-path'] }] })
+    expect(JSON.parse(browser.saveWorkspaceTemplateFile.mock.calls.at(1)?.[0] ?? '{}')).toMatchObject({ workspaces: [{ name: 'Private project', description: 'Retain the private QA session', startPages: ['https://example.com/private-path'] }] })
   })
 
   it('requires fresh review when reopening an identical file', async () => {

@@ -137,8 +137,8 @@ export const plPL = {
   workspaceTemplates: {
     remove: "Usuń obszar roboczy {number}",
     title: "Przenośne szablony obszarów roboczych",
-    scope: "Szablony zawierają tylko nazwy, kolory i wybrane strony startowe. Nie zawierają plików cookie, pamięci lokalnej, haseł, tokenów, tożsamości obszarów, reguł dostępu do witryn ani uprawnień przeglądarki.",
-    privacy: "Nazwy i adresy URL mogą zawierać prywatne informacje. Sprawdź każdy wpis przed zapisem lub importem. Eksport zaczyna się od ogólnej nazwy i bez stron.",
+    scope: "Szablony zawierają tylko nazwy, opisy, kolory i wybrane strony startowe. Nie zawierają plików cookie, pamięci lokalnej, haseł, tokenów, tożsamości obszarów, reguł dostępu do witryn ani uprawnień przeglądarki.",
+    privacy: "Nazwy, opisy i adresy URL mogą zawierać prywatne informacje. Sprawdź każdy wpis przed zapisem lub importem. Eksport zaczyna się od ogólnych metadanych i bez stron.",
     newExport: "Przygotuj eksport",
     source: "Platforma źródłowa: {platform}",
     entry: "Obszar roboczy {number}",
@@ -158,6 +158,7 @@ export const plPL = {
     addSource: "Dodaj kolor źródłowy jako nowy wpis",
     chooseDetails: "Te dane nie są dołączane automatycznie. Wybranie nazwy lub strony dodaje ją do ostatniego wpisu poniżej.",
     includeName: "Dołącz nazwę źródłową do ostatniego wpisu",
+    includeDescription: "Dołącz opis źródła do ostatniego wpisu",
     openFile: "Otwórz szablon obszaru roboczego",
     saveFile: "Zapisz szablon obszaru roboczego",
     readFailed: "Nie można odczytać szablonu. Wybierz poprawny szablon JSON UTF-8 o rozmiarze do 256 KiB.",
@@ -503,6 +504,9 @@ export const plPL = {
 
     "kicker": "Obszar roboczy przeglądarki",
     "create": "Utwórz obszar roboczy",
+    "description": "Opis",
+    "descriptionPlaceholder": "Cel, bieżąca praca i przydatny stan przeglądarki",
+    "descriptionHelp": "Przechowywany lokalnie z tym obszarem i pokazywany agentom podczas wyświetlania lub wznawiania.",
     "edit": "Edytuj obszar roboczy",
     "close": "Zamknij edytor obszaru roboczego",
     "name": "Nazwa obszaru roboczego",

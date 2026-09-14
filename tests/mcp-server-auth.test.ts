@@ -378,7 +378,7 @@ describe('MCP capability profile authentication', () => {
       arguments: { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: OTHER_WORKSPACE_ID }
     })).resolves.not.toMatchObject({ isError: true })
     expect(createMcpTabGroup).toHaveBeenCalledWith(
-      'Fork', undefined, 'fork-workspace', ['https://allowed.example'], true, undefined, OTHER_WORKSPACE_ID
+      'Fork', undefined, 'fork-workspace', ['https://allowed.example'], true, undefined, OTHER_WORKSPACE_ID, undefined
     )
     createMcpTabGroup.mockClear()
     await expect(client!.callTool({
