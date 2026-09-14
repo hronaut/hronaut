@@ -5,7 +5,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { readBrowserPostcondition } from '../../src/main/mcp/post-write-browser-read.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('reads delayed postconditions in an isolated world without replaying the write or invoking page hooks', async ({ electronApp, mcpPort, mcpToken }) => {
+test('reconciles before a write and reads delayed postconditions without replaying it or invoking page hooks', async ({ electronApp, mcpPort, mcpToken }) => {
   const fixture = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>Postcondition fixture</title>
@@ -58,12 +58,86 @@ test('reads delayed postconditions in an isolated world without replaying the wr
     expect(refused.isError).toBe(true)
     expect(refused.content.map(part => part.type === 'text' ? part.text : '').join('')).toContain('active browser_audit_receipts run')
     const audit = decode<{ id: string }>(await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'start' }))
-    const click = decode<{ postWriteVerification: { status: string; reason: string; attempt: number } }>(
-      await call('browser_click', { workspaceId: workspace.id, tabId: tab.activeTabId, selector: '#write', postcondition })
+    const reconciliation = {
+      mode: 'update', logicalItemKey: 'private-item-key', targetIdentity: 'private-target-id', sourceRevision: 'private-source-revision',
+      expectedOrigin: origin, accountSelector: '#account', expectedAccount: 'Account fixture',
+      stateSelector: '#state', expectedCurrentText: 'Saving', expectedText: 'Saved fixture'
+    }
+    const prepared = decode<{
+      status: string
+      actionable: boolean
+      logicalItemFingerprint: string
+      targetFingerprint: string
+      sourceRevisionFingerprint: string
+    }>(await call('browser_reconciliation', { workspaceId: workspace.id, tabId: tab.activeTabId, ...reconciliation }))
+    expect(prepared).toMatchObject({
+      status: 'changed', actionable: true,
+      logicalItemFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      targetFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+      sourceRevisionFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/)
+    })
+    expect(JSON.stringify(prepared)).not.toMatch(/private-item-key|private-target-id|private-source-revision|Account fixture|Saving/)
+    const absent = { ...reconciliation, stateSelector: '#missing-target' }
+    expect(decode<{ status: string }>(await call('browser_reconciliation', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, ...absent, mode: 'create', expectedCurrentText: undefined
+    }))).toMatchObject({ status: 'new' })
+    expect(decode<{ status: string }>(await call('browser_reconciliation', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, ...absent
+    }))).toMatchObject({ status: 'not_found' })
+    expect(decode<{ status: string }>(await call('browser_reconciliation', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, ...reconciliation, expectedAccount: 'Wrong account'
+    }))).toMatchObject({ status: 'blocked' })
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      await page.executeJavaScript(`document.getElementById('state').insertAdjacentHTML('afterend', '<div id="state">Saving</div>')`)
+    }, origin)
+    expect(decode<{ status: string }>(await call('browser_reconciliation', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, ...reconciliation
+    }))).toMatchObject({ status: 'unknown' })
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      await page.executeJavaScript(`document.getElementById('state').nextElementSibling.remove()`)
+    }, origin)
+
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      await page.executeJavaScript(`document.getElementById('state').textContent = 'Changed elsewhere'`)
+    }, origin)
+    const stale = await call('browser_click', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, selector: '#write', postcondition, reconciliation
+    })
+    expect(stale.isError).toBe(true)
+    expect(JSON.parse(stale.content.find(part => part.type === 'text')!.text)).toMatchObject({
+      status: 'RECONCILIATION_BLOCKED', retrySafe: false,
+      preWriteReconciliation: { status: 'blocked', reason: 'PRECONDITION_CHANGED', actionable: false },
+      reconciliationOutcome: { status: 'blocked', authoritativeReadback: 'not-verified', dispatch: 'not-dispatched' }
+    })
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      await page.executeJavaScript(`document.getElementById('state').textContent = 'Saving'`)
+    }, origin)
+
+    const click = decode<{
+      preWriteReconciliation: { status: string; actionable: boolean }
+      postWriteVerification: { status: string; reason: string; attempt: number }
+      reconciliationOutcome: { status: string; authoritativeReadback: string; dispatch: string }
+    }>(
+      await call('browser_click', {
+        workspaceId: workspace.id, tabId: tab.activeTabId, selector: '#write', postcondition, reconciliation
+      })
     )
+    expect(click.preWriteReconciliation).toMatchObject({ status: 'changed', actionable: true })
     expect(click.postWriteVerification).toMatchObject({ status: 'verified', reason: 'postcondition-matched' })
+    expect(click.reconciliationOutcome).toEqual({ status: 'verified', authoritativeReadback: 'verified', dispatch: 'dispatched-once' })
     expect(click.postWriteVerification.attempt).toBeGreaterThan(1)
     expect(await inspect()).toBe('matches')
+    const duplicate = decode<{ status: string; postWriteVerification: { status: string }; reconciliationOutcome: { status: string; dispatch: string } }>(await call('browser_click', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, selector: '#write', postcondition, reconciliation
+    }))
+    expect(duplicate).toMatchObject({
+      status: 'SKIPPED_ALREADY_PRESENT', postWriteVerification: { status: 'verified' },
+      reconciliationOutcome: { status: 'verified', dispatch: 'not-dispatched' }
+    })
     const controller = new AbortController()
     const cancelledRead = inspect(controller.signal)
     controller.abort()
@@ -78,6 +152,22 @@ test('reads delayed postconditions in an isolated world without replaying the wr
       return page.executeJavaScript(`({ writes: window.writes, hooks: window.hooks, draft: document.getElementById('draft').value, privateInputSeen: window.privateInputSeen })`)
     }, origin)
     expect(state).toEqual({ writes: 1, hooks: 0, draft: 'unsaved fixture', privateInputSeen: false })
+    await electronApp.evaluate(async ({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      await page.executeJavaScript(`document.getElementById('account').textContent = 'Account fixture';document.getElementById('state').textContent = 'Saving';document.getElementById('write').onclick = () => { window.writes++ };void 0`)
+    }, origin)
+    const ambiguous = decode<{
+      postWriteVerification: { status: string }
+      reconciliationOutcome: { status: string; authoritativeReadback: string; dispatch: string }
+    }>(await call('browser_click', {
+      workspaceId: workspace.id, tabId: tab.activeTabId, selector: '#write',
+      postcondition: { ...postcondition, timeoutMs: 250, maxAttempts: 1, initialDelayMs: 50 },
+      reconciliation
+    }))
+    expect(ambiguous).toMatchObject({
+      postWriteVerification: { status: 'unknown' },
+      reconciliationOutcome: { status: 'reconciliation_required', authoritativeReadback: 'not-verified', dispatch: 'dispatched-once' }
+    })
     await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'stop' })
     const report = decode<{ receipts: Array<{ event: { phase: string; status?: string; reason?: string } }> }>(
       await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'read', runId: audit.id })
@@ -87,7 +177,7 @@ test('reads delayed postconditions in an isolated world without replaying the wr
       expect.objectContaining({ phase: 'outcome', status: 'succeeded' }),
       expect.objectContaining({ phase: 'verification', status: 'verified', reason: 'postcondition-matched' })
     ]))
-    expect(JSON.stringify(report)).not.toMatch(/Account fixture|Saved fixture|#account|#state/)
+    expect(JSON.stringify(report)).not.toMatch(/Account fixture|Saved fixture|#account|#state|private-item-key|private-target-id|private-source-revision/)
   } finally {
     await client.close()
     await closeFixtureServer(fixture)

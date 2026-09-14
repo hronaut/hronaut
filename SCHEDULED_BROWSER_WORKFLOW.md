@@ -78,14 +78,19 @@ editing its own prompt.
    exact target, action, context, expiry and expected postcondition. A same-page
    transition can request two to four exact click steps; follow only the fresh
    `reviewContinuation` returned after each independently verified step.
-6. Record a new action-attempt ID, dispatch the browser action once, and retain
+6. Before a visible system-of-record write, call `browser_reconciliation` with
+   the stable logical item, target, source revision, and exact current and
+   desired state. Repeat the same condition on `browser_click`; changed,
+   missing, blocked, or ambiguous state must stop dispatch, while
+   `SKIPPED_ALREADY_PRESENT` means no click occurred.
+7. Record a new action-attempt ID, dispatch the browser action once, and retain
    transport acknowledgement separately. Do not automatically repeat a timed
    out or disconnected write.
-7. Use a Hronaut postcondition where the visible browser state is authoritative
+8. Use a Hronaut postcondition where the visible browser state is authoritative
    enough. Independently read the target system's record and revision when it
    owns the final outcome. Complete the task run as `SUCCEEDED` only after the
    configured checks and authoritative read-back agree.
-8. Stop the audit run, persist the sanitized receipt, and let the scheduler mark
+9. Stop the audit run, persist the sanitized receipt, and let the scheduler mark
    the job terminal. Closing an agent session is not a completion signal.
 
 ## Cancellation, reconnect and retry

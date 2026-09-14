@@ -2,6 +2,11 @@ import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
 import { continuityMarkerScript, readContinuityMarker } from '../../shared/workspace-continuity-marker.js'
 import { browserPostconditionScript, type BrowserPostcondition } from '../../shared/post-write-postcondition.js'
+import {
+  browserReconciliationScript,
+  type BrowserReconciliationCondition,
+  type BrowserReconciliationEvidence
+} from '../../shared/browser-reconciliation.js'
 import { readBrowserPostcondition, type PostconditionReadResult } from '../mcp/post-write-browser-read.js'
 import { compareWorkspaceContinuity } from '../mcp/workspace-continuity.js'
 import type { WorkspaceContinuityResult } from '../mcp/workspace-continuity.js'
@@ -416,6 +421,7 @@ const STORAGE_USAGE_WORLD_ID = 1009
 const CONTINUITY_MARKER_WORLD_ID = 1011
 const POSTCONDITION_WORLD_ID = 1012
 const AGENT_POINTER_WORLD_ID = 1013
+const RECONCILIATION_WORLD_ID = 1014
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -1095,6 +1101,36 @@ export class BrowserTabsManager {
     return readBrowserPostcondition({ condition, validateCurrent: validate, signal,
       evaluate: script => tab.webContents.executeJavaScriptInIsolatedWorld(POSTCONDITION_WORLD_ID, [{ code: script }], false)
     })
+  }
+
+  async readBrowserReconciliation(workspaceId: string, tabId: string, condition: BrowserReconciliationCondition,
+    validateCurrent: () => void, signal?: AbortSignal): Promise<BrowserReconciliationEvidence> {
+    validateCurrent()
+    const before = this.workspaceContinuitySnapshot(workspaceId)
+    if (!before.evidence || !before.pageSettled) return 'unavailable'
+    if (before.evidence.tabId !== tabId || !this.tabBelongsToMcpGroup(workspaceId, tabId)) return 'context-changed'
+    if (this.continuityActions.get(workspaceId)?.writes) return 'unavailable'
+    const revision = this.continuityRevision
+    const tab = this.getTab(tabId)
+    const validate = (): void => {
+      validateCurrent()
+      const after = this.workspaceContinuitySnapshot(workspaceId)
+      if (revision !== this.continuityRevision || this.continuityActions.get(workspaceId)?.writes
+        || compareWorkspaceContinuity({ checkpoint: before.evidence, current: after.evidence, pageSettled: after.pageSettled, priorOutcome: 'NONE' }).status !== 'PASS') {
+        throw new Error('Browser reconciliation context changed')
+      }
+    }
+    validate()
+    const result = await readContinuityMarker(() => {
+      validate()
+      return tab.webContents.executeJavaScriptInIsolatedWorld(
+        RECONCILIATION_WORLD_ID, [{ code: browserReconciliationScript(condition) }], false
+      )
+    }, signal)
+    validate()
+    return result === 'matches' || result === 'missing' || result === 'differs'
+      || result === 'precondition-changed' || result === 'context-changed'
+      || result === 'ambiguous' ? result : 'unavailable'
   }
 
   async armWorkspaceContinuity(workspaceId: string, markerSelector?: string, validateCurrent: () => void = () => undefined): Promise<string> {
