@@ -1,3 +1,5 @@
+import type { CredentialFillPageResult } from './credential-fill-page.js'
+
 interface CredentialFillAuthorityState {
   humanInteractionGeneration: number
   lastHumanInteractionAt: number
@@ -5,15 +7,15 @@ interface CredentialFillAuthorityState {
 }
 
 export function recordTrustedCredentialFill(
-  filled: boolean,
+  outcome: CredentialFillPageResult,
   tab: CredentialFillAuthorityState,
   now: number,
   onUserInteraction?: () => void
 ): boolean {
-  if (!filled) return false
+  if (outcome === 'none') return false
   tab.humanInteractionGeneration += 1
   tab.lastHumanInteractionAt = now
   tab.lastActiveAt = now
   onUserInteraction?.()
-  return true
+  return outcome === 'filled'
 }

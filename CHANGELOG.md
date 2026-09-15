@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Invalidate pending browser approvals when a saved-password fill changes the username or account state but the page disables or replaces the password field before the fill can finish.
+
 ## [2.4.17] - 2026-09-16
 
 ### Fixed

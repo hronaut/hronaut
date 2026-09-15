@@ -1,6 +1,12 @@
 import type { CredentialFillContext } from './credential-fill-context.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 
+export type CredentialFillPageResult = 'none' | 'changed' | 'filled'
+
+export function isCredentialFillPageResult(value: unknown): value is CredentialFillPageResult {
+  return value === 'none' || value === 'changed' || value === 'filled'
+}
+
 export function credentialFillPageScript(
   expectedContext: CredentialFillContext,
   username: string,
@@ -8,7 +14,7 @@ export function credentialFillPageScript(
 ): string {
   return `(() => {
     if (location.origin !== ${javascriptLiteral(expectedContext.origin)}
-      || location.href !== ${javascriptLiteral(expectedContext.url)}) return false;
+      || location.href !== ${javascriptLiteral(expectedContext.url)}) return 'none';
     const autocompleteInfo = (input) => {
       const tokens = (input.getAttribute('autocomplete') || '').trim().toLowerCase().split(/[\\t\\n\\f\\r ]+/).filter(Boolean);
       const purposeTokens = new Set(['username', 'current-password', 'new-password', 'one-time-code']);
@@ -50,10 +56,10 @@ export function credentialFillPageScript(
     }
     if (!passwordField) {
       const currentPasswords = passwords.filter((input) => autocompleteInfo(input).purpose === 'current-password');
-      if (currentPasswords.length > 1) return false;
+      if (currentPasswords.length > 1) return 'none';
       passwordField = currentPasswords[0] || (passwords.length === 1 ? passwords[0] : undefined);
     }
-    if (!passwordField) return false;
+    if (!passwordField) return 'none';
     const usernameTypes = new Set(['text', 'email', 'search', 'tel', 'url']);
     const passwordAutocomplete = autocompleteInfo(passwordField);
     const fields = passwordField.form
@@ -88,9 +94,9 @@ export function credentialFillPageScript(
       input.dispatchEvent(new Event('change', { bubbles: true }));
     };
     if (usernameField) assign(usernameField, ${javascriptLiteral(username)});
-    if (!isUsable(passwordField) || passwordField.type !== 'password') return false;
+    if (!isUsable(passwordField) || passwordField.type !== 'password') return usernameField ? 'changed' : 'none';
     assign(passwordField, ${javascriptLiteral(password)});
     passwordField.focus({ preventScroll: true });
-    return true;
+    return 'filled';
   })()`
 }
