@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.10] - 2026-09-15
+
 ### Added
 
 - Add one versioned support, recovery, and exit guide covering supported setups, workspace backup and reset boundaries, client reconnection checks, local data recovery, and product scope.
