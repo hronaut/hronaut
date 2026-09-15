@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Added
 
 - Compare accessibility audits against a volatile per-tab baseline, with explicit new, remaining, and resolved rule/target findings in Page tools and MCP responses.
+- Review recorded reproduction steps through a keyboard-navigable timeline with a focused action, target, page, and relative-time detail view.
 
 ### Fixed
 

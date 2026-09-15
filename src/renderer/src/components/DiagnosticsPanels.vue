@@ -47,6 +47,7 @@ import type {
 } from '../../../shared/types'
 import type { DiagnosticsController } from '../composables/useDiagnosticsController'
 import PanelDockPicker from './PanelDockPicker.vue'
+import ReproTimeline from './ReproTimeline.vue'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -1573,15 +1574,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
           <UiButton appearance="application" variant="primary" class="primary" type="button" :disabled="reproState === 'loading'" @click="startReproRecording"><IconRecord aria-hidden="true" /> {{ t('repro.start') }}</UiButton>
         </div>
         <div v-else class="repro-timeline" :aria-label="t('repro.timelineAria')">
-          <article v-for="step in reproRecording.steps" :key="step.index" class="repro-step" :class="step.kind">
-            <span class="repro-step-index">{{ step.index }}</span>
-            <div>
-              <header><strong>{{ step.kind }}</strong><time>{{ formatReproElapsed(step.elapsedMs) }}</time></header>
-              <p>{{ step.description }}</p>
-              <code v-if="step.target">{{ step.target.selector }}</code>
-              <small v-else-if="step.url">{{ step.url }}</small>
-            </div>
-          </article>
+          <ReproTimeline :recording="reproRecording" :locale="locale" />
           <p v-if="reproRecording.truncated" class="inspector-issues-truncated"><IconInfo aria-hidden="true" /> {{ t('repro.truncated') }}</p>
           <details class="debug-report-caveats">
             <summary>{{ t('repro.privacyScope') }}</summary>

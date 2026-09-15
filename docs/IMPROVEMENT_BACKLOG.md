@@ -1,20 +1,11 @@
 # Improvement research and QA queue
 
-Reviewed 2026-09-08 against the current README, REFERENCE, renderer controllers,
+Reviewed 2026-09-15 against the current README, REFERENCE, renderer controllers,
 and shared audit contracts. These are proposals, not shipped features.
 
 ## Priorities
 
-1. **Repro evidence navigation.** The existing recorder already exports a
-   Playwright skeleton. Improve review by letting users select a recorded step
-   and clearly see its action, target, and relative time. Playwright's
-   [Trace Viewer](https://playwright.dev/docs/trace-viewer) demonstrates the value
-   of reviewing actions in sequence. Hronaut should retain its existing bounded,
-   redacted recording contract. This proposal does not require storing DOM
-   snapshots or credentials. Verify keyboard selection, empty and capped
-   recordings, and stale selection after a new recording.
-
-2. **CSS edit review.** Investigate whether Hronaut's existing design and
+1. **CSS edit review.** Investigate whether Hronaut's existing design and
    inspection tools need a compact view of deliberate style edits with copy and
    revert actions. Chrome's
    [Changes panel](https://developer.chrome.com/docs/devtools/changes) provides
@@ -28,7 +19,10 @@ volatile tab baseline, compares deduplicated rule-and-target fingerprints, flags
 scope, engine and URL drift, and withholds new or resolved classifications when
 the corresponding audit side is truncated. Unit, renderer and real MCP/Electron
 coverage includes reordering, duplicates, truncation, navigation, clearing and
-tab closure.
+tab closure. Repro review now provides a selectable timeline and a focused action,
+target, page and relative-time view. Pointer and Arrow/Home/End coverage includes
+empty, 200-step capped and replacement-recording states while retaining the
+existing bounded, redacted evidence contract.
 
 ### Electron upgrade evidence (issue #1)
 
