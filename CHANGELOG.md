@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve structured stale-observation details when a tab closes during MCP wait dispatch, including the narrow gap before the wait handler starts.
+
 ## [2.4.13] - 2026-09-15
 
 ### Fixed

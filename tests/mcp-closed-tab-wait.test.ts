@@ -11,6 +11,15 @@ describe('closed tab wait outcome', () => {
     })
   })
 
+  it('returns the same stale result when wrapper validation observes an already-removed wait target', () => {
+    const result = closedTabWaitResult(new Error('Workspace is not authorized for this MCP client.'), true)
+
+    expect(result).toMatchObject({
+      isError: true,
+      structuredContent: { status: 'STALE_OBSERVATION', retrySafe: false }
+    })
+  })
+
   it('leaves ordinary wait errors to the normal error path', () => {
     expect(closedTabWaitResult(new Error('Timed out waiting for the page element.'))).toBeUndefined()
   })
