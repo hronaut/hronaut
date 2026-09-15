@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.17] - 2026-09-16
+
 ### Fixed
 
 - Re-read consequential-action review authority immediately before and after durable dispatch admission, closing a race where a login-session change during asynchronous validation could leave a stale approval usable.
