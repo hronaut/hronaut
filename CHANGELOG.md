@@ -4,6 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.13] - 2026-09-15
+
+### Fixed
+
+- Keep Home dashboard refresh scheduling deterministic across window teardown, preventing delayed polling work from outliving its page lifecycle.
+
 ## [2.4.12] - 2026-09-15
 
 ### Fixed
