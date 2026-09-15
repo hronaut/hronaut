@@ -201,7 +201,7 @@ describe('durable waiting owner', () => {
     const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
     expect(attempted).toMatchObject({ state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } })
     expect(saved.at(-1)?.records[0]).toMatchObject({ state: 'ATTEMPTED' })
-    await expect(service.requireDispatch(input.workspaceId, authorize, binding)).rejects.toThrow(/stale/i)
+    await expect(service.requireDispatch(input.workspaceId, authorize, binding)).rejects.toThrow(/outcome.*unresolved/i)
   })
 
   it('expires exact mismatches and context drift without dispatching', async () => {
@@ -250,5 +250,53 @@ describe('durable waiting owner', () => {
     const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
     await service.invalidateApprovedReview(input.workspaceId, approved.id, approved.revision)
     expect((await service.list(input.workspaceId, authorize))[0]).toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
+  })
+
+  it('invalidates unattempted reviews after reconnect and blocks an unresolved attempt', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
+    const nextSessionBinding = 'd'.repeat(64)
+
+    const proposed = await service.create({ ...input, decision: 'approve-action', review }, authorize)
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, nextSessionBinding)).resolves.toBeUndefined()
+    expect((await service.list(input.workspaceId, authorize)).find(record => record.id === proposed.id))
+      .toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
+
+    const next = await service.create({ ...input, decision: 'approve-action', review }, authorize)
+    const approved = await service.change(input.workspaceId, next.id, next.revision, 'resolve', authorize, async () => undefined)
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, nextSessionBinding)).resolves.toBeUndefined()
+    expect((await service.list(input.workspaceId, authorize)).find(record => record.id === approved.id))
+      .toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
+
+    const final = await service.create({ ...input, decision: 'approve-action', review }, authorize)
+    const finalApproved = await service.change(input.workspaceId, final.id, final.revision, 'resolve', authorize, async () => undefined)
+    const binding = {
+      id: finalApproved.id,
+      revision: finalApproved.revision,
+      toolName: review.toolName,
+      artifactHash: review.artifactHash,
+      sessionBinding: review.sessionBinding
+    }
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
+
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, nextSessionBinding))
+      .rejects.toThrow(/outcome.*unresolved/i)
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, nextSessionBinding, attempted.id))
+      .resolves.toBeUndefined()
+    expect((await service.list(input.workspaceId, authorize)).find(record => record.id === final.id))
+      .toMatchObject({ state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } })
+  })
+
+  it('does not admit dispatch when reconnect invalidation cannot be saved', async () => {
+    let saves = 0
+    const service = new HumanWaitingService({
+      load: async () => null,
+      save: async () => { if (++saves === 2) throw new Error('disk unavailable') }
+    })
+    await service.create({ ...input, decision: 'approve-action', review }, authorize)
+
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, 'd'.repeat(64)))
+      .rejects.toThrow(/could not be saved/i)
+    await expect(service.requireDispatch(input.workspaceId, authorize, undefined, 'd'.repeat(64)))
+      .rejects.toThrow(/unavailable/i)
   })
 })
