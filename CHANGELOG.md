@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Invalidate pending consequential browser-action reviews after a person fills a saved password, so a review cannot survive an account or login-authority change.
+
 ## [2.4.14] - 2026-09-15
 
 ### Fixed
