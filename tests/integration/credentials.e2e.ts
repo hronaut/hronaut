@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import { credentialFillPageScript } from '../../src/main/browser/credential-fill-page.js'
+import { credentialFillPageScript, type CredentialFillPageResult } from '../../src/main/browser/credential-fill-page.js'
 import { blockFileDestination, closeFixtureServer, expect, test } from './fixtures.js'
 import type { BrowserState, CredentialStorageStatus, CredentialSummary } from '../../src/shared/types.js'
 
@@ -160,7 +160,7 @@ test('fills the visible login form instead of hidden or unrelated fields', async
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
       if (!page) throw new Error('Credential fill fixture WebContents was not found')
       return page.executeJavaScript(input.script, true)
-    }, { url, script })).toBe(true)
+    }, { url, script })).toBe('filled')
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) return null
@@ -193,6 +193,68 @@ test('fills the visible login form instead of hidden or unrelated fields', async
       password,
       focused: 'login-password',
       injectedSideEffect: undefined
+    })
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('reports a partial credential mutation when the username event invalidates the password field', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>Partial credential fill fixture</title>
+      <form>
+        <input id="username" autocomplete="username">
+        <input id="password" type="password" autocomplete="current-password">
+      </form>
+      <script>
+        document.querySelector('#username').addEventListener('input', () => {
+          document.querySelector('#password').disabled = true
+          document.body.dataset.account = 'changed-by-username'
+        })
+      </script>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Partial credential fill fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/login`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Partial credential fill fixture')
+    const script = credentialFillPageScript({
+      origin: new URL(url).origin,
+      url,
+      navigationGeneration: 0,
+      tabSelectionGeneration: 0
+    }, 'selected-person', 'selected-password')
+
+    const outcome = await electronApp.evaluate(async ({ webContents }, input) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
+      if (!page) throw new Error('Partial credential fill fixture WebContents was not found')
+      return page.executeJavaScript(input.script, true)
+    }, { url, script })
+    expect(outcome).toBe('changed')
+    expect(await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Partial credential fill fixture WebContents was not found')
+      return page.executeJavaScript(`({
+        username: document.querySelector('#username').value,
+        password: document.querySelector('#password').value,
+        disabled: document.querySelector('#password').disabled,
+        account: document.body.dataset.account
+      })`)
+    }, url)).toEqual({
+      username: 'selected-person',
+      password: '',
+      disabled: true,
+      account: 'changed-by-username'
     })
   } finally {
     await closeFixtureServer(server)
@@ -232,7 +294,7 @@ test('requires focus to disambiguate multiple visible login forms', async ({
       navigationGeneration: 0,
       tabSelectionGeneration: 0
     }, 'selected-person', 'selected-password')
-    const execute = async (): Promise<boolean> => electronApp.evaluate(async ({ webContents }, input) => {
+    const execute = async (): Promise<CredentialFillPageResult> => electronApp.evaluate(async ({ webContents }, input) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === input.url)
       if (!page) throw new Error('Ambiguous credential fixture WebContents was not found')
       return page.executeJavaScript(input.script, true)
@@ -248,14 +310,14 @@ test('requires focus to disambiguate multiple visible login forms', async ({
       ]`)
     }, url)
 
-    expect(await execute()).toBe(false)
+    expect(await execute()).toBe('none')
     expect(await values()).toEqual(['', '', '', ''])
     await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Ambiguous credential fixture WebContents was not found')
       await page.executeJavaScript(`document.querySelector('#second-username').focus()`)
     }, url)
-    expect(await execute()).toBe(true)
+    expect(await execute()).toBe('filled')
     expect(await values()).toEqual(['', '', 'selected-person', 'selected-password'])
   } finally {
     await closeFixtureServer(server)
@@ -288,7 +350,7 @@ test('rejects new-password forms and leaves formless usernames untouched', async
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Password-purpose fixture did not expose a port')
     const origin = `http://127.0.0.1:${address.port}`
-    const execute = async (url: string): Promise<boolean> => {
+    const execute = async (url: string): Promise<CredentialFillPageResult> => {
       const script = credentialFillPageScript({
         origin,
         url,
@@ -305,7 +367,7 @@ test('rejects new-password forms and leaves formless usernames untouched', async
     const signupUrl = `${origin}/signup`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(signupUrl)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('New password fixture')
-    expect(await execute(signupUrl)).toBe(false)
+    expect(await execute(signupUrl)).toBe('none')
     expect(await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript(`[document.querySelector('#signup-username').value, document.querySelector('#signup-password').value]`)
@@ -314,7 +376,7 @@ test('rejects new-password forms and leaves formless usernames untouched', async
     const formlessUrl = `${origin}/formless`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(formlessUrl)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Formless password fixture')
-    expect(await execute(formlessUrl)).toBe(true)
+    expect(await execute(formlessUrl)).toBe('filled')
     expect(await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript(`[document.querySelector('#global-username').value, document.querySelector('#formless-password').value]`)

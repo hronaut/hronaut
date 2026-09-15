@@ -206,7 +206,7 @@ import {
   isCurrentCredentialFillContext,
   type CredentialFillContext
 } from './credential-fill-context.js'
-import { credentialFillPageScript } from './credential-fill-page.js'
+import { credentialFillPageScript, isCredentialFillPageResult } from './credential-fill-page.js'
 import { javascriptLiteral } from '../../shared/javascript-literal.js'
 import type {
   BrowserEmulationOptions,
@@ -3066,8 +3066,12 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
     const script = credentialFillPageScript(expectedContext, username, password)
-    const filled = await this.withAgentInput(tab.webContents, async () => Boolean(await tab.webContents.executeJavaScript(script, true)))
-    return recordTrustedCredentialFill(filled, tab, Date.now(), this.options.onUserInteraction)
+    const outcome: unknown = await this.withAgentInput(
+      tab.webContents,
+      () => tab.webContents.executeJavaScript(script, true)
+    )
+    if (!isCredentialFillPageResult(outcome)) return false
+    return recordTrustedCredentialFill(outcome, tab, Date.now(), this.options.onUserInteraction)
   }
 
   async newTab(options: NewTabOptions = {}): Promise<BrowserState> {
