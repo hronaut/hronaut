@@ -905,8 +905,14 @@ const errorResult = (error: unknown): CallToolResult => {
   }
 }
 
-export function closedTabWaitResult(error: unknown): CallToolResult | undefined {
-  if (!(error instanceof Error) || !error.message.startsWith('The tab closed while waiting')) return undefined
+export function closedTabWaitResult(error: unknown, targetWasRemoved = false): CallToolResult | undefined {
+  if (!(error instanceof Error)) return undefined
+  const closedDuringManagerWait = error.message.startsWith('The tab closed while waiting')
+  const removedDuringWrapperValidation = targetWasRemoved && (
+    error.message.startsWith('Workspace is not authorized for this MCP client')
+    || error.message.startsWith('Tab not found:')
+  )
+  if (!closedDuringManagerWait && !removedDuringWrapperValidation) return undefined
   const outcome = {
     status: 'STALE_OBSERVATION',
     retrySafe: false,
@@ -1925,6 +1931,12 @@ function createBrowserMcpServer(
             result: activityResult
           })
         }
+        const invalidatedWaitResult = (error: unknown): CallToolResult | undefined => {
+          if (!activityStarted || !resolvedTabId || (name !== 'browser_wait' && name !== 'browser_network_wait')) {
+            return undefined
+          }
+          return closedTabWaitResult(error, !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId))
+        }
         if (!auditReceipts || !name.startsWith('browser_')) {
           try {
             const result = await operation()
@@ -1932,6 +1944,11 @@ function createBrowserMcpServer(
             return result
           } catch (error) {
             await finishReviewedAttempt('unknown')
+            const invalidated = invalidatedWaitResult(error)
+            if (invalidated) {
+              finishActivity(invalidated, false)
+              return invalidated
+            }
             finishActivity(undefined, true, error)
             throw error
           }
@@ -2038,6 +2055,11 @@ function createBrowserMcpServer(
           })
         } catch (error) {
           await finishReviewedAttempt('unknown')
+          const invalidated = invalidatedWaitResult(error)
+          if (invalidated) {
+            finishActivity(invalidated, false)
+            return invalidated
+          }
           finishActivity(undefined, true, error)
           throw error
         }
