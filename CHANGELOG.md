@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.12] - 2026-09-15
+
 ### Fixed
 
 - Let saved-password filling follow a newly selected or reloaded page immediately without waiting for a stale fill request, while suppressing feedback from the superseded page.
