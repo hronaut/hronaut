@@ -53,6 +53,23 @@ describe('durable waiting owner', () => {
     expect(save).toHaveBeenCalledTimes(2)
   })
 
+  it('persists an expiry crossed while a list result is being saved', async () => {
+    let now = 0
+    let saves = 0
+    let saved: ReturnType<HumanWaitingStore['snapshot']> | undefined
+    const service = new HumanWaitingService({
+      load: async () => null,
+      save: async snapshot => {
+        saved = structuredClone(snapshot)
+        if (++saves === 2) now = 1000
+      }
+    }, new HumanWaitingStore({ monotonicNow: () => now }))
+    await service.create({ ...input, timeoutMs: 1000 }, authorize)
+
+    expect((await service.list(input.workspaceId, authorize))[0]?.state).toBe('EXPIRED')
+    expect(saved?.records[0]?.state).toBe('EXPIRED')
+  })
+
   it('keeps waiting when browser state changes while resolution is persisted', async () => {
     let saves = 0
     let changed = false

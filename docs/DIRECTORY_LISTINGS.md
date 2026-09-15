@@ -4,6 +4,8 @@ Use [`PUBLIC_FACTS.json`](PUBLIC_FACTS.json) as the reviewed source for Hronaut'
 name, description, website, setup and source URLs, supported clients, desktop
 platforms, license, trial, prices, and deployment boundary. `LICENSE` remains
 authoritative for legal rights and restrictions.
+Link users who need maintenance or migration guidance to the canonical
+[support, recovery, and exit path](SUPPORT_RECOVERY.md).
 
 ## Copy-ready capability summary
 

@@ -6,11 +6,13 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add one versioned support, recovery, and exit guide covering supported setups, workspace backup and reset boundaries, client reconnection checks, local data recovery, and product scope.
 - Compare accessibility audits against a volatile per-tab baseline, with explicit new, remaining, and resolved rule/target findings in Page tools and MCP responses.
 - Review recorded reproduction steps through a keyboard-navigable timeline with a focused action, target, page, and relative-time detail view.
 
 ### Fixed
 
+- Persist a human-decision expiry before returning it when the deadline passes during a status read, preventing restart from briefly restoring an already expired decision.
 - Invalidate existing full-access MCP sessions and pending browser dispatches when the authentication mode or token changes, so approvals cannot survive credential rotation.
 - Keep workspace descriptions available from workspace-header hover text without permanently taking space in the tab navigation.
 - Reject accessibility and quality-audit results when their tab navigates before collection finishes, preventing stale findings from being reported for a newer page.

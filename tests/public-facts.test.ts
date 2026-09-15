@@ -109,12 +109,13 @@ describe('canonical public facts', () => {
 
   it('keeps repository distribution surfaces aligned and documents historical corrections', async () => {
     const value = await facts()
-    const [readme, reference, website, checklist, directoryGuide, glamaSource, packageSource, scoopSource] = await Promise.all([
+    const [readme, reference, website, checklist, directoryGuide, supportGuide, glamaSource, packageSource, scoopSource] = await Promise.all([
       readFile('README.md', 'utf8'),
       readFile('REFERENCE.md', 'utf8'),
       readFile('website/index.html', 'utf8'),
       readFile('docs/PUBLISHING_CHECKLIST.md', 'utf8'),
       readFile('docs/DIRECTORY_LISTINGS.md', 'utf8'),
+      readFile('docs/SUPPORT_RECOVERY.md', 'utf8'),
       readFile('glama.json', 'utf8'),
       readFile('package.json', 'utf8'),
       readFile('packaging/scoop/hronaut.json', 'utf8')
@@ -140,6 +141,18 @@ describe('canonical public facts', () => {
     expect(directoryGuide).toContain('[`PUBLIC_FACTS.json`](PUBLIC_FACTS.json)')
     expect(directoryGuide).toMatch(/Remote deployment is not\s+supported/u)
     expect(directoryGuide).toMatch(/Do not submit the loopback MCP\s+URL as a remote connector endpoint/u)
+    expect(readme).toContain('[Support, recovery, and exit path](docs/SUPPORT_RECOVERY.md)')
+    expect(value.urls.supportRecovery).toBe('https://github.com/hronaut/hronaut/blob/main/docs/SUPPORT_RECOVERY.md')
+    expect(supportGuide).toContain(`Fact set: ${value.factSetVersion}`)
+    expect(supportGuide).toContain(`Last verified: ${value.lastReviewedAt}`)
+    expect(supportGuide).toContain('support@hronaut.dev')
+    expect(supportGuide).toContain('https://github.com/hronaut/hronaut/issues')
+    for (const platform of value.platforms) expect(supportGuide).toContain(platform.name)
+    expect(supportGuide).toMatch(/local Streamable HTTP MCP/iu)
+    expect(supportGuide).toMatch(/does not export cookies,\s+credentials,\s+saved passwords, or raw private page content/iu)
+    expect(supportGuide).toMatch(/workspace, profile,\s+account, origin, and tab/iu)
+    expect(supportGuide).toMatch(/navigation and session generation/iu)
+    expect(supportGuide).toMatch(/not an OAuth\/OIDC provider, identity broker,\s+enterprise access-control system, or hosted browser fleet/iu)
     expect(glama).toEqual({
       $schema: 'https://glama.ai/mcp/schemas/server.json',
       maintainers: ['hronaut']

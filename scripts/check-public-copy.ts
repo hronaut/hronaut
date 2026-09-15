@@ -91,7 +91,8 @@ const currentSurfaces = [
   'README.md',
   'REFERENCE.md',
   'website/index.html',
-  'docs/DIRECTORY_LISTINGS.md'
+  'docs/DIRECTORY_LISTINGS.md',
+  'docs/SUPPORT_RECOVERY.md'
 ] as const
 const staleClaims = [
   { pattern: /PolyForm Noncommercial/iu, description: 'superseded PolyForm license wording' },
@@ -122,6 +123,11 @@ for (const path of currentSurfaces) {
     report(!claim.test(source), `${path} contains an unsupported remote deployment claim`)
   }
 }
+const supportGuide = read('docs/SUPPORT_RECOVERY.md')
+report(supportGuide.includes(`Fact set: ${facts.factSetVersion}`),
+  'SUPPORT_RECOVERY.md does not identify the current fact set')
+report(supportGuide.includes(`Last verified: ${facts.lastReviewedAt}`),
+  'SUPPORT_RECOVERY.md does not use the current review date')
 for (const path of ['scripts/build-mcpb.ts'] as const) {
   const source = read(path)
   for (const stale of staleClaims) report(!stale.pattern.test(source), `${path} contains ${stale.description}`)
