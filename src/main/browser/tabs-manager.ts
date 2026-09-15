@@ -67,6 +67,7 @@ import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
 import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../shared/accessibility-comparison.js'
 import { buildBrowserDebugReport, redactDiagnosticText, sanitizeConsoleMessage } from '../../shared/debug-report.js'
+import { recordTrustedCredentialFill } from './trusted-credential-fill.js'
 import {
   normalizeConsoleLogEntry,
   normalizePageException,
@@ -3063,7 +3064,8 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     if (!isCurrentCredentialFillContext(expectedContext, this.credentialContext(tabId))) return false
     const script = credentialFillPageScript(expectedContext, username, password)
-    return this.withAgentInput(tab.webContents, async () => Boolean(await tab.webContents.executeJavaScript(script, true)))
+    const filled = await this.withAgentInput(tab.webContents, async () => Boolean(await tab.webContents.executeJavaScript(script, true)))
+    return recordTrustedCredentialFill(filled, tab, Date.now(), this.options.onUserInteraction)
   }
 
   async newTab(options: NewTabOptions = {}): Promise<BrowserState> {
