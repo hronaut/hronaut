@@ -1563,7 +1563,19 @@ export const esES = {
     "element": "elemento",
     "elements": "elementos",
     "guidance": "Guía de la regla ↗",
-    "runAgain": "Ejecutar de nuevo"
+    "runAgain": "Ejecutar de nuevo",
+    "baseline": "Referencia de accesibilidad",
+    "comparedWith": "Comparado con {time}",
+    "unknown": "Desconocido",
+    "newFindings": "Hallazgos nuevos",
+    "remainingFindings": "Hallazgos pendientes",
+    "resolvedFindings": "Hallazgos resueltos",
+    "notComparable": "No disponible porque cambió el alcance, el motor o la cobertura del resultado.",
+    "noFindings": "Ninguno",
+    "measureAfter": "Ejecuta de nuevo la auditoría tras el cambio para comparar reglas y objetivos.",
+    "clearBaseline": "Borrar referencia",
+    "replaceBaseline": "Reemplazar referencia",
+    "saveBaseline": "Guardar referencia"
   },
   "performance": {
     "kicker": "Visita actual",

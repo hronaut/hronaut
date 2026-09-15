@@ -1563,7 +1563,19 @@ export const deDE = {
     "element": "Element",
     "elements": "Elemente",
     "guidance": "Regelhinweise ↗",
-    "runAgain": "Erneut ausführen"
+    "runAgain": "Erneut ausführen",
+    "baseline": "Barrierefreiheits-Baseline",
+    "comparedWith": "Verglichen mit {time}",
+    "unknown": "Unbekannt",
+    "newFindings": "Neue Befunde",
+    "remainingFindings": "Verbleibende Befunde",
+    "resolvedFindings": "Behobene Befunde",
+    "notComparable": "Nicht verfügbar, da sich Prüfumfang, Engine oder Ergebnisabdeckung geändert haben.",
+    "noFindings": "Keine",
+    "measureAfter": "Führen Sie die Prüfung nach der Änderung erneut aus, um Regeln und Ziele zu vergleichen.",
+    "clearBaseline": "Baseline löschen",
+    "replaceBaseline": "Baseline ersetzen",
+    "saveBaseline": "Baseline speichern"
   },
   "performance": {
     "kicker": "Aktueller Besuch",

@@ -15,7 +15,7 @@ Use Hronaut as a browser owned by the user, not as a disposable browser process 
 
 - For authenticated application QA, create the task workspace first, open its initial page with `browser_new_tab`, and use `browser_request_user_attention` when a person must complete sign-in, CAPTCHA, consent, or another sensitive step.
 - For localhost and preview-environment debugging, inspect the current state with `browser_snapshot`, then collect only relevant sanitized evidence with `browser_debug_report` or `browser_network_search`.
-- For responsive, accessibility, and performance checks, use `browser_resize`, `browser_screenshot`, `browser_accessibility_audit`, or `browser_performance` as the task requires. Reset temporary viewport or emulation conditions after the check.
+- For responsive, accessibility, and performance checks, use `browser_resize`, `browser_screenshot`, `browser_accessibility_audit`, or `browser_performance` as the task requires. For an accessibility fix, call `browser_accessibility_audit` with `action: "set-baseline"` before the change and measure again afterward; review its new, remaining, resolved, compatibility, and truncation fields. Reset temporary viewport or emulation conditions after the check.
 
 ## Connect safely
 

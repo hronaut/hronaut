@@ -11,6 +11,7 @@ import SiteStorageUsageView from '../../src/renderer/src/components/SiteStorageU
 import { useDiagnosticsController } from '../../src/renderer/src/composables/useDiagnosticsController.js'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type {
+  BrowserAccessibilityAudit,
   BrowserConsoleMessage,
   BrowserNetworkSearchResult,
   BrowserStorageChangesReport,
@@ -41,7 +42,99 @@ function activeTab(): BrowserTabState {
   }
 }
 
+function accessibilityAudit(action: BrowserAccessibilityAudit['action'] = 'measure'): BrowserAccessibilityAudit {
+  return {
+    tabId: 'tab-1',
+    url: 'https://example.test/app',
+    title: 'Example',
+    auditedAt: '2026-09-15T10:05:00.000Z',
+    action,
+    standard: 'wcag-aa',
+    scope: { selector: null, maxViolations: 50, maxNodesPerViolation: 3 },
+    engine: { name: 'axe-core', version: '4.13.0' },
+    violationCount: 1,
+    affectedNodeCount: 1,
+    needsReviewCount: 0,
+    passedRuleCount: 20,
+    truncated: false,
+    violations: [{
+      id: 'image-alt',
+      impact: 'critical',
+      help: 'Images must have alternative text',
+      helpUrl: 'https://deque.test/image-alt',
+      description: 'Ensure images have alternative text',
+      nodeCount: 1,
+      nodes: [{ targets: ['#hero'], failureSummary: 'Fix the missing alt attribute' }]
+    }],
+    baseline: {
+      auditedAt: '2026-09-15T10:00:00.000Z',
+      url: 'https://example.test/app',
+      standard: 'wcag-aa',
+      scope: { selector: null, maxViolations: 50, maxNodesPerViolation: 3 },
+      engine: { name: 'axe-core', version: '4.13.0' },
+      violationCount: 1,
+      visibleFindingCount: 1,
+      truncated: false
+    },
+    ...(action === 'measure' ? {
+      comparison: {
+        comparable: true,
+        sameUrl: true,
+        sameScope: true,
+        sameEngine: true,
+        newFindings: [{ ruleId: 'image-alt', impact: 'critical', help: 'Images must have alternative text', targets: ['#hero'] }],
+        remainingFindings: [],
+        resolvedFindings: [{ ruleId: 'button-name', impact: 'critical', help: 'Buttons must have names', targets: ['#save'] }],
+        caveats: []
+      }
+    } : {})
+  }
+}
+
 describe('extracted diagnostic panels', () => {
+  it('saves and presents an accessibility comparison with actionable finding groups', async () => {
+    const tab = ref<BrowserTabState | undefined>(activeTab())
+    const runAccessibilityAudit = vi.fn()
+      .mockResolvedValueOnce(accessibilityAudit('set-baseline'))
+      .mockResolvedValueOnce(accessibilityAudit())
+      .mockResolvedValueOnce({ ...accessibilityAudit('clear-baseline'), baseline: undefined, comparison: undefined, baselineCleared: true })
+    const browser = {
+      measurePerformance: vi.fn(), inspectDesign: vi.fn(), inspectPageMetadata: vi.fn(), inspectSecurity: vi.fn(),
+      manageCodeCoverage: vi.fn(), manageCpuProfile: vi.fn(), measureMemory: vi.fn(), createDebugReport: vi.fn(),
+      manageRepro: vi.fn(), manageDomChanges: vi.fn(), visualCompare: vi.fn(), copyVisualDiff: vi.fn(),
+      listInspectorIssues: vi.fn(), runAccessibilityAudit, runQualityAudit: vi.fn()
+    }
+    const controller = useDiagnosticsController({
+      activeTab: tab,
+      browser,
+      translate: key => key,
+      copyText: async () => true,
+      closeTransientPanels: vi.fn(),
+      keepsSeparatePanelOpen: () => false
+    })
+    await controller.runAccessibilityAudit('set-baseline')
+    const view = render(DiagnosticsPanels, {
+      global,
+      props: {
+        dock: 'right', activeTab: tab.value, locale: 'en-US', controller,
+        openSupport: vi.fn(async () => undefined), preservationBusy: false, updatePreservation: vi.fn()
+      }
+    })
+    const panel = screen.getByRole('dialog', { name: 'Accessibility' })
+    expect(panel).toHaveTextContent('Run the audit again after your change')
+    expect(runAccessibilityAudit).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'set-baseline', tabId: 'tab-1' }))
+
+    await controller.runAccessibilityAudit()
+    expect(panel).toHaveTextContent('New findings')
+    expect(panel).toHaveTextContent('Images must have alternative text · image-alt')
+    expect(panel).toHaveTextContent('Buttons must have names · button-name')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Clear baseline' }))
+    expect(runAccessibilityAudit).toHaveBeenLastCalledWith(expect.objectContaining({ action: 'clear-baseline', tabId: 'tab-1' }))
+    expect(screen.queryByText('Accessibility baseline')).not.toBeInTheDocument()
+    view.unmount()
+    controller.dispose()
+  })
+
   it('owns the shared diagnostic panel shell and closes its active report', async () => {
     const tab = ref<BrowserTabState | undefined>(activeTab())
     const browser = {

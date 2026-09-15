@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Compare accessibility audits against a volatile per-tab baseline, with explicit new, remaining, and resolved rule/target findings in Page tools and MCP responses.
+
 ### Fixed
 
 - Invalidate existing full-access MCP sessions and pending browser dispatches when the authentication mode or token changes, so approvals cannot survive credential rotation.

@@ -65,6 +65,7 @@ import { dispatchNativeKeyPress, type KeyboardDebugger } from './native-keyboard
 import { dispatchNativeDrag, type PointerDebugger } from './native-pointer.js'
 import { MemorySaverSweepQueue } from '../memory-saver-sweep.js'
 import { accessibilityAuditPageScript, normalizeAccessibilityAuditOptions } from '../../shared/accessibility-audit.js'
+import { accessibilityBaselineSummary, buildAccessibilityComparison } from '../../shared/accessibility-comparison.js'
 import { buildBrowserDebugReport, redactDiagnosticText, sanitizeConsoleMessage } from '../../shared/debug-report.js'
 import {
   normalizeConsoleLogEntry,
@@ -644,6 +645,7 @@ interface BrowserTab {
   emulation: BrowserEmulationState
   emulationExtraHttpHeaders: Record<string, string>
   mcpGroupId?: string
+  accessibilityBaseline?: BrowserAccessibilityAudit
   memoryBaseline?: { url: string; measurement: BrowserMemoryMeasurement }
   performanceBaseline?: {
     report: BrowserPerformanceReport
@@ -4618,7 +4620,10 @@ export class BrowserTabsManager {
       ACCESSIBILITY_AUDIT_WORLD_ID,
       [{ code: accessibilityAuditPageScript(axe.source, normalized) }],
       false
-    ) as Omit<BrowserAccessibilityAudit, 'tabId' | 'standard'>
+    ) as Omit<
+      BrowserAccessibilityAudit,
+      'tabId' | 'action' | 'standard' | 'scope' | 'baseline' | 'comparison' | 'baselineCleared'
+    >
     const current = this.tabs.get(tab.id)
     if (
       !current
@@ -4628,11 +4633,34 @@ export class BrowserTabsManager {
     ) {
       throw new Error('The page changed during the accessibility audit. Run a fresh audit.')
     }
-    return {
+    const audit: BrowserAccessibilityAudit = {
+      ...result,
       tabId: tab.id,
+      action: normalized.action,
       standard: normalized.standard,
-      ...result
+      scope: {
+        selector: normalized.selector ?? null,
+        maxViolations: normalized.maxViolations,
+        maxNodesPerViolation: normalized.maxNodesPerViolation
+      }
     }
+    if (normalized.action === 'clear-baseline') {
+      const baselineCleared = Boolean(tab.accessibilityBaseline)
+      tab.accessibilityBaseline = undefined
+      return { ...audit, baselineCleared }
+    }
+    if (normalized.action === 'set-baseline') {
+      tab.accessibilityBaseline = { ...audit, action: 'measure' }
+      return { ...audit, baseline: accessibilityBaselineSummary(audit) }
+    }
+    const baseline = tab.accessibilityBaseline
+    return baseline
+      ? {
+          ...audit,
+          baseline: accessibilityBaselineSummary(baseline),
+          comparison: buildAccessibilityComparison(baseline, audit)
+        }
+      : audit
   }
 
   async performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {

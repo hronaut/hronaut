@@ -2,6 +2,7 @@ import { ref, watch, type Ref } from 'vue'
 import { formatReproAsPlaywright } from '../../../shared/repro-export.js'
 import type {
   BrowserAccessibilityAudit,
+  BrowserAccessibilityAuditAction,
   BrowserCodeCoverageMode,
   BrowserCodeCoverageResult,
   BrowserDebugReport,
@@ -632,7 +633,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     await copyWithFeedback('issues', JSON.stringify(inspectorIssuesReport.value, null, 2), inspectorIssuesCopied)
   }
 
-  async function runAccessibilityAudit(): Promise<void> {
+  async function runAccessibilityAudit(action: BrowserAccessibilityAuditAction = 'measure'): Promise<void> {
     const request = begin('accessibility')
     if (!request) return
     options.closeTransientPanels()
@@ -643,6 +644,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     try {
       const audit = await options.browser.runAccessibilityAudit({
         tabId: request.tab.id,
+        action,
         standard: 'wcag-aa',
         maxViolations: 50,
         maxNodesPerViolation: 3
