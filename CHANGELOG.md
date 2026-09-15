@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.11] - 2026-09-15
+
 ### Fixed
 
 - Apply a server-wide MCP tool-set change before its persisted setting becomes visible, preventing a newly connecting client from briefly receiving the previous catalog.
