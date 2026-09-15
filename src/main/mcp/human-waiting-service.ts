@@ -16,6 +16,19 @@ export interface HumanWaitingReviewBinding {
   browserSessionGeneration?: number
 }
 
+function sameReviewBinding(left: HumanWaitingReviewBinding, right: HumanWaitingReviewBinding): boolean {
+  return left.id === right.id
+    && left.revision === right.revision
+    && left.toolName === right.toolName
+    && left.artifactHash === right.artifactHash
+    && left.sessionBinding === right.sessionBinding
+    && left.origin === right.origin
+    && left.tabId === right.tabId
+    && left.navigationGeneration === right.navigationGeneration
+    && left.humanInputGeneration === right.humanInputGeneration
+    && left.browserSessionGeneration === right.browserSessionGeneration
+}
+
 /** One main-process owner. Serialization makes returned decisions durable and
  * prevents queued operations from using a superseded revision. Browser actions
  * are never dispatched here. The resolve validator must inspect fresh context.
@@ -189,19 +202,25 @@ export class HumanWaitingService {
 
   beginReviewedDispatch(
     workspaceId: string,
-    review: HumanWaitingReviewBinding,
+    currentReview: () => HumanWaitingReviewBinding,
     authorize: Authorization,
     validateFresh: () => void | Promise<void>
   ) {
     return this.serialize(async () => {
       authorize()
-      const approved = this.store.approvedReview(review.id, review.revision)
+      const requested = currentReview()
+      const approved = this.store.approvedReview(requested.id, requested.revision)
       if (approved.workspaceId !== workspaceId) throw new Error('Approved review unavailable or stale')
+      let review: HumanWaitingReviewBinding
       try {
         await validateFresh()
         authorize()
+        review = currentReview()
+        if (review.id !== requested.id || review.revision !== requested.revision) {
+          throw new Error('Reviewed action binding changed')
+        }
       } catch {
-        this.store.invalidateResolution(review.id)
+        this.store.invalidateResolution(requested.id)
         await this.save()
         throw new Error('Browser context changed before reviewed dispatch; create a fresh review')
       }
@@ -211,6 +230,7 @@ export class HumanWaitingService {
       try {
         await validateFresh()
         authorize()
+        if (!sameReviewBinding(review, currentReview())) throw new Error('Reviewed action binding changed')
       } catch {
         this.store.invalidateReviewAttempt(attempted.record.id, attempted.record.revision)
         await this.save()
