@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Apply a server-wide MCP tool-set change before its persisted setting becomes visible, preventing a newly connecting client from briefly receiving the previous catalog.
+- Expire unattempted consequential-action reviews when their MCP session reconnects, while blocking new mutations behind an unresolved attempted review.
 
 ## [2.4.10] - 2026-09-15
 

@@ -269,6 +269,14 @@ export class HumanWaitingStore {
     this.transition(record, record.review ? 'EXPIRED' : 'WAITING_FOR_HUMAN')
   }
 
+  invalidateReviewSession(id: string, activeSessionBinding: string): boolean {
+    const record = this.records.get(id)?.record
+    if (!record?.review || record.review.sessionBinding === activeSessionBinding
+      || !['PROPOSED', 'REVIEWED', 'APPROVED'].includes(record.review.status)) return false
+    this.transition(record, 'EXPIRED')
+    return true
+  }
+
   approvedReview(id: string, revision: string): WaitingRecord {
     this.expire()
     const record = this.records.get(id)?.record

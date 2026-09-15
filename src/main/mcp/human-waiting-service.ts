@@ -125,7 +125,13 @@ export class HumanWaitingService {
     return record
   }
 
-  requireDispatch(workspaceId: string, authorize: Authorization, review?: HumanWaitingReviewBinding): Promise<void> {
+  requireDispatch(
+    workspaceId: string,
+    authorize: Authorization,
+    review?: HumanWaitingReviewBinding,
+    activeSessionBinding?: string,
+    settlingReviewAttemptId?: string
+  ): Promise<void> {
     return this.serialize(async () => {
       authorize()
       // Dispatch checks also observe expiry. Persist that transition before
@@ -133,9 +139,25 @@ export class HumanWaitingService {
       const snapshot = this.store.snapshot()
       if (JSON.stringify(snapshot.records) !== this.persistedRecords) await this.save()
       authorize()
-      const workspaceRecords = snapshot.records.filter(record => record.workspaceId === workspaceId)
+      let workspaceRecords = snapshot.records.filter(record => record.workspaceId === workspaceId)
+      let sessionInvalidated = false
+      if (activeSessionBinding) {
+        for (const record of workspaceRecords) {
+          sessionInvalidated = this.store.invalidateReviewSession(record.id, activeSessionBinding)
+            || sessionInvalidated
+        }
+      }
+      if (sessionInvalidated) {
+        await this.save()
+        authorize()
+        workspaceRecords = this.store.list(workspaceId)
+      }
       if (workspaceRecords.some(record => record.state === 'WAITING_FOR_HUMAN' || record.state === 'ACKNOWLEDGED')) {
         throw new Error('Workspace is waiting for a human decision')
+      }
+      if (workspaceRecords.some(record => record.review?.status === 'ATTEMPTED'
+        && record.id !== settlingReviewAttemptId)) {
+        throw new Error('A reviewed action outcome is unresolved; inspect current state before continuing')
       }
       const approved = workspaceRecords.find(record => record.review?.status === 'APPROVED')
       if (approved) {

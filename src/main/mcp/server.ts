@@ -1416,13 +1416,23 @@ function createBrowserMcpServer(
         const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId : undefined
         const scopedOrigins = origins ?? (forkSourceId ? capabilityProfile?.origins : undefined)
         const forkRevision = actionTracker.controlRevision
-        if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
+        if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(
+          forkSourceId,
+          () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+          undefined,
+          humanReviewSessionBinding
+        )
         if (forkSourceId) manager.requireWorkspaceContinuityDispatch(forkSourceId)
         const finishFork = forkSourceId ? manager.beginWorkspaceContinuityAction(forkSourceId, false) : undefined
         const forkContextCurrent = async (): Promise<boolean> => {
           if (!forkSourceId) return true
           try {
-            if (humanWaiting) await humanWaiting.requireDispatch(forkSourceId, () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) })
+            if (humanWaiting) await humanWaiting.requireDispatch(
+              forkSourceId,
+              () => { manager.requireWorkspaceContinuityDispatch(forkSourceId) },
+              undefined,
+              humanReviewSessionBinding
+            )
             if (getPaused() || actionTracker.controlRevision !== forkRevision) return false
             manager.requireWorkspaceContinuityDispatch(forkSourceId)
             return true
@@ -1645,12 +1655,17 @@ function createBrowserMcpServer(
         requireActiveCapabilityDispatch(name, actionInput)
         requireAgentWorkspace(workspaceId)
         const reviewedBinding = reviewBinding(name, input)
-        const requireHumanDecision = async (withReviewedBinding = true): Promise<void> => {
+        const requireHumanDecision = async (
+          withReviewedBinding = true,
+          settlingReviewAttemptId?: string
+        ): Promise<void> => {
           if (humanWaiting && !continuityInspectionTools.has(name)) {
             await humanWaiting.requireDispatch(
               workspaceId,
               () => { requireAgentWorkspace(workspaceId) },
-              withReviewedBinding ? reviewedBinding : undefined
+              withReviewedBinding ? reviewedBinding : undefined,
+              humanReviewSessionBinding,
+              settlingReviewAttemptId
             )
           }
         }
@@ -1859,7 +1874,7 @@ function createBrowserMcpServer(
                 tabId: resolvedTabId
               } as unknown as T)
             try {
-              await requireHumanDecision(false)
+              await requireHumanDecision(false, reviewAttempt?.id)
               requireCurrentControl()
               requireAgentWorkspace(workspaceId)
               if (name !== 'browser_close_tab') requireCurrentHumanInput()
@@ -2003,7 +2018,7 @@ function createBrowserMcpServer(
                   },
                   signal,
                   read: async readSignal => {
-                    await requireHumanDecision(false)
+                    await requireHumanDecision(false, reviewAttempt?.id)
                     requireCurrentTarget()
                     return manager.readPostWritePostcondition(
                       workspaceId, resolvedTabId, postWriteCondition, requireCurrentTarget, readSignal
@@ -2154,6 +2169,9 @@ function createBrowserMcpServer(
           profileName: capabilityProfile?.name ?? 'Full access',
           ...(grouped ? { steps, currentStep: 0 } : {})
         }
+      }
+      if (reviewArtifact) {
+        await humanWaiting.requireDispatch(input.workspaceId, authorize, undefined, humanReviewSessionBinding)
       }
       // Establish durable continuity recovery before asking for a human decision.
       if (!await manager.requireWorkspaceContinuityReview(input.workspaceId)) throw new Error('Workspace recovery could not be saved')
