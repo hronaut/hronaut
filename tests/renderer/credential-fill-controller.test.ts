@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useCredentialFillController } from '../../src/renderer/src/composables/useCredentialFillController.js'
 import type { BrowserTabState, CredentialSummary } from '../../src/shared/types.js'
 
@@ -44,6 +44,12 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
+const controllers: Array<ReturnType<typeof useCredentialFillController>> = []
+
+afterEach(() => {
+  for (const controller of controllers.splice(0)) controller.dispose()
+})
+
 function create(
   initialCredentials = [credential()],
   missingCredentialMessage = () => 'Page no longer matches this password'
@@ -52,7 +58,7 @@ function create(
   const activeCredentials = ref(initialCredentials)
   const pickerOpen = ref(false)
   const openPicker = vi.fn(async () => { pickerOpen.value = true })
-  const fillCredential = vi.fn(async () => true)
+  const fillCredential = vi.fn(async (_tabId: string, _credentialId: string) => true)
   const onFilled = vi.fn()
   const onError = vi.fn()
   const controller = useCredentialFillController({
@@ -65,6 +71,7 @@ function create(
     onFilled,
     onError
   })
+  controllers.push(controller)
   return {
     activeTab,
     activeCredentials,
@@ -123,6 +130,87 @@ describe('credential fill controller', () => {
     pending.resolve(true)
     await Promise.all([first, duplicate])
     expect(harness.controller.state.value).toBe('idle')
+  })
+
+  it('keeps a fill pending across an equivalent active-tab state refresh', async () => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementation(() => pending.promise)
+
+    const first = harness.controller.fillSelectedCredential(credential())
+    await Promise.resolve()
+    harness.activeTab.value = { ...tab(), title: 'Updated sign-in title', loading: true }
+    const duplicate = harness.controller.fillSelectedCredential(credential('credential-2'))
+
+    expect(harness.controller.state.value).toBe('filling')
+    expect(harness.fillCredential).toHaveBeenCalledTimes(1)
+    pending.resolve(true)
+    await Promise.all([first, duplicate])
+    expect(harness.onFilled).toHaveBeenCalledOnce()
+    expect(harness.controller.state.value).toBe('idle')
+  })
+
+  it('starts a fill for the new active page before a stale fill settles', async () => {
+    const firstPending = deferred<boolean>()
+    const secondPending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementation((tabId) => (
+      tabId === 'tab-1' ? firstPending.promise : secondPending.promise
+    ))
+
+    const first = harness.controller.fillSelectedCredential(credential('credential-1', 'First'))
+    await Promise.resolve()
+    harness.activeTab.value = tab('tab-2')
+    const second = harness.controller.fillSelectedCredential(credential('credential-2', 'Second'))
+    await Promise.resolve()
+
+    expect(harness.fillCredential).toHaveBeenNthCalledWith(1, 'tab-1', 'credential-1')
+    expect(harness.fillCredential).toHaveBeenNthCalledWith(2, 'tab-2', 'credential-2')
+    firstPending.resolve(false)
+    await first
+    expect(harness.controller.state.value).toBe('filling')
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
+
+    secondPending.resolve(true)
+    await second
+    expect(harness.controller.state.value).toBe('idle')
+    expect(harness.onFilled).toHaveBeenCalledOnce()
+    expect(harness.onFilled).toHaveBeenCalledWith(expect.objectContaining({ id: 'credential-2' }))
+    expect(harness.onError).not.toHaveBeenCalled()
+  })
+
+  it('does not revive stale fill feedback after switching away and back', async () => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementationOnce(() => pending.promise)
+
+    const fill = harness.controller.fillSelectedCredential(credential())
+    await Promise.resolve()
+    harness.activeTab.value = tab('tab-2')
+    harness.activeTab.value = tab('tab-1')
+    pending.resolve(false)
+    await fill
+
+    expect(harness.controller.state.value).toBe('idle')
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
+  })
+
+  it('suppresses a delayed fill result after disposal', async () => {
+    const pending = deferred<boolean>()
+    const harness = create()
+    harness.fillCredential.mockImplementationOnce(() => pending.promise)
+
+    const fill = harness.controller.fillSelectedCredential(credential())
+    await Promise.resolve()
+    harness.controller.dispose()
+    pending.resolve(false)
+    await fill
+
+    expect(harness.controller.state.value).toBe('idle')
+    expect(harness.onFilled).not.toHaveBeenCalled()
+    expect(harness.onError).not.toHaveBeenCalled()
   })
 
   it('closes the picker and reports a rejected stale document before becoming retryable', async () => {
