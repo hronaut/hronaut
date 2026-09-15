@@ -13,6 +13,7 @@ export interface HumanWaitingReviewBinding {
   tabId?: string
   navigationGeneration?: number
   humanInputGeneration?: number
+  browserSessionGeneration?: number
 }
 
 /** One main-process owner. Serialization makes returned decisions durable and

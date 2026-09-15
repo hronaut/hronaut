@@ -610,6 +610,7 @@ interface BrowserTab {
   navigationGeneration: number
   observationGeneration: number
   humanInteractionGeneration: number
+  browserSessionGeneration: number
   overviewPreviewSequence: number
   navigationPolicyDenialSequence: number
   pinned: boolean
@@ -1290,6 +1291,7 @@ export class BrowserTabsManager {
   private followAgentActivitySuspended = false
   private readonly networkHookSessions = new WeakSet<Session>()
   private readonly downloadHookSessions = new WeakSet<Session>()
+  private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   private readonly webContentsToTab = new Map<number, string>()
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
@@ -4160,6 +4162,7 @@ export class BrowserTabsManager {
   }
 
   private removeTabRecord(tab: BrowserTab): void {
+    const browserSession = tab.webContents.isDestroyed() ? undefined : tab.webContents.session
     this.invalidateTabOverviewPreview(tab)
     this.tabOverviewPendingCaptures.delete(tab.id)
     this.tabOverviewPreviewableTabs.delete(tab.id)
@@ -4168,6 +4171,13 @@ export class BrowserTabsManager {
     ))
     this.deleteSnapshotBaselineForTab(tab.id)
     this.tabs.delete(tab.id)
+    if (browserSession && ![...this.tabs.values()].some((candidate) => (
+      !candidate.webContents.isDestroyed() && candidate.webContents.session === browserSession
+    ))) {
+      const listener = this.browserSessionAuthorityHooks.get(browserSession)
+      if (listener) browserSession.cookies.removeListener('changed', listener)
+      this.browserSessionAuthorityHooks.delete(browserSession)
+    }
     this.mcpActivitiesByTab.delete(tab.id)
     this.mcpActivityFollower.removeTab(tab.id)
     this.webContentsToTab.delete(tab.webContents.id)
@@ -7567,6 +7577,10 @@ export class BrowserTabsManager {
     this.agentInputFocusGuardReleases.clear()
     this.agentInputWebContents.clear()
     this.agentInputFocusSnapshots.clear()
+    for (const [browserSession, listener] of this.browserSessionAuthorityHooks) {
+      browserSession.cookies.removeListener('changed', listener)
+    }
+    this.browserSessionAuthorityHooks.clear()
   }
 
   private async createTab(options: {
@@ -7632,6 +7646,7 @@ export class BrowserTabsManager {
         ? this.workspaceObservationGeneration(options.mcpGroupId)
         : 0,
       humanInteractionGeneration: 0,
+      browserSessionGeneration: 0,
       overviewPreviewSequence: 0,
       navigationPolicyDenialSequence: 0,
       pinned: options.pinned === true && !isHronautHomeUrl(url),
@@ -8824,6 +8839,7 @@ export class BrowserTabsManager {
       navigationGeneration: tab.navigationGeneration,
       observationGeneration: tab.observationGeneration,
       humanInteractionGeneration: tab.humanInteractionGeneration,
+      browserSessionGeneration: tab.browserSessionGeneration,
       canGoBack: navigation.index > 0,
       canGoForward: navigation.index >= 0 && navigation.index < navigation.entries.length - 1,
       active: tab.id === this.activeTabId,
@@ -10930,6 +10946,22 @@ export class BrowserTabsManager {
   }
 
   private installSessionHooks(browserSession: Session): void {
+    if (!this.browserSessionAuthorityHooks.has(browserSession)) {
+      const onCookieChanged = (): void => {
+        if (this.destroyed) return
+        let changed = false
+        for (const tab of this.tabs.values()) {
+          if (tab.webContents.isDestroyed() || tab.webContents.session !== browserSession) continue
+          tab.browserSessionGeneration = tab.browserSessionGeneration === Number.MAX_SAFE_INTEGER
+            ? 0
+            : tab.browserSessionGeneration + 1
+          changed = true
+        }
+        if (changed) this.changed(false)
+      }
+      browserSession.cookies.on('changed', onCookieChanged)
+      this.browserSessionAuthorityHooks.set(browserSession, onCookieChanged)
+    }
     if (!this.networkHookSessions.has(browserSession)) {
       this.networkHookSessions.add(browserSession)
       browserSession.webRequest.onBeforeRequest((details, callback) => {

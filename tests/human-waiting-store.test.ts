@@ -15,21 +15,22 @@ const review = {
   representation: 'bounded-description' as const, description: 'Submit the visible form',
   expectedPostcondition: 'A confirmation appears', artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64),
   workspaceName: 'Checkout QA', profileName: 'Restricted QA', origin: 'https://example.com',
-  tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 4, humanInputGeneration: 2
+  tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 4, humanInputGeneration: 2,
+  browserSessionGeneration: 6
 }
 const secondReviewStep = {
   toolName: 'browser_click', actionClass: 'interact' as const, reversibility: 'reversible' as const,
   representation: 'bounded-description' as const, description: 'Confirm the visible choice',
   expectedPostcondition: 'The second confirmation appears', artifactHash: 'c'.repeat(64),
   origin: review.origin, tabId: review.tabId, navigationGeneration: review.navigationGeneration,
-  humanInputGeneration: review.humanInputGeneration
+  humanInputGeneration: review.humanInputGeneration, browserSessionGeneration: review.browserSessionGeneration
 }
 const groupedReview = { ...review, steps: [{
   toolName: review.toolName, actionClass: review.actionClass, reversibility: review.reversibility,
   representation: review.representation, description: review.description,
   expectedPostcondition: review.expectedPostcondition, artifactHash: review.artifactHash,
   origin: review.origin, tabId: review.tabId, navigationGeneration: review.navigationGeneration,
-  humanInputGeneration: review.humanInputGeneration
+  humanInputGeneration: review.humanInputGeneration, browserSessionGeneration: review.browserSessionGeneration
 }, secondReviewStep], currentStep: 0 }
 
 describe('human waiting lifecycle', () => {
@@ -209,11 +210,18 @@ describe('human waiting lifecycle', () => {
       state: 'UNKNOWN', review: { status: 'UNKNOWN', currentStep: 0 }
     })
 
-    const drifted = new HumanWaitingStore()
-    const driftProposal = drifted.create({ ...input, decision: 'approve-action', review: groupedReview })
-    const driftApproval = drifted.resolve(driftProposal.id, driftProposal.revision)
-    expect(drifted.beginReviewAttempt(driftApproval.id, driftApproval.revision, {
+    const navigationDrifted = new HumanWaitingStore()
+    const navigationProposal = navigationDrifted.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const navigationApproval = navigationDrifted.resolve(navigationProposal.id, navigationProposal.revision)
+    expect(navigationDrifted.beginReviewAttempt(navigationApproval.id, navigationApproval.revision, {
       ...review, navigationGeneration: review.navigationGeneration + 1
+    })).toMatchObject({ accepted: false, record: { state: 'EXPIRED', review: { status: 'EXPIRED' } } })
+
+    const sessionDrifted = new HumanWaitingStore()
+    const sessionProposal = sessionDrifted.create({ ...input, decision: 'approve-action', review: groupedReview })
+    const sessionApproval = sessionDrifted.resolve(sessionProposal.id, sessionProposal.revision)
+    expect(sessionDrifted.beginReviewAttempt(sessionApproval.id, sessionApproval.revision, {
+      ...review, browserSessionGeneration: review.browserSessionGeneration + 1
     })).toMatchObject({ accepted: false, record: { state: 'EXPIRED', review: { status: 'EXPIRED' } } })
 
     const rejected = new HumanWaitingStore()
