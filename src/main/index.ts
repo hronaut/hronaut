@@ -72,6 +72,7 @@ import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { renderHomePage } from './home-page.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
+import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
@@ -417,12 +418,25 @@ function effectiveDownloadDirectory(value: AppSettings = settings): string {
   return resolve(value.downloadDirectory || defaultDownloadDirectory())
 }
 
-function updateSettings(updates: Partial<AppSettings>): Promise<AppSettings> {
+function updateSettings(
+  updates: Partial<AppSettings>,
+  applyRuntime?: (value: AppSettings) => void
+): Promise<AppSettings> {
   let committed: AppSettings | undefined
   const operation = settingsMutationQueue.then(async () => {
+    const previous = settings
     const next = { ...settings, ...updates }
     const nextPersisted = { ...persistedSettings, ...updates }
-    await settingsStore!.save(nextPersisted)
+    if (applyRuntime) {
+      await commitRuntimeSetting({
+        previous,
+        next,
+        apply: applyRuntime,
+        persist: () => settingsStore!.save(nextPersisted)
+      })
+    } else {
+      await settingsStore!.save(nextPersisted)
+    }
     persistedSettings = nextPersisted
     settings = next
     committed = { ...settings }
@@ -3389,8 +3403,10 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-mcp-tool-set', async (event, toolSet: unknown) => {
     assertTrustedShellSender(event)
     if (!isMcpToolSet(toolSet)) throw new TypeError('Unsupported MCP tool set')
-    await updateSettings({ mcpToolSet: toolSet })
-    mcpServer?.setToolSet(toolSet)
+    await updateSettings(
+      { mcpToolSet: toolSet },
+      (next) => mcpServer?.setToolSet(next.mcpToolSet)
+    )
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
     return { ...settings }
