@@ -45,8 +45,9 @@ npm test -- tests/mcpb-adapter.test.ts tests/mcpb-packaging.test.ts
 Run `npm run package:mcpb` to produce both files in `dist/`. The release
 workflow builds the bundle after validation, uploads both files with the
 platform packages, includes them in `hashes.txt`, and attests them before the
-draft release is published. Registry publication should use the exact
-`hronaut-mcp-server.json` asset from that release.
+draft release is published. After the public release is verified, the Registry
+workflow checks those exact assets and their attestations, publishes the
+release metadata with GitHub OIDC, and verifies public Registry readback.
 
 Offline tests validate the bundle manifest against MCPB schema 0.3 pinned from
 the official repository at commit
