@@ -921,9 +921,11 @@ export function renderHomePage(options: HomePageOptions): string {
       }
     }
 
+    let dashboardPollTimer;
+
     async function pollDashboard() {
       await refreshDashboard();
-      setTimeout(pollDashboard, 2000);
+      dashboardPollTimer = setTimeout(pollDashboard, 2000);
     }
 
     document.querySelectorAll('[data-copy-target]').forEach((button) => {

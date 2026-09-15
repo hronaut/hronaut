@@ -882,20 +882,44 @@ test('does not overlap Home dashboard polling while a status response is pending
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(async () => {
       const pending = [];
+      const scheduledPolls = [];
       const originalFetch = window.fetch;
+      const originalSetTimeout = window.setTimeout;
+      clearTimeout(dashboardPollTimer);
       window.fetch = () => new Promise((resolve) => pending.push(resolve));
+      window.setTimeout = (callback, delay, ...args) => {
+        if (delay !== 2000) return originalSetTimeout(callback, delay, ...args);
+        scheduledPolls.push(() => callback(...args));
+        return 100000 + scheduledPolls.length;
+      };
       try {
-        await new Promise((resolve) => setTimeout(resolve, 4200));
-        return pending.length;
+        const firstPoll = pollDashboard();
+        while (pending.length < 1) await Promise.resolve();
+        const whilePending = { requests: pending.length, scheduled: scheduledPolls.length };
+        const response = { ok: true, json: async () => dashboard };
+        pending.shift()(response);
+        await firstPoll;
+        const afterResolution = { requests: pending.length, scheduled: scheduledPolls.length };
+        const secondPoll = scheduledPolls.shift()();
+        while (pending.length < 1) await Promise.resolve();
+        const afterNextPoll = { requests: pending.length, scheduled: scheduledPolls.length };
+        pending.shift()(response);
+        await secondPoll;
+        return { whilePending, afterResolution, afterNextPoll };
       } finally {
         const response = { ok: true, json: async () => dashboard };
         pending.splice(0).forEach((resolve) => resolve(response));
         window.fetch = originalFetch;
+        window.setTimeout = originalSetTimeout;
       }
     })()`)
   })
 
-  expect(concurrentRequests).toBe(1)
+  expect(concurrentRequests).toEqual({
+    whilePending: { requests: 1, scheduled: 0 },
+    afterResolution: { requests: 0, scheduled: 1 },
+    afterNextPoll: { requests: 1, scheduled: 0 }
+  })
 })
 
 test('restarts Home copy feedback after repeated setup copies', async ({ electronApp }) => {
