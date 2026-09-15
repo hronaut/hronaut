@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import type { BrowserTabState, CredentialSummary } from '../../../shared/types.js'
 
 export interface CredentialFillControllerOptions {
@@ -14,14 +14,30 @@ export interface CredentialFillControllerOptions {
 
 export function useCredentialFillController(options: CredentialFillControllerOptions) {
   const state = ref<'idle' | 'filling'>('idle')
+  let requestGeneration = 0
+
+  const stopContextTracking = watch(
+    [
+      () => options.activeTab.value?.id,
+      () => options.activeTab.value?.url,
+      () => options.activeTab.value?.navigationGeneration
+    ],
+    () => {
+      requestGeneration += 1
+      state.value = 'idle'
+    },
+    { flush: 'sync' }
+  )
 
   async function fillSelectedCredential(credential: CredentialSummary): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || state.value === 'filling') return
+    const request = ++requestGeneration
     const requestContext = { tabId: tab.id, url: tab.url, navigationGeneration: tab.navigationGeneration }
     const isRequestContextActive = () => {
       const activeTab = options.activeTab.value
-      return activeTab?.id === requestContext.tabId && activeTab.url === requestContext.url
+      return request === requestGeneration
+        && activeTab?.id === requestContext.tabId && activeTab.url === requestContext.url
         && activeTab.navigationGeneration === requestContext.navigationGeneration
     }
     options.pickerOpen.value = false
@@ -34,7 +50,7 @@ export function useCredentialFillController(options: CredentialFillControllerOpt
     } catch (error) {
       if (isRequestContextActive()) options.onError(error)
     } finally {
-      state.value = 'idle'
+      if (request === requestGeneration) state.value = 'idle'
     }
   }
 
@@ -47,10 +63,17 @@ export function useCredentialFillController(options: CredentialFillControllerOpt
     await options.openPicker()
   }
 
+  function dispose(): void {
+    requestGeneration += 1
+    state.value = 'idle'
+    stopContextTracking()
+  }
+
   return {
     state,
     fillSavedPassword,
-    fillSelectedCredential
+    fillSelectedCredential,
+    dispose
   }
 }
 

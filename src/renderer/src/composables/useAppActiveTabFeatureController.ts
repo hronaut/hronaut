@@ -113,7 +113,10 @@ export function useAppActiveTabFeatureController(
     detachedPanelUnavailable,
     detachedPanelLabelText,
     describeTabEmulation,
-    dispose: activeTabContext.dispose
+    dispose: () => {
+      credentialFill.dispose()
+      activeTabContext.dispose()
+    }
   }
 }
 
