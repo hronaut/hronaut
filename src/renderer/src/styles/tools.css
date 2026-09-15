@@ -199,6 +199,25 @@
 .accessibility-audit-summary span { @apply text-muted [font-size:12px] [font-weight:700]; }
 .accessibility-audit-summary article.critical strong { @apply text-danger-copy; }
 .accessibility-audit-summary article.serious strong { @apply [color:#b45f12]; }
+.accessibility-comparison { @apply grid flex-none [max-height:min(42vh,_360px)] overflow-y-auto [gap:10px] [padding:12px] [border-bottom:1px_solid_var(--border-soft)] bg-surface; }
+.accessibility-comparison > header { @apply flex items-start justify-between [gap:12px]; }
+.accessibility-comparison > header > div { @apply grid [gap:3px]; }
+.accessibility-comparison > header strong { @apply text-copy [font-size:14px]; }
+.accessibility-comparison-summary { @apply grid [grid-template-columns:repeat(3,_minmax(0,_1fr))] [gap:8px]; }
+.accessibility-comparison-summary article { @apply grid [gap:3px] [padding:9px] [border:1px_solid_var(--border-soft)] [border-radius:8px] bg-surface-muted; }
+.accessibility-comparison-summary strong { @apply text-copy [font-size:18px]; }
+.accessibility-comparison-summary article.resolved strong { @apply [color:var(--success)]; }
+.accessibility-comparison-summary span,
+.accessibility-comparison > p,
+.accessibility-comparison-findings > span { @apply text-muted [font-size:12px] [line-height:1.45]; }
+.accessibility-comparison-findings { @apply grid [gap:5px]; }
+.accessibility-comparison-findings > strong { @apply text-copy [font-size:12px]; }
+.accessibility-comparison-findings ul,
+.accessibility-comparison-caveats { @apply grid [gap:5px] m-0 [padding-left:18px]; }
+.accessibility-comparison-findings li { @apply text-muted [font-size:12px]; }
+.accessibility-comparison-findings li span { @apply block text-copy [font-weight:700]; }
+.accessibility-comparison-findings code { @apply [overflow-wrap:anywhere] [font:600_11px/1.4_"SFMono-Regular",_Consolas,_monospace]; }
+.accessibility-comparison-caveats { @apply text-muted [font-size:12px] [line-height:1.45]; }
 .accessibility-violations { @apply min-h-0 overflow-y-auto [padding:8px_10px_12px]; }
 .accessibility-violation {
   @apply [padding:13px] [border:1px_solid_var(--border-soft)] [border-radius:10px] bg-surface;
@@ -231,6 +250,7 @@
 .accessibility-panel > footer button {
   @apply flex items-center [gap:5px] [padding:7px_10px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-copy bg-surface-raised [font:inherit] [font-size:12px] [font-weight:750] cursor-pointer;
 }
+.accessibility-panel > footer > div { @apply flex flex-wrap justify-end [gap:7px]; }
 .accessibility-panel > footer button:hover { @apply bg-hover; }
 .accessibility-panel > footer svg { @apply [width:16px] [height:16px]; }
 

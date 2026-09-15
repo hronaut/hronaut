@@ -1563,7 +1563,19 @@ export const frFR = {
     "element": "élément",
     "elements": "éléments",
     "guidance": "Guide de la règle ↗",
-    "runAgain": "Relancer"
+    "runAgain": "Relancer",
+    "baseline": "Référence d’accessibilité",
+    "comparedWith": "Comparé à {time}",
+    "unknown": "Inconnu",
+    "newFindings": "Nouveaux constats",
+    "remainingFindings": "Constats restants",
+    "resolvedFindings": "Constats résolus",
+    "notComparable": "Indisponible car la portée, le moteur ou la couverture du résultat a changé.",
+    "noFindings": "Aucun",
+    "measureAfter": "Relancez l’audit après la modification pour comparer les règles et les cibles.",
+    "clearBaseline": "Effacer la référence",
+    "replaceBaseline": "Remplacer la référence",
+    "saveBaseline": "Enregistrer la référence"
   },
   "performance": {
     "kicker": "Visite actuelle",

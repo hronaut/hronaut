@@ -429,7 +429,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         <IconError aria-hidden="true" />
         <strong>{{ t('accessibilityAudit.failed') }}</strong>
         <span>{{ accessibilityAuditError }}</span>
-        <UiButton appearance="application" type="button" @click="runAccessibilityAudit">{{ t('common.tryAgain') }}</UiButton>
+        <UiButton appearance="application" type="button" @click="runAccessibilityAudit()">{{ t('common.tryAgain') }}</UiButton>
       </div>
       <template v-else-if="accessibilityAudit">
         <div class="accessibility-audit-summary">
@@ -450,6 +450,49 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
             <span>{{ t('accessibilityAudit.review') }}</span>
           </article>
         </div>
+        <section v-if="accessibilityAudit.baseline" class="accessibility-comparison" aria-labelledby="accessibility-comparison-title">
+          <header>
+            <div>
+              <span class="eyebrow">{{ t('accessibilityAudit.baseline') }}</span>
+              <strong id="accessibility-comparison-title">{{ t('accessibilityAudit.comparedWith', { time: localTime(accessibilityAudit.baseline.auditedAt) }) }}</strong>
+            </div>
+          </header>
+          <div v-if="accessibilityAudit.comparison" class="accessibility-comparison-summary">
+            <article>
+              <strong>{{ accessibilityAudit.comparison.newFindings?.length ?? t('accessibilityAudit.unknown') }}</strong>
+              <span>{{ t('accessibilityAudit.newFindings') }}</span>
+            </article>
+            <article>
+              <strong>{{ accessibilityAudit.comparison.remainingFindings?.length ?? t('accessibilityAudit.unknown') }}</strong>
+              <span>{{ t('accessibilityAudit.remainingFindings') }}</span>
+            </article>
+            <article class="resolved">
+              <strong>{{ accessibilityAudit.comparison.resolvedFindings?.length ?? t('accessibilityAudit.unknown') }}</strong>
+              <span>{{ t('accessibilityAudit.resolvedFindings') }}</span>
+            </article>
+          </div>
+          <template v-if="accessibilityAudit.comparison">
+            <section v-for="group in [
+              { key: 'new', label: t('accessibilityAudit.newFindings'), findings: accessibilityAudit.comparison.newFindings },
+              { key: 'remaining', label: t('accessibilityAudit.remainingFindings'), findings: accessibilityAudit.comparison.remainingFindings },
+              { key: 'resolved', label: t('accessibilityAudit.resolvedFindings'), findings: accessibilityAudit.comparison.resolvedFindings }
+            ]" :key="group.key" class="accessibility-comparison-findings">
+              <strong>{{ group.label }}</strong>
+              <span v-if="group.findings === null">{{ t('accessibilityAudit.notComparable') }}</span>
+              <span v-else-if="group.findings.length === 0">{{ t('accessibilityAudit.noFindings') }}</span>
+              <ul v-else>
+                <li v-for="finding in group.findings" :key="`${group.key}-${finding.ruleId}-${finding.targets.join('|')}`">
+                  <span>{{ finding.help }} · {{ finding.ruleId }}</span>
+                  <code>{{ finding.targets.join(' → ') }}</code>
+                </li>
+              </ul>
+            </section>
+            <ul v-if="accessibilityAudit.comparison.caveats.length" class="accessibility-comparison-caveats">
+              <li v-for="caveat in accessibilityAudit.comparison.caveats" :key="caveat">{{ caveat }}</li>
+            </ul>
+          </template>
+          <p v-else>{{ t('accessibilityAudit.measureAfter') }}</p>
+        </section>
         <div v-if="!accessibilityAudit.violationCount" class="accessibility-audit-empty">
           <IconCheck aria-hidden="true" />
           <strong>{{ t('accessibilityAudit.clear') }}</strong>
@@ -474,7 +517,11 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </div>
         <footer>
           <span>{{ accessibilityAudit.engine.name }} {{ accessibilityAudit.engine.version }} · {{ accessibilityAudit.standard }}</span>
-          <UiButton appearance="application" type="button" @click="runAccessibilityAudit"><IconRefresh aria-hidden="true" /> {{ t('accessibilityAudit.runAgain') }}</UiButton>
+          <div>
+            <UiButton v-if="accessibilityAudit.baseline" appearance="application" type="button" @click="runAccessibilityAudit('clear-baseline')">{{ t('accessibilityAudit.clearBaseline') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="runAccessibilityAudit('set-baseline')">{{ accessibilityAudit.baseline ? t('accessibilityAudit.replaceBaseline') : t('accessibilityAudit.saveBaseline') }}</UiButton>
+            <UiButton appearance="application" type="button" @click="runAccessibilityAudit()"><IconRefresh aria-hidden="true" /> {{ t('accessibilityAudit.runAgain') }}</UiButton>
+          </div>
         </footer>
       </template>
     </section>

@@ -1563,7 +1563,19 @@ export const plPL = {
     "element": "element",
     "elements": "elementy",
     "guidance": "Wskazówki dotyczące reguły ↗",
-    "runAgain": "Uruchom ponownie"
+    "runAgain": "Uruchom ponownie",
+    "baseline": "Punkt odniesienia dostępności",
+    "comparedWith": "Porównano z {time}",
+    "unknown": "Nieznane",
+    "newFindings": "Nowe problemy",
+    "remainingFindings": "Pozostałe problemy",
+    "resolvedFindings": "Rozwiązane problemy",
+    "notComparable": "Niedostępne, ponieważ zmienił się zakres, silnik lub kompletność wyniku.",
+    "noFindings": "Brak",
+    "measureAfter": "Uruchom audyt ponownie po zmianie, aby porównać reguły i elementy docelowe.",
+    "clearBaseline": "Wyczyść punkt odniesienia",
+    "replaceBaseline": "Zastąp punkt odniesienia",
+    "saveBaseline": "Zapisz punkt odniesienia"
   },
   "performance": {
     "kicker": "Bieżąca wizyta",

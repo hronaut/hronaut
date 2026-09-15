@@ -10,6 +10,7 @@ export const ACCESSIBILITY_AUDIT_LIMITS = {
 } as const
 
 export interface NormalizedAccessibilityAuditOptions {
+  action: 'measure' | 'set-baseline' | 'clear-baseline'
   selector?: string
   standard: BrowserAccessibilityStandard
   maxViolations: number
@@ -25,6 +26,10 @@ const STANDARD_TAGS: Record<Exclude<BrowserAccessibilityStandard, 'all'>, string
 export function normalizeAccessibilityAuditOptions(
   options: BrowserAccessibilityAuditOptions = {}
 ): NormalizedAccessibilityAuditOptions {
+  const action = options.action ?? 'measure'
+  if (!['measure', 'set-baseline', 'clear-baseline'].includes(action)) {
+    throw new Error('Accessibility audit action must be measure, set-baseline, or clear-baseline')
+  }
   const selector = options.selector?.trim()
   if (selector && (selector.length > ACCESSIBILITY_AUDIT_LIMITS.maxSelectorChars || /[\u0000-\u001f\u007f]/.test(selector))) {
     throw new Error(`Accessibility audit selector must be at most ${ACCESSIBILITY_AUDIT_LIMITS.maxSelectorChars} characters without control characters`)
@@ -46,6 +51,7 @@ export function normalizeAccessibilityAuditOptions(
     throw new Error(`maxNodesPerViolation must be an integer from 1 to ${ACCESSIBILITY_AUDIT_LIMITS.maxNodesPerViolation}`)
   }
   return {
+    action,
     ...(selector ? { selector } : {}),
     standard,
     maxViolations,

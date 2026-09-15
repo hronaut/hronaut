@@ -2939,9 +2939,10 @@ function registerIpc(): void {
   ipcMain.handle('browser:accessibility-audit', (event, value: unknown) => {
     assertTrustedShellSender(event)
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid accessibility audit options')
-    const { tabId, selector, standard, maxViolations, maxNodesPerViolation } = value as Record<string, unknown>
+    const { tabId, action, selector, standard, maxViolations, maxNodesPerViolation } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
+      || (action !== undefined && !['measure', 'set-baseline', 'clear-baseline'].includes(String(action)))
       || (selector !== undefined && typeof selector !== 'string')
       || (standard !== undefined && !['wcag-aa', 'wcag-aaa', 'best-practice', 'all'].includes(String(standard)))
       || (maxViolations !== undefined && typeof maxViolations !== 'number')

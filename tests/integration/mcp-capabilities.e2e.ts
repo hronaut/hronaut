@@ -626,7 +626,9 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     const accessibilityAudit = JSON.parse(text(accessibilityResult))
     expect(accessibilityAudit).toMatchObject({
       tabId,
+      action: 'measure',
       standard: 'wcag-aa',
+      scope: { selector: '#audit-scope', maxViolations: 5, maxNodesPerViolation: 2 },
       engine: { name: 'axe-core', version: '4.13.0' }
     })
     expect(accessibilityAudit.violationCount).toBeGreaterThan(0)
