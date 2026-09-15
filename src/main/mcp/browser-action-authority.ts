@@ -24,6 +24,7 @@ export interface BrowserActionAuthority {
   navigationGeneration: number
   observationGeneration: number
   humanInteractionGeneration: number
+  browserSessionGeneration: number
   policyFingerprint: string
   targetFingerprint: string
   authorizationFingerprint: string
@@ -75,6 +76,7 @@ export function captureBrowserActionAuthority(options: {
     navigationGeneration: tab.navigationGeneration,
     observationGeneration: tab.observationGeneration ?? 0,
     humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
+    browserSessionGeneration: tab.browserSessionGeneration ?? 0,
     policyFingerprint: policyFingerprint(options.state, options.workspaceId),
     targetFingerprint: digest(options.target),
     authorizationFingerprint: options.authorizationFingerprint,
@@ -105,6 +107,7 @@ export function browserActionAuthorityReason(options: {
   if (tab.navigationGeneration !== expected.navigationGeneration) return 'NAVIGATION_CHANGED'
   if ((tab.observationGeneration ?? 0) !== expected.observationGeneration) return 'EXPECTED_STATE_CHANGED'
   if ((tab.humanInteractionGeneration ?? 0) !== expected.humanInteractionGeneration) return 'EXPECTED_STATE_CHANGED'
+  if ((tab.browserSessionGeneration ?? 0) !== expected.browserSessionGeneration) return 'EXPECTED_STATE_CHANGED'
   if (policyFingerprint(options.state, options.workspaceId) !== expected.policyFingerprint) return 'SITE_POLICY_CHANGED'
   if (digest(options.target) !== expected.targetFingerprint) return 'TARGET_CHANGED'
   if (options.payloadFingerprint !== expected.payloadFingerprint) return 'TARGET_CHANGED'

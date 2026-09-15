@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Invalidate pending consequential browser-action reviews when an isolated workspace's cookies change, preventing an approval from surviving a silent login-session rotation or revocation.
+
 ## [2.4.15] - 2026-09-15
 
 ### Fixed

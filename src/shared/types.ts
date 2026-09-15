@@ -199,6 +199,8 @@ export interface BrowserTabState {
   observationGeneration?: number
   /** Runtime marker for direct human keyboard/mouse input; not page content. */
   humanInteractionGeneration?: number
+  /** Opaque runtime marker advanced when the isolated browser session's cookies change. */
+  browserSessionGeneration?: number
   canGoBack: boolean
   canGoForward: boolean
   active: boolean

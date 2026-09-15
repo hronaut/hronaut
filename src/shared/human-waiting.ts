@@ -16,6 +16,7 @@ export interface HumanWaitingReviewStep {
   tabId?: string
   navigationGeneration?: number
   humanInputGeneration?: number
+  browserSessionGeneration?: number
 }
 
 export interface HumanWaitingReviewInput extends HumanWaitingReviewStep {

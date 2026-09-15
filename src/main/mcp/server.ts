@@ -1621,7 +1621,8 @@ function createBrowserMcpServer(
       ...(tab ? {
         tabId: tab.id,
         navigationGeneration: tab.navigationGeneration,
-        humanInputGeneration: tab.humanInteractionGeneration ?? 0
+        humanInputGeneration: tab.humanInteractionGeneration ?? 0,
+        browserSessionGeneration: tab.browserSessionGeneration ?? 0
       } : {})
     }
   }
@@ -2177,7 +2178,8 @@ function createBrowserMcpServer(
             ...(tab ? {
               tabId: tab.id,
               navigationGeneration: tab.navigationGeneration,
-              humanInputGeneration: tab.humanInteractionGeneration ?? 0
+              humanInputGeneration: tab.humanInteractionGeneration ?? 0,
+              browserSessionGeneration: tab.browserSessionGeneration ?? 0
             } : {})
           }
         })

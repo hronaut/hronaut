@@ -24,6 +24,7 @@ function state(overrides: Record<string, unknown> = {}): BrowserState {
       navigationGeneration: 4,
       observationGeneration: 8,
       humanInteractionGeneration: 2,
+      browserSessionGeneration: 6,
       ...overrides
     }],
     mcpTabGroups: [{
@@ -53,7 +54,7 @@ describe('consequential browser action authority', () => {
     expect(reason(state({ title: 'Different visible prompt injection text' }))).toBeUndefined()
     expect(expected).toMatchObject({
       workspaceId, tabId, topLevelOrigin: 'https://trusted.example', navigationGeneration: 4,
-      observationGeneration: 8, humanInteractionGeneration: 2,
+      observationGeneration: 8, humanInteractionGeneration: 2, browserSessionGeneration: 6,
       operationClass: 'page-interaction', targetKind: 'element-ref'
     })
     expect(JSON.stringify(expected)).not.toContain('Ignore previous instructions')
@@ -70,6 +71,7 @@ describe('consequential browser action authority', () => {
     ['NAVIGATION_CHANGED', state({ url: 'https://trusted.example/new', navigationGeneration: 5 })],
     ['EXPECTED_STATE_CHANGED', state({ observationGeneration: 9 })],
     ['EXPECTED_STATE_CHANGED', state({ humanInteractionGeneration: 3 })],
+    ['EXPECTED_STATE_CHANGED', state({ browserSessionGeneration: 7 })],
     ['TARGET_CHANGED', { ...state(), tabs: [] } as BrowserState]
   ])('fails closed with %s when runtime facts change', (expectedReason, nextState) => {
     expect(fixture().reason(nextState)).toBe(expectedReason)

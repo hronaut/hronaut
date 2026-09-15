@@ -25,6 +25,7 @@ function sameReviewStep(left: HumanWaitingReviewStep, right: HumanWaitingReviewS
     && left.tabId === right.tabId
     && left.navigationGeneration === right.navigationGeneration
     && left.humanInputGeneration === right.humanInputGeneration
+    && left.browserSessionGeneration === right.browserSessionGeneration
 }
 
 const reviewStatusSchema = z.enum([
@@ -41,7 +42,8 @@ const reviewStepSchema = z.object({
   origin: z.string().max(2048).optional(),
   tabId: z.uuid().optional(),
   navigationGeneration: z.number().int().min(0).safe().optional(),
-  humanInputGeneration: z.number().int().min(0).safe().optional()
+  humanInputGeneration: z.number().int().min(0).safe().optional(),
+  browserSessionGeneration: z.number().int().min(0).safe().optional()
 }).strict().refine(review => review.representation === 'visible-browser-only' || review.description !== undefined, {
   message: 'A bounded review description is required'
 })
@@ -151,7 +153,7 @@ export class HumanWaitingStore {
     const nextIndex = review.currentStep + 1
     const next = review.steps[nextIndex]!
     Object.assign(review, next, { currentStep: nextIndex })
-    for (const key of ['description', 'expectedPostcondition', 'origin', 'tabId', 'navigationGeneration', 'humanInputGeneration'] as const) {
+    for (const key of ['description', 'expectedPostcondition', 'origin', 'tabId', 'navigationGeneration', 'humanInputGeneration', 'browserSessionGeneration'] as const) {
       if (!(key in next)) delete review[key]
     }
     this.transition(record, 'RESOLVED')
@@ -293,6 +295,7 @@ export class HumanWaitingStore {
     tabId?: string
     navigationGeneration?: number
     humanInputGeneration?: number
+    browserSessionGeneration?: number
   }): { accepted: boolean; record: WaitingRecord } {
     const record = this.approvedReview(id, revision)
     const current = this.records.get(record.id)!.record
@@ -305,6 +308,7 @@ export class HumanWaitingStore {
       && step.tabId === binding.tabId
       && step.navigationGeneration === binding.navigationGeneration
       && step.humanInputGeneration === binding.humanInputGeneration
+      && step.browserSessionGeneration === binding.browserSessionGeneration
     this.transition(current, accepted ? 'ATTEMPTED' : 'EXPIRED')
     return { accepted, record: structuredClone(current) }
   }

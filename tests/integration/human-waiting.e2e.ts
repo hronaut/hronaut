@@ -176,6 +176,82 @@ test('binds a fresh human review to one exact page action without retaining its 
   }
 })
 
+test('expires an approved page action when the workspace login session changes without navigation', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
+  const fixture = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Session rotation fixture</title><button onclick="window.writes++">Submit</button><script>window.writes=0</script>')
+  })
+  await new Promise<void>(resolve => fixture.listen(0, '127.0.0.1', resolve))
+  const address = fixture.address()
+  if (!address || typeof address === 'string') throw new Error('Missing fixture address')
+  const origin = `http://127.0.0.1:${address.port}`
+  const client = new Client({ name: 'login-session-review-qa', version: '1' })
+  const call = async (name: string, args: Record<string, unknown>): Promise<CallToolResult> => await client.callTool({ name, arguments: args }) as CallToolResult
+  const decode = <T>(result: CallToolResult): T => {
+    const value = result.content.filter(part => part.type === 'text').map(part => part.text).join('\n')
+    expect(result.isError, value).not.toBe(true)
+    return JSON.parse(value) as T
+  }
+  const writes = () => electronApp.evaluate(async ({ webContents }, fixtureOrigin) => {
+    const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(fixtureOrigin))
+    if (!page) throw new Error('Missing fixture page')
+    return page.executeJavaScript('window.writes') as Promise<number>
+  }, origin)
+  try {
+    await expect.poll(async () => { try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`)).ok } catch { return false } }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const workspace = decode<{ id: string }>(await call('browser_workspaces', { action: 'create', storage: 'scratch', name: 'Session rotation QA' }))
+    const args = { workspaceId: workspace.id }
+    const opened = decode<{ activeTabId: string }>(await call('browser_new_tab', { ...args, url: origin }))
+    await expect.poll(() => writes().catch(() => null)).toBe(0)
+    decode(await call('browser_continuity', { ...args, action: 'checkpoint' }))
+    const proposed = decode<HumanWaitingRecord>(await call('browser_human_waiting', {
+      ...args, action: 'request', runId: randomUUID(), decision: 'approve-action', timeoutMs: 60_000,
+      review: {
+        toolName: 'browser_click', arguments: { ...args, tabId: opened.activeTabId, selector: 'button' },
+        reversibility: 'unknown', representation: 'bounded-description',
+        description: 'Submit using the currently signed-in account'
+      }
+    }))
+    expect(proposed.review?.browserSessionGeneration).toEqual(expect.any(Number))
+
+    await electronApp.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0]!.webContents.send('browser:edit-tab-group', id), workspace.id)
+    const editor = appWindow.getByRole('dialog', { name: 'Edit workspace', exact: true })
+    await editor.locator('.workspace-activity-disclosure > summary').click()
+    const continuity = editor.getByRole('region', { name: 'Workspace continuity', exact: true })
+    await continuity.getByRole('button', { name: 'Read current state', exact: true }).click()
+    await continuity.getByRole('checkbox').check()
+    await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
+    const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
+    await waiting.getByRole('checkbox').check()
+    await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
+    const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
+    expect(approved).toMatchObject({ state: 'RESOLVED', review: { status: 'APPROVED' } })
+
+    await electronApp.evaluate(async ({ webContents }, fixtureOrigin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(fixtureOrigin))
+      if (!page) throw new Error('Missing fixture page')
+      await page.session.cookies.set({ url: fixtureOrigin, name: 'login-authority', value: 'account-b', sameSite: 'lax' })
+    }, origin)
+    const tabs = decode<Array<{ id: string; browserSessionGeneration?: number }>>(await call('browser_tabs', args))
+    expect(tabs.find(tab => tab.id === opened.activeTabId)?.browserSessionGeneration)
+      .toBeGreaterThan(proposed.review!.browserSessionGeneration!)
+
+    const rejected = await call('browser_click', {
+      ...args, tabId: opened.activeTabId, selector: 'button', reviewId: approved.id, reviewRevision: approved.revision
+    })
+    expect(rejected.isError).toBe(true)
+    expect(rejected.content.filter(part => part.type === 'text').map(part => part.text).join('\n')).toMatch(/review|session|changed|stale/i)
+    expect(await writes()).toBe(0)
+    expect(decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]).toMatchObject({
+      state: 'EXPIRED', review: { status: 'EXPIRED' }
+    })
+  } finally {
+    await client.close()
+    await closeFixtureServer(fixture)
+  }
+})
+
 test('runs an approved action group in order and advances only after verified postconditions', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const fixture = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
