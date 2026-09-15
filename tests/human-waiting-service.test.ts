@@ -198,7 +198,7 @@ describe('durable waiting owner', () => {
     const binding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
     await expect(service.requireDispatch(input.workspaceId, authorize)).rejects.toThrow(/exact proposed action/i)
     await service.requireDispatch(input.workspaceId, authorize, binding)
-    const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, () => binding, authorize, async () => undefined)
     expect(attempted).toMatchObject({ state: 'ATTEMPTED', review: { status: 'ATTEMPTED' } })
     expect(saved.at(-1)?.records[0]).toMatchObject({ state: 'ATTEMPTED' })
     await expect(service.requireDispatch(input.workspaceId, authorize, binding)).rejects.toThrow(/outcome.*unresolved/i)
@@ -215,8 +215,30 @@ describe('durable waiting owner', () => {
     const next = await service.create({ ...input, decision: 'approve-action', review }, authorize)
     const nextApproved = await service.change(input.workspaceId, next.id, next.revision, 'resolve', authorize, async () => undefined)
     const binding = { id: nextApproved.id, revision: nextApproved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
-    await expect(service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => { throw new Error('navigation drift') })).rejects.toThrow(/context changed/i)
+    await expect(service.beginReviewedDispatch(input.workspaceId, () => binding, authorize, async () => { throw new Error('navigation drift') })).rejects.toThrow(/context changed/i)
     expect((await service.list(input.workspaceId, authorize)).find(record => record.id === next.id)).toMatchObject({ state: 'EXPIRED' })
+  })
+
+  it('re-reads the exact review binding after asynchronous pre-dispatch validation', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
+    const sessionReview = { ...review, browserSessionGeneration: 4 }
+    const proposed = await service.create({ ...input, decision: 'approve-action', review: sessionReview }, authorize)
+    const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
+    const binding = {
+      id: approved.id, revision: approved.revision, toolName: review.toolName,
+      artifactHash: review.artifactHash, sessionBinding: review.sessionBinding
+    }
+    let browserSessionGeneration = 4
+    const currentBinding = () => ({ ...binding, browserSessionGeneration })
+
+    await expect(service.beginReviewedDispatch(
+      input.workspaceId,
+      currentBinding,
+      authorize,
+      async () => { browserSessionGeneration += 1 }
+    )).rejects.toThrow(/changed|stale/i)
+    expect((await service.list(input.workspaceId, authorize)).find(record => record.id === proposed.id))
+      .toMatchObject({ state: 'EXPIRED', review: { status: 'EXPIRED' } })
   })
 
   it('records rejected reviews and ambiguous attempted outcomes', async () => {
@@ -226,7 +248,7 @@ describe('durable waiting owner', () => {
     const proposed = await service.create({ ...input, decision: 'approve-action', review }, authorize)
     const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
     const binding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
-    const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, () => binding, authorize, async () => undefined)
     expect(await service.finishReviewedDispatch(input.workspaceId, attempted.id, attempted.revision, 'unknown', authorize)).toMatchObject({ state: 'UNKNOWN', review: { status: 'UNKNOWN' } })
   })
 
@@ -236,7 +258,7 @@ describe('durable waiting owner', () => {
     const proposed = await service.create({ ...input, decision: 'approve-action', review: groupedReview }, authorize)
     const approved = await service.change(input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined)
     const firstBinding = { id: approved.id, revision: approved.revision, toolName: review.toolName, artifactHash: review.artifactHash, sessionBinding: review.sessionBinding }
-    const attempted = await service.beginReviewedDispatch(input.workspaceId, firstBinding, authorize, async () => undefined)
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, () => firstBinding, authorize, async () => undefined)
     const continued = await service.finishReviewedDispatch(input.workspaceId, attempted.id, attempted.revision, 'verified', authorize)
     expect(continued).toMatchObject({ state: 'RESOLVED', review: { status: 'APPROVED', currentStep: 1, artifactHash: 'c'.repeat(64) } })
     expect(continued.revision).not.toBe(approved.revision)
@@ -276,7 +298,7 @@ describe('durable waiting owner', () => {
       artifactHash: review.artifactHash,
       sessionBinding: review.sessionBinding
     }
-    const attempted = await service.beginReviewedDispatch(input.workspaceId, binding, authorize, async () => undefined)
+    const attempted = await service.beginReviewedDispatch(input.workspaceId, () => binding, authorize, async () => undefined)
 
     await expect(service.requireDispatch(input.workspaceId, authorize, undefined, nextSessionBinding))
       .rejects.toThrow(/outcome.*unresolved/i)

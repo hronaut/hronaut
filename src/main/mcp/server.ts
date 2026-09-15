@@ -1867,7 +1867,11 @@ function createBrowserMcpServer(
             if (reviewedBinding && humanWaiting) {
               const attempted = await humanWaiting.beginReviewedDispatch(
                 workspaceId,
-                reviewedBinding,
+                () => {
+                  const current = reviewBinding(name, input)
+                  if (!current) throw new Error('Reviewed action binding is unavailable')
+                  return current
+                },
                 () => { requireAgentWorkspace(workspaceId) },
                 () => { requireCurrentTarget(); requirePostWriteContext() }
               )
