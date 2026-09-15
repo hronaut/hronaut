@@ -1078,16 +1078,24 @@ describe('WalletBroker', () => {
     await connect(broker)
     const permission = service.permissions.list()[0]!
     const append = service.audit.append.bind(service.audit)
+    const transition = service.approvals.transition.bind(service.approvals)
     let auditEntered!: () => void
     const entered = new Promise<void>((resolve) => { auditEntered = resolve })
     let releaseAudit!: () => void
     const auditRelease = new Promise<void>((resolve) => { releaseAudit = resolve })
+    let awaitingHumanPersisted!: () => void
+    const persisted = new Promise<void>((resolve) => { awaitingHumanPersisted = resolve })
     vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
       if (type === 'request-simulated') {
         auditEntered()
         await auditRelease
       }
       return append(type, payload, timestamp)
+    })
+    vi.spyOn(service.approvals, 'transition').mockImplementation(async (id, status, timestamp) => {
+      const record = await transition(id, status, timestamp)
+      if (status === 'awaiting-human') awaitingHumanPersisted()
+      return record
     })
 
     const result = settle(broker.providerRequest(context(), {
@@ -1099,9 +1107,10 @@ describe('WalletBroker', () => {
     ))).toHaveLength(0)
 
     releaseAudit()
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+    await persisted
+    expect(broker.listPending().filter((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
-    ))).toHaveLength(1))
+    ))).toHaveLength(1)
     await broker.revokePermission(permission.id)
     await expect(result).resolves.toMatchObject({
       status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
