@@ -4,6 +4,10 @@ Hronaut is a visible, multi-tab Electron browser that exposes its live tabs to A
 
 Hronaut is source-available under the [Subscription and Trial License](LICENSE). All users need a paid subscription after one 10-day trial from the first agent tool call: $4/month or $24/year per named user (50% off $48), with three devices per seat. Earlier releases retain their original terms.
 
+For supported platforms, connection prerequisites, workspace recovery, client
+replacement, support routes, and the product's identity boundary, use the
+canonical [Support, recovery, and exit path](docs/SUPPORT_RECOVERY.md).
+
 Project home: https://github.com/hronaut/hronaut
 
 ## What it keeps

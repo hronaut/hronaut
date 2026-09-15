@@ -83,10 +83,14 @@ export class HumanWaitingService {
       authorize()
       this.store.list(workspaceId)
       // Expiry is part of the durable lifecycle, including expiry observed by
-      // a status read. A failed write cannot masquerade as an empty history.
-      await this.save()
-      authorize()
-      return this.store.list(workspaceId)
+      // a status read. Saving can itself cross a deadline, so rescan until the
+      // returned lifecycle state is the same state held on disk.
+      while (true) {
+        await this.save()
+        authorize()
+        const result = this.store.list(workspaceId)
+        if (JSON.stringify(this.store.snapshot().records) === this.persistedRecords) return result
+      }
     })
   }
 

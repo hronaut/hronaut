@@ -240,6 +240,7 @@ docs/*
 !docs/PUBLIC_FACTS.json
 !docs/PUBLISHING_CHECKLIST.md
 !docs/DIRECTORY_LISTINGS.md
+!docs/SUPPORT_RECOVERY.md
 playwright-report/
 storybook-static/
 test-results/
