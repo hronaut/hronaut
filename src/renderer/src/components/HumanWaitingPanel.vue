@@ -2,7 +2,10 @@
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { HronautApi } from '../../../shared/types.js'
-import type { HumanWaitingRecord } from '../../../shared/human-waiting.js'
+import {
+  requiresHumanWaitingAccountAndTargetConfirmation,
+  type HumanWaitingRecord
+} from '../../../shared/human-waiting.js'
 import UiButton from '../ui/UiButton.vue'
 
 const props = defineProps<{
@@ -13,6 +16,7 @@ const props = defineProps<{
 const { t, locale } = useI18n({ useScope: 'global' })
 const records = ref<HumanWaitingRecord[]>([])
 const reviewed = ref<Record<string, boolean>>({})
+const accountAndTargetReviewed = ref<Record<string, boolean>>({})
 const busy = ref(false)
 const error = ref(false)
 let generation = 0
@@ -28,30 +32,34 @@ async function refresh(): Promise<void> {
   busy.value = true; error.value = false
   try {
     const next = await props.browser.listHumanWaiting(props.workspaceId)
-    if (current === generation) { records.value = next; reviewed.value = {} }
+    if (current === generation) { records.value = next; reviewed.value = {}; accountAndTargetReviewed.value = {} }
   } catch {
-    if (current === generation) { error.value = true; records.value = []; reviewed.value = {} }
+    if (current === generation) { error.value = true; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {} }
   } finally { if (current === generation) busy.value = false }
 }
 
 async function change(record: HumanWaitingRecord, action: 'acknowledge' | 'cancel' | 'reject' | 'resolve'): Promise<void> {
-  if (busy.value || props.disabled || !active(record) || (action === 'resolve' && !reviewed.value[record.id])) return
+  if (busy.value || props.disabled || !active(record)
+    || (action === 'resolve' && (!reviewed.value[record.id]
+      || (requiresHumanWaitingAccountAndTargetConfirmation(record) && !accountAndTargetReviewed.value[record.id])))) return
   const workspaceId = props.workspaceId
   const current = ++generation
   busy.value = true; error.value = false
   try {
-    const next = await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action)
+    const next = action === 'resolve' && requiresHumanWaitingAccountAndTargetConfirmation(record)
+      ? await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action, { accountAndTargetVerified: true })
+      : await props.browser.changeHumanWaiting(workspaceId, record.id, record.revision, action)
     if (current === generation) {
       records.value = records.value.map(candidate => candidate.id === next.id ? next : candidate)
-      reviewed.value = {}
+      reviewed.value = {}; accountAndTargetReviewed.value = {}
     }
   } catch {
-    if (current === generation) { error.value = true; reviewed.value = {} }
+    if (current === generation) { error.value = true; reviewed.value = {}; accountAndTargetReviewed.value = {} }
   } finally { if (current === generation) busy.value = false }
 }
 
 watch(() => [props.workspaceId, props.disabled] as const, () => {
-  generation += 1; records.value = []; reviewed.value = {}; busy.value = false
+  generation += 1; records.value = []; reviewed.value = {}; accountAndTargetReviewed.value = {}; busy.value = false
   void refresh()
 }, { immediate: true })
 onBeforeUnmount(() => { generation += 1 })
@@ -81,6 +89,7 @@ onBeforeUnmount(() => { generation += 1 })
                 <dt>{{ t('humanWaiting.review.reversibility') }}</dt><dd>{{ t(`humanWaiting.review.reversibilities.${step.reversibility}`) }}</dd>
                 <template v-if="step.origin"><dt>{{ t('humanWaiting.review.origin') }}</dt><dd>{{ step.origin }}</dd></template>
                 <template v-if="step.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ step.tabId }}</dd></template>
+                <template v-if="step.browserSessionGeneration !== undefined"><dt>{{ t('humanWaiting.review.browserSession') }}</dt><dd>{{ step.browserSessionGeneration }}</dd></template>
                 <dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ step.artifactHash }}</dd>
               </dl>
             </li>
@@ -101,6 +110,7 @@ onBeforeUnmount(() => { generation += 1 })
             <template v-if="!record.review.steps && record.review.tabId"><dt>{{ t('humanWaiting.review.tab') }}</dt><dd>{{ record.review.tabId }}</dd></template>
             <template v-if="record.review.navigationGeneration !== undefined"><dt>{{ t('humanWaiting.review.navigation') }}</dt><dd>{{ record.review.navigationGeneration }}</dd></template>
             <template v-if="record.review.humanInputGeneration !== undefined"><dt>{{ t('humanWaiting.review.humanInput') }}</dt><dd>{{ record.review.humanInputGeneration }}</dd></template>
+            <template v-if="!record.review.steps && record.review.browserSessionGeneration !== undefined"><dt>{{ t('humanWaiting.review.browserSession') }}</dt><dd>{{ record.review.browserSessionGeneration }}</dd></template>
             <template v-if="!record.review.steps"><dt>{{ t('humanWaiting.review.artifact') }}</dt><dd>{{ record.review.artifactHash }}</dd></template>
           </dl>
           <ol class="waiting-receipts" :aria-label="t('humanWaiting.review.timeline')">
@@ -119,9 +129,10 @@ onBeforeUnmount(() => { generation += 1 })
         <p v-if="record.priorOutcome === 'OUTCOME_UNKNOWN'">{{ t('humanWaiting.unknown') }}</p>
         <template v-if="active(record)">
           <label class="waiting-review"><input v-model="reviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t(isGroup(record) ? 'humanWaiting.reviewedGroup' : record.review ? 'humanWaiting.reviewedExact' : 'humanWaiting.reviewed') }}</label>
+          <label v-if="requiresHumanWaitingAccountAndTargetConfirmation(record)" class="waiting-review"><input v-model="accountAndTargetReviewed[record.id]" type="checkbox" :disabled="busy || disabled">{{ t('humanWaiting.reviewedAccountAndTarget') }}</label>
           <div class="waiting-actions">
             <UiButton appearance="standard" type="button" :disabled="busy || disabled || record.state === 'ACKNOWLEDGED'" @click="change(record, 'acknowledge')">{{ t('humanWaiting.acknowledge') }}</UiButton>
-            <UiButton appearance="standard" type="button" :disabled="busy || disabled || !reviewed[record.id]" @click="change(record, 'resolve')">{{ t(isGroup(record) ? 'humanWaiting.approveGroup' : record.review ? 'humanWaiting.approve' : 'humanWaiting.resolve') }}</UiButton>
+            <UiButton appearance="standard" type="button" :disabled="busy || disabled || !reviewed[record.id] || (requiresHumanWaitingAccountAndTargetConfirmation(record) && !accountAndTargetReviewed[record.id])" @click="change(record, 'resolve')">{{ t(isGroup(record) ? 'humanWaiting.approveGroup' : record.review ? 'humanWaiting.approve' : 'humanWaiting.resolve') }}</UiButton>
             <UiButton v-if="record.review" appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'reject')">{{ t('humanWaiting.reject') }}</UiButton>
             <UiButton appearance="standard" type="button" :disabled="busy || disabled" @click="change(record, 'cancel')">{{ t('humanWaiting.cancel') }}</UiButton>
           </div>

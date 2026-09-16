@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Changed
 
 - Split hosted Electron integration coverage across four isolated runners to shorten pull-request and release feedback as the suite grows.
+- Show the bound browser-session generation during consequential action review and require a separate trusted confirmation that the signed-in account and visible target were verified before approving tab-bound browser actions.
 
 ### Fixed
 

@@ -4,6 +4,12 @@ export type HumanWaitingState = 'WAITING_FOR_HUMAN' | 'ACKNOWLEDGED' | 'RESOLVED
 export type HumanWaitingReviewStatus = 'PROPOSED' | 'REVIEWED' | 'APPROVED' | 'REJECTED'
   | 'CANCELLED' | 'EXPIRED' | 'ATTEMPTED' | 'VERIFIED' | 'UNKNOWN'
 
+/** A transient assertion from the trusted local review UI. It deliberately
+ * carries no account identifier, page text, or reusable authority. */
+export interface HumanWaitingTrustedConfirmation {
+  accountAndTargetVerified: true
+}
+
 export interface HumanWaitingReviewStep {
   toolName: string
   actionClass: 'read' | 'navigate' | 'interact' | 'browser-state' | 'site-data' | 'network' | 'external-request' | 'wallet'
@@ -32,6 +38,15 @@ export interface HumanWaitingReviewInput extends HumanWaitingReviewStep {
 export interface HumanWaitingReviewArtifact extends HumanWaitingReviewInput {
   status: HumanWaitingReviewStatus
   receipts: Array<{ status: HumanWaitingReviewStatus; at: number }>
+}
+
+export function requiresHumanWaitingAccountAndTargetConfirmation(input: {
+  decision: HumanWaitingDecision
+  review?: HumanWaitingReviewInput
+}): boolean {
+  if (input.decision !== 'approve-action' || !input.review) return false
+  return (input.review.steps ?? [input.review])
+    .some(step => step.toolName.startsWith('browser_') && step.tabId !== undefined)
 }
 
 /** Bounded local routing labels and decision kinds, not arbitrary page content.

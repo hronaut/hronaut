@@ -70,6 +70,7 @@ export const deDE = {
     "reviewed": "Ich habe diese Entscheidung und den aktuellen Arbeitsbereich geprüft.",
     "reviewedExact": "Ich habe diese genaue Aktion und den gebundenen Arbeitsbereichszustand geprüft.",
     "reviewedGroup": "Ich habe jede Aktion in dieser exakt geordneten Gruppe und den gebundenen Arbeitsbereichszustand geprüft.",
+    "reviewedAccountAndTarget": "Ich habe das angemeldete Konto und das sichtbare Ziel im gebundenen Browser-Tab überprüft.",
     "acknowledge": "Bestätigen",
     "resolve": "Prüfung abschließen",
     "approve": "Genaue Aktion genehmigen",
@@ -89,7 +90,7 @@ export const deDE = {
       "UNKNOWN": "Ergebnis unbekannt"
     },
     "review": {
-      "heading": "Folgenreiche Aktion", "step": "Schritt {current} von {total}", "expected": "Erwartetes Ergebnis", "tool": "Werkzeug", "actionClass": "Aktionsklasse", "reversibility": "Umkehrbarkeit", "workspace": "Arbeitsbereich", "profile": "Berechtigungsprofil", "authority": "Berechtigungsgeneration", "origin": "Aktueller Ursprung", "tab": "Tab", "navigation": "Navigationsgeneration", "humanInput": "Generation menschlicher Eingaben", "artifact": "Exakter Artefakt-Hash", "timeline": "Zeitverlauf der Prüfbelege", "visibleOnly": "Die Änderung kann nicht sicher als Text dargestellt werden. Prüfen Sie vor der Entscheidung den sichtbaren Browser.",
+      "heading": "Folgenreiche Aktion", "step": "Schritt {current} von {total}", "expected": "Erwartetes Ergebnis", "tool": "Werkzeug", "actionClass": "Aktionsklasse", "reversibility": "Umkehrbarkeit", "workspace": "Arbeitsbereich", "profile": "Berechtigungsprofil", "authority": "Berechtigungsgeneration", "origin": "Aktueller Ursprung", "tab": "Tab", "navigation": "Navigationsgeneration", "humanInput": "Generation menschlicher Eingaben", "browserSession": "Browsersitzungsgeneration", "artifact": "Exakter Artefakt-Hash", "timeline": "Zeitverlauf der Prüfbelege", "visibleOnly": "Die Änderung kann nicht sicher als Text dargestellt werden. Prüfen Sie vor der Entscheidung den sichtbaren Browser.",
       "statuses": { "PROPOSED": "Vorgeschlagen", "REVIEWED": "Geprüft", "APPROVED": "Genehmigt", "REJECTED": "Abgelehnt", "CANCELLED": "Abgebrochen", "EXPIRED": "Abgelaufen", "ATTEMPTED": "Versucht", "VERIFIED": "Bestätigt", "UNKNOWN": "Unbekannt" },
       "reversibilities": { "reversible": "Umkehrbar", "conditionally-reversible": "Bedingt umkehrbar", "irreversible": "Nicht umkehrbar", "unknown": "Unbekannt" }
     },

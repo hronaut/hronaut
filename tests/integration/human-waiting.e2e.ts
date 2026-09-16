@@ -157,11 +157,23 @@ test('binds a fresh human review to one exact page action without retaining its 
     await continuity.getByRole('checkbox').check()
     await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
     await expect(continuity.getByRole('status')).toHaveText('Review guard cleared; recheck before a fresh action')
+    expect(await appWindow.evaluate(async record => {
+      try {
+        await (window as unknown as { hronaut: HronautApi }).hronaut.changeHumanWaiting(
+          record.workspaceId, record.id, record.revision, 'resolve'
+        )
+        return false
+      } catch { return true }
+    }, proposed)).toBe(true)
     const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
     await expect(waiting.getByText('Authority generation', { exact: true })).toBeVisible()
     await expect(waiting.getByText(proposed.review!.sessionBinding.slice(0, 12), { exact: true })).toBeVisible()
-    await waiting.getByRole('checkbox').check()
-    await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
+    await expect(waiting.getByText('Browser session generation', { exact: true })).toBeVisible()
+    await waiting.getByRole('checkbox', { name: 'I reviewed this exact action and the bound workspace state.' }).check()
+    const approve = waiting.getByRole('button', { name: 'Approve exact action', exact: true })
+    await expect(approve).toBeDisabled()
+    await waiting.getByRole('checkbox', { name: 'I verified the signed-in account and visible target in the bound browser tab.' }).check()
+    await approve.click()
     await expect(waiting.getByText('Review completed', { exact: true })).toBeVisible()
     const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
     expect(approved).toMatchObject({ state: 'RESOLVED', priorOutcome: 'OUTCOME_UNKNOWN', review: { status: 'APPROVED' } })
@@ -223,7 +235,9 @@ test('expires an approved page action when the workspace login session changes w
     await continuity.getByRole('checkbox').check()
     await continuity.getByRole('button', { name: 'Confirm reviewed state', exact: true }).click()
     const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
-    await waiting.getByRole('checkbox').check()
+    await expect(waiting.getByText('Browser session generation', { exact: true })).toBeVisible()
+    await waiting.getByRole('checkbox', { name: 'I reviewed this exact action and the bound workspace state.' }).check()
+    await waiting.getByRole('checkbox', { name: 'I verified the signed-in account and visible target in the bound browser tab.' }).check()
     await waiting.getByRole('button', { name: 'Approve exact action', exact: true }).click()
     const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
     expect(approved).toMatchObject({ state: 'RESOLVED', review: { status: 'APPROVED' } })
@@ -312,7 +326,8 @@ test('runs an approved action group in order and advances only after verified po
     const waiting = editor.getByRole('region', { name: 'Human decisions', exact: true })
     await expect(waiting.getByText('Step 1 of 2 · browser_click', { exact: true })).toBeVisible()
     await expect(waiting.getByText('Step 2 of 2 · browser_click', { exact: true })).toBeVisible()
-    await waiting.getByRole('checkbox').check()
+    await waiting.getByRole('checkbox', { name: 'I reviewed every action in this exact ordered group and the bound workspace state.' }).check()
+    await waiting.getByRole('checkbox', { name: 'I verified the signed-in account and visible target in the bound browser tab.' }).check()
     await waiting.getByRole('button', { name: 'Approve exact group', exact: true }).click()
     const approved = decode<HumanWaitingRecord[]>(await call('browser_human_waiting', { ...args, action: 'list' }))[0]!
 
