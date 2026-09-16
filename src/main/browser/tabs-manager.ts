@@ -7122,22 +7122,55 @@ export class BrowserTabsManager {
   async waitForPage(tabId?: string, timeoutMs = 30_000): Promise<void> {
     const tab = this.getTab(tabId)
     const webContents = tab.webContents
+    const rendererUnavailable = (): boolean => tab.pageProblem?.kind === 'renderer-gone'
+    const rendererUnavailableError = (): Error => new Error(
+      'The tab renderer became unavailable while waiting for the page.'
+    )
     if (webContents.isDestroyed()) throw new Error('The tab closed while waiting for the page.')
+    if (rendererUnavailable()) throw rendererUnavailableError()
     try {
       if (!webContents.isLoading()) return
     } catch {
       throw new Error('The tab closed while waiting for the page.')
     }
     await new Promise<void>((resolve, reject) => {
+      let stopSettlement: NodeJS.Immediate | undefined
       const cleanup = (): void => {
         if (timer) clearTimeout(timer)
-        webContents.removeListener('did-stop-loading', done)
+        if (stopSettlement) clearImmediate(stopSettlement)
+        webContents.removeListener('did-stop-loading', onDidStopLoading)
         webContents.removeListener('did-fail-load', onDidFailLoad)
+        webContents.removeListener('render-process-gone', onRenderProcessGone)
         webContents.removeListener('destroyed', onDestroyed)
       }
       const done = (): void => {
         cleanup()
         resolve()
+      }
+      const onDidStopLoading = (): void => {
+        if (stopSettlement) return
+        // Chromium reports loading stopped before Electron reports a crashed
+        // renderer. Defer success for one turn so renderer loss wins. During
+        // intentional renderer recovery, the replacement load may already be
+        // underway; keep waiting for that load's terminal event.
+        stopSettlement = setImmediate(() => {
+          stopSettlement = undefined
+          if (rendererUnavailable() || (
+            webContents.isCrashed() && !this.recoveringRenderers.has(webContents.id)
+          )) {
+            rejectForRendererUnavailable()
+            return
+          }
+          if (webContents.isDestroyed()) {
+            onDestroyed()
+            return
+          }
+          try {
+            if (!webContents.isLoading()) done()
+          } catch {
+            onDestroyed()
+          }
+        })
       }
       const onDidFailLoad = (
         _event: Electron.Event,
@@ -7152,22 +7185,37 @@ export class BrowserTabsManager {
         cleanup()
         reject(new Error('The tab closed while waiting for the page.'))
       }
+      const rejectForRendererUnavailable = (): void => {
+        cleanup()
+        reject(rendererUnavailableError())
+      }
+      const onRenderProcessGone = (): void => {
+        // The permanent lifecycle listener runs first and records a
+        // renderer-gone problem for an unexpected exit. Intentional renderer
+        // replacement during unresponsive-page recovery leaves it clear, so
+        // that reload can continue to the next did-stop-loading event.
+        if (!rendererUnavailable()) return
+        rejectForRendererUnavailable()
+      }
       const onTimeout = (): void => {
         cleanup()
         reject(new Error('Timed out waiting for the page to finish loading.'))
       }
       const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
-      webContents.once('did-stop-loading', done)
+      webContents.on('did-stop-loading', onDidStopLoading)
       webContents.on('did-fail-load', onDidFailLoad)
+      webContents.on('render-process-gone', onRenderProcessGone)
       webContents.once('destroyed', onDestroyed)
       // Loading can finish, or the tab can close, between the initial state
       // check and listener registration. Recheck both after every listener is
       // installed so neither terminal state can leave this wait stranded.
       if (webContents.isDestroyed()) {
         onDestroyed()
+      } else if (rendererUnavailable()) {
+        onRenderProcessGone()
       } else {
         try {
-          if (!webContents.isLoading()) done()
+          if (!webContents.isLoading()) onDidStopLoading()
         } catch {
           onDestroyed()
         }
