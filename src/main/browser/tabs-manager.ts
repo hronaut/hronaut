@@ -8272,15 +8272,16 @@ export class BrowserTabsManager {
       if (tab.sleeping) return
       this.trackWorkspaceOrigin(tab, url)
       tab.memoryBaseline = undefined
+      const previousUrl = tab.url
       try {
-        if (new URL(tab.url).origin !== new URL(url).origin) {
+        if (new URL(previousUrl).origin !== new URL(url).origin) {
           tab.storageComparison = undefined
-          tab.faviconDataUrl = undefined
         }
       } catch {
         tab.storageComparison = undefined
         tab.faviconDataUrl = undefined
       }
+      if (previousUrl !== url) tab.faviconDataUrl = undefined
       tab.pendingHistoryUrl = isWebUrl(url) ? url : null
       syncNavigation()
       if (tab.reproRecording?.active) this.addReproStep(tab, {
