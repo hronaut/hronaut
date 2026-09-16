@@ -22,7 +22,12 @@ describe('MCP workspace fork sources and direct access', () => {
     let navigationGeneration = 1
     let observationGeneration = 1
     let url = 'https://trusted.example/account'
-    const workspace = { id: ownId, name: 'Task', agentAccess: true }
+    const workspace = {
+      id: ownId,
+      name: 'Task',
+      agentAccess: true,
+      contextClass: 'standard' as 'standard' | 'public-observer'
+    }
     const source = { id: sourceId, name: 'Private human workspace', color: 'purple', archived: true, agentAccess: false }
     const manager = {
       suspendWorkspaceContinuity: vi.fn(),
@@ -30,7 +35,20 @@ describe('MCP workspace fork sources and direct access', () => {
       requireWorkspaceContinuityReview: vi.fn(async () => true),
       requireWorkspaceContinuityDispatch: vi.fn(),
       beginWorkspaceContinuityAction: vi.fn(() => vi.fn()),
-      createMcpTabGroup: vi.fn(async () => workspace),
+      createMcpTabGroup: vi.fn(async (
+        _name: string,
+        _color?: string,
+        _storage?: string,
+        _origins?: string[],
+        _allowDuplicateName?: boolean,
+        _navigationPolicy?: unknown,
+        _sourceWorkspaceId?: string,
+        _description?: string,
+        contextClass?: 'standard' | 'public-observer'
+      ) => {
+        workspace.contextClass = contextClass ?? 'standard'
+        return workspace
+      }),
       listWorkspaceForkSources: vi.fn(() => [source]),
       listMcpTabGroups: vi.fn(() => [workspace]),
       listSavedTabGroups: vi.fn(() => [workspace]),
@@ -91,9 +109,53 @@ describe('MCP workspace fork sources and direct access', () => {
     const fork = await call('browser_workspaces', { action: 'create', name: 'Task', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(fork.isError).not.toBe(true)
     expect(parsed(fork)).toMatchObject({ id: ownId, resumeKey: key })
-    expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId, undefined)
+    expect(manager.createMcpTabGroup).toHaveBeenCalledWith('Task', undefined, 'fork-workspace', undefined, true, undefined, sourceId, undefined, 'standard')
     expect((await call('browser_tabs', { workspaceId: sourceId })).isError).toBe(true)
     expect((await call('browser_workspaces', { action: 'resume', workspaceId: sourceId, resumeKey: key })).isError).toBe(true)
+  })
+
+  it('creates a clean origin-scoped public observer and blocks page mutation', async () => {
+    const { manager, call } = await setup()
+    const created = await call('browser_workspaces', {
+      action: 'create',
+      name: 'Public observer',
+      storage: 'scratch',
+      contextClass: 'public-observer',
+      observerOrigin: 'https://public.example/path?private=value'
+    })
+
+    expect(created.isError, JSON.stringify(created.content)).not.toBe(true)
+    expect(parsed(created)).toMatchObject({ contextClass: 'public-observer' })
+    expect(manager.createMcpTabGroup).toHaveBeenCalledWith(
+      'Public observer', undefined, 'scratch', undefined, true,
+      { mode: 'restricted', rules: ['https://public.example'] }, undefined, undefined, 'public-observer'
+    )
+    expect((await call('browser_snapshot', { workspaceId: ownId })).isError).not.toBe(true)
+
+    const click = await call('browser_click', { workspaceId: ownId, selector: '#publish' })
+    expect(click.isError).toBe(true)
+    expect(JSON.stringify(click)).toContain('read-only public observer')
+    expect(manager.click).not.toHaveBeenCalled()
+
+    const walletStatus = await call('wallet_request_status', {
+      workspaceId: ownId,
+      walletSessionId: crypto.randomUUID(),
+      requestId: 'observer-request'
+    })
+    expect(walletStatus.isError).toBe(true)
+    expect(JSON.stringify(walletStatus)).toContain('read-only public observer')
+  })
+
+  it('rejects credential-bearing forks and missing origins for public observers', async () => {
+    const { manager, call } = await setup()
+    for (const args of [
+      { contextClass: 'public-observer' },
+      { contextClass: 'public-observer', observerOrigin: 'https://public.example', storage: 'fork-workspace', sourceWorkspaceId: sourceId },
+      { contextClass: 'standard', observerOrigin: 'https://public.example' }
+    ]) {
+      expect((await call('browser_workspaces', { action: 'create', name: 'Observer', ...args })).isError).toBe(true)
+    }
+    expect(manager.createMcpTabGroup).not.toHaveBeenCalled()
   })
 
   it('includes continuity only for a guarded resume', async () => {
@@ -233,7 +295,7 @@ describe('MCP workspace fork sources and direct access', () => {
     manager.createMcpTabGroup.mockImplementationOnce(async () => {
       server.setPaused(true); server.setPaused(false)
       if (failed) throw new RetainedBrowserWorkspaceError([], ownId, 'Private fork failure detail')
-      return { id: ownId, name: 'Task', agentAccess: true }
+      return { id: ownId, name: 'Task', agentAccess: true, contextClass: 'standard' }
     })
     const result = await call('browser_workspaces', { action: 'create', name: 'Fork', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(result.isError).toBe(true)

@@ -302,6 +302,7 @@ import type {
   BrowserState,
   BrowserTabGroupState,
   BrowserWorkspaceNavigationAuditEntry,
+  BrowserWorkspaceContextClass,
   BrowserWorkspaceNavigationAuditSource,
   BrowserWorkspaceNavigationPolicy,
   BrowserWorkspaceCreateOptions,
@@ -735,6 +736,7 @@ interface BrowserTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass: BrowserWorkspaceContextClass
   id: string
   name: string
   description: string
@@ -749,6 +751,7 @@ interface BrowserTabGroup {
 }
 
 interface BrowserSavedTabGroupInternal extends BrowserSavedTabGroupState {
+  contextClass: BrowserWorkspaceContextClass
   storageId: string
   origins: string[]
   navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
@@ -758,6 +761,21 @@ interface BrowserWorkspaceOperation {
   action: string
   blocksNewTabs: boolean
   token: symbol
+}
+
+function publicObserverOrigin(policy: BrowserWorkspaceNavigationPolicy): string | undefined {
+  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return undefined
+  try {
+    const parsed = new URL(policy.rules[0]!)
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && !parsed.username
+      && !parsed.password
+      && policy.rules[0] === parsed.origin
+      ? parsed.origin
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 interface BrowserNetworkRequestRecord extends BrowserNetworkRequest {
@@ -1374,6 +1392,7 @@ export class BrowserTabsManager {
     for (const group of saved?.mcpTabGroups ?? []) {
       this.mcpTabGroups.set(group.id, {
         ...group,
+        contextClass: group.contextClass ?? 'standard',
         description: normalizeWorkspaceDescription(group.description ?? ''),
         activeTabId: group.activeTabId ?? null,
         origins: [...(group.origins ?? [])],
@@ -1384,6 +1403,7 @@ export class BrowserTabsManager {
     for (const group of saved?.savedTabGroups ?? []) {
       this.savedTabGroups.set(group.id, {
         ...group,
+        contextClass: group.contextClass ?? 'standard',
         description: normalizeWorkspaceDescription(group.description ?? ''),
         storageOriginCount: group.origins?.length ?? 0,
         origins: [...(group.origins ?? [])],
@@ -1660,6 +1680,7 @@ export class BrowserTabsManager {
       hiddenFromSidebar: group.hiddenFromSidebar === true,
       deletionProtected: group.deletionProtected === true,
       agentAccess: group.agentAccess !== false,
+      contextClass: group.contextClass,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
         mode: group.navigationPolicy.mode,
@@ -1680,6 +1701,7 @@ export class BrowserTabsManager {
         hiddenFromSidebar: group.hiddenFromSidebar === true,
         deletionProtected: group.deletionProtected === true,
         agentAccess: group.agentAccess !== false,
+        contextClass: group.contextClass,
         storageOriginCount: group.origins.length,
         navigationPolicy: {
           mode: group.navigationPolicy.mode,
@@ -1712,8 +1734,13 @@ export class BrowserTabsManager {
     allowDuplicateName = false,
     navigationPolicy?: BrowserWorkspaceNavigationPolicy,
     sourceWorkspaceId?: string,
-    description = ''
+    description = '',
+    contextClass: BrowserWorkspaceContextClass = 'standard'
   ): Promise<BrowserTabGroupState> {
+    const normalizedPolicy = normalizeWorkspaceNavigationPolicy(navigationPolicy)
+    if (contextClass === 'public-observer' && (storage !== 'scratch' || !publicObserverOrigin(normalizedPolicy))) {
+      throw new TypeError('A public observer requires clean scratch storage and one restricted HTTP(S) origin.')
+    }
     const normalizedName = normalizedWorkspaceName(name)
     this.assertWorkspaceNameAvailable(normalizedName, undefined, undefined, allowDuplicateName)
     this.assertActiveWorkspaceCapacity()
@@ -1730,8 +1757,9 @@ export class BrowserTabsManager {
       activeTabId: null,
       storageId,
       origins: [],
-      navigationPolicy: normalizeWorkspaceNavigationPolicy(navigationPolicy),
-      navigationAudit: []
+      navigationPolicy: normalizedPolicy,
+      navigationAudit: [],
+      contextClass
     }
     if (storage === 'fork-workspace') {
       const sourceId = sourceWorkspaceId
@@ -1833,6 +1861,7 @@ export class BrowserTabsManager {
       hiddenFromSidebar: group.hiddenFromSidebar === true,
       deletionProtected: group.deletionProtected === true,
       agentAccess: group.agentAccess !== false,
+      contextClass: group.contextClass,
       storageOriginCount: group.origins.length,
       navigationPolicy: {
         mode: group.navigationPolicy.mode,
@@ -1856,6 +1885,10 @@ export class BrowserTabsManager {
     if (!group) throw new Error(`Unknown workspace: ${groupId}.`)
     this.assertWorkspaceIdle(groupId)
     const policy = normalizeWorkspaceNavigationPolicy(value)
+    if (group.contextClass === 'public-observer'
+      && JSON.stringify(policy) !== JSON.stringify(group.navigationPolicy)) {
+      throw new Error('A public observer origin cannot be changed or widened.')
+    }
     group.navigationPolicy = policy
     group.lastUsedAt = new Date().toISOString()
     for (const tab of this.tabs.values()) {
@@ -1981,7 +2014,8 @@ export class BrowserTabsManager {
       false,
       options.navigationPolicy,
       options.sourceWorkspaceId,
-      options.description
+      options.description,
+      options.contextClass
     )
     if (options.agentAccess !== undefined) this.updateMcpTabGroup(workspace.id, { agentAccess: options.agentAccess })
     try {
@@ -2274,6 +2308,7 @@ export class BrowserTabsManager {
         hiddenFromSidebar: internalGroup.hiddenFromSidebar === true,
         deletionProtected: internalGroup.deletionProtected === true,
         agentAccess: internalGroup.agentAccess !== false,
+        contextClass: internalGroup.contextClass,
         storageOriginCount: internalGroup.origins.length,
         navigationPolicy: {
           mode: internalGroup.navigationPolicy.mode,
@@ -2297,6 +2332,7 @@ export class BrowserTabsManager {
         hiddenFromSidebar: saved.hiddenFromSidebar === true,
         deletionProtected: saved.deletionProtected === true,
         agentAccess: saved.agentAccess !== false,
+        contextClass: saved.contextClass,
         storageOriginCount: saved.origins.length,
         navigationPolicy: {
           mode: saved.navigationPolicy.mode,
@@ -2333,6 +2369,7 @@ export class BrowserTabsManager {
       hiddenFromSidebar: saved.hiddenFromSidebar === true,
       deletionProtected: saved.deletionProtected === true,
       agentAccess: saved.agentAccess !== false,
+      contextClass: saved.contextClass,
       storageId: saved.storageId,
       origins: [...saved.origins],
       navigationPolicy: {
@@ -4426,6 +4463,9 @@ export class BrowserTabsManager {
 
   async setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
+    if (!locked && tab.mcpGroupId && this.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
+      throw new Error('Page input remains locked in a read-only public observer workspace.')
+    }
     const previousLocked = tab.humanInteractionLocked
     tab.humanInteractionLocked = locked
     if (this.isHumanInteractionLocked(tab)) {
@@ -7812,7 +7852,7 @@ export class BrowserTabsManager {
       pinned: options.pinned === true && !isHronautHomeUrl(url),
       sleeping: false,
       lastActiveAt: Date.now(),
-      humanInteractionLocked: options.humanInteractionLocked === true,
+      humanInteractionLocked: options.humanInteractionLocked === true || workspace?.contextClass === 'public-observer',
       preserveDiagnosticLogs: true,
       ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
       faviconRequestId: 0,
@@ -7889,7 +7929,8 @@ export class BrowserTabsManager {
       activeTabId: null,
       origins: [],
       navigationPolicy: { mode: 'unrestricted', rules: [] },
-      navigationAudit: []
+      navigationAudit: [],
+      contextClass: 'standard'
     })
     return id
   }
@@ -11615,6 +11656,7 @@ export class BrowserTabsManager {
         hiddenFromSidebar: group.hiddenFromSidebar === true,
         deletionProtected: group.deletionProtected === true,
         agentAccess: group.agentAccess !== false,
+        contextClass: group.contextClass,
         storageId: group.storageId,
         origins: [...group.origins],
         navigationPolicy: {
