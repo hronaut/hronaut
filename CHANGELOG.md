@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Memory Saver tabs recoverable when a failed sleep transition cannot restore the page or a wake aborts before replacement navigation, instead of leaving an internal sleeping page marked awake.
 - Move native focus into trusted browser chrome when Ctrl/Cmd+L is pressed from a website so typing reaches the address bar.
 - Clear failed renderer-recovery markers and restore the visible page problem when Electron cannot start an unresponsive-page reload.
 - Verify workspace cookie rollback and restore overwritten destination cookies even when Electron silently ignores an expiration write.

@@ -3204,6 +3204,7 @@ export class BrowserTabsManager {
     const navigationHistory = tab.sleepNavigationHistory
     const previousLoading = tab.loading
     const previousSuppressInitialHistory = tab.suppressInitialHistory
+    const navigationGeneration = tab.navigationGeneration
     const wake = (async () => {
       tab.sleeping = false
       tab.sleepNavigationHistory = undefined
@@ -3217,7 +3218,15 @@ export class BrowserTabsManager {
           await tab.webContents.loadURL(restoreUrl)
         }
       } catch (error) {
-        if (isAbortedLoad(error)) return
+        const wakeWasSuperseded = this.tabs.get(tab.id) !== tab
+          || tab.webContents.isDestroyed()
+          || (tab.navigationGeneration !== navigationGeneration
+            && (tab.webContents.isLoading() || tab.webContents.getURL() !== SLEEPING_PAGE_URL))
+        // Electron also uses ERR_ABORTED when history restoration fails before
+        // starting any replacement navigation. Retry the durable URL in that
+        // case; otherwise the tab is marked awake while still showing the
+        // internal sleeping page. A real newer navigation remains authoritative.
+        if (isAbortedLoad(error) && wakeWasSuperseded) return
         try {
           await tab.webContents.loadURL(restoreUrl)
         } catch (fallbackError) {
@@ -8891,18 +8900,54 @@ export class BrowserTabsManager {
     tab.loading = false
     tab.pendingHistoryUrl = null
     this.changed(false)
+    let sleepingPageLoaded = false
     try {
       await tab.webContents.loadURL(SLEEPING_PAGE_URL)
+      sleepingPageLoaded = true
       await this.withDebugger(tab.webContents, () =>
         tab.webContents.debugger.sendCommand('HeapProfiler.collectGarbage')
       )
     } catch (error) {
-      tab.sleeping = false
       const navigationHistory = tab.sleepNavigationHistory
-      tab.sleepNavigationHistory = undefined
-      if (navigationHistory?.entries.length) {
-        await tab.webContents.navigationHistory.restore(navigationHistory).catch(() => undefined)
+      if (!sleepingPageLoaded) {
+        tab.sleeping = false
+        tab.sleepNavigationHistory = undefined
+        this.changed(false)
+        if (reportBlocked) throw error
+        console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
+        return false
       }
+      let restoreError: unknown
+      try {
+        if (navigationHistory?.entries.length) {
+          try {
+            await tab.webContents.navigationHistory.restore(navigationHistory)
+          } catch {
+            await tab.webContents.loadURL(tab.url)
+          }
+        } else {
+          await tab.webContents.loadURL(tab.url)
+        }
+      } catch (rollbackError) {
+        restoreError = rollbackError
+      }
+      if (restoreError) {
+        tab.sleeping = true
+        tab.sleepNavigationHistory = navigationHistory
+        tab.loading = false
+        this.changed(false)
+        const recoveryError = new AggregateError(
+          [error, restoreError],
+          'The tab could not finish sleeping and its previous page could not be restored.'
+        )
+        if (reportBlocked) throw recoveryError
+        console.warn(`[browser] Could not put tab ${tab.id} to sleep or restore it:`, recoveryError)
+        return false
+      }
+      tab.sleeping = false
+      tab.sleepNavigationHistory = undefined
+      tab.loading = false
+      this.changed(false)
       if (reportBlocked) throw error
       console.warn(`[browser] Could not put tab ${tab.id} to sleep:`, error)
       return false
