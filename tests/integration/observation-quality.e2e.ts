@@ -36,6 +36,8 @@ test('classifies bounded observation quality without leaking task evidence', asy
     const assess = async (path: string, options: Record<string, unknown> = {}) => {
       const navigation = await call('browser_navigate', { workspaceId: workspace.id, tabId: opened.tabId, url: `${origin}${path}` })
       expect(navigation.isError).not.toBe(true)
+      const settled = await call('browser_wait', { workspaceId: workspace.id, tabId: opened.tabId })
+      expect(settled.isError, settled.content.find((entry) => entry.type === 'text')?.text).not.toBe(true)
       const result = await call('browser_snapshot', {
         workspaceId: workspace.id,
         tabId: opened.tabId,
