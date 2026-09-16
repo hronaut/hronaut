@@ -104,13 +104,13 @@ jobs:
           echo "notes_sha=$notes_sha" >> "$GITHUB_OUTPUT"
 
   test-integration:
-    name: Electron integration shard ${{ matrix.shard }}/3
+    name: Electron integration shard ${{ matrix.shard }}/4
     needs: prepare-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - name: Checkout immutable release source
         uses: actions/checkout@v7
@@ -120,7 +120,7 @@ jobs:
 
       - name: Run Electron integration tests in Docker
         env:
-          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"
+          HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/4"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 

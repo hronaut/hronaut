@@ -127,9 +127,9 @@ describe('focused Docker integration feedback', () => {
     ])
 
     expect(workflow).toContain('integration-shard:')
-    expect(workflow).toContain('name: Electron integration shard ${{ matrix.shard }}/3')
-    expect(workflow).toContain('shard: [1, 2, 3]')
-    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/3"')
+    expect(workflow).toContain('name: Electron integration shard ${{ matrix.shard }}/4')
+    expect(workflow).toContain('shard: [1, 2, 3, 4]')
+    expect(workflow).toContain('HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/4"')
     expect(workflow).toContain('HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"')
     expect(workflow).toContain('needs: integration-shard')
     expect(compose).toContain('HRONAUT_INTEGRATION_SHARD: "${HRONAUT_INTEGRATION_SHARD:-}"')
