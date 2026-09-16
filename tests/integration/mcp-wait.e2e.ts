@@ -168,7 +168,7 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
       response.end('<!doctype html><title>Persistent text</title><main>Persistent status</main>')
       return
     }
-    if (request.url === '/renderer-recovery') {
+    if (request.url === '/renderer-recovery' || request.url === '/renderer-recovery-failure') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end('<!doctype html><title>Recovered renderer</title><main>Recovered renderer</main>')
       return
@@ -610,6 +610,52 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     expect(recoveredTab?.pageProblem).toBeUndefined()
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(recoveryTabId)})?.pageProblem ?? null)`)).toBeNull()
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(recoveryTabId)})`)
+
+    const failedRecoveryTabId = await appWindow.evaluate(`window.hronaut.newTab({
+      url: ${JSON.stringify(`http://127.0.0.1:${address.port}/renderer-recovery-failure`)},
+      active: true
+    }).then((state) => state.activeTabId)`) as string
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(failedRecoveryTabId)})?.loading)`)).toBe(false)
+    await electronApp.evaluate(({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error('Failed renderer recovery fixture WebContents was not found')
+      const original = page.forcefullyCrashRenderer.bind(page)
+      ;(globalThis as typeof globalThis & {
+        __hronautFailedRendererRecovery?: { page: Electron.WebContents; original: typeof original }
+      }).__hronautFailedRendererRecovery = { page, original }
+      Object.defineProperty(page, 'forcefullyCrashRenderer', {
+        configurable: true,
+        value: () => { throw new Error('simulated renderer recovery failure') }
+      })
+      page.emit('unresponsive')
+    }, '/renderer-recovery-failure')
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(failedRecoveryTabId)})?.pageProblem?.kind)`)).toBe('unresponsive')
+    const recoveryFailure = await appWindow.evaluate(async (tabId) => {
+      try {
+        const browserWindow = window as typeof window & { hronaut: { reload: (id: string) => Promise<unknown> } }
+        await browserWindow.hronaut.reload(tabId)
+        return null
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    }, failedRecoveryTabId)
+    expect(recoveryFailure).toContain('simulated renderer recovery failure')
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(failedRecoveryTabId)})?.pageProblem?.kind)`)).toBe('unresponsive')
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautFailedRendererRecovery?: {
+          page: Electron.WebContents
+          original: Electron.WebContents['forcefullyCrashRenderer']
+        }
+      }
+      const control = mainGlobal.__hronautFailedRendererRecovery
+      if (!control) throw new Error('Failed renderer recovery control was not installed')
+      Object.defineProperty(control.page, 'forcefullyCrashRenderer', { configurable: true, value: control.original })
+      control.page.emit('render-process-gone', {} as Electron.Event, { reason: 'crashed', exitCode: 1 })
+      delete mainGlobal.__hronautFailedRendererRecovery
+    })
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(failedRecoveryTabId)})?.pageProblem?.kind)`)).toBe('renderer-gone')
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(failedRecoveryTabId)})`)
 
     const openedUrlCrashTab = await client.callTool({
       name: 'browser_new_tab',

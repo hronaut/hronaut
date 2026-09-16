@@ -305,6 +305,7 @@ export async function transferWorkspaceStorage(
   const { cookies, omittedPartitionedCookieCount } = await cookiesForTransfer(source, origins, options.copyAllCookies)
   const cookieIdentities = new Set(cookies.map(cookieIdentity))
   const previousCookies = (await target.cookies.get({})).filter((cookie) => cookieIdentities.has(cookieIdentity(cookie)))
+  const previousCookiesByIdentity = new Map(previousCookies.map((cookie) => [cookieIdentity(cookie), cookie]))
   const localStorageRollback: LocalStorageRollbackEntry[] = []
   const capturedLocalStorage: Array<{ origin: string; items: Array<[string, string]> }> = []
   let localStorageOriginCount = 0
@@ -376,26 +377,18 @@ export async function transferWorkspaceStorage(
         targetSurface.close()
       }
     }
-    const expiredCookieIdentities = new Set<string>()
     for (const cookie of cookies) {
       try {
         const identity = cookieIdentity(cookie)
         const current = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
         if (!sameCookie(current, cookie)) continue
-        await expireCookie(target, cookie)
-        const replacement = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
-        if (!replacement) expiredCookieIdentities.add(identity)
-      } catch (error) {
-        rollbackErrors.push(error)
-      }
-    }
-    for (const cookie of previousCookies) {
-      try {
-        const identity = cookieIdentity(cookie)
-        if (!expiredCookieIdentities.has(identity)) continue
-        const current = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
-        if (current) continue
-        await target.cookies.set(cookieDetails(cookie))
+        const previous = previousCookiesByIdentity.get(identity)
+        if (previous) await target.cookies.set(cookieDetails(previous))
+        else await expireCookie(target, cookie)
+        const restored = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
+        if (previous ? !sameCookie(restored, previous) : restored !== undefined) {
+          throw new Error(`Workspace cookie rollback verification failed for ${cookie.name}.`)
+        }
       } catch (error) {
         rollbackErrors.push(error)
       }

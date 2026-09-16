@@ -3788,7 +3788,7 @@ async function createWindow(): Promise<void> {
         // pressed. Move it to trusted chrome before the renderer focuses a
         // field, otherwise the DOM selection is visible while typed keys keep
         // going to the website.
-        if (action === 'find') mainWindow.webContents.focus()
+        if (action === 'find' || action === 'focus-address') mainWindow.webContents.focus()
         mainWindow.webContents.send('browser:shortcut-requested', action)
       }
     },

@@ -10,6 +10,9 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Move native focus into trusted browser chrome when Ctrl/Cmd+L is pressed from a website so typing reaches the address bar.
+- Clear failed renderer-recovery markers and restore the visible page problem when Electron cannot start an unresponsive-page reload.
+- Verify workspace cookie rollback and restore overwritten destination cookies even when Electron silently ignores an expiration write.
 - Retry Linux page-visibility recovery when a renderer probe stalls instead of leaving that page permanently excluded from repair checks.
 - Ignore native view teardown races during Linux page-visibility recovery so a destroyed view cannot stop later repair checks.
 - Remove malformed HTML delimiters from published release-history notes so nested markup cannot survive the plain-text boundary.
