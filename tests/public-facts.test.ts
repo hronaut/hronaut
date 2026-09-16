@@ -155,7 +155,7 @@ describe('canonical public facts', () => {
     expect(supportGuide).toMatch(/not an OAuth\/OIDC provider, identity broker,\s+enterprise access-control system, or hosted browser fleet/iu)
     expect(glama).toEqual({
       $schema: 'https://glama.ai/mcp/schemas/server.json',
-      maintainers: ['hronaut']
+      maintainers: ['Hronom']
     })
     expect(value.historicalPublications).toEqual(expect.arrayContaining([
       expect.objectContaining({
