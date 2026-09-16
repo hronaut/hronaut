@@ -11,6 +11,7 @@ test('classifies bounded observation quality without leaking task evidence', asy
     '/empty': '<!doctype html><title>App</title><div id="root"></div>',
     '/login': '<!doctype html><title>Sign in</title><main><h1>Sign in to continue</h1><form><input name="email"><input type="password"><button>Sign in</button></form></main>',
     '/challenge': '<!doctype html><title>Just a moment...</title><main><h1>Verify you are human</h1><div class="cf-turnstile"></div></main>',
+    '/challenge-article': '<!doctype html><title>Just a moment: diagnosing slow pages</title><main><article><h1>Just a moment: diagnosing slow pages</h1><p>This article explains why loading indicators can remain visible, how to distinguish network delay from renderer work, and which bounded observations help diagnose a slow application without mistaking ordinary explanatory content for an automated browser challenge.</p></article></main>',
     '/noise': `<!doctype html><title>Portal</title><header><nav>${Array.from({ length: 18 }, (_, index) => `<a href="/item-${index}">Navigation item ${index}</a>`).join('')}</nav></header><div role="dialog">We use cookies. <button>Accept all cookies</button><button>Manage cookies</button></div>`,
     '/missing': '<!doctype html><title>404 - Page not found</title><main><h1>Page not found</h1><p>The requested page does not exist.</p></main>',
     '/useful': '<!doctype html><title>Migration guide</title><main><article><h1>Migration guide</h1><p>This guide explains the supported migration procedure, preparation steps, validation checks, rollback conditions, and final verification for a production workspace.</p><p>Expected evidence marker: release-ready-canary.</p></article></main>'
@@ -48,6 +49,7 @@ test('classifies bounded observation quality without leaking task evidence', asy
     expect(await assess('/empty')).toMatchObject({ status: 'empty_content', decision: 'stop' })
     expect(await assess('/login')).toMatchObject({ status: 'login_wall', decision: 'stop' })
     expect(await assess('/challenge')).toMatchObject({ status: 'challenge', decision: 'stop' })
+    expect(await assess('/challenge-article')).toMatchObject({ status: 'candidate', decision: 'continue' })
     expect(await assess('/noise')).toMatchObject({ status: 'needs_review', decision: 'review' })
     expect(await assess('/missing')).toMatchObject({ status: 'soft_404', decision: 'stop' })
     expect(await assess('/useful')).toMatchObject({ status: 'candidate', decision: 'continue', evidenceClass: 'semantic_content' })

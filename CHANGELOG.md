@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Avoid treating a meaningful article as an automated challenge solely because its title contains challenge-like wording.
 - Repair clock-skewed saved-credential timestamps and keep a future-dated stale duplicate from replacing the current password.
 
 ## [2.4.21] - 2026-09-16

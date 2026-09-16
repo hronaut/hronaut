@@ -137,8 +137,9 @@ export function classifyBrowserObservationQuality(
       ? 'The main document is still loading; assess it again after the page settles.'
       : 'The page renderer or navigation is unavailable; recover it before assessing content.')
   }
-  const strongChallenge = signals.challengeSignals.some((signal) => signal === 'challenge-title' || signal === 'challenge-control')
-  if (strongChallenge || (signals.challengeSignals.length > 0 && shape.primaryTextChars < 160)) {
+  const challengeTitleAndControl = signals.challengeSignals.includes('challenge-title')
+    && signals.challengeSignals.includes('challenge-control')
+  if (challengeTitleAndControl || (signals.challengeSignals.length > 0 && shape.primaryTextChars < 160)) {
     return result('challenge', 'stop', 'automated_challenge', 'The page contains an automated-access or human-verification challenge.')
   }
   const passwordGate = signals.loginSignals.includes('password-field')
