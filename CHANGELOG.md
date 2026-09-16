@@ -6,10 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Generate bounded release-history notes in linear time so validation and release preparation stay responsive with large multibyte changelogs.
 - Split hosted Electron integration coverage across five isolated runners to shorten pull-request and release feedback while retaining the complete suite.
 
 ### Fixed
 
+- Repair malformed, future, and inverted workspace timestamps so damaged profiles or clock changes cannot keep stale workspaces incorrectly ordered on Home.
 - Repair future and inverted bookmark timestamps so clock skew cannot keep stale pages permanently ahead of genuine address-bar suggestions.
 - Persist repaired active and archived tab titles so oversized or control-character page metadata cannot remain in the local profile after recovery.
 - Persist sanitized workspace origin metadata and malformed workspace description repairs so private URL details and invalid context cannot remain in the local profile after recovery.

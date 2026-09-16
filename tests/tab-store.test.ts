@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TAB_STATE_VERSION,
   TabStateStore,
@@ -140,6 +140,49 @@ describe('TabStateStore', () => {
       mcpTabGroups: [expect.objectContaining({ description: '' }), expect.any(Object)],
       savedTabGroups: [expect.objectContaining({ description: '' })]
     })
+  })
+
+  it('repairs malformed, future, and inverted workspace timestamps', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-16T12:00:00.000Z'))
+    try {
+      const { path, store } = await createStore()
+      const state = currentState()
+      state.mcpTabGroups![0]!.createdAt = '2027-01-01T00:00:00.000Z'
+      state.mcpTabGroups![0]!.lastUsedAt = 'not-a-date'
+      state.mcpTabGroups![1]!.createdAt = '2026-08-20T09:03:00.000Z'
+      state.mcpTabGroups![1]!.lastUsedAt = '2026-08-20T09:02:00.000Z'
+      state.savedTabGroups![0]!.savedAt = '2027-02-01T00:00:00.000Z'
+      await mkdir(join(path, '..'), { recursive: true })
+      await writeFile(path, JSON.stringify(state), 'utf8')
+
+      const restored = await store.load()
+
+      expect(restored?.mcpTabGroups?.[0]).toMatchObject({
+        createdAt: '2026-09-16T12:00:00.000Z',
+        lastUsedAt: '2026-09-16T12:00:00.000Z'
+      })
+      expect(restored?.mcpTabGroups?.[1]).toMatchObject({
+        createdAt: '2026-08-20T09:03:00.000Z',
+        lastUsedAt: '2026-08-20T09:03:00.000Z'
+      })
+      expect(restored?.savedTabGroups?.[0]?.savedAt).toBe('2026-09-16T12:00:00.000Z')
+      expect(JSON.parse(await readFile(path, 'utf8'))).toMatchObject({
+        mcpTabGroups: [
+          expect.objectContaining({
+            createdAt: '2026-09-16T12:00:00.000Z',
+            lastUsedAt: '2026-09-16T12:00:00.000Z'
+          }),
+          expect.objectContaining({
+            createdAt: '2026-08-20T09:03:00.000Z',
+            lastUsedAt: '2026-08-20T09:03:00.000Z'
+          })
+        ],
+        savedTabGroups: [expect.objectContaining({ savedAt: '2026-09-16T12:00:00.000Z' })]
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('restores bounded PNG favicons and repairs invalid persisted favicon data', async () => {
