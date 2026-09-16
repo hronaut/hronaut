@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.20] - 2026-09-16
+
 ### Fixed
 
 - Preserve cookie and local storage changes made by destination pages while a failed workspace data copy rolls back.
