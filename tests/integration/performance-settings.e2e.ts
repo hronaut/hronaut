@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
-import type { BrowserState } from '../../src/shared/types.js'
+import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 import { blockFileDestination, closeFixtureServer, expect, test } from './fixtures.js'
 
 test('serializes Memory Saver settings and sleeps eligible tabs without stale shell state', async ({
@@ -277,6 +277,181 @@ test('keeps a tab awake when it becomes visible during the form-safety check', a
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript('window.__memorySaverDocumentIdentity') ?? null
     }, websiteUrl)).toBe(documentIdentity)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('keeps a tab recoverably sleeping when Memory Saver rollback cannot restore its page', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Memory Saver rollback fixture</title><main>Recovered after rollback failure</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Memory Saver rollback fixture did not expose a port')
+    const websiteUrl = `http://127.0.0.1:${address.port}/rollback`
+    await appWindow.evaluate(`(async () => {
+      await window.hronaut.newTab({ url: ${JSON.stringify(websiteUrl)}, active: true });
+      await window.hronaut.newTab({ url: 'about:blank', active: true });
+    })()`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((tab) => tab.url === ${JSON.stringify(websiteUrl)} && !tab.loading)?.id ?? null
+    ))`)).toBeTruthy()
+    const tabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((tab) => tab.url === ${JSON.stringify(websiteUrl)})?.id
+    ))`) as string
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Memory Saver rollback WebContents was not found')
+      const control = {
+        pageId: page.id,
+        restore: page.navigationHistory.restore.bind(page.navigationHistory),
+        loadUrl: page.loadURL.bind(page),
+        sendCommand: page.debugger.sendCommand.bind(page.debugger)
+      }
+      ;(globalThis as typeof globalThis & { __hronautFailedSleepRollback?: typeof control })
+        .__hronautFailedSleepRollback = control
+      Object.defineProperty(page.navigationHistory, 'restore', {
+        configurable: true,
+        value: async () => { throw new Error('simulated sleep rollback restore failure') }
+      })
+      Object.defineProperty(page, 'loadURL', {
+        configurable: true,
+        value: async (url: string, options?: Electron.LoadURLOptions) => {
+          if (url === requestedUrl) throw new Error('simulated sleep rollback reload failure')
+          return control.loadUrl(url, options)
+        }
+      })
+      Object.defineProperty(page.debugger, 'sendCommand', {
+        configurable: true,
+        value: async (method: string, params?: unknown) => {
+          if (method === 'HeapProfiler.collectGarbage') throw new Error('simulated sleep finalization failure')
+          return control.sendCommand(method, params)
+        }
+      })
+    }, websiteUrl)
+
+    const sleepError = await appWindow.evaluate(async (requestedTabId) => {
+      const browser = (window as unknown as { hronaut: HronautApi }).hronaut
+      try {
+        await browser.setTabSleeping(requestedTabId, true)
+        return null
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error)
+      }
+    }, tabId)
+    await expect.poll(() => appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === requestedTabId)?.sleeping), tabId)).toBe(true)
+    expect(sleepError).toContain('could not be restored')
+
+    await electronApp.evaluate(({ webContents }) => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautFailedSleepRollback?: {
+          pageId: number
+          restore: Electron.NavigationHistory['restore']
+          loadUrl: Electron.WebContents['loadURL']
+          sendCommand: Electron.Debugger['sendCommand']
+        }
+      }
+      const control = mainGlobal.__hronautFailedSleepRollback
+      if (!control) throw new Error('Memory Saver rollback control was not installed')
+      const page = webContents.fromId(control.pageId)
+      if (!page) throw new Error('Memory Saver rollback WebContents disappeared')
+      Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      Object.defineProperty(page, 'loadURL', { configurable: true, value: control.loadUrl })
+      Object.defineProperty(page.debugger, 'sendCommand', { configurable: true, value: control.sendCommand })
+      delete mainGlobal.__hronautFailedSleepRollback
+    })
+    await appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.setTabSleeping(requestedTabId, false), tabId)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('document.body.innerText') ?? null
+    }, websiteUrl)).toContain('Recovered after rollback failure')
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
+test('retries a sleeping tab wake when history restoration aborts without a replacement navigation', async ({
+  appWindow,
+  electronApp
+}) => {
+  const server = createServer((_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end('<!doctype html><title>Memory Saver aborted wake fixture</title><main>Recovered after an isolated abort</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Memory Saver aborted wake fixture did not expose a port')
+    const websiteUrl = `http://127.0.0.1:${address.port}/aborted-wake`
+    await appWindow.evaluate(`(async () => {
+      await window.hronaut.newTab({ url: ${JSON.stringify(websiteUrl)}, active: true });
+      await window.hronaut.newTab({ url: 'about:blank', active: true });
+    })()`)
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((tab) => tab.url === ${JSON.stringify(websiteUrl)} && !tab.loading)?.id ?? null
+    ))`)).toBeTruthy()
+    const tabId = await appWindow.evaluate(`window.hronaut.getState().then((state) => (
+      state.tabs.find((tab) => tab.url === ${JSON.stringify(websiteUrl)})?.id
+    ))`) as string
+    await appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.setTabSleeping(requestedTabId, true), tabId)
+    await expect.poll(() => appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === requestedTabId)?.sleeping), tabId)).toBe(true)
+
+    await electronApp.evaluate(({ webContents }) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes('%3Ctitle%3ESleeping%20tab'))
+      if (!page) throw new Error('Memory Saver aborted wake WebContents was not found')
+      const control = { pageId: page.id, restore: page.navigationHistory.restore.bind(page.navigationHistory) }
+      ;(globalThis as typeof globalThis & { __hronautAbortedWake?: typeof control }).__hronautAbortedWake = control
+      Object.defineProperty(page.navigationHistory, 'restore', {
+        configurable: true,
+        value: async () => {
+          const error = new Error('simulated isolated aborted history restore') as Error & { code: string }
+          error.code = 'ERR_ABORTED'
+          throw error
+        }
+      })
+    })
+
+    await appWindow.evaluate((requestedTabId) => (
+      window as unknown as { hronaut: HronautApi }
+    ).hronaut.setTabSleeping(requestedTabId, false), tabId)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      return page?.executeJavaScript('document.body.innerText') ?? null
+    }, websiteUrl)).toContain('Recovered after an isolated abort')
+
+    await electronApp.evaluate(({ webContents }) => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautAbortedWake?: { pageId: number; restore: Electron.NavigationHistory['restore'] }
+      }
+      const control = mainGlobal.__hronautAbortedWake
+      if (!control) throw new Error('Memory Saver aborted wake control was not installed')
+      const page = webContents.fromId(control.pageId)
+      if (page) Object.defineProperty(page.navigationHistory, 'restore', { configurable: true, value: control.restore })
+      delete mainGlobal.__hronautAbortedWake
+    })
   } finally {
     await closeFixtureServer(server)
   }
