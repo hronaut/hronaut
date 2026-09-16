@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.19] - 2026-09-16
+
 ### Changed
 
 - Split hosted Electron integration coverage across four isolated runners to shorten pull-request and release feedback as the suite grows.
