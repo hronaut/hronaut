@@ -16,15 +16,34 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
   } catch {
     return
   }
-  const isPresented = (): boolean => !window.isDestroyed()
-    && !contents.isDestroyed()
-    && window.isVisible()
-    && !window.isMinimized()
-    && window.contentView.children.includes(view)
-    && view.getVisible()
-    && !contents.isLoadingMainFrame()
+  const isPresented = (): boolean => {
+    try {
+      return !window.isDestroyed()
+        && !contents.isDestroyed()
+        && window.isVisible()
+        && !window.isMinimized()
+        && window.contentView.children.includes(view)
+        && view.getVisible()
+        && !contents.isLoadingMainFrame()
+    } catch {
+      // Any native wrapper in this predicate can become invalid between the
+      // periodic watcher selecting a view and checking its presentation.
+      return false
+    }
+  }
   if (!isPresented()) return
   pending.add(view)
+  let probe: ReturnType<WebContents['executeJavaScriptInIsolatedWorld']>
+  try {
+    probe = contents.executeJavaScriptInIsolatedWorld(
+      VISIBILITY_WORLD_ID,
+      [{ code: 'document.visibilityState' }],
+      false
+    )
+  } catch {
+    pending.delete(view)
+    return
+  }
   let timeout: NodeJS.Timeout | undefined
   const deadline = new Promise<undefined>((resolve) => {
     const deadlineTimer = setTimeout(resolve, VISIBILITY_PROBE_TIMEOUT_MS) as unknown as NodeJS.Timeout
@@ -32,7 +51,7 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
     deadlineTimer.unref()
   })
   void Promise.race([
-    contents.executeJavaScriptInIsolatedWorld(VISIBILITY_WORLD_ID, [{ code: 'document.visibilityState' }], false),
+    probe,
     deadline
   ])
     .then(visibility => {

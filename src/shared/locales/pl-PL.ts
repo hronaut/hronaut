@@ -504,6 +504,7 @@ export const plPL = {
     moveConfirm: "Przenieść wybrane cookies i pamięć lokalną z {source} do {target}? Pasujące dane docelowe zostaną nadpisane, a przeniesione dane źródłowe usunięte.",
     moved: "Przeniesiono cookies: {cookies}, elementów pamięci lokalnej: {items}.",
     moveIncomplete: "Dane skopiowano, ale części danych źródłowych nie udało się usunąć. Przenoszenie jest niepełne.",
+    partitionedCookiesOmitted: "Pominięto partycjonowane pliki cookie: {count}, ponieważ nie można bezpiecznie odtworzyć ich kluczy partycji. Transfer jest niepełny.",
 
     "kicker": "Obszar roboczy przeglądarki",
     "create": "Utwórz obszar roboczy",

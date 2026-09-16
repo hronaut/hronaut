@@ -357,12 +357,23 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
       return
     }
     if (!isPresentationCurrent(presentation)) return
-    const successMessage = options.translate(result.cleanupStatus === 'incomplete'
-      ? 'workspaceEditor.moveIncomplete'
-      : currentMode === 'move' ? 'workspaceEditor.moved' : 'runtimeActions.workspace.copied', {
+    const omittedPartitionedCookieCount = result.omittedPartitionedCookieCount ?? 0
+    const transferWarnings = [
+      ...(omittedPartitionedCookieCount > 0
+        ? [options.translate('workspaceEditor.partitionedCookiesOmitted', {
+            count: options.formatNumber(omittedPartitionedCookieCount)
+          })]
+        : []),
+      ...(result.cleanupStatus === 'incomplete'
+        ? [options.translate('workspaceEditor.moveIncomplete')]
+        : [])
+    ]
+    const successMessage = transferWarnings.length > 0
+      ? transferWarnings.join(' ')
+      : options.translate(currentMode === 'move' ? 'workspaceEditor.moved' : 'runtimeActions.workspace.copied', {
       cookies: options.formatNumber(result.cookieCount),
       items: options.formatNumber(result.localStorageItemCount)
-    })
+      })
     try {
       await options.syncState(options.browser.getState())
     } catch {
@@ -378,7 +389,7 @@ export function useWorkspaceEditorController(options: WorkspaceEditorControllerO
         selectedOrigins.value = [...refreshed.origins]
       }
     }
-    storageState.value = result.cleanupStatus === 'incomplete' ? 'warning' : 'saved'
+    storageState.value = transferWarnings.length > 0 ? 'warning' : 'saved'
     storageMessage.value = successMessage
   }
 
