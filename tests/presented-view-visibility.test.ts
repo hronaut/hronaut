@@ -51,6 +51,18 @@ describe('presented view visibility', () => {
     await vi.waitFor(() => expect(f.contents.setEmbedder).toHaveBeenCalledWith(f.window.webContents))
   })
 
+  it('retries after a visibility probe never settles', async () => {
+    vi.useFakeTimers()
+    const f = fixture()
+    f.reconcile()
+    expect(f.contents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    f.reconcile()
+
+    expect(f.contents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2)
+  })
+
   it('leaves a healthy renderer alone', async () => {
     const f = fixture()
     f.reconcile()

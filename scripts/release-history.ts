@@ -40,6 +40,11 @@ function notes(value: unknown): string {
   const normalized = value.replace(/<!--[\s\S]*?-->/gu, '')
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, '')
     .replace(/<[^>]*>/gu, '')
+    // Malformed or nested markup can survive whole-token removal by exposing
+    // a delimiter that belonged to an outer token. The history artifact is a
+    // plain-text contract, so remove each remaining HTML delimiter at the
+    // final boundary instead of trying to reinterpret incomplete markup.
+    .replace(/[<>]/gu, '')
     .replace(/\p{Cc}/gu, character => ['\t', '\n', '\r'].includes(character) ? character : '')
     .replace(/\n{4,}/gu, '\n\n\n').trim()
   if (Buffer.byteLength(JSON.stringify(normalized)) <= MAX_ENCODED_NOTES_BYTES) return normalized

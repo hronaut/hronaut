@@ -2,6 +2,7 @@ import type { BrowserWindow, WebContents, WebContentsView } from 'electron'
 
 const pending = new WeakSet<WebContentsView>()
 const VISIBILITY_WORLD_ID = 1010
+const VISIBILITY_PROBE_TIMEOUT_MS = 1_500
 
 /** Repair Electron 44's stale native visibility without reloading or focusing. */
 export function reconcilePresentedViewVisibility(window: BrowserWindow, view: WebContentsView): void {
@@ -24,7 +25,16 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
     && !contents.isLoadingMainFrame()
   if (!isPresented()) return
   pending.add(view)
-  void contents.executeJavaScriptInIsolatedWorld(VISIBILITY_WORLD_ID, [{ code: 'document.visibilityState' }], false)
+  let timeout: NodeJS.Timeout | undefined
+  const deadline = new Promise<undefined>((resolve) => {
+    const deadlineTimer = setTimeout(resolve, VISIBILITY_PROBE_TIMEOUT_MS) as unknown as NodeJS.Timeout
+    timeout = deadlineTimer
+    deadlineTimer.unref()
+  })
+  void Promise.race([
+    contents.executeJavaScriptInIsolatedWorld(VISIBILITY_WORLD_ID, [{ code: 'document.visibilityState' }], false),
+    deadline
+  ])
     .then(visibility => {
       if (visibility !== 'hidden' || !isPresented()) return
       // Electron 44's View visibility/bounds can already be correct while its
@@ -38,7 +48,10 @@ export function reconcilePresentedViewVisibility(window: BrowserWindow, view: We
     })
     // Navigation or destruction can invalidate the isolated execution context.
     .catch(() => undefined)
-    .finally(() => pending.delete(view))
+    .finally(() => {
+      if (timeout) clearTimeout(timeout)
+      pending.delete(view)
+    })
 }
 
 /** Check idle presented pages too: compositor visibility can drift without a

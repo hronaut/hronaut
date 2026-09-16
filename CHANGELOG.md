@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Retry Linux page-visibility recovery when a renderer probe stalls instead of leaving that page permanently excluded from repair checks.
+- Remove malformed HTML delimiters from published release-history notes so nested markup cannot survive the plain-text boundary.
+
 ## [2.4.20] - 2026-09-16
 
 ### Fixed
