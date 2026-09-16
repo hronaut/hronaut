@@ -339,7 +339,7 @@ describe('TabStateStore', () => {
     expect(await store.load()).toBeNull()
   })
 
-  it('repairs untrusted active and archived page titles without dropping current state', async () => {
+  it('persists repaired active and archived page titles without dropping current state', async () => {
     const { path, store } = await createStore()
     const state = currentState()
     state.tabs[1]!.title = `  Checkout\n${'x'.repeat(MAX_TAB_TITLE_CHARS * 4)}  `
@@ -352,6 +352,16 @@ describe('TabStateStore', () => {
     expect(restored?.tabs[1]?.title).toMatch(/^Checkout x+$/)
     expect(restored?.savedTabGroups?.[0]?.tabs[0]?.title).toHaveLength(MAX_TAB_TITLE_CHARS)
     expect(restored?.savedTabGroups?.[0]?.tabs[0]?.title).toMatch(/^Orders y+$/)
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toMatch(/\\n|\\t/)
+    expect(JSON.parse(repaired)).toMatchObject({
+      tabs: expect.arrayContaining([
+        expect.objectContaining({ id: ACTIVE_TAB_ID, title: expect.stringMatching(/^Checkout x+$/) })
+      ]),
+      savedTabGroups: [expect.objectContaining({
+        tabs: [expect.objectContaining({ title: expect.stringMatching(/^Orders y+$/) })]
+      })]
+    })
   })
 
   it('restores distinct workspace identities that intentionally share a human label', async () => {

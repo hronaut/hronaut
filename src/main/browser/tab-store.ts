@@ -421,11 +421,13 @@ export class TabStateStore {
               ? normalizedUrl
               : 'about:blank'
             const title = (tab as Record<string, unknown>).title as string
+            const normalizedTitle = url !== normalizedUrl
+              ? 'New tab'
+              : normalizeTabTitle(title === originalUrl ? url : title, url)
             if (url !== originalUrl) repairedPersistedState = true
+            if (normalizedTitle !== title) repairedPersistedState = true
             return {
-              title: url !== normalizedUrl
-                ? 'New tab'
-                : normalizeTabTitle(title === originalUrl ? url : title, url),
+              title: normalizedTitle,
               url,
               pinned: (tab as Record<string, unknown>).pinned === true
             }
@@ -466,12 +468,14 @@ export class TabStateStore {
         if (normalizedUrl !== candidate.url) repairedPersistedState = true
         const faviconDataUrl = persistedFaviconDataUrl(candidate.faviconDataUrl)
         if (candidate.faviconDataUrl !== undefined && faviconDataUrl === undefined) repairedPersistedState = true
+        const normalizedTitle = normalizedUrl !== url
+          ? 'New tab'
+          : normalizeTabTitle(candidate.title === candidate.url ? normalizedUrl : candidate.title, normalizedUrl)
+        if (normalizedTitle !== candidate.title) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({
           id: candidate.id,
-          title: normalizedUrl !== url
-            ? 'New tab'
-            : normalizeTabTitle(candidate.title === candidate.url ? normalizedUrl : candidate.title, normalizedUrl),
+          title: normalizedTitle,
           url: normalizedUrl,
           pinned: candidate.pinned === true,
           muted: candidate.muted === true,
