@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.21] - 2026-09-16
+
 ### Changed
 
 - Generate bounded release-history notes in linear time so validation and release preparation stay responsive with large multibyte changelogs.
