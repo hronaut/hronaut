@@ -38,7 +38,7 @@ export interface WorkspaceStorageTransferResult {
 
 interface LocalStorageRollbackEntry {
   origin: string
-  keys: string[]
+  items: Array<[string, string]>
   previous: Array<[string, string]>
 }
 
@@ -248,8 +248,12 @@ class LocalStorageSurface {
 
   async restore(entry: LocalStorageRollbackEntry): Promise<void> {
     await this.executeScript(`(() => {
-      for (const key of ${JSON.stringify(entry.keys)}) localStorage.removeItem(key);
-      for (const [key, value] of ${JSON.stringify(entry.previous)}) localStorage.setItem(key, value);
+      const previous = new Map(${JSON.stringify(entry.previous)});
+      for (const [key, copiedValue] of ${JSON.stringify(entry.items)}) {
+        if (localStorage.getItem(key) !== copiedValue) continue;
+        if (previous.has(key)) localStorage.setItem(key, previous.get(key));
+        else localStorage.removeItem(key);
+      }
     })()`)
   }
 
@@ -300,7 +304,7 @@ export async function transferWorkspaceStorage(
           const keys = items.map(([key]) => key)
           localStorageRollback.push({
             origin,
-            keys,
+            items,
             previous: keys.flatMap((key) => targetItems.has(key) ? [[key, targetItems.get(key)!] as [string, string]] : [])
           })
           await targetSurface.merge(items)
@@ -350,15 +354,25 @@ export async function transferWorkspaceStorage(
         targetSurface.close()
       }
     }
+    const expiredCookieIdentities = new Set<string>()
     for (const cookie of cookies) {
       try {
+        const identity = cookieIdentity(cookie)
+        const current = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
+        if (!sameCookie(current, cookie)) continue
         await expireCookie(target, cookie)
+        const replacement = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
+        if (!replacement) expiredCookieIdentities.add(identity)
       } catch (error) {
         rollbackErrors.push(error)
       }
     }
     for (const cookie of previousCookies) {
       try {
+        const identity = cookieIdentity(cookie)
+        if (!expiredCookieIdentities.has(identity)) continue
+        const current = (await target.cookies.get({})).find((entry) => cookieIdentity(entry) === identity)
+        if (current) continue
         await target.cookies.set(cookieDetails(cookie))
       } catch (error) {
         rollbackErrors.push(error)

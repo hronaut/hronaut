@@ -166,6 +166,41 @@ test('clears a stale favicon when a same-origin navigation has no valid icon', a
   }
 })
 
+test('clears a stale favicon when the next main-document navigation fails', async ({ appWindow }) => {
+  const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
+  const server = createServer((request, response) => {
+    if (request.url === '/favicon') {
+      response.writeHead(200, { 'content-type': 'image/png', 'content-length': png.length })
+      response.end(png)
+      return
+    }
+    if (request.url === '/available') {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end('<!doctype html><title>Available icon page</title><link rel="icon" href="/favicon"><main>Available page</main>')
+      return
+    }
+    request.socket.destroy()
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Failed-navigation favicon server is unavailable')
+    const origin = `http://127.0.0.1:${address.port}`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(`${origin}/available`)}, active: true })`)
+    await expect(appWindow.locator('.tab.active .favicon-image')).toHaveAttribute('src', /^data:image\/png;base64,/)
+
+    await appWindow.evaluate(`window.hronaut.navigate({ url: ${JSON.stringify(`${origin}/unavailable`)} }).catch(() => undefined)`)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.pageProblem?.kind)'))
+      .toBe('load-error')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.faviconDataUrl)'))
+      .toBeUndefined()
+    await expect(appWindow.locator('.tab.active .favicon-image')).toHaveCount(0)
+    await expect(appWindow.locator('.tab.active .favicon-fallback')).toBeVisible()
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('loads an authenticated favicon and retains it while the same page reloads', async ({ appWindow, electronApp }) => {
   const png = await readFile(new URL('../../build/icons/24x24.png', import.meta.url))
   let pageRequests = 0

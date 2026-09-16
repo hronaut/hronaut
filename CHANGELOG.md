@@ -6,8 +6,11 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve cookie and local storage changes made by destination pages while a failed workspace data copy rolls back.
 - Keep page readiness waits pending when an embedded frame fails while the main document is still loading.
+- Fail page readiness waits promptly when the website renderer becomes unavailable.
 - Clear a previous page's favicon when a tab navigates to another page on the same website without a valid icon.
+- Clear a previous page's favicon when navigation to a different main document fails.
 
 ## [2.4.19] - 2026-09-16
 

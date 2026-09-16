@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
+import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 function text(result: CallToolResult): string {
@@ -165,6 +166,11 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     if (request.url === '/text-stays') {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end('<!doctype html><title>Persistent text</title><main>Persistent status</main>')
+      return
+    }
+    if (request.url === '/renderer-recovery') {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.end('<!doctype html><title>Recovered renderer</title><main>Recovered renderer</main>')
       return
     }
     if (request.url === '/text-any') {
@@ -546,6 +552,64 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     expect(result.isError).toBe(true)
     expect(result.structuredContent).toMatchObject({ status: 'STALE_OBSERVATION', retrySafe: false })
     await expect(appWindow.locator('[role="tab"].mcp-active')).toHaveCount(0)
+
+    const openedCrashTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/page-wait-renderer-crash`, active: true }
+    }) as CallToolResult
+    const crashTabId = (JSON.parse(text(openedCrashTab)) as { activeTabId: string }).activeTabId
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(crashTabId)})?.loading)`)).toBe(true)
+    const waitingForCrashedPage = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: crashTabId, timeoutMs: 10_000 }
+    }) as Promise<CallToolResult>
+    await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedPath) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL().includes(requestedPath))
+    ), '/page-wait-renderer-crash')).toBe(true)
+    await electronApp.evaluate(({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error('Page wait crash fixture WebContents was not found')
+      const processId = page.getOSProcessId()
+      if (processId <= 0) throw new Error('Page wait crash fixture did not expose a renderer process')
+      process.kill(processId, 'SIGKILL')
+    }, '/page-wait-renderer-crash')
+    let crashPromptTimer: NodeJS.Timeout | undefined
+    const crashResult = await Promise.race([
+      waitingForCrashedPage,
+      new Promise<never>((_resolve, reject) => {
+        crashPromptTimer = setTimeout(() => reject(new Error(
+          'browser_wait stayed active after its renderer crashed'
+        )), 2_000)
+      })
+    ]).finally(() => {
+      if (crashPromptTimer) clearTimeout(crashPromptTimer)
+    })
+    expect(crashResult.isError).toBe(true)
+    expect(text(crashResult)).toContain('tab renderer became unavailable while waiting for the page')
+    await expect(appWindow.locator('[role="tab"].mcp-active')).toHaveCount(0)
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(crashTabId)})`)
+
+    const recoveryTabId = await appWindow.evaluate(`window.hronaut.newTab({
+      url: ${JSON.stringify(`http://127.0.0.1:${address.port}/renderer-recovery`)},
+      active: true
+    }).then((state) => state.activeTabId)`) as string
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(recoveryTabId)})?.title)`)).toBe('Recovered renderer')
+    await electronApp.evaluate(({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error('Renderer recovery fixture WebContents was not found')
+      page.emit('unresponsive')
+    }, '/renderer-recovery')
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(recoveryTabId)})?.pageProblem?.kind)`)).toBe('unresponsive')
+    const recoveredState = await appWindow.evaluate(`window.hronaut.reload(${JSON.stringify(recoveryTabId)})`) as BrowserState
+    const recoveredTab = recoveredState.tabs.find((tab) => tab.id === recoveryTabId)
+    expect(recoveredTab).toMatchObject({
+      title: 'Recovered renderer',
+      loading: false
+    })
+    expect(recoveredTab?.pageProblem).toBeUndefined()
+    await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(recoveryTabId)})?.pageProblem ?? null)`)).toBeNull()
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(recoveryTabId)})`)
 
     const openedTextTab = await client.callTool({
       name: 'browser_new_tab',
