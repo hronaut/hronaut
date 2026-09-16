@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Keep page readiness waits pending when an embedded frame fails while the main document is still loading.
 - Clear a previous page's favicon when a tab navigates to another page on the same website without a valid icon.
+- Clear a previous page's favicon when navigation to a different main document fails.
 
 ## [2.4.19] - 2026-09-16
 

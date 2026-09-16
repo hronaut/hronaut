@@ -8303,10 +8303,12 @@ export class BrowserTabsManager {
     })
     webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
       if (tab.sleeping) return
+      const previousUrl = tab.url
       syncNavigation()
       if (!isMainFrame || errorCode === ABORTED_LOAD_ERROR) return
       const failedUrl = validatedURL || tab.url
       tab.loading = false
+      if (previousUrl !== failedUrl) tab.faviconDataUrl = undefined
       tab.url = failedUrl
       tab.title = 'Site unavailable'
       tab.pageProblem = loadFailureProblem(this.options.getLocale(), failedUrl, errorCode, errorDescription)
