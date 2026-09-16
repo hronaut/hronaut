@@ -4,7 +4,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconAddBox from '~icons/material-symbols/add-box-rounded'
-import IconAutoAwesome from '~icons/material-symbols/auto-awesome-rounded'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
 import IconDashboard from '~icons/material-symbols/space-dashboard-rounded'
@@ -639,10 +638,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           <span v-else-if="tab.url === 'about:blank'" class="favicon-fallback" aria-hidden="true">✦</span>
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
           <span class="tab-title">{{ tab.title || t('tabSearch.newTabTitle') }}</span>
-          <span v-if="mcpActivityByTab[tab.id]" class="tab-agent-activity" aria-hidden="true">
-            <IconAutoAwesome />
-            <span class="tab-agent-activity-dot" />
-          </span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
           <IconHorizontalSplit
             v-if="state.splitView?.orientation === 'horizontal' && (state.splitView.firstTabId === tab.id || state.splitView.secondTabId === tab.id)"

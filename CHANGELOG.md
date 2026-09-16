@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Make agent activity easier to spot with a softly outlined tab and a compact sparkle badge, including pinned tabs and the collapsed sidebar. Keep the signal steady with reduced motion and describe it to screen readers.
+- Make agent activity easier to spot with a softly blinking outline that follows the tab shape, including pinned tabs and the collapsed sidebar, without taking space from the title. Keep the signal steady with reduced motion and describe it to screen readers.
 
 ### Fixed
 
