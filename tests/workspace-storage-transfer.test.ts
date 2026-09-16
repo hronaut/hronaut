@@ -148,6 +148,28 @@ describe('workspace data transfer', () => {
     await expect(transferWorkspaceStorage(options)).rejects.toThrow('Browser profile storage could not be fully flushed')
     expect([...target.jar.values()]).toEqual([cookie('keep', '/private')])
   })
+  it('preserves destination updates and deletions made while a failed copy rolls back', async () => {
+    const privateSourceCookie = cookie('source-private', '/private')
+    const privateTargetCookie = cookie('target-private', '/private')
+    source.jar.set(identity(privateSourceCookie), privateSourceCookie)
+    source.storage.set(origin, new Map([['updated', 'source'], ['deleted', 'source']]))
+    target.jar.set(identity(cookie()), cookie('target'))
+    target.jar.set(identity(privateTargetCookie), privateTargetCookie)
+    target.storage.set(origin, new Map([['updated', 'target'], ['deleted', 'target']]))
+    target.flushStorageData.mockImplementationOnce(async () => {
+      target.jar.set(identity(cookie()), cookie('concurrent'))
+      target.jar.delete(identity(privateSourceCookie))
+      target.storage.get(origin)?.set('updated', 'concurrent')
+      target.storage.get(origin)?.delete('deleted')
+      throw new Error('flush failed')
+    })
+
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('Browser profile storage could not be fully flushed')
+
+    expect(target.jar.get(identity(cookie()))?.value).toBe('concurrent')
+    expect(target.jar.has(identity(privateSourceCookie))).toBe(false)
+    expect(target.storage.get(origin)).toEqual(new Map([['updated', 'concurrent']]))
+  })
   it('rejects a destination flush failure before source cleanup', async () => {
     target.flushStorageData.mockRejectedValueOnce(new Error('flush failed'))
     await expect(transferWorkspaceStorage({ ...options, mode: 'move' })).rejects.toThrow('Browser profile storage could not be fully flushed')
