@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Add an opt-in observation-quality assessment to `browser_snapshot` that stops on empty shells, login walls, human-verification challenges, soft 404s, wrong origins, missing task evidence, and structurally noisy pages before agents reason from misleading content.
 
+### Changed
+
+- Make agent activity easier to spot with a softly outlined tab and a compact sparkle badge, including pinned tabs and the collapsed sidebar. Keep the signal steady with reduced motion and describe it to screen readers.
+
 ### Fixed
 
 - Repair clock-skewed saved-credential timestamps and keep a future-dated stale duplicate from replacing the current password.

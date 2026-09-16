@@ -112,6 +112,26 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it('describes agent activity without replacing the tab name or its navigation controls', async () => {
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    await view.rerender({ mcpActivityByTab: {
+      first: { activityId: 'request-1', tabId: 'first', toolName: 'browser_snapshot', phase: 'started', occurredAt: 1 }
+    } })
+    expect(first).toHaveAccessibleName('Page first')
+    expect(first).toHaveAccessibleDescription('Agent active')
+    expect(first).toHaveAttribute('title', 'Page first\n\nAgent active')
+    expect(first).toHaveAttribute('aria-selected', 'false')
+    expect(second).toHaveAttribute('aria-selected', 'true')
+    expect(second).not.toHaveAttribute('aria-description')
+    await fireEvent.click(first)
+    expect(view.emitted().selectTab).toEqual([['first']])
+    await view.rerender({ mcpActivityByTab: {} })
+    expect(first).not.toHaveAttribute('aria-description')
+    expect(first).toHaveAttribute('title', 'Page first')
+  })
+
   it('keeps live workspace descriptions in workspace-header hover text without rendering a preview', async () => {
     const description = 'Compare checkout flows.\nKeep the signed-in QA session.'
     const state = browserState({ mcpTabGroups: [{ ...workspace(), description }] })

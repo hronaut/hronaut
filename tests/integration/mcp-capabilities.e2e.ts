@@ -1393,7 +1393,8 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
     })
     const commandedTab = appWindow.locator('.tab.active')
     await expect(commandedTab).toHaveClass(/mcp-active/)
-    await expect(commandedTab).toHaveAttribute('title', 'AI command: browser_evaluate')
+    await expect(commandedTab).toHaveAttribute('aria-description', 'Agent active')
+    await expect(commandedTab.locator('.tab-agent-activity')).toBeVisible()
     await expect(commandedTab).not.toHaveClass(/mcp-active/, { timeout: 3_000 })
 
     await openPageTool('Save page as PDF')

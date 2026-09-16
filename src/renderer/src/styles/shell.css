@@ -324,13 +324,31 @@
 .tab.drop-before::after { @apply [left:-3px]; }
 .tab.drop-after::after { @apply [right:-3px]; }
 .tab.mcp-active::before {
-  @apply absolute [z-index:2] [top:0] [right:8px] [left:8px] [height:2px] [border-radius:999px] [background:linear-gradient(90deg,_transparent,_var(--accent)_18%,_var(--accent)_82%,_transparent)] [box-shadow:0_0_4px_var(--accent),_0_0_10px_var(--accent)];
+  @apply absolute [z-index:-1] inset-0 [border-radius:inherit] [border:1px_solid_color-mix(in_srgb,_var(--accent)_45%,_transparent)] [background:color-mix(in_srgb,_var(--accent)_8%,_transparent)];
   content: "";
-  @apply pointer-events-none [animation:mcp-tab-border-blink_650ms_ease-in-out_infinite_alternate];
+  @apply pointer-events-none;
 }
-@keyframes mcp-tab-border-blink {
-  from { opacity: 0.28; }
-  to { opacity: 1; }
+.tab-agent-activity {
+  @apply inline-flex flex-none items-center justify-center [gap:3px] [height:20px] [padding:0_5px] [border-radius:6px] text-accent-copy [background:color-mix(in_srgb,_var(--accent)_14%,_var(--toolbar))] pointer-events-none;
+}
+.tab-agent-activity > svg { @apply [width:12px] [height:12px]; }
+.tab-agent-activity-dot {
+  @apply [width:4px] [height:4px] rounded-full [background:currentColor] [animation:tab-agent-breathe_1.8s_ease-in-out_infinite];
+}
+@keyframes tab-agent-breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .5; transform: scale(.75); }
+}
+.tab.pinned .tab-agent-activity,
+.browser-tabs-bar.vertical.rail-collapsed .tab-agent-activity {
+  @apply absolute [z-index:3] [top:1px] [left:1px] [width:13px] [height:13px] p-0 [border-radius:4px] [box-shadow:0_0_0_1px_var(--toolbar)];
+}
+.tab.pinned .tab-agent-activity > svg,
+.browser-tabs-bar.vertical.rail-collapsed .tab-agent-activity > svg { @apply [width:10px] [height:10px]; }
+.tab.pinned .tab-agent-activity-dot,
+.browser-tabs-bar.vertical.rail-collapsed .tab-agent-activity-dot { @apply hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .tab-agent-activity-dot { animation: none; }
 }
 
 .tab:hover { @apply [background:var(--tab-hover)]; }
