@@ -188,6 +188,33 @@ describe('HistoryStore', () => {
       .toEqual([expect.objectContaining({ id: 'new' })])
   })
 
+  it('repairs future visit timestamps without discarding the history entry', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const future = new Date(now + 24 * 60 * 60 * 1_000).toISOString()
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'future-visit',
+        url: 'https://clock-skew.example/',
+        title: 'Clock skew',
+        visitedAt: future,
+        visitCount: 1
+      }]
+    }))
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'future-visit',
+      visitedAt: new Date(now).toISOString()
+    })])
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([
+      expect.objectContaining({
+        id: 'future-visit',
+        visitedAt: new Date(now).toISOString()
+      })
+    ])
+  })
+
   it('repairs duplicate persisted IDs without dropping distinct history entries', async () => {
     const now = Date.UTC(2026, 7, 13)
     const { path, store } = await storeAt(now)
