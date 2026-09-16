@@ -80,6 +80,8 @@ export class BookmarkStore {
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
       let repairedPersistedBookmarks = false
+      const currentTimestamp = new Date().toISOString()
+      const currentTime = Date.parse(currentTimestamp)
       for (const entry of value.bookmarks) {
         if (!validBookmark(entry)) {
           repairedPersistedBookmarks = true
@@ -92,8 +94,13 @@ export class BookmarkStore {
         }
         seenUrls.add(normalizedUrl)
         const normalizedTitle = normalizeBookmarkTitle(entry.title, normalizedUrl, entry.url)
-        const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle }
-        if (normalizedUrl !== entry.url || normalizedTitle !== entry.title) repairedPersistedBookmarks = true
+        const updatedAt = Date.parse(entry.updatedAt) > currentTime ? currentTimestamp : entry.updatedAt
+        const createdAt = Date.parse(entry.createdAt) > Date.parse(updatedAt) ? updatedAt : entry.createdAt
+        const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle, createdAt, updatedAt }
+        if (normalizedUrl !== entry.url
+          || normalizedTitle !== entry.title
+          || createdAt !== entry.createdAt
+          || updatedAt !== entry.updatedAt) repairedPersistedBookmarks = true
         const restored = seenIds.has(entry.id) ? { ...normalized, id: randomUUID() } : normalized
         if (restored.id !== entry.id) repairedPersistedBookmarks = true
         seenIds.add(restored.id)
