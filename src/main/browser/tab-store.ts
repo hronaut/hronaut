@@ -324,19 +324,27 @@ export class TabStateStore {
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
+        const origins = persistedWorkspaceOrigins(candidate.origins)
+        if (candidate.origins !== undefined && JSON.stringify(candidate.origins) !== JSON.stringify(origins)) {
+          repairedPersistedState = true
+        }
+        const description = persistedWorkspaceDescription(candidate.description)
+        if (candidate.description !== undefined && candidate.description !== description) {
+          repairedPersistedState = true
+        }
         mcpTabGroups.push({
           id: candidate.id,
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
-          description: persistedWorkspaceDescription(candidate.description),
+          description,
           color: candidate.color,
           createdAt: candidate.createdAt,
           lastUsedAt: candidate.lastUsedAt,
           activeTabId: typeof candidate.activeTabId === 'string' ? candidate.activeTabId : null,
           storageId,
-          origins: persistedWorkspaceOrigins(candidate.origins),
+          origins,
           navigationPolicy,
           navigationAudit
         })
@@ -384,17 +392,25 @@ export class TabStateStore {
         ) return null
         usedWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
+        const origins = persistedWorkspaceOrigins(candidate.origins)
+        if (candidate.origins !== undefined && JSON.stringify(candidate.origins) !== JSON.stringify(origins)) {
+          repairedPersistedState = true
+        }
+        const description = persistedWorkspaceDescription(candidate.description)
+        if (candidate.description !== undefined && candidate.description !== description) {
+          repairedPersistedState = true
+        }
         savedTabGroups.push({
           id: candidate.id,
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
           name: candidate.name,
-          description: persistedWorkspaceDescription(candidate.description),
+          description,
           color: candidate.color,
           savedAt: candidate.savedAt,
           storageId,
-          origins: persistedWorkspaceOrigins(candidate.origins),
+          origins,
           navigationPolicy,
           navigationAudit,
           tabs: candidate.tabs.map((tab) => {
