@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Repair clock-skewed saved-credential timestamps and keep a future-dated stale duplicate from replacing the current password.
+
 ## [2.4.21] - 2026-09-16
 
 ### Changed

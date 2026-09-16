@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CredentialStore, type CredentialEncryption } from '../src/main/credential-store.js'
 
 const temporaryDirectories: string[] = []
@@ -11,6 +11,7 @@ const encryption: CredentialEncryption = {
 }
 
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -242,8 +243,12 @@ describe('CredentialStore', () => {
   })
 
   it('repairs duplicate persisted accounts by keeping the newest password', async () => {
+    const now = Date.UTC(2026, 8, 16, 12)
+    vi.useFakeTimers()
+    vi.setSystemTime(now - 1_000)
     const { path, store } = await createStore()
     const original = await store.save('https://example.com', 'person', 'old password')
+    vi.setSystemTime(now)
     const persisted = JSON.parse(await readFile(path, 'utf8')) as {
       version: 1
       credentials: Array<Record<string, string>>
@@ -252,7 +257,7 @@ describe('CredentialStore', () => {
       ...persisted.credentials[0]!,
       id: 'newer-duplicate',
       encryptedPassword: Buffer.from('encrypted:new password', 'utf8').toString('base64'),
-      updatedAt: '2099-01-01T00:00:00.000Z'
+      updatedAt: new Date(now).toISOString()
     })
     await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
 
@@ -262,6 +267,66 @@ describe('CredentialStore', () => {
     ])
     expect(await restored.password('newer-duplicate')).toBe('new password')
     expect((JSON.parse(await readFile(path, 'utf8')) as { credentials: unknown[] }).credentials).toHaveLength(1)
+  })
+
+  it('does not let a clock-skewed duplicate replace the current saved password', async () => {
+    const now = Date.UTC(2026, 8, 16, 12)
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const { path, store } = await createStore()
+    const current = await store.save('https://example.com', 'person', 'current password')
+    const persisted = JSON.parse(await readFile(path, 'utf8')) as {
+      version: 1
+      credentials: Array<Record<string, string>>
+    }
+    persisted.credentials.push({
+      ...persisted.credentials[0]!,
+      id: 'clock-skewed-duplicate',
+      encryptedPassword: Buffer.from('encrypted:stale password', 'utf8').toString('base64'),
+      updatedAt: new Date(now + 24 * 60 * 60 * 1_000).toISOString()
+    })
+    await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new CredentialStore(path, encryption)
+    expect(await restored.load()).toEqual([
+      expect.objectContaining({ id: current.id, updatedAt: new Date(now).toISOString() })
+    ])
+    expect(await restored.password(current.id)).toBe('current password')
+    const repaired = JSON.parse(await readFile(path, 'utf8')) as {
+      credentials: Array<{ id: string; updatedAt: string }>
+    }
+    expect(repaired.credentials).toEqual([
+      expect.objectContaining({ id: current.id, updatedAt: new Date(now).toISOString() })
+    ])
+  })
+
+  it('repairs future and inverted timestamps on a single saved credential', async () => {
+    const now = Date.UTC(2026, 8, 16, 12)
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const { path, store } = await createStore()
+    const saved = await store.save('https://example.com', 'person', 'private password')
+    const persisted = JSON.parse(await readFile(path, 'utf8')) as {
+      credentials: Array<Record<string, string>>
+    }
+    persisted.credentials[0]!.createdAt = new Date(now + 2_000).toISOString()
+    persisted.credentials[0]!.updatedAt = new Date(now + 1_000).toISOString()
+    await writeFile(path, `${JSON.stringify(persisted, null, 2)}\n`, 'utf8')
+
+    const restored = new CredentialStore(path, encryption)
+    expect(await restored.load()).toEqual([
+      expect.objectContaining({
+        id: saved.id,
+        createdAt: new Date(now).toISOString(),
+        updatedAt: new Date(now).toISOString()
+      })
+    ])
+    expect((JSON.parse(await readFile(path, 'utf8')) as { credentials: unknown[] }).credentials).toEqual([
+      expect.objectContaining({
+        createdAt: new Date(now).toISOString(),
+        updatedAt: new Date(now).toISOString()
+      })
+    ])
   })
 
   it('repairs duplicate persisted IDs without dropping either account', async () => {
