@@ -7132,12 +7132,21 @@ export class BrowserTabsManager {
       const cleanup = (): void => {
         if (timer) clearTimeout(timer)
         webContents.removeListener('did-stop-loading', done)
-        webContents.removeListener('did-fail-load', done)
+        webContents.removeListener('did-fail-load', onDidFailLoad)
         webContents.removeListener('destroyed', onDestroyed)
       }
       const done = (): void => {
         cleanup()
         resolve()
+      }
+      const onDidFailLoad = (
+        _event: Electron.Event,
+        _errorCode: number,
+        _errorDescription: string,
+        _validatedURL: string,
+        isMainFrame: boolean
+      ): void => {
+        if (isMainFrame) done()
       }
       const onDestroyed = (): void => {
         cleanup()
@@ -7149,7 +7158,7 @@ export class BrowserTabsManager {
       }
       const timer = setTimeout(onTimeout, Math.min(Math.max(timeoutMs, 1), 60_000))
       webContents.once('did-stop-loading', done)
-      webContents.once('did-fail-load', done)
+      webContents.on('did-fail-load', onDidFailLoad)
       webContents.once('destroyed', onDestroyed)
       // Loading can finish, or the tab can close, between the initial state
       // check and listener registration. Recheck both after every listener is
