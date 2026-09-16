@@ -1305,6 +1305,7 @@ export class BrowserTabsManager {
   private readonly defaultExecutionContexts = new Map<number, Map<string, number>>()
   private readonly devToolsOpening = new Set<number>()
   private readonly recoveringRenderers = new Set<number>()
+  private readonly recoveringRendererExits = new Set<number>()
   private readonly renderQueues = new Map<number, Promise<void>>()
   private workspaceTemplateImporter?: WorkspaceTemplateImporter
   private readonly tabOverviewPreviews = new Map<string, BrowserTabOverviewPreview>()
@@ -4299,7 +4300,10 @@ export class BrowserTabsManager {
       tab.webContents.forcefullyCrashRenderer()
       if (ignoreCache) tab.webContents.reloadIgnoringCache()
       else tab.webContents.reload()
-      setTimeout(() => this.recoveringRenderers.delete(webContentsId), 5_000).unref()
+      setTimeout(() => {
+        this.recoveringRenderers.delete(webContentsId)
+        this.recoveringRendererExits.delete(webContentsId)
+      }, 5_000).unref()
     } else {
       if (ignoreCache) tab.webContents.reloadIgnoringCache()
       else tab.webContents.reload()
@@ -8253,6 +8257,9 @@ export class BrowserTabsManager {
     })
     webContents.on('did-start-loading', () => {
       if (tab.sleeping) return
+      if (this.recoveringRendererExits.delete(webContents.id)) {
+        this.recoveringRenderers.delete(webContents.id)
+      }
       tab.loading = true
       tab.sleeping = false
       tab.lastActiveAt = Date.now()
@@ -8410,7 +8417,10 @@ export class BrowserTabsManager {
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPendingCaptures.delete(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
-      if (this.recoveringRenderers.delete(webContents.id)) return
+      if (this.recoveringRenderers.has(webContents.id)) {
+        this.recoveringRendererExits.add(webContents.id)
+        return
+      }
       this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       tab.loading = false
