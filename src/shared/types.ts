@@ -283,6 +283,8 @@ export interface BrowserWorkspaceNavigationPolicy {
   rules: string[]
 }
 
+export type BrowserWorkspaceContextClass = 'standard' | 'public-observer'
+
 export type BrowserWorkspaceNavigationAuditSource =
   | 'direct'
   | 'page'
@@ -304,6 +306,7 @@ export interface BrowserTabGroupState {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass?: BrowserWorkspaceContextClass
   id: string
   name: string
   description: string
@@ -335,6 +338,7 @@ export interface BrowserSavedTabGroupState {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass?: BrowserWorkspaceContextClass
   id: string
   name: string
   description: string
@@ -354,6 +358,7 @@ export interface BrowserWorkspaceCreateOptions {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass?: BrowserWorkspaceContextClass
   origins?: string[]
   navigationPolicy?: BrowserWorkspaceNavigationPolicy
 }

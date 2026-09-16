@@ -11,6 +11,8 @@ describe('MCP workspace guidance', () => {
     expect(description).toContain('Required first step: call browser_workspaces with action=create')
     expect(description).toContain('Creation choice 1 — from scratch: storage=scratch')
     expect(description).toContain('Creation choice 2 — fork a workspace')
+    expect(description).toContain('contextClass=public-observer')
+    expect(description).toContain('blocks page mutation tools')
     for (const removed of ['fork-default', 'import-default', 'save-default', 'isDefault']) expect(description).not.toContain(removed)
     const examples = [...(description?.matchAll(/Example: (\{[^\n]+\})\./g) ?? [])].map(match => JSON.parse(match[1]!))
     expect(examples).toEqual([

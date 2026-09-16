@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add clean, origin-scoped `public-observer` workspaces that block page mutation tools for independent logged-out checks.
 - Add an opt-in observation-quality assessment to `browser_snapshot` that stops on empty shells, login walls, human-verification challenges, soft 404s, wrong origins, missing task evidence, and structurally noisy pages before agents reason from misleading content.
 
 ### Changed

@@ -454,10 +454,36 @@ const BROWSER_WORKSPACES_DESCRIPTION = [
   'Required first step: call browser_workspaces with action=create and a fresh task workspace before using any page tools.',
   'Creation choice 1 — from scratch: storage=scratch (the default) starts a clean isolated browser profile. Example: {"action":"create","name":"Task name","storage":"scratch"}.',
   'Creation choice 2 — fork a workspace: call action=list-fork-sources for active and archived source metadata, then create with storage=fork-workspace and sourceWorkspaceId. Even sources with direct agent access disabled can be forked. The fresh workspace inherits source navigation restrictions and permits direct agent access; the original remains unauthorized. Forks copy cookies and localStorage, not source tabs. Example: {"action":"create","name":"Task name","storage":"fork-workspace","sourceWorkspaceId":"<id from list-fork-sources>"}.',
+  'For an independent logged-out observation, create storage=scratch with contextClass=public-observer and observerOrigin. Hronaut pins that clean workspace to the declared origin and blocks page mutation tools. This workspace class is an isolation boundary, not by itself proof that an outcome is public.',
   'Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
   'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
   'action=list returns only owned or resumed workspaces whose direct agent access remains enabled. list-fork-sources separately exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
 ].join('\n')
+
+const PUBLIC_OBSERVER_LOCAL_TOOLS = new Set([
+  'browser_audit_receipts',
+  'browser_close_tab',
+  'browser_continuity',
+  'browser_navigate',
+  'browser_new_tab',
+  'browser_preflight',
+  'browser_screenshot',
+  'browser_select_tab',
+  'browser_task_runs'
+])
+
+function publicObserverAllowsTool(name: string): boolean {
+  return name.startsWith('browser_')
+    && (toolDefinition(name).annotations.readOnlyHint || PUBLIC_OBSERVER_LOCAL_TOOLS.has(name))
+}
+
+function normalizePublicObserverOrigin(value: string): string {
+  const parsed = new URL(value)
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password) {
+    throw new TypeError('observerOrigin must be a credential-free HTTP or HTTPS address')
+  }
+  return parsed.origin
+}
 
 export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
@@ -1396,10 +1422,12 @@ function createBrowserMcpServer(
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
         sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose an active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
         storage: z.enum(['scratch', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
-        origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.')
+        origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.'),
+        contextClass: z.enum(['standard', 'public-observer']).default('standard').describe('Use public-observer only for a clean, origin-scoped, read-only independent observation workspace.'),
+        observerOrigin: z.string().url().optional().describe('Required with contextClass=public-observer. The clean observer workspace is restricted to this HTTP(S) origin; paths, query values, and fragments are discarded.')
       }
     },
-    tool(async ({ action, workspaceId, resumeKey, name, description, color, storage, origins, sourceWorkspaceId }: {
+    tool(async ({ action, workspaceId, resumeKey, name, description, color, storage, origins, sourceWorkspaceId, contextClass, observerOrigin }: {
       action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins'
       workspaceId?: string
       resumeKey?: string
@@ -1409,17 +1437,25 @@ function createBrowserMcpServer(
       storage?: 'scratch' | 'fork-workspace'
       sourceWorkspaceId?: string
       origins?: string[]
+      contextClass: 'standard' | 'public-observer'
+      observerOrigin?: string
     }) => {
       if (action === 'list') return textResult(authorizedActiveWorkspaces())
       if (action === 'list-fork-sources') return textResult(manager.listWorkspaceForkSources())
       if (action === 'create') {
         if (!name) throw new TypeError('name is required to create a workspace')
+        if (contextClass === 'public-observer' && !observerOrigin) throw new TypeError('observerOrigin is required for a public-observer workspace')
+        if (contextClass === 'public-observer' && storage === 'fork-workspace') throw new TypeError('A public-observer workspace must use clean scratch storage')
+        if (contextClass === 'standard' && observerOrigin !== undefined) throw new TypeError('observerOrigin is only supported with contextClass=public-observer')
         if (storage === 'fork-workspace' && !sourceWorkspaceId) throw new TypeError('sourceWorkspaceId is required for fork-workspace')
         if (sourceWorkspaceId !== undefined && storage !== 'fork-workspace') throw new TypeError('sourceWorkspaceId is only supported with fork-workspace')
         if (origins !== undefined && storage !== 'fork-workspace') {
           throw new TypeError('origins can be selected only when forking workspace storage')
         }
         const forkSourceId = storage === 'fork-workspace' ? sourceWorkspaceId : undefined
+        const observerPolicy = contextClass === 'public-observer'
+          ? { mode: 'restricted' as const, rules: [normalizePublicObserverOrigin(observerOrigin!)] }
+          : undefined
         const scopedOrigins = origins ?? (forkSourceId ? capabilityProfile?.origins : undefined)
         const forkRevision = actionTracker.controlRevision
         if (forkSourceId && humanWaiting) await humanWaiting.requireDispatch(
@@ -1459,10 +1495,12 @@ function createBrowserMcpServer(
             throw new Error('MCP control changed before workspace creation. Obtain fresh state before retrying.')
           }
           requireActiveCapabilityDispatch('browser_workspaces', {
-            action, name, description, color, storage, sourceWorkspaceId,
+            action, name, description, color, storage, sourceWorkspaceId, contextClass, observerOrigin,
             ...(scopedOrigins ? { origins: scopedOrigins } : {})
           })
-          const created = await manager.createMcpTabGroup(name, color, storage, scopedOrigins, true, undefined, sourceWorkspaceId, description)
+          const created = await manager.createMcpTabGroup(
+            name, color, storage, scopedOrigins, true, observerPolicy, sourceWorkspaceId, description, contextClass
+          )
           activeWorkspaceIds.add(created.id)
           if (!await forkContextCurrent()) return await interruptedFork(created.id)
           return textResult(withResumeKey(created))
@@ -1660,7 +1698,10 @@ function createBrowserMcpServer(
         if (hasReviewedBinding && !humanWaiting) throw new Error('Human waiting storage is unavailable')
         const actionInput = reviewedActionArguments(input)
         requireActiveCapabilityDispatch(name, actionInput)
-        requireAgentWorkspace(workspaceId)
+        const workspace = requireAgentWorkspace(workspaceId)
+        if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name)) {
+          throw new Error(`Tool ${name} is unavailable in a read-only public observer workspace`)
+        }
         const reviewedBinding = reviewBinding(name, input)
         const requireHumanDecision = async (
           withReviewedBinding = true,

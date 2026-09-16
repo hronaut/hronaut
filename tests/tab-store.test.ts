@@ -37,6 +37,7 @@ function currentState(): PersistedBrowserState {
     mcpTabGroups: [
       {
         id: DEFAULT_WORKSPACE_ID,
+        contextClass: 'standard',
         name: 'Personal',
         description: 'Everyday signed-in browsing',
         storageId: '77777777-1111-4111-8111-111111111111',
@@ -50,6 +51,7 @@ function currentState(): PersistedBrowserState {
       },
       {
         id: ACTIVE_WORKSPACE_ID,
+        contextClass: 'standard',
         name: 'Checkout debugging',
         description: 'Reproduce checkout failures',
         color: 'orange',
@@ -64,6 +66,7 @@ function currentState(): PersistedBrowserState {
     ],
     savedTabGroups: [{
       id: SAVED_WORKSPACE_ID,
+      contextClass: 'standard',
       name: 'Saved checkout research',
       description: 'Reference material for checkout work',
       color: 'blue',
@@ -119,6 +122,26 @@ describe('TabStateStore', () => {
 
     expect(restored?.mcpTabGroups?.[0]?.description).toBe('')
     expect(restored?.savedTabGroups?.[0]?.description).toBe('')
+  })
+
+  it('persists public observers only with one origin-scoped restricted policy', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![1]!.contextClass = 'public-observer'
+    state.mcpTabGroups![1]!.navigationPolicy = { mode: 'restricted', rules: ['https://shop.example'] }
+    await store.save(state)
+
+    expect(await store.load()).toMatchObject({
+      mcpTabGroups: [expect.any(Object), expect.objectContaining({
+        contextClass: 'public-observer',
+        navigationPolicy: { mode: 'restricted', rules: ['https://shop.example'] }
+      })]
+    })
+
+    state.mcpTabGroups![1]!.navigationPolicy = { mode: 'unrestricted', rules: [] }
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+    expect(await store.load()).toBeNull()
   })
 
   it('repairs malformed descriptions without discarding workspace state', async () => {

@@ -15,6 +15,7 @@ import {
   normalizeWorkspaceNavigationPolicy
 } from './workspace-navigation-policy.js'
 import type {
+  BrowserWorkspaceContextClass,
   BrowserWorkspaceNavigationAuditEntry,
   BrowserWorkspaceNavigationPolicy
 } from '../../shared/types.js'
@@ -36,6 +37,7 @@ export interface PersistedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass?: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -53,6 +55,7 @@ export interface PersistedSavedTabGroup {
   hiddenFromSidebar?: boolean
   deletionProtected?: boolean
   agentAccess?: boolean
+  contextClass?: BrowserWorkspaceContextClass
   id: string
   name: string
   description?: string
@@ -108,6 +111,19 @@ function persistedWorkspaceOrigins(value: unknown): string[] {
 
 function persistedWorkspaceStorageId(value: unknown): string | undefined {
   return typeof value === 'string' && WORKSPACE_STORAGE_ID_PATTERN.test(value) ? value : undefined
+}
+
+function isPublicObserverPolicy(policy: BrowserWorkspaceNavigationPolicy): boolean {
+  if (policy.mode !== 'restricted' || policy.rules.length !== 1) return false
+  try {
+    const parsed = new URL(policy.rules[0]!)
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && !parsed.username
+      && !parsed.password
+      && policy.rules[0] === parsed.origin
+  } catch {
+    return false
+  }
 }
 
 function persistedWorkspaceDescription(value: unknown): string {
@@ -320,12 +336,16 @@ export class TabStateStore {
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
+          || (candidate.contextClass !== undefined
+            && candidate.contextClass !== 'standard'
+            && candidate.contextClass !== 'public-observer')
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.createdAt !== 'string'
           || typeof candidate.lastUsedAt !== 'string'
           || (candidate.activeTabId !== null && candidate.activeTabId !== undefined && typeof candidate.activeTabId !== 'string')
           || storageId === undefined
           || usedStorageIds.has(storageId)
+          || (candidate.contextClass === 'public-observer' && !isPublicObserverPolicy(navigationPolicy))
         ) return null
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
@@ -349,6 +369,7 @@ export class TabStateStore {
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
+          contextClass: candidate.contextClass ?? 'standard',
           name: candidate.name,
           description,
           color: candidate.color,
@@ -363,6 +384,7 @@ export class TabStateStore {
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
+        if (candidate.contextClass === undefined) repairedPersistedState = true
       }
 
       const savedTabGroups: PersistedSavedTabGroup[] = []
@@ -391,11 +413,15 @@ export class TabStateStore {
           || !candidate.name
           || candidate.name.length > MAX_WORKSPACE_NAME_LENGTH
           || (candidate.agentAccess !== undefined && typeof candidate.agentAccess !== 'boolean')
+          || (candidate.contextClass !== undefined
+            && candidate.contextClass !== 'standard'
+            && candidate.contextClass !== 'public-observer')
           || !isBrowserTabGroupColor(candidate.color)
           || typeof candidate.savedAt !== 'string'
           || !storageId
           || usedStorageIds.has(storageId)
           || candidate.tabs.length > MAX_TABS
+          || (candidate.contextClass === 'public-observer' && !isPublicObserverPolicy(navigationPolicy))
           || candidate.tabs.some((tab) => (
             !isRecord(tab)
             || typeof tab.title !== 'string'
@@ -419,6 +445,7 @@ export class TabStateStore {
           hiddenFromSidebar: candidate.hiddenFromSidebar === true,
           deletionProtected: candidate.deletionProtected === true,
           ...(typeof candidate.agentAccess === 'boolean' ? { agentAccess: candidate.agentAccess } : {}),
+          contextClass: candidate.contextClass ?? 'standard',
           name: candidate.name,
           description,
           color: candidate.color,
@@ -450,6 +477,7 @@ export class TabStateStore {
         if (JSON.stringify(candidate.navigationPolicy ?? { mode: 'unrestricted', rules: [] }) !== JSON.stringify(navigationPolicy)) {
           repairedPersistedState = true
         }
+        if (candidate.contextClass === undefined) repairedPersistedState = true
       }
 
       const usedTabIds = new Set<string>()
