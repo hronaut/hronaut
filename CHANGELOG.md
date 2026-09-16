@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Retry Linux page-visibility recovery when a renderer probe stalls instead of leaving that page permanently excluded from repair checks.
 - Remove malformed HTML delimiters from published release-history notes so nested markup cannot survive the plain-text boundary.
+- Fail URL waits promptly when the website renderer becomes unavailable.
 
 ## [2.4.20] - 2026-09-16
 
