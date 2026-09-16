@@ -62,10 +62,18 @@ describe('browser observation quality', () => {
   })
 
   it('does not mistake an article discussing login or challenge copy for a gate', () => {
+    expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['challenge-title'] }), {}))
+      .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
     expect(classifyBrowserObservationQuality(signals({ challengeSignals: ['human-verification'] }), {}))
       .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
     expect(classifyBrowserObservationQuality(signals({ loginSignals: ['sign-in-copy'] }), {}))
       .toMatchObject({ status: 'candidate', evidenceClass: 'semantic_content' })
+  })
+
+  it('still treats a long page with both a challenge title and control as a challenge', () => {
+    expect(classifyBrowserObservationQuality(signals({
+      challengeSignals: ['challenge-title', 'challenge-control']
+    }), {})).toMatchObject({ status: 'challenge', decision: 'stop', evidenceClass: 'automated_challenge' })
   })
 
   it('returns only bounded evidence metadata for useful content', () => {
