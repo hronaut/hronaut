@@ -37,14 +37,35 @@ export interface ReleaseHistoryArtifact {
 
 function notes(value: unknown): string {
   if (typeof value !== 'string') return ''
-  const normalized = value.replace(/<!--[\s\S]*?-->/gu, '')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/giu, '')
-    .replace(/<[^>]*>/gu, '')
-    // Malformed or nested markup can survive whole-token removal by exposing
-    // a delimiter that belonged to an outer token. The history artifact is a
-    // plain-text contract, so remove each remaining HTML delimiter at the
-    // final boundary instead of trying to reinterpret incomplete markup.
-    .replace(/[<>]/gu, '')
+  let plainText = ''
+  const lowerValue = value.toLowerCase()
+  for (let index = 0; index < value.length;) {
+    if (value[index] !== '<') {
+      plainText += value[index]
+      index += 1
+      continue
+    }
+    if (value.startsWith('<!--', index)) {
+      const commentEnd = value.indexOf('-->', index + 4)
+      index = commentEnd < 0 ? value.length : commentEnd + 3
+      continue
+    }
+    const tagEnd = value.indexOf('>', index + 1)
+    if (tagEnd < 0) break
+    const tag = /^\s*(\/?)\s*([a-z][a-z0-9:-]*)/iu.exec(value.slice(index + 1, tagEnd))
+    const tagName = tag?.[2]?.toLowerCase()
+    if (tag?.[1] !== '/' && (tagName === 'script' || tagName === 'style')) {
+      const closingStart = lowerValue.indexOf(`</${tagName}`, tagEnd + 1)
+      if (closingStart < 0) break
+      const closingEnd = value.indexOf('>', closingStart + tagName.length + 2)
+      index = closingEnd < 0 ? value.length : closingEnd + 1
+      continue
+    }
+    index = tagEnd + 1
+  }
+  // A stray delimiter can remain outside a complete tag. The history artifact
+  // is a plain-text contract, so remove delimiters one character at a time.
+  const normalized = plainText.replace(/[<>]/gu, '')
     .replace(/\p{Cc}/gu, character => ['\t', '\n', '\r'].includes(character) ? character : '')
     .replace(/\n{4,}/gu, '\n\n\n').trim()
   if (Buffer.byteLength(JSON.stringify(normalized)) <= MAX_ENCODED_NOTES_BYTES) return normalized
