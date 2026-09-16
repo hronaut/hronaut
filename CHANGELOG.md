@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add an opt-in observation-quality assessment to `browser_snapshot` that stops on empty shells, login walls, human-verification challenges, soft 404s, wrong origins, missing task evidence, and structurally noisy pages before agents reason from misleading content.
+
 ### Fixed
 
 - Repair clock-skewed saved-credential timestamps and keep a future-dated stale duplicate from replacing the current password.

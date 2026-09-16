@@ -463,7 +463,7 @@ export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
-  'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. For repeated inspection, set a browser_snapshot baseline and request bounded deltas; establish a fresh baseline after any invalidation. Use coordinate-based visual tools only when the target has no usable semantic representation.',
+  'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. When page content must support a task conclusion, use browser_snapshot action=assess-quality with an expected origin and task marker when available; stop or request review unless it returns candidate. For repeated inspection, set a browser_snapshot baseline and request bounded deltas; establish a fresh baseline after any invalidation. Use coordinate-based visual tools only when the target has no usable semantic representation.',
   'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
 ].join('\n')
@@ -670,7 +670,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   },
   { name: 'browser_navigate', category: 'Navigation', description: 'Navigate to a URL or search phrase.' },
   { name: 'browser_history', category: 'Navigation', description: 'Go back, forward, reload normally or without cache, or stop loading.' },
-  { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs, or set and compare a volatile bounded semantic baseline. Delta results distinguish unchanged, changed, truncated, and invalidated context; navigation or workspace-control drift requires a fresh baseline. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded. A baseline is not authority or proof of an external postcondition.' },
+  { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs, set and compare a volatile bounded semantic baseline, or assess whether the rendered observation is usable before reasoning. Quality assessment separates candidate content from empty shells, login walls, challenges, soft 404s, wrong origins, and structural noise; caller-provided text or selector evidence is checked privately and never returned. Delta results distinguish unchanged, changed, truncated, and invalidated context; navigation or workspace-control drift requires a fresh baseline. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded. A snapshot, candidate assessment, or baseline is not authority or proof of an external postcondition.' },
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
@@ -2806,7 +2806,7 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_snapshot'),
       inputSchema: {
-        action: z.enum(['capture', 'set-baseline', 'delta', 'clear-baseline']).default('capture'),
+        action: z.enum(['capture', 'set-baseline', 'delta', 'clear-baseline', 'assess-quality']).default('capture'),
         tabId: tabIdSchema.optional(),
         maxChars: z.number().int().min(1_000).max(100_000).optional()
           .describe('Bounded snapshot size for capture or set-baseline.'),
@@ -2815,17 +2815,30 @@ function createBrowserMcpServer(
         maxOutputChars: z.number().int().min(1_000).max(50_000).optional()
           .describe('Maximum compact JSON characters returned by delta.'),
         advanceBaseline: z.boolean().optional()
-          .describe('Advance a complete, untruncated baseline after delta; defaults to true.')
+          .describe('Advance a complete, untruncated baseline after delta; defaults to true.'),
+        expectedOrigin: z.string().trim().min(1).max(2_048).optional()
+          .describe('HTTP(S) origin or URL the resolved page must match during assess-quality.'),
+        expectedText: z.string().trim().min(1).max(256).optional()
+          .describe('Private required page text checked during assess-quality and never returned.'),
+        expectedSelector: z.string().trim().min(1).max(512).optional()
+          .describe('Private required visible CSS selector checked during assess-quality and never returned.')
       }
     },
-    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline }: {
-      action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline'
+    tabTool('browser_snapshot', async ({ action, tabId, maxChars, baselineId, maxOutputChars, advanceBaseline, expectedOrigin, expectedText, expectedSelector }: {
+      action: 'capture' | 'set-baseline' | 'delta' | 'clear-baseline' | 'assess-quality'
       tabId?: string
       maxChars?: number
       baselineId?: string
       maxOutputChars?: number
       advanceBaseline?: boolean
+      expectedOrigin?: string
+      expectedText?: string
+      expectedSelector?: string
     }) => {
+      if (action === 'assess-quality') {
+        const assessment = await manager.observationQuality({ tabId, expectedOrigin, expectedText, expectedSelector })
+        return { ...textResult(assessment), structuredContent: { ...assessment } }
+      }
       if (action === 'set-baseline') {
         const snapshot = await manager.setSnapshotBaseline(tabId, maxChars)
         return { ...textResult(snapshot.text), structuredContent: snapshot }
