@@ -4297,9 +4297,19 @@ export class BrowserTabsManager {
     } else if (pageProblem?.kind === 'unresponsive') {
       const webContentsId = tab.webContents.id
       this.recoveringRenderers.add(webContentsId)
-      tab.webContents.forcefullyCrashRenderer()
-      if (ignoreCache) tab.webContents.reloadIgnoringCache()
-      else tab.webContents.reload()
+      try {
+        tab.webContents.forcefullyCrashRenderer()
+        if (ignoreCache) tab.webContents.reloadIgnoringCache()
+        else tab.webContents.reload()
+      } catch (error) {
+        this.recoveringRenderers.delete(webContentsId)
+        this.recoveringRendererExits.delete(webContentsId)
+        if (this.tabs.get(tab.id) === tab) {
+          tab.pageProblem = pageProblem
+          this.changed(false)
+        }
+        throw error
+      }
       setTimeout(() => {
         this.recoveringRenderers.delete(webContentsId)
         this.recoveringRendererExits.delete(webContentsId)

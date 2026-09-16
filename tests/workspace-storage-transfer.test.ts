@@ -180,6 +180,34 @@ describe('workspace data transfer', () => {
     await expect(transferWorkspaceStorage(options)).rejects.toThrow('Browser profile storage could not be fully flushed')
     expect([...target.jar.values()]).toEqual([cookie('keep', '/private')])
   })
+  it('restores an overwritten destination cookie when rollback expiration is silently ignored', async () => {
+    target = profile([cookie('target')])
+    state.profiles.set('target', target)
+    const write = target.cookies.set.getMockImplementation()!
+    target.cookies.set.mockImplementation(async (details) => {
+      if (details.expirationDate === 1) return
+      await write(details)
+    })
+    target.flushStorageData.mockRejectedValueOnce(new Error('flush failed'))
+
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('Browser profile storage could not be fully flushed')
+
+    expect(target.jar.get(identity(cookie()))?.value).toBe('target')
+  })
+  it('reports rollback failure when a newly copied cookie cannot be expired', async () => {
+    const write = target.cookies.set.getMockImplementation()!
+    target.cookies.set.mockImplementation(async (details) => {
+      if (details.expirationDate === 1) return
+      await write(details)
+    })
+    target.flushStorageData.mockRejectedValueOnce(new Error('flush failed'))
+
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow(
+      'Workspace storage transfer failed and the destination could not be fully restored.'
+    )
+
+    expect(target.jar.get(identity(cookie()))?.value).toBe('source')
+  })
   it('preserves destination updates and deletions made while a failed copy rolls back', async () => {
     const privateSourceCookie = cookie('source-private', '/private')
     const privateTargetCookie = cookie('target-private', '/private')

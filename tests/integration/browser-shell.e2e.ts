@@ -3273,6 +3273,15 @@ test('supports standard tab and address shortcuts from the shell and websites', 
     page.sendInputEvent({ type: 'keyUp', keyCode: 'L', modifiers: [...modifiers] })
   }, reopenedUrl)
   await expect(address).toBeFocused()
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getFocusedWebContents()?.getURL()
+  ))).toBe(appWindow.url())
+  await electronApp.evaluate(({ webContents }, value) => {
+    const focused = webContents.getFocusedWebContents()
+    if (!focused) throw new Error('Address shortcut did not leave a focused web contents')
+    for (const character of value) focused.sendInputEvent({ type: 'char', keyCode: character })
+  }, 'native-address-input')
+  await expect(address).toHaveValue('native-address-input')
 
   await electronApp.evaluate(({ webContents }, requestedUrl) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
