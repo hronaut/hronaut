@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Split hosted Electron integration coverage across four isolated runners to shorten pull-request and release feedback as the suite grows.
 
+### Fixed
+
+- Repair future-dated browsing-history visits caused by clock skew so they cannot remain ahead of genuine recent visits indefinitely.
+
 ## [2.4.18] - 2026-09-16
 
 ### Fixed

@@ -81,10 +81,17 @@ export class HistoryStore {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
       const value = parsed as Partial<PersistedHistory>
       if (value.version !== HISTORY_VERSION || !Array.isArray(value.entries)) return []
-      const oldestAllowed = this.now() - HISTORY_RETENTION_MS
+      const now = this.now()
+      const oldestAllowed = now - HISTORY_RETENTION_MS
       const validEntries = value.entries.filter((entry) => validEntry(entry, oldestAllowed))
       let repairedPersistedHistory = validEntries.length !== value.entries.length
-      const sorted = validEntries
+      const currentTimestamp = new Date(now).toISOString()
+      const normalizedEntries = validEntries.map((entry) => {
+        if (Date.parse(entry.visitedAt) <= now) return entry
+        repairedPersistedHistory = true
+        return { ...entry, visitedAt: currentTimestamp }
+      })
+      const sorted = normalizedEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
