@@ -371,6 +371,7 @@ export interface BrowserWorkspaceStorageTransferResult {
   mode?: 'copy' | 'move'
   cleanupStatus?: 'complete' | 'incomplete'
   cookieCount: number
+  omittedPartitionedCookieCount?: number
   localStorageOriginCount: number
   localStorageItemCount: number
   origins: string[]
