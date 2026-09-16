@@ -134,6 +134,12 @@ describe('TabStateStore', () => {
     expect(restored?.mcpTabGroups).toHaveLength(2)
     expect(restored?.mcpTabGroups?.[0]?.description).toBe('')
     expect(restored?.savedTabGroups?.[0]?.description).toBe('')
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toContain('unsafe')
+    expect(JSON.parse(repaired)).toMatchObject({
+      mcpTabGroups: [expect.objectContaining({ description: '' }), expect.any(Object)],
+      savedTabGroups: [expect.objectContaining({ description: '' })]
+    })
   })
 
   it('restores bounded PNG favicons and repairs invalid persisted favicon data', async () => {
@@ -395,6 +401,33 @@ describe('TabStateStore', () => {
       'http://localhost:4173',
       'https://shop.example'
     ])
+  })
+
+  it('persists sanitized workspace origins so private URL details are removed from the profile', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    state.mcpTabGroups![1]!.origins = [
+      'https://person:origin-secret@shop.example/private?token=active-secret',
+      'not a URL'
+    ]
+    state.savedTabGroups![0]!.origins = [
+      'https://docs.example/orders?token=archived-secret'
+    ]
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.mcpTabGroups?.[1]?.origins).toEqual(['https://shop.example'])
+    expect(restored?.savedTabGroups?.[0]?.origins).toEqual(['https://docs.example'])
+    const repaired = await readFile(path, 'utf8')
+    expect(repaired).not.toMatch(/origin-secret|active-secret|archived-secret|\/private/)
+    expect(JSON.parse(repaired)).toMatchObject({
+      mcpTabGroups: expect.arrayContaining([
+        expect.objectContaining({ id: ACTIVE_WORKSPACE_ID, origins: ['https://shop.example'] })
+      ]),
+      savedTabGroups: [expect.objectContaining({ origins: ['https://docs.example'] })]
+    })
   })
 
   it('returns null for missing and malformed files', async () => {
