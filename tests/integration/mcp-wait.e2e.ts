@@ -10,6 +10,145 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
+test('keeps waiting for the main document when a subframe load fails', async ({
+  appWindow,
+  electronApp,
+  mcpPort,
+  mcpToken
+}) => {
+  let mainResponse: ServerResponse | undefined
+  let frameResponse: ServerResponse | undefined
+  let resolveMainRequest: (() => void) | undefined
+  let resolveFrameRequest: (() => void) | undefined
+  const mainRequested = new Promise<void>((resolve) => { resolveMainRequest = resolve })
+  const frameRequested = new Promise<void>((resolve) => { resolveFrameRequest = resolve })
+  const server = createServer((request, response) => {
+    if (request.url === '/main') {
+      mainResponse = response
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      response.write('<!doctype html><title>Streaming main document</title><iframe src="/frame"></iframe><main>Still loading</main>')
+      resolveMainRequest?.()
+      return
+    }
+    if (request.url === '/frame') {
+      frameResponse = response
+      response.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'content-length': '4096'
+      })
+      response.write('<!doctype html><title>Interrupted frame</title>')
+      resolveFrameRequest?.()
+      return
+    }
+    response.writeHead(404).end()
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  const client = new Client({ name: 'hronaut-main-frame-wait-test', version: '1.0.0' })
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+  })
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Frame failure fixture did not expose a port')
+    const mainUrl = `http://127.0.0.1:${address.port}/main`
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, {
+          headers: { authorization: `Bearer ${mcpToken}` }
+        })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Main frame wait test', false)
+
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: mainUrl, active: true }
+    }) as CallToolResult
+    const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    await Promise.all([mainRequested, frameRequested])
+
+    await electronApp.evaluate(({ webContents }, requestedUrl) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+      if (!page) throw new Error('Streaming main document WebContents was not found')
+      const failures: Array<{ isMainFrame: boolean; url: string }> = []
+      const listener = (
+        _event: Electron.Event,
+        _errorCode: number,
+        _errorDescription: string,
+        validatedURL: string,
+        isMainFrame: boolean
+      ): void => {
+        failures.push({ isMainFrame, url: validatedURL })
+      }
+      page.on('did-fail-load', listener)
+      ;(globalThis as typeof globalThis & {
+        __hronautSubframeWait?: {
+          page: Electron.WebContents
+          failures: Array<{ isMainFrame: boolean; url: string }>
+          listener: typeof listener
+        }
+      }).__hronautSubframeWait = { page, failures, listener }
+    }, mainUrl)
+
+    let settled = false
+    const waiting = (client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId, timeoutMs: 5_000 }
+    }) as Promise<CallToolResult>).finally(() => { settled = true })
+    await expect(appWindow.locator(`[role="tab"][data-tab-id="${tabId}"][data-mcp-command="browser_wait"]`)).toBeVisible()
+    frameResponse?.destroy()
+
+    await expect.poll(() => electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautSubframeWait?: { failures: Array<{ isMainFrame: boolean; url: string }> }
+      }).__hronautSubframeWait
+      return control?.failures.some((failure) => failure.url.endsWith('/frame') && !failure.isMainFrame) ?? false
+    })).toBe(true)
+    expect(await electronApp.evaluate(() => {
+      const control = (globalThis as typeof globalThis & {
+        __hronautSubframeWait?: { page: Electron.WebContents }
+      }).__hronautSubframeWait
+      return control?.page.isLoading()
+    })).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    expect(settled).toBe(false)
+
+    mainResponse?.end('</body></html>')
+    const result = await waiting
+    expect(result.isError, text(result)).not.toBe(true)
+    expect(text(result)).toBe('Page is no longer loading.')
+  } finally {
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautSubframeWait?: {
+          page: Electron.WebContents
+          listener: (
+            event: Electron.Event,
+            errorCode: number,
+            errorDescription: string,
+            validatedURL: string,
+            isMainFrame: boolean
+          ) => void
+        }
+      }
+      const control = mainGlobal.__hronautSubframeWait
+      if (control && !control.page.isDestroyed()) control.page.removeListener('did-fail-load', control.listener)
+      delete mainGlobal.__hronautSubframeWait
+    }).catch(() => undefined)
+    await client.close().catch(() => undefined)
+    mainResponse?.destroy()
+    frameResponse?.destroy()
+    await closeFixtureServer(server)
+  }
+})
+
 test('fails MCP page, URL, text, element, and network waits promptly on tab teardown or timeout', async ({
   appWindow,
   electronApp,
