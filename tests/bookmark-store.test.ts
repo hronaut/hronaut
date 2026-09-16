@@ -1,12 +1,13 @@
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BookmarkStore, normalizeBookmarkUrl } from '../src/main/bookmark-store.js'
 
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
+  vi.useRealTimers()
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -91,6 +92,52 @@ describe('BookmarkStore', () => {
     expect(restored).toHaveLength(2)
     expect(new Set(restored.map((bookmark) => bookmark.id)).size).toBe(2)
     expect(new Set((JSON.parse(await readFile(path, 'utf8')) as { bookmarks: Array<{ id: string }> }).bookmarks.map((bookmark) => bookmark.id)).size).toBe(2)
+  })
+
+  it('repairs future and inverted bookmark timestamps so suggestion ordering can recover from clock skew', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    vi.useFakeTimers()
+    vi.setSystemTime(now)
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const currentTimestamp = new Date(now).toISOString()
+    const earlierTimestamp = new Date(now - 2_000).toISOString()
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [
+        {
+          id: 'future-bookmark',
+          url: 'https://future.example/',
+          title: 'Future bookmark',
+          createdAt: new Date(now + 2_000).toISOString(),
+          updatedAt: new Date(now + 1_000).toISOString()
+        },
+        {
+          id: 'inverted-bookmark',
+          url: 'https://inverted.example/',
+          title: 'Inverted bookmark',
+          createdAt: new Date(now - 1_000).toISOString(),
+          updatedAt: earlierTimestamp
+        }
+      ]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([
+      expect.objectContaining({
+        id: 'future-bookmark',
+        createdAt: currentTimestamp,
+        updatedAt: currentTimestamp
+      }),
+      expect.objectContaining({
+        id: 'inverted-bookmark',
+        createdAt: earlierTimestamp,
+        updatedAt: earlierTimestamp
+      })
+    ])
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks).toEqual([
+      expect.objectContaining({ createdAt: currentTimestamp, updatedAt: currentTimestamp }),
+      expect.objectContaining({ createdAt: earlierTimestamp, updatedAt: earlierTimestamp })
+    ])
   })
 
   it('keeps bookmarks unchanged when an update cannot be persisted', async () => {

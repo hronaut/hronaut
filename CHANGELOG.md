@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Repair future and inverted bookmark timestamps so clock skew cannot keep stale pages permanently ahead of genuine address-bar suggestions.
 - Persist repaired active and archived tab titles so oversized or control-character page metadata cannot remain in the local profile after recovery.
 - Persist sanitized workspace origin metadata and malformed workspace description repairs so private URL details and invalid context cannot remain in the local profile after recovery.
 - Keep Memory Saver tabs recoverable when a failed sleep transition cannot restore the page or a wake aborts before replacement navigation, instead of leaving an internal sleeping page marked awake.
