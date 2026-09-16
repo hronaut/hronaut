@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hronaut local wallet QA</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.45 system-ui, sans-serif; }
+    body { margin: 2rem auto; max-width: 56rem; padding: 0 1rem; }
+    section { border: 1px solid #8886; border-radius: .75rem; margin: 1rem 0; padding: 1rem; }
+    button, input { font: inherit; margin: .25rem; padding: .5rem .7rem; }
+    input { min-width: 20rem; }
+    pre { background: #8882; border-radius: .5rem; max-height: 24rem; overflow: auto; padding: 1rem; white-space: pre-wrap; }
+    .status { font-weight: 650; }
+  </style>
+</head>
+<body>
+  <h1>Hronaut local wallet QA</h1>
+  <p>This fixture uses the injected EIP-1193 provider for wallet operations and direct local JSON-RPC only for authoritative readback.</p>
+
+  <section>
+    <h2>Provider and session</h2>
+    <button id="discover">Discover provider</button>
+    <button id="connect">Request accounts</button>
+    <button id="accounts">Read accounts</button>
+    <button id="chain">Read chain</button>
+    <button id="switch">Switch chain</button>
+    <label>chain ID <input id="chain-id" value="0x7a6a" spellcheck="false"></label>
+  </section>
+
+  <section>
+    <h2>Transaction and receipt</h2>
+    <label>recipient <input id="recipient" value="0x1000000000000000000000000000000000000001" spellcheck="false"></label>
+    <button id="send">Send 1 wei</button>
+    <label>transaction hash <input id="hash" spellcheck="false"></label>
+    <button id="receipt">Read receipt</button>
+    <label>RPC URL <input id="rpc" value="http://127.0.0.1:8545" spellcheck="false"></label>
+  </section>
+
+  <p class="status" id="status" role="status">Ready.</p>
+  <pre id="log" aria-label="Fixture event log"></pre>
+
+  <script type="module">
+    let provider
+    const logNode = document.querySelector('#log')
+    const statusNode = document.querySelector('#status')
+    const hashInput = document.querySelector('#hash')
+    const providers = []
+
+    const log = (kind, value) => {
+      const rendered = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+      logNode.textContent = `${new Date().toISOString()} ${kind}\n${rendered}\n\n${logNode.textContent}`
+      statusNode.textContent = kind
+    }
+    const fail = (error) => log('error', { code: error?.code, message: error?.message ?? String(error) })
+    const selectedProvider = () => {
+      provider ??= providers.find(entry => entry.info?.rdns === 'dev.hronaut.wallet')?.provider
+        ?? window.hronautEthereum
+      if (!provider) throw new Error('Hronaut EVM provider was not discovered')
+      return provider
+    }
+    const request = async (method, params) => {
+      try {
+        const result = await selectedProvider().request({ method, ...(params ? { params } : {}) })
+        log(method, result)
+        return result
+      } catch (error) {
+        fail(error)
+      }
+    }
+    const attachEvents = () => {
+      const current = selectedProvider()
+      current.on('accountsChanged', accounts => log('accountsChanged', accounts))
+      current.on('chainChanged', chainId => log('chainChanged', chainId))
+    }
+
+    window.addEventListener('eip6963:announceProvider', event => {
+      providers.push(event.detail)
+      log('eip6963:announceProvider', event.detail.info)
+    })
+    window.dispatchEvent(new Event('eip6963:requestProvider'))
+
+    document.querySelector('#discover').addEventListener('click', () => {
+      try {
+        attachEvents()
+        log('provider', { isHronaut: selectedProvider().isHronaut === true, announced: providers.map(entry => entry.info) })
+      } catch (error) { fail(error) }
+    })
+    document.querySelector('#connect').addEventListener('click', () => request('eth_requestAccounts'))
+    document.querySelector('#accounts').addEventListener('click', () => request('eth_accounts'))
+    document.querySelector('#chain').addEventListener('click', () => request('eth_chainId'))
+    document.querySelector('#switch').addEventListener('click', () => request('wallet_switchEthereumChain', [{
+      chainId: document.querySelector('#chain-id').value.trim()
+    }]))
+    document.querySelector('#send').addEventListener('click', async () => {
+      const accounts = await request('eth_accounts')
+      if (!Array.isArray(accounts) || !accounts[0]) return
+      const hash = await request('eth_sendTransaction', [{
+        from: accounts[0],
+        to: document.querySelector('#recipient').value.trim(),
+        value: '0x1'
+      }])
+      if (typeof hash === 'string') hashInput.value = hash
+    })
+    document.querySelector('#receipt').addEventListener('click', async () => {
+      try {
+        const response = await fetch(document.querySelector('#rpc').value.trim(), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [hashInput.value.trim()] })
+        })
+        const payload = await response.json()
+        if (!response.ok || payload.error) throw new Error(payload.error?.message ?? `RPC returned ${response.status}`)
+        log('eth_getTransactionReceipt', payload.result)
+      } catch (error) { fail(error) }
+    })
+  </script>
+</body>
+</html>

@@ -359,16 +359,19 @@ describe('release quality gates', () => {
   })
 
   it('keeps wallet documentation in the website public source before output cleanup', async () => {
-    const [config, publicWallets, builtWallets] = await Promise.all([
+    const [config, publicWallets, builtWallets, publicQuickstart, builtQuickstart] = await Promise.all([
       readFile('vite.website.config.ts', 'utf8'),
       readFile('website/public/WALLETS.md', 'utf8'),
-      readFile('docs/WALLETS.md', 'utf8')
+      readFile('docs/WALLETS.md', 'utf8'),
+      readFile('website/public/WALLET_QA_QUICKSTART.md', 'utf8'),
+      readFile('docs/WALLET_QA_QUICKSTART.md', 'utf8')
     ])
 
     expect(config).toContain("root: 'website'")
     expect(config).toContain("outDir: '../docs'")
     expect(config).toContain('emptyOutDir: true')
     expect(publicWallets).toBe(builtWallets)
+    expect(publicQuickstart).toBe(builtQuickstart)
   })
 
   it('keeps the reference aligned with the implemented local-wallet trust model', async () => {
@@ -379,7 +382,32 @@ describe('release quality gates', () => {
     expect(reference).toContain('Mainnet defaults to explicit human approval')
     expect(reference).toContain('Bypass Approve')
     expect(reference).toContain('does not integrate WalletConnect, Reown, or external-wallet SDKs')
+    expect(reference).toContain('Available since Hronaut 2.4.21')
+    expect(reference).not.toContain('unreleased local-wallet preview')
     expect(reference).not.toContain('external-wallet signing')
     expect(reference).not.toContain('design/web3-wallet-architecture.md')
+  })
+
+  it('publishes a safe reproducible wallet QA quickstart', async () => {
+    const [guide, fixture] = await Promise.all([
+      readFile('docs/WALLET_QA_QUICKSTART.md', 'utf8'),
+      readFile('examples/wallet-qa/index.html', 'utf8')
+    ])
+
+    expect(guide).toContain('Hronaut 2.4.21 or newer')
+    expect(guide).toContain('ghcr.io/foundry-rs/foundry:v1.3.1')
+    expect(guide).toContain('examples/wallet-qa')
+    expect(guide).toContain('prepared')
+    expect(guide).toContain('submitted')
+    expect(guide).toContain('confirmed')
+    expect(guide).toContain('eth_getTransactionReceipt')
+    expect(guide).toContain('WalletConnect')
+    expect(guide).toContain('Do not use a real recovery phrase')
+    expect(guide).not.toContain('ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80')
+    expect(fixture).toContain('eip6963:requestProvider')
+    expect(fixture).toContain("request('eth_requestAccounts')")
+    expect(fixture).toContain("request('wallet_switchEthereumChain'")
+    expect(fixture).toContain("request('eth_sendTransaction'")
+    expect(fixture).toContain("method: 'eth_getTransactionReceipt'")
   })
 })
