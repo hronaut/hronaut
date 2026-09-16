@@ -37,14 +37,16 @@ export interface ReleaseHistoryArtifact {
 
 function notes(value: unknown): string {
   if (typeof value !== 'string') return ''
-  let plainText = ''
+  const plainTextChunks: string[] = []
   const lowerValue = value.toLowerCase()
   for (let index = 0; index < value.length;) {
-    if (value[index] !== '<') {
-      plainText += value[index]
-      index += 1
-      continue
+    const tagStart = value.indexOf('<', index)
+    if (tagStart < 0) {
+      plainTextChunks.push(value.slice(index))
+      break
     }
+    plainTextChunks.push(value.slice(index, tagStart))
+    index = tagStart
     if (value.startsWith('<!--', index)) {
       const commentEnd = value.indexOf('-->', index + 4)
       index = commentEnd < 0 ? value.length : commentEnd + 3
@@ -65,7 +67,7 @@ function notes(value: unknown): string {
   }
   // A stray delimiter can remain outside a complete tag. The history artifact
   // is a plain-text contract, so remove delimiters one character at a time.
-  const normalized = plainText.replace(/[<>]/gu, '')
+  const normalized = plainTextChunks.join('').replace(/[<>]/gu, '')
     .replace(/\p{Cc}/gu, character => ['\t', '\n', '\r'].includes(character) ? character : '')
     .replace(/\n{4,}/gu, '\n\n\n').trim()
   if (Buffer.byteLength(JSON.stringify(normalized)) <= MAX_ENCODED_NOTES_BYTES) return normalized
@@ -74,7 +76,16 @@ function notes(value: unknown): string {
   let bytes = 2 + Buffer.byteLength('…')
   const retained: string[] = []
   for (const character of normalized) {
-    const cost = Buffer.byteLength(JSON.stringify(character)) - 2
+    const codePoint = character.codePointAt(0)!
+    const cost = character === '"' || character === '\\' || character === '\t' || character === '\n' || character === '\r'
+      ? 2
+      : character.length === 1 && codePoint >= 0xD800 && codePoint <= 0xDFFF
+        ? 6
+        : codePoint <= 0x7F
+          ? 1
+          : codePoint <= 0x7FF
+            ? 2
+            : codePoint <= 0xFFFF ? 3 : 4
     if (bytes + cost > MAX_ENCODED_NOTES_BYTES) break
     retained.push(character)
     bytes += cost

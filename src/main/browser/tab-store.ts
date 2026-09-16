@@ -115,6 +115,11 @@ function persistedWorkspaceDescription(value: unknown): string {
   try { return normalizeWorkspaceDescription(value) } catch { return '' }
 }
 
+function repairedWorkspaceTimestamp(value: string, currentTime: number): string {
+  const parsed = Date.parse(value)
+  return new Date(Number.isFinite(parsed) ? Math.min(parsed, currentTime) : currentTime).toISOString()
+}
+
 function persistedWorkspaceNavigationAudit(value: unknown): BrowserWorkspaceNavigationAuditEntry[] {
   if (value === undefined) return []
   if (!Array.isArray(value) || value.length > MAX_WORKSPACE_NAVIGATION_AUDIT_ENTRIES) {
@@ -287,6 +292,7 @@ export class TabStateStore {
       const activeWorkspaceIds = new Set<string>()
       const usedStorageIds = new Set<string>()
       let repairedPersistedState = 'defaultHumanGroupId' in data
+      const currentTime = Date.now()
       const discardedWorkspaceIds = new Set<string>()
       const mcpTabGroups: PersistedTabGroup[] = []
       for (const candidate of data.mcpTabGroups) {
@@ -324,6 +330,12 @@ export class TabStateStore {
         usedWorkspaceIds.add(candidate.id)
         activeWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
+        const createdAt = repairedWorkspaceTimestamp(candidate.createdAt, currentTime)
+        const candidateLastUsedAt = repairedWorkspaceTimestamp(candidate.lastUsedAt, currentTime)
+        const lastUsedAt = candidateLastUsedAt < createdAt ? createdAt : candidateLastUsedAt
+        if (createdAt !== candidate.createdAt || lastUsedAt !== candidate.lastUsedAt) {
+          repairedPersistedState = true
+        }
         const origins = persistedWorkspaceOrigins(candidate.origins)
         if (candidate.origins !== undefined && JSON.stringify(candidate.origins) !== JSON.stringify(origins)) {
           repairedPersistedState = true
@@ -340,8 +352,8 @@ export class TabStateStore {
           name: candidate.name,
           description,
           color: candidate.color,
-          createdAt: candidate.createdAt,
-          lastUsedAt: candidate.lastUsedAt,
+          createdAt,
+          lastUsedAt,
           activeTabId: typeof candidate.activeTabId === 'string' ? candidate.activeTabId : null,
           storageId,
           origins,
@@ -392,6 +404,8 @@ export class TabStateStore {
         ) return null
         usedWorkspaceIds.add(candidate.id)
         usedStorageIds.add(storageId)
+        const savedAt = repairedWorkspaceTimestamp(candidate.savedAt, currentTime)
+        if (savedAt !== candidate.savedAt) repairedPersistedState = true
         const origins = persistedWorkspaceOrigins(candidate.origins)
         if (candidate.origins !== undefined && JSON.stringify(candidate.origins) !== JSON.stringify(origins)) {
           repairedPersistedState = true
@@ -408,7 +422,7 @@ export class TabStateStore {
           name: candidate.name,
           description,
           color: candidate.color,
-          savedAt: candidate.savedAt,
+          savedAt,
           storageId,
           origins,
           navigationPolicy,
