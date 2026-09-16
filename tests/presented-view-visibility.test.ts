@@ -102,6 +102,27 @@ describe('presented view visibility', () => {
     expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
   })
 
+  it('ignores native presentation getters invalidated during teardown', () => {
+    const f = fixture()
+    f.view.getVisible.mockImplementation(() => { throw new Error('Object has been destroyed') })
+
+    expect(f.reconcile).not.toThrow()
+    expect(f.contents.executeJavaScriptInIsolatedWorld).not.toHaveBeenCalled()
+  })
+
+  it('retries after a visibility probe throws synchronously during teardown', async () => {
+    const f = fixture()
+    f.contents.executeJavaScriptInIsolatedWorld.mockImplementationOnce(() => {
+      throw new Error('Object has been destroyed')
+    })
+
+    expect(f.reconcile).not.toThrow()
+    await Promise.resolve()
+    f.reconcile()
+
+    expect(f.contents.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2)
+  })
+
   it('does not use the internal workaround on an unverified Electron major', () => {
     const f = fixture()
     vi.stubGlobal('process', { ...process, versions: { ...process.versions, electron: '45.0.0' } })

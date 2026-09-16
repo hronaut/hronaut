@@ -504,6 +504,7 @@ export const deDE = {
     moveConfirm: "Ausgewählte Cookies und lokalen Speicher von {source} nach {target} verschieben? Übereinstimmende Zieldaten werden überschrieben und übertragene Quelldaten entfernt.",
     moved: "{cookies} Cookies und {items} lokale Speichereinträge verschoben.",
     moveIncomplete: "Daten wurden kopiert, aber einige Quelldaten konnten nicht entfernt werden. Das Verschieben ist unvollständig.",
+    partitionedCookiesOmitted: "Es wurden {count} partitionierte Cookies übersprungen, da ihre Partitionsschlüssel nicht sicher neu erstellt werden können. Die Übertragung ist unvollständig.",
 
     "kicker": "Browser-Arbeitsbereich",
     "create": "Arbeitsbereich erstellen",

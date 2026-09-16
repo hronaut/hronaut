@@ -504,6 +504,7 @@ export const frFR = {
     moveConfirm: "Déplacer les cookies et le stockage local sélectionnés de {source} vers {target} ? Les données correspondantes à destination seront écrasées et les données source transférées seront supprimées.",
     moved: "{cookies} cookies et {items} éléments de stockage local déplacés.",
     moveIncomplete: "Les données ont été copiées, mais certaines données source n’ont pas pu être supprimées. Le déplacement est incomplet.",
+    partitionedCookiesOmitted: "Les cookies partitionnés ignorés sont au nombre de {count}, car leurs clés de partition ne peuvent pas être recréées de façon sûre. Le transfert est incomplet.",
 
     "kicker": "Espace de travail du navigateur",
     "create": "Créer un espace de travail",

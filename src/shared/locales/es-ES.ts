@@ -504,6 +504,7 @@ export const esES = {
     moveConfirm: "¿Mover las cookies y el almacenamiento local seleccionados de {source} a {target}? Se sobrescribirán los datos coincidentes del destino y se eliminarán los datos transferidos del origen.",
     moved: "Se movieron {cookies} cookies y {items} elementos de almacenamiento local.",
     moveIncomplete: "Los datos se copiaron, pero algunos datos de origen no pudieron eliminarse. El traslado está incompleto.",
+    partitionedCookiesOmitted: "Se omitieron {count} cookies particionadas porque sus claves de partición no se pueden recrear de forma segura. La transferencia está incompleta.",
 
     "kicker": "Espacio de trabajo del navegador",
     "create": "Crear espacio de trabajo",

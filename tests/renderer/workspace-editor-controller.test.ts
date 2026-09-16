@@ -184,6 +184,28 @@ describe('workspace editor controller', () => {
     expect(browser.listWorkspaceStorageOrigins).toHaveBeenCalledTimes(3)
   })
 
+  it('warns when copying omits partitioned cookies', async () => {
+    const { controller, browser } = createController()
+    await controller.openExisting('agent')
+    browser.transferWorkspaceStorage.mockResolvedValueOnce({
+      sourceWorkspaceId: 'default',
+      targetWorkspaceId: 'agent',
+      mode: 'copy',
+      cookieCount: 1,
+      localStorageOriginCount: 0,
+      localStorageItemCount: 0,
+      origins: [],
+      omittedPartitionedCookieCount: 1
+    })
+
+    await controller.transferStorage()
+
+    expect(controller.storageState.value).toBe('warning')
+    expect(controller.storageMessage.value).toContain('workspaceEditor.partitionedCookiesOmitted')
+    expect(controller.storageMessage.value).toContain('"count":"1"')
+    expect(controller.storageMessage.value).not.toContain('runtimeActions.workspace.copied')
+  })
+
   it('blocks moves from active sources but permits copying the same data', async () => {
     const { controller, browser } = createController()
     await controller.openExisting('agent')

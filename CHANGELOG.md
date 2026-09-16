@@ -4,12 +4,18 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split hosted Electron integration coverage across five isolated runners to shorten pull-request and release feedback while retaining the complete suite.
+
 ### Fixed
 
 - Retry Linux page-visibility recovery when a renderer probe stalls instead of leaving that page permanently excluded from repair checks.
+- Ignore native view teardown races during Linux page-visibility recovery so a destroyed view cannot stop later repair checks.
 - Remove malformed HTML delimiters from published release-history notes so nested markup cannot survive the plain-text boundary.
 - Fail URL waits promptly when the website renderer becomes unavailable.
 - Keep partitioned cookies isolated during workspace data copies instead of widening them into unpartitioned destination cookies.
+- Warn when a workspace data transfer omits partitioned cookies that Electron cannot recreate safely instead of reporting a complete transfer.
 
 ## [2.4.20] - 2026-09-16
 
