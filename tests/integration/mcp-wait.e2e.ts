@@ -611,6 +611,42 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.id === ${JSON.stringify(recoveryTabId)})?.pageProblem ?? null)`)).toBeNull()
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(recoveryTabId)})`)
 
+    const openedUrlCrashTab = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { url: `http://127.0.0.1:${address.port}/url-wait-renderer-crash`, active: true }
+    }) as CallToolResult
+    const urlCrashTabId = (JSON.parse(text(openedUrlCrashTab)) as { activeTabId: string }).activeTabId
+    await expect.poll(() => electronApp.evaluate(({ webContents }, requestedPath) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL().includes(requestedPath))
+    ), '/url-wait-renderer-crash')).toBe(true)
+    const waitingForCrashedUrl = client.callTool({
+      name: 'browser_wait',
+      arguments: { tabId: urlCrashTabId, urlPattern: '**/url-wait-never-matches', timeoutMs: 10_000 }
+    }) as Promise<CallToolResult>
+    await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    await electronApp.evaluate(({ webContents }, requestedPath) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL().includes(requestedPath))
+      if (!page) throw new Error('URL wait crash fixture WebContents was not found')
+      const processId = page.getOSProcessId()
+      if (processId <= 0) throw new Error('URL wait crash fixture did not expose a renderer process')
+      process.kill(processId, 'SIGKILL')
+    }, '/url-wait-renderer-crash')
+    let urlCrashPromptTimer: NodeJS.Timeout | undefined
+    const urlCrashResult = await Promise.race([
+      waitingForCrashedUrl,
+      new Promise<never>((_resolve, reject) => {
+        urlCrashPromptTimer = setTimeout(() => reject(new Error(
+          'URL browser_wait stayed active after its renderer crashed'
+        )), 2_000)
+      })
+    ]).finally(() => {
+      if (urlCrashPromptTimer) clearTimeout(urlCrashPromptTimer)
+    })
+    expect(urlCrashResult.isError).toBe(true)
+    expect(text(urlCrashResult)).toContain('tab renderer became unavailable while waiting for the page URL')
+    await expect(appWindow.locator('[role="tab"].mcp-active')).toHaveCount(0)
+    await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(urlCrashTabId)})`)
+
     const openedTextTab = await client.callTool({
       name: 'browser_new_tab',
       arguments: { url: `http://127.0.0.1:${address.port}/never-finds-text`, active: true }

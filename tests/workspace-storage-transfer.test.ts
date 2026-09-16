@@ -4,6 +4,7 @@ import type { Cookie, CookiesSetDetails } from 'electron'
 
 type StorageScript = (script: string, entries: Map<string, string>) => unknown
 type DebuggerListener = (event: object, method: string, params: { requestId: string }) => void
+type RuntimeCookie = Cookie & { partitionKey?: { topLevelSite: string; hasCrossSiteAncestor: boolean } }
 interface MockContents {
   debugger: { attach(): void; on(name: string, callback: DebuggerListener): void; sendCommand(method: string): Promise<void> }
   loadURL(url: string): Promise<void>
@@ -40,11 +41,16 @@ vi.mock('electron', () => ({
 import { transferWorkspaceStorage } from '../src/main/browser/workspace-storage.js'
 
 const origin = 'https://example.test'
-function identity(cookie: Pick<Cookie, 'domain' | 'path' | 'name'>) { return `${cookie.domain}|${cookie.path}|${cookie.name}` }
+function identity(cookie: Pick<Cookie, 'domain' | 'path' | 'name'> & { partitionKey?: unknown }) {
+  return `${cookie.domain}|${cookie.path}|${cookie.name}|${cookie.partitionKey ? JSON.stringify(cookie.partitionKey) : ''}`
+}
 function cookie(value = 'source', path = '/', domain = 'example.test'): Cookie {
   return { name: 'session', value, domain, path, hostOnly: !domain.startsWith('.'), secure: true, httpOnly: true, session: true, sameSite: 'lax' }
 }
-function profile(cookies: Cookie[] = []) {
+function partitionedCookie(value = 'partitioned', path = '/embedded'): RuntimeCookie {
+  return { ...cookie(value, path), partitionKey: { topLevelSite: 'https://container.test', hasCrossSiteAncestor: true } }
+}
+function profile(cookies: RuntimeCookie[] = []) {
   const jar = new Map(cookies.map(entry => [identity(entry), entry]))
   const storage = new Map<string, Map<string, string>>()
   return {
@@ -116,6 +122,32 @@ describe('workspace data transfer', () => {
     await transferWorkspaceStorage({ ...options, mode: 'move' })
     expect([...source.jar.values()]).toEqual([cookie('other', '/private', 'other.test')])
     expect(target.jar.get(identity(cookie('keep', '/private')))?.value).toBe('keep')
+  })
+  it('does not widen partitioned cookies into unpartitioned destination state', async () => {
+    const partitioned = partitionedCookie()
+    source.jar.set(identity(partitioned), partitioned)
+
+    const result = await transferWorkspaceStorage({ ...options, mode: 'move' })
+
+    expect(result).toMatchObject({
+      cookieCount: 1,
+      omittedPartitionedCookieCount: 1,
+      cleanupStatus: 'incomplete',
+      retainedCookieCount: 1
+    })
+    expect(target.jar.has(identity(partitioned))).toBe(false)
+    expect(target.jar.has(identity(cookie(partitioned.value, partitioned.path)))).toBe(false)
+    expect(source.jar.get(identity(partitioned))).toEqual(partitioned)
+  })
+  it('keeps a partitioned destination sibling when an unpartitioned copy rolls back', async () => {
+    const partitioned = partitionedCookie('target-partitioned', '/')
+    target.jar.set(identity(partitioned), partitioned)
+    target.flushStorageData.mockRejectedValueOnce(new Error('flush failed'))
+
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('Browser profile storage could not be fully flushed')
+
+    expect(target.jar.get(identity(partitioned))).toEqual(partitioned)
+    expect(target.jar.has(identity(cookie()))).toBe(false)
   })
   it('retains the verified copy and reports source cleanup errors', async () => {
     source.cookies.set.mockRejectedValue(new Error('delete failed'))

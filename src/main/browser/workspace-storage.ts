@@ -33,6 +33,7 @@ export interface WorkspaceStorageTransferResult {
   cookieCount: number
   localStorageOriginCount: number
   localStorageItemCount: number
+  omittedPartitionedCookieCount?: number
   origins: string[]
 }
 
@@ -40,6 +41,18 @@ interface LocalStorageRollbackEntry {
   origin: string
   items: Array<[string, string]>
   previous: Array<[string, string]>
+}
+
+type RuntimeCookie = Cookie & { partitionKey?: unknown }
+
+function cookiePartitionKey(cookie: Cookie): string {
+  const partitionKey = (cookie as RuntimeCookie).partitionKey
+  if (partitionKey === undefined || partitionKey === null || partitionKey === '') return ''
+  return typeof partitionKey === 'string' ? partitionKey : JSON.stringify(partitionKey)
+}
+
+function isPartitionedCookie(cookie: Cookie): boolean {
+  return cookiePartitionKey(cookie) !== ''
 }
 
 export async function flushBrowserSessionStorage(browserSession: Session): Promise<void> {
@@ -71,7 +84,7 @@ export function normalizeWorkspaceStorageOrigins(values: string[]): string[] {
 }
 
 function cookieIdentity(cookie: Cookie): string {
-  return `${cookie.domain ?? ''}\u0000${cookie.path ?? '/'}\u0000${cookie.name}`
+  return `${cookie.domain ?? ''}\u0000${cookie.path ?? '/'}\u0000${cookie.name}\u0000${cookiePartitionKey(cookie)}`
 }
 
 function sameCookie(first: Cookie | undefined, second: Cookie): boolean {
@@ -111,11 +124,16 @@ async function cookiesForTransfer(
   source: Session,
   origins: string[],
   copyAllCookies: boolean
-): Promise<Cookie[]> {
-  if (copyAllCookies) return source.cookies.get({})
+): Promise<{ cookies: Cookie[]; omittedPartitionedCookieCount: number }> {
+  const available = await source.cookies.get({})
+  if (copyAllCookies) return {
+    cookies: available.filter((cookie) => !isPartitionedCookie(cookie)),
+    omittedPartitionedCookieCount: available.filter(isPartitionedCookie).length
+  }
   const selectedOrigins = origins.map((origin) => new URL(origin))
   const cookies = new Map<string, Cookie>()
-  for (const cookie of await source.cookies.get({})) {
+  let omittedPartitionedCookieCount = 0
+  for (const cookie of available) {
     const domain = cookie.domain?.replace(/^\./, '').toLowerCase()
     if (!domain) continue
     const matches = selectedOrigins.some((origin) => {
@@ -123,9 +141,13 @@ async function cookiesForTransfer(
       const hostname = origin.hostname.toLowerCase()
       return cookie.hostOnly ? hostname === domain : hostname === domain || hostname.endsWith(`.${domain}`)
     })
-    if (matches) cookies.set(cookieIdentity(cookie), cookie)
+    if (!matches) continue
+    // Electron's cookie write API cannot express Chromium partition keys.
+    // Copying one would silently widen it into an unpartitioned cookie.
+    if (isPartitionedCookie(cookie)) omittedPartitionedCookieCount += 1
+    else cookies.set(cookieIdentity(cookie), cookie)
   }
-  return [...cookies.values()]
+  return { cookies: [...cookies.values()], omittedPartitionedCookieCount }
 }
 
 async function storageDeadline<T>(operation: Promise<T>, stage: string): Promise<T> {
@@ -280,7 +302,7 @@ export async function transferWorkspaceStorage(
   options.configureSession?.(source)
   options.configureSession?.(target)
 
-  const cookies = await cookiesForTransfer(source, origins, options.copyAllCookies)
+  const { cookies, omittedPartitionedCookieCount } = await cookiesForTransfer(source, origins, options.copyAllCookies)
   const cookieIdentities = new Set(cookies.map(cookieIdentity))
   const previousCookies = (await target.cookies.get({})).filter((cookie) => cookieIdentities.has(cookieIdentity(cookie)))
   const localStorageRollback: LocalStorageRollbackEntry[] = []
@@ -392,7 +414,9 @@ export async function transferWorkspaceStorage(
     throw transferError
   }
   const result: WorkspaceStorageTransferResult = {
-    cookieCount: cookies.length, localStorageOriginCount, localStorageItemCount, origins
+    cookieCount: cookies.length, localStorageOriginCount, localStorageItemCount,
+    ...(omittedPartitionedCookieCount ? { omittedPartitionedCookieCount } : {}),
+    origins
   }
   if (options.mode !== 'move') return result
 
@@ -448,7 +472,7 @@ export async function transferWorkspaceStorage(
       removedLocalStorageItemCount = confirmedRemoved
     } catch { cleanupFailed = true } finally { sourceSurface?.close() }
   }
-  const retainedCookieCount = cookies.length - removedCookieCount
+  const retainedCookieCount = cookies.length - removedCookieCount + omittedPartitionedCookieCount
   const retainedLocalStorageItemCount = localStorageItemCount - removedLocalStorageItemCount
   return {
     ...result,

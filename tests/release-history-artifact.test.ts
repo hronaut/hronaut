@@ -40,6 +40,17 @@ describe('published release history artifact', () => {
     expect(artifact.releases[1]?.notes).toBe('Safe')
   })
 
+  it('removes nested and malformed HTML delimiters while preserving ordinary Markdown', async () => {
+    const markdown = '### Fixed\n- Keep **visible notes** and [documentation](https://hronaut.dev/security).'
+    const hostileMarkup = `${markdown}\n<!<!-- hidden -->>\n<scr<script>ipt>alert(1)</script>\n<StYlE>body { display: none }</STYLE>\n<script`
+    const artifact = await generate([release('1.11.51', { body: hostileMarkup })], hostileMarkup)
+
+    for (const entry of artifact.releases) {
+      expect(entry.notes).toContain(markdown)
+      expect(entry.notes).not.toMatch(/[<>]/u)
+    }
+  })
+
   it('fails the candidate when a later upstream page is unavailable', async () => {
     const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => String(url).endsWith('page=1') ? Response.json(Array.from({ length: 100 }, (_, i) => release(`1.0.${i}`))) : new Response('rate limited', { status: 403 })) as unknown as typeof fetch
     await expect(generateReleaseHistory('1.11.55', 'Notes', { fetcher })).rejects.toThrow('403')
