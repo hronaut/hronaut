@@ -54,6 +54,13 @@ import type { TabPosition } from '../../shared/tab-position.js'
 import { searchSnapshot, type SnapshotSearchOptions, type SnapshotSearchResult } from '../../shared/snapshot-search.js'
 import type { BrowserSnapshot } from '../../shared/snapshot.js'
 import {
+  classifyBrowserObservationQuality,
+  normalizeObservationExpectedOrigin,
+  observationQualityPageScript,
+  type BrowserObservationQualityResult,
+  type BrowserObservationQualitySignals
+} from '../../shared/observation-quality.js'
+import {
   BROWSER_SNAPSHOT_FORMAT_VERSION,
   boundedSnapshotDelta,
   snapshotDeltaInvalidationReason,
@@ -424,6 +431,7 @@ const CONTINUITY_MARKER_WORLD_ID = 1011
 const POSTCONDITION_WORLD_ID = 1012
 const AGENT_POINTER_WORLD_ID = 1013
 const RECONCILIATION_WORLD_ID = 1014
+const OBSERVATION_QUALITY_WORLD_ID = 1015
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -4504,6 +4512,62 @@ export class BrowserTabsManager {
       throw new Error(`The snapshot context changed during observation (${invalidation}). Capture a fresh snapshot.`)
     }
     return snapshot
+  }
+
+  async observationQuality(options: {
+    tabId?: string
+    expectedOrigin?: string
+    expectedText?: string
+    expectedSelector?: string
+  } = {}): Promise<BrowserObservationQualityResult> {
+    const tab = this.getTab(options.tabId)
+    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before assessing observation quality')
+    const expectedOrigin = normalizeObservationExpectedOrigin(options.expectedOrigin)
+    const unavailableState = tab.pageProblem
+      ? 'unavailable' as const
+      : tab.webContents.isLoadingMainFrame() ? 'loading' as const : undefined
+    if (unavailableState) {
+      return classifyBrowserObservationQuality({
+        resolvedUrl: redactNetworkUrl(tab.url),
+        contentType: '',
+        pageState: unavailableState,
+        visibleTextChars: 0,
+        primaryTextChars: 0,
+        noiseTextChars: 0,
+        headingCount: 0,
+        interactiveCount: 0,
+        challengeSignals: [],
+        loginSignals: [],
+        soft404Signals: [],
+        cookieSignals: []
+      }, {
+        expectedOrigin,
+        expectedTextProvided: options.expectedText !== undefined,
+        expectedSelectorProvided: options.expectedSelector !== undefined
+      })
+    }
+    const context = this.snapshotDeltaContext(tab)
+    const signals = await tab.webContents.executeJavaScriptInIsolatedWorld(
+      OBSERVATION_QUALITY_WORLD_ID,
+      [{ code: observationQualityPageScript({ expectedText: options.expectedText, expectedSelector: options.expectedSelector }) }],
+      false
+    ) as BrowserObservationQualitySignals
+    const current = this.tabs.get(tab.id)
+    if (!current || current !== tab || current.webContents.isDestroyed()) {
+      throw new Error('The observation tab changed during assessment. Assess the page again.')
+    }
+    const invalidation = snapshotDeltaInvalidationReason(context, this.snapshotDeltaContext(current))
+    if (invalidation) {
+      throw new Error(`The observation context changed during assessment (${invalidation}). Assess the page again.`)
+    }
+    return classifyBrowserObservationQuality(
+      { ...signals, resolvedUrl: redactNetworkUrl(signals.resolvedUrl) },
+      {
+        expectedOrigin,
+        expectedTextProvided: options.expectedText !== undefined,
+        expectedSelectorProvided: options.expectedSelector !== undefined
+      }
+    )
   }
 
   async setSnapshotBaseline(tabId?: string, maxChars = 30_000) {
