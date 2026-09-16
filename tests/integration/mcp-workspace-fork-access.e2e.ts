@@ -27,6 +27,9 @@ test('forks disabled archived workspace data without source access and honors cl
     expect(source.agentAccess).toBe(false)
     const sourceUrl = `${origin}/source`
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(state.activeTabId)}, url: ${JSON.stringify(sourceUrl)} })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
+      webContents.getAllWebContents().some((contents) => contents.getURL() === url && !contents.isLoadingMainFrame())
+    ), sourceUrl)).toBe(true)
     await electronApp.evaluate(async ({ webContents }, url) => {
       const contents = webContents.getAllWebContents().find((entry) => entry.getURL() === url)
       if (!contents) throw new Error('Missing source page')

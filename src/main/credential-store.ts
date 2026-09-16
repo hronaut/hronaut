@@ -56,6 +56,23 @@ function credentialIdentity(entry: Pick<PersistedCredential, 'origin' | 'usernam
   return `${entry.origin}\u0000${entry.username}`
 }
 
+function normalizeCredentialTimestamps(
+  entry: PersistedCredential,
+  currentTime: number
+): { entry: PersistedCredential; updatedAtWasFuture: boolean; repaired: boolean } {
+  const parsedUpdatedAt = Date.parse(entry.updatedAt)
+  const updatedAtWasFuture = parsedUpdatedAt > currentTime
+  const updatedAtTime = Math.min(parsedUpdatedAt, currentTime)
+  const createdAtTime = Math.min(Date.parse(entry.createdAt), updatedAtTime)
+  const createdAt = new Date(createdAtTime).toISOString()
+  const updatedAt = new Date(updatedAtTime).toISOString()
+  return {
+    entry: { ...entry, createdAt, updatedAt },
+    updatedAtWasFuture,
+    repaired: createdAt !== entry.createdAt || updatedAt !== entry.updatedAt
+  }
+}
+
 export class CredentialStore {
   private readonly entries = new Map<string, PersistedCredential>()
   private mutationQueue: Promise<void> = Promise.resolve()
@@ -73,24 +90,31 @@ export class CredentialStore {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return []
       const value = parsed as Partial<PersistedCredentialVault>
       if (value.version !== 1 || !Array.isArray(value.credentials)) return []
-      const accounts = new Map<string, PersistedCredential>()
+      const accounts = new Map<string, { entry: PersistedCredential; updatedAtWasFuture: boolean }>()
       let repairedPersistedVault = false
+      const currentTime = Date.now()
       for (const entry of value.credentials) {
         if (!validPersistedCredential(entry)) {
           repairedPersistedVault = true
           continue
         }
-        const key = credentialIdentity(entry)
+        const normalized = normalizeCredentialTimestamps(entry, currentTime)
+        if (normalized.repaired) repairedPersistedVault = true
+        const key = credentialIdentity(normalized.entry)
         const existing = accounts.get(key)
-        if (!existing || existing.updatedAt.localeCompare(entry.updatedAt) <= 0) {
+        const replaceExisting = existing === undefined
+          || (existing.updatedAtWasFuture && !normalized.updatedAtWasFuture)
+          || (existing.updatedAtWasFuture === normalized.updatedAtWasFuture
+            && Date.parse(existing.entry.updatedAt) < Date.parse(normalized.entry.updatedAt))
+        if (replaceExisting) {
           if (existing) repairedPersistedVault = true
-          accounts.set(key, { ...entry })
+          accounts.set(key, normalized)
         } else {
           repairedPersistedVault = true
         }
       }
       const usedIds = new Set<string>()
-      for (const entry of accounts.values()) {
+      for (const { entry } of accounts.values()) {
         const restored = usedIds.has(entry.id) ? { ...entry, id: randomUUID() } : entry
         if (restored !== entry) repairedPersistedVault = true
         usedIds.add(restored.id)
