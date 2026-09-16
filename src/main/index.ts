@@ -2416,12 +2416,22 @@ function registerIpc(): void {
     if (typeof workspaceId !== 'string' || workspaceId.length > 128 || !humanWaiting) throw new Error('Waiting workspace unavailable')
     return humanWaiting.list(workspaceId, authorize)
   })
-  ipcMain.handle('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown) => {
+  ipcMain.handle('browser:change-human-waiting', async (event, workspaceId: unknown, id: unknown, revision: unknown, action: unknown, confirmation: unknown) => {
     const authorize = (): void => { assertTrustedShellSender(event) }
     authorize()
     if (typeof workspaceId !== 'string' || typeof id !== 'string' || typeof revision !== 'string'
       || workspaceId.length > 128 || id.length > 128 || revision.length > 128
       || (action !== 'acknowledge' && action !== 'cancel' && action !== 'reject' && action !== 'resolve') || !humanWaiting) throw new Error('Waiting decision unavailable')
+    const trustedConfirmation = confirmation === undefined
+      ? undefined
+      : confirmation && typeof confirmation === 'object' && !Array.isArray(confirmation)
+        && Object.keys(confirmation).length === 1
+        && (confirmation as Record<string, unknown>).accountAndTargetVerified === true
+        ? { accountAndTargetVerified: true as const }
+        : null
+    if (trustedConfirmation === null || (action !== 'resolve' && trustedConfirmation !== undefined)) {
+      throw new Error('Waiting decision confirmation unavailable')
+    }
     let checkpointId: string | null | undefined
     const validateFresh = async (): Promise<void> => {
       const report = await tabsManager!.inspectWorkspaceContinuity(workspaceId)
@@ -2435,7 +2445,7 @@ function registerIpc(): void {
       checkpointId = report.checkpointId
     }
     const attentionId = userAttention?.workspaceId === workspaceId && attentionDecisionId === id ? userAttention.id : undefined
-    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh)
+    const record = await humanWaiting.change(workspaceId, id, revision, action, authorize, validateFresh, trustedConfirmation)
     if (attentionId && userAttention?.id === attentionId) clearUserAttention()
     return record
   })

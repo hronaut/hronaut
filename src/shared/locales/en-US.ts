@@ -28,10 +28,11 @@ export const enUS = {
     unknown: 'The earlier action outcome remains unknown.', reviewed: 'I reviewed this decision and the current workspace state.',
     reviewedExact: 'I reviewed this exact action and the bound workspace state.',
     reviewedGroup: 'I reviewed every action in this exact ordered group and the bound workspace state.',
+    reviewedAccountAndTarget: 'I verified the signed-in account and visible target in the bound browser tab.',
     acknowledge: 'Acknowledge', resolve: 'Complete review', approve: 'Approve exact action', approveGroup: 'Approve exact group', reject: 'Reject action', cancel: 'Cancel decision', unavailable: 'Unavailable',
     states: { WAITING_FOR_HUMAN: 'Waiting for a human', ACKNOWLEDGED: 'Acknowledged; review pending', RESOLVED: 'Review completed', REJECTED: 'Rejected', EXPIRED: 'Expired', CANCELLED: 'Cancelled', ATTEMPTED: 'Action attempted', VERIFIED: 'Outcome verified', UNKNOWN: 'Outcome unknown' },
     review: {
-      heading: 'Consequential action', step: 'Step {current} of {total}', expected: 'Expected result', tool: 'Tool', actionClass: 'Action class', reversibility: 'Reversibility', workspace: 'Workspace', profile: 'Capability profile', authority: 'Authority generation', origin: 'Current origin', tab: 'Tab', navigation: 'Navigation generation', humanInput: 'Human input generation', artifact: 'Exact artifact hash', timeline: 'Review receipt timeline', visibleOnly: 'The mutation cannot be represented safely as text. Inspect the visible browser before deciding.',
+      heading: 'Consequential action', step: 'Step {current} of {total}', expected: 'Expected result', tool: 'Tool', actionClass: 'Action class', reversibility: 'Reversibility', workspace: 'Workspace', profile: 'Capability profile', authority: 'Authority generation', origin: 'Current origin', tab: 'Tab', navigation: 'Navigation generation', humanInput: 'Human input generation', browserSession: 'Browser session generation', artifact: 'Exact artifact hash', timeline: 'Review receipt timeline', visibleOnly: 'The mutation cannot be represented safely as text. Inspect the visible browser before deciding.',
       statuses: { PROPOSED: 'Proposed', REVIEWED: 'Reviewed', APPROVED: 'Approved', REJECTED: 'Rejected', CANCELLED: 'Cancelled', EXPIRED: 'Expired', ATTEMPTED: 'Attempted', VERIFIED: 'Verified', UNKNOWN: 'Unknown' },
       reversibilities: { reversible: 'Reversible', 'conditionally-reversible': 'Conditionally reversible', irreversible: 'Irreversible', unknown: 'Unknown' }
     },

@@ -204,6 +204,28 @@ describe('durable waiting owner', () => {
     await expect(service.requireDispatch(input.workspaceId, authorize, binding)).rejects.toThrow(/outcome.*unresolved/i)
   })
 
+  it('requires a trusted account-and-target confirmation for a tab-bound browser approval', async () => {
+    const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
+    const tabBoundReview = {
+      ...review,
+      tabId: '0198dc5b-4192-7000-8000-000000000004',
+      browserSessionGeneration: 6
+    }
+    const proposed = await service.create({ ...input, decision: 'approve-action', review: tabBoundReview }, authorize)
+
+    await expect(service.change(
+      input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined
+    )).rejects.toThrow(/signed-in account and target/i)
+    expect((await service.list(input.workspaceId, authorize))[0]).toMatchObject({
+      state: 'WAITING_FOR_HUMAN', review: { status: 'PROPOSED' }
+    })
+
+    await expect(service.change(
+      input.workspaceId, proposed.id, proposed.revision, 'resolve', authorize, async () => undefined,
+      { accountAndTargetVerified: true }
+    )).resolves.toMatchObject({ state: 'RESOLVED', review: { status: 'APPROVED' } })
+  })
+
   it('expires exact mismatches and context drift without dispatching', async () => {
     const service = new HumanWaitingService({ load: async () => null, save: async () => undefined })
     const proposed = await service.create({ ...input, decision: 'approve-action', review }, authorize)

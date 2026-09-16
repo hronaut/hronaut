@@ -70,7 +70,8 @@ it('shows a bounded exact-action receipt and offers cheap rejection', async () =
       representation: 'bounded-description', description: 'Submit the visible form', expectedPostcondition: 'Confirmation appears',
       artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64), workspaceName: 'Checkout QA', profileName: 'Restricted QA',
       origin: 'https://example.com', tabId: '0198dc5b-4192-7000-8000-000000000004', navigationGeneration: 3,
-      humanInputGeneration: 1, status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }]
+      humanInputGeneration: 1, browserSessionGeneration: 6,
+      status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }]
     }
   }
   const browser = {
@@ -85,10 +86,43 @@ it('shows a bounded exact-action receipt and offers cheap rejection', async () =
   expect(view.text()).toContain('Restricted QA')
   expect(view.text()).toContain('Authority generation')
   expect(view.text()).toContain('bbbbbbbbbbbb')
+  expect(view.text()).toContain('Browser session generation')
+  expect(view.text()).toContain('6')
   expect(view.text()).toContain('a'.repeat(64))
   const reject = view.findAll('button').find(item => item.text() === 'Reject action')!
   await reject.trigger('click'); await flushPromises()
   expect(browser.changeHumanWaiting).toHaveBeenCalledExactlyOnceWith('first', 'decision', 'revision', 'reject')
+})
+
+it('requires a separate signed-in account and target confirmation for a tab-bound browser approval', async () => {
+  const reviewedRecord: HumanWaitingRecord = {
+    ...record,
+    decision: 'approve-action',
+    review: {
+      toolName: 'browser_click', actionClass: 'interact', reversibility: 'unknown',
+      representation: 'bounded-description', description: 'Submit the visible form',
+      artifactHash: 'a'.repeat(64), sessionBinding: 'b'.repeat(64), workspaceName: 'Checkout QA', profileName: 'Restricted QA',
+      origin: 'https://example.com', tabId: '0198dc5b-4192-7000-8000-000000000004', browserSessionGeneration: 6,
+      status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }]
+    }
+  }
+  const browser = {
+    listHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord[]> => [reviewedRecord]),
+    changeHumanWaiting: vi.fn(async (): Promise<HumanWaitingRecord> => ({ ...reviewedRecord, state: 'RESOLVED' }))
+  }
+  const view = mount(HumanWaitingPanel, { props: { workspaceId: 'first', browser }, global: { plugins: [createHronautI18n('en-US')] } })
+  dispose.push(() => view.unmount())
+  await flushPromises()
+  const approve = view.findAll('button').find(item => item.text() === 'Approve exact action')!
+  const confirmations = view.findAll('input[type="checkbox"]')
+  expect(confirmations).toHaveLength(2)
+  await confirmations[0].setValue(true)
+  expect(approve.attributes('disabled')).toBeDefined()
+  await confirmations[1].setValue(true)
+  await approve.trigger('click'); await flushPromises()
+  expect(browser.changeHumanWaiting).toHaveBeenCalledExactlyOnceWith(
+    'first', 'decision', 'revision', 'resolve', { accountAndTargetVerified: true }
+  )
 })
 
 it('shows every step in an ordered review group before approval', async () => {

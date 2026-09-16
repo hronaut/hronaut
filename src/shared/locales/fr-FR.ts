@@ -70,6 +70,7 @@ export const frFR = {
     "reviewed": "J’ai vérifié cette décision et l’état actuel de l’espace de travail.",
     "reviewedExact": "J’ai vérifié cette action exacte et l’état lié de l’espace de travail.",
     "reviewedGroup": "J’ai vérifié chaque action de ce groupe ordonné exact et l’état lié de l’espace de travail.",
+    "reviewedAccountAndTarget": "J’ai vérifié le compte connecté et la cible visible dans l’onglet de navigateur lié.",
     "acknowledge": "Accuser réception",
     "resolve": "Terminer la vérification",
     "approve": "Approuver l’action exacte",
@@ -89,7 +90,7 @@ export const frFR = {
       "UNKNOWN": "Résultat inconnu"
     },
     "review": {
-      "heading": "Action conséquente", "step": "Étape {current} sur {total}", "expected": "Résultat attendu", "tool": "Outil", "actionClass": "Classe d’action", "reversibility": "Réversibilité", "workspace": "Espace de travail", "profile": "Profil de capacités", "authority": "Génération d’autorisation", "origin": "Origine actuelle", "tab": "Onglet", "navigation": "Génération de navigation", "humanInput": "Génération d’entrée humaine", "artifact": "Empreinte exacte de l’artefact", "timeline": "Chronologie des reçus de vérification", "visibleOnly": "La modification ne peut pas être représentée sans risque sous forme de texte. Vérifiez le navigateur visible avant de décider.",
+      "heading": "Action conséquente", "step": "Étape {current} sur {total}", "expected": "Résultat attendu", "tool": "Outil", "actionClass": "Classe d’action", "reversibility": "Réversibilité", "workspace": "Espace de travail", "profile": "Profil de capacités", "authority": "Génération d’autorisation", "origin": "Origine actuelle", "tab": "Onglet", "navigation": "Génération de navigation", "humanInput": "Génération d’entrée humaine", "browserSession": "Génération de session du navigateur", "artifact": "Empreinte exacte de l’artefact", "timeline": "Chronologie des reçus de vérification", "visibleOnly": "La modification ne peut pas être représentée sans risque sous forme de texte. Vérifiez le navigateur visible avant de décider.",
       "statuses": { "PROPOSED": "Proposée", "REVIEWED": "Vérifiée", "APPROVED": "Approuvée", "REJECTED": "Rejetée", "CANCELLED": "Annulée", "EXPIRED": "Expirée", "ATTEMPTED": "Tentée", "VERIFIED": "Confirmée", "UNKNOWN": "Inconnue" },
       "reversibilities": { "reversible": "Réversible", "conditionally-reversible": "Réversible sous conditions", "irreversible": "Irréversible", "unknown": "Inconnue" }
     },

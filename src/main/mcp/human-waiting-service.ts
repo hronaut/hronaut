@@ -1,5 +1,9 @@
 import { HumanWaitingStore, currentHumanWaitingReviewStep } from './human-waiting-store.js'
 import type { HumanWaitingPersistence } from './human-waiting-persistence.js'
+import {
+  requiresHumanWaitingAccountAndTargetConfirmation,
+  type HumanWaitingTrustedConfirmation
+} from '../../shared/human-waiting.js'
 
 type Authorization = () => void
 type WaitingInput = Parameters<HumanWaitingStore['create']>[0]
@@ -108,11 +112,23 @@ export class HumanWaitingService {
     })
   }
 
-  change(workspaceId: string, id: string, revision: string, action: 'acknowledge' | 'cancel' | 'reject' | 'resolve', authorize: Authorization, validateFresh?: () => Promise<void>) {
+  change(
+    workspaceId: string,
+    id: string,
+    revision: string,
+    action: 'acknowledge' | 'cancel' | 'reject' | 'resolve',
+    authorize: Authorization,
+    validateFresh?: () => Promise<void>,
+    trustedConfirmation?: HumanWaitingTrustedConfirmation
+  ) {
     return this.serialize(async () => {
       authorize()
       if (!this.store.list(workspaceId).some(record => record.id === id)) throw new Error('Waiting decision unavailable')
       if (action === 'resolve') {
+        const record = this.current(workspaceId, id)
+        if (requiresHumanWaitingAccountAndTargetConfirmation(record) && trustedConfirmation?.accountAndTargetVerified !== true) {
+          throw new Error('Confirm the signed-in account and target in the trusted review UI')
+        }
         if (!validateFresh) throw new Error('Fresh browser review is required')
         await validateFresh()
         authorize()
