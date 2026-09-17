@@ -95,6 +95,7 @@ The dedicated **Home** application button sits outside the browser tab list and 
 
 - Copy-ready setup instructions for Codex, Claude Code, Cursor, VS Code / GitHub Copilot, OpenCode, Gemini CLI, Goose, Cline, Zoo Code, Kiro, Kilo Code, JetBrains Junie, Devin Local, Zed, Mistral Vibe, Warp, Windsurf, Grok Build, Qwen Code, and generic Streamable HTTP clients, including verification commands where the client provides one.
 - A live list of active requests and recently seen MCP clients.
+- A copy-safe MCP readiness diagnostic that keeps application health, the local endpoint, protocol initialization, advertised tools, active-client tool visibility, and a benign read-only probe as separate checks. Pasted client tool output is parsed locally for registered tool names and is never retained.
 - The current browser tool catalog, grouped by session, navigation, interaction, and inspection.
 - A privacy-safe activity dashboard with recent tab actions, duration, bounded outcome and reason categories, dispatch/effect certainty, and per-launch and per-tool totals. Legacy `finished`/`failed` fields remain available to dashboard consumers. It records no URLs, selectors, typed text, screenshots, or page content.
 - The local MCP endpoint and authentication guidance.
@@ -285,6 +286,8 @@ Health check:
 curl http://127.0.0.1:47812/healthz
 ```
 
+The authenticated health response includes the same bounded `readiness` report shown on Home. A healthy listener or a successful direct `initialize` / `tools/list` request proves only the Hronaut side of the connection. It does not prove that the active custom-agent host exposed those tools to the current task. Verify the tool inventory inside that active client, paste it into Home for a local comparison, then invoke `browser_status` or `browser_snapshot` once in a task-owned workspace. Hronaut reports unavailable host-side evidence as `client_visibility_unknown`; it never upgrades listener health into `client_tools_verified`. The report contains typed states, aggregate counts, bounded tool names, and timestamps, without client/session identifiers, configuration paths, tokens, raw errors, tool arguments, URLs, or page content.
+
 Authentication is off for a new profile so local agents can connect without token setup. If you enable **Require MCP authentication** in Settings, the exact token path is shown on Hronaut Home. On Linux, the packaged default is `~/.config/Hronaut/mcp-token`; development builds use `~/.config/hronaut-dev/mcp-token`. Hronaut creates one random token per profile and restricts the token file to the profile owner.
 
 Trusted Settings can also create named capability credentials with a smaller tool preset and optional workspace, origin, exact-argument, expiry, and use limits. Exact argument constraints use `tool.argument.path=value` entries and can bind a credential to a tab, wallet, recipient, target, or payload field. Hronaut canonicalizes each value and persists only a domain-separated SHA-256 digest; the private value is used transiently during profile creation and authorization. Select an existing active capability as the parent to derive a delegated credential. Hronaut requires the child to be a strict subset of that parent, records the opaque parent profile, revision, and credential identifiers, and stores only credential and constraint digests. Every bounded child call consumes its own use budget and each bounded ancestor budget atomically. Parent rotation, editing, revocation, expiry, or exhaustion makes descendants inactive; reconnecting does not restore stale lineage. Derived profiles cannot be reparented through an edit, and their parent linkage remains visible in Settings. Creating a derived credential is a trusted local Settings action; browser pages and connected MCP clients cannot mint authority.
@@ -308,6 +311,8 @@ Use a Streamable HTTP MCP configuration and start Hronaut before the client conn
 ```
 
 The exact schema depends on the MCP client; Hronaut Home includes separate current instructions for the major coding agents. Disconnecting or closing that client does not close Hronaut.
+
+Tool availability must be checked in the active client or custom-agent context. A valid configuration file and a direct protocol probe can still coexist with a host policy that omits MCP tools. This verification remains entirely local: Hronaut continues to reject non-loopback listeners and does not inspect or control another vendor's client.
 
 Each GitHub release also publishes `hronaut-operator-manifest.json`. Its
 `hronautVersion` matches that release, and its tool sets are generated from the

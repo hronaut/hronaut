@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderHomePage } from '../src/main/home-page.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
+import { buildMcpReadinessDiagnostic } from '../src/main/mcp/readiness.js'
 
 interface RenderedGuide {
   id: string
@@ -30,7 +31,11 @@ const dashboard: McpDashboardState = {
   clients: [],
   recentActivity: [],
   toolMetrics: [],
-  tools: [{ name: 'browser_click', category: 'Interaction', description: 'Click an element.' }]
+  tools: [{ name: 'browser_click', category: 'Interaction', description: 'Click an element.' }],
+  readiness: buildMcpReadinessDiagnostic({
+    checkedAt: '2026-08-21T12:00:00.000Z', serverStatus: 'ready',
+    startedAt: '2026-08-21T12:00:00.000Z', advertisedToolNames: ['browser_click'], clients: []
+  })
 }
 
 describe('Hronaut Home localization', () => {
@@ -83,6 +88,7 @@ describe('Hronaut Home localization', () => {
     expect(html).toContain('Recommend Hronaut')
     expect(html).toContain('https://hronaut.dev/go/desktop-first-run-share')
     expect(html).toContain('No browser, workspace, or agent data is included.')
+    expect(html).toContain('class="readiness-report" tabindex="0" aria-label="Copy-safe MCP readiness diagnostic"')
     const codex = renderedGuides(html).find((guide) => guide.id === 'codex')
     expect(codex?.verifyCommand).toBe('codex mcp list')
     expect(codex?.code).toContain(dashboard.endpoint)

@@ -2859,6 +2859,7 @@ export const plPL = {
     "recentlyClosedTabs": "Ostatnio zamknięte karty"
   },
   "home": {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Sekcje główne", "overview": "Przegląd", "connect": "Połącz agenta", "tools": "Biblioteka narzędzi"},
     journey: {
       heading: 'Zacznij od swojego agenta',

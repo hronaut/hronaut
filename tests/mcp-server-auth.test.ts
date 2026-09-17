@@ -170,6 +170,51 @@ describe('MCP HTTP authentication middleware order', () => {
     expect(actionTracker.controlRevision).toBe(initialControlRevision)
     await expect(client.listTools()).resolves.toHaveProperty('tools')
   })
+
+  it('keeps initialization and tools/list separate from active-client visibility', async () => {
+    const manager = {
+      listMcpTabGroups: () => [],
+      listSavedTabGroups: () => [],
+      listWorkspaceForkSources: () => []
+    }
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', token: TOKEN,
+      showWindowInactive: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never,
+      history: {} as never,
+      siteData: {} as never
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'private-client-name', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: { headers: { authorization: `Bearer ${TOKEN}` } }
+    }))
+    await client.listTools()
+
+    const activity = server.getDashboardState().clients[0]
+    expect(activity).toMatchObject({ name: 'private-client-name' })
+    expect(activity?.initializedAt).toBeTruthy()
+    expect(activity?.toolsListedAt).toBeTruthy()
+    expect(server.getDashboardState().readiness.checks).toMatchObject({
+      initialization: { state: 'client_initialized' },
+      advertisedTools: { state: 'tools_advertised' },
+      clientVisibility: { state: 'client_visibility_unknown' },
+      probe: { state: 'unknown' }
+    })
+
+    const response = await fetch(endpoint.replace('/mcp', '/healthz'), {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })
+    const healthText = await response.text()
+    expect(JSON.parse(healthText)).toMatchObject({
+      ok: true,
+      readiness: { checks: { clientVisibility: { state: 'client_visibility_unknown' } } }
+    })
+    expect(healthText).not.toContain('private-client-name')
+    expect(healthText).not.toContain(TOKEN)
+  })
 })
 
 describe('MCP tool registration contract', () => {

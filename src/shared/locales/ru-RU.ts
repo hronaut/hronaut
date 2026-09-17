@@ -2859,6 +2859,7 @@ export const ruRU = {
     "recentlyClosedTabs": "Недавно закрытые вкладки"
   },
   "home": {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Разделы главной", "overview": "Обзор", "connect": "Подключить агента", "tools": "Библиотека инструментов"},
     journey: {
       heading: 'Начните со своего агента',

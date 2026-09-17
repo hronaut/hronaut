@@ -109,6 +109,7 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .impact strong { display: block; font-size: 32px; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 .impact span { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .overview-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); align-items: start; gap: 24px; }
+.overview-side { display: grid; gap: 24px; min-width: 0; }
 .activity-layout { padding: 18px 20px; }
 .activity-column h3 { margin-bottom: 10px; color: var(--muted); font-size: 11px; font-weight: 600; }
 .activity-list { min-height: 140px; }
@@ -121,6 +122,19 @@ pre { min-height: 88px; margin: 0; padding: 16px 74px 16px 16px; overflow: auto;
 .outcome.attention { color: var(--text); background: color-mix(in srgb, #d69b36 14%, var(--panel)); }
 .privacy-note { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; line-height: 1.6; }
 .connections-body { max-height: 400px; padding: 4px 18px; overflow-y: auto; scrollbar-width: thin; }
+.readiness-body { padding: 16px 18px 18px; }
+.readiness-checks { display: grid; gap: 1px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--border); }
+.readiness-check { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; background: var(--panel); }
+.readiness-check strong { display: block; font-size: 11px; font-weight: 650; }
+.readiness-check span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.readiness-state { max-width: 180px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.readiness-state:is(.app_ready, .endpoint_ready, .client_initialized, .tools_advertised, .client_tools_verified, .probe_verified) { color: var(--accent-2); }
+.readiness-state:is(.blocked, .probe_failed) { color: var(--danger); }
+.readiness-inventory { display: block; margin-top: 16px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.readiness textarea { width: 100%; min-height: 74px; margin-top: 7px; padding: 9px 10px; resize: vertical; border: 1px solid var(--border); border-radius: 7px; color: var(--text); background: var(--panel); font: 10px/1.5 "SFMono-Regular", Consolas, monospace; }
+.readiness textarea:focus-visible { outline-width: 2px; outline-offset: 1px; }
+.readiness-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.readiness-report { max-height: 180px; margin-top: 10px; overflow: auto; font-size: 9px; line-height: 1.5; scrollbar-width: thin; }
 .empty { display: grid; min-height: 146px; align-content: center; padding: 22px 4px; }
 .empty strong { display: block; font-size: 14px; font-weight: 600; }
 .empty span { display: block; max-width: 420px; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.7; }

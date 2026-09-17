@@ -73,3 +73,26 @@ test('Home keeps client setup accessible in a compact layout across themes and l
     }
   }
 })
+
+test('Home keeps MCP readiness diagnostics readable at desktop and compact widths', async ({ electronApp }, testInfo) => {
+  await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+  const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+  await home.locator('#home-tab-overview').click()
+
+  for (const width of [1200, 760]) {
+    await electronApp.evaluate(({ BrowserWindow }, nextWidth) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 900), width)
+    await expect.poll(() => home.evaluate(() => innerWidth)).toBe(width)
+    await expect(home.getByRole('heading', { name: 'MCP readiness' })).toBeVisible()
+    await expect(home.locator('#readiness-tool-inventory')).toBeVisible()
+    await expect(home.locator('#readiness-verify')).toBeVisible()
+    const layout = await home.evaluate(() => ({
+      overflow: document.documentElement.scrollWidth - innerWidth,
+      panelWidth: document.querySelector('.readiness')!.getBoundingClientRect().width,
+      reportWidth: document.querySelector('.readiness-report')!.getBoundingClientRect().width
+    }))
+    expect.soft(layout.overflow).toBeLessThanOrEqual(1)
+    expect.soft(layout.panelWidth).toBeGreaterThan(260)
+    expect.soft(layout.reportWidth).toBeLessThanOrEqual(layout.panelWidth)
+    await home.screenshot({ path: testInfo.outputPath(`home-readiness-${width}.png`) })
+  }
+})

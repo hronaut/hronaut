@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add copy-safe MCP readiness diagnostics to Home and the authenticated health response, separating listener health, client initialization, advertised tools, active-client visibility, and benign read-only probe evidence.
+
 ### Changed
 
 - Make active agent work easier to notice with a faster, brighter, thicker pulse around the whole tab in horizontal, vertical, pinned, and collapsed layouts.

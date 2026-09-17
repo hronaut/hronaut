@@ -2859,6 +2859,7 @@ export const frFR = {
     "recentlyClosedTabs": "Onglets fermés récemment"
   },
   "home": {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Rubriques de l’accueil", "overview": "Vue d’ensemble", "connect": "Connecter un agent", "tools": "Bibliothèque d’outils"},
     journey: {
       heading: 'Commencez avec votre agent de code',
