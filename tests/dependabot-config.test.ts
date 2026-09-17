@@ -12,18 +12,25 @@ interface DependabotGroup {
 interface DependabotUpdate {
   'package-ecosystem': string
   directory: string
-  schedule: {
+  schedule?: {
     interval: string
     day?: string
     time?: string
     timezone?: string
   }
   'open-pull-requests-limit': number
+  ignore?: Array<{ 'dependency-name': string }>
   groups?: Record<string, DependabotGroup>
+  patterns?: string[]
+  'multi-ecosystem-group'?: string
 }
 
 interface DependabotConfig {
   version: number
+  'multi-ecosystem-groups': Record<
+    string,
+    { schedule: NonNullable<DependabotUpdate['schedule']> }
+  >
   updates: DependabotUpdate[]
 }
 
@@ -36,23 +43,34 @@ describe('Dependabot configuration', () => {
     expect(config.version).toBe(2)
     expect(config.updates.map((update) => update['package-ecosystem'])).toEqual([
       'npm',
+      'npm',
       'docker',
       'github-actions'
     ])
 
     for (const update of config.updates) {
       expect(update.directory).toBe('/')
+      expect(update['open-pull-requests-limit']).toBe(10)
+    }
+
+    for (const update of config.updates.filter((update) => update.schedule)) {
       expect(update.schedule).toMatchObject({
         interval: 'weekly',
         day: 'monday',
         timezone: 'Europe/Kyiv'
       })
-      expect(update['open-pull-requests-limit']).toBe(10)
     }
+
+    expect(config['multi-ecosystem-groups'].playwright.schedule).toEqual({
+      interval: 'weekly',
+      day: 'monday',
+      time: '06:15',
+      timezone: 'Europe/Kyiv'
+    })
   })
 
-  it('groups compatible updates while keeping major upgrades isolated', () => {
-    const npm = config.updates.find((update) => update['package-ecosystem'] === 'npm')
+  it('groups compatible updates and keeps coupled Playwright versions together', () => {
+    const npm = config.updates[0]
     expect(npm?.groups).toEqual({
       'production-minor-patch': {
         'dependency-type': 'production',
@@ -65,14 +83,26 @@ describe('Dependabot configuration', () => {
         'update-types': ['minor', 'patch']
       }
     })
+    expect(npm?.ignore).toEqual([{ 'dependency-name': '@playwright/test' }])
 
-    for (const update of config.updates.slice(1)) {
-      expect(Object.values(update.groups ?? {})).toEqual([
-        {
-          patterns: ['*'],
-          'update-types': ['minor', 'patch']
-        }
-      ])
-    }
+    expect(config.updates.slice(1, 3)).toMatchObject([
+      {
+        'package-ecosystem': 'npm',
+        patterns: ['@playwright/test'],
+        'multi-ecosystem-group': 'playwright'
+      },
+      {
+        'package-ecosystem': 'docker',
+        patterns: ['mcr.microsoft.com/playwright'],
+        'multi-ecosystem-group': 'playwright'
+      }
+    ])
+
+    expect(config.updates[3]?.groups).toEqual({
+      'actions-minor-patch': {
+        patterns: ['*'],
+        'update-types': ['minor', 'patch']
+      }
+    })
   })
 })
