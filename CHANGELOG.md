@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.25] - 2026-09-17
+
 ### Fixed
 
 - Preserve readable regular-file permissions when standard Linux ZIP tools extract the MCPB adapter.
