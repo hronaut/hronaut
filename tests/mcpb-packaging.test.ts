@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -10,18 +11,26 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { Ajv } from 'ajv'
 import formatsPlugin from 'ajv-formats'
 import express from 'express'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { readStoredZipEntries } from '../scripts/zip-archive.js'
 
-const outputDirectory = join(import.meta.dirname, '.mcpb-output')
+const rootDirectory = join(import.meta.dirname, '..')
+let outputDirectory = ''
 
-beforeAll(() => {
+beforeAll(async () => {
+  const cacheDirectory = join(rootDirectory, 'node_modules/.cache')
+  await mkdir(cacheDirectory, { recursive: true })
+  outputDirectory = await mkdtemp(join(cacheDirectory, 'hronaut-mcpb-test-'))
   const result = spawnSync(process.execPath, ['scripts/build-mcpb.ts', outputDirectory], {
-    cwd: join(import.meta.dirname, '..'),
+    cwd: rootDirectory,
     encoding: 'utf8'
   })
   if (result.status !== 0) throw new Error(result.stderr || result.stdout)
+})
+
+afterAll(async () => {
+  if (outputDirectory) await rm(outputDirectory, { recursive: true, force: true })
 })
 
 describe('MCPB release package', () => {
@@ -106,15 +115,49 @@ describe('MCPB release package', () => {
     expect(ajv.validate(registrySchema, metadata), ajv.errorsText()).toBe(true)
   })
 
+  it.skipIf(process.platform !== 'linux')('extracts as readable regular files with a standard Linux ZIP tool', async () => {
+    const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
+    const artifact = join(outputDirectory, `hronaut-mcp-adapter-${packageJson.version}.mcpb`)
+    const extractionDirectory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-extract-'))
+    try {
+      const extraction = spawnSync('unzip', ['-q', artifact, '-d', extractionDirectory], {
+        encoding: 'utf8'
+      })
+      expect(extraction.status, extraction.stderr || extraction.stdout).toBe(0)
+
+      const adapterPath = join(extractionDirectory, 'server/index.mjs')
+      for (const name of ['manifest.json', 'server/index.mjs', 'LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md']) {
+        expect((await stat(join(extractionDirectory, name))).mode & 0o777, name).toBe(0o644)
+      }
+
+      const syntaxCheck = spawnSync(process.execPath, ['--check', adapterPath], { encoding: 'utf8' })
+      expect(syntaxCheck.status, syntaxCheck.stderr || syntaxCheck.stdout).toBe(0)
+    } finally {
+      await rm(extractionDirectory, { recursive: true, force: true })
+    }
+  })
+
   it('initializes and calls a tool through the bundled stdio-to-HTTP adapter', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
-    const artifact = await readFile(join(outputDirectory, `hronaut-mcp-adapter-${packageJson.version}.mcpb`))
-    const adapter = readStoredZipEntries(artifact).find(({ name }) => name === 'server/index.mjs')
-    expect(adapter).toBeDefined()
-    const adapterDirectory = join(outputDirectory, 'bundle with spaces')
-    await mkdir(adapterDirectory, { recursive: true })
-    const adapterPath = join(adapterDirectory, 'adapter smoke.mjs')
-    await writeFile(adapterPath, adapter?.data ?? new Uint8Array())
+    const artifactPath = join(outputDirectory, `hronaut-mcp-adapter-${packageJson.version}.mcpb`)
+    const artifact = await readFile(artifactPath)
+    let extractionDirectory: string | undefined
+    let adapterPath: string
+    if (process.platform === 'linux') {
+      extractionDirectory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-smoke-'))
+      const extraction = spawnSync('unzip', ['-q', artifactPath, '-d', extractionDirectory], {
+        encoding: 'utf8'
+      })
+      expect(extraction.status, extraction.stderr || extraction.stdout).toBe(0)
+      adapterPath = join(extractionDirectory, 'server/index.mjs')
+    } else {
+      const adapter = readStoredZipEntries(artifact).find(({ name }) => name === 'server/index.mjs')
+      expect(adapter).toBeDefined()
+      const adapterDirectory = join(outputDirectory, 'bundle with spaces')
+      await mkdir(adapterDirectory, { recursive: true })
+      adapterPath = join(adapterDirectory, 'adapter smoke.mjs')
+      await writeFile(adapterPath, adapter?.data ?? new Uint8Array())
+    }
 
     const app = express()
     app.use(express.json())
@@ -161,6 +204,7 @@ describe('MCPB release package', () => {
       await client.close()
       if (session) await session.server.close()
       await new Promise<void>((resolve) => httpServer.close(() => resolve()))
+      if (extractionDirectory) await rm(extractionDirectory, { recursive: true, force: true })
     }
   }, 15_000)
 })

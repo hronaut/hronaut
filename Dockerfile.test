@@ -11,6 +11,10 @@ RUN npm ci \
     && ./node_modules/.bin/electron-builder install-app-deps \
     && node scripts/docker-dependency-cache-key.ts package-lock.json > node_modules/.hronaut-package-lock.sha256
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 FROM dependencies AS integration
 
 COPY . .
