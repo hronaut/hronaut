@@ -15,6 +15,18 @@ The fixture demonstrates Hronaut's EIP-6963 discovery and EIP-1193 provider, acc
 | confirmed | An authoritative `eth_getTransactionReceipt` read from the local chain has `status: "0x1"`. |
 | failed | The authoritative receipt has `status: "0x0"`, or Hronaut rejects the request before submission. |
 
+The fixture gives every provider attempt and local receipt read a page-local `request-N` ID. A `request:start` entry records the method, the `provider` or `local-rpc-read` channel, and an allowlisted input summary. It does not record account addresses, transaction hashes, recipient addresses, signing payloads, RPC URLs, raw receipts, or provider error messages. Account events and results contain counts; transaction results say whether a hash was returned; receipt results contain only presence, bounded status, and block-number presence.
+
+Provider evidence then records one of these stages:
+
+- `provider-selection` means the fixture stopped before invoking a provider. `providerInvoked: false` and `walletBehavior: "not-exercised"` are a fixture result, not a wallet pass.
+- `provider-validation` means discovery returned an object without a callable provider request function. It is also a pre-invocation fixture failure, so wallet behavior was not exercised.
+- `provider-invocation` means the JavaScript provider's `request` method was called. Wallet-backend dispatch, approval, broadcast, and confirmation remain `unknown` because the page cannot establish them from that call.
+- `provider-result` or `provider-rejection` records the correlated JavaScript provider outcome without claiming where a rejection originated.
+- `local-receipt-read`, `local-receipt-result`, and `local-receipt-rejection` belong to the independent loopback RPC read. They explicitly record `walletBehavior: "not-exercised"` and cannot be treated as wallet approval evidence.
+
+The automated fixture regression includes a deterministic pre-dispatch control with zero provider calls and a separate stub-provider rejection with exactly one call. Neither uses a real wallet, network, approval, signature, or transaction.
+
 This does not test MetaMask, Coinbase Wallet, Phantom, or TronLink extension UI. Hronaut does not impersonate those products. It also does not establish WalletConnect or Reown compatibility. Keep separate real-extension tests when your supported matrix includes them. Solana and Tron require their own chain-specific fixtures and are outside this EVM first run.
 
 ## 1. Start disposable chains and the fixture
@@ -53,9 +65,9 @@ The fixture cannot import a key, attach a workspace, grant account permission, a
 ## 3. Check discovery, connect, and account changes
 
 1. Click **Discover provider**. The log must show an EIP-6963 announcement with `rdns: "dev.hronaut.wallet"` and `isHronaut: true`.
-2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log error code `4001`, with no account exposed.
-3. Request accounts again and approve. The fixture logs the disposable account and an `accountsChanged` event.
-4. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log `accountsChanged: []`. Unlock if needed, request accounts again, and approve before continuing.
+2. Click **Request accounts**, then reject the trusted Hronaut dialog. The fixture must log a correlated `provider-rejection` with error code `4001`, while wallet dispatch and approval remain `unknown` and no account is exposed.
+3. Request accounts again and approve. The fixture logs the disposable account count and an `accountsChanged` count without recording the address.
+4. In Hronaut Settings, revoke that website permission or lock the vault. The fixture must log an `accountsChanged` count of zero. Unlock if needed, request accounts again, and approve before continuing.
 
 For a real network-change event, start a second disposable node:
 
@@ -73,8 +85,8 @@ Import the same disposable Anvil key as a second Hronaut wallet, select a custom
 Use chain 31337 and the fixture's default recipient.
 
 1. Click **Send 1 wei** and inspect the trusted approval. At this prepared stage, Hronaut has simulated the exact request but the dApp has no hash. Reject it. The fixture must log error `4001`, and the hash field stays empty.
-2. Click **Send 1 wei** again and approve. The returned hash proves only that the transaction was submitted.
-3. Click **Read receipt**. The fixture makes an independent `eth_getTransactionReceipt` call to Anvil. A successful final result has `status: "0x1"`, a block number, and the same transaction hash. Hronaut **Activity** should progress from submitted to confirmed.
+2. Click **Send 1 wei** again and approve. The fixture stores the returned hash in its input but logs only `transactionHashReturned: true` and `transactionState: "submitted"`.
+3. Click **Read receipt**. The fixture makes an independent `eth_getTransactionReceipt` call to Anvil. A successful final summary has `receiptStatus: "confirmed"`, `blockNumberPresent: true`, and the same correlated request ID through the local read stages. Hronaut **Activity** should progress from submitted to confirmed.
 
 The direct readback is authoritative for this test. Do not infer confirmation from the approval dialog closing or from receipt polling alone.
 
@@ -92,7 +104,7 @@ Click **Send 1 wei** and approve. **Read receipt** returns `null`; Hronaut remai
 docker exec hronaut-wallet-anvil cast rpc evm_mine
 ```
 
-The receipt now has `status: "0x1"`, and Hronaut eventually records confirmed. If the RPC is temporarily unavailable, retain the hash and reconcile after restoring the same chain; an unavailable receipt is an unknown outcome, not permission to send again.
+The receipt summary now has `receiptStatus: "confirmed"`, and Hronaut eventually records confirmed. If the RPC is temporarily unavailable, retain the hash and reconcile after restoring the same chain; an unavailable receipt is an unknown outcome, not permission to send again.
 
 ## 6. Check a reverted receipt
 
@@ -104,7 +116,7 @@ docker exec hronaut-wallet-anvil cast rpc anvil_setCode \
 docker exec hronaut-wallet-anvil cast rpc evm_mine
 ```
 
-Read the same hash. The receipt must have `status: "0x0"`; Hronaut **Activity** eventually records failed. The hash still identifies a submission, not a successful transfer.
+Read the same hash. The receipt summary must have `receiptStatus: "failed"`; Hronaut **Activity** eventually records failed. The hash still identifies a submission, not a successful transfer.
 
 Restore automining if you want to continue:
 
