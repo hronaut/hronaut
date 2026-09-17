@@ -61,7 +61,7 @@ describe('Dependabot configuration', () => {
       })
     }
 
-    expect(config['multi-ecosystem-groups'].playwright.schedule).toEqual({
+    expect(config['multi-ecosystem-groups'].playwright?.schedule).toEqual({
       interval: 'weekly',
       day: 'monday',
       time: '06:15',
