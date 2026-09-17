@@ -27,14 +27,26 @@ async function expectOutlinePulses(tab: Locator): Promise<void> {
     const animation = element.getAnimations({ subtree: true }).find(candidate => (candidate as CSSAnimation).animationName === 'tab-agent-pulse')
     if (!animation) throw new Error(`Missing outline pulse: ${getComputedStyle(element, '::before').animation}`)
     animation.pause()
+    const duration = Number(animation.effect!.getTiming().duration)
     animation.currentTime = 0
     const dim = Number(getComputedStyle(element, '::before').opacity)
-    animation.currentTime = Number(animation.effect!.getTiming().duration) / 2
-    const bright = Number(getComputedStyle(element, '::before').opacity)
-    return { dim, bright, tab: getComputedStyle(element).opacity }
+    animation.currentTime = duration / 2
+    const style = getComputedStyle(element, '::before')
+    const bright = Number(style.opacity)
+    return {
+      dim,
+      bright,
+      duration,
+      borderWidth: style.borderTopWidth,
+      glow: style.boxShadow,
+      tab: getComputedStyle(element).opacity
+    }
   })
   expect(opacity.bright - opacity.dim).toBeGreaterThan(.5)
-  expect(opacity.dim).toBeGreaterThan(0)
+  expect(opacity.dim).toBeGreaterThan(.3)
+  expect(opacity.duration).toBeLessThanOrEqual(800)
+  expect(opacity.borderWidth).toBe('2px')
+  expect(opacity.glow).not.toBe('none')
   expect(opacity.tab).toBe('1')
 }
 
