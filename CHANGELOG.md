@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Make active agent work easier to notice with a faster, brighter, thicker pulse around the whole tab in horizontal, vertical, pinned, and collapsed layouts.
+
 ## [2.4.22] - 2026-09-17
 
 ### Added
