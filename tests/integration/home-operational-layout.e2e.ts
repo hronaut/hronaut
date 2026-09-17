@@ -1,22 +1,54 @@
 import { writeFile } from 'node:fs/promises'
+import type { ElectronApplication } from '@playwright/test'
 import { expect, test } from './fixtures.js'
 
+const HOME_READY_TIMEOUT_MS = 20_000
+
+async function homeScript<T>(app: ElectronApplication, script: string): Promise<T> {
+  return app.evaluate(async ({ webContents }, source) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return home.executeJavaScript(source)
+  }, script) as Promise<T>
+}
+
+async function readyHome(app: ElectronApplication): Promise<void> {
+  await expect.poll(
+    () => app.evaluate(({ webContents }) => webContents.getAllWebContents().some(contents => contents.getURL().startsWith('hronaut://home'))),
+    { timeout: HOME_READY_TIMEOUT_MS }
+  ).toBe(true)
+  await expect.poll(
+    () => homeScript(app, 'document.readyState !== "loading"'),
+    { timeout: HOME_READY_TIMEOUT_MS }
+  ).toBe(true)
+}
+
+async function captureHome(app: ElectronApplication): Promise<Buffer> {
+  const png = await app.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    if (!home) throw new Error('Hronaut Home web contents was not found')
+    return (await home.capturePage()).toPNG().toString('base64')
+  })
+  return Buffer.from(png, 'base64')
+}
+
 test('Home keeps its content width and position when switching between short and scrollable tabs', async ({ electronApp }) => {
-  await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
-  const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
-  await expect(home.locator('#home-tab-workspaces')).toBeVisible()
+  await readyHome(electronApp)
+  await expect.poll(() => homeScript(electronApp, 'Boolean(document.getElementById("home-tab-workspaces")?.offsetParent)')).toBe(true)
   for (const width of [1200, 760]) {
     await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)
-    await expect.poll(() => home.evaluate(() => innerWidth)).toBe(width)
-    await home.locator('#home-tab-workspaces').click()
-    const measure = () => home.evaluate(() => {
-      const page = document.querySelector('.page')!.getBoundingClientRect()
-      return { x: page.x, width: page.width, scrollable: document.documentElement.scrollHeight > innerHeight }
-    })
+    await expect.poll(() => homeScript(electronApp, 'innerWidth')).toBe(width)
+    await homeScript(electronApp, 'document.getElementById("home-tab-workspaces").click()')
+    const measure = () => homeScript<{ x: number; width: number; scrollable: boolean }>(electronApp, `(() => {
+      const page = document.querySelector('.page');
+      if (!page) throw new Error('Home page container was not found');
+      const bounds = page.getBoundingClientRect();
+      return { x: bounds.x, width: bounds.width, scrollable: document.documentElement.scrollHeight > innerHeight };
+    })()`)
     const initial = await measure()
     const scrollStates = new Set([initial.scrollable])
     for (const tab of ['connect', 'tools', 'overview', 'workspaces']) {
-      await home.locator(`#home-tab-${tab}`).click()
+      await homeScript(electronApp, `document.getElementById(${JSON.stringify(`home-tab-${tab}`)}).click()`)
       const current = await measure()
       scrollStates.add(current.scrollable)
       expect.soft(current.width, `${width}/${tab}: content width`).toBe(initial.width)
@@ -75,24 +107,32 @@ test('Home keeps client setup accessible in a compact layout across themes and l
 })
 
 test('Home keeps MCP readiness diagnostics readable at desktop and compact widths', async ({ electronApp }, testInfo) => {
-  await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
-  const home = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
-  await home.locator('#home-tab-overview').click()
+  await readyHome(electronApp)
+  await homeScript(electronApp, 'document.getElementById("home-tab-overview").click()')
 
   for (const width of [1200, 760]) {
     await electronApp.evaluate(({ BrowserWindow }, nextWidth) => BrowserWindow.getAllWindows()[0]!.setSize(nextWidth, 900), width)
-    await expect.poll(() => home.evaluate(() => innerWidth)).toBe(width)
-    await expect(home.getByRole('heading', { name: 'MCP readiness' })).toBeVisible()
-    await expect(home.locator('#readiness-tool-inventory')).toBeVisible()
-    await expect(home.locator('#readiness-verify')).toBeVisible()
-    const layout = await home.evaluate(() => ({
-      overflow: document.documentElement.scrollWidth - innerWidth,
-      panelWidth: document.querySelector('.readiness')!.getBoundingClientRect().width,
-      reportWidth: document.querySelector('.readiness-report')!.getBoundingClientRect().width
-    }))
+    await expect.poll(() => homeScript(electronApp, 'innerWidth')).toBe(width)
+    await expect.poll(() => homeScript(electronApp, `(() => {
+      const overview = document.getElementById('home-overview');
+      const heading = [...document.querySelectorAll('h1, h2, h3')].find(node => node.textContent?.trim() === 'MCP readiness');
+      return !overview?.hidden && Boolean(heading?.getBoundingClientRect().height)
+        && Boolean(document.getElementById('readiness-tool-inventory')?.getBoundingClientRect().height)
+        && Boolean(document.getElementById('readiness-verify')?.getBoundingClientRect().height);
+    })()`)).toBe(true)
+    const layout = await homeScript<{ overflow: number; panelWidth: number; reportWidth: number }>(electronApp, `(() => {
+      const panel = document.querySelector('.readiness');
+      const report = document.querySelector('.readiness-report');
+      if (!panel || !report) throw new Error('MCP readiness layout was not found');
+      return {
+        overflow: document.documentElement.scrollWidth - innerWidth,
+        panelWidth: panel.getBoundingClientRect().width,
+        reportWidth: report.getBoundingClientRect().width
+      };
+    })()`)
     expect.soft(layout.overflow).toBeLessThanOrEqual(1)
     expect.soft(layout.panelWidth).toBeGreaterThan(260)
     expect.soft(layout.reportWidth).toBeLessThanOrEqual(layout.panelWidth)
-    await home.screenshot({ path: testInfo.outputPath(`home-readiness-${width}.png`) })
+    await writeFile(testInfo.outputPath(`home-readiness-${width}.png`), await captureHome(electronApp))
   }
 })
