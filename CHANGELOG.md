@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Publish a reproducible local EVM wallet QA quickstart and clarify that the local-wallet preview has been available since Hronaut 2.4.21.
 - Make agent activity easier to spot with a softly blinking outline that follows the tab shape, including pinned tabs and the collapsed sidebar, without taking space from the title. Keep the signal steady with reduced motion and describe it to screen readers.
 
 ### Fixed
