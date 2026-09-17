@@ -1,6 +1,7 @@
 const UTF8_FLAG = 0x0800
 const STORED_METHOD = 0
 const DOS_DATE_1980_01_01 = 0x0021
+const READABLE_REGULAR_FILE_ATTRIBUTES = (0o100644 << 16) >>> 0
 
 const crcTable = Array.from({ length: 256 }, (_, index) => {
   let value = index
@@ -55,7 +56,7 @@ export function createStoredZip(entries: readonly ZipEntry[]): Buffer {
     centralHeader.writeUInt32LE(data.length, 20)
     centralHeader.writeUInt32LE(data.length, 24)
     centralHeader.writeUInt16LE(name.length, 28)
-    centralHeader.writeUInt32LE(0, 38)
+    centralHeader.writeUInt32LE(READABLE_REGULAR_FILE_ATTRIBUTES, 38)
     centralHeader.writeUInt32LE(offset, 42)
     centralParts.push(centralHeader, name)
     offset += localHeader.length + name.length + data.length
