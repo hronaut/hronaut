@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.24] - 2026-09-17
+
 ### Changed
 
 - Correlate local wallet QA attempts across provider selection, JavaScript invocation, rejection, and independent receipt reads while keeping accounts, hashes, signing payloads, raw receipts, provider messages, and RPC URLs out of the fixture log.
