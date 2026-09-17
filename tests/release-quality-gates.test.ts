@@ -302,21 +302,21 @@ describe('release quality gates', () => {
     expect(history).toBeGreaterThan(notes)
     expect(hashes).toBeGreaterThan(history)
     expect(attest).toBeGreaterThan(hashes)
-    expect(publish.indexOf('gh release upload')).toBeGreaterThan(attest)
+    expect(publish.indexOf('node scripts/release-asset-publisher.ts')).toBeGreaterThan(attest)
     expect(publish).toContain('release-assets/release-history.json')
   })
 
-  it('uploads only regular release files when a rerun still has failure diagnostics', async () => {
+  it('reconciles only regular release files before publishing when a rerun still has failure diagnostics', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
     const publish = job(workflow, 'publish-release')
 
+    expect(publish).toContain('timeout-minutes: 90')
     expect(publish).toContain("find release-assets -maxdepth 1 -type f -print0")
-    expect(publish).toContain('node scripts/release-asset-labels.ts "${release_files[@]}"')
-    expect(publish).toContain("mapfile -d '' release_upload_files")
-    expect(publish.match(/gh release upload/gu)).toHaveLength(1)
-    expect(publish).toContain('gh release upload "$TAG" "${release_upload_files[@]}" --repo "$GITHUB_REPOSITORY" --clobber')
+    expect(publish).toContain('node scripts/release-asset-publisher.ts "$TAG" "$GITHUB_REPOSITORY" "${release_files[@]}"')
+    expect(publish).not.toContain('gh release upload "$TAG" "${release_upload_files[@]}"')
+    expect(publish).not.toContain('--clobber')
     expect(publish).not.toContain('gh release upload "$TAG" release-assets/*')
-    expect(publish.indexOf('gh release upload')).toBeLessThan(publish.indexOf('gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false'))
+    expect(publish).not.toContain('gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false')
   })
 
   it('retains bounded Playwright diagnostics when Docker integration fails', async () => {

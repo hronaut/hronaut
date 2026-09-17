@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recover release publication safely from partial or ambiguous GitHub asset uploads by preserving verified files, bounding transient retries, and reconciling every checksum before making the draft public.
+
 ## [2.4.25] - 2026-09-17
 
 ### Fixed
