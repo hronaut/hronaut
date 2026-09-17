@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.23] - 2026-09-17
+
 ### Added
 
 - Add copy-safe MCP readiness diagnostics to Home and the authenticated health response, separating listener health, client initialization, advertised tools, active-client visibility, and benign read-only probe evidence.
