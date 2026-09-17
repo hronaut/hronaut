@@ -2859,6 +2859,7 @@ export const deDE = {
     "recentlyClosedTabs": "Kürzlich geschlossene Tabs"
   },
   "home": {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Startbereiche", "overview": "Übersicht", "connect": "Agent verbinden", "tools": "Werkzeugbibliothek"},
     journey: {
       heading: 'Mit deinem Coding-Agent starten',

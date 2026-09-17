@@ -2,12 +2,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHomePage } from '../src/main/home-page.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
+import { buildMcpReadinessDiagnostic } from '../src/main/mcp/readiness.js'
 
 const state: McpDashboardState = {
   name: 'hronaut', version: '1.11.50', endpoint: 'http://127.0.0.1:47812/mcp',
   startedAt: '2026-09-04T12:00:00.000Z', activeRequests: 0, totalRequests: 0,
   paused: false, status: 'ready', completedToolCalls: 0, clients: [],
-  recentActivity: [], toolMetrics: [], tools: []
+  recentActivity: [], toolMetrics: [], tools: [],
+  readiness: buildMcpReadinessDiagnostic({
+    checkedAt: '2026-09-04T12:00:00.000Z', serverStatus: 'ready',
+    startedAt: '2026-09-04T12:00:00.000Z', advertisedToolNames: [], clients: []
+  })
 }
 
 function mount(bridge: Record<string, unknown> = {}) {
@@ -224,6 +229,38 @@ describe('Home setup journey', () => {
     expect(document.activeElement).toBe(summary)
     home.update({ ...next, tools: [...next.tools, { name: 'browser_click', category: 'Interaction', description: 'Click an element' }] })
     expect(document.querySelector<HTMLDetailsElement>('[data-tool="browser_navigate"]')!.open).toBe(true)
+  })
+})
+
+describe('Home MCP readiness diagnostics', () => {
+  it('extracts only known tool names from pasted client output and copies a safe report', async () => {
+    const copyText = vi.fn().mockResolvedValue(undefined)
+    const tools = [
+      { name: 'browser_status', category: 'Session' as const, description: 'Show status' },
+      { name: 'browser_snapshot', category: 'Inspection' as const, description: 'Inspect page' }
+    ]
+    const readiness = buildMcpReadinessDiagnostic({
+      checkedAt: '2026-09-04T12:00:00.000Z', serverStatus: 'ready',
+      startedAt: '2026-09-04T12:00:00.000Z', advertisedToolNames: tools.map((tool) => tool.name), clients: []
+    })
+    mount({ copyText }).update({ ...state, tools, readiness })
+    const inventory = document.querySelector<HTMLTextAreaElement>('#readiness-tool-inventory')!
+    inventory.value = 'Bearer private-token at https://account.example notbrowser_status browser_snapshot <secret>'
+    button('#readiness-verify').click()
+
+    const reportText = document.querySelector('#readiness-report')!.textContent!
+    const report = JSON.parse(reportText) as McpDashboardState['readiness']
+    expect(report.checks.clientVisibility).toMatchObject({
+      state: 'partial_tool_inventory',
+      evidence: { observedToolCount: 1, missingToolCount: 1, missingTools: ['browser_status'] }
+    })
+    expect(reportText).not.toContain('private-token')
+    expect(reportText).not.toContain('account.example')
+    expect(reportText).not.toContain('<secret>')
+
+    button('[data-copy-target="readiness-report"]').click()
+    await settle()
+    expect(copyText).toHaveBeenCalledWith(reportText)
   })
 })
 

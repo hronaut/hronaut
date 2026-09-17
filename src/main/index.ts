@@ -84,6 +84,7 @@ import {
   type UserAttentionInput,
   type UserAttentionRequest
 } from './mcp/server.js'
+import { buildMcpReadinessDiagnostic } from './mcp/readiness.js'
 import { loadMcpToken, type McpTokenConfiguration } from './mcp-token-store.js'
 import { McpCapabilityProfileStore } from './mcp/capability-profile-store.js'
 import { AuditReceiptService } from './mcp/audit-receipt-service.js'
@@ -1160,7 +1161,9 @@ function applyLanguagePreferenceRuntime(preference: LanguagePreference): void {
 
 function homeDashboardState(): McpDashboardState & { presentationRevision: number; theme: ResolvedThemeName } {
   const serverState = mcpServer?.getDashboardState()
-  return {
+  const tools = mcpToolCatalogForSet(settings.mcpToolSet)
+  const status = currentMcpControlState().status
+  const state = {
     ...(serverState ?? {
       name: 'hronaut',
       version: app.getVersion(),
@@ -1175,14 +1178,33 @@ function homeDashboardState(): McpDashboardState & { presentationRevision: numbe
       recentActivity: [],
       toolMetrics: [],
       outcomeTotals: {},
-      tools: mcpToolCatalogForSet(settings.mcpToolSet)
+      tools,
+      readiness: buildMcpReadinessDiagnostic({
+        checkedAt: new Date().toISOString(),
+        serverStatus: status,
+        serverError: mcpStartupError,
+        startedAt: null,
+        advertisedToolNames: tools.map((tool) => tool.name),
+        clients: []
+      })
     }),
     endpoint: mcpUrl,
-    tools: mcpToolCatalogForSet(settings.mcpToolSet),
+    tools,
     presentationRevision: homePresentationRevision,
     theme: resolvedTheme(settings.theme),
-    status: currentMcpControlState().status,
+    status,
     ...(mcpStartupError ? { error: mcpStartupError } : {})
+  }
+  return {
+    ...state,
+    readiness: buildMcpReadinessDiagnostic({
+      checkedAt: new Date().toISOString(),
+      serverStatus: status,
+      serverError: mcpStartupError,
+      startedAt: state.startedAt,
+      advertisedToolNames: tools.map((tool) => tool.name),
+      clients: state.clients
+    })
   }
 }
 

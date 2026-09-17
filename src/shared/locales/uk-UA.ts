@@ -531,6 +531,7 @@ export const ukUA = {
   panelDocks: { responsive: 'Розташування адаптивного перегляду', network: 'Розташування монітора мережі', issues: 'Розташування проблем браузера' },
   accessibility: { recentlyClosedTabs: 'Нещодавно закриті вкладки' },
   home: {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Розділи головної", "overview": "Огляд", "connect": "Підключити агента", "tools": "Бібліотека інструментів"},
     journey: {
       heading: 'Почніть зі свого агента',

@@ -23,6 +23,10 @@ import type { TaskRunService } from './task-run-service.js'
 import type { TaskRunCheckDefinition } from './task-run-store.js'
 import { taskReviewMetrics } from './task-review-metrics.js'
 import {
+  buildMcpReadinessDiagnostic,
+  type McpReadinessDiagnostic
+} from './readiness.js'
+import {
   MCP_CAPABILITY_OPERATION_CLASSES,
   McpCapabilityAuthorizationError,
   mcpCapabilityArgumentValueDigest,
@@ -288,6 +292,13 @@ export interface McpClientActivity {
   lastSeenAt: string
   requestCount: number
   activeRequests: number
+  initializedAt?: string
+  toolsListedAt?: string
+  readinessProbe?: {
+    toolName: 'browser_status' | 'browser_snapshot'
+    outcome: 'verified' | 'failed'
+    completedAt: string
+  }
   capabilityProfileId?: string
   capabilityProfileRevision?: number
   capabilityCredentialId?: string
@@ -309,6 +320,7 @@ export interface McpDashboardState {
   toolMetrics: McpToolMetric[]
   outcomeTotals?: Partial<Record<import('../../shared/types.js').McpActivityOutcome, number>>
   tools: BrowserToolDefinition[]
+  readiness: McpReadinessDiagnostic
 }
 
 interface McpTransportSession {
@@ -1291,6 +1303,10 @@ function createBrowserMcpServer(
     } as never, (async (...args: unknown[]) => {
       const input = args[0] && typeof args[0] === 'object' && !Array.isArray(args[0])
         ? args[0] as Record<string, unknown> : {}
+      const recordReadinessProbe = (outcome: 'verified' | 'failed'): void => {
+        if (name !== 'browser_status' && name !== 'browser_snapshot') return
+        client.readinessProbe = { toolName: name, outcome, completedAt: new Date().toISOString() }
+      }
       try {
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
@@ -1316,6 +1332,7 @@ function createBrowserMcpServer(
           }
           return { ...textResult(outcome), structuredContent: outcome, isError: true }
         }
+        recordReadinessProbe(result.isError ? 'failed' : 'verified')
         return result
       } catch (error) {
         if (error instanceof McpCapabilityAuthorizationError && humanWaiting
@@ -1325,6 +1342,7 @@ function createBrowserMcpServer(
             await humanWaiting.invalidateApprovedReview(input.workspaceId, input.reviewId, input.reviewRevision)
           } catch { /* A missing, stale, or already invalidated review does not change the capability denial. */ }
         }
+        recordReadinessProbe('failed')
         return errorResult(error)
       }
     }) as never)
@@ -4173,6 +4191,15 @@ export class McpHttpServer {
   }
 
   getDashboardState(): McpDashboardState {
+    const tools = mcpToolCatalogForSet(this.toolSet)
+    const clients = [...this.clients.values()]
+      .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))
+      .slice(0, 12)
+      .map((client) => ({
+        ...client,
+        ...(client.readinessProbe ? { readinessProbe: { ...client.readinessProbe } } : {})
+      }))
+    const status = this.startedAt ? (this.paused ? 'paused' : 'ready') : 'starting'
     return {
       name: 'hronaut',
       version: this.options.version,
@@ -4181,13 +4208,17 @@ export class McpHttpServer {
       activeRequests: this.activeRequests,
       totalRequests: this.totalRequests,
       paused: this.paused,
-      status: this.startedAt ? (this.paused ? 'paused' : 'ready') : 'starting',
+      status,
       ...this.actionTracker.activityHistory.snapshot(),
-      clients: [...this.clients.values()]
-        .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))
-        .slice(0, 12)
-        .map((client) => ({ ...client })),
-      tools: mcpToolCatalogForSet(this.toolSet)
+      clients,
+      tools,
+      readiness: buildMcpReadinessDiagnostic({
+        checkedAt: new Date().toISOString(),
+        serverStatus: status,
+        startedAt: this.startedAt,
+        advertisedToolNames: tools.map((tool) => tool.name),
+        clients
+      })
     }
   }
 
@@ -4225,7 +4256,10 @@ export class McpHttpServer {
       next()
     })
     app.use(express.json({ limit: '2mb' }))
-    app.get('/healthz', (_request, response) => response.json({ ok: true, name: 'hronaut', paused: this.paused }))
+    app.get('/healthz', (_request, response) => {
+      const dashboard = this.getDashboardState()
+      response.json({ ok: true, name: 'hronaut', paused: this.paused, readiness: dashboard.readiness })
+    })
     app.all('/mcp', async (request: Request, response: Response) => {
       if (request.method !== 'POST' && request.method !== 'GET' && request.method !== 'DELETE') {
         response.status(405).set('Allow', 'POST, GET, DELETE').json({ error: 'Unsupported MCP transport method' })
@@ -4297,6 +4331,7 @@ export class McpHttpServer {
             sessionIdGenerator: randomUUID,
             enableJsonResponse: true,
             onsessioninitialized: async (sessionId) => {
+              client.initializedAt = new Date().toISOString()
               const previousClientId = client.id
               if (this.clients.get(previousClientId) === client) this.clients.delete(previousClientId)
               client.id = sessionId
@@ -4447,6 +4482,7 @@ export class McpHttpServer {
     client.name = name
     client.version = version ?? client.version
     client.lastSeenAt = now
+    if (body.method === 'tools/list') client.toolsListedAt = now
     client.requestCount += 1
     client.activeRequests += 1
     if (authorization.kind === 'capability-profile') {

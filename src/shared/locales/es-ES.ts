@@ -2859,6 +2859,7 @@ export const esES = {
     "recentlyClosedTabs": "Pestañas cerradas recientemente"
   },
   "home": {
+    readiness: enUS.home.readiness,
     "navigation": {"label": "Secciones de inicio", "overview": "Resumen", "connect": "Conectar un agente", "tools": "Biblioteca de herramientas"},
     journey: {
       heading: 'Empieza con tu agente de código',

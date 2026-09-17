@@ -550,13 +550,31 @@ export function renderHomePage(options: HomePageOptions): string {
         </div>
 
       </div>
-    </section>      <section class="panel" aria-labelledby="connections-title">
+    </section>      <div class="overview-side">
+      <section class="panel readiness" aria-labelledby="readiness-title">
+        <header class="panel-heading">
+          <div><h2 id="readiness-title">${escapeHtml(home.readiness.heading)}</h2><p>${escapeHtml(home.readiness.description)}</p></div>
+        </header>
+        <div class="readiness-body">
+          <div id="readiness-checks" class="readiness-checks"></div>
+          <label class="readiness-inventory" for="readiness-tool-inventory">${escapeHtml(home.readiness.inventory)}</label>
+          <textarea id="readiness-tool-inventory" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${escapeHtml(home.readiness.inventoryPlaceholder)}"></textarea>
+          <div class="readiness-actions">
+            <button id="readiness-verify" class="copy-button" type="button">${escapeHtml(home.readiness.verifyInventory)}</button>
+            <button class="copy-button" type="button" data-copy-target="readiness-report">${escapeHtml(home.readiness.copyReport)}</button>
+          </div>
+          <pre class="readiness-report" tabindex="0" aria-label="${escapeHtml(home.readiness.reportLabel)}"><code id="readiness-report"></code></pre>
+          <p class="privacy-note">${escapeHtml(home.readiness.privacy)}</p>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="connections-title">
         <header class="panel-heading">
           <div><h2 id="connections-title">${escapeHtml(home.connections.heading)}</h2><p>${escapeHtml(home.connections.description)}</p></div>
           <span id="client-count" class="count">${escapeHtml(home.counts.clientsOther.replace('{count}', '0'))}</span>
         </header>
         <div id="connections" class="connections-body"></div>
-      </section>      </div>
+      </section>
+    </div>      </div>
     </section>
 
     <section id="home-tools" class="home-view" role="tabpanel" aria-labelledby="home-tab-tools" tabindex="0" hidden>
@@ -790,6 +808,42 @@ export function renderHomePage(options: HomePageOptions): string {
       });
     }
 
+    let observedClientTools = null;
+    function readinessWithClientEvidence(report) {
+      if (!report || observedClientTools === null) return report;
+      const advertised = [...new Set(dashboard.tools.map(tool => tool.name).filter(name => /^(?:browser|wallet)_[a-z0-9_]{1,80}$/.test(name)))].sort();
+      const observed = new Set(observedClientTools);
+      const observedToolCount = advertised.filter(name => observed.has(name)).length;
+      const missing = advertised.filter(name => !observed.has(name));
+      const complete = advertised.length > 0 && missing.length === 0;
+      return {
+        ...report,
+        checks: {
+          ...report.checks,
+          clientVisibility: {
+            state: complete ? 'client_tools_verified' : 'partial_tool_inventory',
+            nextAction: complete ? 'none' : 'list_tools_in_active_client',
+            evidence: {
+              observedToolCount,
+              missingToolCount: missing.length,
+              ...(missing.length ? { missingTools: missing.slice(0, 12) } : {})
+            }
+          }
+        }
+      };
+    }
+
+    function renderReadiness() {
+      const report = readinessWithClientEvidence(dashboard.readiness);
+      if (!report) return;
+      const labels = messages.readiness.checks;
+      const actions = messages.readiness.nextAction;
+      document.getElementById('readiness-checks').innerHTML = Object.entries(report.checks).map(([name, check]) =>
+        '<div class="readiness-check"><div><strong>' + escapeText(labels[name] || name) + '</strong><span>' + escapeText(actions[check.nextAction] || check.nextAction) + '</span></div><code class="readiness-state ' + escapeText(check.state) + '">' + escapeText(check.state) + '</code></div>'
+      ).join('');
+      document.getElementById('readiness-report').textContent = JSON.stringify(report, null, 2);
+    }
+
     function renderDashboard() {
       document.documentElement.dataset.theme = dashboard.theme === 'cyberpunk-turbo' ? 'cyberpunk-turbo' : '';
       const active = dashboard.activeRequests;
@@ -814,6 +868,7 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('completed-count').textContent = new Intl.NumberFormat(locale).format(completed);
       document.getElementById('tool-types-count').textContent = new Intl.NumberFormat(locale).format((dashboard.toolMetrics || []).length);
       document.getElementById('success-rate').textContent = successRate;
+      renderReadiness();
       const supportKicker = document.getElementById('support-kicker');
       supportKicker.textContent = successful > 0 ? messages.support.activeKicker : messages.support.kicker;
       document.getElementById('support-heading').textContent = successful
@@ -1021,6 +1076,14 @@ export function renderHomePage(options: HomePageOptions): string {
       document.getElementById('agent-empty').hidden = visible > 0;
     });
     document.getElementById('tool-search').addEventListener('input', renderTools);
+    document.getElementById('readiness-verify').addEventListener('click', () => {
+      const value = document.getElementById('readiness-tool-inventory').value;
+      observedClientTools = [...new Set(Array.from(
+        value.matchAll(/(?:^|[^a-z0-9_])((?:browser|wallet)_[a-z0-9_]{1,80})(?=$|[^a-z0-9_])/g),
+        match => match[1]
+      ))];
+      renderReadiness();
+    });
     renderGuide();
     revealSelectedGuide();
     renderDashboard();

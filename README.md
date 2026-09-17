@@ -189,6 +189,8 @@ The public [setup guide](https://hronaut.dev/setup) provides tested commands for
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
+Hronaut Home includes a copy-safe readiness report that distinguishes the local listener, MCP initialization, the catalog Hronaut advertises, tools actually visible in the active client, and a successful `browser_status` or `browser_snapshot` probe in a task-owned workspace. A healthy endpoint or valid configuration alone does not prove that a custom-agent host exposed the tools to the current task. Tool-list comparison runs locally, and copied diagnostics omit tokens, client/session identifiers, raw errors, arguments, URLs, and page content. Hronaut remains loopback-only.
+
 ### Install the Hronaut Agent Skill
 
 Skill-aware coding agents can install Hronaut's portable workflow guidance directly from this repository:
