@@ -17,6 +17,7 @@
 <body>
   <h1>Hronaut local wallet QA</h1>
   <p>This fixture uses the injected EIP-1193 provider for wallet operations and direct local JSON-RPC only for authoritative readback.</p>
+  <p>Its event log correlates each attempt without recording account addresses, transaction hashes, signing payloads, provider error messages, or RPC URLs. A JavaScript provider call leaves wallet dispatch, approval, broadcast, and confirmation unknown until stronger evidence exists.</p>
 
   <section>
     <h2>Provider and session</h2>
@@ -46,45 +47,161 @@
     const statusNode = document.querySelector('#status')
     const hashInput = document.querySelector('#hash')
     const providers = []
+    let nextRequestId = 1
 
     const log = (kind, value) => {
       const rendered = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
       logNode.textContent = `${new Date().toISOString()} ${kind}\n${rendered}\n\n${logNode.textContent}`
       statusNode.textContent = kind
     }
-    const fail = (error) => log('error', { code: error?.code, message: error?.message ?? String(error) })
+    const errorEvidence = (error, category) => {
+      const code = typeof error?.code === 'number' && Number.isFinite(error.code)
+        ? error.code
+        : typeof error?.code === 'string' && /^[a-z0-9_.-]{1,32}$/i.test(error.code)
+          ? error.code
+          : undefined
+      return { category, ...(code === undefined ? {} : { code }) }
+    }
+    const fixtureFailure = (stage, error) => log('fixture:error', {
+      stage,
+      walletBehavior: 'not-exercised',
+      error: errorEvidence(error, 'fixture-error')
+    })
     const selectedProvider = () => {
       provider ??= providers.find(entry => entry.info?.rdns === 'dev.hronaut.wallet')?.provider
         ?? window.hronautEthereum
       if (!provider) throw new Error('Hronaut EVM provider was not discovered')
       return provider
     }
+    const providerUnknowns = {
+      walletBackendDispatch: 'unknown',
+      approval: 'unknown',
+      broadcast: 'unknown',
+      confirmation: 'unknown'
+    }
+    const parameterSummary = (method, params) => {
+      if (!params) return 'none'
+      if (method === 'wallet_switchEthereumChain') {
+        const chainId = params[0]?.chainId
+        return { chainId: typeof chainId === 'string' && chainId.length <= 18 && /^0x[0-9a-f]+$/i.test(chainId) ? chainId : 'invalid' }
+      }
+      if (method === 'eth_sendTransaction') {
+        return {
+          transactionCount: Array.isArray(params) ? params.length : 0,
+          recipient: 'configured-synthetic-input',
+          value: params[0]?.value === '0x1' ? '1 wei' : 'other'
+        }
+      }
+      return 'omitted'
+    }
+    const resultSummary = (method, result) => {
+      if (method === 'eth_accounts' || method === 'eth_requestAccounts') {
+        return { accountCount: Array.isArray(result) ? result.length : 0 }
+      }
+      if (method === 'eth_chainId') {
+        return { chainId: typeof result === 'string' && result.length <= 18 && /^0x[0-9a-f]+$/i.test(result) ? result : 'unknown' }
+      }
+      if (method === 'wallet_switchEthereumChain') return { accepted: result == null }
+      if (method === 'eth_sendTransaction') {
+        return {
+          transactionHashReturned: typeof result === 'string',
+          transactionState: typeof result === 'string' ? 'submitted' : 'unknown'
+        }
+      }
+      return { resultType: result == null ? 'null' : typeof result }
+    }
+    const beginRequest = (method, channel, summary) => {
+      const requestId = `request-${nextRequestId++}`
+      log('request:start', { requestId, method, channel, parameterSummary: summary })
+      return requestId
+    }
     const request = async (method, params) => {
+      const requestId = beginRequest(method, 'provider', parameterSummary(method, params))
+      let current
       try {
-        const result = await selectedProvider().request({ method, ...(params ? { params } : {}) })
-        log(method, result)
+        current = selectedProvider()
+      } catch (error) {
+        log('request:error', {
+          requestId,
+          method,
+          stage: 'provider-selection',
+          providerInvoked: false,
+          walletBehavior: 'not-exercised',
+          error: errorEvidence(error, 'provider-unavailable')
+        })
+        return
+      }
+      if (typeof current?.request !== 'function') {
+        log('request:error', {
+          requestId,
+          method,
+          stage: 'provider-validation',
+          providerInvoked: false,
+          walletBehavior: 'not-exercised',
+          error: { category: 'provider-invalid' }
+        })
+        return
+      }
+      log('request:provider-invocation', {
+        requestId,
+        method,
+        stage: 'provider-invocation',
+        providerInvoked: true,
+        ...providerUnknowns
+      })
+      try {
+        const result = await current.request({ method, ...(params ? { params } : {}) })
+        log('request:result', {
+          requestId,
+          method,
+          stage: 'provider-result',
+          providerInvoked: true,
+          ...providerUnknowns,
+          result: resultSummary(method, result)
+        })
         return result
       } catch (error) {
-        fail(error)
+        log('request:error', {
+          requestId,
+          method,
+          stage: 'provider-rejection',
+          providerInvoked: true,
+          ...providerUnknowns,
+          error: errorEvidence(error, 'provider-error')
+        })
       }
     }
     const attachEvents = () => {
       const current = selectedProvider()
-      current.on('accountsChanged', accounts => log('accountsChanged', accounts))
-      current.on('chainChanged', chainId => log('chainChanged', chainId))
+      current.on('accountsChanged', accounts => log('accountsChanged', {
+        accountCount: Array.isArray(accounts) ? accounts.length : 0
+      }))
+      current.on('chainChanged', chainId => log('chainChanged', {
+        chainId: typeof chainId === 'string' && chainId.length <= 18 && /^0x[0-9a-f]+$/i.test(chainId)
+          ? chainId
+          : 'unknown'
+      }))
     }
 
     window.addEventListener('eip6963:announceProvider', event => {
       providers.push(event.detail)
-      log('eip6963:announceProvider', event.detail.info)
+      log('eip6963:announceProvider', {
+        discoveredProviderCount: providers.length,
+        isHronaut: event.detail.info?.rdns === 'dev.hronaut.wallet',
+        ...(event.detail.info?.rdns === 'dev.hronaut.wallet' ? { rdns: 'dev.hronaut.wallet' } : {})
+      })
     })
     window.dispatchEvent(new Event('eip6963:requestProvider'))
 
     document.querySelector('#discover').addEventListener('click', () => {
       try {
         attachEvents()
-        log('provider', { isHronaut: selectedProvider().isHronaut === true, announced: providers.map(entry => entry.info) })
-      } catch (error) { fail(error) }
+        log('provider', {
+          isHronaut: selectedProvider().isHronaut === true,
+          discoveredProviderCount: providers.length,
+          hronautProviderCount: providers.filter(entry => entry.info?.rdns === 'dev.hronaut.wallet').length
+        })
+      } catch (error) { fixtureFailure('provider-selection', error) }
     })
     document.querySelector('#connect').addEventListener('click', () => request('eth_requestAccounts'))
     document.querySelector('#accounts').addEventListener('click', () => request('eth_accounts'))
@@ -103,16 +220,54 @@
       if (typeof hash === 'string') hashInput.value = hash
     })
     document.querySelector('#receipt').addEventListener('click', async () => {
+      const method = 'eth_getTransactionReceipt'
+      const requestId = beginRequest(method, 'local-rpc-read', {
+        transactionHash: hashInput.value.trim() ? 'configured-input' : 'missing'
+      })
+      let localReadInvoked = false
       try {
-        const response = await fetch(document.querySelector('#rpc').value.trim(), {
+        const rpcUrl = new URL(document.querySelector('#rpc').value.trim())
+        if (rpcUrl.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(rpcUrl.hostname)) {
+          throw new Error('Receipt read requires a loopback HTTP endpoint')
+        }
+        localReadInvoked = true
+        log('request:local-read', {
+          requestId,
+          method,
+          stage: 'local-receipt-read',
+          localReadInvoked,
+          walletBehavior: 'not-exercised'
+        })
+        const response = await fetch(rpcUrl.href, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_getTransactionReceipt', params: [hashInput.value.trim()] })
+          body: JSON.stringify({ jsonrpc: '2.0', id: requestId, method, params: [hashInput.value.trim()] })
         })
         const payload = await response.json()
         if (!response.ok || payload.error) throw new Error(payload.error?.message ?? `RPC returned ${response.status}`)
-        log('eth_getTransactionReceipt', payload.result)
-      } catch (error) { fail(error) }
+        const receipt = payload.result
+        log('request:result', {
+          requestId,
+          method,
+          stage: 'local-receipt-result',
+          localReadInvoked,
+          walletBehavior: 'not-exercised',
+          result: {
+            receiptFound: receipt != null,
+            receiptStatus: receipt?.status === '0x1' ? 'confirmed' : receipt?.status === '0x0' ? 'failed' : receipt == null ? 'pending' : 'unknown',
+            blockNumberPresent: typeof receipt?.blockNumber === 'string'
+          }
+        })
+      } catch (error) {
+        log('request:error', {
+          requestId,
+          method,
+          stage: localReadInvoked ? 'local-receipt-rejection' : 'local-read-validation',
+          localReadInvoked,
+          walletBehavior: 'not-exercised',
+          error: errorEvidence(error, 'local-read-error')
+        })
+      }
     })
   </script>
 </body>
