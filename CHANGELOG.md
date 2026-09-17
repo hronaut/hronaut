@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.22] - 2026-09-17
+
 ### Added
 
 - Add clean, origin-scoped `public-observer` workspaces that block page mutation tools for independent logged-out checks.
