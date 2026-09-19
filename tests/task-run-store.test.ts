@@ -11,6 +11,7 @@ function clock() {
     monotonicNow: () => monotonic,
     wallNow: () => wall,
     advance(milliseconds: number) { monotonic += milliseconds; wall += milliseconds },
+    rollbackWall(milliseconds: number) { wall -= milliseconds },
     rollback() { monotonic -= 1; wall -= 1 }
   }
 }
@@ -139,6 +140,23 @@ describe('bounded browser task-run contracts', () => {
     const run = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: [] })
     time.rollback()
     expect(store.get(run.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'CLOCK_INVALID' })
+    expect(() => store.snapshot()).not.toThrow()
+  })
+
+  it('keeps heartbeat timestamps persistable when only the wall clock moves backward', () => {
+    const time = clock()
+    const store = new TaskRunStore({ monotonicNow: time.monotonicNow, wallNow: time.wallNow })
+    const run = store.create({ workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: [] })
+    time.advance(1_000)
+    time.rollbackWall(20_000)
+
+    const heartbeat = store.heartbeat(run.id, run.revision)
+    expect(heartbeat).toMatchObject({
+      state: 'RUNNING',
+      updatedAt: run.createdAt + 1_000,
+      heartbeatDueAt: run.createdAt + 11_000
+    })
+    expect(() => store.snapshot()).not.toThrow()
   })
 
   it('does not partially mutate a heartbeat or outcome when the wall clock is invalid', () => {
