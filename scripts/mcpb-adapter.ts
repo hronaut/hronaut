@@ -1,10 +1,13 @@
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
+import { open } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:47812/mcp'
 const MAX_STDIO_BUFFER_BYTES = 10 * 1024 * 1024
+const MAX_TOKEN_FILE_BYTES = 1024
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,1024}$/u
 
 export interface MessageTransport {
   onclose?: () => void
@@ -71,6 +74,33 @@ export function createRestrictedFetch(endpoint: URL, fetcher: typeof fetch = glo
   }
 }
 
+export async function resolveAuthenticationToken(environment: NodeJS.ProcessEnv): Promise<string | undefined> {
+  const configuredToken = environment.HRONAUT_MCP_TOKEN?.trim()
+  if (configuredToken) {
+    if (!TOKEN_PATTERN.test(configuredToken)) throw new Error('Hronaut MCP token is invalid.')
+    return configuredToken
+  }
+
+  const tokenFile = environment.HRONAUT_MCP_TOKEN_FILE?.trim()
+  if (!tokenFile) return undefined
+
+  let handle
+  try {
+    handle = await open(tokenFile, 'r')
+    const metadata = await handle.stat()
+    if (!metadata.isFile() || metadata.size > MAX_TOKEN_FILE_BYTES) {
+      throw new Error('invalid token file')
+    }
+    const token = (await handle.readFile('utf8')).trim()
+    if (!TOKEN_PATTERN.test(token)) throw new Error('invalid token')
+    return token
+  } catch {
+    throw new Error('Hronaut MCP token file is invalid.')
+  } finally {
+    await handle?.close().catch(() => undefined)
+  }
+}
+
 export async function bridgeTransports(
   downstream: MessageTransport,
   upstream: MessageTransport,
@@ -115,7 +145,7 @@ export async function bridgeTransports(
 
 export async function runAdapter(environment: NodeJS.ProcessEnv = process.env): Promise<void> {
   const endpoint = parseLoopbackEndpoint(environment.HRONAUT_MCP_URL)
-  const token = environment.HRONAUT_MCP_TOKEN?.trim()
+  const token = await resolveAuthenticationToken(environment)
   const requestInit = token ? { headers: { authorization: `Bearer ${token}` } } : undefined
   const downstream = new StdioServerTransport(process.stdin, process.stdout, {
     maxBufferSize: MAX_STDIO_BUFFER_BYTES
@@ -125,7 +155,7 @@ export async function runAdapter(environment: NodeJS.ProcessEnv = process.env): 
     ...(requestInit ? { requestInit } : {})
   })
   const close = await bridgeTransports(downstream, upstream, () => {
-    process.stderr.write('Hronaut MCP adapter connection failed. Check that Hronaut is running and the endpoint and token match Hronaut Home.\n')
+    process.stderr.write('Hronaut MCP adapter connection failed. Check that Hronaut is running and the endpoint and token file match Hronaut Home.\n')
   })
   process.once('SIGINT', () => void close())
   process.once('SIGTERM', () => void close())
