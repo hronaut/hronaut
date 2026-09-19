@@ -1,7 +1,16 @@
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { Locator } from '@playwright/test'
 import type { AppUpdateState, HronautApi } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { expect, test as base } from './fixtures.js'
+
+const test = base.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    // This test injects update states; the automatic check would overwrite them.
+    await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({ checkForUpdatesOnStartup: false }))
+    await use(profileDirectory)
+  }
+})
 
 async function uncovered(control: Locator): Promise<void> {
   await expect.poll(() => control.evaluate(element => {
@@ -37,7 +46,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
       await electronApp.evaluate(({ BrowserWindow, app }) => BrowserWindow.getAllWindows()[0]!.webContents.send('updates:changed', {
         status: 'available', currentVersion: app.getVersion(), availableVersion: '99.0.0'
       } satisfies AppUpdateState))
-      await expect(appWindow.locator('.update-status-pill')).toBeVisible()
+      await expect(appWindow.locator('.update-status-pill')).toHaveClass(/available/)
       const capture = async (name: string): Promise<void> => {
         await appWindow.evaluate(() => Promise.all(document.getAnimations().filter(animation => animation.effect?.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => undefined))))
         const image = await electronApp.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0]!.capturePage()).toPNG().toString('base64'))
