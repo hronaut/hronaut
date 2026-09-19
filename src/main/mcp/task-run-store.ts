@@ -161,7 +161,11 @@ export class TaskRunStore {
     const monotonic = this.lastMonotonic!
     const remaining = Math.max(0, entry.deadlineMonotonic - monotonic)
     const extension = Math.min(entry.record.heartbeatTimeoutMs, remaining)
-    const wall = this.checkedWall()
+    this.checkedWall()
+    // Derive durable wall timestamps from the monotonic deadline established at
+    // admission. A system-clock correction must not make the persisted heartbeat
+    // precede its run or corrupt the entire task-run snapshot.
+    const wall = Math.round(entry.record.deadlineAt - remaining)
     entry.heartbeatDueMonotonic = monotonic + extension
     entry.record.heartbeatDueAt = Math.min(entry.record.deadlineAt, wall + extension)
     this.touch(entry.record, wall)
@@ -311,7 +315,7 @@ export class TaskRunStore {
 
   private touch(record: StoredRecord, wall = this.checkedWall()): void {
     record.revision = randomUUID()
-    record.updatedAt = wall
+    record.updatedAt = Math.max(record.createdAt, record.updatedAt, wall)
   }
 
   private transition(record: StoredRecord, state: Exclude<TaskRunState, 'RUNNING'>,
