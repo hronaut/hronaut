@@ -154,6 +154,14 @@ export const enUS = {
       label: 'Hide in tray when closing',
       description: 'Keep Hronaut and its MCP server running after the window is closed.'
     },
+    launchAtStartup: {
+      label: 'Launch Hronaut when you sign in',
+      description: 'Start Hronaut automatically after you sign in to your computer.'
+    },
+    launchMinimized: {
+      label: 'Launch minimized',
+      description: 'Keep the window hidden in the tray when Hronaut starts automatically.'
+    },
     playAttentionSound: {
       label: 'Play attention sound',
       description: 'Play a warning cue when an agent needs you to complete a manual browser step.'

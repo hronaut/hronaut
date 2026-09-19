@@ -45,6 +45,8 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
+      launchAtStartup: false,
+      launchMinimized: false,
       attentionSound: true,
       attentionSoundCue: 'warning',
       followAgentActivity: false,

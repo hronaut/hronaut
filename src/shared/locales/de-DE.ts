@@ -252,6 +252,14 @@ export const deDE = {
       "label": "Beim Schließen in den Infobereich",
       "description": "Hronaut und den MCP-Server nach dem Schließen des Fensters weiter ausführen."
     },
+    "launchAtStartup": {
+      "label": "Hronaut bei der Anmeldung starten",
+      "description": "Hronaut nach der Anmeldung am Computer automatisch starten."
+    },
+    "launchMinimized": {
+      "label": "Minimiert starten",
+      "description": "Das Fenster beim automatischen Start im Infobereich verborgen lassen."
+    },
     "playAttentionSound": {
       "label": "Hinweiston wiedergeben",
       "description": "Einen Warnton abspielen, wenn ein Agent einen manuellen Browserschritt benötigt."

@@ -64,7 +64,8 @@ interface HronautFixtures {
 export async function launchHronaut(
   profileDirectory: string,
   mcpPort?: number,
-  interfaceScale = 1
+  interfaceScale = 1,
+  appArguments: string[] = []
 ): Promise<HronautInstance> {
   const settingsPath = join(profileDirectory, 'settings.json')
   try {
@@ -79,7 +80,11 @@ export async function launchHronaut(
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT
   else environment.HRONAUT_MCP_PORT = String(mcpPort)
   const app = await electron.launch({
-    args: ['.', ...(process.env.HRONAUT_TEST_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])],
+    args: [
+      '.',
+      ...appArguments,
+      ...(process.env.HRONAUT_TEST_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])
+    ],
     cwd: repositoryRoot,
     env: {
       ...environment,

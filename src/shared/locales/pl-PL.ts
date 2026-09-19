@@ -252,6 +252,14 @@ export const plPL = {
       "label": "Ukrywaj w zasobniku po zamknięciu",
       "description": "Pozostaw Hronaut i serwer MCP uruchomione po zamknięciu okna."
     },
+    "launchAtStartup": {
+      "label": "Uruchamiaj Hronaut po zalogowaniu",
+      "description": "Automatycznie uruchamiaj Hronaut po zalogowaniu się do komputera."
+    },
+    "launchMinimized": {
+      "label": "Uruchamiaj zminimalizowany",
+      "description": "Ukryj okno w zasobniku, gdy Hronaut uruchamia się automatycznie."
+    },
     "playAttentionSound": {
       "label": "Odtwarzaj dźwięk uwagi",
       "description": "Odtwórz ostrzeżenie, gdy agent wymaga ręcznego kroku w przeglądarce."

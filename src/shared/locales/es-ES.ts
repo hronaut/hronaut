@@ -252,6 +252,14 @@ export const esES = {
       "label": "Ocultar en la bandeja al cerrar",
       "description": "Mantener Hronaut y su servidor MCP activos después de cerrar la ventana."
     },
+    "launchAtStartup": {
+      "label": "Iniciar Hronaut al acceder",
+      "description": "Iniciar Hronaut automáticamente después de acceder al equipo."
+    },
+    "launchMinimized": {
+      "label": "Iniciar minimizado",
+      "description": "Mantener la ventana oculta en la bandeja cuando Hronaut se inicia automáticamente."
+    },
     "playAttentionSound": {
       "label": "Reproducir sonido de atención",
       "description": "Reproducir un aviso cuando un agente necesite un paso manual en el navegador."

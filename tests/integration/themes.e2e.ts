@@ -313,6 +313,8 @@ test('resets every Appearance preference including interface size', async ({
     interfaceScale: 1,
     tabPosition: 'left',
     hideInTray: true,
+    launchAtStartup: false,
+    launchMinimized: false,
     attentionSound: true,
     attentionSoundCue: 'warning',
     languagePreference: 'system'

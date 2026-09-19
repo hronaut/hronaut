@@ -22,6 +22,8 @@ export const DEFAULT_RENDERER_SETTINGS: AppSettings = {
   useSystemTitleBar: false,
   searchEngine: 'google',
   hideInTray: true,
+  launchAtStartup: false,
+  launchMinimized: false,
   attentionSound: true,
   attentionSoundCue: 'warning',
   followAgentActivity: false,
@@ -161,6 +163,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const setUseSystemTitleBar = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setUseSystemTitleBar(enabled))
   const setSearchEngine = (engine: SearchEngineName): Promise<AppSettings> => applySettings(window.hronautSettings.setSearchEngine(engine))
   const setHideInTray = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setHideInTray(enabled))
+  const setLaunchAtStartup = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchAtStartup(enabled))
+  const setLaunchMinimized = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setLaunchMinimized(enabled))
   const setAttentionSound = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSound(enabled))
   const setAttentionSoundCue = (cue: AttentionSoundCue): Promise<AppSettings> => applySettings(window.hronautSettings.setAttentionSoundCue(cue))
   const setFollowAgentActivity = (enabled: boolean): Promise<AppSettings> => applySettings(window.hronautSettings.setFollowAgentActivity(enabled))
@@ -216,6 +220,8 @@ export const useSettingsStore = defineStore('settings', () => {
     setUseSystemTitleBar,
     setSearchEngine,
     setHideInTray,
+    setLaunchAtStartup,
+    setLaunchMinimized,
     setAttentionSound,
     setAttentionSoundCue,
     setFollowAgentActivity,

@@ -54,3 +54,30 @@ test('does not persist the current-launch MCP port override through unrelated se
     theme: 'dark'
   })
 })
+
+test('keeps an automatic launch hidden until the user asks to show Hronaut', async ({
+  mcpPort,
+  profileDirectory
+}) => {
+  await writeFile(join(profileDirectory, 'settings.json'), `${JSON.stringify({
+    launchAtStartup: true,
+    launchMinimized: true
+  })}\n`, 'utf8')
+  const { app, window } = await launchHronaut(profileDirectory, mcpPort, 1, ['--launch-at-login'])
+  try {
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => (
+      BrowserWindow.getAllWindows()[0]?.isVisible()
+    ))).toBe(false)
+    await expect.poll(() => window.evaluate('window.hronautSettings.get()')).toMatchObject({
+      launchAtStartup: true,
+      launchMinimized: true
+    })
+
+    await window.evaluate('window.hronaut.show()')
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => (
+      BrowserWindow.getAllWindows()[0]?.isVisible()
+    ))).toBe(true)
+  } finally {
+    await closeHronaut(app)
+  }
+})

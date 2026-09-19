@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   useSystemTitleBar: false,
   searchEngine: DEFAULT_SEARCH_ENGINE,
   hideInTray: true,
+  launchAtStartup: false,
+  launchMinimized: false,
   attentionSound: true,
   attentionSoundCue: 'warning',
   followAgentActivity: false,
@@ -71,6 +73,10 @@ export class SettingsStore {
             : DEFAULT_SETTINGS.useSystemTitleBar,
         searchEngine: isSearchEngineName(value.searchEngine) ? value.searchEngine : DEFAULT_SETTINGS.searchEngine,
         hideInTray: typeof value.hideInTray === 'boolean' ? value.hideInTray : DEFAULT_SETTINGS.hideInTray,
+        launchAtStartup:
+          typeof value.launchAtStartup === 'boolean' ? value.launchAtStartup : DEFAULT_SETTINGS.launchAtStartup,
+        launchMinimized:
+          typeof value.launchMinimized === 'boolean' ? value.launchMinimized : DEFAULT_SETTINGS.launchMinimized,
         attentionSound:
           typeof value.attentionSound === 'boolean' ? value.attentionSound : DEFAULT_SETTINGS.attentionSound,
         attentionSoundCue: isAttentionSoundCue(value.attentionSoundCue)
