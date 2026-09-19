@@ -269,6 +269,19 @@ function parseRemoteAsset(value: unknown): RemoteReleaseAsset {
   }
 }
 
+export function releaseSnapshotFromList(value: unknown, tag: string): ReleaseSnapshot {
+  if (!Array.isArray(value)) throw new Error('GitHub release list was invalid')
+  const matches = value.filter((entry) => (
+    entry !== null && typeof entry === 'object' && (entry as Record<string, unknown>).tag_name === tag
+  ))
+  if (matches.length !== 1) throw new Error('GitHub release list did not contain one exact tag')
+  const release = matches[0] as Record<string, unknown>
+  if (typeof release.draft !== 'boolean' || !Array.isArray(release.assets)) {
+    throw new Error('GitHub release readback omitted required evidence')
+  }
+  return { draft: release.draft, assets: release.assets.map(parseRemoteAsset) }
+}
+
 class GitHubReleaseAdapter implements ReleaseAssetPublisherAdapter {
   private readonly tag: string
   private readonly repository: string
@@ -289,7 +302,12 @@ class GitHubReleaseAdapter implements ReleaseAssetPublisherAdapter {
   }
 
   async readRelease(): Promise<ReleaseSnapshot> {
-    const result = await this.gh(['api', `repos/${this.repository}/releases/tags/${encodeURIComponent(this.tag)}`])
+    const result = await this.gh([
+      'api',
+      `repos/${this.repository}/releases?per_page=100`,
+      '--jq',
+      `[.[] | select(.tag_name == "${this.tag}")]`
+    ])
     if (result.code !== 0 || result.outputExceeded) throw new Error('GitHub release readback failed')
     let value: unknown
     try {
@@ -297,12 +315,7 @@ class GitHubReleaseAdapter implements ReleaseAssetPublisherAdapter {
     } catch {
       throw new Error('GitHub release readback was not valid JSON')
     }
-    if (!value || typeof value !== 'object') throw new Error('GitHub release readback was invalid')
-    const release = value as Record<string, unknown>
-    if (typeof release.draft !== 'boolean' || !Array.isArray(release.assets)) {
-      throw new Error('GitHub release readback omitted required evidence')
-    }
-    return { draft: release.draft, assets: release.assets.map(parseRemoteAsset) }
+    return releaseSnapshotFromList(value, this.tag)
   }
 
   async uploadAsset(asset: ExpectedReleaseAsset): Promise<UploadAttemptResult> {

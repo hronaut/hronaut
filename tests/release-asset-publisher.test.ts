@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   classifyReleaseUploadFailure,
   publishReleaseAssets,
+  releaseSnapshotFromList,
   type ExpectedReleaseAsset,
   type ReleaseAssetPublisherAdapter,
   type ReleaseSnapshot,
@@ -67,6 +68,13 @@ class FakeAdapter implements ReleaseAssetPublisherAdapter {
 }
 
 describe('release asset publisher', () => {
+  it('finds an authenticated draft in the bounded release list', () => {
+    expect(releaseSnapshotFromList([
+      { tag_name: 'v2.4.25', draft: false, assets: [] },
+      { tag_name: 'v2.4.26', draft: true, assets: [] }
+    ], 'v2.4.26')).toEqual({ draft: true, assets: [] })
+  })
+
   it('reconciles a transient failure before retrying and publishes only after exact verification', async () => {
     const adapter = new FakeAdapter()
     const asset = expectedAsset('one.bin')
