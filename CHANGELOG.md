@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Let the release publisher find authenticated draft releases during asset reconciliation instead of stopping on GitHub's public-only tag lookup.
+
 ## [2.4.26] - 2026-09-19
 
 ### Fixed
