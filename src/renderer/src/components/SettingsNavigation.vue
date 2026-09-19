@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, type Component } from 'vue'
+import { computed, markRaw, ref, toRaw, type Component } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import type { SettingsSection } from '../composables/useSettingsDialogController.js'
@@ -13,7 +13,9 @@ const { t, locale } = useI18n({ useScope: 'global' })
 const query = ref('')
 const matches = computed(() => {
   const words = query.value.trim().toLocaleLowerCase(locale.value).split(/\s+/)
-  return props.items.filter(item => words.every(word => `${item.label} ${item.description}`.toLocaleLowerCase(locale.value).includes(word)))
+  return props.items
+    .filter(item => words.every(word => `${item.label} ${item.description}`.toLocaleLowerCase(locale.value).includes(word)))
+    .map(item => ({ ...item, icon: markRaw(toRaw(item.icon)) }))
 })
 
 function searchKeydown(event: KeyboardEvent): void {

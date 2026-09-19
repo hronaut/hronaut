@@ -7,6 +7,8 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Let the release publisher find authenticated draft releases during asset reconciliation instead of stopping on GitHub's public-only tag lookup.
+- Keep Dependabot's Playwright queue limit on its multi-ecosystem group so GitHub accepts the configuration.
+- Keep Settings navigation icons out of Vue's deep reactivity path, removing avoidable render overhead and repeated development warnings.
 
 ## [2.4.26] - 2026-09-19
 
