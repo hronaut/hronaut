@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Document client network topology and loopback reachability across native, WSL, container, VM, Remote SSH, and cloud runtimes, with copy-safe failure reasons and a same-host health-to-browser preflight.
+
 ### Fixed
 
 - Hold the Electron 44.4.x line after both released patches shifted trusted controls during compact Home navigation.
