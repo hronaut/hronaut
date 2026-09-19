@@ -733,7 +733,7 @@ test('exposes production interaction and diagnostics capabilities over MCP', asy
       tabId,
       action: 'measure',
       scope: 'current-visit',
-      engine: { name: 'web-vitals', version: '6.2.1' },
+      engine: { name: 'web-vitals', version: '6.2.2' },
       resources: { count: expect.any(Number) },
       longTasks: { count: expect.any(Number) },
       longAnimationFrames: {
