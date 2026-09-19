@@ -95,7 +95,7 @@ describe('Dependabot configuration', () => {
     })
     expect(npm?.ignore).toEqual([
       { 'dependency-name': '@playwright/test' },
-      { 'dependency-name': 'electron', versions: ['44.4.1'] }
+      { 'dependency-name': 'electron', versions: ['44.4.x'] }
     ])
 
     expect(config.updates.slice(1, 3)).toMatchObject([
