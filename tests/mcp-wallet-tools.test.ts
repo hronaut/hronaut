@@ -210,6 +210,65 @@ describe('MCP wallet tools', () => {
     expect(server.getDashboardState().clients.map((entry) => entry.id)).not.toContain(ownerTransportSessionId)
   })
 
+  it('expires wallet sessions when either elapsed time or wall time reaches the bound', async () => {
+    let elapsed = 0
+    let wall = Date.now()
+    vi.spyOn(performance, 'now').mockImplementation(() => elapsed)
+    vi.spyOn(Date, 'now').mockImplementation(() => wall)
+    const balance = vi.fn<WalletAgentOperations['balance']>(async () => ({ status: 'ready' }))
+    const cancelRequester = vi.fn<NonNullable<WalletAgentOperations['cancelRequester']>>(async () => undefined)
+    const manager = walletWorkspaceManager()
+    server = new McpHttpServer(manager as never, {
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      showWindowInactive: () => undefined,
+      getUserAttention: () => null,
+      requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      wallets: {
+        list: vi.fn(async () => []), balance, prepareTransaction: vi.fn(async () => ({})),
+        requestTransaction: vi.fn(async () => ({})), requestMessage: vi.fn(async () => ({})),
+        requestStatus: vi.fn(async () => ({})), cancelRequest: vi.fn(async () => ({})), cancelRequester
+      }
+    })
+    const endpoint = await server.start()
+    client = new Client({ name: 'wallet-expiry-test', version: '1.0.0' })
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    await authorizeWorkspace(client)
+
+    const listed = await client.callTool({
+      name: 'wallet_list', arguments: { workspaceId, tabId }
+    }) as CallToolResult
+    const { walletSessionId, expiresAt } = JSON.parse(text(listed)) as {
+      walletSessionId: string
+      expiresAt: string
+    }
+    expect(Date.parse(expiresAt)).toBe(wall + 30 * 60_000)
+    elapsed = 30 * 60_000 + 1
+
+    const expired = await client.callTool({
+      name: 'wallet_balance', arguments: { workspaceId, tabId, walletSessionId, walletId: 'wallet-1' }
+    }) as CallToolResult
+    expect(expired.isError).toBe(true)
+    expect(text(expired)).toMatch(/wallet agent session is invalid or expired/i)
+    expect(balance).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(cancelRequester).toHaveBeenCalledOnce())
+
+    const listedAfterElapsedExpiry = await client.callTool({
+      name: 'wallet_list', arguments: { workspaceId, tabId }
+    }) as CallToolResult
+    const secondSession = JSON.parse(text(listedAfterElapsedExpiry)) as { walletSessionId: string }
+    wall += 30 * 60_000 + 1
+
+    const expiredAfterSuspend = await client.callTool({
+      name: 'wallet_balance',
+      arguments: { workspaceId, tabId, walletSessionId: secondSession.walletSessionId, walletId: 'wallet-1' }
+    }) as CallToolResult
+    expect(expiredAfterSuspend.isError).toBe(true)
+    expect(text(expiredAfterSuspend)).toMatch(/wallet agent session is invalid or expired/i)
+    expect(balance).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(cancelRequester).toHaveBeenCalledTimes(2))
+  })
+
   it('waits for wallet-session request cancellation before server shutdown completes', async () => {
     let finishCancellation!: () => void
     const cancellation = new Promise<void>((resolve) => { finishCancellation = resolve })

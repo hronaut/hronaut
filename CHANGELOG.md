@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Derive the MCP Registry public-readback URL from the verified release metadata so identity drift cannot break an otherwise valid publication.
+- Bound wallet-agent session expiry by monotonic elapsed time so an operating-system clock correction cannot extend authorization beyond its intended lifetime.
 
 ## [2.4.28] - 2026-09-20
 
