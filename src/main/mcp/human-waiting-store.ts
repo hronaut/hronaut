@@ -128,23 +128,38 @@ export class HumanWaitingStore {
     this.wallNow = options.wallNow ?? Date.now
   }
 
+  private checkedWall(): number {
+    const wall = this.wallNow()
+    if (!Number.isSafeInteger(wall)) throw new Error('Waiting clock unavailable')
+    return wall
+  }
+
   private expire(): number {
     const now = this.monotonicNow()
     const rolledBack = this.lastMonotonic !== undefined && now < this.lastMonotonic
     for (const entry of this.records.values()) {
       const expirable = !terminal(entry.record.state) || entry.record.review?.status === 'APPROVED'
       if (expirable && (!Number.isFinite(now) || rolledBack || now < entry.createdMonotonic || now >= entry.deadlineMonotonic)) {
-        this.transition(entry.record, 'EXPIRED')
+        this.transition(entry.record, 'EXPIRED', Number.isFinite(now) && !rolledBack ? now : this.lastMonotonic)
       }
     }
     if (Number.isFinite(now)) this.lastMonotonic = now
     return now
   }
 
-  private reviewTransition(record: WaitingRecord, status: ReviewStatus): void {
+  private reviewTransition(record: WaitingRecord, status: ReviewStatus, at: number): void {
     if (!record.review || record.review.status === status) return
     record.review.status = status
-    record.review.receipts.push({ status, at: this.wallNow() })
+    record.review.receipts.push({ status, at })
+  }
+
+  private reviewReceiptTime(record: WaitingRecord, monotonic = this.lastMonotonic, wall = this.checkedWall()): number {
+    const entry = this.records.get(record.id)
+    const logicalWall = entry && monotonic !== undefined && Number.isFinite(monotonic)
+      ? Math.round(record.deadlineAt - Math.max(0, entry.deadlineMonotonic - monotonic))
+      : wall
+    const previous = record.review?.receipts.at(-1)?.at ?? record.createdAt
+    return Math.min(record.deadlineAt, Math.max(record.createdAt, previous, logicalWall))
   }
 
   private advanceReview(record: WaitingRecord): boolean {
@@ -160,23 +175,28 @@ export class HumanWaitingStore {
     return true
   }
 
-  private transition(record: WaitingRecord, state: WaitingState): void {
-    record.state = state
-    record.revision = randomUUID()
-    record.nextAction = terminal(state) ? 'MAKE_FRESH_DECISION' : 'REVIEW_CURRENT_STATE'
+  private transition(record: WaitingRecord, state: WaitingState, monotonic = this.lastMonotonic, wall?: number): void {
     const reviewStatus: Partial<Record<WaitingState, ReviewStatus>> = {
       WAITING_FOR_HUMAN: 'PROPOSED', ACKNOWLEDGED: 'REVIEWED', RESOLVED: 'APPROVED',
       REJECTED: 'REJECTED', EXPIRED: 'EXPIRED', CANCELLED: 'CANCELLED',
       ATTEMPTED: 'ATTEMPTED', VERIFIED: 'VERIFIED', UNKNOWN: 'UNKNOWN'
     }
     const status = reviewStatus[state]
-    if (status) this.reviewTransition(record, status)
+    // Validate and derive the receipt before mutating anything. A broken or
+    // corrected wall clock must not leave an unsavable terminal review behind.
+    const receiptAt = status && record.review?.status !== status
+      ? this.reviewReceiptTime(record, monotonic, wall)
+      : undefined
+    record.state = state
+    record.revision = randomUUID()
+    record.nextAction = terminal(state) ? 'MAKE_FRESH_DECISION' : 'REVIEW_CURRENT_STATE'
+    if (status && receiptAt !== undefined) this.reviewTransition(record, status, receiptAt)
   }
 
   create(input: WaitingInput): WaitingRecord {
     const parsed = inputSchema.parse(input)
     const now = this.expire()
-    const createdAt = this.wallNow()
+    const createdAt = this.checkedWall()
     if (!Number.isFinite(now) || !Number.isSafeInteger(createdAt) || !Number.isSafeInteger(createdAt + parsed.timeoutMs)) throw new Error('Waiting clock unavailable')
     if (parsed.review && [...this.records.values()].some(({ record }) => record.workspaceId === parsed.workspaceId
       && record.review && ['PROPOSED', 'REVIEWED', 'APPROVED', 'ATTEMPTED'].includes(record.review.status))) {
@@ -205,7 +225,7 @@ export class HumanWaitingStore {
 
   snapshot(): z.infer<typeof humanWaitingSnapshotSchema> {
     this.expire()
-    return humanWaitingSnapshotSchema.parse({ version: 1, savedAt: this.wallNow(), records: [...this.records.values()].map(entry => entry.record) })
+    return humanWaitingSnapshotSchema.parse({ version: 1, savedAt: this.checkedWall(), records: [...this.records.values()].map(entry => entry.record) })
   }
 
   /** Restore only into a fresh owner. A restart never resolves or dispatches a
@@ -217,16 +237,16 @@ export class HumanWaitingStore {
     const snapshot = humanWaitingSnapshotSchema.parse(value)
     if (snapshot.records.length > this.capacity || new Set(snapshot.records.map(record => record.id)).size !== snapshot.records.length) throw new Error('Invalid waiting history capacity or duplicate record')
     const now = this.monotonicNow()
-    const wall = this.wallNow()
+    const wall = this.checkedWall()
     if (!Number.isFinite(now) || !Number.isSafeInteger(wall)) throw new Error('Waiting clock unavailable')
     const restored = snapshot.records.map(record => {
       const remaining = record.deadlineAt - wall
       if (record.review?.status === 'ATTEMPTED') {
-        this.transition(record, 'UNKNOWN')
+        this.transition(record, 'UNKNOWN', now, wall)
       } else if (record.review && ['PROPOSED', 'REVIEWED', 'APPROVED'].includes(record.review.status)) {
-        this.transition(record, 'EXPIRED')
+        this.transition(record, 'EXPIRED', now, wall)
       } else if (!terminal(record.state)) {
-        this.transition(record, wall < snapshot.savedAt || wall < record.createdAt || remaining <= 0 ? 'EXPIRED' : 'WAITING_FOR_HUMAN')
+        this.transition(record, wall < snapshot.savedAt || wall < record.createdAt || remaining <= 0 ? 'EXPIRED' : 'WAITING_FOR_HUMAN', now, wall)
       } else record.nextAction = 'MAKE_FRESH_DECISION'
       return { record, createdMonotonic: now, deadlineMonotonic: now + Math.max(0, Math.min(86_400_000, remaining)) }
     })
