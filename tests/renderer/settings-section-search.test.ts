@@ -24,6 +24,16 @@ function navigation() {
 }
 
 describe('settings section search', () => {
+  it('keeps dynamic icon components out of Vue reactivity', () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      navigation()
+      expect(warning.mock.calls.flat().join(' ')).not.toContain('Component that was made a reactive object')
+    } finally {
+      warning.mockRestore()
+    }
+  })
+
   it('finds descriptions across words and opens the result with Enter', async () => {
     const { input, change } = navigation()
     await userEvent.type(input, 'LOCAL security')
