@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add cross-platform options to launch Hronaut at sign-in and keep automatic launches minimized in the system tray.
 - Publish the verified official MCP Registry identity in the canonical public facts and explain that its MCPB adapter still requires a locally running Hronaut desktop app.
 
 ### Fixed

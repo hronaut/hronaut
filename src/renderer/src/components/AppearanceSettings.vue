@@ -124,6 +124,16 @@ async function setHideInTray(event: Event): Promise<void> {
   if (!(await runSetting(store.setHideInTray(input.checked)))) input.checked = settings.value.hideInTray
 }
 
+async function setLaunchAtStartup(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setLaunchAtStartup(input.checked)))) input.checked = settings.value.launchAtStartup
+}
+
+async function setLaunchMinimized(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await runSetting(store.setLaunchMinimized(input.checked)))) input.checked = settings.value.launchMinimized
+}
+
 async function setUseSystemTitleBar(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   if (!(await runSetting(store.setUseSystemTitleBar(input.checked)))) {
@@ -270,6 +280,26 @@ async function setLanguagePreference(event: Event): Promise<void> {
           <small>{{ t('appearance.hideInTray.description') }}</small>
         </span>
         <input id="setting-hide-in-tray" type="checkbox" :checked="settings.hideInTray" @change="setHideInTray" />
+      </label>
+      <label class="settings-row" for="setting-launch-at-startup">
+        <span>
+          <strong>{{ t('appearance.launchAtStartup.label') }}</strong>
+          <small>{{ t('appearance.launchAtStartup.description') }}</small>
+        </span>
+        <input id="setting-launch-at-startup" type="checkbox" :checked="settings.launchAtStartup" @change="setLaunchAtStartup" />
+      </label>
+      <label class="settings-row" for="setting-launch-minimized">
+        <span>
+          <strong>{{ t('appearance.launchMinimized.label') }}</strong>
+          <small>{{ t('appearance.launchMinimized.description') }}</small>
+        </span>
+        <input
+          id="setting-launch-minimized"
+          type="checkbox"
+          :checked="settings.launchMinimized"
+          :disabled="!settings.launchAtStartup"
+          @change="setLaunchMinimized"
+        />
       </label>
       <label class="settings-row" for="setting-attention-sound">
         <span>

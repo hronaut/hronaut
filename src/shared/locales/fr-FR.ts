@@ -252,6 +252,14 @@ export const frFR = {
       "label": "Réduire dans la zone de notification",
       "description": "Laisser Hronaut et son serveur MCP actifs après la fermeture de la fenêtre."
     },
+    "launchAtStartup": {
+      "label": "Lancer Hronaut à la connexion",
+      "description": "Démarrer Hronaut automatiquement après la connexion à l’ordinateur."
+    },
+    "launchMinimized": {
+      "label": "Lancer en mode réduit",
+      "description": "Garder la fenêtre masquée dans la zone de notification lors du démarrage automatique."
+    },
     "playAttentionSound": {
       "label": "Émettre un son d’attention",
       "description": "Émettre un avertissement lorsqu’un agent nécessite une étape manuelle dans le navigateur."

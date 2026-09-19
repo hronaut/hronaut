@@ -73,6 +73,10 @@ import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './br
 import { renderHomePage } from './home-page.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
+import {
+  shouldStartMinimized,
+  StartupLaunchManager
+} from './startup-launch.js'
 import { agentGuideHandler, setupFeedbackHandler, setupHelpHandler } from './setup-feedback-links.js'
 import {
   McpHttpServer,
@@ -261,6 +265,7 @@ let lastPanelWindowState: import('./window-state.js').SavedWindowState | null = 
 let persistentSession: Session | null = null
 const configuredBrowserSessions = new WeakSet<Session>()
 let settingsStore: SettingsStore | null = null
+let startupLaunchManager: StartupLaunchManager | null = null
 let sitePermissionStore: SitePermissionStore | null = null
 let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
@@ -3394,6 +3399,24 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
+  ipcMain.handle('settings:set-launch-at-startup', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Launch-at-startup preference must be a boolean')
+    if (!startupLaunchManager) throw new Error('Startup integration is unavailable')
+    await updateSettings(
+      { launchAtStartup: enabled },
+      (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
+    )
+    publishSettings()
+    return { ...settings }
+  })
+  ipcMain.handle('settings:set-launch-minimized', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Launch-minimized preference must be a boolean')
+    await updateSettings({ launchMinimized: enabled })
+    publishSettings()
+    return { ...settings }
+  })
   ipcMain.handle('settings:set-attention-sound', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Attention sound must be a boolean')
@@ -3694,7 +3717,17 @@ async function loadAuthoritativeSettings(): Promise<void> {
   if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
 }
 
-async function createWindow(): Promise<void> {
+async function reconcileStartupSetting(): Promise<void> {
+  if (!startupLaunchManager) return
+  try {
+    const launchAtStartup = await startupLaunchManager.isEnabled()
+    if (launchAtStartup !== settings.launchAtStartup) await updateSettings({ launchAtStartup })
+  } catch (error) {
+    console.warn('[startup] Could not read the operating-system startup setting:', error)
+  }
+}
+
+async function createWindow(startMinimized = false): Promise<void> {
   bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
   await bookmarkStore.load()
   historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'))
@@ -3955,7 +3988,7 @@ async function createWindow(): Promise<void> {
   }
   if (savedWindowState?.maximized) mainWindow.maximize()
   if (savedWindowState?.fullScreen) mainWindow.setFullScreen(true)
-  mainWindow.show()
+  if (!startMinimized) mainWindow.show()
 }
 
 function configureBrowserSession(browserSession: Session): void {
@@ -4358,7 +4391,7 @@ app.on('second-instance', (_event, argv) => {
     app.quit()
     return
   }
-  showWindow()
+  if (!shouldStartMinimized(settings, { platform: process.platform, argv })) showWindow()
 })
 app.on('activate', showWindow)
 app.on('window-all-closed', () => {
@@ -4401,12 +4434,26 @@ app.whenReady().then(async () => {
   )
   await mcpCapabilityProfiles.load()
   configureAutoUpdater()
+  startupLaunchManager = new StartupLaunchManager({
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    executablePath: process.platform === 'linux' && process.env.APPIMAGE
+      ? resolve(process.env.APPIMAGE)
+      : process.execPath,
+    autostartDirectory: join(app.getPath('appData'), 'autostart'),
+    nativeLoginItems: app
+  })
   await loadAuthoritativeSettings()
+  if (app.isPackaged) await reconcileStartupSetting()
   installApplicationMenu()
   await discardObsoleteBrowserData(app.getPath('userData'))
   await configurePersistentSession()
   registerHomeProtocol()
-  await createWindow()
+  await createWindow(shouldStartMinimized(settings, {
+    platform: process.platform,
+    argv: process.argv,
+    wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin()
+  }))
   if (!settings.mcpAuthentication) {
     console.warn('[mcp] Authentication is disabled. Any local process can control this browser profile.')
   }

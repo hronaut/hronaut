@@ -20,6 +20,7 @@ Project home: https://github.com/hronaut/hronaut
 - Allowed and blocked website permissions are restored from `site-permissions.json` in the same profile.
 - Window position, size, monitor, maximized state, and fullscreen state are restored. If that monitor is disconnected, the window is centered on the current primary display.
 - Closing the window hides it by default. The Electron process and MCP endpoint keep running; click the tray icon to open its menu and choose **Show Hronaut** or **Quit**. Disable **Hide in tray when closing** in Settings to make the window close button quit Hronaut instead.
+- **Launch Hronaut when you sign in** registers a per-user startup item on Windows, macOS, and Linux. Enable **Launch minimized** to keep only the tray icon visible for automatic sign-in launches; ordinary manual launches still open the browser window.
 - A second launch focuses the existing instance instead of starting a competing browser profile.
 
 ## Appearance

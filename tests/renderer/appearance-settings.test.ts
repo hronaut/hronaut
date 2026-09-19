@@ -18,6 +18,8 @@ function snapshot(locale: 'en-US' | 'uk-UA'): RendererSettingsState {
       useSystemTitleBar: false,
       searchEngine: 'google',
       hideInTray: true,
+      launchAtStartup: false,
+      launchMinimized: false,
       attentionSound: true,
       attentionSoundCue: 'warning',
       followAgentActivity: false,
@@ -155,6 +157,39 @@ describe('AppearanceSettings', () => {
     await userEvent.setup().selectOptions(screen.getByRole('combobox', { name: 'Tab position' }), 'left')
 
     expect(setTabPosition).toHaveBeenCalledWith('left')
+  })
+
+  it('configures startup launch and only enables minimized launch when startup is active', async () => {
+    const setLaunchAtStartup = vi.fn(async () => ({
+      ...snapshot('en-US').settings,
+      launchAtStartup: true
+    }))
+    const setLaunchMinimized = vi.fn(async () => ({
+      ...snapshot('en-US').settings,
+      launchAtStartup: true,
+      launchMinimized: true
+    }))
+    Object.defineProperty(window, 'hronautSettings', {
+      configurable: true,
+      value: { setLaunchAtStartup, setLaunchMinimized }
+    })
+    const pinia = createTestingPinia({
+      stubActions: false,
+      createSpy: vi.fn,
+      initialState: { settings: { ...snapshot('en-US'), settings: snapshot('en-US').settings } }
+    })
+    render(AppearanceSettings, { global: { plugins: [pinia, createHronautI18n('en-US')] } })
+    const user = userEvent.setup()
+    const launch = screen.getByRole('checkbox', { name: /^Launch Hronaut when you sign in/ })
+    const minimized = screen.getByRole('checkbox', { name: /^Launch minimized/ })
+
+    expect(launch).not.toBeChecked()
+    expect(minimized).toBeDisabled()
+    await user.click(launch)
+    expect(setLaunchAtStartup).toHaveBeenCalledWith(true)
+    expect(minimized).toBeEnabled()
+    await user.click(minimized)
+    expect(setLaunchMinimized).toHaveBeenCalledWith(true)
   })
 
   it('offers the restart-required system title bar fallback without platform filtering', async () => {

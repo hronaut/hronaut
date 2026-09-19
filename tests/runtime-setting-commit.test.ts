@@ -8,6 +8,28 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
 }
 
 describe('runtime setting commits', () => {
+  it('waits for asynchronous runtime state before persistence begins', async () => {
+    const applyStarted = deferred()
+    const releaseApply = deferred()
+    const persist = vi.fn(async () => undefined)
+
+    const commit = commitRuntimeSetting({
+      previous: false,
+      next: true,
+      apply: async () => {
+        applyStarted.resolve()
+        await releaseApply.promise
+      },
+      persist
+    })
+
+    await applyStarted.promise
+    expect(persist).not.toHaveBeenCalled()
+    releaseApply.resolve()
+    await commit
+    expect(persist).toHaveBeenCalledOnce()
+  })
+
   it('applies runtime state before the persisted value can become visible', async () => {
     let runtimeToolSet = 'complete'
     const persistenceStarted = deferred()

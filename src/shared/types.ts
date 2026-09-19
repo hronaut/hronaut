@@ -516,6 +516,8 @@ export interface AppSettings {
   useSystemTitleBar: boolean
   searchEngine: SearchEngineName
   hideInTray: boolean
+  launchAtStartup: boolean
+  launchMinimized: boolean
   attentionSound: boolean
   attentionSoundCue: AttentionSoundCue
   followAgentActivity: boolean
@@ -2524,6 +2526,8 @@ export interface HronautSettingsApi {
   setUseSystemTitleBar(enabled: boolean): Promise<AppSettings>
   setSearchEngine(searchEngine: SearchEngineName): Promise<AppSettings>
   setHideInTray(enabled: boolean): Promise<AppSettings>
+  setLaunchAtStartup(enabled: boolean): Promise<AppSettings>
+  setLaunchMinimized(enabled: boolean): Promise<AppSettings>
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
