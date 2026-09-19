@@ -20,6 +20,10 @@ updates:
     open-pull-requests-limit: 10
     ignore:
       - dependency-name: "@playwright/test"
+      # Electron 44.4.1 crashes a continuity test and shifts trusted controls after compact navigation.
+      - dependency-name: "electron"
+        versions:
+          - "44.4.1"
     groups:
       production-minor-patch:
         dependency-type: "production"
