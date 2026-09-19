@@ -96,10 +96,26 @@ describe('MCPB release package', () => {
       name: 'hronaut-mcp-adapter',
       version: packageJson.version,
       license: publicFacts.product.licenseIdentifier,
+      documentation: `https://github.com/hronaut/hronaut/blob/v${packageJson.version}/docs/MCPB_ADAPTER.md`,
       tools_generated: true,
-      server: { type: 'node', entry_point: 'server/index.mjs' },
-      user_config: { token: { sensitive: true, required: false } }
+      server: {
+        type: 'node',
+        entry_point: 'server/index.mjs',
+        mcp_config: {
+          env: {
+            HRONAUT_MCP_URL: '${user_config.endpoint}',
+            HRONAUT_MCP_TOKEN_FILE: '${user_config.token_file}'
+          }
+        }
+      },
+      user_config: {
+        token_file: { type: 'file', required: false }
+      }
     })
+    expect(manifest.user_config).not.toHaveProperty('token')
+    expect(manifest.user_config.token_file).not.toHaveProperty('sensitive')
+    expect(manifest.server.mcp_config.env).not.toHaveProperty('HRONAUT_MCP_TOKEN')
+    expect(manifest.user_config.token_file.description).toContain('path shown on Hronaut Home')
     expect(manifest.server.mcp_config.args).toEqual(['${__dirname}/server/index.mjs'])
 
     const ajv = new Ajv({ allErrors: true, strict: false })
@@ -159,10 +175,17 @@ describe('MCPB release package', () => {
       await writeFile(adapterPath, adapter?.data ?? new Uint8Array())
     }
 
+    const token = 'b'.repeat(64)
+    const tokenPath = join(outputDirectory, 'owner-token')
+    await writeFile(tokenPath, `${token}\n`, { mode: 0o600 })
     const app = express()
     app.use(express.json())
     let session: { server: McpServer, transport: StreamableHTTPServerTransport } | undefined
     app.all('/mcp', async (request, response) => {
+      if (request.headers.authorization !== `Bearer ${token}`) {
+        response.status(401).end()
+        return
+      }
       if (!session) {
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: randomUUID,
@@ -191,7 +214,8 @@ describe('MCPB release package', () => {
       args: [adapterPath],
       env: {
         ...getDefaultEnvironment(),
-        HRONAUT_MCP_URL: `http://127.0.0.1:${address.port}/mcp`
+        HRONAUT_MCP_URL: `http://127.0.0.1:${address.port}/mcp`,
+        HRONAUT_MCP_TOKEN_FILE: tokenPath
       },
       stderr: 'pipe'
     })
@@ -207,4 +231,21 @@ describe('MCPB release package', () => {
       if (extractionDirectory) await rm(extractionDirectory, { recursive: true, force: true })
     }
   }, 15_000)
+
+  it('documents the private file handoff and the verified compatibility boundary', async () => {
+    const [guide, readme] = await Promise.all([
+      readFile('docs/MCPB_ADAPTER.md', 'utf8'),
+      readFile('README.md', 'utf8')
+    ])
+    const normalizedGuide = guide.replace(/\s+/gu, ' ')
+
+    expect(readme).toContain('[MCPB adapter guide](docs/MCPB_ADAPTER.md)')
+    expect(normalizedGuide).toContain('Home displays the owner-only token file path, not the raw token')
+    expect(normalizedGuide).toContain('select that file in the host\'s **Hronaut MCP token file** field')
+    expect(normalizedGuide).toContain('leave the token-file field empty')
+    expect(normalizedGuide).toContain('Disconnect and reconnect the bundle')
+    expect(normalizedGuide).toContain('does not prove that a graphical MCPB host installed or exposed the tools')
+    expect(normalizedGuide).toContain('No specific graphical MCPB host/version has completed this end-to-end path yet')
+    expect(guide).not.toContain('copy the token locally from Hronaut Home')
+  })
 })

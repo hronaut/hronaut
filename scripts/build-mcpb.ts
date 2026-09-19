@@ -29,7 +29,7 @@ const manifest = {
   author: { name: 'Hronaut', url: 'https://hronaut.dev' },
   repository: { type: 'git', url: 'https://github.com/hronaut/hronaut.git' },
   homepage: 'https://hronaut.dev',
-  documentation: 'https://hronaut.dev/setup',
+  documentation: `https://github.com/hronaut/hronaut/blob/v${version}/docs/MCPB_ADAPTER.md`,
   support: 'https://github.com/hronaut/hronaut/issues',
   server: {
     type: 'node',
@@ -39,7 +39,7 @@ const manifest = {
       args: ['${__dirname}/server/index.mjs'],
       env: {
         HRONAUT_MCP_URL: '${user_config.endpoint}',
-        HRONAUT_MCP_TOKEN: '${user_config.token}'
+        HRONAUT_MCP_TOKEN_FILE: '${user_config.token_file}'
       }
     }
   },
@@ -59,11 +59,10 @@ const manifest = {
       required: true,
       default: 'http://127.0.0.1:47812/mcp'
     },
-    token: {
-      type: 'string',
-      title: 'Hronaut MCP token',
-      description: 'Copy the token locally from Hronaut Home when authentication is enabled.',
-      sensitive: true,
+    token_file: {
+      type: 'file',
+      title: 'Hronaut MCP token file',
+      description: 'When authentication is enabled, select the owner-only token file at the path shown on Hronaut Home. Leave empty otherwise.',
       required: false
     }
   }

@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Recover release publication safely from partial or ambiguous GitHub asset uploads by preserving verified files, bounding transient retries, and reconciling every checksum before making the draft public.
+- Route MCPB users to its specific setup guide and let protected profiles pass the owner-only token file to the local adapter without exposing the raw token in Home or bundle configuration.
 
 ## [2.4.25] - 2026-09-17
 

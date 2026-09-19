@@ -1,9 +1,13 @@
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import {
   bridgeTransports,
   createRestrictedFetch,
   parseLoopbackEndpoint,
+  resolveAuthenticationToken,
   type MessageTransport
 } from '../scripts/mcpb-adapter.js'
 
@@ -60,6 +64,41 @@ describe('MCPB adapter endpoint restrictions', () => {
     expect(fetcher).toHaveBeenCalledWith(endpoint, expect.objectContaining({ redirect: 'manual' }))
     await expect(restrictedFetch('http://127.0.0.1:47812/other')).rejects.toThrow('unexpected upstream')
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('MCPB adapter authentication', () => {
+  it('loads a valid owner token from the selected file without placing it in configuration', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-token-'))
+    const tokenPath = join(directory, 'mcp-token')
+    const token = 'a'.repeat(64)
+    try {
+      await writeFile(tokenPath, `${token}\n`, { mode: 0o600 })
+      await expect(resolveAuthenticationToken({ HRONAUT_MCP_TOKEN_FILE: tokenPath })).resolves.toBe(token)
+      await expect(resolveAuthenticationToken({})).resolves.toBeUndefined()
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid token files without exposing their path or contents', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-private-path-'))
+    const tokenPath = join(directory, 'mcp-token')
+    const invalidToken = 'private token contents must not appear'
+    try {
+      await writeFile(tokenPath, invalidToken, { mode: 0o600 })
+      const error = await resolveAuthenticationToken({ HRONAUT_MCP_TOKEN_FILE: tokenPath })
+        .then(() => undefined, (reason: unknown) => reason)
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toBe('Hronaut MCP token file is invalid.')
+      expect((error as Error).message).not.toContain(tokenPath)
+      expect((error as Error).message).not.toContain(invalidToken)
+      await expect(resolveAuthenticationToken({
+        HRONAUT_MCP_TOKEN_FILE: join(directory, 'missing-token')
+      })).rejects.toThrow('Hronaut MCP token file is invalid.')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })
 
