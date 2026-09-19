@@ -145,6 +145,7 @@ interface WalletAgentSession {
   ownerClientId: string
   target: WalletAgentToolTarget
   expiresAt: number
+  deadlineMonotonic: number
   controller: AbortController
 }
 
@@ -171,7 +172,10 @@ class WalletAgentSessionRegistry {
           ...(client.version ? { version: client.version } : {})
         }
       },
-      expiresAt: Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
+      expiresAt: Date.now() + WalletAgentSessionRegistry.LIFETIME_MS,
+      // Sessions live only for this process, so a monotonic deadline keeps
+      // authorization bounded while expiresAt remains a meaningful UTC value.
+      deadlineMonotonic: performance.now() + WalletAgentSessionRegistry.LIFETIME_MS
     }
     session.target.signal = session.controller.signal
     this.sessions.set(token, session)
@@ -190,6 +194,7 @@ class WalletAgentSessionRegistry {
       throw new Error('Wallet agent session is invalid or expired for this workspace and tab')
     }
     session.expiresAt = Date.now() + WalletAgentSessionRegistry.LIFETIME_MS
+    session.deadlineMonotonic = performance.now() + WalletAgentSessionRegistry.LIFETIME_MS
     return {
       ...session.target,
       client: { ...session.target.client },
@@ -217,9 +222,10 @@ class WalletAgentSessionRegistry {
   }
 
   private expire(): void {
-    const now = Date.now()
+    const wallNow = Date.now()
+    const monotonicNow = performance.now()
     for (const [token, session] of this.sessions) {
-      if (session.expiresAt > now) continue
+      if (session.expiresAt > wallNow && session.deadlineMonotonic > monotonicNow) continue
       this.sessions.delete(token)
       session.controller.abort()
       this.scheduleCancellation(session.target.client.id)
