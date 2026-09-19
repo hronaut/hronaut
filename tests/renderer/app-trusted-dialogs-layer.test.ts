@@ -2,9 +2,6 @@ import { mount } from '@vue/test-utils'
 import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import AppTrustedDialogsLayer from '../../src/renderer/src/components/AppTrustedDialogsLayer.vue'
-import HelpDialog from '../../src/renderer/src/components/HelpDialog.vue'
-import SettingsDialog from '../../src/renderer/src/components/SettingsDialog.vue'
-import WalletApprovalDialog from '../../src/renderer/src/components/WalletApprovalDialog.vue'
 
 describe('AppTrustedDialogsLayer', () => {
   it('owns trusted dialog composition and keeps controller wiring reactive', async () => {
@@ -54,9 +51,11 @@ describe('AppTrustedDialogsLayer', () => {
         reportLayout
       }
     })
+    const propsOf = (name: string): Record<string, unknown> => (
+      wrapper.findComponent({ name }) as unknown as { props(): Record<string, unknown> }
+    ).props()
 
-    const settings = wrapper.findComponent(SettingsDialog)
-    expect(settings.props()).toMatchObject({
+    expect(propsOf('SettingsDialog')).toMatchObject({
       controller: controllers.settingsDialogController,
       searchController: controllers.searchSettingsController,
       downloadController: controllers.downloadSettingsController,
@@ -79,11 +78,11 @@ describe('AppTrustedDialogsLayer', () => {
       purchaseCommercialLicense
     })
 
-    expect(wrapper.findComponent(WalletApprovalDialog).props()).toMatchObject({
+    expect(propsOf('WalletApprovalDialog')).toMatchObject({
       controller: controllers.walletsController,
       workspaces
     })
-    expect(wrapper.findComponent(HelpDialog).props()).toMatchObject({
+    expect(propsOf('HelpDialog')).toMatchObject({
       controller: helpController,
       currentVersion: '1.9.11',
       openUrl,
@@ -93,6 +92,6 @@ describe('AppTrustedDialogsLayer', () => {
 
     updateState.value = { currentVersion: '1.10.0' }
     await nextTick()
-    expect(wrapper.findComponent(HelpDialog).props('currentVersion')).toBe('1.10.0')
+    expect(propsOf('HelpDialog').currentVersion).toBe('1.10.0')
   })
 })
