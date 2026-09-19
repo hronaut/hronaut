@@ -253,7 +253,9 @@ describe('release quality gates', () => {
     expect(registryWorkflow).toContain('sha256sum --check mcp-checksums.txt')
     expect(registryWorkflow).toContain('login github-oidc --registry "$REGISTRY_URL"')
     expect(registryWorkflow).toContain('publish registry-release/hronaut-mcp-server.json')
-    expect(registryWorkflow).toContain('/v0.1/servers/io.github.hronaut%2Fhronaut/versions/$VERSION')
+    expect(registryWorkflow).not.toContain('/v0.1/servers/io.github.hronaut%2Fhronaut/versions/$VERSION')
+    expect(registryWorkflow).toContain("encoded_name=\"$(jq -rn --arg name \"$name\" '$name | @uri')\"")
+    expect(registryWorkflow).toContain('/v0.1/servers/$encoded_name/versions/$VERSION')
     expect(registryWorkflow).toContain('.server.version == $version')
   })
 

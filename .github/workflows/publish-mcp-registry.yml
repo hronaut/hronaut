@@ -173,10 +173,11 @@ jobs:
           set -euo pipefail
           metadata="registry-release/hronaut-mcp-server.json"
           name="$(jq -r '.name' "$metadata")"
+          encoded_name="$(jq -rn --arg name "$name" '$name | @uri')"
           identifier="$(jq -r '.packages[0].identifier' "$metadata")"
           sha="$(jq -r '.packages[0].fileSha256' "$metadata")"
           readback="$RUNNER_TEMP/hronaut-mcp-registry-readback.json"
-          endpoint="$REGISTRY_URL/v0.1/servers/io.github.hronaut%2Fhronaut/versions/$VERSION"
+          endpoint="$REGISTRY_URL/v0.1/servers/$encoded_name/versions/$VERSION"
 
           for attempt in {1..12}; do
             if curl --proto '=https' --tlsv1.2 --fail --silent --show-error \
