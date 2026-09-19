@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Hold the Electron 44.4.x line after both released patches shifted trusted controls during compact Home navigation.
+
 ## [2.4.27] - 2026-09-19
 
 ### Fixed
