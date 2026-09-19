@@ -4,12 +4,16 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.28] - 2026-09-20
+
 ### Added
 
+- Publish verified MCPB release metadata to the official MCP Registry only after the GitHub release, checksums, provenance, and public website readback succeed.
 - Document client network topology and loopback reachability across native, WSL, container, VM, Remote SSH, and cloud runtimes, with copy-safe failure reasons and a same-host health-to-browser preflight.
 
 ### Fixed
 
+- Preserve task-run history and heartbeat deadlines across system-clock corrections without weakening monotonic expiry checks.
 - Keep human-approval receipt timelines ordered across system-clock corrections and reject an invalid clock before changing a live review.
 - Hold the Electron 44.4.x line after both released patches shifted trusted controls during compact Home navigation.
 
