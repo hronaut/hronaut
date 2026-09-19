@@ -19,7 +19,7 @@ interface DependabotUpdate {
     timezone?: string
   }
   'open-pull-requests-limit'?: number
-  ignore?: Array<{ 'dependency-name': string }>
+  ignore?: Array<{ 'dependency-name': string; versions?: string[] }>
   groups?: Record<string, DependabotGroup>
   patterns?: string[]
   'multi-ecosystem-group'?: string
@@ -93,7 +93,10 @@ describe('Dependabot configuration', () => {
         'update-types': ['minor', 'patch']
       }
     })
-    expect(npm?.ignore).toEqual([{ 'dependency-name': '@playwright/test' }])
+    expect(npm?.ignore).toEqual([
+      { 'dependency-name': '@playwright/test' },
+      { 'dependency-name': 'electron', versions: ['44.4.1'] }
+    ])
 
     expect(config.updates.slice(1, 3)).toMatchObject([
       {
