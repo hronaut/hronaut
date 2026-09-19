@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Publish the verified official MCP Registry identity in the canonical public facts and explain that its MCPB adapter still requires a locally running Hronaut desktop app.
 
+### Fixed
+
+- Derive the MCP Registry public-readback URL from the verified release metadata so identity drift cannot break an otherwise valid publication.
+
 ## [2.4.28] - 2026-09-20
 
 ### Added
