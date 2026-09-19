@@ -93,7 +93,7 @@
     "@node-rs/argon2": "2.2.1",
     "@scure/bip39": "^2.4.0",
     "@solana/kit": "^8.3.0",
-    "@vueuse/core": "^14.4.0",
+    "@vueuse/core": "^15.0.0",
     "@wallet-standard/core": "^1.1.2",
     "@wallet-standard/features": "^1.1.1",
     "axe-core": "4.13.0",
