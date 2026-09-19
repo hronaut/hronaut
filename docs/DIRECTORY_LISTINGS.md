@@ -24,6 +24,22 @@ Use these canonical links:
 - Source: <https://github.com/hronaut/hronaut>
 - License: [`LICENSE`](../LICENSE)
 
+## Official MCP Registry package
+
+The official Registry identity is
+[`io.github.hronaut/hronaut`](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/latest).
+It is an `mcpb` package record for Hronaut's
+[local stdio adapter](https://github.com/hronaut/hronaut/blob/main/docs/MCPB_ADAPTER.md).
+The versioned record URL has the stable form
+`https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/{version}`.
+
+The Registry package does not install or start the Hronaut desktop application
+and is not a hosted Hronaut deployment. It forwards a local MCP client's stdio
+connection to a separately running, version-matched Hronaut desktop app. It
+cannot make the loopback Streamable HTTP endpoint reachable from hosted agents.
+Users must download and start Hronaut locally, then provide the endpoint and,
+when enabled, the owner-only token file shown on Hronaut Home.
+
 Hronaut is source-available under its Subscription and Trial License. Current
 terms are a 10-day trial starting with the first agent tool call, followed by
 USD $4 per named user per month or USD $24 per named user per year (50% off the

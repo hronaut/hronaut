@@ -51,16 +51,17 @@ describe('MCPB release package', () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
     const publicFacts = JSON.parse(await readFile('docs/PUBLIC_FACTS.json', 'utf8')) as {
       product: { licenseIdentifier: string }
+      mcpRegistry: { name: string; registryType: string }
     }
     const artifactName = `hronaut-mcp-adapter-${packageJson.version}.mcpb`
     const artifact = await readFile(join(outputDirectory, artifactName))
     const metadata = JSON.parse(await readFile(join(outputDirectory, 'hronaut-mcp-server.json'), 'utf8'))
     expect(metadata).toMatchObject({
       $schema: 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json',
-      name: 'io.github.hronaut/hronaut',
+      name: publicFacts.mcpRegistry.name,
       version: packageJson.version,
       packages: [{
-        registryType: 'mcpb',
+        registryType: publicFacts.mcpRegistry.registryType,
         identifier: `https://github.com/hronaut/hronaut/releases/download/v${packageJson.version}/${artifactName}`,
         version: packageJson.version,
         transport: { type: 'stdio' }

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "factSetVersion": "2026-09-15.1",
-  "lastReviewedAt": "2026-09-15",
+  "factSetVersion": "2026-09-20.1",
+  "lastReviewedAt": "2026-09-20",
   "product": {
     "name": "Hronaut",
     "sourceAvailability": "source-available",
@@ -35,6 +35,16 @@
     "networkScope": "loopback-only",
     "visibleBrowser": true,
     "humanTakeover": true
+  },
+  "mcpRegistry": {
+    "name": "io.github.hronaut/hronaut",
+    "registryType": "mcpb",
+    "latestRecordUrl": "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/latest",
+    "versionRecordUrlTemplate": "https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/{version}",
+    "adapterGuideUrl": "https://github.com/hronaut/hronaut/blob/main/docs/MCPB_ADAPTER.md",
+    "desktopApplicationRequired": true,
+    "startsDesktopApplication": false,
+    "remoteDeploymentSupported": false
   },
   "platforms": [
     { "name": "Windows", "architectures": ["x64"] },

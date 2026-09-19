@@ -38,6 +38,16 @@ interface PublicFacts {
     visibleBrowser: boolean
     humanTakeover: boolean
   }
+  mcpRegistry: {
+    name: string
+    registryType: string
+    latestRecordUrl: string
+    versionRecordUrlTemplate: string
+    adapterGuideUrl: string
+    desktopApplicationRequired: boolean
+    startsDesktopApplication: boolean
+    remoteDeploymentSupported: boolean
+  }
   platforms: Array<{ name: string; architectures: string[] }>
   clients: Array<{ id: string; name: string; setupUrl: string }>
   historicalPublications: Array<{ url: string; status: string; correctionPath: string }>
@@ -91,6 +101,16 @@ describe('canonical public facts', () => {
         networkScope: 'loopback-only',
         visibleBrowser: true,
         humanTakeover: true
+      },
+      mcpRegistry: {
+        name: 'io.github.hronaut/hronaut',
+        registryType: 'mcpb',
+        latestRecordUrl: 'https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/latest',
+        versionRecordUrlTemplate: 'https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/{version}',
+        adapterGuideUrl: 'https://github.com/hronaut/hronaut/blob/main/docs/MCPB_ADAPTER.md',
+        desktopApplicationRequired: true,
+        startsDesktopApplication: false,
+        remoteDeploymentSupported: false
       }
     })
     expect(value.factSetVersion).toMatch(/^\d{4}-\d{2}-\d{2}\.\d+$/u)
@@ -141,6 +161,13 @@ describe('canonical public facts', () => {
     expect(directoryGuide).toContain('[`PUBLIC_FACTS.json`](PUBLIC_FACTS.json)')
     expect(directoryGuide).toMatch(/Remote deployment is not\s+supported/u)
     expect(directoryGuide).toMatch(/Do not submit the loopback MCP\s+URL as a remote connector endpoint/u)
+    for (const surface of [readme, directoryGuide]) {
+      expect(surface).toContain(value.mcpRegistry.name)
+      expect(surface).toContain(value.mcpRegistry.latestRecordUrl)
+      expect(surface).toContain(value.mcpRegistry.adapterGuideUrl)
+      expect(surface).toMatch(/does not (?:install or\s+)?start (?:the )?Hronaut desktop (?:app|application)/iu)
+      expect(surface).toMatch(/hosted agents? cannot reach|cannot make[\s\S]{0,100}reachable from hosted agents/iu)
+    }
     expect(readme).toContain('[Support, recovery, and exit path](docs/SUPPORT_RECOVERY.md)')
     expect(value.urls.supportRecovery).toBe('https://github.com/hronaut/hronaut/blob/main/docs/SUPPORT_RECOVERY.md')
     expect(supportGuide).toContain(`Fact set: ${value.factSetVersion}`)

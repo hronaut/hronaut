@@ -34,6 +34,16 @@ interface PublicFacts {
     visibleBrowser: boolean
     humanTakeover: boolean
   }
+  mcpRegistry: {
+    name: string
+    registryType: string
+    latestRecordUrl: string
+    versionRecordUrlTemplate: string
+    adapterGuideUrl: string
+    desktopApplicationRequired: boolean
+    startsDesktopApplication: boolean
+    remoteDeploymentSupported: boolean
+  }
   platforms: Array<{ name: string; architectures: string[] }>
   clients: Array<{ id: string; name: string; setupUrl: string }>
   historicalPublications: Array<{ url: string; status: string; correctionPath: string }>
@@ -66,6 +76,18 @@ report(facts.directoryListing.description.length >= 40 && facts.directoryListing
 report(facts.directoryListing.install.includes('Hronaut desktop application')
   && facts.directoryListing.install.includes('Hronaut Home'),
 'PUBLIC_FACTS.json must describe the local desktop installation flow')
+report(facts.mcpRegistry.name === 'io.github.hronaut/hronaut',
+  'PUBLIC_FACTS.json has an unexpected official MCP Registry name')
+report(facts.mcpRegistry.registryType === 'mcpb',
+  'PUBLIC_FACTS.json must classify the official Registry package as MCPB')
+report(facts.mcpRegistry.desktopApplicationRequired
+  && !facts.mcpRegistry.startsDesktopApplication
+  && !facts.mcpRegistry.remoteDeploymentSupported,
+'PUBLIC_FACTS.json must preserve the local desktop boundary for the MCP Registry package')
+report(facts.mcpRegistry.latestRecordUrl.endsWith('/io.github.hronaut%2Fhronaut/versions/latest'),
+  'PUBLIC_FACTS.json has an unexpected latest MCP Registry record URL')
+report(facts.mcpRegistry.versionRecordUrlTemplate.endsWith('/io.github.hronaut%2Fhronaut/versions/{version}'),
+  'PUBLIC_FACTS.json has an unexpected versioned MCP Registry record URL template')
 report(facts.subscription.annualReferenceTotal === facts.subscription.monthlyPerNamedUser * 12,
   'The annual reference total does not equal twelve monthly payments')
 report(facts.subscription.annualSavingsPercent
@@ -76,6 +98,9 @@ report(new Set(facts.clients.map(client => client.id)).size === facts.clients.le
 
 for (const [label, value] of [
   ...Object.entries(facts.urls),
+  ['MCP Registry latest record', facts.mcpRegistry.latestRecordUrl],
+  ['MCP Registry version record', facts.mcpRegistry.versionRecordUrlTemplate.replace('{version}', '1.0.0')],
+  ['MCPB adapter guide', facts.mcpRegistry.adapterGuideUrl],
   ...facts.clients.map(client => [`client ${client.id}`, client.setupUrl] as const),
   ...facts.historicalPublications.map((publication, index) => [`historical publication ${index + 1}`, publication.url] as const)
 ]) {

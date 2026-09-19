@@ -308,6 +308,15 @@ connector. Directory maintainers should use the reviewed
 license, trial, pricing, and ownership details. The MCP endpoint remains on
 loopback and must not be submitted to a hosted directory or gateway.
 
+The official MCP Registry identity is
+[`io.github.hronaut/hronaut`](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hronaut%2Fhronaut/versions/latest).
+It is an `mcpb` package record for the
+[local adapter](https://github.com/hronaut/hronaut/blob/main/docs/MCPB_ADAPTER.md),
+not a hosted Hronaut deployment. Installing the adapter does not install or
+start the Hronaut desktop application, and it cannot make Hronaut's loopback
+endpoint reachable from hosted agents. Start the matching desktop release
+locally and copy its endpoint from Hronaut Home.
+
 ## License
 
 Hronaut is source-available under the [Subscription and Trial License](LICENSE). The 10-day trial starts with the first agent tool call, with no credit card required. All ongoing use requires a subscription afterward: **$4/month or $24/year per named user (50% off $48)**, with up to three active devices per seat. Agent automation is blocked after expiry; existing local data remains accessible for recovery, export, and deletion. Earlier releases retain their original terms.

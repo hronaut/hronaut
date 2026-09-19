@@ -1,7 +1,7 @@
 # Support, recovery, and exit path
 
-Fact set: 2026-09-15.1  
-Last verified: 2026-09-15
+Fact set: 2026-09-20.1<br>
+Last verified: 2026-09-20
 
 This page is the canonical public operations guide for Hronaut releases built
 from the current repository. [`PUBLIC_FACTS.json`](PUBLIC_FACTS.json) is the
