@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Publish the verified official MCP Registry identity in the canonical public facts and explain that its MCPB adapter still requires a locally running Hronaut desktop app.
+
 ## [2.4.28] - 2026-09-20
 
 ### Added

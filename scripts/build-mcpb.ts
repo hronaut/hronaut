@@ -11,6 +11,7 @@ const stagingDirectory = join(outputDirectory, '.mcpb-staging')
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string }
 const publicFacts = JSON.parse(await readFile(join(root, 'docs/PUBLIC_FACTS.json'), 'utf8')) as {
   product: { licenseIdentifier: string }
+  mcpRegistry: { name: string; registryType: string }
 }
 const version = packageJson.version
 const artifactName = `hronaut-mcp-adapter-${version}.mcpb`
@@ -112,14 +113,14 @@ await writeFile(artifactPath, createStoredZip(archiveEntries))
 const digest = createHash('sha256').update(await readFile(artifactPath)).digest('hex')
 const registryMetadata = {
   $schema: 'https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json',
-  name: 'io.github.hronaut/hronaut',
+  name: publicFacts.mcpRegistry.name,
   title: 'Hronaut Browser MCP',
   description: 'Control visible, persistent Hronaut browser workspaces through a local MCP connection.',
   version,
   repository: { url: 'https://github.com/hronaut/hronaut', source: 'github' },
   websiteUrl: 'https://hronaut.dev',
   packages: [{
-    registryType: 'mcpb',
+    registryType: publicFacts.mcpRegistry.registryType,
     identifier: `https://github.com/hronaut/hronaut/releases/download/v${version}/${artifactName}`,
     version,
     fileSha256: digest,
