@@ -100,6 +100,36 @@ describe('human waiting lifecycle', () => {
     expect(store.list(input.workspaceId)[0]?.state).toBe('EXPIRED')
   })
 
+  it('keeps review receipts ordered when only the wall clock moves backwards', () => {
+    let monotonic = 0
+    let wall = 1000
+    const store = new HumanWaitingStore({ monotonicNow: () => monotonic, wallNow: () => wall })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    monotonic = 400
+    wall = 900
+
+    const approved = store.resolve(proposed.id, proposed.revision)
+    expect(approved.review?.receipts).toEqual([
+      { status: 'PROPOSED', at: 1000 },
+      { status: 'APPROVED', at: 1400 }
+    ])
+    expect(() => store.snapshot()).not.toThrow()
+  })
+
+  it('does not partially mutate a review when the wall clock is invalid', () => {
+    let wall = 1000
+    const store = new HumanWaitingStore({ wallNow: () => wall })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    wall = NaN
+
+    expect(() => store.resolve(proposed.id, proposed.revision)).toThrow(/clock/i)
+    wall = 1000
+    expect(store.list(input.workspaceId)[0]).toMatchObject({
+      state: 'WAITING_FOR_HUMAN', revision: proposed.revision,
+      review: { status: 'PROPOSED', receipts: [{ status: 'PROPOSED', at: 1000 }] }
+    })
+  })
+
   it('never evicts an unresolved decision to admit another request', () => {
     const store = new HumanWaitingStore({ capacity: 1 })
     const record = store.create(input)
