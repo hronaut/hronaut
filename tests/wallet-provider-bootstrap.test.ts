@@ -292,6 +292,60 @@ describe('wallet provider bootstrap', () => {
     expect(Object.isFrozen(wallet.accounts[0])).toBe(true)
   })
 
+  it('notifies Wallet Standard apps when account metadata changes without an address change', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    const address = 'HronautSolanaWalletAddress'
+    target.__hronautWalletBridge!.request
+      .mockResolvedValueOnce({
+        accounts: [{
+          address,
+          publicKey: Uint8Array.from([1, 2, 3, 4]),
+          chains: ['solana:devnet'],
+          features: ['solana:signMessage']
+        }]
+      })
+      .mockResolvedValueOnce({
+        accounts: [{
+          address,
+          publicKey: Uint8Array.from([1, 2, 3, 4]),
+          chains: ['solana:mainnet'],
+          features: ['solana:signTransaction', 'solana:signMessage']
+        }]
+      })
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0] as {
+      readonly accounts: ReadonlyArray<{ readonly chains: readonly string[]; readonly features: readonly string[] }>
+      features: {
+        'standard:connect': { connect(): Promise<unknown> }
+        'standard:events': { on(event: string, listener: (properties: { accounts?: readonly unknown[] }) => void): () => void }
+      }
+    }
+    const changes = vi.fn()
+    wallet.features['standard:events'].on('change', changes)
+
+    await wallet.features['standard:connect'].connect()
+    await wallet.features['standard:connect'].connect()
+
+    expect(changes).toHaveBeenCalledTimes(2)
+    expect(wallet.accounts[0]).toMatchObject({
+      chains: ['solana:mainnet'],
+      features: ['solana:signTransaction', 'solana:signMessage']
+    })
+  })
+
+  it('returns a ProviderRpcError for malformed EIP-1193 request arguments', async () => {
+    installHronautWalletProviders()
+
+    await expect(target.ethereum?.request(null)).rejects.toMatchObject({
+      code: -32600,
+      message: 'Wallet request must include a method'
+    })
+    expect(target.__hronautWalletBridge?.request).not.toHaveBeenCalled()
+  })
+
   it('supports adapter-compatible Solana event cleanup through off', () => {
     installHronautWalletProviders()
     const listener = vi.fn()

@@ -71,7 +71,7 @@ export function installHronautWalletProviders(): void {
 
   const providerRequest = (family: ProviderFamily) => async (input: unknown): Promise<unknown> => {
     if (!input || typeof input !== 'object' || typeof (input as { method?: unknown }).method !== 'string') {
-      throw new TypeError('Wallet request must include a method')
+      throw Object.assign(new Error('Wallet request must include a method'), { code: -32600 })
     }
     const request = input as { method: string; params?: unknown }
     try {
@@ -79,7 +79,7 @@ export function installHronautWalletProviders(): void {
     } catch (cause) {
       const incoming = cause as { code?: unknown; message?: unknown }
       const message = typeof incoming?.message === 'string' ? incoming.message : 'Wallet request failed'
-      const code = typeof incoming?.code === 'number'
+      const code = typeof incoming?.code === 'number' && Number.isInteger(incoming.code)
         ? incoming.code
         : /reject|denied/i.test(message)
           ? 4001
@@ -175,12 +175,47 @@ export function installHronautWalletProviders(): void {
       ...(typeof candidate.icon === 'string' ? { icon: candidate.icon } : {})
     })
   }
+  const sameSolanaAccount = (left: unknown, right: unknown): boolean => {
+    if (!left || typeof left !== 'object' || !right || typeof right !== 'object') return Object.is(left, right)
+    const previous = left as {
+      address?: unknown
+      publicKey?: unknown
+      chains?: unknown
+      features?: unknown
+      label?: unknown
+      icon?: unknown
+    }
+    const next = right as typeof previous
+    if (
+      typeof previous.address !== 'string'
+      || !(previous.publicKey instanceof Uint8Array)
+      || !Array.isArray(previous.chains)
+      || !Array.isArray(previous.features)
+      || typeof next.address !== 'string'
+      || !(next.publicKey instanceof Uint8Array)
+      || !Array.isArray(next.chains)
+      || !Array.isArray(next.features)
+    ) return Object.is(left, right)
+    const previousPublicKey = previous.publicKey
+    const nextPublicKey = next.publicKey
+    const previousChains = previous.chains
+    const nextChains = next.chains
+    const previousFeatures = previous.features
+    const nextFeatures = next.features
+    return previous.address === next.address
+      && previous.label === next.label
+      && previous.icon === next.icon
+      && previousPublicKey.length === nextPublicKey.length
+      && previousPublicKey.every((value, index) => value === nextPublicKey[index])
+      && previousChains.length === nextChains.length
+      && previousChains.every((value, index) => value === nextChains[index])
+      && previousFeatures.length === nextFeatures.length
+      && previousFeatures.every((value, index) => value === nextFeatures[index])
+  }
   const setSolanaAccounts = (accounts: readonly unknown[], notify: boolean): boolean => {
-    const previousAddresses = accountAddresses(solanaAccounts)
     const next = Object.freeze(accounts.map(readonlySolanaAccount))
-    const nextAddresses = accountAddresses(next)
-    const changed = previousAddresses.length !== nextAddresses.length
-      || previousAddresses.some((address, index) => address !== nextAddresses[index])
+    const changed = solanaAccounts.length !== next.length
+      || solanaAccounts.some((account, index) => !sameSolanaAccount(account, next[index]))
     solanaAccounts = next
     legacySolanaPublicKey = legacyPublicKeyFromAccount(solanaAccounts[0])
     if (!notify || !changed) return changed
