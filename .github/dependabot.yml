@@ -20,6 +20,14 @@ updates:
     open-pull-requests-limit: 10
     ignore:
       - dependency-name: "@playwright/test"
+      # electron-vite 5 supports Vite only through 7. Remove when its peer range includes Vite 8.
+      - dependency-name: "vite"
+        versions:
+          - "8.x"
+      # typescript-eslint 8 supports TypeScript below 6.1. Remove when it supports TypeScript 7.
+      - dependency-name: "typescript"
+        versions:
+          - "7.x"
       # Electron 44.4.x shifts trusted controls after compact navigation; 44.4.1 also crashes continuity QA.
       - dependency-name: "electron"
         versions:
