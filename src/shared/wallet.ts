@@ -406,35 +406,21 @@ export const WalletPublicRequestPayloadSchema = z.unknown().superRefine((value, 
 
 const WalletProviderParamsSchema = WalletPublicRequestPayloadSchema
 
-const EvmProviderMethodSchema = z.enum([
-  'eth_accounts',
-  'eth_requestAccounts',
-  'eth_chainId',
-  'wallet_switchEthereumChain',
-  'eth_sendTransaction',
-  'eth_signTransaction',
-  'personal_sign',
-  'eth_signTypedData_v4',
-  'eth_sign'
-])
+export const WALLET_PROVIDER_METHODS = {
+  evm: [
+    'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
+    'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign'
+  ],
+  solana: ['connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage'],
+  tron: [
+    'eth_accounts', 'eth_requestAccounts', 'wallet_switchEthereumChain',
+    'tron_signTransaction', 'tron_signAndSendTransaction', 'tron_signMessage'
+  ]
+} as const
 
-const SolanaProviderMethodSchema = z.enum([
-  'connect',
-  'disconnect',
-  'signTransaction',
-  'signAllTransactions',
-  'signAndSendTransaction',
-  'signMessage'
-])
-
-const TronProviderMethodSchema = z.enum([
-  'eth_accounts',
-  'eth_requestAccounts',
-  'wallet_switchEthereumChain',
-  'tron_signTransaction',
-  'tron_signAndSendTransaction',
-  'tron_signMessage'
-])
+const EvmProviderMethodSchema = z.enum(WALLET_PROVIDER_METHODS.evm)
+const SolanaProviderMethodSchema = z.enum(WALLET_PROVIDER_METHODS.solana)
+const TronProviderMethodSchema = z.enum(WALLET_PROVIDER_METHODS.tron)
 
 export const WalletProviderRequestSchema = z.discriminatedUnion('family', [
   z.object({ family: z.literal('evm'), method: EvmProviderMethodSchema, params: WalletProviderParamsSchema.optional() }).strict(),

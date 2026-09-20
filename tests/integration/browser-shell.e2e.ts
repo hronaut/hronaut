@@ -2791,6 +2791,10 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
               providerAddress: window.hronautSolana.publicKey?.toString(),
               publicKeyBytes: Array.from(publicKey.toBytes()),
               isConnected: window.hronautSolana.isConnected,
+              standardTransactionVersions: {
+                sign: window.__hronautStandardSolana.features['solana:signTransaction'].supportedTransactionVersions,
+                send: window.__hronautStandardSolana.features['solana:signAndSendTransaction'].supportedTransactionVersions
+              },
               standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
               standardChanges: window.__solanaStandardChanges,
               legacyAccountStates: window.__legacySolanaAccountStates
@@ -2818,6 +2822,7 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       returnedAddress: prepared.publicAddress,
       providerAddress: prepared.publicAddress,
       isConnected: true,
+      standardTransactionVersions: { sign: ['legacy'], send: ['legacy'] },
       standardAccounts: [prepared.publicAddress],
       standardChanges: [[prepared.publicAddress]],
       legacyAccountStates: [{ accounts: [prepared.publicAddress], isConnected: true }]

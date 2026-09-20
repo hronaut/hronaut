@@ -807,6 +807,26 @@ describe('WalletBroker', () => {
       .resolves.toEqual([])
   })
 
+  it('rejects non-hex EVM chain switches and reports unknown provider methods as unsupported', async () => {
+    const { service } = await setup()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    for (const chainId of ['11155111', '0Xaa36a7', '0x00aa36a7', '-0x1', '0x']) {
+      await expect(broker.providerRequest(context(), {
+        family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId }]
+      })).rejects.toThrow('Requested EVM chain is invalid')
+    }
+    await expect(broker.providerRequest(context(), {
+      family: 'evm', method: 'wallet_notSupported'
+    } as never)).rejects.toThrow('Unsupported EVM wallet method: wallet_notSupported')
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'notSupported'
+    } as never)).rejects.toThrow('Unsupported Solana wallet method: notSupported')
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'notSupported'
+    } as never)).rejects.toThrow('Unsupported Tron wallet method: notSupported')
+  })
+
   it('updates connected EVM accounts when the signing vault locks and unlocks', async () => {
     const { service, wallet } = await setup()
     await service.permissions.grant({

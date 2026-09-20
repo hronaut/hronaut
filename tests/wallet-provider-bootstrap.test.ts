@@ -123,6 +123,9 @@ describe('wallet provider bootstrap', () => {
     const wallet = register.mock.calls[0]?.[0]
     expect(wallet.features).toHaveProperty('standard:connect')
     expect(wallet.features).toHaveProperty('solana:signTransaction')
+    expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy'])
+    expect(wallet.features['solana:signAndSendTransaction'].supportedTransactionVersions).toEqual(['legacy'])
+    expect(Object.isFrozen(wallet.features['solana:signTransaction'].supportedTransactionVersions)).toBe(true)
     target.__hronautWalletBridge!.request.mockResolvedValueOnce(Uint8Array.from([9, 8, 7]))
     const transaction = { serialize: vi.fn(() => Uint8Array.from([1, 2, 3])) }
     const signed = await target.solana?.signTransaction(transaction) as { serialize(): Uint8Array }
@@ -133,6 +136,17 @@ describe('wallet provider bootstrap', () => {
         transaction: Uint8Array.from([1, 2, 3]), compatibility: 'legacy'
       }]
     })
+  })
+
+  it('maps an unconfigured EVM chain to the wallet-standard 4902 error', async () => {
+    installHronautWalletProviders()
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(
+      new Error('Requested EVM chain is not configured for this workspace wallet')
+    )
+
+    await expect(target.ethereum?.request({
+      method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }]
+    })).rejects.toMatchObject({ code: 4902 })
   })
 
   it('publishes legacy Solana connection state after the user selects Hronaut', async () => {

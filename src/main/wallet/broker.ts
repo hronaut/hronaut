@@ -15,7 +15,12 @@ import type {
   WalletServiceStatus,
   WalletUpdateInput
 } from '../../shared/wallet.js'
-import { WalletProviderRequestSchema, WalletUpdateInputSchema, walletAllowsWorkspace } from '../../shared/wallet.js'
+import {
+  WALLET_PROVIDER_METHODS,
+  WalletProviderRequestSchema,
+  WalletUpdateInputSchema,
+  walletAllowsWorkspace
+} from '../../shared/wallet.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -85,7 +90,7 @@ function sanitizedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : 'Wallet request failed'
   const containsEndpoint = /(?:https?|wss?):\/\//i.test(message)
   const safe = !containsEndpoint
-    && /^(?:Wallet|EVM|Solana|Tron|Requested|Unsupported|No wallet|Managed wallet|Watch-only|Invalid wallet|Cross-origin|Mainnet|Automatic wallet|Signed (?:EVM|Solana|Tron)|Transaction|Insufficient)[A-Za-z0-9 .,:'"()/-]{0,480}$/.test(message)
+    && /^(?:Wallet|EVM|Solana|Tron|Requested|Unsupported|No wallet|Managed wallet|Watch-only|Invalid wallet|Cross-origin|Mainnet|Automatic wallet|Signed (?:EVM|Solana|Tron)|Transaction|Insufficient)[A-Za-z0-9_ .,:'"()/-]{0,480}$/.test(message)
     ? message
     : 'Wallet request failed validation or processing'
   return new Error(safe.slice(0, 512))
@@ -477,6 +482,7 @@ export class WalletBroker {
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
     try {
       this.assertRequestContextActive(context)
+      this.assertSupportedProviderMethod(input)
       const request = WalletProviderRequestSchema.parse(input)
       const wallets = this.accessibleWallets(context, request.family)
       if (request.family === 'evm') return await this.evmRequest(context, wallets, request.method, request.params)
@@ -484,6 +490,18 @@ export class WalletBroker {
       return await this.tronRequest(context, wallets, request.method, request.params)
     } catch (error) {
       throw sanitizedError(error)
+    }
+  }
+
+  private assertSupportedProviderMethod(input: unknown): void {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) return
+    const { family, method } = input as { family?: unknown; method?: unknown }
+    if (typeof method !== 'string' || !/^[A-Za-z0-9_]{1,128}$/.test(method)) return
+    if (family !== 'evm' && family !== 'solana' && family !== 'tron') return
+    const supported: readonly string[] = WALLET_PROVIDER_METHODS[family]
+    if (!supported.includes(method)) {
+      const familyName = family === 'evm' ? 'EVM' : family === 'solana' ? 'Solana' : 'Tron'
+      throw new Error(`Unsupported ${familyName} wallet method: ${method}`)
     }
   }
 
@@ -1368,7 +1386,9 @@ export class WalletBroker {
   ): null {
     let numericChainId: bigint
     try {
-      if (typeof requestedChainId !== 'string') throw new Error('invalid')
+      if (typeof requestedChainId !== 'string' || !/^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/.test(requestedChainId)) {
+        throw new Error('invalid')
+      }
       numericChainId = BigInt(requestedChainId)
     } catch {
       throw new Error('Requested EVM chain is invalid')

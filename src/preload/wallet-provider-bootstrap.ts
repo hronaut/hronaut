@@ -87,6 +87,8 @@ export function installHronautWalletProviders(): void {
             ? 4100
             : /unsupported/i.test(message)
               ? 4200
+              : /chain is not configured/i.test(message)
+                ? 4902
               : /chain|network/i.test(message)
                 ? 4901
                 : -32603
@@ -198,8 +200,16 @@ export function installHronautWalletProviders(): void {
           return () => standardEvents.delete(listener)
         }
       }),
-      'solana:signTransaction': Object.freeze({ version: '1.0.0', signTransaction: (...inputs: unknown[]) => solanaRequest('signTransaction', inputs) }),
-      'solana:signAndSendTransaction': Object.freeze({ version: '1.0.0', signAndSendTransaction: (...inputs: unknown[]) => solanaRequest('signAndSendTransaction', inputs) }),
+      'solana:signTransaction': Object.freeze({
+        version: '1.0.0',
+        supportedTransactionVersions: Object.freeze(['legacy']),
+        signTransaction: (...inputs: unknown[]) => solanaRequest('signTransaction', inputs)
+      }),
+      'solana:signAndSendTransaction': Object.freeze({
+        version: '1.0.0',
+        supportedTransactionVersions: Object.freeze(['legacy']),
+        signAndSendTransaction: (...inputs: unknown[]) => solanaRequest('signAndSendTransaction', inputs)
+      }),
       'solana:signMessage': Object.freeze({ version: '1.0.0', signMessage: (...inputs: unknown[]) => solanaRequest('signMessage', inputs) })
     })
   })

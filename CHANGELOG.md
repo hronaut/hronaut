@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Advertise Solana Wallet Standard transaction-version support so standard adapters can initialize reliably, reject non-canonical EVM chain-switch requests, and return interoperable provider errors for unsupported methods and unconfigured chains.
+
 ## [2.4.30] - 2026-09-20
 
 ### Added
