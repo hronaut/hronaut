@@ -301,7 +301,7 @@ Trusted Settings can also create named capability credentials with a smaller too
 
 When a capability rejects a registered tool call, the MCP error gives a bounded human-readable reason and adds a machine-readable `policyDecision` object. The trace evaluates `grant`, `lineage`, `session`, `tool`, `action`, `operation-class`, `workspace`, `origin`, and `argument` in that fixed precedence order; it identifies the first denying rule and stable reason code, marks later rules as not evaluated, distinguishes missing from unrecognized operation classes, and distinguishes a direct credential from a delegated lineage. It includes the presented and active numeric session generations so stale context is diagnosable without exposing identity. The request summary includes only registered tool/action/category names and presence classifications, never configured origins, workspace IDs, profile names, credentials, selectors, prompts, constraint values or digests, or payloads. Permission, dispatch, and postcondition are separate fields: a pre-dispatch rejection has no effects, while a capability change detected after dispatch remains `OUTCOME_UNKNOWN` with possible effects and requires reconciliation. Every non-read tool has an explicit operation-class entry, and startup fails if a future tool is added without one instead of silently assigning a fallback category.
 
-When action audit recording is active, each decision records whether the connection had full access or used a capability profile. Capability decisions include the bounded root-to-leaf profile IDs and revisions so a reviewer can verify delegation lineage. Audit receipts never record bearer credentials, credential identifiers, profile scopes, cookies, tokens, page content, or tool arguments.
+When action audit recording is active, each decision records whether the connection had full access or used a capability profile. Capability decisions include the bounded root-to-leaf profile IDs and revisions so a reviewer can verify delegation lineage. Decision and outcome observations also retain the privacy-safe exclusive-write lease mode, holder state, expiry, and only the current owner's opaque lease generation. A reviewer can therefore distinguish one continuous writer from a release, reconnect, expiry, or handoff without receiving a foreign generation or transport identity. Audit receipts never record bearer credentials, credential identifiers, profile scopes, cookies, tokens, page content, tool arguments, or MCP client/session identifiers.
 
 ## Connect an MCP client
 
@@ -438,6 +438,8 @@ contract. Native page events may have no action correlation. Unavailable state i
 `null`, and possible effects after failure or cancellation do not imply rollback.
 Handoff-invalidated reads have outcome status `stale-observation`; uncertain
 writes have `outcome-unknown`, including when their transport was cancelled.
+Format version 4 observations include privacy-safe write-lease evidence; older
+retained observations remain readable and may omit it.
 These statuses do not authorize a retry or establish whether a write took effect.
 Site identities are opaque and stable only within one live run. Reports contain
 no raw URLs, titles, tool arguments, tool results, error text, form values, page

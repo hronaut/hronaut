@@ -77,17 +77,33 @@ test('records private bounded browser evidence across MCP reconnects without aut
     expect((await raw(resumed, 'browser_audit_receipts', { workspaceId: foreign.id, action: 'read', runId: run.id })).isError).toBe(true)
     await call(resumed, 'browser_audit_receipts', { workspaceId, action: 'stop' })
     const report = await call<{
+      formatVersion: number
       run: { status: string }
       receipts: AuditReceipt[]
       evidenceCoverage: { items: Array<{ actionId: string | null; source: string; status: string; referenceId: string | null }> }
     }>(resumed, 'browser_audit_receipts', {
       workspaceId, action: 'read', runId: run.id
     })
+    expect(report.formatVersion).toBe(4)
     expect(report.run.status).toBe('stopped')
     const admissions = report.receipts.filter(receipt => receipt.event.phase === 'decision')
     expect(admissions.map(receipt => receipt.event.phase === 'decision' ? receipt.event.toolName : '')).toEqual([
       'browser_new_tab', 'browser_navigate', 'browser_snapshot'
     ])
+    const outcomesByAction = new Map(report.receipts.flatMap(receipt => receipt.event.phase === 'outcome'
+      ? [[receipt.event.actionId, receipt.event] as const] : []))
+    const leases = admissions.map(receipt => receipt.event.phase === 'decision'
+      ? receipt.event.state?.writeLease ?? outcomesByAction.get(receipt.event.actionId)?.state?.writeLease
+      : undefined)
+    const leaseGenerations = leases.map(lease => lease?.generation)
+    expect(leases).toEqual([
+      expect.objectContaining({ status: 'owned', holder: 'self', mode: 'exclusive-write' }),
+      expect.objectContaining({ status: 'owned', holder: 'self', mode: 'exclusive-write' }),
+      expect.objectContaining({ status: 'owned', holder: 'self', mode: 'exclusive-write' })
+    ])
+    expect(leaseGenerations[0]).toEqual(expect.any(String))
+    expect(leaseGenerations[1]).toBe(leaseGenerations[0])
+    expect(leaseGenerations[2]).not.toBe(leaseGenerations[0])
     for (const receipt of admissions) {
       expect(receipt.event).toMatchObject({
         authorization: {

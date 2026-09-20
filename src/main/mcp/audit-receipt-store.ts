@@ -6,6 +6,20 @@ import { z } from 'zod'
 // This is an internal storage contract, not an MCP input schema. Callers must
 // supply only registered tool names and generated identifiers, never page text.
 const identifier = z.uuid()
+const writeLeaseSchema = z.object({
+  status: z.enum(['unclaimed', 'owned', 'busy']),
+  holder: z.enum(['none', 'self', 'other']),
+  mode: z.literal('exclusive-write'),
+  expiresAt: z.iso.datetime().optional(),
+  generation: identifier.optional()
+}).strict().superRefine((lease, context) => {
+  const valid = lease.status === 'unclaimed'
+    ? lease.holder === 'none' && lease.expiresAt === undefined && lease.generation === undefined
+    : lease.status === 'owned'
+      ? lease.holder === 'self' && lease.expiresAt !== undefined && lease.generation !== undefined
+      : lease.holder === 'other' && lease.expiresAt !== undefined && lease.generation === undefined
+  if (!valid) context.addIssue({ code: 'custom', message: 'Invalid privacy-safe workspace write lease state' })
+})
 const stateSchema = z.object({
   tabId: identifier.nullable(),
   navigationGeneration: z.number().int().nonnegative().safe(),
@@ -14,6 +28,8 @@ const stateSchema = z.object({
   humanInteractionGeneration: z.number().int().nonnegative().safe().optional(),
   controlRevision: z.number().int().nonnegative().safe().optional(),
   runtimeId: identifier.optional(),
+  // Foreign lease generations and transport/client identifiers are never retained.
+  writeLease: writeLeaseSchema.optional(),
   originChanged: z.boolean(),
   operationClass: z.enum(['navigation', 'page-interaction', 'browser-state', 'site-data', 'network', 'external-request']).optional(),
   targetKind: z.enum(['tab', 'element-ref', 'selector', 'coordinates', 'drag', 'form', 'origin', 'script', 'request']).optional(),
@@ -233,6 +249,10 @@ export class AuditReceiptStore {
           humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
           controlRevision: Number.MAX_SAFE_INTEGER,
           runtimeId: options.runId,
+          writeLease: {
+            status: 'owned', holder: 'self', mode: 'exclusive-write',
+            expiresAt: '9999-12-31T23:59:59.999Z', generation: options.runId
+          },
           originChanged: false,
           operationClass: 'page-interaction',
           targetKind: 'coordinates',
@@ -259,6 +279,10 @@ export class AuditReceiptStore {
           humanInteractionGeneration: Number.MAX_SAFE_INTEGER,
           controlRevision: Number.MAX_SAFE_INTEGER,
           runtimeId: options.runId,
+          writeLease: {
+            status: 'owned', holder: 'self', mode: 'exclusive-write',
+            expiresAt: '9999-12-31T23:59:59.999Z', generation: options.runId
+          },
           originChanged: false,
           operationClass: 'page-interaction',
           targetKind: 'coordinates',

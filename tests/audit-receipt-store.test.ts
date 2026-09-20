@@ -68,7 +68,10 @@ describe('action audit receipt journal', () => {
     const start = decision()
     start.state = {
       ...start.state!, operationClass: 'page-interaction', targetKind: 'element-ref',
-      targetId: randomUUID()
+      targetId: randomUUID(), writeLease: {
+        status: 'owned', holder: 'self', mode: 'exclusive-write',
+        expiresAt: '2026-09-21T00:00:00.000Z', generation: randomUUID()
+      }
     }
     await store.append(start)
     await store.append({
@@ -81,6 +84,30 @@ describe('action audit receipt journal', () => {
       expect.objectContaining({ status: 'provenance-rejected', effects: 'none', state: expect.objectContaining({ authorityReason: 'ORIGIN_CHANGED' }) })
     ])
     expect(JSON.stringify(report)).not.toMatch(/trusted\.example|Ignore previous instructions|element-selector-canary/)
+  })
+
+  it('rejects foreign lease generations and transport identity fields', async () => {
+    const { store } = await fixture()
+    const foreignGeneration = randomUUID()
+    await expect(store.append({
+      ...decision(),
+      state: {
+        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        writeLease: {
+          status: 'busy', holder: 'other', mode: 'exclusive-write',
+          expiresAt: '2026-09-21T00:00:00.000Z', generation: foreignGeneration
+        }
+      }
+    })).rejects.toThrow('Invalid audit receipt event')
+    await expect(store.append({
+      ...decision(),
+      state: {
+        tabId: randomUUID(), navigationGeneration: 1, originChanged: false,
+        writeLease: {
+          status: 'unclaimed', holder: 'none', mode: 'exclusive-write', ownerId: 'private-session-canary'
+        }
+      }
+    } as AuditReceiptEvent)).rejects.toThrow('Invalid audit receipt event')
   })
 
   it('retains bounded capability lineage without credential identifiers or bearer values', async () => {

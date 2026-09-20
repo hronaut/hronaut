@@ -141,7 +141,7 @@ export class AuditReceiptService {
   }
 
   read(workspaceId: string, runId: string): Promise<{
-    formatVersion: 3
+    formatVersion: 4
     scope: string
     caveats: string[]
     run: AuditRunSummary
@@ -158,7 +158,7 @@ export class AuditReceiptService {
     const selected = idSchema.parse(runId)
     return this.serialize(id, async () => {
       const details = {
-        formatVersion: 3 as const,
+        formatVersion: 4 as const,
         scope: 'Workspace-scoped browser tools and observed site-policy decisions; audit-control, workspace-lifecycle and wallet tools are excluded.',
         caveats: [
           'Native site events without exact action context are uncorrelated, not attributed by timing.',
@@ -169,6 +169,7 @@ export class AuditReceiptService {
           'Live evidence references expire after process, control, navigation, observation, or tab changes; they locate existing bounded tools rather than immutable snapshots.',
           'Origin identifiers are opaque and stable only within one live run. The hash chain is not authentication against local file rewriting.',
           'Authorization lineage contains only root-to-leaf capability profile IDs and revisions. Older retained decisions may omit it.',
+          'Write-lease evidence contains only privacy-safe mode, holder state, expiry, and the current owner generation. Foreign generations and transport identities are omitted; older retained observations may omit it.',
           'Retention is three runs per workspace, each capped at 1000 entries and 1 MiB.'
         ]
       }

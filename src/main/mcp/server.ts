@@ -2206,6 +2206,7 @@ function createBrowserMcpServer(
             humanInteractionGeneration: tab.humanInteractionGeneration ?? 0,
             controlRevision: actionTracker.controlRevision,
             runtimeId: actionTracker.runtimeId,
+            writeLease: workspaceLeases.status(workspaceId, client.id),
             originChanged: origin !== initialOrigin,
             ...(actionAuthority ? {
               operationClass: actionAuthority.operationClass,
