@@ -64,9 +64,9 @@ function desktopExecArgument(value: string): string {
   return `"${encoded}"`
 }
 
-function desktopEntryValue(entry: string, key: string): string | undefined {
+function desktopEntryValues(entry: string): ReadonlyMap<string, string> | undefined {
   let inDesktopEntry = false
-  let value: string | undefined
+  const values = new Map<string, string>()
   for (const rawLine of entry.split(/\r?\n/u)) {
     const line = rawLine.trimStart()
     if (line.startsWith('#') || line.length === 0) continue
@@ -76,13 +76,14 @@ function desktopEntryValue(entry: string, key: string): string | undefined {
     }
     if (!inDesktopEntry) continue
     const separator = line.indexOf('=')
-    if (separator < 1 || line.slice(0, separator).trimEnd() !== key) continue
-    // Duplicate keys make a desktop entry invalid. Treat an ambiguous startup
-    // file as disabled instead of reporting a launch guarantee the OS may not honor.
-    if (value !== undefined) return undefined
-    value = line.slice(separator + 1).trimStart()
+    if (separator < 1) continue
+    const key = line.slice(0, separator).trimEnd()
+    // Duplicate keys make a desktop entry invalid. Reject the whole group,
+    // even when the duplicate is not one of the fields Hronaut reads.
+    if (values.has(key)) return undefined
+    values.set(key, line.slice(separator + 1).trimStart())
   }
-  return value
+  return values
 }
 
 export function shouldStartMinimized(
@@ -102,8 +103,10 @@ export class StartupLaunchManager {
     if (this.options.platform === 'linux') {
       try {
         const entry = await readFile(this.autostartPath(), 'utf8')
-        const hidden = desktopEntryValue(entry, 'Hidden')
-        const command = desktopEntryValue(entry, 'Exec')
+        const values = desktopEntryValues(entry)
+        if (!values) return false
+        const hidden = values.get('Hidden')
+        const command = values.get('Exec')
         return hidden?.trim().toLowerCase() !== 'true'
           && command === `${desktopExecArgument(this.options.executablePath)} ${STARTUP_LAUNCH_ARGUMENT}`
       } catch (error) {

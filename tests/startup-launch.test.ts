@@ -109,6 +109,33 @@ describe('StartupLaunchManager', () => {
     expect(await manager.isEnabled()).toBe(true)
   })
 
+  it('rejects an otherwise matching Linux desktop entry with duplicate keys', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
+    temporaryDirectories.push(directory)
+    const executablePath = '/opt/Hronaut/hronaut'
+    const manager = new StartupLaunchManager({
+      platform: 'linux',
+      isPackaged: true,
+      executablePath,
+      autostartDirectory: directory
+    })
+    const command = `"${executablePath}" ${STARTUP_LAUNCH_ARGUMENT}`
+
+    for (const duplicate of [
+      ['Hidden=false', 'Hidden=false'],
+      ['Name=Hronaut', 'Name=Duplicate']
+    ]) {
+      await writeFile(join(directory, 'hronaut.desktop'), [
+        '[Desktop Entry]',
+        'Type=Application',
+        `Exec=${command}`,
+        ...duplicate,
+        ''
+      ].join('\n'), 'utf8')
+      expect(await manager.isEnabled()).toBe(false)
+    }
+  })
+
   it('uses matching arguments when registering and verifying a Windows login item', async () => {
     let enabled = false
     const setLoginItemSettings = vi.fn((value: Electron.Settings) => { enabled = Boolean(value.openAtLogin) })
