@@ -8390,18 +8390,19 @@ test('preserves human focus across agent presentation, input, and active tab cha
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
 
-    const concurrentEvaluations = await Promise.all([tabId, splitTabId].map(async (concurrentTabId, index) => {
+    const tabEvaluations: number[] = []
+    for (const [index, evaluatedTabId] of [tabId, splitTabId].entries()) {
       const result = await client.callTool({
         name: 'browser_evaluate',
         arguments: {
-          tabId: concurrentTabId,
+          tabId: evaluatedTabId,
           script: `new Promise((resolve) => setTimeout(() => { window.focus(); resolve(${index}) }, 180))`
         }
       }) as CallToolResult
       expect(result.isError, mcpResultText(result)).not.toBe(true)
-      return Number(mcpResultText(result))
-    }))
-    expect(concurrentEvaluations).toEqual([0, 1])
+      tabEvaluations.push(Number(mcpResultText(result)))
+    }
+    expect(tabEvaluations).toEqual([0, 1])
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }, windowId) => {

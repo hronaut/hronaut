@@ -599,7 +599,7 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
     expect(groupsTool?.inputSchema).toMatchObject({
       properties: {
         action: {
-          description: expect.stringContaining('For create, choose storage=scratch or storage=fork-workspace with sourceWorkspaceId')
+          description: expect.stringContaining('Create and resume claim exclusive write ownership')
         },
         workspaceId: {
           description: expect.stringContaining('Stable UUIDv7 id returned by your own create call')

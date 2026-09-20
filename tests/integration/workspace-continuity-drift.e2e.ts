@@ -80,6 +80,7 @@ for (const change of ['tab', 'policy', 'input', 'archive', 'archive-resume'] as 
       ), origin)
       expect(writes).toEqual([0, 0])
       decode(await call('browser_continuity', { ...args, action: 'reconcile', reviewId: report.reviewId }))
+      decode(await call('browser_workspaces', { ...args, action: 'claim-ownership' }))
       expect((await call('browser_evaluate', { ...args, script: 'window.driftWrites = 1' })).isError).not.toBe(true)
     } finally {
       await client.close()

@@ -73,6 +73,7 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
     const staleRequestDetails = await call('browser_network_request', { ...args, requestId: crossedRequest!.id })
     expect(staleRequestDetails.isError).toBe(true)
     expect(JSON.stringify(staleRequestDetails)).toContain('Call browser_network again for current request IDs')
+    parse(await call('browser_workspaces', { action: 'claim-ownership', workspaceId: workspace.id }))
 
     const redirect = call('browser_navigate', {
       ...args,
@@ -93,6 +94,7 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
     const afterRedirectNetwork = parse<BrowserNetworkRequest[]>(await call('browser_network', args))
     expect(afterRedirectNetwork.some(request => request.url.includes('/hold-redirect'))).toBe(false)
     expect(afterRedirectNetwork.some(request => request.url.includes('/redirected'))).toBe(false)
+    parse(await call('browser_workspaces', { action: 'claim-ownership', workspaceId: workspace.id }))
 
     expect((await call('browser_dom_changes', { ...args, action: 'start' })).isError).not.toBe(true)
     expect((await call('browser_evaluate', {
@@ -113,6 +115,7 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
       action: 'get'
     }))
     expect(afterHandoffDom).toMatchObject({ active: false, changeCount: 0 })
+    parse(await call('browser_workspaces', { action: 'claim-ownership', workspaceId: workspace.id }))
 
     const armDownload = await call('browser_evaluate', {
       ...args,
@@ -134,6 +137,7 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
       workspaceId: workspace.id
     }))
     expect(workspaceDownloads.some(download => download.filename === 'stale-generation.txt')).toBe(false)
+    parse(await call('browser_workspaces', { action: 'claim-ownership', workspaceId: workspace.id }))
 
     const write = call('browser_evaluate', { ...args, script: "fetch('/hold-write').then(() => { document.body.dataset.effect = 'applied'; return 'late-write-canary'; })" })
     void write.catch(() => undefined)
@@ -165,6 +169,7 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
     expect(unknownGenerations).toEqual([2, 5])
     expect(JSON.stringify(report)).not.toContain('late-write-canary')
     expect(JSON.stringify(report)).not.toContain('late-read-canary')
+    parse(await call('browser_workspaces', { action: 'claim-ownership', workspaceId: workspace.id }))
     const fresh = await call('browser_evaluate', { ...args, script: 'document.body.dataset.effect' })
     expect(fresh.isError).not.toBe(true)
     expect(fresh.content).toContainEqual({ type: 'text', text: 'applied' })

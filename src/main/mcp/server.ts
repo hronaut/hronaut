@@ -1406,12 +1406,16 @@ function createBrowserMcpServer(
           : name === 'browser_saved_workspaces' && typeof input.savedWorkspaceId === 'string'
             ? input.savedWorkspaceId
             : undefined
-        if (name === 'browser_saved_workspaces' && leaseWorkspaceId
+        const targetsSavedWorkspace = name === 'browser_saved_workspaces'
           && (input.action === 'open' || input.action === 'delete')
+        const authorizedLeaseWorkspace = leaseWorkspaceId !== undefined
+          && (targetsSavedWorkspace ? savedWorkspaceIds : activeWorkspaceIds).has(leaseWorkspaceId)
+          && manager.isWorkspaceAgentAccessible(leaseWorkspaceId)
+        if (authorizedLeaseWorkspace && targetsSavedWorkspace
           && workspaceLeases.status(leaseWorkspaceId, client.id).status === 'unclaimed') {
           workspaceLeases.claim(leaseWorkspaceId, client.id)
         }
-        if (!leaseExemptWorkspaceAction && leaseWorkspaceId
+        if (!leaseExemptWorkspaceAction && leaseWorkspaceId && authorizedLeaseWorkspace
           && requiresWorkspaceWriteLease(name, input)) {
           finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }

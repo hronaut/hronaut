@@ -62,6 +62,7 @@ test('checks authorized workspace readiness without exposing private context or 
     expect(await call<Report>(first, 'browser_preflight', { ...args, workspaceId: foreign.id })).toEqual(
       await call<Report>(first, 'browser_preflight', { ...args, workspaceId: 'a94f7c55-bc85-7da1-bd05-2bc4a1e0d125' })
     )
+    await call(first, 'browser_workspaces', { action: 'release-ownership', workspaceId: workspace.id })
     await first.close()
     await call(second, 'browser_workspaces', { action: 'resume', workspaceId: workspace.id, resumeKey: workspace.resumeKey })
     expect((await call<Report>(second, 'browser_preflight', args)).checks).toContainEqual(expect.objectContaining({ reason: 'ORIGIN_MATCHED' }))

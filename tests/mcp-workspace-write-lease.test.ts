@@ -17,6 +17,10 @@ function parsed(result: CallToolResult): Record<string, unknown> {
   return JSON.parse(item?.type === 'text' ? item.text : '{}') as Record<string, unknown>
 }
 
+function resultText(result: CallToolResult): string {
+  return result.content.filter(entry => entry.type === 'text').map(entry => entry.text).join('\n')
+}
+
 describe('workspace write leases', () => {
   it('prevents a late former holder from regaining authority after handoff', () => {
     const leases = new WorkspaceWriteLeaseRegistry()
@@ -111,6 +115,12 @@ describe('workspace write leases', () => {
 
       const created = parsed(await call(clients[0]!, 'browser_workspaces', { action: 'create', name: 'Shared task' }))
       expect(created.writeLease).toMatchObject({ status: 'owned', holder: 'self', mode: 'exclusive-write' })
+
+      const unauthorized = await call(clients[1]!, 'browser_click', { workspaceId, selector: '#other-save' })
+      expect(unauthorized.isError).toBe(true)
+      expect(unauthorized.structuredContent).toBeUndefined()
+      expect(resultText(unauthorized)).toContain('not authorized for this MCP client')
+      expect(manager.click).not.toHaveBeenCalled()
 
       const sharedRead = await call(clients[1]!, 'browser_workspaces', {
         action: 'resume', workspaceId, resumeKey
