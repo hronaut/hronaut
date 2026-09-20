@@ -257,6 +257,7 @@ describe('MCP workspace fork sources and direct access', () => {
     expect(result.isError).toBe(true)
     expect(manager.click).not.toHaveBeenCalled()
     server.setPaused(false)
+    expect((await call('browser_workspaces', { action: 'claim-ownership', workspaceId: ownId })).isError).not.toBe(true)
     expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
     expect(manager.click).toHaveBeenCalledTimes(1)
   })

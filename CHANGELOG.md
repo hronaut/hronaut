@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add process-local, transport-bound workspace write leases with privacy-safe ownership inspection, explicit handoff, deterministic `BUSY`/`LEASE_LOST` outcomes, pause and disconnect revocation, and two-client regression coverage.
 - Add a native MCP-to-WebMCP consumer bridge for QA and Complete profiles, with top-level-only discovery, bounded untrusted metadata and results, origin/navigation/runtime-bound descriptor digests, stale-tool rejection, typed unknown outcomes, and fresh page evidence after calls.
 - Add an explicit external-wallet and mobile dApp QA boundary matrix with a safe local-provider handoff recipe, stage-based evidence, and negative controls that avoid credentials, funded accounts, production dApps, and compatibility overclaims.
 - Add a deterministic watch-only public-address QA recipe that verifies scoped balance observation and below-UI signing rejection without importing recovery material, using real funds, or implying WalletConnect support.

@@ -68,9 +68,18 @@ management. Expiry does not delete local workspace data.
    Recheck the current capability policy and any consequential-action approval.
    Navigation, reconnect, policy, sign-in, 2FA, or generation drift can make an
    earlier observation or approval stale.
+   A reconnecting transport must also claim the workspace's exclusive write
+   lease. If another live transport holds it, `BUSY` means no mutation was
+   dispatched; inspect or use a separate workspace instead of retrying blindly.
 4. Use visible human takeover when the signed-in account, sign-in or 2FA state,
    target, or outcome is unclear. Inspect current page state before retrying an
    action whose previous result may be unknown.
+
+Pausing MCP from the visible Hronaut window revokes every current write lease.
+After resuming, read-only inspection remains available, but each writer must use
+`browser_workspaces` with `action: "claim-ownership"` after checking fresh state.
+Use `action: "release-ownership"` for an intentional handoff. Disconnect and
+authentication rotation also revoke ownership automatically.
 
 Replacing a workspace means creating a new isolated profile. Importing a
 template restores reviewed structure and start pages, but does not recreate the

@@ -55,6 +55,12 @@ import {
 import { McpActionTracker } from './action-tracker.js'
 import type { McpToolActivity, McpToolMetric } from './activity-history.js'
 export type { McpToolActivity, McpToolMetric } from './activity-history.js'
+import { WorkspaceWriteLeaseError, WorkspaceWriteLeaseRegistry } from './workspace-write-leases.js'
+export {
+  WorkspaceWriteLeaseError,
+  WorkspaceWriteLeaseRegistry,
+  type WorkspaceWriteLeaseStatus
+} from './workspace-write-leases.js'
 import { MAX_BROWSER_KEY_PRESS_LENGTH } from '../../shared/keyboard-input.js'
 import { BROWSER_VIEWPORT_PRESET_IDS } from '../../shared/viewport-presets.js'
 import { BROWSER_TAB_GROUP_COLORS, type BrowserTabGroupColor } from '../../shared/tab-groups.js'
@@ -361,8 +367,8 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_continuity: new Set(['status']),
   browser_audit_receipts: new Set(['list', 'read', 'evidence']),
   browser_task_runs: new Set(['get', 'list', 'metrics']),
-  browser_workspaces: new Set(['list', 'list-fork-sources', 'resume', 'list-origins']),
-  browser_saved_workspaces: new Set(['list']),
+  browser_workspaces: new Set(['list', 'list-fork-sources', 'resume', 'list-origins', 'ownership-status']),
+  browser_saved_workspaces: new Set(['list', 'resume']),
   browser_bookmarks: new Set(['list']),
   browser_visit_history: new Set(['list']),
   browser_site_data: new Set(['inspect']),
@@ -452,6 +458,23 @@ export function mcpCapabilityOperationClass(
   return operationClass
 }
 
+const WORKSPACE_LEASE_OBSERVATION_TOOLS = new Set([
+  'browser_human_waiting',
+  'browser_continuity',
+  'browser_audit_receipts',
+  'browser_task_runs',
+  'browser_request_user_attention',
+  'wallet_list',
+  'wallet_balance',
+  'wallet_prepare_transaction',
+  'wallet_request_status'
+])
+
+function requiresWorkspaceWriteLease(toolName: string, input: Record<string, unknown>): boolean {
+  return mcpCapabilityOperationClass(toolName, input) !== 'read'
+    && !WORKSPACE_LEASE_OBSERVATION_TOOLS.has(toolName)
+}
+
 export function mcpCapabilityAction(toolName: string, input: Record<string, unknown>): string | undefined {
   if (typeof input.action === 'string') return input.action
   if (toolName === 'browser_console' || toolName === 'browser_network') return input.clear === true ? 'clear' : 'list'
@@ -485,6 +508,7 @@ const BROWSER_WORKSPACES_DESCRIPTION = [
   'For an independent logged-out observation, create storage=scratch with contextClass=public-observer and observerOrigin. Hronaut pins that clean workspace to the declared origin and blocks page mutation tools. This workspace class is an isolation boundary, not by itself proof that an outcome is public.',
   'Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
   'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
+  'Creation claims a five-minute exclusive write lease for this MCP transport; resume claims it when available and otherwise remains read-only while reporting busy ownership. Read-only inspection remains shareable. Use action=ownership-status to inspect it, action=claim-ownership after revalidating state to recover an expired or released claim, and action=release-ownership before an intentional handoff. Conflicts return typed BUSY or LEASE_LOST outcomes and never dispatch the mutation.',
   'action=list returns only owned or resumed workspaces whose direct agent access remains enabled. list-fork-sources separately exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
 ].join('\n')
 
@@ -532,6 +556,7 @@ export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
+  'Creating claims a bounded exclusive write lease for this transport; resume claims it when available and otherwise permits shared inspection only. A BUSY or LEASE_LOST mutation was not dispatched. After pause, takeover, disconnect, or expiry, inspect fresh state and use browser_workspaces action=claim-ownership before writing; use release-ownership for intentional handoff.',
   'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. When page content must support a task conclusion, use browser_snapshot action=assess-quality with an expected origin and task marker when available; stop or request review unless it returns candidate. For repeated inspection, set a browser_snapshot baseline and request bounded deltas; establish a fresh baseline after any invalidation. Use coordinate-based visual tools only when the target has no usable semantic representation.',
   'For a public-outcome claim, use browser_public_outcome with a standard writer workspace and a distinct clean public-observer workspace. A writer read-back or public-observer workspace alone is not proof of public visibility.',
   'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
@@ -963,6 +988,20 @@ const isTimeoutError = (error: unknown): boolean => error instanceof Error
   && (error.name === 'TimeoutError' || /(?:timed out|timeout)/iu.test(error.message))
 
 const errorResult = (error: unknown): CallToolResult => {
+  if (error instanceof WorkspaceWriteLeaseError) {
+    const outcome = {
+      status: error.code === 'WORKSPACE_BUSY' ? 'BUSY' : 'LEASE_LOST',
+      reason: error.code,
+      leaseMode: 'exclusive-write',
+      dispatch: 'not-dispatched',
+      effects: 'none',
+      retrySafe: error.code === 'WORKSPACE_BUSY',
+      nextAction: error.code === 'WORKSPACE_BUSY'
+        ? 'Inspect workspace ownership later or use a separate workspace. Do not retry the mutation blindly.'
+        : 'Inspect current workspace state, claim a fresh write lease, and revalidate the target before issuing a new mutation.'
+    }
+    return { ...textResult(outcome), structuredContent: outcome, isError: true }
+  }
   const policyDecision = error instanceof McpCapabilityAuthorizationError ? error.decision : undefined
   const message = policyDecision
     ? `MCP capability denied this operation: ${policyDecision.reasonCode} at ${policyDecision.firstDenyingRule}.`
@@ -1227,7 +1266,8 @@ function createBrowserMcpServer(
   actionTracker = new McpActionTracker(),
   authorizeAutomation?: () => Promise<void>,
   humanWaiting?: HumanWaitingService,
-  taskRuns?: TaskRunService
+  taskRuns?: TaskRunService,
+  workspaceLeases = new WorkspaceWriteLeaseRegistry()
 ): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -1355,9 +1395,26 @@ function createBrowserMcpServer(
         if (name !== 'browser_status' && name !== 'browser_snapshot') return
         client.readinessProbe = { toolName: name, outcome, completedAt: new Date().toISOString() }
       }
+      let finishWorkspaceMutation: (() => void) | undefined
       try {
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
+        const leaseExemptWorkspaceAction = name === 'browser_workspaces'
+          && ['create', 'resume', 'ownership-status', 'claim-ownership', 'release-ownership'].includes(String(input.action))
+        const leaseWorkspaceId = typeof input.workspaceId === 'string'
+          ? input.workspaceId
+          : name === 'browser_saved_workspaces' && typeof input.savedWorkspaceId === 'string'
+            ? input.savedWorkspaceId
+            : undefined
+        if (name === 'browser_saved_workspaces' && leaseWorkspaceId
+          && (input.action === 'open' || input.action === 'delete')
+          && workspaceLeases.status(leaseWorkspaceId, client.id).status === 'unclaimed') {
+          workspaceLeases.claim(leaseWorkspaceId, client.id)
+        }
+        if (!leaseExemptWorkspaceAction && leaseWorkspaceId
+          && requiresWorkspaceWriteLease(name, input)) {
+          finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
+        }
         await authorizeCapability(name, input, 'consume')
         const result = await actionTracker.run(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
         try {
@@ -1392,6 +1449,8 @@ function createBrowserMcpServer(
         }
         recordReadinessProbe('failed')
         return errorResult(error)
+      } finally {
+        finishWorkspaceMutation?.()
       }
     }) as never)
     if (toolSetToolNames.has(name)) registeredToolNames.push(name)
@@ -1407,6 +1466,15 @@ function createBrowserMcpServer(
     ...workspace,
     resumeKey: manager.mcpWorkspaceResumeKey(workspace.id)
   })
+  const leaseLostAfterDispatch = (error: unknown): CallToolResult => {
+    if (!(error instanceof WorkspaceWriteLeaseError)) throw error
+    const outcome = {
+      status: 'OUTCOME_UNKNOWN', reason: 'LEASE_LOST', leaseMode: 'exclusive-write',
+      dispatch: 'dispatched', effects: 'possible', retrySafe: false,
+      nextAction: 'Inspect the workspace before deciding what to do next. Do not automatically repeat the operation.'
+    }
+    return { ...textResult(outcome), structuredContent: outcome, isError: true }
+  }
   const authorizedActiveWorkspaces = (): ReturnType<BrowserTabsManager['listMcpTabGroups']> => (
     manager.listMcpTabGroups().filter((workspace) => activeWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
@@ -1480,7 +1548,7 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_workspaces'),
       inputSchema: {
-        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins']).default('list').describe('Start with create. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations. For create, choose storage=scratch or storage=fork-workspace with sourceWorkspaceId. list-fork-sources shows metadata for all active and archived sources, including those with direct agent access disabled. list-origins lists only your workspace.'),
+        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'ownership-status', 'claim-ownership', 'release-ownership']).default('list').describe('Start with create. Create and resume claim exclusive write ownership. Use ownership-status to inspect it, claim-ownership after fresh inspection to recover it, and release-ownership for handoff. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations.'),
         workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
         resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
@@ -1494,7 +1562,7 @@ function createBrowserMcpServer(
       }
     },
     tool(async ({ action, workspaceId, resumeKey, name, description, color, storage, origins, sourceWorkspaceId, contextClass, observerOrigin }: {
-      action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins'
+      action: 'list' | 'list-fork-sources' | 'create' | 'resume' | 'update' | 'rename' | 'close' | 'list-origins' | 'ownership-status' | 'claim-ownership' | 'release-ownership'
       workspaceId?: string
       resumeKey?: string
       name?: string
@@ -1506,7 +1574,10 @@ function createBrowserMcpServer(
       contextClass: 'standard' | 'public-observer'
       observerOrigin?: string
     }) => {
-      if (action === 'list') return textResult(authorizedActiveWorkspaces())
+      if (action === 'list') return textResult(authorizedActiveWorkspaces().map(workspace => ({
+        ...workspace,
+        writeLease: workspaceLeases.status(workspace.id, client.id)
+      })))
       if (action === 'list-fork-sources') return textResult(manager.listWorkspaceForkSources())
       if (action === 'create') {
         if (!name) throw new TypeError('name is required to create a workspace')
@@ -1568,19 +1639,22 @@ function createBrowserMcpServer(
             name, color, storage, scopedOrigins, true, observerPolicy, sourceWorkspaceId, description, contextClass
           )
           activeWorkspaceIds.add(created.id)
+          const writeLease = workspaceLeases.claim(created.id, client.id)
           if (!await forkContextCurrent()) return await interruptedFork(created.id)
-          return textResult(withResumeKey(created))
+          return textResult({ ...withResumeKey(created), writeLease })
         } catch (error) {
           if (!(error instanceof RetainedBrowserWorkspaceError)) throw error
           const retained = manager.requireMcpTabGroup(error.workspaceId)
           activeWorkspaceIds.add(retained.id)
+          const writeLease = workspaceLeases.claim(retained.id, client.id)
           if (!await forkContextCurrent()) return await interruptedFork(retained.id)
           return {
             ...textResult({
               error: error.message,
               workspaceId: retained.id,
               resumeKey: manager.mcpWorkspaceResumeKey(retained.id),
-              retained: true
+              retained: true,
+              writeLease
             }),
             isError: true
           }
@@ -1592,14 +1666,22 @@ function createBrowserMcpServer(
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume a workspace')
         authorizeResume(workspaceId, resumeKey, false)
+        const currentLease = workspaceLeases.status(workspaceId, client.id)
+        const writeLease = currentLease.status === 'busy'
+          ? currentLease
+          : workspaceLeases.claim(workspaceId, client.id)
         const guarded = manager.suspendWorkspaceContinuity(workspaceId)
         const continuity = guarded ? await manager.inspectWorkspaceContinuity(workspaceId) : undefined
         // Marker reads cross an async boundary. A resume key cannot override
         // access revoked while the report was being captured.
         requireAgentWorkspace(workspaceId)
-        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), ...(continuity ? { continuity } : {}) })
+        if (writeLease.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+        return textResult({ ...withResumeKey(manager.requireMcpTabGroup(workspaceId)), writeLease, ...(continuity ? { continuity } : {}) })
       }
       requireAgentWorkspace(workspaceId)
+      if (action === 'ownership-status') return textResult({ workspaceId, writeLease: workspaceLeases.status(workspaceId, client.id) })
+      if (action === 'claim-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.claim(workspaceId, client.id) })
+      if (action === 'release-ownership') return textResult({ workspaceId, writeLease: workspaceLeases.release(workspaceId, client.id) })
       if (action === 'rename') {
         if (!name) throw new TypeError('name is required to rename a workspace')
         return textResult(manager.renameMcpTabGroup(workspaceId, name, true))
@@ -1609,9 +1691,17 @@ function createBrowserMcpServer(
         return textResult(manager.updateMcpTabGroup(workspaceId, { name, description, color }, true))
       }
       if (action === 'list-origins') return textResult(manager.listWorkspaceStorageOrigins(workspaceId))
+      const closingLease = workspaceLeases.require(workspaceId, client.id)
       await manager.closeMcpTabGroup(workspaceId)
+      let leaseOutcome: CallToolResult | undefined
+      try {
+        if (closingLease.generation) workspaceLeases.require(workspaceId, client.id, closingLease.generation)
+      } catch (error) {
+        leaseOutcome = leaseLostAfterDispatch(error)
+      }
+      workspaceLeases.releaseAfterMutation(workspaceId, client.id)
       activeWorkspaceIds.delete(workspaceId)
-      return textResult(authorizedActiveWorkspaces())
+      return leaseOutcome ?? textResult(authorizedActiveWorkspaces())
     })
   )
 
@@ -1636,41 +1726,65 @@ function createBrowserMcpServer(
       if (action === 'save') {
         if (!workspaceId) throw new TypeError('workspaceId is required to save a workspace')
         requireAgentWorkspace(workspaceId)
+        const savingLease = workspaceLeases.require(workspaceId, client.id)
         const saved = await manager.saveAndCloseTabGroup(workspaceId)
+        let leaseOutcome: CallToolResult | undefined
+        try {
+          if (savingLease.generation) workspaceLeases.require(workspaceId, client.id, savingLease.generation)
+        } catch (error) {
+          leaseOutcome = leaseLostAfterDispatch(error)
+        }
+        workspaceLeases.releaseAfterMutation(workspaceId, client.id)
         activeWorkspaceIds.delete(workspaceId)
         savedWorkspaceIds.add(saved.id)
-        return textResult(withResumeKey(saved))
+        return leaseOutcome ?? textResult(withResumeKey(saved))
       }
       if (!savedWorkspaceId) throw new TypeError(`savedWorkspaceId is required to ${action} a saved workspace`)
       if (action === 'resume') {
         if (!resumeKey) throw new TypeError('resumeKey is required to resume an archived workspace')
         authorizeResume(savedWorkspaceId, resumeKey, true)
+        const currentLease = workspaceLeases.status(savedWorkspaceId, client.id)
+        const writeLease = currentLease.status === 'busy'
+          ? currentLease
+          : workspaceLeases.claim(savedWorkspaceId, client.id)
         const guarded = manager.suspendWorkspaceContinuity(savedWorkspaceId)
         const continuity = guarded ? await manager.inspectWorkspaceContinuity(savedWorkspaceId) : undefined
         requireSavedWorkspace(savedWorkspaceId)
-        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), ...(continuity ? { continuity } : {}) })
+        if (writeLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
+        return textResult({ ...withResumeKey(manager.listSavedTabGroups().find((workspace) => workspace.id === savedWorkspaceId)!), writeLease, ...(continuity ? { continuity } : {}) })
       }
       requireSavedWorkspace(savedWorkspaceId)
       if (action === 'open') {
+        const writeLease = workspaceLeases.require(savedWorkspaceId, client.id)
         try {
           const opened = await manager.restoreSavedTabGroup(savedWorkspaceId)
+          workspaceLeases.require(savedWorkspaceId, client.id, writeLease.generation)
           savedWorkspaceIds.delete(savedWorkspaceId)
           activeWorkspaceIds.add(opened.id)
           const guarded = manager.suspendWorkspaceContinuity(opened.id)
           const continuity = guarded ? await manager.inspectWorkspaceContinuity(opened.id) : undefined
           requireAgentWorkspace(opened.id)
-          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), ...(continuity ? { continuity } : {}) })
+          return textResult({ ...withResumeKey(manager.requireMcpTabGroup(opened.id)), writeLease, ...(continuity ? { continuity } : {}) })
         } catch (error) {
           if (manager.listMcpTabGroups().some((workspace) => workspace.id === savedWorkspaceId)) {
             savedWorkspaceIds.delete(savedWorkspaceId)
             activeWorkspaceIds.add(savedWorkspaceId)
           }
+          if (error instanceof WorkspaceWriteLeaseError) return leaseLostAfterDispatch(error)
           throw error
         }
       }
+      const deletingLease = workspaceLeases.require(savedWorkspaceId, client.id)
       await manager.deleteSavedTabGroup(savedWorkspaceId)
+      let leaseOutcome: CallToolResult | undefined
+      try {
+        if (deletingLease.generation) workspaceLeases.require(savedWorkspaceId, client.id, deletingLease.generation)
+      } catch (error) {
+        leaseOutcome = leaseLostAfterDispatch(error)
+      }
+      workspaceLeases.releaseAfterMutation(savedWorkspaceId, client.id)
       savedWorkspaceIds.delete(savedWorkspaceId)
-      return textResult(authorizedSavedWorkspaces())
+      return leaseOutcome ?? textResult(authorizedSavedWorkspaces())
     })
   )
 
@@ -1768,6 +1882,9 @@ function createBrowserMcpServer(
           || (name === 'browser_webmcp' && actionInput.action !== 'call')
         requireActiveCapabilityDispatch(name, actionInput)
         const workspace = requireAgentWorkspace(workspaceId)
+        const writeLease = requiresWorkspaceWriteLease(name, actionInput)
+          ? workspaceLeases.require(workspaceId, client.id)
+          : undefined
         if (workspace.contextClass === 'public-observer' && !publicObserverAllowsTool(name)) {
           throw new Error(`Tool ${name} is unavailable in a read-only public observer workspace`)
         }
@@ -1861,6 +1978,7 @@ function createBrowserMcpServer(
         const activityToolName = resolvedTabId ? handler.tabActivityToolName : undefined
         const activityId = activityToolName ? randomUUID() : undefined
         const requireCurrentTarget = (): void => {
+          if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
           requireActiveCapabilityDispatch(name, actionInput)
           requireContinuity()
           requireCurrentControl()
@@ -1996,6 +2114,7 @@ function createBrowserMcpServer(
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
+              if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
               requireCurrentControl()
               requireAgentWorkspace(workspaceId)
               if (name !== 'browser_close_tab') requireCurrentHumanInput()
@@ -4446,6 +4565,7 @@ export class McpHttpServer {
   private readonly clients = new Map<string, McpClientActivity>()
   private readonly transportSessions = new Map<string, McpTransportSession>()
   private readonly walletSessions: WalletAgentSessionRegistry
+  private readonly workspaceLeases = new WorkspaceWriteLeaseRegistry()
   private readonly actionTracker: McpActionTracker
 
   constructor(
@@ -4465,6 +4585,7 @@ export class McpHttpServer {
     this.token = token
     this.fullAccessAuthorityGeneration = randomUUID()
     this.actionTracker.invalidatePendingDispatches()
+    this.workspaceLeases.clear()
   }
 
   setToolSet(toolSet: McpToolSet): void {
@@ -4475,6 +4596,7 @@ export class McpHttpServer {
     if (this.paused !== paused) this.actionTracker.invalidatePendingDispatches()
     if (paused && !this.paused) {
       for (const workspace of this.manager.listMcpTabGroups()) this.manager.suspendWorkspaceContinuity(workspace.id)
+      this.workspaceLeases.clear()
     }
     this.paused = paused
   }
@@ -4649,6 +4771,7 @@ export class McpHttpServer {
               if (closedSession && this.clients.get(sessionId) === closedSession.client) {
                 this.clients.delete(sessionId)
               }
+              this.workspaceLeases.clearOwner(sessionId)
               await this.walletSessions.clearOwner(sessionId)
             }
           })
@@ -4674,7 +4797,8 @@ export class McpHttpServer {
             this.actionTracker,
             this.options.authorizeAutomation,
             this.options.humanWaiting,
-            this.options.taskRuns
+            this.options.taskRuns,
+            this.workspaceLeases
           )
           session.server = mcp.server
           session.transport = transport
@@ -4720,6 +4844,7 @@ export class McpHttpServer {
     this.startedAt = null
     await Promise.allSettled([...this.transportSessions.keys()].map((sessionId) => this.closeTransportSession(sessionId)))
     await this.walletSessions.clear()
+    this.workspaceLeases.clear()
     this.clients.clear()
   }
 
@@ -4802,6 +4927,7 @@ export class McpHttpServer {
     if (!session) return
     this.transportSessions.delete(sessionId)
     if (this.clients.get(sessionId) === session.client) this.clients.delete(sessionId)
+    this.workspaceLeases.clearOwner(sessionId)
     await this.walletSessions.clearOwner(sessionId)
     await Promise.allSettled([session.transport.close(), session.server.close()])
   }
