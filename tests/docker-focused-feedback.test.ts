@@ -42,6 +42,8 @@ describe('focused Docker integration feedback', () => {
     expect(launcher).toContain("[...composeBaseArguments, 'build', 'integration']")
     expect(launcher).toContain("'run', '--rm', 'integration'")
     expect(launcher).toContain('run-with-verified-dependencies.sh')
+    expect(launcher).toContain("['out', 'test-results', 'playwright-report']")
+    expect(launcher).toContain("'chown', '-R', `${process.getuid()}:${process.getgid()}`")
     expect(verifier).toContain('node_modules/.hronaut-package-lock.sha256')
     expect(verifier).toContain('node scripts/docker-dependency-cache-key.ts package-lock.json')
     expect(dockerfile).toContain('node_modules/.hronaut-package-lock.sha256')

@@ -32,7 +32,7 @@ describe('MCP tool sets', () => {
     ]))
     expect(profile.allowedActions).toMatchObject({
       browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list'],
-      browser_task_runs: ['get', 'list', 'metrics']
+      browser_task_runs: ['get', 'list', 'metrics'], browser_webmcp: ['status', 'list']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
     expect(profile.argumentValueDigests).toEqual({
@@ -99,6 +99,8 @@ describe('MCP tool sets', () => {
     expect(qa).toContain('browser_preflight')
     expect(qa).toContain('browser_continuity')
     expect(qa).toContain('browser_network_request')
+    expect(qa).toContain('browser_webmcp')
+    expect(browse).not.toContain('browser_webmcp')
     expect(qa).not.toContain('browser_evaluate')
     expect(all).toEqual(BROWSER_TOOL_CATALOG.map(({ name }) => name))
     expect(new Set(all).size).toBe(all.length)
@@ -106,7 +108,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(79)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(80)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -156,6 +158,8 @@ describe('MCP tool sets', () => {
       .toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true })
     expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'wallet_request')?.annotations)
       .toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true })
+    expect(BROWSER_TOOL_CATALOG.find(({ name }) => name === 'browser_webmcp')?.annotations)
+      .toMatchObject({ readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true })
   })
 
   it('classifies every non-read tool explicitly and normalizes mixed-action aliases', () => {
@@ -176,6 +180,8 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityOperationClass('browser_console', { clear: true })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_network', {})).toBe('read')
     expect(mcpCapabilityOperationClass('browser_network', { clear: true })).toBe('network')
+    expect(mcpCapabilityOperationClass('browser_webmcp', { action: 'list' })).toBe('read')
+    expect(mcpCapabilityOperationClass('browser_webmcp', { action: 'call' })).toBe('interact')
   })
 
   it('uses Browser Essentials for new profiles and accepts only named tool sets', () => {

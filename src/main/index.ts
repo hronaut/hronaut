@@ -204,6 +204,21 @@ const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMM
 const PARTITION = 'persist:hronaut'
 const { autoUpdater } = electronUpdater
 
+// Electron 44 ships Chromium's native WebMCP implementation behind the same
+// feature gate as Chrome's local testing flag. Enable only the browser-native
+// API; Hronaut never injects a page polyfill. An explicit Chromium disable
+// switch remains authoritative for troubleshooting or enterprise policy.
+const disabledChromiumFeatures = new Set(
+  app.commandLine.getSwitchValue('disable-features').split(',').map(value => value.trim()).filter(Boolean)
+)
+if (!disabledChromiumFeatures.has('WebMCP')) {
+  const enabledChromiumFeatures = new Set(
+    app.commandLine.getSwitchValue('enable-features').split(',').map(value => value.trim()).filter(Boolean)
+  )
+  enabledChromiumFeatures.add('WebMCP')
+  app.commandLine.appendSwitch('enable-features', [...enabledChromiumFeatures].join(','))
+}
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'hronaut',

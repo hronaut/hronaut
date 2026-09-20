@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
 const cachePrefix = 'hronaut-focused-node-modules-'
@@ -132,4 +132,23 @@ if (result.error) {
   console.error(result.error.message)
   process.exit(1)
 }
-process.exit(result.status ?? 1)
+
+let ownershipRepairStatus = 0
+if (process.platform === 'linux' && typeof process.getuid === 'function' && typeof process.getgid === 'function') {
+  const generatedPaths = ['out', 'test-results', 'playwright-report']
+    .filter(path => existsSync(path))
+    .map(path => `/workspace/${path}`)
+  if (generatedPaths.length > 0) {
+    const ownershipRepair = spawnSync('docker', [
+      'run', '--rm',
+      '--mount', `type=bind,source=${process.cwd()},target=/workspace`,
+      imageName,
+      'chown', '-R', `${process.getuid()}:${process.getgid()}`,
+      ...generatedPaths
+    ], { stdio: 'inherit' })
+    if (ownershipRepair.error) console.error(ownershipRepair.error.message)
+    ownershipRepairStatus = ownershipRepair.status ?? 1
+  }
+}
+
+process.exit((result.status ?? 1) || ownershipRepairStatus)

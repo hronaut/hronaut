@@ -125,7 +125,7 @@ export function browserActionOperationClass(toolName: string): BrowserActionOper
   if (toolName.startsWith('browser_network')) return 'network'
   if (toolName === 'browser_downloads' || toolName === 'browser_file_upload') return 'external-request'
   if (['browser_click', 'browser_dialog', 'browser_type', 'browser_select', 'browser_fill_form',
-    'browser_hover', 'browser_drag', 'browser_scroll', 'browser_press', 'browser_evaluate'].includes(toolName)) {
+    'browser_hover', 'browser_drag', 'browser_scroll', 'browser_press', 'browser_evaluate', 'browser_webmcp'].includes(toolName)) {
     return 'page-interaction'
   }
   return 'browser-state'
