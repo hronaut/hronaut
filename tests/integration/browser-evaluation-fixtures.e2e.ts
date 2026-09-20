@@ -119,6 +119,7 @@ test('runs pinned local browser failure scenarios and exports privacy-safe evide
     const reconnectBaseline = structured<{ baselineId: string }>(await call(client, 'browser_snapshot', {
       workspaceId: workspace.id, tabId, action: 'set-baseline'
     }))
+    decode(await call(client, 'browser_workspaces', { action: 'release-ownership', workspaceId: workspace.id }))
     await client.close()
     client = await connect()
     decode(await call(client, 'browser_workspaces', { action: 'resume', workspaceId: workspace.id, resumeKey: workspace.resumeKey }))

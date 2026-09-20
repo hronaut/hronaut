@@ -64,6 +64,7 @@ test('records private bounded browser evidence across MCP reconnects without aut
     await appWindow.evaluate(`window.hronaut.updateWorkspaceNavigationPolicy(${JSON.stringify(workspaceId)}, ${JSON.stringify({ mode: 'restricted', rules: [origin] })})`)
     const denied = await raw(first, 'browser_navigate', { workspaceId, url: 'https://blocked.example/private-denied-canary' })
     expect(denied.isError).toBe(true)
+    await call(first, 'browser_workspaces', { action: 'release-ownership', workspaceId })
     await first.close()
 
     const resumed = await connect()
