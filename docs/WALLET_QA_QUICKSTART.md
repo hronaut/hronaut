@@ -29,6 +29,8 @@ The automated fixture regression includes a deterministic pre-dispatch control w
 
 This does not test MetaMask, Coinbase Wallet, Phantom, or TronLink extension UI. Hronaut does not impersonate those products. It also does not establish WalletConnect or Reown compatibility. Keep separate real-extension tests when your supported matrix includes them. Solana and Tron require their own chain-specific fixtures and are outside this EVM first run.
 
+If the evaluation needs only public balance/account observation and must not import any signing material, use the separate [watch-only public-address wallet QA recipe](WATCH_ONLY_WALLET_QA.md) instead.
+
 ## 1. Start disposable chains and the fixture
 
 Run these commands from the Hronaut repository root. The image is from the [official Foundry container distribution](https://getfoundry.sh/getting-started/installation#using-foundry-with-docker), pinned here to the tested version.

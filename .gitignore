@@ -230,6 +230,7 @@ dist
 dist/
 docs/*
 !docs/WALLETS.md
+!docs/WATCH_ONLY_WALLET_QA.md
 !docs/WORKSPACE_SITE_ACCESS.md
 !docs/RELEASE_HISTORY.md
 !docs/LINUX_PAGE_PRESENTATION.md

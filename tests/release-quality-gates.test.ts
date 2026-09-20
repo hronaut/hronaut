@@ -393,12 +393,22 @@ describe('release quality gates', () => {
   })
 
   it('keeps wallet documentation in the website public source before output cleanup', async () => {
-    const [config, publicWallets, builtWallets, publicQuickstart, builtQuickstart] = await Promise.all([
+    const [
+      config,
+      publicWallets,
+      builtWallets,
+      publicQuickstart,
+      builtQuickstart,
+      publicWatchOnly,
+      builtWatchOnly
+    ] = await Promise.all([
       readFile('vite.website.config.ts', 'utf8'),
       readFile('website/public/WALLETS.md', 'utf8'),
       readFile('docs/WALLETS.md', 'utf8'),
       readFile('website/public/WALLET_QA_QUICKSTART.md', 'utf8'),
-      readFile('docs/WALLET_QA_QUICKSTART.md', 'utf8')
+      readFile('docs/WALLET_QA_QUICKSTART.md', 'utf8'),
+      readFile('website/public/WATCH_ONLY_WALLET_QA.md', 'utf8'),
+      readFile('docs/WATCH_ONLY_WALLET_QA.md', 'utf8')
     ])
 
     expect(config).toContain("root: 'website'")
@@ -406,6 +416,7 @@ describe('release quality gates', () => {
     expect(config).toContain('emptyOutDir: true')
     expect(publicWallets).toBe(builtWallets)
     expect(publicQuickstart).toBe(builtQuickstart)
+    expect(publicWatchOnly).toBe(builtWatchOnly)
   })
 
   it('keeps the reference aligned with the implemented local-wallet trust model', async () => {
@@ -449,5 +460,21 @@ describe('release quality gates', () => {
     expect(fixture).toContain("stage: 'local-receipt-result'")
     expect(fixture).toContain("walletBackendDispatch: 'unknown'")
     expect(fixture).toContain("walletBehavior: 'not-exercised'")
+  })
+
+  it('publishes a public-address-only wallet QA recipe with enforced negative controls', async () => {
+    const guide = await readFile('docs/WATCH_ONLY_WALLET_QA.md', 'utf8')
+
+    expect(guide).toContain('Hronaut 2.4.31 or newer')
+    expect(guide).toContain('0x000000000000000000000000000000000000dead')
+    expect(guide).toContain('anvil_setBalance')
+    expect(guide).toContain('capabilities: ["read"]')
+    expect(guide).toContain('permission-required')
+    expect(guide).toContain('wallet_balance')
+    expect(guide).toContain('watch-only wallet has no signing material')
+    expect(guide).toContain('main-process authority rejects attempts')
+    expect(guide).toContain('WalletConnect or Reown')
+    expect(guide).toContain('-t "watch-only"')
+    expect(guide).not.toMatch(/(?:private key|seed phrase).{0,40}(?:enter|import|paste)/i)
   })
 })

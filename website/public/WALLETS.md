@@ -92,7 +92,7 @@ Hronaut does not ship third-party API keys. Built-in public endpoints are conven
 
 Use local/test networks and valueless accounts for development. Hronaut's fast and authoritative suites run inside Docker with deterministic RPC fixtures for EVM, Solana, and Tron adapter behavior; they never submit mainnet transactions or use real funds. The fixtures cover normalized transaction preparation, simulation, fee estimation, signing, broadcasting, confirmation, malformed responses, chain/account mismatches, replay, and concurrent request isolation without depending on a mutable public testnet. Real-node smoke testing should use a disposable Anvil, `solana-test-validator`, or private Tron node outside the default suite when those large runtimes are available locally.
 
-For a copyable Anvil smoke test with a fixture dApp, approval rejection, provider events, delayed and reverted receipts, independent chain readback, and cleanup, use the [local EVM wallet QA quickstart](WALLET_QA_QUICKSTART.md). It requires Hronaut 2.4.21 or newer and never uses real recovery material or funds.
+For observation-only QA without any signing material, use the [watch-only public-address wallet QA recipe](WATCH_ONLY_WALLET_QA.md). It uses a synthetic address and direct local-node state to verify scoped account access, balance reads, signing rejection, and the absence of automatic signing authority. For a separate copyable signing smoke test with a fixture dApp, approval rejection, provider events, delayed and reverted receipts, independent chain readback, and cleanup, use the [local EVM wallet QA quickstart](WALLET_QA_QUICKSTART.md). The signing quickstart requires Hronaut 2.4.21 or newer and never uses real recovery material or funds.
 
 ## Revocation and incident response
 

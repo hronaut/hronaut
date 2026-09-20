@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add a deterministic watch-only public-address QA recipe that verifies scoped balance observation and below-UI signing rejection without importing recovery material, using real funds, or implying WalletConnect support.
+
 ### Fixed
 
 - Return the EIP-1193 disconnected error when no EVM wallet is available, keep Solana Wallet Standard account data immutable to untrusted pages, and avoid advertising signing features on watch-only Solana accounts.
