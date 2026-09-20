@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-09-21
+
 ### Added
 
 - Add reusable browser-task definitions with redacted runtime inputs, pre-execution previews, explicit capabilities and human gates, read-only-only retry limits, exact tab/origin/control-generation bindings, typed drift outcomes, and privacy-safe task receipts.
