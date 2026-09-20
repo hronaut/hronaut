@@ -43,6 +43,27 @@ function desktopExecArgument(value: string): string {
   return `"${value.replace(/%/g, '%%').replace(/[\\`$"]/g, '\\$&')}"`
 }
 
+function desktopEntryValue(entry: string, key: string): string | undefined {
+  let inDesktopEntry = false
+  let value: string | undefined
+  for (const rawLine of entry.split(/\r?\n/u)) {
+    const line = rawLine.trimStart()
+    if (line.startsWith('#') || line.length === 0) continue
+    if (line.startsWith('[')) {
+      inDesktopEntry = line.trim() === '[Desktop Entry]'
+      continue
+    }
+    if (!inDesktopEntry) continue
+    const separator = line.indexOf('=')
+    if (separator < 1 || line.slice(0, separator) !== key) continue
+    // Duplicate keys make a desktop entry invalid. Treat an ambiguous startup
+    // file as disabled instead of reporting a launch guarantee the OS may not honor.
+    if (value !== undefined) return undefined
+    value = line.slice(separator + 1)
+  }
+  return value
+}
+
 export function shouldStartMinimized(
   settings: StartupVisibilitySettings,
   context: StartupLaunchContext
@@ -60,8 +81,10 @@ export class StartupLaunchManager {
     if (this.options.platform === 'linux') {
       try {
         const entry = await readFile(this.autostartPath(), 'utf8')
-        return !/^Hidden\s*=\s*true\s*$/imu.test(entry)
-          && entry.includes(`Exec=${desktopExecArgument(this.options.executablePath)} ${STARTUP_LAUNCH_ARGUMENT}`)
+        const hidden = desktopEntryValue(entry, 'Hidden')
+        const command = desktopEntryValue(entry, 'Exec')
+        return hidden?.trim().toLowerCase() !== 'true'
+          && command === `${desktopExecArgument(this.options.executablePath)} ${STARTUP_LAUNCH_ARGUMENT}`
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
         throw error
