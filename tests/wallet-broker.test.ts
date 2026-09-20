@@ -617,6 +617,50 @@ describe('WalletBroker', () => {
     expect(events).toHaveBeenCalledWith('tab-1', expect.objectContaining({ family: 'evm', event: 'accountsChanged' }))
   })
 
+  it('updates every live same-origin EVM session after account approval', async () => {
+    const { service, wallet } = await setup()
+    const events = vi.fn()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: events })
+    const secondTab = context({ tabId: 'tab-2' })
+    await expect(broker.providerRequest(secondTab, { family: 'evm', method: 'eth_accounts' }))
+      .resolves.toEqual([])
+    events.mockClear()
+
+    const connection = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
+    const request = broker.listPending().find((entry) => entry.status === 'awaiting-human')!
+    await broker.approve(request.id)
+    await expect(connection).resolves.toEqual([wallet.publicAddress])
+
+    expect(events).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'accountsChanged', payload: [wallet.publicAddress]
+    })
+    expect(events).toHaveBeenCalledWith('tab-2', {
+      family: 'evm', event: 'accountsChanged', payload: [wallet.publicAddress]
+    })
+  })
+
+  it('publishes EIP-1193 connectivity transitions for an EVM provider session', async () => {
+    const { service, wallet } = await setup()
+    const events = vi.fn()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: events })
+
+    await expect(broker.providerRequest(context(), { family: 'evm', method: 'eth_chainId' }))
+      .resolves.toBe('0xaa36a7')
+    expect(events).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'connect', payload: { chainId: '0xaa36a7' }
+    })
+
+    events.mockClear()
+    await expect(broker.removeWallet(wallet.id)).resolves.toBe(true)
+    expect(events).toHaveBeenCalledWith('tab-1', {
+      family: 'evm', event: 'disconnect', payload: {
+        code: 1000,
+        message: 'EVM provider disconnected'
+      }
+    })
+  })
+
   it('isolates EVM accounts to the active chain and routes signing to the requested permitted account', async () => {
     const { service, wallet: firstWallet } = await setup('testnet')
     const secondSameChain = await service.generate({
@@ -1608,7 +1652,7 @@ describe('WalletBroker', () => {
       requester: { type: 'website', id: 'https://dapp.example' },
       capability: 'read'
     })).toBe(false)
-    expect(providerEvent).not.toHaveBeenCalled()
+    expect(providerEvent).not.toHaveBeenCalledWith('tab-1', expect.objectContaining({ event: 'accountsChanged' }))
   })
 
   it.each([
@@ -1765,7 +1809,8 @@ describe('WalletBroker', () => {
       workspaceIds: ['workspace-1']
     })
     const solanaWallet = await service.confirmRecovery(generated.wallet.id)
-    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const providerEvent = vi.fn()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: providerEvent })
     await connect(broker)
 
     const solanaConnection = broker.providerRequest(context(), { family: 'solana', method: 'connect' })
@@ -1777,6 +1822,9 @@ describe('WalletBroker', () => {
     ))!
     await broker.approve(connectionRequest.id)
     await expect(solanaConnection).resolves.toMatchObject({ accounts: [{ address: solanaWallet.publicAddress }] })
+    expect(providerEvent).not.toHaveBeenCalledWith('tab-1', {
+      family: 'solana', event: 'accountsChanged', payload: [solanaWallet.publicAddress]
+    })
 
     const signing = settle(broker.providerRequest(context(), {
       family: 'solana', method: 'signMessage',

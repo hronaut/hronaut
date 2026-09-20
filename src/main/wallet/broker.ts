@@ -1006,10 +1006,13 @@ export class WalletBroker {
         }
         throw error
       }
-      if (wallet.chainFamily === 'evm') this.rememberEvmProviderAccounts(record, wallet.network.id)
-      this.options.onProviderEvent?.(record.request.tabId, {
-        family: wallet.chainFamily, event: 'accountsChanged', payload: [wallet.publicAddress]
-      })
+      if (wallet.chainFamily === 'evm') {
+        this.reconcileEvmProviderSessions()
+      } else if (wallet.chainFamily !== 'solana') {
+        this.options.onProviderEvent?.(record.request.tabId, {
+          family: wallet.chainFamily, event: 'accountsChanged', payload: [wallet.publicAddress]
+        })
+      }
       return [wallet.publicAddress]
     }
     const wallet = this.requireWallet(record.request.walletId)
@@ -1339,7 +1342,11 @@ export class WalletBroker {
     })
     const active = wallets.filter((wallet) => wallet.network.id === networkId)
     const next = this.evmProviderSessions.get(key)!
-    if (existing) {
+    if (!existing) {
+      this.options.onProviderEvent?.(context.tabId, {
+        family: 'evm', event: 'connect', payload: { chainId: `0x${BigInt(networkId).toString(16)}` }
+      })
+    } else {
       if (existing.networkId !== networkId) {
         this.options.onProviderEvent?.(context.tabId, {
           family: 'evm', event: 'chainChanged', payload: `0x${BigInt(networkId).toString(16)}`
@@ -1407,24 +1414,6 @@ export class WalletBroker {
     }
   }
 
-  private rememberEvmProviderAccounts(record: WalletApprovalRecord, networkId: string): void {
-    const context: WalletBrokerContext = {
-      workspaceId: record.request.workspaceId,
-      tabId: record.request.tabId,
-      navigationGeneration: record.request.navigationGeneration,
-      topLevelOrigin: record.request.topLevelOrigin,
-      requester: structuredClone(record.request.requester)
-    }
-    const key = this.evmProviderSessionKey(context)
-    const session = this.evmProviderSessions.get(key)
-    if (!session || session.networkId !== networkId) return
-    session.accounts = this.permittedAccounts(
-      context,
-      this.accessibleWallets(context, 'evm').filter((wallet) => wallet.network.id === networkId)
-    )
-    this.evmProviderSessions.set(key, session)
-  }
-
   private reconcileEvmProviderSessions(): void {
     for (const [key, session] of this.evmProviderSessions) {
       const context: WalletBrokerContext = {
@@ -1454,6 +1443,12 @@ export class WalletBroker {
             family: 'evm', event: 'accountsChanged', payload: []
           })
         }
+        this.options.onProviderEvent?.(session.tabId, {
+          family: 'evm', event: 'disconnect', payload: {
+            code: 1000,
+            message: 'EVM provider disconnected'
+          }
+        })
         continue
       }
       const fallback = this.selectWallet(wallets)

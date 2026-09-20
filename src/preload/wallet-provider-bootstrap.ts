@@ -26,11 +26,27 @@ export function installHronautWalletProviders(): void {
 
   const createEmitter = (family: ProviderFamily) => {
     const listeners = new Map<string, Set<Listener>>()
+    const emit = (event: string, payload?: unknown): void => {
+      for (const listener of listeners.get(event) ?? []) {
+        try { listener(payload) } catch { /* A page listener must not break provider delivery. */ }
+      }
+    }
     const receive = (message: { family: ProviderFamily; event: ProviderEvent; payload?: unknown }): void => {
       if (message.family !== family) return
-      for (const listener of listeners.get(message.event) ?? []) {
-        try { listener(message.payload) } catch { /* A page listener must not break provider delivery. */ }
+      let payload = message.payload
+      if (family === 'evm' && message.event === 'disconnect') {
+        const candidate = payload && typeof payload === 'object'
+          ? payload as { code?: unknown; message?: unknown }
+          : {}
+        const code = typeof candidate.code === 'number' && Number.isInteger(candidate.code)
+          ? candidate.code
+          : 1000
+        const errorMessage = typeof candidate.message === 'string'
+          ? candidate.message
+          : 'EVM provider disconnected'
+        payload = Object.assign(new Error(errorMessage), { code })
       }
+      emit(message.event, payload)
     }
     bridge.subscribe(receive)
     return Object.freeze({
@@ -48,7 +64,8 @@ export function installHronautWalletProviders(): void {
       off(event: string, listener: Listener) {
         listeners.get(event)?.delete(listener)
         return this
-      }
+      },
+      emit
     })
   }
 
@@ -121,30 +138,49 @@ export function installHronautWalletProviders(): void {
   }
   let solanaAccounts: readonly unknown[] = []
   let legacySolanaPublicKey: LegacySolanaPublicKey | null = null
+  const standardEvents = new Set<(properties: { accounts?: readonly unknown[] }) => void>()
+  const accountAddresses = (accounts: readonly unknown[]): string[] => accounts.flatMap((account) => (
+    account && typeof account === 'object' && typeof (account as { address?: unknown }).address === 'string'
+      ? [(account as { address: string }).address]
+      : []
+  ))
+  const setSolanaAccounts = (accounts: readonly unknown[], notify: boolean): boolean => {
+    const previousAddresses = accountAddresses(solanaAccounts)
+    const next = Object.freeze([...accounts])
+    const nextAddresses = accountAddresses(next)
+    const changed = previousAddresses.length !== nextAddresses.length
+      || previousAddresses.some((address, index) => address !== nextAddresses[index])
+    solanaAccounts = next
+    legacySolanaPublicKey = legacyPublicKeyFromAccount(solanaAccounts[0])
+    if (!notify || !changed) return changed
+    for (const listener of standardEvents) {
+      try { listener({ accounts: solanaAccounts }) } catch { /* One app listener must not block the others. */ }
+    }
+    return changed
+  }
   const solanaRequest = async (method: string, params?: unknown): Promise<unknown> => {
     const result = await bridge.request({ family: 'solana', method, ...(params === undefined ? {} : { params }) })
     if (method === 'connect' && result && typeof result === 'object' && Array.isArray((result as { accounts?: unknown }).accounts)) {
-      solanaAccounts = Object.freeze([...(result as { accounts: unknown[] }).accounts])
-      legacySolanaPublicKey = legacyPublicKeyFromAccount(solanaAccounts[0])
+      const changed = setSolanaAccounts((result as { accounts: unknown[] }).accounts, true)
+      if (changed && legacySolanaPublicKey) {
+        solanaEvents.emit('connect', legacySolanaPublicKey)
+        solanaEvents.emit('accountsChanged', accountAddresses(solanaAccounts))
+      }
     } else if (method === 'disconnect') {
-      solanaAccounts = []
-      legacySolanaPublicKey = null
+      setSolanaAccounts([], true)
     }
     return result
   }
-  const standardEvents = new Set<(properties: { accounts?: readonly unknown[] }) => void>()
   solanaEvents.on('accountsChanged', (accounts) => {
     const addresses = Array.isArray(accounts) ? accounts.filter((value): value is string => typeof value === 'string') : []
     const currentAddress = legacySolanaPublicKey?.toBase58()
     if (!addresses.length) {
-      solanaAccounts = []
-      legacySolanaPublicKey = null
-    } else if (!addresses.includes(currentAddress ?? '')) {
-      solanaAccounts = []
-      legacySolanaPublicKey = null
+      setSolanaAccounts([], true)
+    } else if (currentAddress && !addresses.includes(currentAddress)) {
+      setSolanaAccounts([], true)
     }
-    for (const listener of standardEvents) listener({ accounts: solanaAccounts })
   })
+  solanaEvents.on('disconnect', () => setSolanaAccounts([], true))
   const solanaWallet = Object.freeze({
     version: '1.0.0',
     name: 'Hronaut',

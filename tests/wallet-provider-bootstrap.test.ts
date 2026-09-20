@@ -8,7 +8,12 @@ interface TestWindow extends Window {
     subscribe(listener: (event: unknown) => void): void
     unsubscribe(listener: (event: unknown) => void): void
   }
-  ethereum?: { request(input: unknown): Promise<unknown>; isHronaut: boolean }
+  ethereum?: {
+    request(input: unknown): Promise<unknown>
+    isHronaut: boolean
+    on(event: string, listener: (...args: unknown[]) => void): TestWindow['ethereum']
+    removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['ethereum']
+  }
   hronautEthereum?: unknown
   solana?: {
     readonly publicKey: null | {
@@ -88,6 +93,24 @@ describe('wallet provider bootstrap', () => {
     await expect(target.ethereum?.request({ method: 'personal_sign' })).rejects.toMatchObject({ code: 4001 })
   })
 
+  it('delivers EIP-1193 connect information and a ProviderRpcError on disconnect', () => {
+    installHronautWalletProviders()
+    const connected = vi.fn()
+    const disconnected = vi.fn()
+    target.ethereum?.on('connect', connected)
+    target.ethereum?.on('disconnect', disconnected)
+
+    emitWalletEvent({ family: 'evm', event: 'connect', payload: { chainId: '0xaa36a7' } })
+    emitWalletEvent({
+      family: 'evm', event: 'disconnect', payload: { code: 1000, message: 'EVM provider disconnected' }
+    })
+
+    expect(connected).toHaveBeenCalledWith({ chainId: '0xaa36a7' })
+    const error = disconnected.mock.calls[0]?.[0]
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toMatchObject({ code: 1000, message: 'EVM provider disconnected' })
+  })
+
   it('registers Solana Wallet Standard and exposes narrowly scoped legacy compatibility', async () => {
     const register = vi.fn()
     window.addEventListener('wallet-standard:register-wallet', (event) => {
@@ -154,6 +177,62 @@ describe('wallet provider bootstrap', () => {
     expect(target.solana?.isConnected).toBe(false)
   })
 
+  it('publishes Wallet Standard account changes only after complete account state is available', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    let resolveConnect!: (value: unknown) => void
+    target.__hronautWalletBridge!.request.mockImplementationOnce(() => new Promise(resolve => { resolveConnect = resolve }))
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0] as {
+      readonly accounts: readonly unknown[]
+      features: {
+        'standard:connect': { connect(): Promise<unknown> }
+        'standard:disconnect': { disconnect(): Promise<unknown> }
+        'standard:events': { on(event: string, listener: (properties: { accounts?: readonly unknown[] }) => void): () => void }
+      }
+    }
+    const changes = vi.fn()
+    wallet.features['standard:events'].on('change', changes)
+    const legacyAccountStates: Array<{ accounts: unknown; connected: boolean }> = []
+    const address = 'HronautSolanaWalletAddress'
+    const account = {
+      address,
+      publicKey: Uint8Array.from([1, 2, 3, 4]),
+      chains: ['solana:devnet'],
+      features: ['solana:signTransaction'],
+      label: 'Solana developer account'
+    }
+
+    const connecting = wallet.features['standard:connect'].connect()
+    emitWalletEvent({ family: 'solana', event: 'accountsChanged', payload: [address] })
+    expect(changes).not.toHaveBeenCalled()
+    expect(wallet.accounts).toEqual([])
+    target.solana?.on('accountsChanged', (accounts) => {
+      legacyAccountStates.push({ accounts, connected: target.solana?.isConnected ?? false })
+    })
+    resolveConnect({ accounts: [account] })
+    await connecting
+
+    expect(wallet.accounts).toEqual([account])
+    expect(changes).toHaveBeenCalledOnce()
+    expect(changes).toHaveBeenLastCalledWith({ accounts: [account] })
+    expect(legacyAccountStates).toEqual([{ accounts: [address], connected: true }])
+
+    const legacyDisconnectStates: boolean[] = []
+    target.solana?.on('disconnect', () => legacyDisconnectStates.push(target.solana?.isConnected ?? true))
+    emitWalletEvent({ family: 'solana', event: 'disconnect' })
+    expect(wallet.accounts).toEqual([])
+    expect(changes).toHaveBeenCalledTimes(2)
+    expect(changes).toHaveBeenLastCalledWith({ accounts: [] })
+    expect(legacyDisconnectStates).toEqual([false])
+
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce(undefined)
+    await wallet.features['standard:disconnect'].disconnect()
+    expect(changes).toHaveBeenCalledTimes(2)
+  })
+
   it('supports adapter-compatible Solana event cleanup through off', () => {
     installHronautWalletProviders()
     const listener = vi.fn()
@@ -198,7 +277,12 @@ describe('wallet provider bootstrap', () => {
   })
 
   it('does not replace providers already installed by another wallet', () => {
-    const existingEthereum = { request: vi.fn(async () => undefined), isHronaut: false }
+    const existingEthereum = {
+      request: vi.fn(async () => undefined),
+      isHronaut: false,
+      on: vi.fn(() => undefined),
+      removeListener: vi.fn(() => undefined)
+    }
     const existingSolana = {
       publicKey: null,
       isConnected: false,

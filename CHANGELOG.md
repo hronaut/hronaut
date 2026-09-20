@@ -8,6 +8,10 @@ All notable changes to Hronaut are documented in this file.
 
 - Add explicit per-tab page freeze/resume controls for deterministic QA, with observable unknown outcomes, preserved animation rates, a trusted-shell indicator, a narrowly scoped MCP tool, and a measured Electron 44 / Chromium 152 support contract.
 
+### Fixed
+
+- Complete EIP-1193 connect/disconnect notifications, reconcile account approval across every live same-origin provider session, and keep Solana Wallet Standard account-change events synchronized with fully resolved account state.
+
 ## [2.4.29] - 2026-09-20
 
 ### Added

@@ -2768,6 +2768,20 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Solana wallet WebContents was not found')
       await page.executeJavaScript(`
+        window.__solanaStandardChanges = [];
+        window.__legacySolanaAccountStates = [];
+        window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: {
+          register(wallet) {
+            if (wallet.name !== 'Hronaut') return;
+            window.__hronautStandardSolana = wallet;
+            wallet.features['standard:events'].on('change', ({ accounts }) => {
+              window.__solanaStandardChanges.push((accounts || []).map(account => account.address));
+            });
+          }
+        }}));
+        window.hronautSolana.on('accountsChanged', accounts => {
+          window.__legacySolanaAccountStates.push({ accounts, isConnected: window.hronautSolana.isConnected });
+        });
         window.__legacySolanaConnection = { phase: 'pending' };
         void window.hronautSolana.connect().then(
           ({ publicKey }) => {
@@ -2776,7 +2790,10 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
               returnedAddress: publicKey.toBase58(),
               providerAddress: window.hronautSolana.publicKey?.toString(),
               publicKeyBytes: Array.from(publicKey.toBytes()),
-              isConnected: window.hronautSolana.isConnected
+              isConnected: window.hronautSolana.isConnected,
+              standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
+              standardChanges: window.__solanaStandardChanges,
+              legacyAccountStates: window.__legacySolanaAccountStates
             };
           },
           (error) => { window.__legacySolanaConnection = { phase: 'rejected', message: error.message } }
@@ -2800,7 +2817,10 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       phase: 'connected',
       returnedAddress: prepared.publicAddress,
       providerAddress: prepared.publicAddress,
-      isConnected: true
+      isConnected: true,
+      standardAccounts: [prepared.publicAddress],
+      standardChanges: [[prepared.publicAddress]],
+      legacyAccountStates: [{ accounts: [prepared.publicAddress], isConnected: true }]
     })
 
     const publicKeyLength = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
@@ -2824,7 +2844,9 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
           offReturnedProvider: offResult === provider,
           disconnectEvents,
           isConnected: provider.isConnected,
-          publicKey: provider.publicKey
+          publicKey: provider.publicKey,
+          standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
+          standardChanges: window.__solanaStandardChanges
         };
       })()`)
     }, url)
@@ -2833,7 +2855,9 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       offReturnedProvider: true,
       disconnectEvents: 0,
       isConnected: false,
-      publicKey: null
+      publicKey: null,
+      standardAccounts: [],
+      standardChanges: [[prepared.publicAddress], []]
     })
   } finally {
     await closeFixtureServer(server)
