@@ -91,6 +91,10 @@ describe('wallet provider bootstrap', () => {
     })
     target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error('Wallet request was rejected by the user'))
     await expect(target.ethereum?.request({ method: 'personal_sign' })).rejects.toMatchObject({ code: 4001 })
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(
+      new Error('No wallet is attached to this workspace for the requested chain')
+    )
+    await expect(target.ethereum?.request({ method: 'eth_chainId' })).rejects.toMatchObject({ code: 4900 })
   })
 
   it('delivers EIP-1193 connect information and a ProviderRpcError on disconnect', () => {
@@ -245,6 +249,47 @@ describe('wallet provider bootstrap', () => {
     target.__hronautWalletBridge!.request.mockResolvedValueOnce(undefined)
     await wallet.features['standard:disconnect'].disconnect()
     expect(changes).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps Wallet Standard accounts read-only when a website mutates returned values', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    const sourceAccount = {
+      address: 'HronautSolanaWalletAddress',
+      publicKey: Uint8Array.from([1, 2, 3, 4]),
+      chains: ['solana:devnet'],
+      features: ['solana:signMessage'],
+      label: 'Solana developer account'
+    }
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce({ accounts: [sourceAccount] })
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0] as {
+      readonly accounts: ReadonlyArray<{
+        readonly address: string
+        readonly publicKey: Uint8Array
+        readonly chains: readonly string[]
+        readonly features: readonly string[]
+      }>
+      features: { 'standard:connect': { connect(): Promise<{ accounts: typeof wallet.accounts }> } }
+    }
+
+    const connected = await wallet.features['standard:connect'].connect()
+    const returned = connected.accounts[0]!
+    returned.publicKey[0] = 255
+    ;(returned.chains as string[]).push('solana:mainnet')
+    ;(returned.features as string[]).length = 0
+    sourceAccount.address = 'MutatedSourceAddress'
+    sourceAccount.publicKey[1] = 255
+
+    expect(wallet.accounts[0]).toMatchObject({
+      address: 'HronautSolanaWalletAddress',
+      chains: ['solana:devnet'],
+      features: ['solana:signMessage']
+    })
+    expect([...wallet.accounts[0]!.publicKey]).toEqual([1, 2, 3, 4])
+    expect(Object.isFrozen(wallet.accounts[0])).toBe(true)
   })
 
   it('supports adapter-compatible Solana event cleanup through off', () => {

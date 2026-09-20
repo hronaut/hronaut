@@ -87,6 +87,8 @@ export function installHronautWalletProviders(): void {
             ? 4100
             : /unsupported/i.test(message)
               ? 4200
+              : /no wallet is attached/i.test(message)
+                ? 4900
               : /chain is not configured/i.test(message)
                 ? 4902
               : /chain|network/i.test(message)
@@ -146,9 +148,36 @@ export function installHronautWalletProviders(): void {
       ? [(account as { address: string }).address]
       : []
   ))
+  const readonlySolanaAccount = (account: unknown): unknown => {
+    if (!account || typeof account !== 'object') return account
+    const candidate = account as {
+      address?: unknown
+      publicKey?: unknown
+      chains?: unknown
+      features?: unknown
+      label?: unknown
+      icon?: unknown
+    }
+    if (typeof candidate.address !== 'string' || !(candidate.publicKey instanceof Uint8Array)) return account
+    const publicKey = Uint8Array.from(candidate.publicKey)
+    const chains = Array.isArray(candidate.chains)
+      ? candidate.chains.filter((value): value is string => typeof value === 'string')
+      : []
+    const features = Array.isArray(candidate.features)
+      ? candidate.features.filter((value): value is string => typeof value === 'string')
+      : []
+    return Object.freeze({
+      address: candidate.address,
+      get publicKey() { return Uint8Array.from(publicKey) },
+      get chains() { return [...chains] },
+      get features() { return [...features] },
+      ...(typeof candidate.label === 'string' ? { label: candidate.label } : {}),
+      ...(typeof candidate.icon === 'string' ? { icon: candidate.icon } : {})
+    })
+  }
   const setSolanaAccounts = (accounts: readonly unknown[], notify: boolean): boolean => {
     const previousAddresses = accountAddresses(solanaAccounts)
-    const next = Object.freeze([...accounts])
+    const next = Object.freeze(accounts.map(readonlySolanaAccount))
     const nextAddresses = accountAddresses(next)
     const changed = previousAddresses.length !== nextAddresses.length
       || previousAddresses.some((address, index) => address !== nextAddresses[index])
@@ -168,6 +197,7 @@ export function installHronautWalletProviders(): void {
         solanaEvents.emit('connect', legacySolanaPublicKey)
         solanaEvents.emit('accountsChanged', accountAddresses(solanaAccounts))
       }
+      return { ...(result as Record<string, unknown>), accounts: solanaAccounts }
     } else if (method === 'disconnect') {
       setSolanaAccounts([], true)
     }

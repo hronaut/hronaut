@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Return the EIP-1193 disconnected error when no EVM wallet is available, keep Solana Wallet Standard account data immutable to untrusted pages, and avoid advertising signing features on watch-only Solana accounts.
+
 ## [2.4.31] - 2026-09-20
 
 ### Added

@@ -1918,6 +1918,37 @@ describe('WalletBroker', () => {
     expect(service.permissions.list()).toHaveLength(1)
   })
 
+  it('does not advertise signing features for a watch-only Solana account', async () => {
+    const { service } = await setup()
+    const wallet = await service.addWatchOnly({
+      name: 'Observed Solana account',
+      chainFamily: 'solana',
+      publicAddress: '11111111111111111111111111111111',
+      network: {
+        id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899'
+      },
+      workspaceIds: ['workspace-1']
+    })
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect', params: { silent: true }
+    })).resolves.toMatchObject({
+      accounts: [{ address: wallet.publicAddress, features: [] }]
+    })
+  })
+
   it('cancels a pending request when its wallet is detached from the workspace', async () => {
     const { service, wallet } = await setup()
     const chain = adapter()

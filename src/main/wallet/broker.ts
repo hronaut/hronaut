@@ -722,7 +722,10 @@ export class WalletBroker {
         address: value,
         publicKey: getAddressEncoder().encode(address(value)),
         chains: [`solana:${wallet.network.id}`],
-        features: ['solana:signTransaction', 'solana:signAndSendTransaction', 'solana:signMessage'],
+        features: [
+          ...(wallet.capabilities.includes('sign') ? ['solana:signTransaction', 'solana:signMessage'] : []),
+          ...(wallet.capabilities.includes('send') ? ['solana:signAndSendTransaction'] : [])
+        ],
         label: wallet.name
       })) }
     }
