@@ -896,6 +896,7 @@ export const frFR = {
       "inputLocked": "La saisie dans la page est verrouillée",
       "inputLock": "Verrouillage de la saisie dans la page"
     },
+    "pageLifecycle": { "active": "Active", "frozen": "Figée", "unknownShort": "Inconnu", "freeze": "Figer cette page active pour une vérification déterministe", "resume": "Reprendre cette page figée", "unknown": "Le résultat du gel de la page est inconnu ; rechargez ou naviguez pour établir un nouveau document actif" },
     "pdf": {
       "saving": "Enregistrement de la page au format PDF",
       "saved": "PDF enregistré dans {path}",
@@ -1192,6 +1193,8 @@ export const frFR = {
     "tab": {
       "pinned": " — épinglé",
       "sleeping": " — en veille ; se recharge à la sélection",
+      "frozen": " — page figée pour vérification",
+      "freezeUnknown": " — résultat du gel inconnu",
       "muted": " — son coupé",
       "audio": " — lecture audio",
       "locked": " — saisie sur la page verrouillée",
@@ -1233,6 +1236,8 @@ export const frFR = {
       "scrollForward": "Afficher les onglets suivants",
       "pageAttention": "La page requiert votre attention",
       "sleeping": "En veille pour économiser les ressources",
+      "frozen": "Page figée pour vérification",
+      "freezeUnknown": "Résultat du gel inconnu",
       "stackedVisible": "Visible dans la vue fractionnée empilée",
       "sideVisible": "Visible dans la vue fractionnée côte à côte",
       "inputLocked": "Saisie sur la page verrouillée",
@@ -3128,6 +3133,9 @@ export const frFR = {
       "unmuteTab": "Réactiver le son de l’onglet",
       "pinTab": "Épingler l’onglet",
       "unpinTab": "Désépingler l’onglet",
+      "freezePage": "Figer la page pour vérification",
+      "resumePage": "Reprendre la page",
+      "pageLifecycleUnknown": "Résultat du gel inconnu",
       "wakeTab": "Réveiller l’onglet",
       "sleepTab": "Mettre l’onglet en veille",
       "moveLeft": "Déplacer l’onglet à gauche",

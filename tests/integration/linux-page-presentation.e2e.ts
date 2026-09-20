@@ -7,12 +7,20 @@ import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { integrationMcpPort } from './port-allocation.js'
 
+interface PageLifecycleClockProbe {
+  interval: number
+  raf: number
+  worker: number
+  cssTime: number
+  webAnimationTime: number
+}
+
 // Do not attach Playwright to Chromium here: its focus emulation forces pages
 // visible and masks the Linux native-view failure. Inspect only Electron's main
 // process, leaving renderer visibility and desktop composition untouched.
 // The test intentionally requests no browser fixture (see above).
 // eslint-disable-next-line no-empty-pattern
-test('recovers an idle presented native view without resizing or taking focus', async ({}, testInfo) => {
+test('recovers an idle presented native view and preserves an explicit page hold', async ({}, testInfo) => {
   test.skip(process.platform !== 'linux')
   const profile = await mkdtemp(join(tmpdir(), 'hronaut-presentation-'))
   const root = fileURLToPath(new URL('../..', import.meta.url))
@@ -52,7 +60,7 @@ test('recovers an idle presented native view without resizing or taking focus', 
       })
       socket!.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: {
         expression: `(async () => {
-          const { BrowserWindow, WebContentsView, desktopCapturer, screen } = process.getBuiltinModule('module').createRequire(process.execPath)('electron');
+          const { BrowserWindow, WebContentsView, desktopCapturer, screen, webContents } = process.getBuiltinModule('module').createRequire(process.execPath)('electron');
           const window = BrowserWindow.getAllWindows().find(w => w.webContents.getURL().includes('/out/renderer/index.html'));
           const view = window?.contentView.children.find(v => v instanceof WebContentsView && v.webContents.getURL().startsWith('data:text/html,'));
           ${body}
@@ -123,6 +131,138 @@ test('recovers an idle presented native view without resizing or taking focus', 
     expect(await evaluate('return {owner: BrowserWindow.getFocusedWindow()?.id, activations: window.presentationUnexpectedFocus}'))
       .toEqual({ owner: humanWindowId, activations: 0 })
     await evaluate(`window.removeListener('focus', window.presentationFocusListener); BrowserWindow.fromId(${humanWindowId})?.destroy();`)
+    const lifecycleProbe = await evaluate(`
+      await view.webContents.executeJavaScript(${JSON.stringify(`(() => {
+        const style = document.createElement('style');
+        style.textContent = '@keyframes hronautProbe { to { transform: translateX(100px) } } #probe-css { animation: hronautProbe 4s linear infinite }';
+        document.head.append(style);
+        const css = document.createElement('div'); css.id = 'probe-css'; document.body.append(css);
+        const waapi = document.createElement('div'); document.body.append(waapi);
+        const webAnimation = waapi.animate([{ opacity: 0.2 }, { opacity: 1 }], { duration: 4000, iterations: Infinity });
+        const counters = { interval: 0, raf: 0, worker: 0 };
+        setInterval(() => counters.interval += 1, 20);
+        const frame = () => { counters.raf += 1; requestAnimationFrame(frame); }; requestAnimationFrame(frame);
+        const worker = new Worker(URL.createObjectURL(new Blob(['let tick=0;setInterval(()=>postMessage(++tick),20)'])));
+        worker.onmessage = () => counters.worker += 1;
+        window.readLifecycleProbe = () => ({
+          ...counters,
+          cssTime: Number(css.getAnimations()[0]?.currentTime || 0),
+          webAnimationTime: Number(webAnimation.currentTime || 0)
+        });
+      })()`)});
+      const state = await window.webContents.executeJavaScript('window.hronaut.getState()');
+      const tab = state.tabs.find(candidate => candidate.url.startsWith('data:text/html,'));
+      const environment = ${JSON.stringify({
+        network: 'none', cacheDisabled: false, bypassServiceWorker: false, dataSaver: 'auto',
+        cpuThrottlingRate: 1, animationPlaybackRate: 0.25, colorScheme: 'auto', reducedMotion: 'auto',
+        mediaType: 'auto', forcedColors: 'auto', contrast: 'auto', reducedTransparency: 'auto',
+        visionDeficiency: 'none', userAgent: '', locale: '', timezoneId: '', javaScriptDisabled: false,
+        geolocation: null, renderingDebug: {
+          paintFlashing: false, layoutShiftRegions: false, layerBorders: false, fpsCounter: false, scrollBottlenecks: false
+        }
+      })};
+      await window.webContents.executeJavaScript(
+        'window.hronaut.setTabEnvironment(' + JSON.stringify(tab.id) + ',' + JSON.stringify(environment) + ')'
+      );
+      const otherUrl = 'data:text/html,' + encodeURIComponent('<title>Other lifecycle page</title><script>window.otherTicks=0;setInterval(()=>window.otherTicks+=1,20)<\\/script>');
+      await window.webContents.executeJavaScript('window.hronaut.newTab({url:' + JSON.stringify(otherUrl) + ',active:false})');
+      let otherContents;
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        otherContents = webContents.getAllWebContents().find(candidate => candidate.getURL() === otherUrl);
+        if (otherContents && !otherContents.isLoading()) break;
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+      otherContents.setBackgroundThrottling(false);
+      await new Promise(resolve => setTimeout(resolve, 220));
+      const before = await view.webContents.executeJavaScript('readLifecycleProbe()');
+      const selectionBefore = (await window.webContents.executeJavaScript('window.hronaut.getState()')).activeTabId;
+      await window.webContents.executeJavaScript('Promise.all([window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"frozen"),window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"frozen")])');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const frozenState = await window.webContents.executeJavaScript('window.hronaut.getState()');
+      const otherTicks = await otherContents.executeJavaScript('window.otherTicks');
+      await window.webContents.executeJavaScript('Promise.all([window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"active"),window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"active")])');
+      const after = await view.webContents.executeJavaScript('readLifecycleProbe()');
+      await new Promise(resolve => setTimeout(resolve, 220));
+      const resumed = await view.webContents.executeJavaScript('readLifecycleProbe()');
+      const finalState = await window.webContents.executeJavaScript('window.hronaut.getState()');
+      const debuggerSession = view.webContents.debugger;
+      const originalSendCommand = debuggerSession.sendCommand.bind(debuggerSession);
+      let failedLifecycleDispatches = 0;
+      debuggerSession.sendCommand = async (method, params) => {
+        if (method === 'Page.setWebLifecycleState' && params?.state === 'frozen') {
+          failedLifecycleDispatches += 1;
+          throw new Error('simulated debugger connection loss after dispatch');
+        }
+        return originalSendCommand(method, params);
+      };
+      let unknownState;
+      let repeatedUnknownState;
+      try {
+        unknownState = await window.webContents.executeJavaScript('window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"frozen")');
+        repeatedUnknownState = await window.webContents.executeJavaScript('window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"frozen")');
+      } finally {
+        debuggerSession.sendCommand = originalSendCommand;
+      }
+      const recoveredState = await window.webContents.executeJavaScript('window.hronaut.setTabPageLifecycle(' + JSON.stringify(tab.id) + ',"active")');
+      return {
+        before, after, resumed, otherTicks, selectionBefore,
+        frozenState: frozenState.tabs.find(candidate => candidate.id === tab.id),
+        finalState: finalState.tabs.find(candidate => candidate.id === tab.id),
+        finalSelection: finalState.activeTabId,
+        failedLifecycleDispatches,
+        unknownState: unknownState.tabs.find(candidate => candidate.id === tab.id),
+        repeatedUnknownState: repeatedUnknownState.tabs.find(candidate => candidate.id === tab.id),
+        recoveredState: recoveredState.tabs.find(candidate => candidate.id === tab.id)
+      };
+    `) as {
+      before: PageLifecycleClockProbe
+      after: PageLifecycleClockProbe
+      resumed: PageLifecycleClockProbe
+      otherTicks: number
+      selectionBefore: string
+      finalSelection: string
+      failedLifecycleDispatches: number
+      frozenState: { pageLifecycleState: string; sleeping: boolean; emulation?: { animationPlaybackRate?: number } }
+      finalState: { pageLifecycleState: string; sleeping: boolean; emulation?: { animationPlaybackRate?: number } }
+      unknownState: { pageLifecycleState: string }
+      repeatedUnknownState: { pageLifecycleState: string }
+      recoveredState: { pageLifecycleState: string; emulation?: { animationPlaybackRate?: number } }
+    }
+    expect(lifecycleProbe.frozenState.pageLifecycleState).toBe('frozen')
+    expect(lifecycleProbe.finalState).toMatchObject({ pageLifecycleState: 'active', sleeping: false })
+    expect(lifecycleProbe.finalState.emulation?.animationPlaybackRate).toBe(0.25)
+    expect(lifecycleProbe.finalSelection).toBe(lifecycleProbe.selectionBefore)
+    expect(lifecycleProbe.otherTicks).toBeGreaterThan(10)
+    // This sample includes the asynchronous shell-to-main handoff before the
+    // freeze takes effect. Leave room for a busy CI worker while still staying
+    // well below the ~25 timer/frame ticks and 125ms of animation time that a
+    // live page would accumulate during the 500ms hold.
+    expect(lifecycleProbe.after.interval - lifecycleProbe.before.interval).toBeLessThanOrEqual(10)
+    expect(lifecycleProbe.after.raf - lifecycleProbe.before.raf).toBeLessThanOrEqual(10)
+    expect(lifecycleProbe.after.cssTime - lifecycleProbe.before.cssTime).toBeLessThan(50)
+    expect(lifecycleProbe.after.webAnimationTime - lifecycleProbe.before.webAnimationTime).toBeLessThan(50)
+    expect(lifecycleProbe.resumed.interval - lifecycleProbe.after.interval).toBeGreaterThan(4)
+    expect(lifecycleProbe.resumed.raf - lifecycleProbe.after.raf).toBeGreaterThan(4)
+    expect(lifecycleProbe.resumed.cssTime - lifecycleProbe.after.cssTime).toBeGreaterThan(20)
+    expect(lifecycleProbe.resumed.webAnimationTime - lifecycleProbe.after.webAnimationTime).toBeGreaterThan(20)
+    expect(lifecycleProbe.unknownState.pageLifecycleState).toBe('unknown')
+    expect(lifecycleProbe.repeatedUnknownState.pageLifecycleState).toBe('unknown')
+    expect(lifecycleProbe.failedLifecycleDispatches).toBe(1)
+    expect(lifecycleProbe.recoveredState).toMatchObject({
+      pageLifecycleState: 'active',
+      emulation: { animationPlaybackRate: 0.25 }
+    })
+    await testInfo.attach('page-lifecycle-support-matrix', {
+      body: JSON.stringify({
+        runtime: { electron: '44.3.0', chromium: '152.0.7977.78' }, frozenForMs: 500,
+        deltasDuringHold: Object.fromEntries((Object.keys(lifecycleProbe.before) as Array<keyof PageLifecycleClockProbe>).map(key => [
+          key, lifecycleProbe.after[key]! - lifecycleProbe.before[key]!
+        ])),
+        anotherTabTicks: lifecycleProbe.otherTicks,
+        caveat: 'Dedicated workers are measured but not guaranteed to freeze. Media, network delivery, service workers, and cross-origin frames are outside the asserted main-document clock contract.'
+      }, null, 2),
+      contentType: 'application/json'
+    })
     // A deliberately hidden host must stay hidden through layout reconciliation.
     await evaluate("window.hide(); window.emit('resize')")
     await expect.poll(() => evaluate("return view.webContents.executeJavaScript('document.visibilityState')")).toBe('hidden')

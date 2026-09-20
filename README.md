@@ -327,7 +327,7 @@ For billing and licensing support, contact [support@hronaut.dev](mailto:support@
 
 ## Documentation
 
-The [detailed reference](REFERENCE.md) covers browser behavior, privacy and security boundaries, every MCP tool group, testing, packaging, and release operations.
+The [detailed reference](REFERENCE.md) covers browser behavior, privacy and security boundaries, every MCP tool group, testing, packaging, and release operations. The measured [page freeze and resume contract](docs/PAGE_FREEZE.md) documents deterministic live-page holds, explicit recovery, and runtime limitations for QA.
 
 ## Local Web3 wallets
 

@@ -170,6 +170,7 @@ const BrowserPageActionsStub = defineComponent({
   emits: [
     'update:splitMenuOpen',
     'toggleTabInteraction',
+    'togglePageLifecycle',
     'toggleAreaCapture',
     'toggleElementPicker',
     'togglePageTools',
@@ -207,6 +208,7 @@ function createHarness(home = false) {
     forward: vi.fn(async () => browserState),
     reload: vi.fn(async () => browserState),
     stop: vi.fn(async () => browserState),
+    setTabPageLifecycle: vi.fn(async () => browserState),
     showTabContextMenu: vi.fn(async () => undefined)
   }
   const actions = {
@@ -516,6 +518,20 @@ describe('AppBrowserChromeLayer', () => {
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes explicit page freeze and resume through the authoritative browser state', async () => {
+    const harness = createHarness()
+    const page = harness.wrapper.getComponent(BrowserPageActionsStub)
+
+    page.vm.$emit('togglePageLifecycle', harness.props.state.tabs[0])
+    await nextTick()
+    expect(harness.browser.setTabPageLifecycle).toHaveBeenCalledWith('tab-1', 'frozen')
+    expect(harness.syncState).toHaveBeenCalled()
+
+    page.vm.$emit('togglePageLifecycle', { ...harness.props.state.tabs[0], pageLifecycleState: 'frozen' })
+    await nextTick()
+    expect(harness.browser.setTabPageLifecycle).toHaveBeenLastCalledWith('tab-1', 'active')
   })
 
   it('forwards every child event through the existing action boundary and closes tab search on select or drag', async () => {

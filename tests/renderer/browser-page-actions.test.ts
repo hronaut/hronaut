@@ -102,6 +102,22 @@ describe('BrowserPageActions', () => {
     expect(view.emitted().togglePageTools).toHaveLength(1)
   })
 
+  it('exposes the authoritative page lifecycle without silently retrying an unknown hold', async () => {
+    const activeTab = tab({ pageLifecycleState: 'active' })
+    const view = renderActions('idle', activeTab)
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' }))
+    expect(view.emitted().togglePageLifecycle).toEqual([[activeTab]])
+
+    await view.rerender({ activeTab: tab({ pageLifecycleState: 'frozen' }) })
+    const resume = screen.getByRole('button', { name: 'Resume this frozen page' })
+    expect(resume).toHaveAttribute('aria-pressed', 'true')
+
+    await view.rerender({ activeTab: tab({ pageLifecycleState: 'unknown' }) })
+    expect(screen.getByRole('button', { name: /Page hold outcome is unknown/ })).toBeDisabled()
+  })
+
   it('blocks native picker work while a page screenshot is capturing', () => {
     renderActions('capturing')
 
@@ -114,6 +130,7 @@ describe('BrowserPageActions', () => {
     renderActions('idle', tab({ url: 'hronaut://home/' }))
 
     expect(screen.getByRole('button', { name: 'Lock page input in this tab' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Capture page area' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Pick element for agent context' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Page tools' })).toBeDisabled()

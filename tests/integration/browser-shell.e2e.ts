@@ -4485,6 +4485,7 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
     { id: 'open-in-split-view', label: 'Open Tab Beside', enabled: true },
     { id: 'mute-tab', label: 'Mute Tab', enabled: true },
     { id: 'pin-tab', label: 'Pin Tab', enabled: true },
+    { id: 'freeze-page', label: 'Freeze Page for Review', enabled: true },
     { id: 'sleep-tab', label: 'Put Tab to Sleep', enabled: false },
     { id: 'workspace', label: `Workspace: ${workspaceName}`, enabled: true },
     { id: 'move-tab-left', label: 'Move Tab Left', enabled: true },

@@ -2391,6 +2391,11 @@ function registerIpc(): void {
     if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
     return tabsManager!.setTabSleeping(tabId, sleeping)
   })
+  ipcMain.handle('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')
+    return tabsManager!.setTabPageLifecycle(tabId, state)
+  })
   ipcMain.handle('browser:sleep-inactive-tabs', (event) => {
     assertTrustedShellSender(event)
     return tabsManager!.sleepInactiveTabs()

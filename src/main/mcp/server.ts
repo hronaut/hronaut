@@ -401,6 +401,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_press: 'interact',
   browser_file_upload: 'external-request',
   browser_emulate: 'browser-state',
+  browser_page_lifecycle: 'browser-state',
   browser_resize: 'browser-state',
   browser_zoom: 'browser-state',
   browser_audio: 'browser-state',
@@ -594,6 +595,7 @@ const BROWSER_TOOL_METADATA = {
   browser_file_upload: destructiveTool('Upload a file'),
   browser_wait: readOnlyTool('Wait for page state'),
   browser_emulate: nonDestructiveTool('Emulate a browser environment'),
+  browser_page_lifecycle: nonDestructiveTool('Freeze or resume one live page'),
   browser_resize: nonDestructiveTool('Resize the page viewport', true),
   browser_zoom: nonDestructiveTool('Change page zoom'),
   browser_audio: nonDestructiveTool('Control tab audio', true),
@@ -730,6 +732,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_file_upload', category: 'Interaction', description: 'Attach local files to a file input.' },
   { name: 'browser_wait', category: 'Navigation', description: 'Wait for navigation, a matching page URL, visible or disappearing page text, or an element to become attached, detached, visible, or hidden.' },
   { name: 'browser_emulate', category: 'Inspection', description: 'Reproduce responsive, network, cache, service-worker, Data Saver, CPU, animation-playback, CSS media, vision, locale, time-zone, JavaScript-disabled, location, request-header, and user-agent conditions, or show paint, layout-shift, layer, frame, and scrolling diagnostics in one tab.' },
+  { name: 'browser_page_lifecycle', category: 'Inspection', description: 'Inspect, freeze, or explicitly resume the main document in one live tab without selecting, sleeping, or reloading it. A freeze is a QA hold, not a security boundary or complete browser snapshot.' },
   { name: 'browser_resize', category: 'Inspection', description: 'Set or reset the page viewport for responsive UI testing.' },
   { name: 'browser_zoom', category: 'Inspection', description: 'Inspect or change page zoom from 50% to 300% without resizing the browser chrome.' },
   { name: 'browser_audio', category: 'Interaction', description: 'Mute or unmute one browser tab without changing site-wide sound permissions.' },
@@ -840,6 +843,7 @@ const QA_TOOL_NAMES = new Set([
   'browser_element_inspect',
   'browser_generate_locator',
   'browser_emulate',
+  'browser_page_lifecycle',
   'browser_resize',
   'browser_zoom',
   'browser_accessibility_audit',
@@ -3344,6 +3348,23 @@ function createBrowserMcpServer(
       }
     },
     tabTool('browser_emulate', async (options: BrowserEmulationOptions) => textResult(await manager.emulate(options)))
+  )
+  registerWorkspaceTool(
+    'browser_page_lifecycle',
+    {
+      description: toolDescription('browser_page_lifecycle'),
+      inputSchema: {
+        tabId: tabIdSchema.optional(),
+        action: z.enum(['status', 'freeze', 'resume']).default('status')
+          .describe('Status is read-only. Freeze and resume are explicit per-tab operations; an ambiguous dispatched outcome is never replayed automatically.')
+      }
+    },
+    tabTool('browser_page_lifecycle', async ({ tabId, action }: {
+      tabId?: string
+      action: 'status' | 'freeze' | 'resume'
+    }) => textResult(action === 'status'
+      ? manager.pageLifecycle(tabId!)
+      : await manager.controlPageLifecycle(tabId!, action === 'freeze' ? 'frozen' : 'active')), 'never')
   )
   registerWorkspaceTool(
     'browser_zoom',

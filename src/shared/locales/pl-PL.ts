@@ -896,6 +896,7 @@ export const plPL = {
       "inputLocked": "Wprowadzanie danych na stronie jest zablokowane",
       "inputLock": "Blokada wprowadzania danych na stronie"
     },
+    "pageLifecycle": { "active": "Aktywna", "frozen": "Zamrożona", "unknownShort": "Nieznany", "freeze": "Zamroź tę aktywną stronę do deterministycznej kontroli", "resume": "Wznów tę zamrożoną stronę", "unknown": "Wynik zatrzymania strony jest nieznany; przeładuj lub nawiguj, aby ustanowić nowy aktywny dokument" },
     "pdf": {
       "saving": "Zapisywanie strony jako PDF",
       "saved": "Zapisano PDF w {path}",
@@ -1192,6 +1193,8 @@ export const plPL = {
     "tab": {
       "pinned": " — przypięta",
       "sleeping": " — uśpiona; odświeży się po wybraniu",
+      "frozen": " — strona zamrożona do kontroli",
+      "freezeUnknown": " — wynik zatrzymania strony nieznany",
       "muted": " — wyciszona",
       "audio": " — odtwarza dźwięk",
       "locked": " — wprowadzanie danych na stronie zablokowane",
@@ -1233,6 +1236,8 @@ export const plPL = {
       "scrollForward": "Pokaż następne karty",
       "pageAttention": "Strona wymaga uwagi",
       "sleeping": "Uśpiona, aby oszczędzać zasoby",
+      "frozen": "Strona zamrożona do kontroli",
+      "freezeUnknown": "Wynik zatrzymania strony nieznany",
       "stackedVisible": "Widoczna w pionowym widoku dzielonym",
       "sideVisible": "Widoczna w widoku dzielonym obok siebie",
       "inputLocked": "Wprowadzanie danych na stronie zablokowane",
@@ -3128,6 +3133,9 @@ export const plPL = {
       "unmuteTab": "Włącz dźwięk karty",
       "pinTab": "Przypnij kartę",
       "unpinTab": "Odepnij kartę",
+      "freezePage": "Zamroź stronę do kontroli",
+      "resumePage": "Wznów stronę",
+      "pageLifecycleUnknown": "Wynik zatrzymania strony nieznany",
       "wakeTab": "Wybudź kartę",
       "sleepTab": "Uśpij kartę",
       "moveLeft": "Przenieś kartę w lewo",

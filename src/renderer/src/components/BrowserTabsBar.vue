@@ -17,6 +17,8 @@ import IconKeep from '~icons/material-symbols/keep-rounded'
 import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
+import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
+import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
@@ -600,6 +602,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             active: tab.active,
             pinned: tab.pinned,
             sleeping: tab.sleeping,
+            frozen: tab.pageLifecycleState === 'frozen',
             grouped: Boolean(tab.mcpGroupId),
             dragging: draggedTabId === tab.id,
             'drop-before': tabDropTargetId === tab.id && tabDropPlacement === 'before',
@@ -639,6 +642,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
           <span class="tab-title">{{ tab.title || t('tabSearch.newTabTitle') }}</span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
+          <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />
+          <IconHelp v-else-if="tab.pageLifecycleState === 'unknown'" class="tab-freeze-mark unknown" :aria-label="t('shell.tabs.freezeUnknown')" />
           <IconHorizontalSplit
             v-if="state.splitView?.orientation === 'horizontal' && (state.splitView.firstTabId === tab.id || state.splitView.secondTabId === tab.id)"
             class="tab-split-mark"

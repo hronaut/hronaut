@@ -896,6 +896,7 @@ export const esES = {
       "inputLocked": "La entrada en la página está bloqueada",
       "inputLock": "Bloqueo de entrada en la página"
     },
+    "pageLifecycle": { "active": "Activa", "frozen": "Congelada", "unknownShort": "Desconocido", "freeze": "Congelar esta página activa para una revisión determinista", "resume": "Reanudar esta página congelada", "unknown": "El resultado de la pausa de página es desconocido; recarga o navega para establecer un documento activo nuevo" },
     "pdf": {
       "saving": "Guardando la página como PDF",
       "saved": "PDF guardado en {path}",
@@ -1192,6 +1193,8 @@ export const esES = {
     "tab": {
       "pinned": " — fijada",
       "sleeping": " — suspendida; se recarga al seleccionarla",
+      "frozen": " — página congelada para revisión",
+      "freezeUnknown": " — resultado de la pausa desconocido",
       "muted": " — silenciada",
       "audio": " — reproduciendo audio",
       "locked": " — entrada de la página bloqueada",
@@ -1233,6 +1236,8 @@ export const esES = {
       "scrollForward": "Mostrar pestañas siguientes",
       "pageAttention": "La página requiere atención",
       "sleeping": "Suspendida para ahorrar recursos",
+      "frozen": "Página congelada para revisión",
+      "freezeUnknown": "Resultado de la pausa desconocido",
       "stackedVisible": "Visible en vista dividida apilada",
       "sideVisible": "Visible en vista dividida lado a lado",
       "inputLocked": "Entrada de la página bloqueada",
@@ -3128,6 +3133,9 @@ export const esES = {
       "unmuteTab": "Activar sonido de pestaña",
       "pinTab": "Fijar pestaña",
       "unpinTab": "Desfijar pestaña",
+      "freezePage": "Congelar página para revisión",
+      "resumePage": "Reanudar página",
+      "pageLifecycleUnknown": "Resultado de la pausa desconocido",
       "wakeTab": "Reactivar pestaña",
       "sleepTab": "Suspender pestaña",
       "moveLeft": "Mover pestaña a la izquierda",

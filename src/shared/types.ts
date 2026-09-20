@@ -206,6 +206,10 @@ export interface BrowserTabState {
   active: boolean
   pinned: boolean
   sleeping: boolean
+  /** Main-document lifecycle state reported by Hronaut's explicit page hold.
+   * Unknown means a dispatched lifecycle command or its debugger connection
+   * ended ambiguously; Hronaut does not replay that command automatically. */
+  pageLifecycleState?: BrowserPageLifecycleState
   humanInteractionLocked: boolean
   preserveDiagnosticLogs: boolean
   zoomPercent: number
@@ -241,6 +245,18 @@ export interface BrowserTabState {
   dialog?: BrowserJavaScriptDialog
   mcpGroupId?: string
   mcpGroupName?: string
+}
+
+export type BrowserPageLifecycleState = 'active' | 'frozen' | 'unknown'
+
+export interface BrowserPageLifecycleResult {
+  tabId: string
+  requestedState?: Exclude<BrowserPageLifecycleState, 'unknown'>
+  state: BrowserPageLifecycleState
+  status: 'changed' | 'unchanged' | 'outcome-unknown'
+  navigationGeneration: number
+  retrySafe: boolean
+  nextAction?: string
 }
 
 export type BrowserInspectorIssueSeverity = 'error' | 'warning' | 'info'
@@ -2348,6 +2364,7 @@ export interface HronautApi {
   closeSplitView(): Promise<BrowserState>
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
+  setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>
   createWorkspace(options: BrowserWorkspaceCreateOptions): Promise<BrowserState>

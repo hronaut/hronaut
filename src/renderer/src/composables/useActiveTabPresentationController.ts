@@ -96,6 +96,11 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
   function tabTooltip(tab: BrowserTabState): string {
     const pinned = tab.pinned ? options.translate('runtimeDetails.tab.pinned') : ''
     const sleeping = tab.sleeping ? options.translate('runtimeDetails.tab.sleeping') : ''
+    const pageLifecycle = tab.pageLifecycleState === 'frozen'
+      ? options.translate('runtimeDetails.tab.frozen')
+      : tab.pageLifecycleState === 'unknown'
+        ? options.translate('runtimeDetails.tab.freezeUnknown')
+        : ''
     const audio = tab.muted
       ? options.translate('runtimeDetails.tab.muted')
       : tab.audible ? options.translate('runtimeDetails.tab.audio') : ''
@@ -122,7 +127,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     const workspace = tab.mcpGroupName
       ? options.translate('runtimeDetails.tab.workspace', { name: tab.mcpGroupName })
       : ''
-    return `${tab.title || options.translate('tabSearch.newTabTitle')}${problem}${pinned}${sleeping}${audio}${locked}${emulation}${networkRoutes}${split}${workspace}`
+    return `${tab.title || options.translate('tabSearch.newTabTitle')}${problem}${pinned}${sleeping}${pageLifecycle}${audio}${locked}${emulation}${networkRoutes}${split}${workspace}`
   }
 
   function pageProblemDetails(tab: BrowserTabState): string {

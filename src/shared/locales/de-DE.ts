@@ -896,6 +896,7 @@ export const deDE = {
       "inputLocked": "Seiteneingabe ist gesperrt",
       "inputLock": "Seiteneingabesicherung"
     },
+    "pageLifecycle": { "active": "Live", "frozen": "Eingefroren", "unknownShort": "Unbekannt", "freeze": "Diese Live-Seite für eine deterministische Prüfung einfrieren", "resume": "Diese eingefrorene Seite fortsetzen", "unknown": "Das Ergebnis des Seitenhalts ist unbekannt; neu laden oder navigieren, um ein neues aktives Dokument herzustellen" },
     "pdf": {
       "saving": "Seite wird als PDF gespeichert",
       "saved": "PDF unter {path} gespeichert",
@@ -1192,6 +1193,8 @@ export const deDE = {
     "tab": {
       "pinned": " — angeheftet",
       "sleeping": " — im Ruhezustand; wird bei Auswahl neu geladen",
+      "frozen": " — Seite zur Prüfung eingefroren",
+      "freezeUnknown": " — Ergebnis des Seitenhalts unbekannt",
       "muted": " — stummgeschaltet",
       "audio": " — spielt Audio ab",
       "locked": " — Seiteneingabe gesperrt",
@@ -1233,6 +1236,8 @@ export const deDE = {
       "scrollForward": "Weitere Tabs anzeigen",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",
+      "frozen": "Seite zur Prüfung eingefroren",
+      "freezeUnknown": "Ergebnis des Seitenhalts unbekannt",
       "stackedVisible": "In gestapelter geteilter Ansicht sichtbar",
       "sideVisible": "In nebeneinander geteilter Ansicht sichtbar",
       "inputLocked": "Seiteneingabe gesperrt",
@@ -3128,6 +3133,9 @@ export const deDE = {
       "unmuteTab": "Tabton einschalten",
       "pinTab": "Tab anheften",
       "unpinTab": "Tab lösen",
+      "freezePage": "Seite zur Prüfung einfrieren",
+      "resumePage": "Seite fortsetzen",
+      "pageLifecycleUnknown": "Ergebnis des Seitenhalts unbekannt",
       "wakeTab": "Tab aufwecken",
       "sleepTab": "Tab in Ruhezustand versetzen",
       "moveLeft": "Tab nach links verschieben",

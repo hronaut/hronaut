@@ -154,6 +154,7 @@
 .browser-tabs-bar.vertical.rail-collapsed .tab-title,
 .browser-tabs-bar.vertical.rail-collapsed .tab-close,
 .browser-tabs-bar.vertical.rail-collapsed .tab-sleep-mark,
+.browser-tabs-bar.vertical.rail-collapsed .tab-freeze-mark,
 .browser-tabs-bar.vertical.rail-collapsed .tab-split-mark,
 .browser-tabs-bar.vertical.rail-collapsed .tab-emulation-mark,
 .browser-tabs-bar.vertical.rail-collapsed .tab-network-route-mark,
@@ -348,6 +349,7 @@
 .tab.grouped:hover { @apply [background:var(--tab-hover)]; }
 .tab.grouped.active { @apply [background:var(--toolbar)]; }
 .tab.sleeping { @apply [color:color-mix(in_srgb,_var(--text)_68%,_var(--muted))]; }
+.tab.frozen { @apply [box-shadow:inset_0_-2px_0_color-mix(in_srgb,_var(--accent)_72%,_#6f7cff)]; }
 .tab.sleeping .favicon-image,
 .tab.sleeping .favicon-fallback { @apply [opacity:0.58] [filter:grayscale(0.45)]; }
 .tab.pinned {
@@ -392,6 +394,10 @@
 .tab-sleep-mark {
   @apply [width:14px] [height:14px] flex-none text-muted;
 }
+.tab-freeze-mark {
+  @apply [width:14px] [height:14px] flex-none text-accent-copy;
+}
+.tab-freeze-mark.unknown { @apply text-muted; }
 .tab-split-mark {
   @apply [width:14px] [height:14px] flex-none text-accent-copy;
 }
@@ -493,6 +499,7 @@
 .compact-vertical-tab-rail-revealed .toolbar {
   @apply flex-wrap [height:auto] [min-height:60px] [gap:4px] [padding-right:12px];
 }
+.compact-vertical-tab-rail .toolbar .icon-button { @apply [width:28px] [flex-basis:28px]; }
 .compact-vertical-tab-rail-revealed .toolbar .icon-button { @apply [width:28px] [height:32px] [flex:0_0_28px]; }
 .compact-vertical-tab-rail-revealed .toolbar > .icon-button:nth-child(-n+3) { @apply [height:44px]; }
 .compact-vertical-tab-rail-revealed .toolbar .address-form { @apply [flex:0_0_100%] min-w-0 m-0; }
@@ -620,6 +627,12 @@
 .interaction-lock-button.tab-mute-button { @apply flex-none [height:34px] [border:1px_solid_var(--border-soft)] [border-radius:8px] bg-surface-muted; }
 .interaction-lock-button.tab-mute-button.muted { @apply text-accent-copy border-accent bg-accent-soft; }
 @media (max-width: 1100px) {
+  .interaction-lock-button.tab-interaction-lock-button,
+  .interaction-lock-button.page-lifecycle-button {
+    @apply [width:32px] [min-width:32px] justify-center [padding:0];
+  }
+  .tab-interaction-lock-button > span,
+  .page-lifecycle-button > span { @apply hidden; }
   .interaction-lock-button.tab-mute-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
   .tab-mute-label { @apply hidden; }
 }

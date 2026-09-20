@@ -179,6 +179,13 @@ function startTabDrag(): void {
   tabSearchOpen.value = false
 }
 
+function togglePageLifecycle(tab: BrowserTabState): void {
+  void props.runAction(() => props.syncState(props.browser.setTabPageLifecycle(
+    tab.id,
+    tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen'
+  )))
+}
+
 defineExpose({ expandTabGroup, expandTabGroupForTab })
 </script>
 
@@ -333,6 +340,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :element-picker-label="elementPickerLabel"
       :page-tools-open="pageToolsOpen"
       @toggle-tab-interaction="runAction(toggleTabHumanInteraction)"
+      @toggle-page-lifecycle="togglePageLifecycle"
       @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
       @toggle-area-capture="runAction(toggleAreaCapture)"
       @toggle-element-picker="runAction(() => toggleElementPicker('context'))"

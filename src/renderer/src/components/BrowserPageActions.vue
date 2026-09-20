@@ -8,6 +8,9 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconHandyman from '~icons/material-symbols/handyman-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconLockOpen from '~icons/material-symbols/lock-open-rounded'
+import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
+import IconPlayCircle from '~icons/material-symbols/play-circle-rounded'
+import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconScreenshotRegion from '~icons/material-symbols/screenshot-region-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
@@ -40,6 +43,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   toggleTabInteraction: []
+  togglePageLifecycle: [tab: BrowserTabState]
   toggleTabMuted: [tab: BrowserTabState]
   toggleAreaCapture: []
   toggleElementPicker: []
@@ -66,7 +70,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
   >
     <UiButton appearance="application"
-      class="interaction-lock-button"
+      class="interaction-lock-button tab-interaction-lock-button"
       :class="{ locked: tabHumanInteractionLocked }"
       type="button"
       :title="tabInteractionLockLabel"
@@ -77,7 +81,22 @@ function reportSplitError(cause: unknown, fallback: string): void {
     >
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
-      {{ t('shell.split.tab') }}
+      <span>{{ t('shell.split.tab') }}</span>
+    </UiButton>
+    <UiButton appearance="application"
+      class="interaction-lock-button page-lifecycle-button"
+      :class="{ frozen: activeTab?.pageLifecycleState === 'frozen', unknown: activeTab?.pageLifecycleState === 'unknown' }"
+      type="button"
+      :title="t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
+      :aria-label="t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.resume' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknown' : 'runtime.pageLifecycle.freeze')"
+      :aria-pressed="activeTab?.pageLifecycleState === 'frozen'"
+      :disabled="activeTabIsInternal || activeTab?.sleeping || activeTab?.loading || activeTab?.pageLifecycleState === 'unknown'"
+      @click="activeTab && emit('togglePageLifecycle', activeTab)"
+    >
+      <IconPlayCircle v-if="activeTab?.pageLifecycleState === 'frozen'" aria-hidden="true" />
+      <IconHelp v-else-if="activeTab?.pageLifecycleState === 'unknown'" aria-hidden="true" />
+      <IconPauseCircle v-else aria-hidden="true" />
+      <span>{{ t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.frozen' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknownShort' : 'runtime.pageLifecycle.active') }}</span>
     </UiButton>
   </div>
   <UiButton appearance="application"
