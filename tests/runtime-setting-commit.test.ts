@@ -66,4 +66,43 @@ describe('runtime setting commits', () => {
     expect(apply).toHaveBeenNthCalledWith(1, 'qa')
     expect(apply).toHaveBeenNthCalledWith(2, 'complete')
   })
+
+  it('restores runtime state when applying the new value fails after a partial change', async () => {
+    let runtimeToolSet = 'complete'
+    const apply = vi.fn(async (value: string) => {
+      runtimeToolSet = value
+      if (value === 'qa') throw new Error('runtime rejected change')
+    })
+    const persist = vi.fn(async () => undefined)
+
+    await expect(commitRuntimeSetting({
+      previous: 'complete',
+      next: 'qa',
+      apply,
+      persist
+    })).rejects.toThrow('runtime rejected change')
+
+    expect(runtimeToolSet).toBe('complete')
+    expect(apply).toHaveBeenNthCalledWith(1, 'qa')
+    expect(apply).toHaveBeenNthCalledWith(2, 'complete')
+    expect(persist).not.toHaveBeenCalled()
+  })
+
+  it('preserves both persistence and rollback failures', async () => {
+    const persistenceError = new Error('disk unavailable')
+    const rollbackError = new Error('runtime rollback unavailable')
+    const apply = vi.fn(async (value: string) => {
+      if (value === 'complete') throw rollbackError
+    })
+
+    const thrown = await commitRuntimeSetting({
+      previous: 'complete',
+      next: 'qa',
+      apply,
+      persist: async () => { throw persistenceError }
+    }).then(() => undefined, (error: unknown) => error)
+
+    expect(thrown).toBeInstanceOf(AggregateError)
+    expect((thrown as AggregateError).errors).toEqual([persistenceError, rollbackError])
+  })
 })

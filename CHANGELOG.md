@@ -9,6 +9,7 @@ All notable changes to Hronaut are documented in this file.
 - Explicitly terminate packaged MCP smoke-test sessions before closing their local clients so workspace write leases are released immediately during Scoop reinstall verification.
 - Terminate MCPB adapter and native-dialog QA sessions before closing their HTTP transports so host disconnects release workspace write leases immediately.
 - Treat Linux autostart entries with duplicate keys or repeated Desktop Entry groups as invalid instead of reporting an ambiguous launch-at-sign-in registration as enabled.
+- Restore the previous runtime setting after a partially failed apply and retain both persistence and rollback failures when a transactional setting change cannot recover cleanly.
 
 ## [2.5.0] - 2026-09-21
 
