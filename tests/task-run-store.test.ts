@@ -17,6 +17,94 @@ function clock() {
 }
 
 describe('bounded browser task-run contracts', () => {
+  it('stores reusable definitions separately from runtime bindings and keeps revisions immutable', () => {
+    const store = new TaskRunStore()
+    const saved = store.saveTask({
+      workspaceId: WORKSPACE_ID,
+      name: 'Verify release',
+      intent: 'Verify one release page before publishing.',
+      inputs: [{ name: 'release', type: 'string', required: true, sensitive: false }],
+      steps: [
+        { id: 'inspect', kind: 'read-only', capability: 'browser_snapshot', humanGate: false },
+        { id: 'publish', kind: 'mutation', capability: 'browser_click', humanGate: true }
+      ],
+      evidence: [{ id: 'settled', type: 'page-settled' }],
+      retryPolicy: { maxAttempts: 2, retryable: 'read-only-only' }
+    })
+
+    expect(store.listTasks(WORKSPACE_ID)).toEqual([saved])
+    expect(store.getTask(saved.id)).toEqual(saved)
+    expect(() => store.deleteTask(saved.id, '018f4d10-7b4a-7000-8000-000000000099')).toThrow('unavailable or stale')
+    expect(store.deleteTask(saved.id, saved.revision)).toEqual(saved)
+    expect(store.listTasks(WORKSPACE_ID)).toEqual([])
+  })
+
+  it('rejects unsafe saved-task contracts and reserved evidence identifiers', () => {
+    const store = new TaskRunStore()
+    const base = {
+      workspaceId: WORKSPACE_ID,
+      name: 'Unsafe task',
+      intent: 'Exercise validation.',
+      inputs: [],
+      evidence: [{ id: 'settled', type: 'page-settled' as const }],
+      retryPolicy: { maxAttempts: 1, retryable: 'read-only-only' as const }
+    }
+    expect(() => store.saveTask({
+      ...base,
+      steps: [{ id: 'write', kind: 'mutation', capability: 'browser_click', humanGate: false }]
+    })).toThrow('human gate')
+    expect(() => store.saveTask({
+      ...base,
+      steps: [{ id: 'read', kind: 'read-only', capability: 'browser_snapshot', humanGate: false }],
+      evidence: [{ id: 'task_context', type: 'page-settled' }]
+    })).toThrow('reserved')
+  })
+
+  it('classifies changed and unavailable reusable-task context without permitting blind retry', () => {
+    const store = new TaskRunStore()
+    const contextCheck = {
+      id: 'task_context', type: 'context-binding' as const, tabId: TAB_ID,
+      navigationGeneration: 3, observationGeneration: 7,
+      originFingerprint: 'a'.repeat(64), controlFingerprint: 'b'.repeat(64)
+    }
+    const changed = store.create({
+      workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000,
+      taskDefinition: {
+        id: '018f4d10-7b4a-7000-8000-000000000010',
+        revision: '018f4d10-7b4a-7000-8000-000000000011',
+        approvalRequired: true
+      },
+      checks: [contextCheck, { id: 'page', type: 'page-settled', tabId: TAB_ID }]
+    })
+    const stale = store.heartbeat(changed.id, changed.revision, [{ id: 'task_context', status: 'FAIL' }])
+    expect(stale).toMatchObject({
+      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context',
+      taskDefinition: { id: '018f4d10-7b4a-7000-8000-000000000010', approvalRequired: true },
+      receipt: {
+        formatVersion: 1,
+        taskRevision: '018f4d10-7b4a-7000-8000-000000000011',
+        context: { tabId: TAB_ID, navigationGeneration: 3, observationGeneration: 7 },
+        approvalState: 'required',
+        authoritativeResult: { outcome: 'stale-context', reasonCode: 'TASK_CONTEXT_STALE' }
+      },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: 'task_context', type: 'context-binding', status: 'FAIL', tabId: TAB_ID })
+      ])
+    })
+    expect(JSON.stringify(stale)).not.toContain('a'.repeat(64))
+    expect(JSON.stringify(stale)).not.toContain('b'.repeat(64))
+
+    const unavailable = store.create({
+      workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000,
+      checks: [contextCheck]
+    })
+    expect(store.heartbeat(unavailable.id, unavailable.revision, [
+      { id: 'task_context', status: 'UNAVAILABLE' }
+    ])).toMatchObject({
+      state: 'OUTCOME_UNKNOWN', terminalReason: 'TASK_CONTEXT_UNAVAILABLE', outcome: 'reconciliation-required'
+    })
+  })
+
   it('registers a privacy-safe run and requires machine-checked evidence before success', () => {
     const time = clock()
     const store = new TaskRunStore({ monotonicNow: time.monotonicNow, wallNow: time.wallNow })
@@ -189,6 +277,20 @@ describe('bounded browser task-run contracts', () => {
     restored.restore(original.snapshot())
     expect(restored.get(active.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
     expect(restored.get(terminal.id)).toMatchObject({ state: 'BLOCKED', terminalReason: 'CALLER_REPORTED_BLOCKED' })
+  })
+
+  it('migrates version-one run history with an empty saved-task collection', () => {
+    const original = new TaskRunStore()
+    const run = original.create({
+      workspaceId: WORKSPACE_ID, deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: []
+    })
+    const current = original.snapshot()
+    const legacy = { version: 1, savedAt: current.savedAt, records: current.records }
+    const restored = new TaskRunStore()
+    restored.restore(legacy)
+    expect(restored.get(run.id)).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'RESTART' })
+    expect(restored.listTasks(WORKSPACE_ID)).toEqual([])
+    expect(restored.snapshot().version).toBe(2)
   })
 
   it('restores an interrupted verification as an unknown outcome', () => {

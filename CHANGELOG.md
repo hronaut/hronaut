@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add reusable browser-task definitions with redacted runtime inputs, pre-execution previews, explicit capabilities and human gates, read-only-only retry limits, exact tab/origin/control-generation bindings, typed drift outcomes, and privacy-safe task receipts.
 - Add process-local, transport-bound workspace write leases with privacy-safe ownership inspection, explicit handoff, deterministic `BUSY`/`LEASE_LOST` outcomes, pause and disconnect revocation, and two-client regression coverage.
 - Include privacy-safe write-lease mode, holder state, expiry, and current-owner generation in version 4 action audit receipts so handoffs and reconnects are reviewable without exposing foreign generations or MCP transport identities.
 - Add a native MCP-to-WebMCP consumer bridge for QA and Complete profiles, with top-level-only discovery, bounded untrusted metadata and results, origin/navigation/runtime-bound descriptor digests, stale-tool rejection, typed unknown outcomes, and fresh page evidence after calls.

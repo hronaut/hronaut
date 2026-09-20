@@ -13,6 +13,35 @@ const request = {
 const authorize = () => undefined
 
 describe('durable task-run owner', () => {
+  it('persists saved definitions and atomically starts the exact revision', async () => {
+    let saved: ReturnType<TaskRunStore['snapshot']> | undefined
+    const service = new TaskRunService({
+      load: async () => null,
+      save: async snapshot => { saved = structuredClone(snapshot) }
+    })
+    const definition = await service.saveTask({
+      workspaceId: WORKSPACE_ID,
+      name: 'Reusable check',
+      intent: 'Check the bound page.',
+      inputs: [],
+      steps: [{ id: 'inspect', kind: 'read-only', capability: 'browser_snapshot', humanGate: false }],
+      evidence: [{ id: 'page', type: 'page-settled' }],
+      retryPolicy: { maxAttempts: 1, retryable: 'read-only-only' }
+    }, authorize)
+    expect(saved?.tasks).toEqual([definition])
+
+    const run = await service.createFromTask(WORKSPACE_ID, definition.id, definition.revision, {
+      deadlineMs: 60_000,
+      heartbeatTimeoutMs: 10_000,
+      checks: request.checks
+    }, authorize)
+    expect(run.taskDefinition).toEqual({ id: definition.id, revision: definition.revision, approvalRequired: false })
+    await expect(service.createFromTask(
+      WORKSPACE_ID, definition.id, '018f4d10-7b4a-7000-8000-000000000099',
+      { deadlineMs: 60_000, heartbeatTimeoutMs: 10_000, checks: request.checks }, authorize
+    )).rejects.toThrow('unavailable or stale')
+  })
+
   it('persists admission before returning and rejects queued stale heartbeats', async () => {
     const persistence = { load: vi.fn(async () => null), save: vi.fn(async () => undefined) }
     const service = new TaskRunService(persistence)
@@ -46,6 +75,26 @@ describe('durable task-run owner', () => {
       results: [{ id: 'page', status: 'PASS' }],
       contextToken: `context-${++evaluation}`
     }))).toMatchObject({ state: 'OUTCOME_UNKNOWN', terminalReason: 'COMPLETION_CONTEXT_CHANGED' })
+  })
+
+  it('revalidates a saved-task context after persisting its heartbeat', async () => {
+    const service = new TaskRunService({ load: async () => null, save: async () => undefined })
+    const contextCheck = {
+      id: 'task_context', type: 'context-binding' as const, tabId: TAB_ID,
+      navigationGeneration: 1, observationGeneration: 2,
+      originFingerprint: 'a'.repeat(64), controlFingerprint: 'b'.repeat(64)
+    }
+    const run = await service.create({ ...request, checks: [contextCheck] }, authorize)
+    let evaluation = 0
+    expect(await service.heartbeat(WORKSPACE_ID, run.id, run.revision, authorize, async () => {
+      evaluation += 1
+      return {
+        results: [{ id: 'task_context', status: evaluation === 1 ? 'PASS' : 'FAIL' }],
+        contextToken: `context-${evaluation}`
+      }
+    })).toMatchObject({
+      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context'
+    })
   })
 
   it('does not replace corrupt history with an empty usable state', async () => {

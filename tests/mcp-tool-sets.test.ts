@@ -32,7 +32,7 @@ describe('MCP tool sets', () => {
     ]))
     expect(profile.allowedActions).toMatchObject({
       browser_storage: ['list', 'get'], browser_downloads: ['list'], browser_network: ['list'],
-      browser_task_runs: ['get', 'list', 'metrics'], browser_webmcp: ['status', 'list']
+      browser_task_runs: ['get', 'list', 'metrics', 'list-saved', 'preview'], browser_webmcp: ['status', 'list']
     })
     expect(profile).toMatchObject({ expiresAt: '2026-09-11T13:00:00.000Z', maxUses: 1 })
     expect(profile.argumentValueDigests).toEqual({

@@ -6,14 +6,24 @@ const checkIdSchema = z.string().trim().min(1).max(32).regex(/^[a-zA-Z0-9_-]+$/)
 const checkDefinitionSchema = z.discriminatedUnion('type', [
   z.object({ id: checkIdSchema, type: z.literal('page-settled'), tabId: idSchema }).strict(),
   z.object({ id: checkIdSchema, type: z.literal('expected-origin'), tabId: idSchema, fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }).strict(),
-  z.object({ id: checkIdSchema, type: z.literal('audit-run'), artifactId: idSchema }).strict()
+  z.object({ id: checkIdSchema, type: z.literal('audit-run'), artifactId: idSchema }).strict(),
+  z.object({
+    id: checkIdSchema,
+    type: z.literal('context-binding'),
+    tabId: idSchema,
+    navigationGeneration: z.number().int().nonnegative().safe(),
+    observationGeneration: z.number().int().nonnegative().safe(),
+    originFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+    controlFingerprint: z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict()
 ])
 const checkStatusSchema = z.enum(['PENDING', 'PASS', 'FAIL', 'UNAVAILABLE'])
 const stateSchema = z.enum(['RUNNING', 'VERIFYING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'BLOCKED', 'TIMED_OUT', 'OUTCOME_UNKNOWN'])
 const terminalReasonSchema = z.enum([
   'CALLER_REPORTED_FAILURE', 'CALLER_REPORTED_CANCELLED', 'CALLER_REPORTED_BLOCKED', 'CALLER_REPORTED_UNKNOWN',
   'COMPLETION_CHECK_FAILED', 'COMPLETION_EVIDENCE_UNAVAILABLE',
-  'COMPLETION_CONTEXT_CHANGED', 'HEARTBEAT_EXPIRED', 'DEADLINE_REACHED', 'CLOCK_INVALID', 'RESTART'
+  'COMPLETION_CONTEXT_CHANGED', 'TASK_CONTEXT_STALE', 'TASK_CONTEXT_UNAVAILABLE',
+  'HEARTBEAT_EXPIRED', 'DEADLINE_REACHED', 'CLOCK_INVALID', 'RESTART'
 ])
 const storedCheckSchema = checkDefinitionSchema.and(z.object({ status: checkStatusSchema }).strict())
 const storedRecordSchema = z.object({
@@ -27,7 +37,12 @@ const storedRecordSchema = z.object({
   deadlineAt: z.number().int().safe(),
   heartbeatDueAt: z.number().int().safe(),
   heartbeatTimeoutMs: z.number().int().min(1).max(86_400_000),
-  checks: z.array(storedCheckSchema).max(8)
+  taskDefinition: z.object({
+    id: idSchema,
+    revision: idSchema,
+    approvalRequired: z.boolean()
+  }).strict().optional(),
+  checks: z.array(storedCheckSchema).max(9)
 }).strict().superRefine((record, context) => {
   if (record.updatedAt < record.createdAt) {
     context.addIssue({ code: 'custom', path: ['updatedAt'], message: 'Invalid task-run update time' })
@@ -54,18 +69,77 @@ const storedRecordSchema = z.object({
   }
 })
 
-export const taskRunSnapshotSchema = z.object({
-  version: z.literal(1),
-  savedAt: z.number().int().safe(),
-  records: z.array(storedRecordSchema).max(1000)
+const taskInputSchema = z.object({
+  name: z.string().trim().min(1).max(32).regex(/^[a-zA-Z][a-zA-Z0-9_-]*$/),
+  type: z.enum(['string', 'number', 'boolean']),
+  required: z.boolean(),
+  sensitive: z.boolean()
 }).strict()
+const taskStepSchema = z.object({
+  id: checkIdSchema,
+  kind: z.enum(['read-only', 'review-gated', 'mutation']),
+  capability: z.string().trim().min(1).max(64).regex(/^(browser|wallet)_[a-z0-9_]+$/),
+  humanGate: z.boolean()
+}).strict().superRefine((step, context) => {
+  if (step.humanGate !== (step.kind !== 'read-only')) {
+    context.addIssue({ code: 'custom', path: ['humanGate'], message: 'Review and mutation steps require a human gate; read-only steps cannot claim one' })
+  }
+})
+const taskEvidenceSchema = z.object({
+  id: checkIdSchema,
+  type: z.enum(['page-settled', 'expected-origin'])
+}).strict()
+const savedTaskSchema = z.object({
+  id: idSchema,
+  revision: idSchema,
+  workspaceId: idSchema,
+  name: z.string().trim().min(1).max(80),
+  intent: z.string().trim().min(1).max(280),
+  inputs: z.array(taskInputSchema).max(12),
+  steps: z.array(taskStepSchema).min(1).max(16),
+  evidence: z.array(taskEvidenceSchema).min(1).max(8),
+  retryPolicy: z.object({ maxAttempts: z.number().int().min(1).max(3), retryable: z.literal('read-only-only') }).strict(),
+  createdAt: z.number().int().safe(),
+  updatedAt: z.number().int().safe()
+}).strict().superRefine((task, context) => {
+  for (const [path, values] of [
+    ['inputs', task.inputs.map(input => input.name)],
+    ['steps', task.steps.map(step => step.id)],
+    ['evidence', task.evidence.map(evidence => evidence.id)]
+  ] as const) {
+    if (new Set(values).size !== values.length) context.addIssue({ code: 'custom', path: [path], message: `Duplicate task ${path} identifier` })
+  }
+  if (task.evidence.some(evidence => evidence.id === 'task_context')) {
+    context.addIssue({ code: 'custom', path: ['evidence'], message: 'task_context is reserved for the bound browser context check' })
+  }
+  if (task.updatedAt < task.createdAt) context.addIssue({ code: 'custom', path: ['updatedAt'], message: 'Invalid saved-task update time' })
+})
+
+const currentSnapshotSchema = z.object({
+  version: z.literal(2),
+  savedAt: z.number().int().safe(),
+  records: z.array(storedRecordSchema).max(1000),
+  tasks: z.array(savedTaskSchema).max(50)
+}).strict()
+
+export const taskRunSnapshotSchema = z.preprocess(value => {
+  if (value && typeof value === 'object' && 'version' in value && value.version === 1) {
+    return { ...value, version: 2, tasks: [] }
+  }
+  return value
+}, currentSnapshotSchema)
 
 export type TaskRunCheckDefinition = z.infer<typeof checkDefinitionSchema>
 type StoredRecord = z.infer<typeof storedRecordSchema>
 type TaskRunState = z.infer<typeof stateSchema>
 type TerminalReason = z.infer<typeof terminalReasonSchema>
 type CheckStatus = z.infer<typeof checkStatusSchema>
-export type TaskRunOutcome = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'timed-out' | 'verifier-rejected' | 'outcome-unknown'
+export type TaskRunOutcome = 'running' | 'succeeded' | 'failed' | 'cancelled' | 'blocked' | 'timed-out'
+  | 'verifier-rejected' | 'stale-context' | 'reconciliation-required' | 'outcome-unknown'
+export type SavedTaskDefinition = z.infer<typeof savedTaskSchema>
+export type SavedTaskInput = z.infer<typeof taskInputSchema>
+export type SavedTaskStep = z.infer<typeof taskStepSchema>
+export type SavedTaskEvidence = z.infer<typeof taskEvidenceSchema>
 
 export interface TaskRunSummary {
   id: string
@@ -85,6 +159,15 @@ export interface TaskRunSummary {
   updatedAt: number
   deadlineAt: number
   heartbeatDueAt: number
+  taskDefinition?: { id: string; revision: string; approvalRequired: boolean }
+  receipt?: {
+    formatVersion: 1
+    taskDefinitionId: string
+    taskRevision: string
+    context: { tabId: string; navigationGeneration: number; observationGeneration: number }
+    approvalState: 'required' | 'not-required'
+    authoritativeResult: { outcome: TaskRunOutcome; reasonCode: TerminalReason | null; evidenceSource: 'caller-supplied' | 'hronaut-observed' }
+  }
   checks: Array<{
     id: string
     type: TaskRunCheckDefinition['type']
@@ -107,6 +190,7 @@ const terminal = (state: TaskRunState): boolean => state !== 'RUNNING' && state 
  */
 export class TaskRunStore {
   private readonly records = new Map<string, Entry>()
+  private readonly tasks = new Map<string, SavedTaskDefinition>()
   private readonly capacity: number
   private readonly monotonicNow: () => number
   private readonly wallNow: () => number
@@ -123,12 +207,14 @@ export class TaskRunStore {
     deadlineMs: number
     heartbeatTimeoutMs: number
     checks: TaskRunCheckDefinition[]
+    taskDefinition?: { id: string; revision: string; approvalRequired: boolean }
   }): TaskRunSummary {
     const parsed = z.object({
       workspaceId: idSchema,
       deadlineMs: z.number().int().min(1).max(604_800_000),
       heartbeatTimeoutMs: z.number().int().min(1).max(86_400_000),
-      checks: z.array(checkDefinitionSchema).max(8)
+      checks: z.array(checkDefinitionSchema).max(9),
+      taskDefinition: z.object({ id: idSchema, revision: idSchema, approvalRequired: z.boolean() }).strict().optional()
     }).strict().parse(input)
     if (new Set(parsed.checks.map(check => check.id)).size !== parsed.checks.length) throw new Error('Duplicate task-run check ID')
     const monotonic = this.expire()
@@ -146,6 +232,7 @@ export class TaskRunStore {
       state: 'RUNNING', terminalReason: null,
       createdAt: wall, updatedAt: wall, deadlineAt: wall + parsed.deadlineMs,
       heartbeatDueAt: wall + heartbeatMs, heartbeatTimeoutMs: parsed.heartbeatTimeoutMs,
+      ...(parsed.taskDefinition ? { taskDefinition: parsed.taskDefinition } : {}),
       checks: parsed.checks.map(check => ({ ...check, status: 'PENDING' }))
     }
     this.records.set(record.id, {
@@ -156,8 +243,71 @@ export class TaskRunStore {
     return this.publicRecord(record)
   }
 
-  heartbeat(id: string, revision: string): TaskRunSummary {
+  saveTask(input: {
+    workspaceId: string
+    name: string
+    intent: string
+    inputs: SavedTaskInput[]
+    steps: SavedTaskStep[]
+    evidence: SavedTaskEvidence[]
+    retryPolicy: SavedTaskDefinition['retryPolicy']
+  }): SavedTaskDefinition {
+    const wall = this.checkedWall()
+    const task = savedTaskSchema.parse({
+      ...structuredClone(input),
+      id: randomUUID(),
+      revision: randomUUID(),
+      createdAt: wall,
+      updatedAt: wall
+    })
+    if (this.tasks.size >= 50) throw new Error('Saved-task capacity reached')
+    this.tasks.set(task.id, task)
+    return structuredClone(task)
+  }
+
+  getTask(id: string): SavedTaskDefinition {
+    const task = this.tasks.get(idSchema.parse(id))
+    if (!task) throw new Error('Saved task is unavailable')
+    return structuredClone(task)
+  }
+
+  listTasks(workspaceId: string): SavedTaskDefinition[] {
+    const workspace = idSchema.parse(workspaceId)
+    return [...this.tasks.values()].filter(task => task.workspaceId === workspace).map(task => structuredClone(task))
+  }
+
+  deleteTask(id: string, revision: string): SavedTaskDefinition {
+    const parsedId = idSchema.parse(id)
+    const task = this.tasks.get(parsedId)
+    if (!task || task.revision !== idSchema.parse(revision)) throw new Error('Saved task is unavailable or stale')
+    this.tasks.delete(parsedId)
+    return structuredClone(task)
+  }
+
+  heartbeat(id: string, revision: string,
+    contextEvidence: Array<{ id: string; status: Exclude<CheckStatus, 'PENDING'> }> = []): TaskRunSummary {
     const entry = this.current(id, revision)
+    const contextChecks = entry.record.checks.filter(check => check.type === 'context-binding')
+    if (contextEvidence.length || contextChecks.length) {
+      const parsed = z.array(z.object({
+        id: checkIdSchema,
+        status: checkStatusSchema.exclude(['PENDING'])
+      }).strict()).max(1).parse(contextEvidence)
+      if (parsed.length !== contextChecks.length
+        || contextChecks.some(check => !parsed.some(result => result.id === check.id))) {
+        throw new Error('Context evidence must cover the bound task context exactly once')
+      }
+      const result = parsed[0]
+      const contextCheck = contextChecks[0]
+      if (!result || !contextCheck) throw new Error('Bound task context evidence is unavailable')
+      if (result.status !== 'PASS') {
+        const wall = this.checkedWall()
+        contextCheck.status = result.status
+        this.transition(entry.record, result.status === 'UNAVAILABLE' ? 'OUTCOME_UNKNOWN' : 'BLOCKED',
+          result.status === 'UNAVAILABLE' ? 'TASK_CONTEXT_UNAVAILABLE' : 'TASK_CONTEXT_STALE', wall)
+        return this.publicRecord(entry.record)
+      }
+    }
     const monotonic = this.lastMonotonic!
     const remaining = Math.max(0, entry.deadlineMonotonic - monotonic)
     const extension = Math.min(entry.record.heartbeatTimeoutMs, remaining)
@@ -187,7 +337,7 @@ export class TaskRunStore {
     const parsed = z.array(z.object({
       id: checkIdSchema,
       status: checkStatusSchema.exclude(['PENDING'])
-    }).strict()).max(8).parse(evidence)
+    }).strict()).max(9).parse(evidence)
     if (new Set(parsed.map(result => result.id)).size !== parsed.length
       || parsed.length !== entry.record.checks.length
       || entry.record.checks.some(check => !parsed.some(result => result.id === check.id))) {
@@ -195,7 +345,12 @@ export class TaskRunStore {
     }
     const wall = this.checkedWall()
     for (const check of entry.record.checks) check.status = parsed.find(result => result.id === check.id)!.status
-    if (entry.record.checks.some(check => check.status === 'UNAVAILABLE')) {
+    const contextCheck = entry.record.checks.find(check => check.type === 'context-binding')
+    if (contextCheck?.status === 'UNAVAILABLE') {
+      this.transition(entry.record, 'OUTCOME_UNKNOWN', 'TASK_CONTEXT_UNAVAILABLE', wall)
+    } else if (contextCheck?.status === 'FAIL') {
+      this.transition(entry.record, 'BLOCKED', 'TASK_CONTEXT_STALE', wall)
+    } else if (entry.record.checks.some(check => check.status === 'UNAVAILABLE')) {
       this.transition(entry.record, 'OUTCOME_UNKNOWN', 'COMPLETION_EVIDENCE_UNAVAILABLE', wall)
     } else if (entry.record.checks.some(check => check.status === 'FAIL')) {
       this.transition(entry.record, 'BLOCKED', 'COMPLETION_CHECK_FAILED', wall)
@@ -248,9 +403,10 @@ export class TaskRunStore {
   snapshot(): z.infer<typeof taskRunSnapshotSchema> {
     this.expire()
     return taskRunSnapshotSchema.parse({
-      version: 1,
+      version: 2,
       savedAt: this.checkedWall(),
-      records: [...this.records.values()].map(entry => entry.record)
+      records: [...this.records.values()].map(entry => entry.record),
+      tasks: [...this.tasks.values()]
     })
   }
 
@@ -260,6 +416,9 @@ export class TaskRunStore {
     if (snapshot.records.length > this.capacity
       || new Set(snapshot.records.map(record => record.id)).size !== snapshot.records.length) {
       throw new Error('Invalid task-run history capacity or duplicate record')
+    }
+    if (new Set(snapshot.tasks.map(task => task.id)).size !== snapshot.tasks.length) {
+      throw new Error('Invalid saved-task history or duplicate task')
     }
     const monotonic = this.monotonicNow()
     const wall = this.wallNow()
@@ -275,6 +434,7 @@ export class TaskRunStore {
         heartbeatDueMonotonic: monotonic + heartbeatRemaining
       })
     }
+    for (const task of snapshot.tasks) this.tasks.set(task.id, structuredClone(task))
     this.lastMonotonic = monotonic
   }
 
@@ -331,8 +491,14 @@ export class TaskRunStore {
         : record.state === 'FAILED' ? 'failed'
           : record.state === 'CANCELLED' ? 'cancelled'
             : record.state === 'TIMED_OUT' ? 'timed-out'
-              : record.state === 'OUTCOME_UNKNOWN' ? 'outcome-unknown'
-                : record.terminalReason === 'COMPLETION_CHECK_FAILED' ? 'verifier-rejected' : 'blocked'
+              : record.terminalReason === 'TASK_CONTEXT_UNAVAILABLE' ? 'reconciliation-required'
+                : record.state === 'OUTCOME_UNKNOWN' ? 'outcome-unknown'
+                  : record.terminalReason === 'TASK_CONTEXT_STALE' ? 'stale-context'
+                    : record.terminalReason === 'COMPLETION_CHECK_FAILED' ? 'verifier-rejected' : 'blocked'
+    const evidenceSource = record.terminalReason?.startsWith('CALLER_REPORTED_')
+      ? 'caller-supplied' as const
+      : 'hronaut-observed' as const
+    const context = record.checks.find(check => check.type === 'context-binding')
     return structuredClone({
       id: record.id,
       revision: record.revision,
@@ -341,14 +507,29 @@ export class TaskRunStore {
       terminalReason: record.terminalReason,
       outcome,
       reasonCode: record.terminalReason,
-      evidenceSource: record.terminalReason?.startsWith('CALLER_REPORTED_')
-        ? 'caller-supplied' as const
-        : 'hronaut-observed' as const,
+      evidenceSource,
       effects: 'not-established' as const,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       deadlineAt: record.deadlineAt,
       heartbeatDueAt: record.heartbeatDueAt,
+      ...(record.taskDefinition ? {
+        taskDefinition: record.taskDefinition,
+        ...(context && context.type === 'context-binding' ? {
+          receipt: {
+            formatVersion: 1 as const,
+            taskDefinitionId: record.taskDefinition.id,
+            taskRevision: record.taskDefinition.revision,
+            context: {
+              tabId: context.tabId,
+              navigationGeneration: context.navigationGeneration,
+              observationGeneration: context.observationGeneration
+            },
+            approvalState: record.taskDefinition.approvalRequired ? 'required' as const : 'not-required' as const,
+            authoritativeResult: { outcome, reasonCode: record.terminalReason, evidenceSource }
+          }
+        } : {})
+      } : {}),
       checks: record.checks.map(check => ({
         id: check.id,
         type: check.type,

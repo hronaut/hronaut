@@ -3,11 +3,12 @@ import { open } from 'node:fs/promises'
 import { writeTextFileAtomically } from '../atomic-file.js'
 import { taskRunSnapshotSchema, type TaskRunStore } from './task-run-store.js'
 
-const MAX_HISTORY_BYTES = 262_144
+const MAX_HISTORY_BYTES = 524_288
 type Snapshot = ReturnType<TaskRunStore['snapshot']>
 
-/** Persists only the bounded task contract. Prompts, page text, credentials,
- * result bodies, and arbitrary artifact contents are outside this file.
+/** Persists only bounded task definitions and run contracts. Runtime input
+ * values, page text, credentials, result bodies, and arbitrary artifact
+ * contents are outside this file.
  */
 export class TaskRunPersistence {
   constructor(private readonly path: string) {}

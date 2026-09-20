@@ -369,6 +369,35 @@ checks. The returned opaque run ID and revision are correlation handles, not
 authorization. Send the latest revision with each `heartbeat` or `complete`.
 Stale revisions are rejected, and heartbeats never extend the overall deadline.
 
+For a repeatable workflow, call `save` with a bounded name and intent, typed
+input declarations, ordered read-only/review-gated/mutation steps, the exact
+browser or wallet capability used by every step, expected evidence, and one to
+three attempts. Attempts beyond the first are always limited to read-only
+steps. Saved definitions belong to the workspace in which they were created;
+`list-saved` never exposes another workspace's definitions. Definitions are
+immutable: changing a workflow creates a new ID and revision instead of
+silently changing an existing run.
+
+Before a saved run, call `preview` with its exact revision, target tab, expected
+HTTP(S) origin, and runtime input bindings. The preview returns input names and
+whether each was supplied, the named opaque browser context, declared
+capabilities, evidence, human gates, retry policy, and a status of `ready`,
+`needs_review`, `stale_context`, or `reconciliation_required`. Input values are
+used only to bind the preview token; they are never returned or persisted. A
+`start-saved` call must repeat the same bindings and current preview token.
+Navigation, observation, origin, workspace-control, definition, or input drift
+invalidates that token before admission.
+
+Every admitted saved run adds a private machine check bound to its exact tab,
+navigation and observation generations, expected-origin fingerprint, and
+current workspace-control generation. Heartbeats and completion revalidate it.
+Same-origin navigation or changed content becomes `stale-context`; a missing
+tab or unavailable control evidence becomes `reconciliation-required`. Neither
+outcome permits blind retry. Start a fresh preview and run after reconciling the
+current browser state. A saved run never executes declared steps itself:
+review-gated and mutation steps still use `browser_human_waiting` and the
+ordinary exact-action dispatch controls.
+
 Completion checks can require a fixed tab to be settled, require its current
 HTTP(S) origin to match the exact origin supplied at start, or require a retained
 action-audit run to be stopped without a persistence failure. Expected origins
@@ -399,12 +428,17 @@ as an error. Unknown correlation IDs are ignored. The report contains only
 opaque IDs, bounded states, counts, and millisecond durations, and is available
 to read-only capability profiles.
 
-Task-run files contain only workspace, tab, run and revision IDs, timestamps,
-typed check state, origin fingerprints, and opaque audit-run references. They do
-not contain prompts, page text, URLs, tool arguments or results, credentials,
-uploads, or artifact bodies. Workspace ownership is checked before and after
-disk or browser work, and must be resumed after reconnect. This Hronaut workflow
-contract is separate from the version-negotiated
+Saved-task files contain the bounded task name and intent, input schema, step
+classes and capability names, evidence schema, retry policy, workspace and
+opaque revisions. Run records add tab IDs, timestamps, typed check state,
+generations, origin/control fingerprints, and opaque audit-run references. They
+do not contain runtime input values, page text, URLs, tool arguments or results,
+credentials, uploads, cookies, or artifact bodies. Saved-run summaries include
+a versioned privacy-safe receipt with task revision, context generations,
+declared approval state, and Hronaut's authoritative bounded outcome; the
+fingerprints remain private. Workspace ownership is checked before and after
+disk or browser work, and reconnect changes the bound control context. This
+Hronaut workflow contract is separate from the version-negotiated
 [MCP Tasks extension](https://modelcontextprotocol.io/extensions/tasks/overview),
 which represents deferred execution of a single protocol request.
 

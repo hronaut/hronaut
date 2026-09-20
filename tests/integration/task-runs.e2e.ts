@@ -9,7 +9,7 @@ import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from '.
 const text = (result: CallToolResult): string => result.content
   .filter(part => part.type === 'text').map(part => part.text).join('\n')
 
-test('keeps browser task completion bounded, checked, private, and connection-scoped', async ({ mcpPort, mcpToken }) => {
+test('keeps browser task completion bounded, checked, private, and connection-scoped', async ({ profileDirectory, mcpPort, mcpToken }) => {
   const firstSite = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Task run private page</title><main>private completion canary</main>')
@@ -197,6 +197,208 @@ test('keeps browser task completion bounded, checked, private, and connection-sc
     for (const privateValue of [origin, changedOrigin, 'private-path', 'private-token', 'private completion canary', mcpToken]) {
       expect(metricsExport).not.toContain(privateValue)
     }
+
+    const definition = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'save',
+      taskName: 'Reusable release check',
+      intent: 'Inspect a release page and require review before its publish action.',
+      taskInputs: [{ name: 'release', type: 'string', required: true, sensitive: true }],
+      steps: [
+        { id: 'inspect', kind: 'read-only', capability: 'browser_snapshot', humanGate: false },
+        { id: 'publish', kind: 'mutation', capability: 'browser_click', humanGate: true }
+      ],
+      expectedEvidence: [
+        { id: 'settled', type: 'page-settled' },
+        { id: 'origin', type: 'expected-origin' }
+      ],
+      retryMaxAttempts: 2
+    })
+    const continuity = await call<{ suspended: boolean; reviewId: string | null }>(owner, 'browser_continuity', {
+      workspaceId: workspace.id, action: 'status'
+    })
+    if (continuity.suspended && continuity.reviewId) {
+      await call(owner, 'browser_continuity', {
+        workspaceId: workspace.id, action: 'reconcile', reviewId: continuity.reviewId,
+        acknowledgeUnknownOutcome: true
+      })
+      await call(owner, 'browser_workspaces', {
+        workspaceId: workspace.id, action: 'claim-ownership'
+      })
+    }
+    await call(owner, 'browser_navigate', {
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/first-target`
+    })
+    await expect.poll(async () => {
+      const status = await call<{ tabs: Array<{ id: string; loading: boolean }> }>(owner, 'browser_status', {
+        workspaceId: workspace.id
+      })
+      return status.tabs.find(tab => tab.id === opened.activeTabId)?.loading
+    }).toBe(false)
+    const secretInput = 'private-release-input'
+    const preview = await call<{
+      status: string
+      canStart: boolean
+      previewToken: string
+      inputs: Array<{ name: string; provided: boolean }>
+      humanGates: string[]
+      context: { tabId: string; originStatus: string }
+    }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'preview',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: opened.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: secretInput }]
+    })
+    expect(preview).toMatchObject({
+      status: 'needs_review', canStart: true,
+      inputs: [{ name: 'release', provided: true }],
+      humanGates: ['publish'],
+      context: { tabId: opened.activeTabId, originStatus: 'matches' }
+    })
+    expect(JSON.stringify(preview)).not.toContain(secretInput)
+    await call(owner, 'browser_navigate', {
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/preview-drift`
+    })
+    const stalePreviewStart = await raw(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'start-saved',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: opened.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: secretInput }],
+      previewToken: preview.previewToken
+    })
+    expect(stalePreviewStart.isError).toBe(true)
+    expect(text(stalePreviewStart)).toContain('preview is stale')
+    await expect.poll(async () => {
+      const status = await call<{ tabs: Array<{ id: string; loading: boolean }> }>(owner, 'browser_status', {
+        workspaceId: workspace.id
+      })
+      return status.tabs.find(tab => tab.id === opened.activeTabId)?.loading
+    }).toBe(false)
+    const freshPreview = await call<{ previewToken: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'preview',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: opened.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: secretInput }]
+    })
+    const firstReusableRun = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'start-saved',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: opened.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: secretInput }],
+      previewToken: freshPreview.previewToken
+    })
+    await call(owner, 'browser_navigate', {
+      workspaceId: workspace.id, tabId: opened.activeTabId, url: `${origin}/same-origin-drift`
+    })
+    expect(await call(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'heartbeat',
+      taskRunId: firstReusableRun.id,
+      revision: firstReusableRun.revision
+    })).toMatchObject({
+      state: 'BLOCKED', terminalReason: 'TASK_CONTEXT_STALE', outcome: 'stale-context'
+    })
+
+    const secondTarget = await call<{ activeTabId: string }>(owner, 'browser_new_tab', {
+      workspaceId: workspace.id, url: `${origin}/second-target`
+    })
+    await expect.poll(async () => {
+      const status = await call<{ tabs: Array<{ id: string; loading: boolean }> }>(owner, 'browser_status', {
+        workspaceId: workspace.id
+      })
+      return status.tabs.find(tab => tab.id === secondTarget.activeTabId)?.loading
+    }).toBe(false)
+    const secondPreview = await call<{ previewToken: string; context: { tabId: string } }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'preview',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: secondTarget.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: 'second-private-input' }]
+    })
+    expect(secondPreview.context.tabId).toBe(secondTarget.activeTabId)
+    const secondReusableRun = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'start-saved',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: secondTarget.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: 'second-private-input' }],
+      previewToken: secondPreview.previewToken
+    })
+    expect(await call(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'complete',
+      taskRunId: secondReusableRun.id,
+      revision: secondReusableRun.revision,
+      outcome: 'SUCCEEDED'
+    })).toMatchObject({
+      state: 'SUCCEEDED',
+      taskDefinition: { id: definition.id, revision: definition.revision },
+      receipt: {
+        formatVersion: 1,
+        taskDefinitionId: definition.id,
+        taskRevision: definition.revision,
+        context: { tabId: secondTarget.activeTabId },
+        approvalState: 'required',
+        authoritativeResult: { outcome: 'succeeded', reasonCode: null, evidenceSource: 'hronaut-observed' }
+      },
+      checks: expect.arrayContaining([
+        expect.objectContaining({ id: 'task_context', type: 'context-binding', status: 'PASS', tabId: secondTarget.activeTabId })
+      ])
+    })
+
+    const reconnectPreview = await call<{ previewToken: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'preview',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: secondTarget.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: 'reconnect-private-input' }]
+    })
+    const reconnectRun = await call<{ id: string; revision: string }>(owner, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'start-saved',
+      taskDefinitionId: definition.id,
+      taskDefinitionRevision: definition.revision,
+      tabId: secondTarget.activeTabId,
+      expectedOrigin: origin,
+      inputBindings: [{ name: 'release', value: 'reconnect-private-input' }],
+      previewToken: reconnectPreview.previewToken
+    })
+    await owner.close()
+    const reconnected = await connect('task-run-reconnected')
+    await call(reconnected, 'browser_workspaces', {
+      workspaceId: workspace.id, action: 'resume', resumeKey: workspace.resumeKey
+    })
+    expect(await call(reconnected, 'browser_task_runs', {
+      workspaceId: workspace.id,
+      action: 'heartbeat',
+      taskRunId: reconnectRun.id,
+      revision: reconnectRun.revision
+    })).toMatchObject({
+      state: 'OUTCOME_UNKNOWN', terminalReason: 'TASK_CONTEXT_UNAVAILABLE', outcome: 'reconciliation-required'
+    })
+    const persisted = await readFile(join(profileDirectory, 'task-runs.json'), 'utf8')
+    for (const privateValue of [
+      origin, changedOrigin, secretInput, 'second-private-input', 'reconnect-private-input',
+      'private completion canary', workspace.resumeKey, mcpToken
+    ]) expect(persisted).not.toContain(privateValue)
   } finally {
     await Promise.allSettled(clients.map(client => client.close()))
     await Promise.all([closeFixtureServer(firstSite), closeFixtureServer(secondSite)])
