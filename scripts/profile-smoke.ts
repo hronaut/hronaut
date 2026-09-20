@@ -25,9 +25,10 @@ const resumePath = process.env.HRONAUT_PROFILE_SMOKE_RESUME_PATH
   || join(tmpdir(), `hronaut-profile-smoke-${endpoint.port}.json`)
 const token = process.env.HRONAUT_MCP_TOKEN
 const client = new Client({ name: 'hronaut-profile-smoke', version: '1.0.0' })
-await client.connect(new StreamableHTTPClientTransport(endpoint, {
+const transport = new StreamableHTTPClientTransport(endpoint, {
   ...(token ? { requestInit: { headers: { authorization: `Bearer ${token}` } } } : {})
-}))
+})
+await client.connect(transport)
 const resume = typedPhase === 'prepare'
   ? undefined
   : JSON.parse(await readFile(resumePath, 'utf8')) as McpWorkspaceConnection
@@ -85,5 +86,9 @@ try {
     }
   }
 } finally {
-  await client.close()
+  try {
+    await transport.terminateSession()
+  } finally {
+    await client.close()
+  }
 }

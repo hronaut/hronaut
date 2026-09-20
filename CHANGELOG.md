@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicitly terminate packaged MCP smoke-test sessions before closing their local clients so workspace write leases are released immediately during Scoop reinstall verification.
+
 ## [2.5.0] - 2026-09-21
 
 ### Added

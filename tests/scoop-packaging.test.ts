@@ -55,6 +55,11 @@ describe('Scoop package QA', () => {
     expect(smoke).toContain('http://127.0.0.1:$assetPort/$expectedFilename')
     expect(smoke).toContain('Get-FileHash -Algorithm SHA256')
     expect(smoke).toContain('Invoke-CheckedCommand -Command $scoopCommand -Arguments @("--version")')
+    for (const client of ['scripts/profile-smoke.ts', 'scripts/mcp-smoke.ts']) {
+      const source = await read(client)
+      expect(source).toContain('await transport.terminateSession()')
+      expect(source.indexOf('await transport.terminateSession()')).toBeLessThan(source.lastIndexOf('await client.close()'))
+    }
     expect(smoke).toContain('-Path $originalAppData -Filter "tabs.json" -File -Recurse')
     expect(smoke).toContain("-match 'Profile smoke'")
     expect(smoke).toContain('scripts/profile-smoke.ts\", \"prepare\"')

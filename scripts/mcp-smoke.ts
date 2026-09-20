@@ -81,5 +81,9 @@ try {
 
   console.log(`MCP smoke passed: ${tools.tools.length} tools, compact snapshot search, semantic snapshot, typing, debug report, and PNG screenshot.`)
 } finally {
-  await client.close()
+  try {
+    await transport.terminateSession()
+  } finally {
+    await client.close()
+  }
 }
