@@ -109,7 +109,7 @@ describe('StartupLaunchManager', () => {
     expect(await manager.isEnabled()).toBe(true)
   })
 
-  it('rejects an otherwise matching Linux desktop entry with duplicate keys', async () => {
+  it('rejects an otherwise matching Linux desktop entry with duplicate keys or groups', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
     temporaryDirectories.push(directory)
     const executablePath = '/opt/Hronaut/hronaut'
@@ -123,7 +123,8 @@ describe('StartupLaunchManager', () => {
 
     for (const duplicate of [
       ['Hidden=false', 'Hidden=false'],
-      ['Name=Hronaut', 'Name=Duplicate']
+      ['Name=Hronaut', 'Name=Duplicate'],
+      ['Name=Hronaut', '[Desktop Entry]']
     ]) {
       await writeFile(join(directory, 'hronaut.desktop'), [
         '[Desktop Entry]',

@@ -66,12 +66,16 @@ function desktopExecArgument(value: string): string {
 
 function desktopEntryValues(entry: string): ReadonlyMap<string, string> | undefined {
   let inDesktopEntry = false
+  let foundDesktopEntry = false
   const values = new Map<string, string>()
   for (const rawLine of entry.split(/\r?\n/u)) {
     const line = rawLine.trimStart()
     if (line.startsWith('#') || line.length === 0) continue
     if (line.startsWith('[')) {
-      inDesktopEntry = line.trim() === '[Desktop Entry]'
+      const isDesktopEntry = line.trim() === '[Desktop Entry]'
+      if (isDesktopEntry && foundDesktopEntry) return undefined
+      inDesktopEntry = isDesktopEntry
+      foundDesktopEntry ||= isDesktopEntry
       continue
     }
     if (!inDesktopEntry) continue
