@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.29] - 2026-09-20
+
 ### Added
 
 - Add cross-platform options to launch Hronaut at sign-in and keep automatic launches minimized in the system tray.
