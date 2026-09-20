@@ -41,6 +41,41 @@ describe('StartupLaunchManager', () => {
     expect(await manager.isEnabled()).toBe(false)
   })
 
+  it('does not mistake comments or another desktop-entry group for an active Linux command', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
+    temporaryDirectories.push(directory)
+    const executablePath = '/opt/Hronaut/hronaut'
+    const manager = new StartupLaunchManager({
+      platform: 'linux',
+      isPackaged: true,
+      executablePath,
+      autostartDirectory: directory
+    })
+    const command = `"${executablePath}" ${STARTUP_LAUNCH_ARGUMENT}`
+
+    await writeFile(join(directory, 'hronaut.desktop'), [
+      '[Desktop Entry]',
+      'Type=Application',
+      `# Exec=${command}`,
+      '[Unrelated Group]',
+      `Exec=${command}`,
+      ''
+    ].join('\n'), 'utf8')
+
+    expect(await manager.isEnabled()).toBe(false)
+
+    await writeFile(join(directory, 'hronaut.desktop'), [
+      '[Desktop Entry]',
+      'Type=Application',
+      `Exec=${command}`,
+      '[Unrelated Group]',
+      'Hidden=true',
+      ''
+    ].join('\n'), 'utf8')
+
+    expect(await manager.isEnabled()).toBe(true)
+  })
+
   it('uses matching arguments when registering and verifying a Windows login item', async () => {
     let enabled = false
     const setLoginItemSettings = vi.fn((value: Electron.Settings) => { enabled = Boolean(value.openAtLogin) })

@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Avoid treating a commented or unrelated Linux desktop-entry command as an active Hronaut sign-in registration.
 - Derive the MCP Registry public-readback URL from the verified release metadata so identity drift cannot break an otherwise valid publication.
 - Bound wallet-agent session expiry by monotonic elapsed time so an operating-system clock correction cannot extend authorization beyond its intended lifetime.
 
