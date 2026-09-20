@@ -34,7 +34,7 @@
     "start": "electron-vite preview",
     "build": "npm run typecheck && npm run build:app",
     "build:app": "electron-vite build",
-    "build:website": "vite build --config vite.website.config.ts",
+    "build:website": "node scripts/prepare-website-output.ts && vite build --config vite.website.config.ts",
     "capture:marketing": "node scripts/capture-marketing-assets.ts",
     "check:public-copy": "node scripts/check-public-copy.ts",
     "preview:website": "vite preview --config vite.website.config.ts",

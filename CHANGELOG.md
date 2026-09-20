@@ -6,10 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Add an explicit external-wallet and mobile dApp QA boundary matrix with a safe local-provider handoff recipe, stage-based evidence, and negative controls that avoid credentials, funded accounts, production dApps, and compatibility overclaims.
 - Add a deterministic watch-only public-address QA recipe that verifies scoped balance observation and below-UI signing rejection without importing recovery material, using real funds, or implying WalletConnect support.
 
 ### Fixed
 
+- Preserve authored reference files when rebuilding the documentation website while still removing stale generated HTML and asset bundles.
 - Return the EIP-1193 disconnected error when no EVM wallet is available, keep Solana Wallet Standard account data immutable to untrusted pages, and avoid advertising signing features on watch-only Solana accounts.
 
 ## [2.4.31] - 2026-09-20

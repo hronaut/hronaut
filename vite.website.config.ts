@@ -5,7 +5,7 @@ export default defineConfig({
   base: '/hronaut/',
   build: {
     outDir: '../docs',
-    emptyOutDir: true,
+    emptyOutDir: false,
     sourcemap: true
   }
 })

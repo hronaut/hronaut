@@ -400,7 +400,9 @@ describe('release quality gates', () => {
       publicQuickstart,
       builtQuickstart,
       publicWatchOnly,
-      builtWatchOnly
+      builtWatchOnly,
+      publicExternalBoundary,
+      builtExternalBoundary
     ] = await Promise.all([
       readFile('vite.website.config.ts', 'utf8'),
       readFile('website/public/WALLETS.md', 'utf8'),
@@ -408,15 +410,18 @@ describe('release quality gates', () => {
       readFile('website/public/WALLET_QA_QUICKSTART.md', 'utf8'),
       readFile('docs/WALLET_QA_QUICKSTART.md', 'utf8'),
       readFile('website/public/WATCH_ONLY_WALLET_QA.md', 'utf8'),
-      readFile('docs/WATCH_ONLY_WALLET_QA.md', 'utf8')
+      readFile('docs/WATCH_ONLY_WALLET_QA.md', 'utf8'),
+      readFile('website/public/EXTERNAL_WALLET_QA_BOUNDARIES.md', 'utf8'),
+      readFile('docs/EXTERNAL_WALLET_QA_BOUNDARIES.md', 'utf8')
     ])
 
     expect(config).toContain("root: 'website'")
     expect(config).toContain("outDir: '../docs'")
-    expect(config).toContain('emptyOutDir: true')
+    expect(config).toContain('emptyOutDir: false')
     expect(publicWallets).toBe(builtWallets)
     expect(publicQuickstart).toBe(builtQuickstart)
     expect(publicWatchOnly).toBe(builtWatchOnly)
+    expect(publicExternalBoundary).toBe(builtExternalBoundary)
   })
 
   it('keeps the reference aligned with the implemented local-wallet trust model', async () => {
@@ -476,5 +481,30 @@ describe('release quality gates', () => {
     expect(guide).toContain('WalletConnect or Reown')
     expect(guide).toContain('-t "watch-only"')
     expect(guide).not.toMatch(/(?:private key|seed phrase).{0,40}(?:enter|import|paste)/i)
+  })
+
+  it('publishes an explicit external-wallet and mobile QA handoff boundary', async () => {
+    const guide = await readFile('docs/EXTERNAL_WALLET_QA_BOUNDARIES.md', 'utf8')
+
+    expect(guide).toContain('Hronaut 2.4.31 or newer')
+    expect(guide).toContain('## Supported and unsupported matrix')
+    expect(guide).toContain('MetaMask, Phantom, TronLink')
+    expect(guide).toContain('WalletConnect/Reown')
+    expect(guide).toContain('mobile wallet application')
+    expect(guide).toContain('[watch-only public-address recipe](WATCH_ONLY_WALLET_QA.md)')
+    expect(guide).toContain('[local EVM signing quickstart](WALLET_QA_QUICKSTART.md)')
+    expect(guide).toContain('0x000000000000000000000000000000000000dead')
+    expect(guide).toContain('Provider selection and validation')
+    expect(guide).toContain('Hronaut authorization')
+    expect(guide).toContain('| Dispatch |')
+    expect(guide).toContain('| Submission |')
+    expect(guide).toContain('| Independent observation |')
+    expect(guide).toContain('| Unknown outcome |')
+    expect(guide).toContain('Wrong workspace or top-level origin')
+    expect(guide).toContain('Navigate, reload, or replace the tab')
+    expect(guide).toContain('Let an untouched request expire')
+    expect(guide).toContain('do not automatically retry')
+    expect(guide).toContain('production dApp, funded account')
+    expect(guide).not.toMatch(/(?:private key|recovery phrase).{0,40}(?:enter|import|paste)/i)
   })
 })
