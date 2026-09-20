@@ -41,6 +41,38 @@ describe('StartupLaunchManager', () => {
     expect(await manager.isEnabled()).toBe(false)
   })
 
+  it('escapes freedesktop string and command layers for unusual Linux executable paths', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
+    temporaryDirectories.push(directory)
+    const executablePath = '/opt/Hronaut\\$`" 100% Browser/hronaut'
+    const manager = new StartupLaunchManager({
+      platform: 'linux',
+      isPackaged: true,
+      executablePath,
+      autostartDirectory: directory
+    })
+
+    await manager.setEnabled(true)
+
+    const entry = await readFile(join(directory, 'hronaut.desktop'), 'utf8')
+    expect(entry).toContain('TryExec=/opt/Hronaut\\\\$`" 100% Browser/hronaut')
+    expect(entry).toContain('Exec="/opt/Hronaut\\\\\\\\\\\\$\\\\`\\\\" 100%% Browser/hronaut" --launch-at-login')
+    expect(await manager.isEnabled()).toBe(true)
+  })
+
+  it('rejects Linux executable paths that cannot be represented by a desktop Exec key', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
+    temporaryDirectories.push(directory)
+    const manager = new StartupLaunchManager({
+      platform: 'linux',
+      isPackaged: true,
+      executablePath: '/opt/Hronaut=Preview/hronaut',
+      autostartDirectory: directory
+    })
+
+    await expect(manager.setEnabled(true)).rejects.toThrow(/not valid/i)
+  })
+
   it('does not mistake comments or another desktop-entry group for an active Linux command', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
     temporaryDirectories.push(directory)
@@ -67,7 +99,8 @@ describe('StartupLaunchManager', () => {
     await writeFile(join(directory, 'hronaut.desktop'), [
       '[Desktop Entry]',
       'Type=Application',
-      `Exec=${command}`,
+      `Exec = ${command}`,
+      'Hidden = false',
       '[Unrelated Group]',
       'Hidden=true',
       ''

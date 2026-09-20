@@ -11,6 +11,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Complete EIP-1193 connect/disconnect notifications, reconcile account approval across every live same-origin provider session, and keep Solana Wallet Standard account-change events synchronized with fully resolved account state.
+- Generate valid freedesktop autostart entries for unusual Linux executable paths and recognize valid registrations that use whitespace around desktop-entry separators.
 
 ## [2.4.29] - 2026-09-20
 

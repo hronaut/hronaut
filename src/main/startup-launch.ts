@@ -38,9 +38,30 @@ export interface StartupLaunchContext {
   wasOpenedAtLogin?: boolean
 }
 
+function validateDesktopExecutablePath(value: string): void {
+  const invalid = [...value].some((character) => {
+    const codePoint = character.codePointAt(0)!
+    return codePoint <= 0x1f || codePoint === 0x7f || character === '='
+  })
+  if (invalid) {
+    throw new Error('The Hronaut executable path is not valid for desktop autostart')
+  }
+}
+
+function desktopStringValue(value: string): string {
+  validateDesktopExecutablePath(value)
+  return [...value].map((character) => character === '\\' ? '\\\\' : character).join('')
+}
+
 function desktopExecArgument(value: string): string {
-  if (/\r|\n/.test(value)) throw new Error('The Hronaut executable path is not valid for desktop autostart')
-  return `"${value.replace(/%/g, '%%').replace(/[\\`$"]/g, '\\$&')}"`
+  validateDesktopExecutablePath(value)
+  const encoded = [...value].map((character) => {
+    if (character === '\\') return '\\\\\\\\'
+    if (character === '%') return '%%'
+    if (character === '`' || character === '$' || character === '"') return `\\\\${character}`
+    return character
+  }).join('')
+  return `"${encoded}"`
 }
 
 function desktopEntryValue(entry: string, key: string): string | undefined {
@@ -55,11 +76,11 @@ function desktopEntryValue(entry: string, key: string): string | undefined {
     }
     if (!inDesktopEntry) continue
     const separator = line.indexOf('=')
-    if (separator < 1 || line.slice(0, separator) !== key) continue
+    if (separator < 1 || line.slice(0, separator).trimEnd() !== key) continue
     // Duplicate keys make a desktop entry invalid. Treat an ambiguous startup
     // file as disabled instead of reporting a launch guarantee the OS may not honor.
     if (value !== undefined) return undefined
-    value = line.slice(separator + 1)
+    value = line.slice(separator + 1).trimStart()
   }
   return value
 }
@@ -130,14 +151,14 @@ export class StartupLaunchManager {
 
   private linuxDesktopEntry(): string {
     const executable = this.options.executablePath
-    if (/\r|\n/.test(executable)) throw new Error('The Hronaut executable path is not valid for desktop autostart')
+    validateDesktopExecutablePath(executable)
     return [
       '[Desktop Entry]',
       'Type=Application',
       'Version=1.0',
       'Name=Hronaut',
       'Comment=Visible local browser for coding agents',
-      `TryExec=${executable}`,
+      `TryExec=${desktopStringValue(executable)}`,
       `Exec=${desktopExecArgument(executable)} ${STARTUP_LAUNCH_ARGUMENT}`,
       'Terminal=false',
       'StartupNotify=false',
