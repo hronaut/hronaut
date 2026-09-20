@@ -11,7 +11,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { Ajv } from 'ajv'
 import formatsPlugin from 'ajv-formats'
 import express from 'express'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { readStoredZipEntries } from '../scripts/zip-archive.js'
 
@@ -182,11 +182,13 @@ describe('MCPB release package', () => {
     const app = express()
     app.use(express.json())
     let session: { server: McpServer, transport: StreamableHTTPServerTransport } | undefined
+    let terminationRequests = 0
     app.all('/mcp', async (request, response) => {
       if (request.headers.authorization !== `Bearer ${token}`) {
         response.status(401).end()
         return
       }
+      if (request.method === 'DELETE') terminationRequests += 1
       if (!session) {
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: randomUUID,
@@ -227,6 +229,7 @@ describe('MCPB release package', () => {
       expect(result.content).toEqual([{ type: 'text', text: 'adapter-ready' }])
     } finally {
       await client.close()
+      await vi.waitFor(() => expect(terminationRequests).toBe(1))
       if (session) await session.server.close()
       await new Promise<void>((resolve) => httpServer.close(() => resolve()))
       if (extractionDirectory) await rm(extractionDirectory, { recursive: true, force: true })

@@ -17,6 +17,7 @@ export interface MessageTransport {
   close(): Promise<void>
   send(message: JSONRPCMessage): Promise<void>
   setProtocolVersion?(version: string): void
+  terminateSession?(): Promise<void>
 }
 
 type JsonRpcId = string | number
@@ -112,7 +113,16 @@ export async function bridgeTransports(
   const close = async (): Promise<void> => {
     if (closed) return
     closed = true
-    await Promise.allSettled([downstream.close(), upstream.close()])
+    await Promise.allSettled([
+      downstream.close(),
+      (async () => {
+        try {
+          await upstream.terminateSession?.()
+        } finally {
+          await upstream.close()
+        }
+      })()
+    ])
   }
   const fail = (): void => {
     reportError()

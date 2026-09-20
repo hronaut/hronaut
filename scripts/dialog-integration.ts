@@ -174,7 +174,10 @@ try {
   assert(noDialog.isError && /dialog/i.test(text(noDialog)), 'browser_dialog should fail clearly when no dialog is open')
   process.stdout.write('Dialog integration passed: action-scoped and already-open dialogs resumed correctly.\n')
 } finally {
-  await transport?.close().catch(() => undefined)
+  if (transport) {
+    await transport.terminateSession().catch(() => undefined)
+    await transport.close().catch(() => undefined)
+  }
   fixture.close()
   if (application.exitCode === null) application.kill('SIGTERM')
   await Promise.race([

@@ -19,6 +19,7 @@ class FakeTransport implements MessageTransport {
   started = false
   closed = false
   protocolVersion: string | undefined
+  terminateSession?: () => Promise<void>
 
   async start(): Promise<void> { this.started = true }
   async close(): Promise<void> {
@@ -123,6 +124,23 @@ describe('MCPB adapter transport bridge', () => {
     await close()
     expect(downstream.closed).toBe(true)
     expect(upstream.closed).toBe(true)
+  })
+
+  it('terminates an upstream session before closing its transport', async () => {
+    const downstream = new FakeTransport()
+    const upstream = new FakeTransport()
+    const lifecycle: string[] = []
+    upstream.terminateSession = vi.fn(async () => { lifecycle.push('terminate') })
+    upstream.close = vi.fn(async () => {
+      lifecycle.push('close')
+      upstream.closed = true
+    })
+
+    const close = await bridgeTransports(downstream, upstream)
+    await close()
+
+    expect(upstream.terminateSession).toHaveBeenCalledOnce()
+    expect(lifecycle).toEqual(['terminate', 'close'])
   })
 
   it('applies the negotiated protocol version to subsequent HTTP requests', async () => {
