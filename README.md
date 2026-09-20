@@ -104,6 +104,7 @@ Use a task-owned headless browser or automation library when the browser should 
 - Ten appearance choices: System, Light, Dark, Midnight, Sepia, Cyberpunk, Cyberpunk Turbo, Matrix, Machine, and Galactic.
 - Local Streamable HTTP MCP endpoint with browser navigation, interaction, inspection, diagnostics, downloads, storage, and accessibility tools.
 - Multi-agent workspaces with isolated browser profiles, connection-scoped access, and private restart-safe resume capabilities.
+- Independent public-outcome verification that compares a writer view with a distinct clean, read-only observer workspace and returns a privacy-bounded audience-separated receipt.
 - Optional trusted [workspace site-access allowlists](docs/WORKSPACE_SITE_ACCESS.md) covering direct navigation, redirects, page actions, popups, and history without granting policy changes to agents.
 - Runtime [action-authority fences](docs/UNTRUSTED_PAGE_CONTENT.md) that treat page content as untrusted and reject consequential actions when their origin, navigation, workspace, policy, or target context changes before dispatch.
 - Human-interaction locks, instant MCP pause, explicit permissions, and optional bearer-token authentication.

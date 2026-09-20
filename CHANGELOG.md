@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Add privacy-bounded public-outcome receipts that compare an exact writer-context target with a distinct clean read-only observer workspace and distinguish independently visible, absent, unknown, and stale or contradictory results without enabling blind retry.
+
 ### Fixed
 
 - Advertise Solana Wallet Standard transaction-version support so standard adapters can initialize reliably, reject non-canonical EVM chain-switch requests, and return interoperable provider errors for unsupported methods and unconfigured chains.

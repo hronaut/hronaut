@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http'
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
 import express, { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
@@ -17,6 +17,12 @@ import {
   type BrowserReconciliationCondition,
   type BrowserReconciliationResult
 } from '../../shared/browser-reconciliation.js'
+import {
+  classifyPublicObservationOutcome,
+  classifyWriterContextOutcome,
+  summarizePublicOutcomeAssessment,
+  type PublicObservationOutcome
+} from '../../shared/public-outcome.js'
 import type { HumanWaitingReviewBinding, HumanWaitingService } from './human-waiting-service.js'
 import { humanWaitingArtifactHash } from './human-waiting-store.js'
 import type { TaskRunService } from './task-run-service.js'
@@ -63,6 +69,7 @@ import type {
   BrowserNetworkRequestSortDirection,
   BrowserNetworkWaitOptions,
   BrowserState,
+  BrowserTabState,
   BrowsingDataSiteSummary,
   McpServerStatus,
   McpTabActivity,
@@ -504,11 +511,27 @@ function normalizePublicObserverOrigin(value: string): string {
   return parsed.origin
 }
 
+function normalizePublicOutcomeTarget(value: string): URL {
+  const parsed = new URL(value)
+  if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.username || parsed.password) {
+    throw new TypeError('targetUrl must be a credential-free HTTP or HTTPS address')
+  }
+  return parsed
+}
+
+function publicOutcomeTargetFingerprint(key: Buffer, value: string): string {
+  return createHmac('sha256', key)
+    .update('hronaut-public-outcome-target-v1\0')
+    .update(value)
+    .digest('hex')
+}
+
 export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
   'Prefer browser_snapshot and browser_find, then interact through their current semantic refs. When page content must support a task conclusion, use browser_snapshot action=assess-quality with an expected origin and task marker when available; stop or request review unless it returns candidate. For repeated inspection, set a browser_snapshot baseline and request bounded deltas; establish a fresh baseline after any invalidation. Use coordinate-based visual tools only when the target has no usable semantic representation.',
+  'For a public-outcome claim, use browser_public_outcome with a standard writer workspace and a distinct clean public-observer workspace. A writer read-back or public-observer workspace alone is not proof of public visibility.',
   'Call browser_show when the person should watch; it reveals Hronaut without taking keyboard or mouse focus. Call browser_request_user_attention only when a person must complete a manual browser step.',
   'Archive your own workspace only when you intend to return to it later; otherwise close only the tabs and workspaces created for your task.'
 ].join('\n')
@@ -580,6 +603,7 @@ const BROWSER_TOOL_METADATA = {
   browser_navigate: destructiveTool('Navigate the browser'),
   browser_history: destructiveTool('Control page history'),
   browser_snapshot: readOnlyTool('Capture a page snapshot'),
+  browser_public_outcome: readOnlyTool('Verify a public browser outcome'),
   browser_find: readOnlyTool('Find in the page snapshot'),
   browser_element_inspect: readOnlyTool('Inspect a page element'),
   browser_generate_locator: readOnlyTool('Generate a Playwright locator'),
@@ -717,6 +741,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_navigate', category: 'Navigation', description: 'Navigate to a URL or search phrase.' },
   { name: 'browser_history', category: 'Navigation', description: 'Go back, forward, reload normally or without cache, or stop loading.' },
   { name: 'browser_snapshot', category: 'Inspection', description: 'Read a compact page snapshot with stable element refs, set and compare a volatile bounded semantic baseline, or assess whether the rendered observation is usable before reasoning. Quality assessment separates candidate content from empty shells, login walls, challenges, soft 404s, wrong origins, and structural noise; caller-provided text or selector evidence is checked privately and never returned. Delta results distinguish unchanged, changed, truncated, and invalidated context; navigation or workspace-control drift requires a fresh baseline. Live form values, URL credentials, fragments, and recognized secret-bearing query values are excluded. A snapshot, candidate assessment, or baseline is not authority or proof of an external postcondition.' },
+  { name: 'browser_public_outcome', category: 'Inspection', description: 'Compare one exact target in a standard writer workspace and a distinct clean public-observer workspace. Returns an audience-separated, privacy-bounded receipt with writer_context_verified, publicly_observed, not_publicly_observed, unknown, or reconciliation_required outcomes. The target is represented only by a connection-keyed opaque fingerprint; raw URLs, expected markers, page content, credentials, cookies, and account identifiers are never returned. This read-only observation never retries or widens either workspace authority.' },
   { name: 'browser_find', category: 'Inspection', description: 'Search the bounded sanitized page snapshot for literal text and return compact matching snippets and stable element refs without sending the full snapshot.' },
   { name: 'browser_element_inspect', category: 'Inspection', description: 'Inspect one snapshot ref or CSS selector for bounded computed box model, layout, typography, contrast, and accessibility properties without returning stylesheet source or form values.' },
   { name: 'browser_generate_locator', category: 'Inspection', description: 'Generate a unique Playwright locator for one snapshot ref or CSS selector, preferring semantic and explicit test contracts without returning page source or form values.' },
@@ -810,6 +835,7 @@ const ESSENTIALS_TOOL_NAMES = new Set([
   'browser_navigate',
   'browser_history',
   'browser_snapshot',
+  'browser_public_outcome',
   'browser_find',
   'browser_click',
   'browser_dialog',
@@ -1240,15 +1266,20 @@ function createBrowserMcpServer(
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
   const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
-  const capabilityRequest = (name: string, input: Record<string, unknown>): McpCapabilityRequest => {
-    const origins: string[] = []
-    for (const key of ['url', 'origin', 'expectedOrigin'] as const) {
+  const capabilityRequest = (
+    name: string,
+    input: Record<string, unknown>,
+    target?: { workspaceId: string; tabId?: string; origins?: string[] }
+  ): McpCapabilityRequest => {
+    const origins: string[] = [...(target?.origins ?? [])]
+    for (const key of ['url', 'origin', 'expectedOrigin', 'targetUrl'] as const) {
       if (typeof input[key] === 'string') origins.push(input[key])
     }
     if (Array.isArray(input.origins)) {
       origins.push(...input.origins.filter((origin): origin is string => typeof origin === 'string'))
     }
-    const workspaceId = typeof input.workspaceId === 'string' ? input.workspaceId : undefined
+    const workspaceId = target?.workspaceId
+      ?? (typeof input.workspaceId === 'string' ? input.workspaceId : undefined)
     const toolsWithoutPageOrigin = new Set([
       'browser_workspaces', 'browser_saved_workspaces', 'browser_bookmarks', 'browser_visit_history',
       'browser_show', 'browser_request_user_attention', 'browser_human_waiting', 'browser_task_runs'
@@ -1256,7 +1287,8 @@ function createBrowserMcpServer(
     if (workspaceId && !toolsWithoutPageOrigin.has(name) && name !== 'browser_new_tab') {
       try {
         const state = manager.getMcpGroupState(workspaceId)
-        const tabId = typeof input.tabId === 'string' ? input.tabId : state.activeTabId
+        const tabId = target?.tabId
+          ?? (typeof input.tabId === 'string' ? input.tabId : state.activeTabId)
         if (name === 'browser_status' || name === 'browser_tabs') origins.push(...state.tabs.map(tab => tab.url))
         else {
           const tab = state.tabs.find(candidate => candidate.id === tabId)
@@ -1288,10 +1320,11 @@ function createBrowserMcpServer(
   }
   const requireActiveCapabilityDispatch = (
     name: string,
-    input: Record<string, unknown>
+    input: Record<string, unknown>,
+    target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ): McpCapabilityProfile | undefined => {
     if (!capability) return undefined
-    return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input))
+    return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input, target))
   }
   const capabilityAllowsUrl = (profile: McpCapabilityProfile | undefined, url: string): boolean => {
     if (!profile?.origins) return true
@@ -1653,12 +1686,13 @@ function createBrowserMcpServer(
   ])
   // Explicit inspection operations remain available for reconciliation. Do not
   // use client-supplied annotations or arbitrary evaluation as an inspection bypass.
-  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention', 'browser_reconciliation'])
+  const continuityInspectionTools = new Set(['browser_status', 'browser_snapshot', 'browser_public_outcome', 'browser_find', 'browser_tabs', 'browser_screenshot', 'browser_show', 'browser_request_user_attention', 'browser_reconciliation'])
   const workspaceToolInputSchemas = new Map<string, z.ZodObject<Record<string, z.ZodType>>>()
   const humanReviewSessionBinding = createHash('sha256')
     .update('hronaut-human-review-session-v1\0')
     .update(randomUUID())
     .digest('hex')
+  const publicOutcomeFingerprintKey = randomBytes(32)
   const reviewedActionArguments = (input: Record<string, unknown>): Record<string, unknown> => {
     const { reviewId: _reviewId, reviewRevision: _reviewRevision, ...arguments_ } = input
     return arguments_
@@ -2923,6 +2957,182 @@ function createBrowserMcpServer(
       }
       const snapshot = await manager.snapshotDetails(tabId, maxChars)
       return { ...textResult(snapshot.text), structuredContent: { ...snapshot } }
+    })
+  )
+  registerWorkspaceTool(
+    'browser_public_outcome',
+    {
+      description: toolDescription('browser_public_outcome'),
+      inputSchema: {
+        tabId: tabIdSchema,
+        writerWorkspaceId: workspaceIdSchema
+          .describe('Distinct standard workspace containing the writer-context read-back.'),
+        writerTabId: tabIdSchema.describe('Exact writer-context tab.'),
+        targetUrl: z.string().trim().min(1).max(2_048)
+          .describe('Exact credential-free HTTP(S) target loaded in both tabs. Only a connection-keyed opaque fingerprint is returned.'),
+        expectedText: z.string().trim().min(1).max(256).optional()
+          .describe('Private required text checked independently in both contexts and never returned.'),
+        expectedSelector: z.string().trim().min(1).max(512).optional()
+          .describe('Private required visible selector checked independently in both contexts and never returned.')
+      }
+    },
+    tabTool('browser_public_outcome', async (input: {
+      workspaceId: string
+      tabId: string
+      writerWorkspaceId: string
+      writerTabId: string
+      targetUrl: string
+      expectedText?: string
+      expectedSelector?: string
+    }) => {
+      if (input.expectedText === undefined && input.expectedSelector === undefined) {
+        throw new TypeError('expectedText or expectedSelector is required for a public-outcome receipt')
+      }
+      if (input.workspaceId === input.writerWorkspaceId) {
+        throw new TypeError('Writer and public observer workspaces must be distinct')
+      }
+      const target = normalizePublicOutcomeTarget(input.targetUrl)
+      const observerWorkspace = requireAgentWorkspace(input.workspaceId)
+      const writerWorkspace = requireAgentWorkspace(input.writerWorkspaceId)
+      if (observerWorkspace.contextClass !== 'public-observer') {
+        throw new Error('browser_public_outcome requires a public-observer workspace as workspaceId')
+      }
+      if (writerWorkspace.contextClass !== 'standard') {
+        throw new Error('browser_public_outcome requires a standard writer workspace')
+      }
+      if (!manager.tabBelongsToMcpGroup(input.workspaceId, input.tabId)
+        || !manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
+        throw workspaceAuthorizationError()
+      }
+      const actionInput = input as unknown as Record<string, unknown>
+      const authorizeWriter = (): void => {
+        requireActiveCapabilityDispatch('browser_public_outcome', actionInput, {
+          workspaceId: input.writerWorkspaceId,
+          tabId: input.writerTabId,
+          origins: [target.href]
+        })
+        requireAgentWorkspace(input.writerWorkspaceId)
+        if (!manager.tabBelongsToMcpGroup(input.writerWorkspaceId, input.writerTabId)) {
+          throw workspaceAuthorizationError()
+        }
+      }
+      authorizeWriter()
+      await manager.wakeTab(input.writerTabId)
+      authorizeWriter()
+
+      type Context = {
+        tab: BrowserTabState
+        contextClass: 'standard' | 'public-observer'
+        exactTarget: boolean
+      }
+      const captureContext = (
+        workspaceId: string,
+        tabId: string,
+        expectedClass: Context['contextClass']
+      ): Context => {
+        const state = manager.getMcpGroupState(workspaceId)
+        const contextClass = state.mcpTabGroups[0]?.contextClass ?? 'standard'
+        const tab = state.tabs.find(candidate => candidate.id === tabId)
+        if (!tab || contextClass !== expectedClass) throw workspaceAuthorizationError()
+        let exactTarget = false
+        try { exactTarget = normalizePublicOutcomeTarget(tab.url).href === target.href } catch { /* mismatch */ }
+        return { tab, contextClass, exactTarget }
+      }
+      const beforeWriter = captureContext(input.writerWorkspaceId, input.writerTabId, 'standard')
+      const beforeObserver = captureContext(input.workspaceId, input.tabId, 'public-observer')
+      const generations = (context: Context) => ({
+        navigationGeneration: context.tab.navigationGeneration,
+        observationGeneration: context.tab.observationGeneration ?? 0,
+        humanInteractionGeneration: context.tab.humanInteractionGeneration ?? 0,
+        browserSessionGeneration: context.tab.browserSessionGeneration ?? 0
+      })
+      const sameContext = (before: Context, after: Context | null): boolean => Boolean(
+        after
+        && before.contextClass === after.contextClass
+        && before.tab.id === after.tab.id
+        && before.tab.url === after.tab.url
+        && before.exactTarget
+        && after.exactTarget
+        && before.tab.navigationGeneration === after.tab.navigationGeneration
+        && (before.tab.observationGeneration ?? 0) === (after.tab.observationGeneration ?? 0)
+        && (before.tab.humanInteractionGeneration ?? 0) === (after.tab.humanInteractionGeneration ?? 0)
+        && (before.tab.browserSessionGeneration ?? 0) === (after.tab.browserSessionGeneration ?? 0)
+      )
+      const receipt = (
+        writerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
+        observerAssessment: Awaited<ReturnType<BrowserTabsManager['observationQuality']>> | null,
+        writerStable: boolean,
+        observerStable: boolean
+      ) => {
+        const observedAt = new Date().toISOString()
+        const outcome = classifyPublicObservationOutcome(observerAssessment, writerStable && observerStable)
+        const nextAction: Record<PublicObservationOutcome, string> = {
+          publicly_observed: 'Use this bounded receipt only for the observed target and time; do not infer later availability or author identity.',
+          not_publicly_observed: 'Do not repeat the write blindly. Inspect publication state or wait for an explicitly chosen later observation.',
+          unknown: 'Resolve the observer barrier or ambiguity, then request a fresh observation without repeating the write.',
+          reconciliation_required: 'Reconcile both exact tabs and target contexts before requesting a fresh observation; do not repeat the write.'
+        }
+        const freshness = (context: Context, stable: boolean, available: boolean) => ({
+          status: stable ? (available ? 'fresh' : 'unavailable') : 'reconciliation_required',
+          observedAt,
+          generations: generations(context)
+        })
+        return {
+          formatVersion: 1,
+          observedAt,
+          target: { fingerprint: publicOutcomeTargetFingerprint(publicOutcomeFingerprintKey, target.href) },
+          outcome,
+          writer: {
+            contextClass: 'standard',
+            outcome: writerStable ? classifyWriterContextOutcome(writerAssessment) : 'unknown',
+            freshness: freshness(beforeWriter, writerStable, writerAssessment !== null),
+            assessment: writerAssessment ? summarizePublicOutcomeAssessment(writerAssessment) : null
+          },
+          observer: {
+            contextClass: 'public-observer',
+            outcome,
+            freshness: freshness(beforeObserver, observerStable, observerAssessment !== null),
+            assessment: observerAssessment ? summarizePublicOutcomeAssessment(observerAssessment) : null
+          },
+          automaticRetryAllowed: false,
+          nextAction: nextAction[outcome],
+          caveats: [
+            'This is one local browser observation, not proof of author identity or long-term availability.',
+            'The receipt does not authorize a write, rollback, duplicate action, or automatic retry.',
+            'Expected markers were checked privately; page content, credentials, cookies, and account identifiers are excluded.'
+          ]
+        }
+      }
+      if (!beforeWriter.exactTarget || !beforeObserver.exactTarget) {
+        const result = receipt(null, null, false, false)
+        return { ...textResult(result), structuredContent: result }
+      }
+      const [writerResult, observerResult] = await Promise.allSettled([
+        manager.observationQuality({
+          tabId: input.writerTabId,
+          expectedOrigin: target.origin,
+          expectedText: input.expectedText,
+          expectedSelector: input.expectedSelector
+        }),
+        manager.observationQuality({
+          tabId: input.tabId,
+          expectedOrigin: target.origin,
+          expectedText: input.expectedText,
+          expectedSelector: input.expectedSelector
+        })
+      ])
+      authorizeWriter()
+      let afterWriter: Context | null = null
+      let afterObserver: Context | null = null
+      try { afterWriter = captureContext(input.writerWorkspaceId, input.writerTabId, 'standard') } catch { /* stale */ }
+      try { afterObserver = captureContext(input.workspaceId, input.tabId, 'public-observer') } catch { /* stale */ }
+      const result = receipt(
+        writerResult.status === 'fulfilled' ? writerResult.value : null,
+        observerResult.status === 'fulfilled' ? observerResult.value : null,
+        sameContext(beforeWriter, afterWriter),
+        sameContext(beforeObserver, afterObserver)
+      )
+      return { ...textResult(result), structuredContent: result }
     })
   )
   registerWorkspaceTool(

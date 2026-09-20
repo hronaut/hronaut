@@ -28,6 +28,8 @@ describe('MCP workspace guidance', () => {
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('Never browse another workspace')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_snapshot and browser_find')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_snapshot action=assess-quality')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_public_outcome')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('writer read-back')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('set a browser_snapshot baseline and request bounded deltas')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('fresh baseline after any invalidation')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_request_user_attention only when')
