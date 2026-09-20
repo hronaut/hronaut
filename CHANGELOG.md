@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.4.30] - 2026-09-20
+
 ### Added
 
 - Add explicit per-tab page freeze/resume controls for deterministic QA, with observable unknown outcomes, preserved animation rates, a trusted-shell indicator, a narrowly scoped MCP tool, and a measured Electron 44 / Chromium 152 support contract.
