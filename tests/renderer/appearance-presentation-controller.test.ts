@@ -112,6 +112,7 @@ describe('useAppearancePresentationController', () => {
     window.dispatchEvent(new Event('blur'))
     expect(controller.tabRailWidth.value).toBe(56)
     documentFocus.mockRestore()
+    outsideControl.blur()
     rail.remove()
     outsideControl.remove()
 
@@ -199,6 +200,7 @@ describe('useAppearancePresentationController', () => {
         }
       } finally {
         scope.stop()
+        action.blur()
         shell.remove()
         vi.useRealTimers()
       }
