@@ -29,6 +29,7 @@ export interface WebMcpToolDescriptor {
 export interface WebMcpPageListing {
   supported: boolean
   reason?: string
+  status?: string
   descriptors?: WebMcpToolDescriptor[]
   descriptorJson?: string
 }
@@ -150,24 +151,51 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
       return { value: JSON.parse(json), ...(truncated ? { truncated: true as const } : {}) }
     }
 
-    return Promise.resolve(api.getTools()).then(async (tools: unknown[]): Promise<Record<string, unknown>> => {
-      const listing = normalize(tools)
-      if (mode === 'list') return { supported: true, descriptors: listing.descriptors, descriptorJson: listing.descriptorJson }
+    const controller = new AbortController()
+    let timeoutId = 0
+    const timeout = new Promise<Record<string, unknown>>(resolve => {
+      timeoutId = window.setTimeout(() => {
+        controller.abort()
+        resolve({ __hronautTimeout: true })
+      }, limits.timeoutMs)
+    })
+    const clearDeadline = (): void => clearTimeout(timeoutId)
+    return Promise.race([
+      Promise.resolve()
+        .then(() => api.getTools())
+        .then((tools: unknown[]) => ({ __hronautTools: tools }))
+        .catch((error: unknown) => ({ __hronautEnumerationError: safeMessage(error) })),
+      timeout
+    ]).then(async (enumeration: Record<string, unknown>): Promise<Record<string, unknown>> => {
+      if (enumeration.__hronautTimeout) {
+        return {
+          supported: true, status: 'WEBMCP_TIMEOUT', dispatch: 'not-dispatched', effects: 'none',
+          reason: 'tool-enumeration-timeout'
+        }
+      }
+      if (typeof enumeration.__hronautEnumerationError === 'string') {
+        clearDeadline()
+        return {
+          supported: true, status: 'WEBMCP_ERROR', dispatch: 'not-dispatched', effects: 'none',
+          error: enumeration.__hronautEnumerationError
+        }
+      }
+      const listing = normalize(enumeration.__hronautTools as unknown[])
+      if (mode === 'list') {
+        clearDeadline()
+        return { supported: true, descriptors: listing.descriptors, descriptorJson: listing.descriptorJson }
+      }
       if (listing.descriptorJson !== payload.descriptorJson) {
+        clearDeadline()
         return { supported: true, status: 'STALE_DESCRIPTOR', dispatch: 'not-dispatched', effects: 'none' }
       }
       const index = listing.descriptors.findIndex((descriptor: unknown) => (
         descriptor && typeof descriptor === 'object' && (descriptor as Record<string, unknown>).name === payload.toolName
       ))
-      if (index < 0) return { supported: true, status: 'TOOL_REMOVED', dispatch: 'not-dispatched', effects: 'none' }
-      const controller = new AbortController()
-      let timeoutId = 0
-      const timeout = new Promise(resolve => {
-        timeoutId = window.setTimeout(() => {
-          controller.abort()
-          resolve({ __hronautTimeout: true })
-        }, limits.timeoutMs)
-      })
+      if (index < 0) {
+        clearDeadline()
+        return { supported: true, status: 'TOOL_REMOVED', dispatch: 'not-dispatched', effects: 'none' }
+      }
       // Chromium 152's origin-trial implementation exposes inputSchema as a
       // string and accepts a JSON string here. The current draft exposes the
       // parsed schema and accepts the input object directly.
@@ -176,12 +204,14 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
         ? JSON.stringify(payload.arguments ?? {})
         : payload.arguments ?? {}
       const outcome = await Promise.race([
-        Promise.resolve(api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal }))
+        // Defer invocation into the promise chain so a synchronous throw after
+        // entering the page callback is still classified as dispatched.
+        Promise.resolve().then(() => api.executeTool(listing.raw[index]!, executionInput, { signal: controller.signal }))
           .then((value: unknown) => ({ __hronautResult: value }))
           .catch((error: unknown) => ({ __hronautError: safeMessage(error) })),
         timeout
       ]) as Record<string, unknown>
-      clearTimeout(timeoutId)
+      clearDeadline()
       if (outcome.__hronautTimeout) {
         return { supported: true, status: 'OUTCOME_UNKNOWN', dispatch: 'dispatched', effects: 'possible', reason: 'timeout' }
       }
@@ -199,7 +229,10 @@ function pageBridgeSource(mode: 'status' | 'list' | 'call', payload: Record<stri
         effects: 'possible',
         result: boundedResult(returnedValue)
       }
-    }).catch((error: unknown) => ({ supported: true, status: 'WEBMCP_ERROR', dispatch: 'not-dispatched', effects: 'none', error: safeMessage(error) }))
+    }).catch((error: unknown) => {
+      clearDeadline()
+      return { supported: true, status: 'WEBMCP_ERROR', dispatch: 'not-dispatched', effects: 'none', error: safeMessage(error) }
+    })
   }.toString()})(${JSON.stringify(mode)},${JSON.stringify(payload)},${JSON.stringify(WEBMCP_LIMITS)})`
 }
 

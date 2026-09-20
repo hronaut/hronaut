@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bound WebMCP tool enumeration by the same operation deadline as execution and report synchronous page-callback failures as possibly effectful dispatches instead of claiming that nothing ran.
 - Preserve authored reference files when rebuilding the documentation website while still removing stale generated HTML and asset bundles.
 - Return the EIP-1193 disconnected error when no EVM wallet is available, keep Solana Wallet Standard account data immutable to untrusted pages, and avoid advertising signing features on watch-only Solana accounts.
 

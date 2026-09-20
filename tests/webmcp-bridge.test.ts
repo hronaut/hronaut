@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   webMcpCallScript,
   webMcpDescriptorDigest,
@@ -17,6 +17,7 @@ interface TestTool extends Record<string, unknown> {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   Reflect.deleteProperty(document, 'modelContext')
 })
 
@@ -99,6 +100,56 @@ describe('WebMCP page bridge', () => {
     expect(called).toMatchObject({
       status: 'TOOL_RETURNED', dispatch: 'dispatched', effects: 'possible',
       result: { value: { marker: 'ok' } }
+    })
+  })
+
+  it('classifies a synchronous callback throw as a possibly effectful dispatch', async () => {
+    let effects = 0
+    const tool: TestTool = {
+      name: 'throw-after-effect',
+      window,
+      origin: location.origin,
+      execute: () => undefined
+    }
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        getTools: async () => [tool],
+        executeTool: () => {
+          effects += 1
+          throw new Error('synthetic synchronous failure')
+        }
+      }
+    })
+    const listed = await window.eval(webMcpListScript()) as WebMcpPageListing
+    const called = await window.eval(webMcpCallScript({
+      descriptorJson: listed.descriptorJson!,
+      toolName: tool.name,
+      arguments: {}
+    })) as Record<string, unknown>
+
+    expect(effects).toBe(1)
+    expect(called).toMatchObject({
+      status: 'TOOL_ERROR', dispatch: 'dispatched', effects: 'possible',
+      error: 'synthetic synchronous failure'
+    })
+  })
+
+  it('bounds page tool enumeration with the same operation deadline', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(document, 'modelContext', {
+      configurable: true,
+      value: {
+        getTools: () => new Promise<never>(() => undefined),
+        executeTool: async () => undefined
+      }
+    })
+    const pending = window.eval(webMcpListScript()) as Promise<Record<string, unknown>>
+    await vi.advanceTimersByTimeAsync(30_000)
+
+    await expect(pending).resolves.toMatchObject({
+      status: 'WEBMCP_TIMEOUT', dispatch: 'not-dispatched', effects: 'none',
+      reason: 'tool-enumeration-timeout'
     })
   })
 })

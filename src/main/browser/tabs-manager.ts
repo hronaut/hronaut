@@ -7244,6 +7244,7 @@ export class BrowserTabsManager {
   async listWebMcpTools(tabId?: string): Promise<{
     supported: boolean
     reason?: string
+    status?: string
     tabId: string
     origin: string
     navigationGeneration: number
@@ -7263,6 +7264,7 @@ export class BrowserTabsManager {
       return {
         supported: result.supported === true,
         reason: result.error ?? result.reason ?? result.status ?? 'The page did not return a valid WebMCP descriptor',
+        ...(result.status ? { status: result.status } : {}),
         tabId: tab.id,
         origin,
         navigationGeneration: generation

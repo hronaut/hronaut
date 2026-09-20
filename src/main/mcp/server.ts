@@ -4257,7 +4257,7 @@ function createBrowserMcpServer(
       }
       if (action === 'list') {
         const result = { workspaceId, ...await manager.listWebMcpTools(tabId) }
-        return { ...textResult(result), structuredContent: result }
+        return { ...textResult(result), structuredContent: result, ...(result.status ? { isError: true } : {}) }
       }
       if (!expectedOrigin || navigationGeneration === undefined || !descriptorDigest || !toolName) {
         throw new TypeError('expectedOrigin, navigationGeneration, descriptorDigest, and toolName are required for a WebMCP call')
