@@ -39,7 +39,7 @@ interface TestWindow extends Window {
     removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['tron']
     tronWeb: false | {
       ready: boolean
-      defaultAddress: { base58: string | false }
+      defaultAddress: { base58: string | false; hex: string | false }
       trx: { sign(transaction: unknown): Promise<unknown>; signMessageV2(message: unknown): Promise<unknown> }
     }
   }
@@ -532,10 +532,16 @@ describe('wallet provider bootstrap', () => {
     expect(target.tron?.isHronaut).toBe(true)
     expect(target.tron?.isTronLink).toBeUndefined()
     expect(target.tron?.tronWeb).toBe(false)
-    target.__hronautWalletBridge!.request.mockResolvedValueOnce(['TExampleAddress'])
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce(['TNPeeaaFB7K9cmo4uQpcU32zGK8G1NYqeL'])
     await target.tron?.request({ method: 'eth_requestAccounts' })
     expect(target.__hronautWalletBridge?.request).toHaveBeenCalledWith({ family: 'tron', method: 'eth_requestAccounts' })
-    expect(target.tron?.tronWeb).toMatchObject({ ready: true, defaultAddress: { base58: 'TExampleAddress' } })
+    expect(target.tron?.tronWeb).toMatchObject({
+      ready: true,
+      defaultAddress: {
+        base58: 'TNPeeaaFB7K9cmo4uQpcU32zGK8G1NYqeL',
+        hex: '418840e6c55b9ada326d211d818c34a994aeced808'
+      }
+    })
     const transaction = { txID: 'a'.repeat(64), raw_data: { contract: [] } }
     const tronWeb = target.tron?.tronWeb
     if (!tronWeb) throw new Error('Expected authorized Tron compatibility surface')

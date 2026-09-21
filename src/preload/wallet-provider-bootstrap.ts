@@ -368,10 +368,24 @@ export function installHronautWalletProviders(): void {
 
   const tronEvents = createEmitter('tron')
   const requestTron = providerRequest('tron')
+  const tronAddressToHex = (value: string | undefined): string | false => {
+    if (!value || value.length !== 34) return false
+    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+    let decoded = 0n
+    for (const character of value) {
+      const digit = alphabet.indexOf(character)
+      if (digit < 0) return false
+      decoded = decoded * 58n + BigInt(digit)
+    }
+    const base58Check = decoded.toString(16).padStart(50, '0')
+    return base58Check.length === 50 && base58Check.startsWith('41')
+      ? base58Check.slice(0, 42)
+      : false
+  }
   let tronAddress: string | undefined
   const tronDefaultAddress = Object.freeze({
     get base58() { return tronAddress ?? false },
-    get hex() { return false }
+    get hex() { return tronAddressToHex(tronAddress) }
   })
   const tronWebCompatibility = Object.freeze({
     get ready() { return Boolean(tronAddress) },
