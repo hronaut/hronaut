@@ -150,8 +150,17 @@ export function installHronautWalletProviders(): void {
     })
   }
   let solanaAccounts: readonly unknown[] = []
+  let solanaChains: readonly string[] = Object.freeze([
+    'solana:mainnet',
+    'solana:devnet',
+    'solana:testnet',
+    'solana:localnet'
+  ])
   let legacySolanaPublicKey: LegacySolanaPublicKey | null = null
-  const standardEvents = new Set<(properties: { accounts?: readonly unknown[] }) => void>()
+  const standardEvents = new Set<(properties: {
+    accounts?: readonly unknown[]
+    chains?: readonly string[]
+  }) => void>()
   const accountAddresses = (accounts: readonly unknown[]): string[] => accounts.flatMap((account) => (
     account && typeof account === 'object' && typeof (account as { address?: unknown }).address === 'string'
       ? [(account as { address: string }).address]
@@ -225,11 +234,24 @@ export function installHronautWalletProviders(): void {
     const next = Object.freeze(accounts.map(readonlySolanaAccount))
     const changed = solanaAccounts.length !== next.length
       || solanaAccounts.some((account, index) => !sameSolanaAccount(account, next[index]))
+    const discoveredChains = next.flatMap((account) => (
+      account && typeof account === 'object' && Array.isArray((account as { chains?: unknown }).chains)
+        ? (account as { chains: unknown[] }).chains.filter((value): value is string => typeof value === 'string')
+        : []
+    ))
+    const nextChains = Object.freeze([...new Set([...solanaChains, ...discoveredChains])])
+    const chainsChanged = nextChains.length !== solanaChains.length
     solanaAccounts = next
+    solanaChains = nextChains
     legacySolanaPublicKey = legacyPublicKeyFromAccount(solanaAccounts[0])
-    if (!notify || !changed) return changed
+    if (!notify || (!changed && !chainsChanged)) return changed
     for (const listener of standardEvents) {
-      try { listener({ accounts: solanaAccounts }) } catch { /* One app listener must not block the others. */ }
+      try {
+        listener({
+          ...(changed ? { accounts: solanaAccounts } : {}),
+          ...(chainsChanged ? { chains: solanaChains } : {})
+        })
+      } catch { /* One app listener must not block the others. */ }
     }
     return changed
   }
@@ -266,14 +288,17 @@ export function installHronautWalletProviders(): void {
     version: '1.0.0',
     name: 'Hronaut',
     icon,
-    chains: Object.freeze(['solana:mainnet', 'solana:devnet', 'solana:testnet', 'solana:localnet']),
+    get chains() { return solanaChains },
     get accounts() { return solanaAccounts },
     features: Object.freeze({
       'standard:connect': Object.freeze({ version: '1.0.0', connect: (input?: unknown) => solanaRequest('connect', input) }),
       'standard:disconnect': Object.freeze({ version: '1.0.0', disconnect: () => solanaRequest('disconnect') }),
       'standard:events': Object.freeze({
         version: '1.0.0',
-        on: (event: string, listener: (properties: { accounts?: readonly unknown[] }) => void) => {
+        on: (event: string, listener: (properties: {
+          accounts?: readonly unknown[]
+          chains?: readonly string[]
+        }) => void) => {
           if (event !== 'change') throw new Error(`Unsupported Solana wallet event: ${event}`)
           standardEvents.add(listener)
           return () => standardEvents.delete(listener)

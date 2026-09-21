@@ -458,6 +458,47 @@ describe('wallet provider bootstrap', () => {
     })
   })
 
+  it('advertises configured custom Solana chains before exposing accounts that use them', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    const customChain = 'solana:hronaut-local-validator'
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce({
+      accounts: [{
+        address: 'HronautSolanaWalletAddress',
+        publicKey: Uint8Array.from([1, 2, 3, 4]),
+        chains: [customChain],
+        features: ['solana:signMessage']
+      }]
+    })
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0] as {
+      readonly chains: readonly string[]
+      readonly accounts: ReadonlyArray<{ readonly chains: readonly string[] }>
+      features: {
+        'standard:connect': { connect(): Promise<unknown> }
+        'standard:events': {
+          on(event: string, listener: (properties: {
+            accounts?: readonly unknown[]
+            chains?: readonly string[]
+          }) => void): () => void
+        }
+      }
+    }
+    const changes = vi.fn()
+    wallet.features['standard:events'].on('change', changes)
+
+    await wallet.features['standard:connect'].connect()
+
+    expect(wallet.chains).toContain(customChain)
+    expect(wallet.accounts[0]?.chains.every((chain) => wallet.chains.includes(chain))).toBe(true)
+    expect(changes).toHaveBeenLastCalledWith({
+      accounts: wallet.accounts,
+      chains: wallet.chains
+    })
+  })
+
   it('returns a ProviderRpcError for malformed EIP-1193 request arguments', async () => {
     installHronautWalletProviders()
 

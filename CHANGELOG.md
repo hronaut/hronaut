@@ -12,6 +12,7 @@ All notable changes to Hronaut are documented in this file.
 - Match EIP-1193 event delivery semantics for callback receivers and validation, including when wallet listeners add, remove, or register the same callback more than once during provider events.
 - Keep Solana and TRON dapps bound to their previously authorized account and network even when another attached wallet sorts ahead of it, and expose only TRON's active account when other wallets are also permitted.
 - Provide both Base58 and standard `41…` hex forms for the connected TRON account through the injected `tronWeb.defaultAddress` compatibility surface.
+- Add configured custom Solana networks to the Wallet Standard chain metadata before exposing their accounts, preserving the required account-to-wallet chain relationship for adapters.
 
 ## [2.5.2] - 2026-09-21
 
