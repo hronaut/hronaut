@@ -65,4 +65,34 @@ describe('network timing breakdown', () => {
     expect(deriveNetworkTiming(undefined, 10)).toBeUndefined()
     expect(deriveNetworkTiming({ requestTime: -1 }, 10)).toBeUndefined()
   })
+
+  it('omits completion-derived phases when the completion timestamp predates the request or headers', () => {
+    expect(deriveNetworkTiming({
+      requestTime: 100,
+      sendStart: 2,
+      sendEnd: 3,
+      receiveHeadersEnd: 20
+    }, 99)).toEqual({
+      queuedAndConnectingMs: 2,
+      requestSentMs: 1,
+      waitingForResponseMs: 17
+    })
+
+    expect(deriveNetworkTiming({
+      requestTime: 100,
+      receiveHeadersEnd: 20
+    }, 100.01)).toEqual({ totalMs: 10 })
+  })
+
+  it('saturates extreme finite timing values instead of returning Infinity', () => {
+    expect(deriveNetworkTiming({
+      requestTime: 0,
+      sendStart: 0,
+      sendEnd: Number.MAX_VALUE
+    }, Number.MAX_VALUE)).toEqual({
+      totalMs: Number.MAX_SAFE_INTEGER,
+      queuedAndConnectingMs: 0,
+      requestSentMs: Number.MAX_SAFE_INTEGER
+    })
+  })
 })

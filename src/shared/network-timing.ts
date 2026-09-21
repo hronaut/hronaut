@@ -23,7 +23,7 @@ function finiteNonNegative(value: number | undefined): value is number {
 }
 
 function milliseconds(value: number): number {
-  return Math.round(Math.max(0, value) * 10) / 10
+  return Math.min(Number.MAX_SAFE_INTEGER, Math.round(Math.max(0, value) * 10) / 10)
 }
 
 function duration(start: number | undefined, end: number | undefined): number | undefined {
@@ -46,12 +46,17 @@ export function deriveNetworkTiming(
   const receiveStart = finiteNonNegative(timing.receiveHeadersStart)
     ? timing.receiveHeadersStart
     : timing.receiveHeadersEnd
-  const totalMs = finiteNonNegative(completedMonotonicSeconds)
-    ? milliseconds((completedMonotonicSeconds - timing.requestTime) * 1_000)
+  const completedElapsedMs = finiteNonNegative(completedMonotonicSeconds)
+    && completedMonotonicSeconds >= timing.requestTime
+    ? (completedMonotonicSeconds - timing.requestTime) * 1_000
     : undefined
-  const contentDownloadMs = finiteNonNegative(completedMonotonicSeconds)
+  const totalMs = completedElapsedMs !== undefined
+    ? milliseconds(completedElapsedMs)
+    : undefined
+  const contentDownloadMs = completedElapsedMs !== undefined
     && finiteNonNegative(timing.receiveHeadersEnd)
-    ? milliseconds((completedMonotonicSeconds - timing.requestTime) * 1_000 - timing.receiveHeadersEnd)
+    && completedElapsedMs >= timing.receiveHeadersEnd
+    ? milliseconds(completedElapsedMs - timing.receiveHeadersEnd)
     : undefined
 
   const result: BrowserNetworkTiming = {
