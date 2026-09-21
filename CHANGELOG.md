@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject an explicitly empty `HRONAUT_MCP_TOKEN` during startup instead of silently generating a different profile token that configured MCP clients cannot use.
 - Notify Solana Wallet Standard apps when an account's chain, signing features, public key, or display metadata changes without an address change, and return a numeric EIP-1193 error for malformed request arguments.
 - Explicitly terminate packaged MCP smoke-test sessions before closing their local clients so workspace write leases are released immediately during Scoop reinstall verification.
 - Terminate MCPB adapter and native-dialog QA sessions before closing their HTTP transports so host disconnects release workspace write leases immediately.

@@ -46,6 +46,15 @@ describe('loadMcpToken', () => {
     await expect(loadMcpToken('/unused', 'short')).rejects.toThrow('at least 32')
   })
 
+  it('rejects an explicitly empty environment token without creating a profile token', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-token-empty-environment-'))
+    temporaryDirectories.push(directory)
+    const path = join(directory, 'profile', 'mcp-token')
+
+    await expect(loadMcpToken(path, '')).rejects.toThrow('at least 32')
+    await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
   it('converges concurrent first loads on one atomically created profile token', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-token-race-'))
     temporaryDirectories.push(directory)

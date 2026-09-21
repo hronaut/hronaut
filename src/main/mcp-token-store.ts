@@ -60,7 +60,7 @@ async function loadProfileMcpToken(path: string): Promise<McpTokenConfiguration>
 }
 
 export async function loadMcpToken(path: string, environmentToken?: string): Promise<McpTokenConfiguration> {
-  if (environmentToken) {
+  if (environmentToken !== undefined) {
     if (!TOKEN_PATTERN.test(environmentToken)) {
       throw new Error('HRONAUT_MCP_TOKEN must contain at least 32 URL-safe characters')
     }
