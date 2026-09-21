@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Emit the legacy Solana `accountChanged` event with current PublicKey-compatible state so direct provider integrations cannot retain a stale account after connection or permission loss.
+
 ## [2.5.2] - 2026-09-21
 
 ### Fixed

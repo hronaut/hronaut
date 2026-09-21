@@ -2774,6 +2774,7 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       await page.executeJavaScript(`
         window.__solanaStandardChanges = [];
         window.__legacySolanaAccountStates = [];
+        window.__legacySolanaAccountChanges = [];
         window.dispatchEvent(new CustomEvent('wallet-standard:app-ready', { detail: {
           register(wallet) {
             if (wallet.name !== 'Hronaut') return;
@@ -2792,6 +2793,12 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
         window.hronautSolana.on('accountsChanged', accounts => {
           window.__legacySolanaAccountStates.push({ accounts, isConnected: window.hronautSolana.isConnected });
         });
+        window.hronautSolana.on('accountChanged', publicKey => {
+          window.__legacySolanaAccountChanges.push({
+            address: publicKey?.toBase58() || null,
+            isConnected: window.hronautSolana.isConnected
+          });
+        });
         window.__legacySolanaConnection = { phase: 'pending' };
         void window.hronautSolana.connect().then(
           ({ publicKey }) => {
@@ -2808,7 +2815,8 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
               standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
               standardIcon: window.__hronautStandardIcon,
               standardChanges: window.__solanaStandardChanges,
-              legacyAccountStates: window.__legacySolanaAccountStates
+              legacyAccountStates: window.__legacySolanaAccountStates,
+              legacyAccountChanges: window.__legacySolanaAccountChanges
             };
           },
           (error) => { window.__legacySolanaConnection = { phase: 'rejected', message: error.message } }
@@ -2837,7 +2845,8 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       standardAccounts: [prepared.publicAddress],
       standardIcon: { base64: true, svg: true },
       standardChanges: [[prepared.publicAddress]],
-      legacyAccountStates: [{ accounts: [prepared.publicAddress], isConnected: true }]
+      legacyAccountStates: [{ accounts: [prepared.publicAddress], isConnected: true }],
+      legacyAccountChanges: [{ address: prepared.publicAddress, isConnected: true }]
     })
 
     const publicKeyLength = await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
@@ -2863,7 +2872,8 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
           isConnected: provider.isConnected,
           publicKey: provider.publicKey,
           standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
-          standardChanges: window.__solanaStandardChanges
+          standardChanges: window.__solanaStandardChanges,
+          legacyAccountChanges: window.__legacySolanaAccountChanges
         };
       })()`)
     }, url)
@@ -2874,7 +2884,11 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       isConnected: false,
       publicKey: null,
       standardAccounts: [],
-      standardChanges: [[prepared.publicAddress], []]
+      standardChanges: [[prepared.publicAddress], []],
+      legacyAccountChanges: [
+        { address: prepared.publicAddress, isConnected: true },
+        { address: null, isConnected: false }
+      ]
     })
   } finally {
     await closeFixtureServer(server)

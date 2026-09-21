@@ -230,6 +230,7 @@ export function installHronautWalletProviders(): void {
       const changed = setSolanaAccounts((result as { accounts: unknown[] }).accounts, true)
       if (changed && legacySolanaPublicKey) {
         solanaEvents.emit('connect', legacySolanaPublicKey)
+        solanaEvents.emit('accountChanged', legacySolanaPublicKey)
         solanaEvents.emit('accountsChanged', accountAddresses(solanaAccounts))
       }
       return { ...(result as Record<string, unknown>), accounts: solanaAccounts }
@@ -241,13 +242,17 @@ export function installHronautWalletProviders(): void {
   solanaEvents.on('accountsChanged', (accounts) => {
     const addresses = Array.isArray(accounts) ? accounts.filter((value): value is string => typeof value === 'string') : []
     const currentAddress = legacySolanaPublicKey?.toBase58()
+    let changed = false
     if (!addresses.length) {
-      setSolanaAccounts([], true)
+      changed = setSolanaAccounts([], true)
     } else if (currentAddress && !addresses.includes(currentAddress)) {
-      setSolanaAccounts([], true)
+      changed = setSolanaAccounts([], true)
     }
+    if (changed) solanaEvents.emit('accountChanged', legacySolanaPublicKey)
   })
-  solanaEvents.on('disconnect', () => setSolanaAccounts([], true))
+  solanaEvents.on('disconnect', () => {
+    if (setSolanaAccounts([], true)) solanaEvents.emit('accountChanged', null)
+  })
   const solanaWallet = Object.freeze({
     version: '1.0.0',
     name: 'Hronaut',
