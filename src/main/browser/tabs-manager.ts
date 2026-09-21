@@ -712,6 +712,7 @@ interface BrowserTab {
     observationGeneration: number
   }
   visualComparison?: BrowserVisualComparisonInternal
+  visualComparisonGeneration: number
   storageComparison?: {
     baseline: BrowserStorageSnapshot
     current?: BrowserStorageSnapshot
@@ -7468,6 +7469,7 @@ export class BrowserTabsManager {
     }
 
     if (action === 'clear') {
+      tab.visualComparisonGeneration += 1
       tab.visualComparison = undefined
       return {
         report: {
@@ -7506,7 +7508,11 @@ export class BrowserTabsManager {
       }
     }
 
+    const operationGeneration = ++tab.visualComparisonGeneration
     const current = await this.captureVisual(tab, settleMs)
+    if (this.tabs.get(tab.id) !== tab || tab.visualComparisonGeneration !== operationGeneration) {
+      throw new Error('Visual comparison changed while the page capture was pending. Run the requested action again.')
+    }
     if (action === 'set-baseline') {
       tab.visualComparison = { baseline: { snapshot: current.snapshot, png: current.png } }
       return {
@@ -8314,6 +8320,7 @@ export class BrowserTabsManager {
       pendingHistoryUrl: null,
       emulation: { ...DEFAULT_EMULATION },
       emulationExtraHttpHeaders: {},
+      visualComparisonGeneration: 0,
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
