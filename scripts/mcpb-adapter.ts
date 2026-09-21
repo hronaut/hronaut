@@ -76,8 +76,8 @@ export function createRestrictedFetch(endpoint: URL, fetcher: typeof fetch = glo
 }
 
 export async function resolveAuthenticationToken(environment: NodeJS.ProcessEnv): Promise<string | undefined> {
-  const configuredToken = environment.HRONAUT_MCP_TOKEN?.trim()
-  if (configuredToken) {
+  if (environment.HRONAUT_MCP_TOKEN !== undefined) {
+    const configuredToken = environment.HRONAUT_MCP_TOKEN.trim()
     if (!TOKEN_PATTERN.test(configuredToken)) throw new Error('Hronaut MCP token is invalid.')
     return configuredToken
   }

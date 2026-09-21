@@ -69,6 +69,27 @@ describe('MCPB adapter endpoint restrictions', () => {
 })
 
 describe('MCPB adapter authentication', () => {
+  it('accepts a valid direct token and rejects an explicitly blank override', async () => {
+    const token = 'a'.repeat(64)
+    await expect(resolveAuthenticationToken({ HRONAUT_MCP_TOKEN: token })).resolves.toBe(token)
+    await expect(resolveAuthenticationToken({ HRONAUT_MCP_TOKEN: '' })).rejects.toThrow('token is invalid')
+    await expect(resolveAuthenticationToken({ HRONAUT_MCP_TOKEN: '   ' })).rejects.toThrow('token is invalid')
+  })
+
+  it('does not fall back to a token file when a blank direct override is present', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-token-precedence-'))
+    const tokenPath = join(directory, 'mcp-token')
+    try {
+      await writeFile(tokenPath, `${'a'.repeat(64)}\n`, { mode: 0o600 })
+      await expect(resolveAuthenticationToken({
+        HRONAUT_MCP_TOKEN: '',
+        HRONAUT_MCP_TOKEN_FILE: tokenPath
+      })).rejects.toThrow('token is invalid')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('loads a valid owner token from the selected file without placing it in configuration', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-token-'))
     const tokenPath = join(directory, 'mcp-token')
