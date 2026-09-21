@@ -249,12 +249,14 @@ test('scales Hronaut without zooming the active website and persists the choice'
   await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().find((window) => window.getTitle() === 'Page tools — Hronaut')?.webContents.getZoomFactor()
   )).toBe(1.25)
+  await expect(detached.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
+  const detachedClosed = detached.waitForEvent('close')
   await detached.evaluate(`setTimeout(() => {
     const button = document.querySelector('button[aria-label="Close page tools"]')
     if (!(button instanceof HTMLButtonElement)) throw new Error('Missing page-tools close button')
     button.click()
   }, 0)`)
-  await expect.poll(() => detached.isClosed()).toBe(true)
+  await detachedClosed
 
   await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).interfaceScale).toBe(1.25)
   await closeHronaut(electronApp)
