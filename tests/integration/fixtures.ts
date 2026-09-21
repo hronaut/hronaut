@@ -122,13 +122,13 @@ export async function closeHronaut(app: ElectronApplication): Promise<void> {
   } catch {
     return
   }
-  await app.evaluate(({ app }) => {
+  await settleWithin(app.evaluate(({ app }) => {
     const scope = globalThis as typeof globalThis & {
       __hronautQaRendererExits?: { listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void }
     }
     if (scope.__hronautQaRendererExits) app.off('render-process-gone', scope.__hronautQaRendererExits.listener)
     delete scope.__hronautQaRendererExits
-  }).catch(() => undefined)
+  }).catch(() => undefined), 1_000)
   const closePromise = app.close().catch(() => undefined)
   await settleWithin(closePromise, 3_000)
   if (child.exitCode === null) {

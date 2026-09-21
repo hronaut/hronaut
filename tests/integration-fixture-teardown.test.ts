@@ -1,7 +1,7 @@
 import { createServer, get } from 'node:http'
 import { readdir, readFile } from 'node:fs/promises'
-import { describe, expect, it } from 'vitest'
-import { closeFixtureServer } from './integration/fixtures.js'
+import { describe, expect, it, vi } from 'vitest'
+import { closeFixtureServer, closeHronaut } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
   it('routes every HTTP fixture shutdown through the connection-draining helper', async () => {
@@ -48,5 +48,26 @@ describe('integration fixture teardown', () => {
 
     expect(server.listening).toBe(false)
     client.destroy()
+  })
+
+  it('does not let an unresponsive Electron evaluation block forced shutdown', async () => {
+    vi.useFakeTimers()
+    try {
+      const close = vi.fn(async () => undefined)
+      const app = {
+        process: () => ({ exitCode: 0 }),
+        evaluate: () => new Promise<never>(() => undefined),
+        close
+      } as unknown as Parameters<typeof closeHronaut>[0]
+
+      const closing = closeHronaut(app)
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      expect(close).toHaveBeenCalledOnce()
+      await vi.runAllTimersAsync()
+      await expect(closing).resolves.toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

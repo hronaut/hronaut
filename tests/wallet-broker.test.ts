@@ -2002,6 +2002,62 @@ describe('WalletBroker', () => {
     expect(providerEvent).not.toHaveBeenCalled()
   })
 
+  it('keeps the connected Tron wallet authoritative when another wallet sorts first', async () => {
+    const { service } = await setup()
+    const authorizedResult = await service.generate({
+      name: 'Zeta authorized', chainFamily: 'tron',
+      network: { id: 'nile', name: 'TRON Nile', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8090' },
+      workspaceIds: ['workspace-1']
+    })
+    const authorized = await service.confirmRecovery(authorizedResult.wallet.id)
+    const preferredResult = await service.generate({
+      name: 'Alpha unconnected', chainFamily: 'tron',
+      network: { id: 'shasta', name: 'TRON Shasta', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8091' },
+      workspaceIds: ['workspace-1']
+    })
+    await service.confirmRecovery(preferredResult.wallet.id)
+    const permission = await service.permissions.grant({
+      walletId: authorized.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: authorized.publicAddress,
+      chainFamily: 'tron',
+      networkId: authorized.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_accounts'
+    })).resolves.toEqual([authorized.publicAddress])
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_chainId'
+    })).resolves.toBe('0xcd8690dc')
+
+    const reconnect = settle(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_requestAccounts'
+    }))
+    await expect(Promise.race([
+      reconnect,
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'still-pending' }), 25))
+    ])).resolves.toEqual({ status: 'fulfilled', value: [authorized.publicAddress] })
+    expect(broker.listPending().filter((request) => request.operation === 'connect-account')).toHaveLength(0)
+
+    const signing = settle(broker.providerRequest(context(), {
+      family: 'tron', method: 'tron_signMessage', params: [authorized.publicAddress, '0x010203']
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.walletId === authorized.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+
+    await expect(broker.revokePermission(permission.id)).resolves.toBe(true)
+    await expect(signing).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+  })
+
   it('keeps silent Solana reconnect checks from opening trusted approval UI', async () => {
     const { service } = await setup()
     const generated = await service.generate({

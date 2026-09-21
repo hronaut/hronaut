@@ -733,17 +733,9 @@ export class WalletBroker {
   }
 
   private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    const providerSession = this.accountProviderSessions.get(this.accountProviderSessionKey(context, 'solana'))
-    const connectedWallet = providerSession
-      ? wallets.find((entry) => (
-          entry.id === providerSession.walletId
-          && entry.publicAddress === providerSession.account
-          && this.hasAddressPermission(context, entry)
-        ))
-      : undefined
+    const connectedWallet = this.activeAccountProviderWallet(context, 'solana', wallets)
     const permittedWallet = method === 'connect'
-      ? wallets.find((entry) => entry.kind !== 'watch-only' && this.hasAddressPermission(context, entry))
-        ?? wallets.find((entry) => this.hasAddressPermission(context, entry))
+      ? this.preferredPermittedWallet(context, wallets)
       : undefined
     if (method === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
     const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
@@ -808,15 +800,17 @@ export class WalletBroker {
   }
 
   private async tronRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
+    const connectedWallet = this.activeAccountProviderWallet(context, 'tron', wallets)
+    const permittedWallet = this.preferredPermittedWallet(context, wallets)
     if (method === 'eth_accounts') {
       const accounts = this.permittedAccounts(context, wallets)
-      const wallet = wallets.find((entry) => accounts.includes(entry.publicAddress))
+      const wallet = connectedWallet ?? permittedWallet
       if (wallet && this.trackAccountProviderSession(context, wallet)) {
         this.publishTronConnection(context, wallet)
       }
       return accounts
     }
-    const wallet = this.selectWallet(wallets)
+    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
     if (method === 'eth_chainId') {
       const chainId = tronProviderChainId(wallet.network.id)
       if (!chainId) throw new Error('Tron provider chain ID is unavailable for the configured network')
@@ -1505,6 +1499,29 @@ export class WalletBroker {
       context.requester.type,
       context.requester.id
     ])
+  }
+
+  private activeAccountProviderWallet(
+    context: WalletBrokerContext,
+    family: Exclude<WalletChainFamily, 'evm'>,
+    wallets: WalletDescriptor[]
+  ): WalletDescriptor | undefined {
+    const session = this.accountProviderSessions.get(this.accountProviderSessionKey(context, family))
+    return session
+      ? wallets.find((wallet) => (
+          wallet.id === session.walletId
+          && wallet.publicAddress === session.account
+          && this.hasAddressPermission(context, wallet)
+        ))
+      : undefined
+  }
+
+  private preferredPermittedWallet(
+    context: WalletBrokerContext,
+    wallets: WalletDescriptor[]
+  ): WalletDescriptor | undefined {
+    return wallets.find((wallet) => wallet.kind !== 'watch-only' && this.hasAddressPermission(context, wallet))
+      ?? wallets.find((wallet) => this.hasAddressPermission(context, wallet))
   }
 
   private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
