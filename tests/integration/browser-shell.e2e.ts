@@ -885,6 +885,10 @@ test('does not overlap Home dashboard polling while a status response is pending
       const scheduledPolls = [];
       const originalFetch = window.fetch;
       const originalSetTimeout = window.setTimeout;
+      for (let attempt = 0; dashboardPollTimer === undefined && attempt < 100; attempt += 1) {
+        await new Promise((resolve) => originalSetTimeout(resolve, 10));
+      }
+      if (dashboardPollTimer === undefined) throw new Error('Initial dashboard poll did not settle');
       clearTimeout(dashboardPollTimer);
       window.fetch = () => new Promise((resolve) => pending.push(resolve));
       window.setTimeout = (callback, delay, ...args) => {
@@ -894,14 +898,14 @@ test('does not overlap Home dashboard polling while a status response is pending
       };
       try {
         const firstPoll = pollDashboard();
-        while (pending.length < 1) await Promise.resolve();
+        if (pending.length !== 1) throw new Error('First dashboard poll did not start one request');
         const whilePending = { requests: pending.length, scheduled: scheduledPolls.length };
         const response = { ok: true, json: async () => dashboard };
         pending.shift()(response);
         await firstPoll;
         const afterResolution = { requests: pending.length, scheduled: scheduledPolls.length };
         const secondPoll = scheduledPolls.shift()();
-        while (pending.length < 1) await Promise.resolve();
+        if (pending.length !== 1) throw new Error('Scheduled dashboard poll did not start one request');
         const afterNextPoll = { requests: pending.length, scheduled: scheduledPolls.length };
         pending.shift()(response);
         await secondPoll;
