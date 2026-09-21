@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Prevent delayed Repro recorder page measurements from leaking out of a cleared or stopped recording into a newer timeline.
+- Prevent delayed Repro recorder page measurements from leaking across a clear, stop, restart, or later page navigation into the wrong timeline context.
 - Stop reporting malformed Linux autostart files as enabled when they omit the required application type or name.
 - Advertise the injected wallet icon as a base64 image data URI so strict Solana Wallet Standard clients accept Hronaut discovery metadata.
 - Treat `about:blank`, `view-source:`, and `blob:` schemes case-insensitively when enforcing restricted workspace navigation policies.

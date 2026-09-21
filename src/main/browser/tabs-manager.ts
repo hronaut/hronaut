@@ -977,8 +977,14 @@ interface BrowserReproRecordingInternal {
   pendingPointer?: {
     x: number
     y: number
+    navigationGeneration: number
     target: Promise<BrowserReproTarget | null>
   }
+}
+
+interface BrowserReproStepContext {
+  recording: BrowserReproRecordingInternal
+  navigationGeneration: number
 }
 
 interface BrowserVisualCapture {
@@ -10205,10 +10211,13 @@ export class BrowserTabsManager {
     tab: BrowserTab,
     value: Pick<BrowserReproStep, 'kind' | 'description'>
       & Partial<Pick<BrowserReproStep, 'target' | 'key' | 'scroll' | 'valueRedacted'>>,
-    expectedRecording?: BrowserReproRecordingInternal
+    expectedContext?: BrowserReproStepContext
   ): void {
     const recording = tab.reproRecording
-    if (!recording?.active || (expectedRecording && recording !== expectedRecording)) return
+    if (!recording?.active || (expectedContext && (
+      recording !== expectedContext.recording
+      || tab.navigationGeneration !== expectedContext.navigationGeneration
+    ))) return
     const now = Date.now()
     const target = value.target
     const last = recording.steps.at(-1)
@@ -10242,12 +10251,19 @@ export class BrowserTabsManager {
     this.changed(false)
   }
 
-  private queueReproTask(tab: BrowserTab, task: (recording: BrowserReproRecordingInternal) => Promise<void>): void {
+  private queueReproTask(
+    tab: BrowserTab,
+    task: (context: BrowserReproStepContext) => Promise<void>,
+    navigationGeneration = tab.navigationGeneration
+  ): void {
     const recording = tab.reproRecording
     if (!recording?.active) return
+    const context = { recording, navigationGeneration }
     const queued = recording.queue.catch(() => undefined).then(async () => {
-      if (!recording.active || tab.reproRecording !== recording) return
-      await task(recording)
+      if (!recording.active
+        || tab.reproRecording !== recording
+        || tab.navigationGeneration !== navigationGeneration) return
+      await task(context)
     })
     recording.queue = queued
     void queued.catch((error) => {
@@ -10291,6 +10307,7 @@ export class BrowserTabsManager {
       recording.pendingPointer = {
         x: mouse.x,
         y: mouse.y,
+        navigationGeneration: tab.navigationGeneration,
         target: this.reproTarget(tab, {
           x: mouse.x,
           y: mouse.y,
@@ -10302,14 +10319,14 @@ export class BrowserTabsManager {
       const pending = recording.pendingPointer
       recording.pendingPointer = undefined
       if (pending && Math.hypot(mouse.x - pending.x, mouse.y - pending.y) <= 8) {
-        this.queueReproTask(tab, async (queuedRecording) => {
+        this.queueReproTask(tab, async (context) => {
           const target = await pending.target
           if (target) this.addReproStep(tab, {
             kind: 'click',
             description: `Click ${this.reproTargetName(target)}`,
             target
-          }, queuedRecording)
-        })
+          }, context)
+        }, pending.navigationGeneration)
       }
       this.scheduleReproScroll(tab)
     } else if (mouse.type === 'mouseWheel') {
@@ -10324,7 +10341,7 @@ export class BrowserTabsManager {
     const editsValue = !hasCommandModifier && (input.key.length === 1 || ['Backspace', 'Delete'].includes(input.key))
     const allowedKey = ['Enter', 'Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown', ' ']
     if (!editsValue && !hasCommandModifier && !allowedKey.includes(input.key)) return
-    this.queueReproTask(tab, async (queuedRecording) => {
+    this.queueReproTask(tab, async (context) => {
       const target = await this.reproTarget(tab).catch(() => null)
       if (!target) return
       if (editsValue) {
@@ -10333,7 +10350,7 @@ export class BrowserTabsManager {
           description: `Type in ${this.reproTargetName(target)} (value not recorded)`,
           target,
           valueRedacted: true
-        }, queuedRecording)
+        }, context)
         return
       }
       const key = [input.control ? 'Ctrl' : '', input.meta ? 'Meta' : '', input.alt ? 'Alt' : '', input.shift ? 'Shift' : '', input.key === ' ' ? 'Space' : input.key]
@@ -10345,7 +10362,7 @@ export class BrowserTabsManager {
         description: `Press ${key} on ${this.reproTargetName(target)}`,
         target,
         key
-      }, queuedRecording)
+      }, context)
     })
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(input.key)) this.scheduleReproScroll(tab)
   }
@@ -10368,9 +10385,12 @@ export class BrowserTabsManager {
   private refreshReproScrollPosition(tab: BrowserTab): void {
     const recording = tab.reproRecording
     if (!recording?.active || tab.webContents.isDestroyed()) return
+    const navigationGeneration = tab.navigationGeneration
     void tab.webContents.executeJavaScript(reproScrollScript(), true)
       .then((scroll: { x: number; y: number }) => {
-        if (tab.reproRecording !== recording || !recording.active) return
+        if (tab.reproRecording !== recording
+          || !recording.active
+          || tab.navigationGeneration !== navigationGeneration) return
         if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return
         recording.scrollPosition = { x: Math.round(scroll.x), y: Math.round(scroll.y) }
       })
@@ -10380,8 +10400,11 @@ export class BrowserTabsManager {
   private async captureReproScroll(tab: BrowserTab): Promise<void> {
     const recording = tab.reproRecording
     if (!recording?.active || tab.webContents.isDestroyed()) return
+    const navigationGeneration = tab.navigationGeneration
     const scroll = await tab.webContents.executeJavaScript(reproScrollScript(), true) as { x: number; y: number }
-    if (tab.reproRecording !== recording || !recording.active) return
+    if (tab.reproRecording !== recording
+      || !recording.active
+      || tab.navigationGeneration !== navigationGeneration) return
     if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return
     const normalized = { x: Math.round(scroll.x), y: Math.round(scroll.y) }
     const previous = recording.scrollPosition

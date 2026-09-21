@@ -279,6 +279,82 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
     expect(newestState.isError, text(newestState)).not.toBe(true)
     expect((JSON.parse(text(newestState)) as { steps: Array<{ kind: string }> }).steps.map((step) => step.kind))
       .toEqual(['navigate'])
+
+    await electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
+      const view = BrowserWindow.getAllWindows()
+        .flatMap((window) => window.contentView.children)
+        .find((candidate): candidate is InstanceType<typeof WebContentsView> => (
+          candidate instanceof WebContentsView && candidate.webContents.getTitle() === 'Repro rejection fixture'
+        ))
+      if (!view) throw new Error('Repro rejection fixture view was not found')
+      const originalExecuteJavaScript = view.webContents.executeJavaScript.bind(view.webContents)
+      let resolveTarget!: (value: { selector: string; tag: string; label: string }) => void
+      const delayedTarget = new Promise<{ selector: string; tag: string; label: string }>((resolve) => { resolveTarget = resolve })
+      let interceptTarget = true
+      Object.defineProperty(view.webContents, 'executeJavaScript', {
+        configurable: true,
+        value: (code: string, userGesture?: boolean) => {
+          if (interceptTarget && code !== '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+            interceptTarget = false
+            ;(globalThis as typeof globalThis & { __hronautNavigatingReproTargetIntercepted?: boolean })
+              .__hronautNavigatingReproTargetIntercepted = true
+            return delayedTarget
+          }
+          return originalExecuteJavaScript(code, userGesture)
+        }
+      })
+      ;(globalThis as typeof globalThis & { __hronautResolveNavigatingReproTarget?: () => void })
+        .__hronautResolveNavigatingReproTarget = () => {
+          Object.defineProperty(view.webContents, 'executeJavaScript', {
+            configurable: true,
+            value: originalExecuteJavaScript
+          })
+          resolveTarget({ selector: 'body > main:nth-of-type(1)', tag: 'main', label: 'Obsolete page target' })
+          setImmediate(() => {
+            ;(globalThis as typeof globalThis & { __hronautNavigatingReproTargetSettled?: boolean })
+              .__hronautNavigatingReproTargetSettled = true
+          })
+        }
+      view.webContents.focus()
+      view.webContents.sendInputEvent({ type: 'mouseDown', x: 100, y: 100, button: 'left', clickCount: 1 })
+      view.webContents.sendInputEvent({ type: 'mouseUp', x: 100, y: 100, button: 'left', clickCount: 1 })
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautNavigatingReproTargetIntercepted?: boolean })
+        .__hronautNavigatingReproTargetIntercepted === true
+    ))).toBe(true)
+
+    const navigated = await client.callTool({
+      name: 'browser_navigate',
+      arguments: { tabId, url: `http://127.0.0.1:${address.port}/after-delayed-target` }
+    }) as CallToolResult
+    expect(navigated.isError, text(navigated)).not.toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & { __hronautResolveNavigatingReproTarget?: () => void }
+      mainGlobal.__hronautResolveNavigatingReproTarget?.()
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautNavigatingReproTargetSettled?: boolean })
+        .__hronautNavigatingReproTargetSettled === true
+    ))).toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautNavigatingReproTargetIntercepted?: boolean
+        __hronautNavigatingReproTargetSettled?: boolean
+        __hronautResolveNavigatingReproTarget?: () => void
+      }
+      delete mainGlobal.__hronautNavigatingReproTargetIntercepted
+      delete mainGlobal.__hronautNavigatingReproTargetSettled
+      delete mainGlobal.__hronautResolveNavigatingReproTarget
+    })
+
+    const navigatedState = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'get' }
+    }) as CallToolResult
+    expect(navigatedState.isError, text(navigatedState)).not.toBe(true)
+    expect((JSON.parse(text(navigatedState)) as { steps: Array<{ kind: string }> }).steps.map((step) => step.kind))
+      .toEqual(['navigate', 'navigate'])
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
