@@ -1873,6 +1873,81 @@ describe('WalletBroker', () => {
     }))
   })
 
+  it.each(['solana', 'tron'] as const)(
+    'disconnects an active %s provider session when its permission or wallet is removed',
+    async (chainFamily) => {
+      const { service } = await setup()
+      const generated = await service.generate({
+        name: `${chainFamily} wallet`,
+        chainFamily,
+        network: chainFamily === 'solana'
+          ? { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' }
+          : { id: 'nile', name: 'Tron Nile', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8090' },
+        workspaceIds: ['workspace-1']
+      })
+      const wallet = await service.confirmRecovery(generated.wallet.id)
+      const permission = await service.permissions.grant({
+        walletId: wallet.id,
+        workspaceId: 'workspace-1',
+        origin: 'https://dapp.example',
+        account: wallet.publicAddress,
+        chainFamily,
+        networkId: wallet.network.id,
+        capabilities: ['read'],
+        requester: { type: 'website', id: 'https://dapp.example' },
+        expiresAt: '2027-09-21T12:00:00.000Z'
+      })
+      const providerEvent = vi.fn()
+      const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: providerEvent })
+
+      await expect(broker.providerRequest(context(), chainFamily === 'solana'
+        ? { family: 'solana', method: 'connect', params: { silent: true } }
+        : { family: 'tron', method: 'eth_requestAccounts' }
+      )).resolves.toBeDefined()
+      providerEvent.mockClear()
+
+      await expect(broker.revokePermission(permission.id)).resolves.toBe(true)
+
+      expect(providerEvent).toHaveBeenCalledWith('tab-1', {
+        family: chainFamily,
+        event: 'accountsChanged',
+        payload: []
+      })
+      expect(providerEvent).toHaveBeenCalledWith('tab-1', {
+        family: chainFamily,
+        event: 'disconnect'
+      })
+
+      await service.permissions.grant({
+        walletId: wallet.id,
+        workspaceId: 'workspace-1',
+        origin: 'https://dapp.example',
+        account: wallet.publicAddress,
+        chainFamily,
+        networkId: wallet.network.id,
+        capabilities: ['read'],
+        requester: { type: 'website', id: 'https://dapp.example' },
+        expiresAt: '2027-09-21T12:00:00.000Z'
+      })
+      await broker.providerRequest(context(), chainFamily === 'solana'
+        ? { family: 'solana', method: 'connect', params: { silent: true } }
+        : { family: 'tron', method: 'eth_requestAccounts' })
+      providerEvent.mockClear()
+
+      await expect(broker.removeWallet(wallet.id)).resolves.toBe(true)
+
+      expect(providerEvent).toHaveBeenCalledWith('tab-1', {
+        family: chainFamily,
+        event: 'accountsChanged',
+        payload: []
+      })
+      expect(providerEvent).toHaveBeenCalledWith('tab-1', {
+        family: chainFamily,
+        event: 'disconnect'
+      })
+    }
+  )
+
   it('keeps silent Solana reconnect checks from opening trusted approval UI', async () => {
     const { service } = await setup()
     const generated = await service.generate({

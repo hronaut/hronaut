@@ -65,6 +65,17 @@ interface EvmProviderSession {
   accounts: string[]
 }
 
+interface AccountProviderSession {
+  family: Exclude<WalletChainFamily, 'evm'>
+  walletId: string
+  workspaceId: string
+  tabId: string
+  navigationGeneration: number
+  topLevelOrigin: string
+  requester: WalletRequester
+  account: string
+}
+
 export interface WalletBrokerOptions {
   adapters?: Partial<Record<WalletChainFamily, WalletChainAdapter>>
   now?: () => Date
@@ -210,6 +221,7 @@ export class WalletBroker {
   private readonly confirmationTasks = new Set<Promise<void>>()
   private readonly agentOperations = new Map<string, AgentOperationLifecycle>()
   private readonly evmProviderSessions = new Map<string, EvmProviderSession>()
+  private readonly accountProviderSessions = new Map<string, AccountProviderSession>()
   private readonly minimumNavigationGeneration = new Map<string, number>()
   private readonly closedTabs = new Set<string>()
   private readonly confirmationShutdown = new AbortController()
@@ -248,6 +260,7 @@ export class WalletBroker {
       this.requestExpiryCancellations.clear()
       for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
       this.evmProviderSessions.clear()
+      this.accountProviderSessions.clear()
     })()
     return this.shutdownPromise
   }
@@ -426,7 +439,7 @@ export class WalletBroker {
       try {
         return await this.service.update(walletId, validated)
       } finally {
-        this.reconcileEvmProviderSessions()
+        this.reconcileProviderSessions()
         this.rejectCancelled()
       }
     })
@@ -445,7 +458,7 @@ export class WalletBroker {
       try {
         return await this.service.remove(walletId)
       } finally {
-        this.reconcileEvmProviderSessions()
+        this.reconcileProviderSessions()
         this.rejectCancelled()
       }
     })
@@ -469,14 +482,14 @@ export class WalletBroker {
         }
         return revoked
       } finally {
-        if (!this.service.permissions.get(permissionId)) this.reconcileEvmProviderSessions()
+        if (!this.service.permissions.get(permissionId)) this.reconcileProviderSessions()
         this.rejectCancelled()
       }
     })
   }
 
   refreshProviderSessions(): void {
-    this.reconcileEvmProviderSessions()
+    this.reconcileProviderSessions()
   }
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
@@ -580,6 +593,9 @@ export class WalletBroker {
     this.clearEvmProviderSessions((session) => (
       session.tabId === tabId && session.navigationGeneration < generation
     ))
+    this.clearAccountProviderSessions((session) => (
+      session.tabId === tabId && session.navigationGeneration < generation
+    ))
     await this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForNavigation(tabId, generation)
@@ -592,6 +608,7 @@ export class WalletBroker {
   async cancelForTab(tabId: string): Promise<void> {
     this.closedTabs.add(tabId)
     this.clearEvmProviderSessions((session) => session.tabId === tabId)
+    this.clearAccountProviderSessions((session) => session.tabId === tabId)
     await this.queueLifecycle(async () => {
       try {
         await this.service.approvals.cancelForTab(tabId)
@@ -616,6 +633,7 @@ export class WalletBroker {
 
   async cancelForWorkspace(workspaceId: string): Promise<void> {
     this.clearEvmProviderSessions((session) => session.workspaceId === workspaceId)
+    this.clearAccountProviderSessions((session) => session.workspaceId === workspaceId)
     await this.queueLifecycle(async () => {
       try {
         await Promise.all([
@@ -637,6 +655,9 @@ export class WalletBroker {
     this.agentOperations.set(requesterId, lifecycle)
     lifecycle.cancelled = true
     this.clearEvmProviderSessions((session) => (
+      session.requester.type === 'agent' && session.requester.id === requesterId
+    ))
+    this.clearAccountProviderSessions((session) => (
       session.requester.type === 'agent' && session.requester.id === requesterId
     ))
     const cancel = () => this.queueLifecycle(async () => {
@@ -718,6 +739,7 @@ export class WalletBroker {
     const wallet = this.selectWallet(wallets)
     if (method === 'connect') {
       const accounts = await this.connect(context, wallet)
+      this.trackAccountProviderSession(context, wallet)
       return { accounts: (accounts as string[]).map((value) => ({
         address: value,
         publicKey: getAddressEncoder().encode(address(value)),
@@ -776,9 +798,18 @@ export class WalletBroker {
   }
 
   private async tronRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'eth_accounts') return this.permittedAccounts(context, wallets)
+    if (method === 'eth_accounts') {
+      const accounts = this.permittedAccounts(context, wallets)
+      const wallet = wallets.find((entry) => accounts.includes(entry.publicAddress))
+      if (wallet) this.trackAccountProviderSession(context, wallet)
+      return accounts
+    }
     const wallet = this.selectWallet(wallets)
-    if (method === 'eth_requestAccounts') return this.connect(context, wallet)
+    if (method === 'eth_requestAccounts') {
+      const accounts = await this.connect(context, wallet)
+      this.trackAccountProviderSession(context, wallet)
+      return accounts
+    }
     if (method === 'wallet_switchEthereumChain') {
       const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
       if (chainId !== wallet.network.id) throw new Error('Requested Tron network is not configured for this workspace wallet')
@@ -1267,6 +1298,16 @@ export class WalletBroker {
             requester: permission.requester
           }, this.now().toISOString())
         }
+        this.clearAccountProviderSessions((session) => (
+          session.family === wallet.chainFamily
+          && session.walletId === wallet.id
+          && session.workspaceId === context.workspaceId
+          && session.tabId === context.tabId
+          && session.navigationGeneration === context.navigationGeneration
+          && session.topLevelOrigin === context.topLevelOrigin
+          && session.requester.type === context.requester.type
+          && session.requester.id === context.requester.id
+        ))
         this.options.onProviderEvent?.(context.tabId, { family: wallet.chainFamily, event: 'disconnect' })
       } finally {
         this.rejectCancelled()
@@ -1435,6 +1476,67 @@ export class WalletBroker {
     for (const [key, session] of this.evmProviderSessions) {
       if (predicate(session)) this.evmProviderSessions.delete(key)
     }
+  }
+
+  private accountProviderSessionKey(context: WalletBrokerContext, family: Exclude<WalletChainFamily, 'evm'>): string {
+    return JSON.stringify([
+      family,
+      context.workspaceId,
+      context.tabId,
+      context.navigationGeneration,
+      context.topLevelOrigin,
+      context.requester.type,
+      context.requester.id
+    ])
+  }
+
+  private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): void {
+    if (wallet.chainFamily === 'evm') return
+    this.accountProviderSessions.set(this.accountProviderSessionKey(context, wallet.chainFamily), {
+      family: wallet.chainFamily,
+      walletId: wallet.id,
+      workspaceId: context.workspaceId,
+      tabId: context.tabId,
+      navigationGeneration: context.navigationGeneration,
+      topLevelOrigin: context.topLevelOrigin,
+      requester: structuredClone(context.requester),
+      account: wallet.publicAddress
+    })
+  }
+
+  private clearAccountProviderSessions(predicate: (session: AccountProviderSession) => boolean): void {
+    for (const [key, session] of this.accountProviderSessions) {
+      if (predicate(session)) this.accountProviderSessions.delete(key)
+    }
+  }
+
+  private reconcileAccountProviderSessions(): void {
+    for (const [key, session] of this.accountProviderSessions) {
+      const context: WalletBrokerContext = {
+        workspaceId: session.workspaceId,
+        tabId: session.tabId,
+        navigationGeneration: session.navigationGeneration,
+        topLevelOrigin: session.topLevelOrigin,
+        requester: structuredClone(session.requester)
+      }
+      const wallet = this.accessibleWallets(context, session.family).find((entry) => entry.id === session.walletId)
+      if (wallet?.publicAddress === session.account && this.hasAddressPermission(context, wallet)) continue
+      this.accountProviderSessions.delete(key)
+      this.options.onProviderEvent?.(session.tabId, {
+        family: session.family,
+        event: 'accountsChanged',
+        payload: []
+      })
+      this.options.onProviderEvent?.(session.tabId, {
+        family: session.family,
+        event: 'disconnect'
+      })
+    }
+  }
+
+  private reconcileProviderSessions(): void {
+    this.reconcileEvmProviderSessions()
+    this.reconcileAccountProviderSessions()
   }
 
   private reconcileEvmProviderSessions(): void {
