@@ -733,11 +733,20 @@ export class WalletBroker {
   }
 
   private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
-    if (method === 'connect' && isSilentSolanaConnect(params)) {
-      const wallet = wallets.find((entry) => entry.kind !== 'watch-only') ?? wallets[0]
-      if (!wallet || !this.hasAddressPermission(context, wallet)) return { accounts: [] }
-    }
-    const wallet = this.selectWallet(wallets)
+    const providerSession = this.accountProviderSessions.get(this.accountProviderSessionKey(context, 'solana'))
+    const connectedWallet = providerSession
+      ? wallets.find((entry) => (
+          entry.id === providerSession.walletId
+          && entry.publicAddress === providerSession.account
+          && this.hasAddressPermission(context, entry)
+        ))
+      : undefined
+    const permittedWallet = method === 'connect'
+      ? wallets.find((entry) => entry.kind !== 'watch-only' && this.hasAddressPermission(context, entry))
+        ?? wallets.find((entry) => this.hasAddressPermission(context, entry))
+      : undefined
+    if (method === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
+    const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
     if (method === 'connect') {
       const accounts = await this.connect(context, wallet)
       this.trackAccountProviderSession(context, wallet)

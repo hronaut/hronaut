@@ -2047,6 +2047,58 @@ describe('WalletBroker', () => {
     expect(service.permissions.list()).toHaveLength(1)
   })
 
+  it('reconnects the previously authorized Solana wallet when another wallet sorts first', async () => {
+    const { service } = await setup()
+    const authorizedResult = await service.generate({
+      name: 'Zeta authorized', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const authorized = await service.confirmRecovery(authorizedResult.wallet.id)
+    const preferredResult = await service.generate({
+      name: 'Alpha unconnected', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    await service.confirmRecovery(preferredResult.wallet.id)
+    await service.permissions.grant({
+      walletId: authorized.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: authorized.publicAddress,
+      chainFamily: 'solana',
+      networkId: authorized.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect', params: { silent: true }
+    })).resolves.toMatchObject({ accounts: [{ address: authorized.publicAddress }] })
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'connect'
+    })).resolves.toMatchObject({ accounts: [{ address: authorized.publicAddress }] })
+    expect(broker.listPending().filter((request) => request.operation === 'connect-account')).toHaveLength(0)
+
+    const signing = settle(broker.providerRequest(context(), {
+      family: 'solana', method: 'signMessage',
+      params: [{ account: { address: authorized.publicAddress }, message: Uint8Array.from([1, 2, 3]) }]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.walletId === authorized.id && request.operation === 'sign-message' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'disconnect'
+    })).resolves.toBeUndefined()
+    await expect(signing).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+    expect(service.permissions.list().filter((permission) => permission.chainFamily === 'solana')).toHaveLength(0)
+  })
+
   it('does not advertise signing features for a watch-only Solana account', async () => {
     const { service } = await setup()
     const wallet = await service.addWatchOnly({
