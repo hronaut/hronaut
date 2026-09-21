@@ -118,6 +118,41 @@ describe('wallet provider bootstrap', () => {
     expect(error).toMatchObject({ code: 1000, message: 'EVM provider disconnected' })
   })
 
+  it('snapshots EIP-1193 listeners before delivering an event', () => {
+    installHronautWalletProviders()
+    const calls: string[] = []
+    const addedDuringDelivery = () => { calls.push('added') }
+    const removedDuringDelivery = () => { calls.push('removed') }
+    const first = () => {
+      calls.push('first')
+      target.ethereum?.removeListener('accountsChanged', removedDuringDelivery)
+      target.ethereum?.on('accountsChanged', addedDuringDelivery)
+    }
+    target.ethereum?.on('accountsChanged', first)
+    target.ethereum?.on('accountsChanged', removedDuringDelivery)
+
+    emitWalletEvent({ family: 'evm', event: 'accountsChanged', payload: ['0x01'] })
+    expect(calls).toEqual(['first', 'removed'])
+
+    calls.length = 0
+    emitWalletEvent({ family: 'evm', event: 'accountsChanged', payload: ['0x02'] })
+    expect(calls).toEqual(['first', 'added'])
+  })
+
+  it('supports duplicate EIP-1193 listener registrations and removes one at a time', () => {
+    installHronautWalletProviders()
+    const listener = vi.fn()
+    target.ethereum?.on('chainChanged', listener)
+    target.ethereum?.on('chainChanged', listener)
+
+    emitWalletEvent({ family: 'evm', event: 'chainChanged', payload: '0x1' })
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    target.ethereum?.removeListener('chainChanged', listener)
+    emitWalletEvent({ family: 'evm', event: 'chainChanged', payload: '0x2' })
+    expect(listener).toHaveBeenCalledTimes(3)
+  })
+
   it('registers Solana Wallet Standard and exposes narrowly scoped legacy compatibility', async () => {
     const register = vi.fn()
     window.addEventListener('wallet-standard:register-wallet', (event) => {

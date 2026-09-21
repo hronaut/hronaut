@@ -25,11 +25,18 @@ export function installHronautWalletProviders(): void {
   if (!bridge || target.hronautEthereum || target.hronautSolana || target.hronautTron) return
 
   const createEmitter = (family: ProviderFamily) => {
-    const listeners = new Map<string, Set<Listener>>()
+    const listeners = new Map<string, Listener[]>()
     const emit = (event: string, payload?: unknown): void => {
-      for (const listener of listeners.get(event) ?? []) {
+      for (const listener of [...(listeners.get(event) ?? [])]) {
         try { listener(payload) } catch { /* A page listener must not break provider delivery. */ }
       }
+    }
+    const remove = (event: string, listener: Listener): void => {
+      const entries = listeners.get(event)
+      if (!entries) return
+      const index = entries.lastIndexOf(listener)
+      if (index >= 0) entries.splice(index, 1)
+      if (!entries.length) listeners.delete(event)
     }
     const receive = (message: { family: ProviderFamily; event: ProviderEvent; payload?: unknown }): void => {
       if (message.family !== family) return
@@ -52,17 +59,17 @@ export function installHronautWalletProviders(): void {
     return Object.freeze({
       on(event: string, listener: Listener) {
         if (typeof event !== 'string' || typeof listener !== 'function') throw new TypeError('Invalid wallet event listener')
-        const entries = listeners.get(event) ?? new Set<Listener>()
-        entries.add(listener)
+        const entries = listeners.get(event) ?? []
+        entries.push(listener)
         listeners.set(event, entries)
         return this
       },
       removeListener(event: string, listener: Listener) {
-        listeners.get(event)?.delete(listener)
+        remove(event, listener)
         return this
       },
       off(event: string, listener: Listener) {
-        listeners.get(event)?.delete(listener)
+        remove(event, listener)
         return this
       },
       emit
