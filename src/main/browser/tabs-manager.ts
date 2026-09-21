@@ -687,9 +687,11 @@ interface BrowserTab {
   emulation: BrowserEmulationState
   emulationExtraHttpHeaders: Record<string, string>
   mcpGroupId?: string
+  snapshotBaselineGeneration: number
   accessibilityBaseline?: BrowserAccessibilityAudit
   accessibilityBaselineGeneration: number
   memoryBaseline?: { url: string; measurement: BrowserMemoryMeasurement }
+  memoryBaselineGeneration: number
   performanceBaseline?: {
     report: BrowserPerformanceReport
     environment: BrowserPerformanceEnvironment
@@ -4898,8 +4900,18 @@ export class BrowserTabsManager {
 
   async setSnapshotBaseline(tabId?: string, maxChars = 30_000) {
     const tab = this.getTab(tabId)
+    const operationGeneration = ++tab.snapshotBaselineGeneration
     const snapshot = await this.snapshotDetails(tab.id, maxChars)
-    const context = this.snapshotDeltaContext(this.getTab(tab.id))
+    const current = this.tabs.get(tab.id)
+    if (
+      !current
+      || current !== tab
+      || current.webContents.isDestroyed()
+      || current.snapshotBaselineGeneration !== operationGeneration
+    ) {
+      throw new Error('Snapshot baseline changed while capture was pending. Run the requested action again.')
+    }
+    const context = this.snapshotDeltaContext(current)
     this.deleteSnapshotBaselineForTab(tab.id)
     while (this.snapshotBaselines.size >= MAX_SNAPSHOT_BASELINES) {
       const oldestId = this.snapshotBaselines.keys().next().value as string | undefined
@@ -4920,6 +4932,7 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     const currentId = this.snapshotBaselineIdsByTab.get(tab.id)
     const cleared = Boolean(currentId && (!baselineId || baselineId === currentId))
+    if (!baselineId || baselineId === currentId) tab.snapshotBaselineGeneration += 1
     if (cleared) this.deleteSnapshotBaselineForTab(tab.id)
     return {
       action: 'clear-baseline' as const,
@@ -4964,6 +4977,9 @@ export class BrowserTabsManager {
         changes: []
       }
     }
+    const advanceGeneration = options.advanceBaseline === false
+      ? undefined
+      : ++tab.snapshotBaselineGeneration
 
     let snapshot: BrowserSnapshot
     try {
@@ -4989,6 +5005,17 @@ export class BrowserTabsManager {
         }
       }
       throw error
+    }
+    if (
+      advanceGeneration !== undefined
+      && (
+        this.tabs.get(tab.id) !== tab
+        || tab.snapshotBaselineGeneration !== advanceGeneration
+        || this.snapshotBaselineIdsByTab.get(tab.id) !== options.baselineId
+        || this.snapshotBaselines.get(options.baselineId) !== baseline
+      )
+    ) {
+      throw new Error('Snapshot baseline changed while delta capture was pending. Run the requested action again.')
     }
     const { text, ...sourceSnapshot } = snapshot
     const result = boundedSnapshotDelta(baseline.snapshot.text, text, maxOutputChars, {
@@ -5588,6 +5615,7 @@ export class BrowserTabsManager {
   async memoryReport(options: BrowserMemoryOptions = {}): Promise<BrowserMemoryReport> {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before measuring memory')
+    const navigationGeneration = tab.navigationGeneration
     const action = options.action ?? 'measure'
     if (![
       'measure',
@@ -5598,6 +5626,9 @@ export class BrowserTabsManager {
       'clear-allocation-sampling'
     ].includes(action)) throw new Error('Unsupported memory action')
 
+    const baselineGeneration = action === 'set-baseline' || action === 'clear-baseline'
+      ? ++tab.memoryBaselineGeneration
+      : undefined
     if (tab.memoryBaseline && tab.memoryBaseline.url !== tab.url) tab.memoryBaseline = undefined
     if (action === 'clear-baseline') {
       const cleared = Boolean(tab.memoryBaseline)
@@ -5676,6 +5707,21 @@ export class BrowserTabsManager {
     }
 
     const current = await this.captureMemoryMeasurement(tab, options.collectGarbage === true)
+    const currentTab = this.tabs.get(tab.id)
+    if (
+      !currentTab
+      || currentTab !== tab
+      || currentTab.webContents.isDestroyed()
+      || currentTab.navigationGeneration !== navigationGeneration
+    ) {
+      throw new Error('The page changed during the memory measurement. Run a fresh measurement.')
+    }
+    if (
+      baselineGeneration !== undefined
+      && tab.memoryBaselineGeneration !== baselineGeneration
+    ) {
+      throw new Error('Memory baseline changed while the measurement was pending. Run the requested action again.')
+    }
     if (action === 'set-baseline') {
       tab.memoryBaseline = { url: tab.url, measurement: current }
       return this.memoryReportResult(tab, action, options.collectGarbage === true, false, current)
@@ -8381,7 +8427,9 @@ export class BrowserTabsManager {
       pendingHistoryUrl: null,
       emulation: { ...DEFAULT_EMULATION },
       emulationExtraHttpHeaders: {},
+      snapshotBaselineGeneration: 0,
       accessibilityBaselineGeneration: 0,
+      memoryBaselineGeneration: 0,
       performanceBaselineGeneration: 0,
       visualComparisonGeneration: 0,
       storageComparisonGeneration: 0,

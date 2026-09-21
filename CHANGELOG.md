@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent delayed semantic snapshot and memory measurements from restoring or advancing obsolete baselines, and reject memory results captured across navigation.
 - Keep delayed accessibility and performance baseline measurements from recreating or overwriting state after a newer clear or replacement request, and reject performance results captured across navigation.
 - Keep delayed Site Storage baseline and comparison snapshots from overwriting a newer clear or request.
 - Keep a delayed visual-comparison capture from recreating or overwriting state after a newer clear, baseline, or comparison request.
