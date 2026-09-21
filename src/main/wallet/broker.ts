@@ -21,6 +21,7 @@ import {
   WalletUpdateInputSchema,
   walletAllowsWorkspace
 } from '../../shared/wallet.js'
+import { normalizeTronProviderChainId, tronProviderChainId } from '../../shared/tron-chain-id.js'
 import { signWalletPayload, type WalletMessageSigningInput } from './accounts.js'
 import type { WalletApprovalRecord } from './approvals.js'
 import { EvmWalletAdapter } from './adapters/evm.js'
@@ -801,18 +802,29 @@ export class WalletBroker {
     if (method === 'eth_accounts') {
       const accounts = this.permittedAccounts(context, wallets)
       const wallet = wallets.find((entry) => accounts.includes(entry.publicAddress))
-      if (wallet) this.trackAccountProviderSession(context, wallet)
+      if (wallet && this.trackAccountProviderSession(context, wallet)) {
+        this.publishTronConnection(context, wallet)
+      }
       return accounts
     }
     const wallet = this.selectWallet(wallets)
+    if (method === 'eth_chainId') {
+      const chainId = tronProviderChainId(wallet.network.id)
+      if (!chainId) throw new Error('Tron provider chain ID is unavailable for the configured network')
+      return chainId
+    }
     if (method === 'eth_requestAccounts') {
       const accounts = await this.connect(context, wallet)
-      this.trackAccountProviderSession(context, wallet)
+      if (this.trackAccountProviderSession(context, wallet)) this.publishTronConnection(context, wallet)
       return accounts
     }
     if (method === 'wallet_switchEthereumChain') {
-      const chainId = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
-      if (chainId !== wallet.network.id) throw new Error('Requested Tron network is not configured for this workspace wallet')
+      const requested = (paramsArray(params)[0] as { chainId?: unknown } | undefined)?.chainId
+      const chainId = typeof requested === 'string' ? normalizeTronProviderChainId(requested) : undefined
+      if (!chainId) throw new Error('Requested Tron chain is invalid')
+      if (chainId !== tronProviderChainId(wallet.network.id)) {
+        throw new Error('Requested Tron network is not configured for this workspace wallet')
+      }
       return null
     }
     this.assertAddressPermission(context, wallet, method === 'tron_signAndSendTransaction' ? 'send' : 'sign')
@@ -1060,10 +1072,6 @@ export class WalletBroker {
       }
       if (wallet.chainFamily === 'evm') {
         this.reconcileEvmProviderSessions()
-      } else if (wallet.chainFamily !== 'solana') {
-        this.options.onProviderEvent?.(record.request.tabId, {
-          family: wallet.chainFamily, event: 'accountsChanged', payload: [wallet.publicAddress]
-        })
       }
       return [wallet.publicAddress]
     }
@@ -1490,9 +1498,11 @@ export class WalletBroker {
     ])
   }
 
-  private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): void {
-    if (wallet.chainFamily === 'evm') return
-    this.accountProviderSessions.set(this.accountProviderSessionKey(context, wallet.chainFamily), {
+  private trackAccountProviderSession(context: WalletBrokerContext, wallet: WalletDescriptor): boolean {
+    if (wallet.chainFamily === 'evm') return false
+    const key = this.accountProviderSessionKey(context, wallet.chainFamily)
+    const existing = this.accountProviderSessions.get(key)
+    this.accountProviderSessions.set(key, {
       family: wallet.chainFamily,
       walletId: wallet.id,
       workspaceId: context.workspaceId,
@@ -1502,6 +1512,19 @@ export class WalletBroker {
       requester: structuredClone(context.requester),
       account: wallet.publicAddress
     })
+    return !existing || existing.walletId !== wallet.id || existing.account !== wallet.publicAddress
+  }
+
+  private publishTronConnection(context: WalletBrokerContext, wallet: WalletDescriptor): void {
+    this.options.onProviderEvent?.(context.tabId, {
+      family: 'tron', event: 'accountsChanged', payload: [wallet.publicAddress]
+    })
+    const chainId = tronProviderChainId(wallet.network.id)
+    if (chainId) {
+      this.options.onProviderEvent?.(context.tabId, {
+        family: 'tron', event: 'connect', payload: { chainId }
+      })
+    }
   }
 
   private clearAccountProviderSessions(predicate: (session: AccountProviderSession) => boolean): void {
@@ -1529,7 +1552,10 @@ export class WalletBroker {
       })
       this.options.onProviderEvent?.(session.tabId, {
         family: session.family,
-        event: 'disconnect'
+        event: 'disconnect',
+        ...(session.family === 'tron' ? {
+          payload: { code: 4900, message: 'Tron provider disconnected' }
+        } : {})
       })
     }
   }

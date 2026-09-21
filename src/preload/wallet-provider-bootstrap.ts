@@ -34,16 +34,16 @@ export function installHronautWalletProviders(): void {
     const receive = (message: { family: ProviderFamily; event: ProviderEvent; payload?: unknown }): void => {
       if (message.family !== family) return
       let payload = message.payload
-      if (family === 'evm' && message.event === 'disconnect') {
+      if ((family === 'evm' || family === 'tron') && message.event === 'disconnect') {
         const candidate = payload && typeof payload === 'object'
           ? payload as { code?: unknown; message?: unknown }
           : {}
         const code = typeof candidate.code === 'number' && Number.isInteger(candidate.code)
           ? candidate.code
-          : 1000
+          : family === 'tron' ? 4900 : 1000
         const errorMessage = typeof candidate.message === 'string'
           ? candidate.message
-          : 'EVM provider disconnected'
+          : family === 'tron' ? 'Tron provider disconnected' : 'EVM provider disconnected'
         payload = Object.assign(new Error(errorMessage), { code })
       }
       emit(message.event, payload)
@@ -89,11 +89,11 @@ export function installHronautWalletProviders(): void {
               ? 4200
               : /no wallet is attached/i.test(message)
                 ? 4900
-              : /chain is not configured/i.test(message)
-                ? 4902
-              : /chain|network/i.test(message)
-                ? 4901
-                : -32603
+                : /chain is not configured/i.test(message)
+                  ? family === 'evm' ? 4902 : 4901
+                  : /chain|network/i.test(message)
+                    ? 4901
+                    : -32603
       throw Object.assign(new Error(message), { code })
     }
   }
@@ -350,6 +350,7 @@ export function installHronautWalletProviders(): void {
   if (!target.solana) target.solana = legacySolana
 
   const tronEvents = createEmitter('tron')
+  const requestTron = providerRequest('tron')
   let tronAddress: string | undefined
   const tronDefaultAddress = Object.freeze({
     get base58() { return tronAddress ?? false },
@@ -360,26 +361,17 @@ export function installHronautWalletProviders(): void {
     get defaultAddress() { return tronDefaultAddress },
     isConnected: () => Boolean(tronAddress),
     trx: Object.freeze({
-      sign: (transaction: unknown) => bridge.request({ family: 'tron', method: 'tron_signTransaction', params: [transaction] }),
-      signMessageV2: (message: unknown) => bridge.request({ family: 'tron', method: 'tron_signMessage', params: [message] })
+      sign: (transaction: unknown) => requestTron({ method: 'tron_signTransaction', params: [transaction] }),
+      signMessageV2: (message: unknown) => requestTron({ method: 'tron_signMessage', params: [message] })
     })
   })
-  bridge.subscribe((event) => {
-    if (event.family !== 'tron') return
-    if (event.event === 'accountsChanged') {
-      tronAddress = Array.isArray(event.payload) && typeof event.payload[0] === 'string' ? event.payload[0] : undefined
-    } else if (event.event === 'disconnect') {
-      tronAddress = undefined
-    }
+  tronEvents.on('accountsChanged', (accounts) => {
+    tronAddress = Array.isArray(accounts) && typeof accounts[0] === 'string' ? accounts[0] : undefined
   })
+  tronEvents.on('disconnect', () => { tronAddress = undefined })
   const tronRequest = async (input: unknown): Promise<unknown> => {
-    if (!input || typeof input !== 'object' || typeof (input as { method?: unknown }).method !== 'string') {
-      throw new TypeError('Wallet request must include a method')
-    }
-    const request = input as { method: string; params?: unknown }
-    const result = await bridge.request({
-      family: 'tron', method: request.method, ...(request.params === undefined ? {} : { params: request.params })
-    })
+    const request = input as { method?: unknown }
+    const result = await requestTron(input)
     if ((request.method === 'eth_requestAccounts' || request.method === 'eth_accounts') && Array.isArray(result)) {
       tronAddress = typeof result[0] === 'string' ? result[0] : undefined
     }

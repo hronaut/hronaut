@@ -141,9 +141,9 @@ describe('wallet provider discovery lifecycle', () => {
     const tron = collect(bridged.page, 'TIP6963:announceProvider')
 
     bridged.install()
-    expect(bridged.subscribe).toHaveBeenCalledTimes(4)
+    expect(bridged.subscribe).toHaveBeenCalledTimes(3)
     bridged.install()
-    expect(bridged.subscribe).toHaveBeenCalledTimes(4)
+    expect(bridged.subscribe).toHaveBeenCalledTimes(3)
     expect(evm).toHaveLength(1)
     expect(tron).toHaveLength(1)
 

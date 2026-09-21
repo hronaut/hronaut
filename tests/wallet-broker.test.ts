@@ -1915,7 +1915,10 @@ describe('WalletBroker', () => {
       })
       expect(providerEvent).toHaveBeenCalledWith('tab-1', {
         family: chainFamily,
-        event: 'disconnect'
+        event: 'disconnect',
+        ...(chainFamily === 'tron' ? {
+          payload: { code: 4900, message: 'Tron provider disconnected' }
+        } : {})
       })
 
       await service.permissions.grant({
@@ -1943,10 +1946,61 @@ describe('WalletBroker', () => {
       })
       expect(providerEvent).toHaveBeenCalledWith('tab-1', {
         family: chainFamily,
-        event: 'disconnect'
+        event: 'disconnect',
+        ...(chainFamily === 'tron' ? {
+          payload: { code: 4900, message: 'Tron provider disconnected' }
+        } : {})
       })
     }
   )
+
+  it('uses TIP-1193 Tron chain IDs and publishes ordered connection events once per session', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Tron wallet',
+      chainFamily: 'tron',
+      network: {
+        id: 'shasta', name: 'TRON Shasta', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8090'
+      },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'tron',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: '2027-09-21T12:00:00.000Z'
+    })
+    const providerEvent = vi.fn()
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, onProviderEvent: providerEvent })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_chainId'
+    })).resolves.toBe('0x94a9059e')
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'wallet_switchEthereumChain', params: [{ chainId: '0x94a9059e' }]
+    })).resolves.toBeNull()
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'wallet_switchEthereumChain', params: [{ chainId: 'shasta' }]
+    })).rejects.toThrow('Requested Tron chain is invalid')
+
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_accounts'
+    })).resolves.toEqual([wallet.publicAddress])
+    expect(providerEvent.mock.calls).toEqual([
+      ['tab-1', { family: 'tron', event: 'accountsChanged', payload: [wallet.publicAddress] }],
+      ['tab-1', { family: 'tron', event: 'connect', payload: { chainId: '0x94a9059e' } }]
+    ])
+
+    providerEvent.mockClear()
+    await broker.providerRequest(context(), { family: 'tron', method: 'eth_accounts' })
+    expect(providerEvent).not.toHaveBeenCalled()
+  })
 
   it('keeps silent Solana reconnect checks from opening trusted approval UI', async () => {
     const { service } = await setup()

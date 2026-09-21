@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Align the injected Tron provider with TIP-1193 by using official hexadecimal chain IDs, typed provider errors and disconnect payloads, ordered account state updates, and connect events.
 - Disconnect active Solana and Tron provider sessions immediately when their account permission or backing wallet is removed, preventing dApps from retaining stale connected state.
 - Reject an explicitly empty `HRONAUT_MCP_TOKEN` in both the desktop runtime and packaged MCPB adapter instead of silently generating a different profile token or starting an unauthenticated adapter.
 - Notify Solana Wallet Standard apps when an account's chain, signing features, public key, or display metadata changes without an address change, and return a numeric EIP-1193 error for malformed request arguments.

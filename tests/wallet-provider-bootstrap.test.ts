@@ -34,6 +34,8 @@ interface TestWindow extends Window {
     request(input: unknown): Promise<unknown>
     isHronaut: boolean
     isTronLink?: boolean
+    on(event: string, listener: (...args: unknown[]) => void): TestWindow['tron']
+    removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['tron']
     tronWeb: false | {
       ready: boolean
       defaultAddress: { base58: string | false }
@@ -389,6 +391,59 @@ describe('wallet provider bootstrap', () => {
     expect(announcements[0]?.detail.info.rdns).toBe('dev.hronaut.wallet')
   })
 
+  it('returns TIP-1193 provider errors for Tron requests and compatibility calls', async () => {
+    installHronautWalletProviders()
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(
+      new Error('Unsupported Tron wallet method: dangerous')
+    )
+    await expect(target.tron?.request({ method: 'dangerous' })).rejects.toMatchObject({
+      code: 4200,
+      message: 'Unsupported Tron wallet method: dangerous'
+    })
+
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(
+      new Error('Requested Tron network is not configured for this workspace wallet')
+    )
+    await expect(target.tron?.request({
+      method: 'wallet_switchEthereumChain', params: [{ chainId: '0x1' }]
+    })).rejects.toMatchObject({ code: 4901 })
+
+    await expect(target.tron?.request(null)).rejects.toMatchObject({
+      code: -32600,
+      message: 'Wallet request must include a method'
+    })
+
+    emitWalletEvent({ family: 'tron', event: 'accountsChanged', payload: ['TExampleAddress'] })
+    target.__hronautWalletBridge!.request.mockRejectedValueOnce(new Error('Wallet request was rejected by the user'))
+    const tronWeb = target.tron?.tronWeb
+    if (!tronWeb) throw new Error('Expected authorized Tron compatibility surface')
+    await expect(tronWeb.trx.sign({ txID: 'transaction' })).rejects.toMatchObject({ code: 4001 })
+  })
+
+  it('updates Tron account state before events and emits typed connection transitions', () => {
+    installHronautWalletProviders()
+    const accountStates: Array<string | false> = []
+    const connections = vi.fn()
+    const disconnections: unknown[] = []
+    target.tron?.on('accountsChanged', () => {
+      accountStates.push(target.tron?.tronWeb ? target.tron.tronWeb.defaultAddress.base58 : false)
+    })
+    target.tron?.on('connect', connections)
+    target.tron?.on('disconnect', (error) => {
+      accountStates.push(target.tron?.tronWeb ? target.tron.tronWeb.defaultAddress.base58 : false)
+      disconnections.push(error)
+    })
+
+    emitWalletEvent({ family: 'tron', event: 'accountsChanged', payload: ['TExampleAddress'] })
+    emitWalletEvent({ family: 'tron', event: 'connect', payload: { chainId: '0x94a9059e' } })
+    emitWalletEvent({ family: 'tron', event: 'disconnect' })
+
+    expect(accountStates).toEqual(['TExampleAddress', false])
+    expect(connections).toHaveBeenCalledWith({ chainId: '0x94a9059e' })
+    expect(disconnections[0]).toBeInstanceOf(Error)
+    expect(disconnections[0]).toMatchObject({ code: 4900, message: 'Tron provider disconnected' })
+  })
+
   it('does not replace providers already installed by another wallet', () => {
     const existingEthereum = {
       request: vi.fn(async () => undefined),
@@ -406,7 +461,13 @@ describe('wallet provider bootstrap', () => {
       off: vi.fn(),
       removeListener: vi.fn()
     }
-    const existingTron = { request: vi.fn(async () => undefined), isHronaut: false, tronWeb: false as const }
+    const existingTron = {
+      request: vi.fn(async () => undefined),
+      isHronaut: false,
+      tronWeb: false as const,
+      on: vi.fn(() => undefined),
+      removeListener: vi.fn(() => undefined)
+    }
     target.ethereum = existingEthereum
     target.solana = existingSolana
     target.tron = existingTron
