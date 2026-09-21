@@ -2774,6 +2774,12 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
           register(wallet) {
             if (wallet.name !== 'Hronaut') return;
             window.__hronautStandardSolana = wallet;
+            const iconPrefix = 'data:image/svg+xml;base64,';
+            const iconPayload = wallet.icon.startsWith(iconPrefix) ? wallet.icon.slice(iconPrefix.length) : '';
+            window.__hronautStandardIcon = {
+              base64: /^[A-Za-z0-9+/]+={0,2}$/.test(iconPayload),
+              svg: iconPayload ? atob(iconPayload).startsWith('<svg ') : false
+            };
             wallet.features['standard:events'].on('change', ({ accounts }) => {
               window.__solanaStandardChanges.push((accounts || []).map(account => account.address));
             });
@@ -2796,6 +2802,7 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
                 send: window.__hronautStandardSolana.features['solana:signAndSendTransaction'].supportedTransactionVersions
               },
               standardAccounts: window.__hronautStandardSolana.accounts.map(account => account.address),
+              standardIcon: window.__hronautStandardIcon,
               standardChanges: window.__solanaStandardChanges,
               legacyAccountStates: window.__legacySolanaAccountStates
             };
@@ -2824,6 +2831,7 @@ test('keeps silent Solana reconnect quiet and supports adapter-compatible discon
       isConnected: true,
       standardTransactionVersions: { sign: ['legacy'], send: ['legacy'] },
       standardAccounts: [prepared.publicAddress],
+      standardIcon: { base64: true, svg: true },
       standardChanges: [[prepared.publicAddress]],
       legacyAccountStates: [{ accounts: [prepared.publicAddress], isConnected: true }]
     })

@@ -127,6 +127,8 @@ describe('wallet provider bootstrap', () => {
 
     expect(register).toHaveBeenCalledOnce()
     const wallet = register.mock.calls[0]?.[0]
+    expect(wallet.icon).toMatch(/^data:image\/svg\+xml;base64,[A-Za-z0-9+/]+={0,2}$/)
+    expect(atob(wallet.icon.split(',')[1])).toContain('<svg xmlns="http://www.w3.org/2000/svg"')
     expect(wallet.features).toHaveProperty('standard:connect')
     expect(wallet.features).toHaveProperty('solana:signTransaction')
     expect(wallet.features['solana:signTransaction'].supportedTransactionVersions).toEqual(['legacy'])

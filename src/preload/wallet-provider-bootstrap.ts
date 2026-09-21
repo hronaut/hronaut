@@ -108,7 +108,7 @@ export function installHronautWalletProviders(): void {
   target.hronautEthereum = ethereum
   if (!target.ethereum) target.ethereum = ethereum
 
-  const icon = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 96 96%22%3E%3Crect width=%2296%22 height=%2296%22 rx=%2220%22 fill=%22%235b5ff5%22/%3E%3Cpath d=%22M25 24h13v17h20V24h13v48H58V53H38v19H25z%22 fill=%22white%22/%3E%3C/svg%3E'
+  const icon = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5NiA5NiI+PHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiByeD0iMjAiIGZpbGw9IiM1YjVmZjUiLz48cGF0aCBkPSJNMjUgMjRoMTN2MTdoMjBWMjRoMTN2NDhINThWNTNIMzh2MTlIMjV6IiBmaWxsPSJ3aGl0ZSIvPjwvc3ZnPg=='
   const uuid = typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : '9ef3a9e8-113d-4cb7-8d3f-9f5bc1a5da7d'
