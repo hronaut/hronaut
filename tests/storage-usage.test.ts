@@ -19,6 +19,28 @@ describe('storage usage reports', () => {
     ])
   })
 
+  it('saturates browser-reported byte counts before arithmetic can overflow', () => {
+    expect(normalizeStorageUsageBreakdown([
+      { storageType: 'indexeddb', usage: Number.MAX_VALUE },
+      { storageType: 'indexeddb', usage: Number.MAX_VALUE }
+    ])).toEqual([
+      { storageType: 'indexeddb', usage: Number.MAX_SAFE_INTEGER }
+    ])
+
+    expect(buildBrowserStorageUsageReport({
+      tabId: 'tab-overflow',
+      url: 'https://example.test/',
+      origin: 'https://example.test',
+      source: 'chromium-quota',
+      raw: { usage: Number.MAX_VALUE, quota: Number.MAX_VALUE }
+    })).toMatchObject({
+      usage: Number.MAX_SAFE_INTEGER,
+      quota: Number.MAX_SAFE_INTEGER,
+      available: 0,
+      usagePercent: 100
+    })
+  })
+
   it('normalizes Storage Manager usage details for the fallback report', () => {
     expect(storageManagerUsageBreakdown({ caches: 64, indexedDB: 128, invalid: 'nope' })).toEqual([
       { storageType: 'indexedDB', usage: 128 },

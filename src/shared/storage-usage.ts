@@ -15,7 +15,9 @@ export interface RawBrowserStorageUsage {
 }
 
 function boundedBytes(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.round(value)))
+    : 0
 }
 
 function storageType(value: unknown): string | null {
@@ -32,7 +34,10 @@ export function normalizeStorageUsageBreakdown(value: unknown): BrowserStorageUs
     const candidate = item as Record<string, unknown>
     const type = storageType(candidate.storageType)
     if (!type) continue
-    merged.set(type, (merged.get(type) ?? 0) + boundedBytes(candidate.usage))
+    merged.set(type, Math.min(
+      Number.MAX_SAFE_INTEGER,
+      (merged.get(type) ?? 0) + boundedBytes(candidate.usage)
+    ))
   }
   return [...merged.entries()]
     .map(([type, usage]) => ({ storageType: type, usage }))

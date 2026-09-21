@@ -14,6 +14,7 @@ All notable changes to Hronaut are documented in this file.
 - Provide both Base58 and standard `41…` hex forms for the connected TRON account through the injected `tronWeb.defaultAddress` compatibility surface.
 - Add configured custom Solana networks to the Wallet Standard chain metadata before exposing their accounts, preserving the required account-to-wallet chain relationship for adapters.
 - Reconcile active website wallet sessions when their account permission expires, so stale EVM accounts are removed and Solana/TRON providers disconnect without waiting for another wallet mutation.
+- Saturate browser-reported storage byte counts before aggregation so malformed or extreme quota data cannot leak `Infinity` or unsafe integers into Site Storage reports.
 
 ## [2.5.2] - 2026-09-21
 
