@@ -153,6 +153,25 @@ describe('wallet provider bootstrap', () => {
     expect(listener).toHaveBeenCalledTimes(3)
   })
 
+  it('calls ordinary EIP-1193 listeners with the provider receiver', () => {
+    installHronautWalletProviders()
+    let receiver: unknown
+    target.ethereum?.on('connect', function (this: unknown) { receiver = this })
+
+    emitWalletEvent({ family: 'evm', event: 'connect', payload: { chainId: '0x1' } })
+
+    expect(receiver).toBe(target.ethereum)
+  })
+
+  it('rejects invalid EIP-1193 listener removals', () => {
+    installHronautWalletProviders()
+
+    expect(() => target.ethereum?.removeListener(
+      'connect',
+      null as unknown as (...args: unknown[]) => void
+    )).toThrow(TypeError)
+  })
+
   it('registers Solana Wallet Standard and exposes narrowly scoped legacy compatibility', async () => {
     const register = vi.fn()
     window.addEventListener('wallet-standard:register-wallet', (event) => {

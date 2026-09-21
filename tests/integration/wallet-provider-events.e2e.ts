@@ -39,19 +39,37 @@ test('wallet provider events preserve EventEmitter listener delivery semantics',
         window.__walletDuplicateListener = (chainId) => window.__walletDuplicateCalls.push(chainId);
         window.hronautEthereum.on('chainChanged', window.__walletDuplicateListener);
         window.hronautEthereum.on('chainChanged', window.__walletDuplicateListener);
+        window.__walletReceiverMatched = false;
+        window.hronautEthereum.on('connect', function () {
+          window.__walletReceiverMatched = this === window.hronautEthereum;
+        });
+        window.__walletInvalidRemovalRejected = false;
+        try {
+          window.hronautEthereum.removeListener('connect', null);
+        } catch (error) {
+          window.__walletInvalidRemovalRejected = error instanceof TypeError;
+        }
         'ready';
       `)
       page.send('wallet-provider:event', { family: 'evm', event: 'accountsChanged', payload: ['0x01'] })
       page.send('wallet-provider:event', { family: 'evm', event: 'chainChanged', payload: '0x1' })
+      page.send('wallet-provider:event', { family: 'evm', event: 'connect', payload: { chainId: '0x1' } })
     }, url)
 
     await expect.poll(() => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       return page?.executeJavaScript(`({
         eventCalls: window.__walletEventCalls,
-        duplicateCalls: window.__walletDuplicateCalls
+        duplicateCalls: window.__walletDuplicateCalls,
+        receiverMatched: window.__walletReceiverMatched,
+        invalidRemovalRejected: window.__walletInvalidRemovalRejected
       })`)
-    }, url)).toEqual({ eventCalls: ['first', 'removed'], duplicateCalls: ['0x1', '0x1'] })
+    }, url)).toEqual({
+      eventCalls: ['first', 'removed'],
+      duplicateCalls: ['0x1', '0x1'],
+      receiverMatched: true,
+      invalidRemovalRejected: true
+    })
 
     await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
