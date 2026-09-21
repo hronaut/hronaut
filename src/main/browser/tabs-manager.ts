@@ -688,12 +688,14 @@ interface BrowserTab {
   emulationExtraHttpHeaders: Record<string, string>
   mcpGroupId?: string
   accessibilityBaseline?: BrowserAccessibilityAudit
+  accessibilityBaselineGeneration: number
   memoryBaseline?: { url: string; measurement: BrowserMemoryMeasurement }
   performanceBaseline?: {
     report: BrowserPerformanceReport
     environment: BrowserPerformanceEnvironment
     environmentFingerprint: string
   }
+  performanceBaselineGeneration: number
   securitySnapshot?: {
     url: string
     checkedAt: string
@@ -5043,6 +5045,9 @@ export class BrowserTabsManager {
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before running an accessibility audit')
     const navigationGeneration = tab.navigationGeneration
     const normalized = normalizeAccessibilityAuditOptions(options)
+    const baselineGeneration = normalized.action === 'measure'
+      ? undefined
+      : ++tab.accessibilityBaselineGeneration
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       ACCESSIBILITY_AUDIT_WORLD_ID,
       [{ code: accessibilityAuditPageScript(axe.source, normalized) }],
@@ -5059,6 +5064,12 @@ export class BrowserTabsManager {
       || current.navigationGeneration !== navigationGeneration
     ) {
       throw new Error('The page changed during the accessibility audit. Run a fresh audit.')
+    }
+    if (
+      baselineGeneration !== undefined
+      && tab.accessibilityBaselineGeneration !== baselineGeneration
+    ) {
+      throw new Error('Accessibility baseline changed while the audit was pending. Run the requested action again.')
     }
     const audit: BrowserAccessibilityAudit = {
       ...result,
@@ -5093,12 +5104,31 @@ export class BrowserTabsManager {
   async performanceReport(options: BrowserPerformanceOptions = {}): Promise<BrowserPerformanceReport> {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before measuring performance')
+    const navigationGeneration = tab.navigationGeneration
     const normalized = normalizePerformanceOptions(options)
+    const baselineGeneration = normalized.action === 'measure'
+      ? undefined
+      : ++tab.performanceBaselineGeneration
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       PERFORMANCE_AUDIT_WORLD_ID,
       [{ code: performanceAuditPageScript(webVitalsSource, normalized, webVitalsVersion) }],
       false
     ) as Omit<BrowserPerformanceReport, 'tabId'>
+    const current = this.tabs.get(tab.id)
+    if (
+      !current
+      || current !== tab
+      || current.webContents.isDestroyed()
+      || current.navigationGeneration !== navigationGeneration
+    ) {
+      throw new Error('The page changed during the performance measurement. Run a fresh measurement.')
+    }
+    if (
+      baselineGeneration !== undefined
+      && tab.performanceBaselineGeneration !== baselineGeneration
+    ) {
+      throw new Error('Performance baseline changed while the measurement was pending. Run the requested action again.')
+    }
     const report = sanitizePerformanceReport({ tabId: tab.id, ...result })
     const environment = this.performanceEnvironment(tab)
     const environmentFingerprint = this.performanceEnvironmentFingerprint(tab)
@@ -8351,6 +8381,8 @@ export class BrowserTabsManager {
       pendingHistoryUrl: null,
       emulation: { ...DEFAULT_EMULATION },
       emulationExtraHttpHeaders: {},
+      accessibilityBaselineGeneration: 0,
+      performanceBaselineGeneration: 0,
       visualComparisonGeneration: 0,
       storageComparisonGeneration: 0,
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {})

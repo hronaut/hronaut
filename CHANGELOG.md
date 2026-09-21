@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep delayed accessibility and performance baseline measurements from recreating or overwriting state after a newer clear or replacement request, and reject performance results captured across navigation.
 - Keep delayed Site Storage baseline and comparison snapshots from overwriting a newer clear or request.
 - Keep a delayed visual-comparison capture from recreating or overwriting state after a newer clear, baseline, or comparison request.
 - Prevent delayed Repro recorder page measurements from leaking across a clear, stop, restart, or later page navigation into the wrong timeline context.
