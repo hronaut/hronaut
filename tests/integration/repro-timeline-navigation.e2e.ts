@@ -75,6 +75,8 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
     const stopped = decode<BrowserReproRecording>(await call('browser_repro', {
       workspaceId: workspace.id, tabId, action: 'stop'
     }))
+    expect(stopped.stepCount).toBe(2)
+    expect(stopped.steps.map(step => step.kind)).toEqual(['navigate', 'click'])
 
     await appWindow.getByRole('button', { name: 'Page tools', exact: true }).click()
     await appWindow.getByRole('dialog', { name: 'Page tools' }).getByRole('button', { name: /Repro recorder:/ }).click()

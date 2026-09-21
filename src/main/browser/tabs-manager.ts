@@ -972,6 +972,7 @@ interface BrowserReproRecordingInternal {
   steps: BrowserReproStep[]
   truncated: boolean
   queue: Promise<void>
+  scrollPosition: { x: number; y: number }
   scrollTimer?: NodeJS.Timeout
   pendingPointer?: {
     x: number
@@ -6636,13 +6637,19 @@ export class BrowserTabsManager {
     if (action === 'start') {
       this.clearReproRecording(tab)
       const startedAtMs = Date.now()
+      const initialScroll = await tab.webContents.executeJavaScript(reproScrollScript(), true)
+        .catch(() => ({ x: 0, y: 0 })) as { x: number; y: number }
       tab.reproRecording = {
         active: true,
         startedAt: new Date(startedAtMs).toISOString(),
         startedAtMs,
         steps: [],
         truncated: false,
-        queue: Promise.resolve()
+        queue: Promise.resolve(),
+        scrollPosition: {
+          x: Number.isFinite(initialScroll.x) ? Math.round(initialScroll.x) : 0,
+          y: Number.isFinite(initialScroll.y) ? Math.round(initialScroll.y) : 0
+        }
       }
       this.addReproStep(tab, {
         kind: 'navigate',
@@ -10354,8 +10361,9 @@ export class BrowserTabsManager {
     const scroll = await tab.webContents.executeJavaScript(reproScrollScript(), true) as { x: number; y: number }
     if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return
     const normalized = { x: Math.round(scroll.x), y: Math.round(scroll.y) }
-    const last = [...recording.steps].reverse().find((step) => step.kind === 'scroll')
-    if (last?.scroll && Math.abs(last.scroll.x - normalized.x) < 8 && Math.abs(last.scroll.y - normalized.y) < 8) return
+    const previous = recording.scrollPosition
+    recording.scrollPosition = normalized
+    if (Math.abs(previous.x - normalized.x) < 8 && Math.abs(previous.y - normalized.y) < 8) return
     this.addReproStep(tab, {
       kind: 'scroll',
       description: `Scroll to x=${normalized.x}, y=${normalized.y}`,
