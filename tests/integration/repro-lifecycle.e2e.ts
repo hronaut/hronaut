@@ -10,7 +10,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('contains a rejected delayed Repro scroll capture', async ({
+test('contains rejected and obsolete delayed Repro page captures', async ({
   appWindow,
   electronApp,
   mcpPort,
@@ -116,6 +116,169 @@ test('contains a rejected delayed Repro scroll capture', async ({
     expect(stopped.isError, text(stopped)).not.toBe(true)
     expect(capture.intercepted).toBe(true)
     expect(capture.captured).toBeNull()
+
+    const restarted = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'start' }
+    }) as CallToolResult
+    expect(restarted.isError, text(restarted)).not.toBe(true)
+    await electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
+      const view = BrowserWindow.getAllWindows()
+        .flatMap((window) => window.contentView.children)
+        .find((candidate): candidate is InstanceType<typeof WebContentsView> => (
+          candidate instanceof WebContentsView && candidate.webContents.getTitle() === 'Repro rejection fixture'
+        ))
+      if (!view) throw new Error('Repro rejection fixture view was not found')
+      const originalExecuteJavaScript = view.webContents.executeJavaScript.bind(view.webContents)
+      let resolveCapture!: (value: { x: number; y: number }) => void
+      const delayedCapture = new Promise<{ x: number; y: number }>((resolve) => { resolveCapture = resolve })
+      let interceptScrollCapture = true
+      Object.defineProperty(view.webContents, 'executeJavaScript', {
+        configurable: true,
+        value: (code: string, userGesture?: boolean) => {
+          if (interceptScrollCapture && code === '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+            interceptScrollCapture = false
+            ;(globalThis as typeof globalThis & { __hronautDelayedReproScrollIntercepted?: boolean })
+              .__hronautDelayedReproScrollIntercepted = true
+            return delayedCapture
+          }
+          return originalExecuteJavaScript(code, userGesture)
+        }
+      })
+      ;(globalThis as typeof globalThis & { __hronautResolveDelayedReproScroll?: () => void })
+        .__hronautResolveDelayedReproScroll = () => {
+          Object.defineProperty(view.webContents, 'executeJavaScript', {
+            configurable: true,
+            value: originalExecuteJavaScript
+          })
+          resolveCapture({ x: 0, y: 900 })
+          setImmediate(() => {
+            ;(globalThis as typeof globalThis & { __hronautDelayedReproScrollSettled?: boolean })
+              .__hronautDelayedReproScrollSettled = true
+          })
+        }
+      view.webContents.focus()
+      view.webContents.sendInputEvent({ type: 'mouseDown', x: 100, y: 100, button: 'left', clickCount: 1 })
+      view.webContents.sendInputEvent({ type: 'mouseUp', x: 100, y: 100, button: 'left', clickCount: 1 })
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedReproScrollIntercepted?: boolean })
+        .__hronautDelayedReproScrollIntercepted === true
+    ))).toBe(true)
+
+    await client.callTool({ name: 'browser_repro', arguments: { tabId, action: 'clear' } })
+    const fresh = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'start' }
+    }) as CallToolResult
+    expect(fresh.isError, text(fresh)).not.toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautResolveDelayedReproScroll?: () => void
+      }
+      mainGlobal.__hronautResolveDelayedReproScroll?.()
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedReproScrollSettled?: boolean })
+        .__hronautDelayedReproScrollSettled === true
+    ))).toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautDelayedReproScrollIntercepted?: boolean
+        __hronautDelayedReproScrollSettled?: boolean
+        __hronautResolveDelayedReproScroll?: () => void
+      }
+      delete mainGlobal.__hronautDelayedReproScrollIntercepted
+      delete mainGlobal.__hronautDelayedReproScrollSettled
+      delete mainGlobal.__hronautResolveDelayedReproScroll
+    })
+
+    const current = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'get' }
+    }) as CallToolResult
+    expect(current.isError, text(current)).not.toBe(true)
+    expect((JSON.parse(text(current)) as { steps: Array<{ kind: string }> }).steps.map((step) => step.kind))
+      .toEqual(['navigate'])
+
+    await electronApp.evaluate(({ BrowserWindow, WebContentsView }) => {
+      const view = BrowserWindow.getAllWindows()
+        .flatMap((window) => window.contentView.children)
+        .find((candidate): candidate is InstanceType<typeof WebContentsView> => (
+          candidate instanceof WebContentsView && candidate.webContents.getTitle() === 'Repro rejection fixture'
+        ))
+      if (!view) throw new Error('Repro rejection fixture view was not found')
+      const originalExecuteJavaScript = view.webContents.executeJavaScript.bind(view.webContents)
+      let resolveTarget!: (value: { selector: string; tag: string; label: string }) => void
+      const delayedTarget = new Promise<{ selector: string; tag: string; label: string }>((resolve) => { resolveTarget = resolve })
+      let interceptTarget = true
+      Object.defineProperty(view.webContents, 'executeJavaScript', {
+        configurable: true,
+        value: (code: string, userGesture?: boolean) => {
+          if (interceptTarget && code !== '(() => ({ x: Math.round(scrollX), y: Math.round(scrollY) }))()') {
+            interceptTarget = false
+            ;(globalThis as typeof globalThis & { __hronautDelayedReproTargetIntercepted?: boolean })
+              .__hronautDelayedReproTargetIntercepted = true
+            return delayedTarget
+          }
+          return originalExecuteJavaScript(code, userGesture)
+        }
+      })
+      ;(globalThis as typeof globalThis & { __hronautResolveDelayedReproTarget?: () => void })
+        .__hronautResolveDelayedReproTarget = () => {
+          Object.defineProperty(view.webContents, 'executeJavaScript', {
+            configurable: true,
+            value: originalExecuteJavaScript
+          })
+          resolveTarget({ selector: 'body > main:nth-of-type(1)', tag: 'main', label: 'Delayed target' })
+          setImmediate(() => {
+            ;(globalThis as typeof globalThis & { __hronautDelayedReproTargetSettled?: boolean })
+              .__hronautDelayedReproTargetSettled = true
+          })
+        }
+      view.webContents.focus()
+      view.webContents.sendInputEvent({ type: 'mouseDown', x: 100, y: 100, button: 'left', clickCount: 1 })
+      view.webContents.sendInputEvent({ type: 'mouseUp', x: 100, y: 100, button: 'left', clickCount: 1 })
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedReproTargetIntercepted?: boolean })
+        .__hronautDelayedReproTargetIntercepted === true
+    ))).toBe(true)
+
+    await client.callTool({ name: 'browser_repro', arguments: { tabId, action: 'clear' } })
+    const newest = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'start' }
+    }) as CallToolResult
+    expect(newest.isError, text(newest)).not.toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautResolveDelayedReproTarget?: () => void
+      }
+      mainGlobal.__hronautResolveDelayedReproTarget?.()
+    })
+    await expect.poll(() => electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __hronautDelayedReproTargetSettled?: boolean })
+        .__hronautDelayedReproTargetSettled === true
+    ))).toBe(true)
+    await electronApp.evaluate(() => {
+      const mainGlobal = globalThis as typeof globalThis & {
+        __hronautDelayedReproTargetIntercepted?: boolean
+        __hronautDelayedReproTargetSettled?: boolean
+        __hronautResolveDelayedReproTarget?: () => void
+      }
+      delete mainGlobal.__hronautDelayedReproTargetIntercepted
+      delete mainGlobal.__hronautDelayedReproTargetSettled
+      delete mainGlobal.__hronautResolveDelayedReproTarget
+    })
+
+    const newestState = await client.callTool({
+      name: 'browser_repro',
+      arguments: { tabId, action: 'get' }
+    }) as CallToolResult
+    expect(newestState.isError, text(newestState)).not.toBe(true)
+    expect((JSON.parse(text(newestState)) as { steps: Array<{ kind: string }> }).steps.map((step) => step.kind))
+      .toEqual(['navigate'])
   } finally {
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
