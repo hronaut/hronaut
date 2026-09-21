@@ -803,12 +803,11 @@ export class WalletBroker {
     const connectedWallet = this.activeAccountProviderWallet(context, 'tron', wallets)
     const permittedWallet = this.preferredPermittedWallet(context, wallets)
     if (method === 'eth_accounts') {
-      const accounts = this.permittedAccounts(context, wallets)
       const wallet = connectedWallet ?? permittedWallet
       if (wallet && this.trackAccountProviderSession(context, wallet)) {
         this.publishTronConnection(context, wallet)
       }
-      return accounts
+      return wallet ? [wallet.publicAddress] : []
     }
     const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
     if (method === 'eth_chainId') {

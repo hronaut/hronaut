@@ -2032,6 +2032,21 @@ describe('WalletBroker', () => {
     await expect(broker.providerRequest(context(), {
       family: 'tron', method: 'eth_accounts'
     })).resolves.toEqual([authorized.publicAddress])
+
+    await service.permissions.grant({
+      walletId: preferredResult.wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: preferredResult.wallet.publicAddress,
+      chainFamily: 'tron',
+      networkId: preferredResult.wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_accounts'
+    })).resolves.toEqual([authorized.publicAddress])
     await expect(broker.providerRequest(context(), {
       family: 'tron', method: 'eth_chainId'
     })).resolves.toBe('0xcd8690dc')
