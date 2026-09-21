@@ -1954,6 +1954,96 @@ describe('WalletBroker', () => {
     }
   )
 
+  it('removes expired accounts from an active EVM provider session', async () => {
+    let currentTime = new Date()
+    const { service, wallet } = await setup('testnet', false, () => currentTime)
+    const providerEvent = vi.fn()
+    let scheduled: { callback(): void; delay: number } | undefined
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      now: () => currentTime,
+      onProviderEvent: providerEvent,
+      permissionExpiryScheduler: (callback, delay) => {
+        scheduled = { callback, delay }
+        return vi.fn()
+      }
+    })
+
+    const connecting = broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_requestAccounts'
+    })
+    await vi.waitFor(() => expect(broker.listPending().some((request) => (
+      request.operation === 'connect-account' && request.status === 'awaiting-human'
+    ))).toBe(true))
+    const request = broker.listPending().find((entry) => entry.operation === 'connect-account')!
+    await broker.approve(request.id)
+    await expect(connecting).resolves.toEqual([wallet.publicAddress])
+    expect(scheduled?.delay).toBe(2_147_483_647)
+    providerEvent.mockClear()
+
+    currentTime = new Date(service.permissions.list()[0]!.expiresAt)
+    scheduled?.callback()
+
+    expect(providerEvent.mock.calls).toEqual([
+      ['tab-1', { family: 'evm', event: 'accountsChanged', payload: [] }]
+    ])
+  })
+
+  it('disconnects an active Tron provider session when its account permission expires', async () => {
+    let currentTime = new Date()
+    const { service } = await setup('testnet', false, () => currentTime)
+    const generated = await service.generate({
+      name: 'Expiring Tron wallet',
+      chainFamily: 'tron',
+      network: {
+        id: 'nile', name: 'TRON Nile', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8090'
+      },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    const expiresAt = new Date(currentTime.getTime() + 60_000)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'tron',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: expiresAt.toISOString()
+    })
+    const providerEvent = vi.fn()
+    let scheduled: { callback(): void; delay: number } | undefined
+    const options: WalletBrokerOptions = {
+      adapters: { evm: adapter() },
+      now: () => currentTime,
+      onProviderEvent: providerEvent,
+      permissionExpiryScheduler: (callback: () => void, delay: number) => {
+        scheduled = { callback, delay }
+        return vi.fn()
+      }
+    }
+    const broker = new WalletBroker(service, options)
+
+    await expect(broker.providerRequest(context(), {
+      family: 'tron', method: 'eth_accounts'
+    })).resolves.toEqual([wallet.publicAddress])
+    expect(scheduled?.delay).toBe(60_000)
+    providerEvent.mockClear()
+
+    currentTime = expiresAt
+    scheduled?.callback()
+
+    expect(providerEvent.mock.calls).toEqual([
+      ['tab-1', { family: 'tron', event: 'accountsChanged', payload: [] }],
+      ['tab-1', {
+        family: 'tron', event: 'disconnect',
+        payload: { code: 4900, message: 'Tron provider disconnected' }
+      }]
+    ])
+  })
+
   it('uses TIP-1193 Tron chain IDs and publishes ordered connection events once per session', async () => {
     const { service } = await setup()
     const generated = await service.generate({

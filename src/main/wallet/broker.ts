@@ -82,6 +82,7 @@ export interface WalletBrokerOptions {
   now?: () => Date
   requestTtlMs?: number
   requestExpiryScheduler?: (callback: () => void, delay: number) => () => void
+  permissionExpiryScheduler?: (callback: () => void, delay: number) => () => void
   confirmationPollIntervalMs?: number
   shutdownDrainTimeoutMs?: number
   onPendingChanged?: (requests: WalletRequestSummary[]) => void
@@ -91,6 +92,7 @@ export interface WalletBrokerOptions {
 const DEFAULT_REQUEST_TTL_MS = 5 * 60_000
 const DEFAULT_CONFIRMATION_POLL_INTERVAL_MS = 5_000
 const DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS = 2_000
+const MAX_TIMEOUT_MS = 2_147_483_647
 const EXPIRABLE_REQUEST_STATUSES = new Set([
   'draft', 'validated', 'simulated', 'policy-decision', 'awaiting-human', 'approved'
 ])
@@ -217,6 +219,7 @@ export class WalletBroker {
   private readonly pendingConnections = new Map<string, Promise<unknown>>()
   private readonly pendingMessages = new Map<string, WalletMessageSigningInput>()
   private readonly requestExpiryCancellations = new Map<string, () => void>()
+  private permissionExpiryCancellation: (() => void) | null = null
   private readonly confirmationTimers = new Map<string, ReturnType<typeof setTimeout>>()
   private readonly confirmationInFlight = new Set<string>()
   private readonly confirmationTasks = new Set<Promise<void>>()
@@ -247,6 +250,8 @@ export class WalletBroker {
     this.confirmationTimers.clear()
     for (const cancel of this.requestExpiryCancellations.values()) cancel()
     this.requestExpiryCancellations.clear()
+    this.permissionExpiryCancellation?.()
+    this.permissionExpiryCancellation = null
 
     this.shutdownPromise = (async () => {
       await this.lifecycleQueue
@@ -1074,6 +1079,7 @@ export class WalletBroker {
       }
       if (wallet.chainFamily === 'evm') {
         this.reconcileEvmProviderSessions()
+        this.scheduleProviderPermissionExpiry()
       }
       return [wallet.publicAddress]
     }
@@ -1412,6 +1418,7 @@ export class WalletBroker {
       networkId,
       accounts: this.permittedAccounts(context, wallets.filter((wallet) => wallet.network.id === networkId))
     })
+    this.scheduleProviderPermissionExpiry()
     const active = wallets.filter((wallet) => wallet.network.id === networkId)
     const next = this.evmProviderSessions.get(key)!
     if (!existing) {
@@ -1462,6 +1469,7 @@ export class WalletBroker {
       networkId: nextNetworkId,
       accounts: this.permittedAccounts(context, matching)
     })
+    this.scheduleProviderPermissionExpiry()
     const chainId = `0x${numericChainId.toString(16)}`
     this.options.onProviderEvent?.(context.tabId, { family: 'evm', event: 'chainChanged', payload: chainId })
     this.options.onProviderEvent?.(context.tabId, {
@@ -1537,6 +1545,7 @@ export class WalletBroker {
       requester: structuredClone(context.requester),
       account: wallet.publicAddress
     })
+    this.scheduleProviderPermissionExpiry()
     return !existing || existing.walletId !== wallet.id || existing.account !== wallet.publicAddress
   }
 
@@ -1588,6 +1597,29 @@ export class WalletBroker {
   private reconcileProviderSessions(): void {
     this.reconcileEvmProviderSessions()
     this.reconcileAccountProviderSessions()
+    this.scheduleProviderPermissionExpiry()
+  }
+
+  private scheduleProviderPermissionExpiry(): void {
+    this.permissionExpiryCancellation?.()
+    this.permissionExpiryCancellation = null
+    if (this.shuttingDown || (!this.evmProviderSessions.size && !this.accountProviderSessions.size)) return
+    const now = this.now().getTime()
+    const nextExpiry = this.service.permissions.list().reduce((earliest, permission) => {
+      const expiresAt = Date.parse(permission.expiresAt)
+      return expiresAt > now && expiresAt < earliest ? expiresAt : earliest
+    }, Number.POSITIVE_INFINITY)
+    if (!Number.isFinite(nextExpiry)) return
+    const reconcile = () => {
+      this.permissionExpiryCancellation = null
+      if (!this.shuttingDown) this.reconcileProviderSessions()
+    }
+    const delay = Math.min(MAX_TIMEOUT_MS, Math.max(0, nextExpiry - now))
+    this.permissionExpiryCancellation = this.options.permissionExpiryScheduler?.(reconcile, delay) ?? (() => {
+      const timer = setTimeout(reconcile, delay)
+      timer.unref()
+      return () => clearTimeout(timer)
+    })()
   }
 
   private reconcileEvmProviderSessions(): void {
