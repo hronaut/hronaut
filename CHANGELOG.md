@@ -10,7 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Avoid recording an unchanged initial scroll position after a reproduction-timeline click, removing a timing-dependent phantom step.
+- Avoid recording unchanged or cross-document scroll positions after reproduction-timeline clicks, removing timing-dependent phantom steps.
 - Align the injected Tron provider with TIP-1193 by using official hexadecimal chain IDs, typed provider errors and disconnect payloads, ordered account state updates, and connect events.
 - Disconnect active Solana and Tron provider sessions immediately when their account permission or backing wallet is removed, preventing dApps from retaining stale connected state.
 - Reject an explicitly empty `HRONAUT_MCP_TOKEN` in both the desktop runtime and packaged MCPB adapter instead of silently generating a different profile token or starting an unauthenticated adapter.

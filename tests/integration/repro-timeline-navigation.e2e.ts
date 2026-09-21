@@ -11,9 +11,11 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
   mcpPort,
   mcpToken
 }) => {
-  const server = createServer((_request, response) => {
+  const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
-    response.end('<!doctype html><html lang="en"><title>Repro timeline fixture</title><main><button id="save">Save</button></main></html>')
+    response.end(request.url === '/next'
+      ? '<!doctype html><html lang="en"><title>Repro timeline destination</title><main><button id="save">Save</button></main></html>'
+      : '<!doctype html><html lang="en"><title>Repro timeline fixture</title><style>body{min-height:2000px}</style><main>Scrollable start</main></html>')
   })
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -51,16 +53,32 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)'))
       .toBe('Repro timeline fixture')
 
-    decode<BrowserReproRecording>(await call('browser_repro', {
-      workspaceId: workspace.id, tabId, action: 'start'
-    }))
-    await electronApp.evaluate(async ({ BrowserWindow, WebContentsView }) => {
+    const initialScroll = await electronApp.evaluate(async ({ BrowserWindow, WebContentsView }) => {
       const view = BrowserWindow.getAllWindows()
         .flatMap(window => window.contentView.children)
         .find((candidate): candidate is InstanceType<typeof WebContentsView> => (
           candidate instanceof WebContentsView && candidate.webContents.getTitle() === 'Repro timeline fixture'
         ))
       if (!view) throw new Error('Repro timeline fixture view was not found')
+      return await view.webContents.executeJavaScript('scrollTo(0, 600); scrollY') as number
+    })
+    expect(initialScroll).toBe(600)
+
+    decode<BrowserReproRecording>(await call('browser_repro', {
+      workspaceId: workspace.id, tabId, action: 'start'
+    }))
+    decode<BrowserState>(await call('browser_navigate', {
+      workspaceId: workspace.id, tabId, url: `${origin}/next`
+    }))
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)'))
+      .toBe('Repro timeline destination')
+    await electronApp.evaluate(async ({ BrowserWindow, WebContentsView }) => {
+      const view = BrowserWindow.getAllWindows()
+        .flatMap(window => window.contentView.children)
+        .find((candidate): candidate is InstanceType<typeof WebContentsView> => (
+          candidate instanceof WebContentsView && candidate.webContents.getTitle() === 'Repro timeline destination'
+        ))
+      if (!view) throw new Error('Repro timeline destination view was not found')
       const point = await view.webContents.executeJavaScript(`(() => {
         const bounds = document.querySelector('#save').getBoundingClientRect();
         return { x: Math.round(bounds.left + bounds.width / 2), y: Math.round(bounds.top + bounds.height / 2) };
@@ -71,12 +89,12 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
     })
     await expect.poll(async () => decode<BrowserReproRecording>(await call('browser_repro', {
       workspaceId: workspace.id, tabId, action: 'get'
-    })).stepCount).toBe(2)
+    })).stepCount).toBe(3)
     const stopped = decode<BrowserReproRecording>(await call('browser_repro', {
       workspaceId: workspace.id, tabId, action: 'stop'
     }))
-    expect(stopped.stepCount).toBe(2)
-    expect(stopped.steps.map(step => step.kind)).toEqual(['navigate', 'click'])
+    expect(stopped.stepCount).toBe(3)
+    expect(stopped.steps.map(step => step.kind)).toEqual(['navigate', 'navigate', 'click'])
 
     await appWindow.getByRole('button', { name: 'Page tools', exact: true }).click()
     await appWindow.getByRole('dialog', { name: 'Page tools' }).getByRole('button', { name: /Repro recorder:/ }).click()

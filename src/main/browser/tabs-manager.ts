@@ -8894,6 +8894,7 @@ export class BrowserTabsManager {
       if (tab.sleeping) return
       this.reconcileTabPresentation(tab)
       syncNavigation()
+      this.refreshReproScrollPosition(tab)
       this.scheduleTabOverviewPreview(tab)
       if (tab.suppressInitialHistory) {
         tab.suppressInitialHistory = false
@@ -8919,19 +8920,27 @@ export class BrowserTabsManager {
       if (previousUrl !== url) tab.faviconDataUrl = undefined
       tab.pendingHistoryUrl = isWebUrl(url) ? url : null
       syncNavigation()
-      if (tab.reproRecording?.active) this.addReproStep(tab, {
-        kind: 'navigate',
-        description: `Navigate to ${redactNetworkUrl(url)}`
-      })
+      if (tab.reproRecording?.active) {
+        // A successful document navigation starts with a new scroll coordinate
+        // space. Do not compare its first interaction with the previous page.
+        tab.reproRecording.scrollPosition = { x: 0, y: 0 }
+        this.addReproStep(tab, {
+          kind: 'navigate',
+          description: `Navigate to ${redactNetworkUrl(url)}`
+        })
+      }
     })
     webContents.on('did-navigate-in-page', (_event, url) => {
       if (tab.sleeping) return
       this.trackWorkspaceOrigin(tab, url)
       syncNavigation()
-      if (tab.reproRecording?.active) this.addReproStep(tab, {
-        kind: 'navigate',
-        description: `Navigate within the page to ${redactNetworkUrl(url)}`
-      })
+      if (tab.reproRecording?.active) {
+        this.addReproStep(tab, {
+          kind: 'navigate',
+          description: `Navigate within the page to ${redactNetworkUrl(url)}`
+        })
+        this.refreshReproScrollPosition(tab)
+      }
       if (!tab.suppressInitialHistory) this.recordVisit(tab)
       tab.pendingHistoryUrl = null
       this.scheduleTabOverviewPreview(tab)
@@ -10353,6 +10362,18 @@ export class BrowserTabsManager {
       })
     }, 250)
     recording.scrollTimer.unref()
+  }
+
+  private refreshReproScrollPosition(tab: BrowserTab): void {
+    const recording = tab.reproRecording
+    if (!recording?.active || tab.webContents.isDestroyed()) return
+    void tab.webContents.executeJavaScript(reproScrollScript(), true)
+      .then((scroll: { x: number; y: number }) => {
+        if (tab.reproRecording !== recording || !recording.active) return
+        if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return
+        recording.scrollPosition = { x: Math.round(scroll.x), y: Math.round(scroll.y) }
+      })
+      .catch(() => undefined)
   }
 
   private async captureReproScroll(tab: BrowserTab): Promise<void> {
