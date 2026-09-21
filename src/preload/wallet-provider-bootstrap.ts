@@ -235,7 +235,7 @@ export function installHronautWalletProviders(): void {
       }
       return { ...(result as Record<string, unknown>), accounts: solanaAccounts }
     } else if (method === 'disconnect') {
-      setSolanaAccounts([], true)
+      if (setSolanaAccounts([], true)) solanaEvents.emit('accountChanged', null)
     }
     return result
   }

@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Emit the legacy Solana `accountChanged` event with current PublicKey-compatible state so direct provider integrations cannot retain a stale account after connection or permission loss.
+- Guarantee caller-initiated Solana disconnects emit `accountChanged(null)` even when their response arrives before the provider lifecycle events, without duplicating the notification when those events follow.
 
 ## [2.5.2] - 2026-09-21
 

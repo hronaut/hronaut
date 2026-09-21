@@ -232,6 +232,36 @@ describe('wallet provider bootstrap', () => {
     ])
   })
 
+  it('publishes a legacy Solana accountChanged event when disconnect resolves before provider events', async () => {
+    const address = 'HronautSolanaWalletAddress'
+    target.__hronautWalletBridge!.request
+      .mockResolvedValueOnce({
+        accounts: [{
+          address,
+          publicKey: Uint8Array.from([1, 2, 3, 4]),
+          chains: ['solana:devnet'],
+          features: ['solana:signMessage']
+        }]
+      })
+      .mockResolvedValueOnce(undefined)
+    installHronautWalletProviders()
+    const accountChanges: Array<string | null> = []
+    target.solana?.on('accountChanged', (publicKey) => {
+      accountChanges.push(publicKey && typeof publicKey === 'object' && 'toBase58' in publicKey
+        ? (publicKey as { toBase58(): string }).toBase58()
+        : null)
+    })
+
+    await target.solana?.connect()
+    await target.solana?.disconnect()
+    emitWalletEvent({ family: 'solana', event: 'accountsChanged', payload: [] })
+    emitWalletEvent({ family: 'solana', event: 'disconnect' })
+
+    expect(accountChanges).toEqual([address, null])
+    expect(target.solana?.publicKey).toBeNull()
+    expect(target.solana?.isConnected).toBe(false)
+  })
+
   it('publishes Wallet Standard account changes only after complete account state is available', async () => {
     const register = vi.fn()
     window.addEventListener('wallet-standard:register-wallet', (event) => {
