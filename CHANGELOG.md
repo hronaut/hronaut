@@ -15,7 +15,7 @@ All notable changes to Hronaut are documented in this file.
 - Add configured custom Solana networks to the Wallet Standard chain metadata before exposing their accounts, preserving the required account-to-wallet chain relationship for adapters.
 - Reconcile active website wallet sessions when their account permission expires, so stale EVM accounts are removed and Solana/TRON providers disconnect without waiting for another wallet mutation.
 - Saturate browser-reported storage byte counts before aggregation so malformed or extreme quota data cannot leak `Infinity` or unsafe integers into Site Storage reports.
-- Omit impossible completion-derived network phases and saturate extreme timing values so out-of-order Chromium events cannot appear as valid zero-duration evidence or expose non-finite diagnostics.
+- Omit impossible completion-derived network phases and saturate extreme timing and response-byte values so out-of-order or malformed Chromium events cannot appear as valid zero-duration evidence, render as zero bytes, or expose non-finite diagnostics.
 
 ## [2.5.2] - 2026-09-21
 

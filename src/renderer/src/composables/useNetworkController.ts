@@ -23,6 +23,7 @@ import {
 } from '../../../shared/network-request-copy.js'
 import { sortNetworkRequests } from '../../../shared/network-request-sort.js'
 import { networkReplayRequiresConfirmation } from '../../../shared/network-replay.js'
+import { totalNetworkResponseBytes } from '../../../shared/network-bytes.js'
 import {
   networkResponseSourceLabel,
   serviceWorkerResponseSourceLabel
@@ -151,10 +152,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
   ))
   const waterfallRange = computed(() => buildNetworkWaterfallRange(filteredRequests.value))
   const failureCount = computed(() => requests.value.filter(isNetworkRequestFailure).length)
-  const responseBytes = computed(() => requests.value.reduce(
-    (total, request) => total + (request.responseSizeBytes ?? 0),
-    0
-  ))
+  const responseBytes = computed(() => totalNetworkResponseBytes(requests.value))
 
   function isCurrent(tabId: string, expectedGeneration: number): boolean {
     return generation === expectedGeneration && options.activeTab.value?.id === tabId

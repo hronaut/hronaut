@@ -186,6 +186,19 @@ afterEach(() => {
 })
 
 describe('network controller', () => {
+  it('saturates extreme response-byte totals instead of rendering them as zero bytes', async () => {
+    const { browser, controller } = createController()
+    browser.listNetworkRequests.mockResolvedValue([
+      { ...request('first'), responseSizeBytes: Number.MAX_VALUE },
+      { ...request('second'), responseSizeBytes: Number.MAX_VALUE }
+    ])
+
+    await controller.refresh()
+
+    expect(controller.responseBytes.value).toBe(Number.MAX_SAFE_INTEGER)
+    controller.dispose()
+  })
+
   it('invalidates an in-flight request list when reset on the same tab', async () => {
     const pending = deferred<BrowserNetworkRequest[]>()
     const { browser, controller } = createController()

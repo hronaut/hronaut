@@ -138,6 +138,7 @@ import {
   type BrowserGeneratedLocator
 } from '../../shared/playwright-locator.js'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../../shared/network-details.js'
+import { boundedNetworkByteCount } from '../../shared/network-bytes.js'
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../shared/page-url-wait.js'
 import {
   deriveNetworkTiming,
@@ -11696,7 +11697,7 @@ export class BrowserTabsManager {
       request.completedAt = new Date().toISOString()
       request.bodyAvailable = true
       if (Number.isFinite(timestamp)) request.completedMonotonicSeconds = timestamp
-      if (Number.isFinite(encodedDataLength)) request.responseSizeBytes = Math.max(0, Math.round(encodedDataLength as number))
+      if (Number.isFinite(encodedDataLength)) request.responseSizeBytes = boundedNetworkByteCount(encodedDataLength)
       return
     }
     if (method === 'Network.loadingFailed') {

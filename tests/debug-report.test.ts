@@ -162,4 +162,33 @@ describe('debug report', () => {
     expect(report.summary).toMatchObject({ consoleMessages: 1, failedRequests: 1 })
     expect(report.truncated).toEqual({ console: true, network: true })
   })
+
+  it('saturates extreme response-byte totals instead of returning Infinity', () => {
+    const networkRequests = ['first', 'second'].map((id) => ({
+      id,
+      url: `https://example.test/${id}`,
+      method: 'GET',
+      resourceType: 'fetch',
+      startedAt: '2026-08-14T12:00:00.000Z',
+      completedAt: '2026-08-14T12:00:00.010Z',
+      status: 200,
+      detailsAvailable: true,
+      responseSizeBytes: Number.MAX_VALUE
+    }))
+
+    const report = buildBrowserDebugReport({
+      tabId: 'tab-overflow',
+      title: 'Fixture',
+      url: 'https://example.test/',
+      consoleMessages: [],
+      networkRequests,
+      options: { includeSuccessfulRequests: true }
+    })
+
+    expect(report.summary.responseBytes).toBe(Number.MAX_SAFE_INTEGER)
+    expect(report.network.map((request) => request.responseSizeBytes)).toEqual([
+      Number.MAX_SAFE_INTEGER,
+      Number.MAX_SAFE_INTEGER
+    ])
+  })
 })

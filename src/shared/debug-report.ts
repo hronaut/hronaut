@@ -1,4 +1,5 @@
 import { redactNetworkUrl } from './network-details.js'
+import { boundedNetworkByteCount, totalNetworkResponseBytes } from './network-bytes.js'
 import { consoleMessageOccurrences, countConsoleEvents } from './console-messages.js'
 import type {
   BrowserConsoleMessage,
@@ -106,6 +107,9 @@ export function buildBrowserDebugReport(input: BrowserDebugReportInput): Browser
       ...request,
       url: redactNetworkUrl(request.url),
       issue: isRequestIssue(request),
+      ...(request.responseSizeBytes !== undefined
+        ? { responseSizeBytes: boundedNetworkByteCount(request.responseSizeBytes) }
+        : {}),
       ...(durationMs !== undefined ? { durationMs } : {})
     }
   })
@@ -138,7 +142,7 @@ export function buildBrowserDebugReport(input: BrowserDebugReportInput): Browser
       failedRequests: networkRequests.filter((request) => request.issue).length,
       pendingRequests: networkRequests.filter((request) => !request.completedAt && !request.error).length,
       cachedRequests: networkRequests.filter((request) => request.fromCache === true).length,
-      responseBytes: networkRequests.reduce((total, request) => total + (request.responseSizeBytes ?? 0), 0)
+      responseBytes: totalNetworkResponseBytes(networkRequests)
     },
     console: recentEntries(consoleMessages, consoleLimit),
     network: recentEntries(reportNetwork, networkLimit),
