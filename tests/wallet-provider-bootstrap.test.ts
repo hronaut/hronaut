@@ -25,6 +25,7 @@ interface TestWindow extends Window {
     connect(): Promise<{ publicKey: NonNullable<TestWindow['solana']>['publicKey'] }>
     disconnect(): Promise<unknown>
     signTransaction(value: unknown): Promise<unknown>
+    signAllTransactions(values: unknown[]): Promise<unknown[]>
     on(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
     off(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
     removeListener(event: string, listener: (...args: unknown[]) => void): TestWindow['solana']
@@ -433,6 +434,41 @@ describe('wallet provider bootstrap', () => {
     expect(target.__hronautWalletBridge?.request).not.toHaveBeenCalled()
   })
 
+  it('returns usable bytes for legacy Solana serialized transaction inputs', async () => {
+    target.__hronautWalletBridge!.request
+      .mockResolvedValueOnce(Uint8Array.from([5, 6, 7]))
+      .mockResolvedValueOnce([
+        Uint8Array.from([8, 9]),
+        Uint8Array.from([10, 11])
+      ])
+    installHronautWalletProviders()
+
+    const signed = await target.solana?.signTransaction(Uint8Array.from([1, 2, 3]))
+    const signedBatch = await target.solana?.signAllTransactions([
+      Uint8Array.from([1, 2]),
+      Uint8Array.from([3, 4])
+    ])
+
+    expect(signed).toBeInstanceOf(Uint8Array)
+    expect([...(signed as Uint8Array)]).toEqual([5, 6, 7])
+    expect(signedBatch).toHaveLength(2)
+    expect([...signedBatch![0] as Uint8Array]).toEqual([8, 9])
+    expect([...signedBatch![1] as Uint8Array]).toEqual([10, 11])
+  })
+
+  it('rejects a malformed legacy Solana batch-signing response', async () => {
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce([
+      Uint8Array.from([8, 9]),
+      'not signed transaction bytes'
+    ])
+    installHronautWalletProviders()
+
+    await expect(target.solana?.signAllTransactions([
+      Uint8Array.from([1, 2]),
+      Uint8Array.from([3, 4])
+    ])).rejects.toThrow(/invalid transaction/i)
+  })
+
   it('announces TIP-6963 without pretending to be TronLink', async () => {
     const announcements: CustomEvent[] = []
     window.addEventListener('TIP6963:announceProvider', (event) => announcements.push(event as CustomEvent), { once: true })
@@ -522,6 +558,7 @@ describe('wallet provider bootstrap', () => {
       connect: vi.fn(async () => ({ publicKey: null })),
       disconnect: vi.fn(async () => undefined),
       signTransaction: vi.fn(async () => undefined),
+      signAllTransactions: vi.fn(async () => []),
       on: vi.fn(),
       off: vi.fn(),
       removeListener: vi.fn()

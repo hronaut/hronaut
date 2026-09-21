@@ -302,6 +302,7 @@ export function installHronautWalletProviders(): void {
   const legacySignedTransaction = async (transaction: unknown): Promise<unknown> => {
     const signed = await solanaRequest('signTransaction', [serializeLegacyTransaction(transaction)])
     if (!(signed instanceof Uint8Array)) throw new Error('Solana signing returned an invalid transaction')
+    if (transaction instanceof Uint8Array) return Uint8Array.from(signed)
     if (!transaction || typeof transaction !== 'object') return signed
     return new Proxy(transaction as object, {
       get(target, property, receiver) {
@@ -325,9 +326,11 @@ export function installHronautWalletProviders(): void {
       if (!Array.isArray(transactions) || !transactions.length) throw new TypeError('Solana transactions are required')
       const signed = await solanaRequest('signAllTransactions', transactions.map(serializeLegacyTransaction))
       if (!Array.isArray(signed) || signed.length !== transactions.length) throw new Error('Solana batch signing returned an invalid result')
+      if (signed.some((bytes) => !(bytes instanceof Uint8Array))) throw new Error('Solana batch signing returned an invalid transaction')
       return transactions.map((transaction, index) => {
-        const bytes = signed[index]
-        if (!(bytes instanceof Uint8Array) || !transaction || typeof transaction !== 'object') return bytes
+        const bytes = signed[index] as Uint8Array
+        if (transaction instanceof Uint8Array) return Uint8Array.from(bytes)
+        if (!transaction || typeof transaction !== 'object') return bytes
         return new Proxy(transaction as object, {
           get(target, property, receiver) {
             if (property === 'serialize') return () => Uint8Array.from(bytes)
