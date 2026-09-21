@@ -717,6 +717,7 @@ interface BrowserTab {
     baseline: BrowserStorageSnapshot
     current?: BrowserStorageSnapshot
   }
+  storageComparisonGeneration: number
 }
 
 interface BrowserSnapshotBaselineRecord {
@@ -2838,19 +2839,49 @@ export class BrowserTabsManager {
       throw new Error('Storage changes are available only for HTTP and HTTPS tabs.')
     }
     const origin = pageUrl.origin
-    if (tab.storageComparison?.baseline.origin !== origin) tab.storageComparison = undefined
+    if (tab.storageComparison && tab.storageComparison.baseline.origin !== origin) {
+      tab.storageComparisonGeneration += 1
+      tab.storageComparison = undefined
+    }
+
+    const requireCurrentOperation = (operationGeneration: number): void => {
+      const current = this.tabs.get(tab.id)
+      let currentOrigin: string | undefined
+      try {
+        currentOrigin = current ? new URL(current.url).origin : undefined
+      } catch {
+        // A non-web navigation invalidates the pending storage snapshot.
+      }
+      if (current !== tab
+        || current.webContents.isDestroyed()
+        || currentOrigin !== origin
+        || current.storageComparisonGeneration !== operationGeneration) {
+        throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
+      }
+    }
 
     if (action === 'clear') {
+      tab.storageComparisonGeneration += 1
       tab.storageComparison = undefined
       return this.storageChangesReport(tab, origin, action, includeValues)
     }
     if (action === 'baseline') {
-      tab.storageComparison = { baseline: await this.captureStorageSnapshot(tab, origin) }
+      const operationGeneration = ++tab.storageComparisonGeneration
+      const baseline = await this.captureStorageSnapshot(tab, origin)
+      requireCurrentOperation(operationGeneration)
+      tab.storageComparison = { baseline }
       return this.storageChangesReport(tab, origin, action, includeValues)
     }
     if (action === 'compare') {
-      if (!tab.storageComparison) throw new Error('Set a storage baseline before comparing changes.')
-      tab.storageComparison.current = await this.captureStorageSnapshot(tab, origin)
+      const comparison = tab.storageComparison
+      if (!comparison) throw new Error('Set a storage baseline before comparing changes.')
+      const operationGeneration = ++tab.storageComparisonGeneration
+      const current = await this.captureStorageSnapshot(tab, origin)
+      requireCurrentOperation(operationGeneration)
+      if (tab.storageComparison !== comparison) {
+        throw new Error('Storage comparison changed while the page snapshot was pending. Run the requested action again.')
+      }
+      comparison.current = current
     }
     return this.storageChangesReport(tab, origin, action, includeValues)
   }
@@ -8321,6 +8352,7 @@ export class BrowserTabsManager {
       emulation: { ...DEFAULT_EMULATION },
       emulationExtraHttpHeaders: {},
       visualComparisonGeneration: 0,
+      storageComparisonGeneration: 0,
       ...(options.mcpGroupId ? { mcpGroupId: options.mcpGroupId } : {})
     }
     tab.webContents.setAudioMuted(tab.muted)
