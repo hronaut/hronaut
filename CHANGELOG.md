@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Run renderer unit tests in a memory-bounded VM worker pool, preserving per-file isolation while substantially reducing repeated jsdom startup time.
+
 ### Fixed
 
 - Reject an explicitly empty `HRONAUT_MCP_TOKEN` during startup instead of silently generating a different profile token that configured MCP clients cannot use.
