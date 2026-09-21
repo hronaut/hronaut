@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-09-21
+
 ### Changed
 
 - Run renderer unit tests in a memory-bounded VM worker pool, preserving per-file isolation while substantially reducing repeated jsdom startup time.
