@@ -99,6 +99,7 @@ describe('StartupLaunchManager', () => {
     await writeFile(join(directory, 'hronaut.desktop'), [
       '[Desktop Entry]',
       'Type=Application',
+      'Name=Hronaut',
       `Exec = ${command}`,
       'Hidden = false',
       '[Unrelated Group]',
@@ -107,6 +108,34 @@ describe('StartupLaunchManager', () => {
     ].join('\n'), 'utf8')
 
     expect(await manager.isEnabled()).toBe(true)
+  })
+
+  it('requires the mandatory Linux application autostart fields', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
+    temporaryDirectories.push(directory)
+    const executablePath = '/opt/Hronaut/hronaut'
+    const manager = new StartupLaunchManager({
+      platform: 'linux',
+      isPackaged: true,
+      executablePath,
+      autostartDirectory: directory
+    })
+    const command = `"${executablePath}" ${STARTUP_LAUNCH_ARGUMENT}`
+
+    for (const fields of [
+      ['Name=Hronaut'],
+      ['Type=Link', 'Name=Hronaut'],
+      ['Type=Directory', 'Name=Hronaut'],
+      ['Type=Application']
+    ]) {
+      await writeFile(join(directory, 'hronaut.desktop'), [
+        '[Desktop Entry]',
+        ...fields,
+        `Exec=${command}`,
+        ''
+      ].join('\n'), 'utf8')
+      expect(await manager.isEnabled()).toBe(false)
+    }
   })
 
   it('rejects an otherwise matching Linux desktop entry with duplicate keys or groups', async () => {
