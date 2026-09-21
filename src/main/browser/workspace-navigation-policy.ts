@@ -135,8 +135,14 @@ export function normalizeWorkspaceNavigationPolicy(value: unknown): BrowserWorks
 }
 
 function parseNavigationTarget(value: string): NavigationTarget | null {
-  if (value.startsWith('view-source:')) return parseNavigationTarget(value.slice('view-source:'.length))
-  if (value.startsWith('blob:')) return parseNavigationTarget(value.slice('blob:'.length))
+  const viewSourcePrefix = 'view-source:'
+  const blobPrefix = 'blob:'
+  if (value.slice(0, viewSourcePrefix.length).toLowerCase() === viewSourcePrefix) {
+    return parseNavigationTarget(value.slice(viewSourcePrefix.length))
+  }
+  if (value.slice(0, blobPrefix.length).toLowerCase() === blobPrefix) {
+    return parseNavigationTarget(value.slice(blobPrefix.length))
+  }
   try {
     const url = new URL(value)
     if (url.protocol === 'data:') {
@@ -183,7 +189,9 @@ export function evaluateWorkspaceNavigation(
   value: string
 ): WorkspaceNavigationDecision {
   const policy = normalizeWorkspaceNavigationPolicy(policyValue)
-  if (value === 'about:blank') return { allowed: true, targetOrigin: 'about:blank', reason: 'neutral' }
+  if (value.length === 'about:blank'.length && value.toLowerCase() === 'about:blank') {
+    return { allowed: true, targetOrigin: 'about:blank', reason: 'neutral' }
+  }
   const target = parseNavigationTarget(value)
   if (!target) return { allowed: false, targetOrigin: 'invalid URL', reason: 'malformed' }
   if (target.credentials) return { allowed: false, targetOrigin: target.origin, reason: 'credentials' }

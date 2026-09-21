@@ -61,6 +61,23 @@ test('enforces trusted workspace allowlists for direct and page-driven top-level
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
       webContents.getAllWebContents().some((contents) => contents.getURL() === url)
     ), allowedUrl)).toBe(true)
+    const pageContentsId = await electronApp.evaluate(({ webContents }, url) => (
+      webContents.getAllWebContents().find((contents) => contents.getURL() === url)?.id
+    ), allowedUrl)
+    if (!pageContentsId) throw new Error('Allowed workspace page was not found')
+
+    const mixedCaseViewSourceUrl = `View-Source:${allowedUrl}`
+    await appWindow.evaluate(`window.hronaut.navigate({
+      tabId: ${JSON.stringify(tabId)},
+      url: ${JSON.stringify(mixedCaseViewSourceUrl)}
+    })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, id) => (
+      webContents.fromId(id)?.getURL()
+    ), pageContentsId)).toBe(`view-source:${allowedUrl}`)
+    await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(tabId)}, url: ${JSON.stringify(allowedUrl)} })`)
+    await expect.poll(() => electronApp.evaluate(({ webContents }, id) => (
+      webContents.fromId(id)?.getURL()
+    ), pageContentsId)).toBe(allowedUrl)
 
     const blockedPath = `${blockedOrigin}/private/path?token=direct-secret#fragment`
     const directError = await appWindow.evaluate(`window.hronaut.navigate({
@@ -71,10 +88,6 @@ test('enforces trusted workspace allowlists for direct and page-driven top-level
     expect(directError).not.toContain('/private/path')
     expect(directError).not.toContain('direct-secret')
 
-    const pageContentsId = await electronApp.evaluate(({ webContents }, url) => (
-      webContents.getAllWebContents().find((contents) => contents.getURL() === url)?.id
-    ), allowedUrl)
-    if (!pageContentsId) throw new Error('Allowed workspace page was not found')
     await electronApp.evaluate(async ({ webContents }, input) => {
       await webContents.fromId(input.id)?.executeJavaScript("document.querySelector('#blocked-link').click()")
     }, { id: pageContentsId })

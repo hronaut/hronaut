@@ -85,7 +85,17 @@ describe('workspace navigation policies', () => {
     const policy = normalizeWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['https://docs.example'] })
 
     expect(evaluateWorkspaceNavigation(policy, 'view-source:https://docs.example/guide').allowed).toBe(true)
+    expect(evaluateWorkspaceNavigation(policy, 'View-Source:https://docs.example/guide').allowed).toBe(true)
     expect(evaluateWorkspaceNavigation(policy, 'blob:https://docs.example/01912345-6789-7abc-8def-0123456789ab').allowed).toBe(true)
+    expect(evaluateWorkspaceNavigation(policy, 'BLOB:https://docs.example/01912345-6789-7abc-8def-0123456789ab').allowed).toBe(true)
+    expect(evaluateWorkspaceNavigation(policy, 'View-Source:https://user:secret@docs.example/guide')).toMatchObject({
+      allowed: false,
+      reason: 'credentials'
+    })
+    expect(evaluateWorkspaceNavigation(policy, 'BLOB:https://user:secret@docs.example/id')).toMatchObject({
+      allowed: false,
+      reason: 'credentials'
+    })
     expect(evaluateWorkspaceNavigation(policy, 'data:text/html,<h1>fixture</h1>')).toEqual({
       allowed: false,
       targetOrigin: 'data:',
@@ -97,6 +107,11 @@ describe('workspace navigation policies', () => {
     const policy = normalizeWorkspaceNavigationPolicy({ mode: 'restricted', rules: ['https://example.com'] })
 
     expect(evaluateWorkspaceNavigation(policy, 'about:blank')).toEqual({
+      allowed: true,
+      targetOrigin: 'about:blank',
+      reason: 'neutral'
+    })
+    expect(evaluateWorkspaceNavigation(policy, 'ABOUT:blank')).toEqual({
       allowed: true,
       targetOrigin: 'about:blank',
       reason: 'neutral'

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Treat `about:blank`, `view-source:`, and `blob:` schemes case-insensitively when enforcing restricted workspace navigation policies.
+
 ## [2.5.1] - 2026-09-21
 
 ### Changed

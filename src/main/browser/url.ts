@@ -22,7 +22,7 @@ function hasSchemeLessUserInfo(value: string): boolean {
 }
 
 export function isAgentWorkspaceNavigationUrl(value: string): boolean {
-  if (value === 'about:blank') return true
+  if (value.length === 'about:blank'.length && value.toLowerCase() === 'about:blank') return true
   try {
     const url = new URL(value)
     if (url.protocol === 'http:' || url.protocol === 'https:') return !url.username && !url.password

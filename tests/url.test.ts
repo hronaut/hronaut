@@ -55,11 +55,14 @@ describe('normalizeAddress', () => {
 describe('isAgentWorkspaceNavigationUrl', () => {
   it.each([
     'about:blank',
+    'ABOUT:blank',
     'https://example.com/page',
     'http://localhost:4173/',
     'data:text/html,<h1>QA fixture</h1>',
     'view-source:https://example.com/',
-    'blob:https://example.com/01912345-6789-7abc-8def-0123456789ab'
+    'View-Source:https://example.com/',
+    'blob:https://example.com/01912345-6789-7abc-8def-0123456789ab',
+    'BLOB:https://example.com/01912345-6789-7abc-8def-0123456789ab'
   ])('keeps non-privileged agent documents available: %s', (url) => {
     expect(isAgentWorkspaceNavigationUrl(url)).toBe(true)
   })
@@ -68,7 +71,9 @@ describe('isAgentWorkspaceNavigationUrl', () => {
     'file:///tmp/private.txt',
     'https://agent:embedded-secret@example.com/private?token=query-secret',
     'view-source:https://agent:embedded-secret@example.com/private',
+    'View-Source:https://agent:embedded-secret@example.com/private',
     'blob:https://agent:embedded-secret@example.com/01912345-6789-7abc-8def-0123456789ab',
+    'BLOB:https://agent:embedded-secret@example.com/01912345-6789-7abc-8def-0123456789ab',
     'hronaut://home/',
     'chrome://version',
     'devtools://devtools/bundled/inspector.html',
