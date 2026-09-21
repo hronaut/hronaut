@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.2] - 2026-09-21
+
 ### Fixed
 
 - Prevent delayed semantic snapshot and memory measurements from restoring or advancing obsolete baselines, and reject memory results captured across navigation.
