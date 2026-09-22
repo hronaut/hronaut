@@ -106,7 +106,6 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   function handleFocus(): void {
     focused.value = true
     editing.value = true
-    dirty.value = false
     openSuggestions()
   }
 
@@ -121,7 +120,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     blurTimer = undefined
     focused.value = false
     editing.value = false
-    restoreActiveAddress()
+    if (!dirty.value) restoreActiveAddress()
   }
 
   function handleFocusOut(event: FocusEvent): void {
@@ -157,7 +156,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     } finally {
       if (pendingNavigation === navigation) {
         pendingNavigation = null
-        restoreActiveAddress()
+        if (!dirty.value) restoreActiveAddress()
       }
     }
   }
@@ -191,7 +190,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
 
   function handleKeydown(event: KeyboardEvent): void {
     if (isImeCompositionEvent(event)) return
-    if (event.key === 'Escape' && open.value) {
+    if (event.key === 'Escape' && (open.value || dirty.value)) {
       event.preventDefault()
       close()
       restoreActiveAddress()
@@ -270,7 +269,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
           && pendingNavigation.tabId === tabId
           && pendingNavigation.initialUrl !== url
         )) pendingNavigation = null
-        if (tabChanged || !editing.value) {
+        if (tabChanged || (!editing.value && !dirty.value)) {
           cancelBlur()
           close()
           if (tabChanged) editing.value = false

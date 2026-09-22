@@ -191,6 +191,8 @@ Each tab keeps at most one baseline and one diff in memory. They disappear when 
 
 Press **Ctrl+F** on Linux or Windows, **Cmd+F** on macOS, or use the find button beside the address bar. Hronaut uses Chromium's native page search to highlight matches and show the current result count. Press Enter or Shift+Enter to move between matches, or Escape to close the bar and clear the search selection.
 
+Switching tabs, navigating, or reloading closes Find and clears the previous page's matches. Reopening Find repeats the retained query against the current page.
+
 ## Find any Hronaut command
 
 Click the command button in the top strip or press **Ctrl/Cmd+Shift+P** from Hronaut or the active website. The Command Palette searches navigation, application settings, and current-website diagnostics by name, description, and practical synonyms such as `cookies`, `screenshot`, `WCAG`, or `HAR`. Use Up/Down and Enter to run the highlighted command, or Escape to close it.
@@ -218,6 +220,8 @@ Drag the divider between the pages to resize them directly. Focus the divider an
 The split control can switch between side-by-side and stacked layouts, allocate 25–75% of the available space to the first pane, swap pane positions, or return to one page. Docked Page tools and Bookmarks resize both panes inside the remaining website area. The pair, layout, order, and proportion survive application restarts. Selecting a third tab exits the pair instead of silently replacing one side, and closing either pane returns the remaining tab to the full website area.
 
 ## Find local pages from the address bar
+
+Your typed draft survives moving focus to the website or another control. Press Escape to restore the current page address, submit the draft to navigate, or switch tabs to use the other tab's address. For a single-word query, matching hostname prefixes take priority over pages that only mention the word in their title or URL, so typing `google` can surface a saved `www.google.com` visit.
 
 Start typing a title or address to match bookmarks and browsing history in a native dropdown that floats above the current website without resizing it. Use Up/Down and Enter or click a result. Type **@bookmarks** or **@history** followed by optional keywords to limit the local source. Open tabs are intentionally kept out of address suggestions: submitting an address always navigates the current tab, even when the same page is already open elsewhere, while the dedicated tab-search control remains available for switching between open pages. Matching happens entirely inside Hronaut: focus and keystrokes are not sent to a suggestion service. If you submit text that is not an explicitly selected local result or recognizable address, Hronaut sends it to the provider selected under **Settings → Search engine** only after you press Enter.
 

@@ -4636,11 +4636,16 @@ export class BrowserTabsManager {
       }, 5_000)
       webContents.on('found-in-page', onFound)
       webContents.once('destroyed', onDestroyed)
-      requestId = webContents.findInPage(query, {
-        forward: options.forward ?? true,
-        findNext: options.findNext ?? true,
-        matchCase: options.caseSensitive ?? false
-      })
+      try {
+        requestId = webContents.findInPage(query, {
+          forward: options.forward ?? true,
+          findNext: options.findNext ?? true,
+          matchCase: options.caseSensitive ?? false
+        })
+      } catch (error) {
+        cleanup()
+        reject(error)
+      }
     })
   }
 

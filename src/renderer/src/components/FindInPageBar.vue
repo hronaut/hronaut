@@ -109,9 +109,13 @@ watch(open, (isOpen) => {
   else if (!isOpen && targetTabId) void cleanup()
 }, { immediate: true })
 
-watch(() => props.activeTab?.id, (tabId) => {
-  if (open.value && targetTabId && tabId !== targetTabId) void close()
-})
+watch([
+  () => props.activeTab?.id,
+  () => props.activeTab?.url,
+  () => props.activeTab?.navigationGeneration
+], () => {
+  if (open.value && targetTabId) void close()
+}, { flush: 'sync' })
 
 onBeforeUnmount(() => { void close() })
 defineExpose({ close, openForTab })
