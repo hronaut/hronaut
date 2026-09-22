@@ -7158,18 +7158,15 @@ export class BrowserTabsManager {
       if (options.fullPage) {
         let data = ''
         await this.withDebugger(webContents, async () => {
-          let clip: { x: number; y: number; width: number; height: number; scale: number } | undefined
-          if (options.maxWidth !== undefined || options.maxHeight !== undefined) {
-            const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
-            const bounds = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
-            const pixelRatio = this.screenshotPixelRatio(tab)
-            const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
-            clip = { ...bounds, scale: bounded.scale }
-          }
+          const metrics = await webContents.debugger.sendCommand('Page.getLayoutMetrics') as ScreenshotLayoutMetrics
+          const bounds = fullPageScreenshotBounds(metrics, webContents.getZoomFactor())
+          const pixelRatio = this.screenshotPixelRatio(tab)
+          const bounded = boundedScreenshotSize(bounds.width * pixelRatio, bounds.height * pixelRatio, options.maxWidth, options.maxHeight)
+          const clip = { ...bounds, scale: bounded.scale }
           const result = await webContents.debugger.sendCommand('Page.captureScreenshot', {
             format,
             ...(format === 'jpeg' ? { quality } : {}),
-            ...(clip ? { clip } : {}),
+            clip,
             captureBeyondViewport: true,
             fromSurface: true
           }) as { data: string }
