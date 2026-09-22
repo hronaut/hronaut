@@ -5,10 +5,13 @@ describe('normalizeAddress', () => {
   it('keeps explicit schemes', () => {
     expect(normalizeAddress('https://example.com/path')).toBe('https://example.com/path')
     expect(normalizeAddress('about:blank')).toBe('about:blank')
+    expect(normalizeAddress('web+demo:docs.example')).toBe('web+demo:docs.example')
+    expect(normalizeAddress('web+demo:docs.example/path?mode=read')).toBe('web+demo:docs.example/path?mode=read')
   })
 
   it('turns host-like input into an HTTPS URL', () => {
     expect(normalizeAddress('example.com/docs')).toBe('https://example.com/docs')
+    expect(normalizeAddress('example.com:8443/docs')).toBe('https://example.com:8443/docs')
     expect(normalizeAddress('example.com/@person')).toBe('https://example.com/@person')
   })
 

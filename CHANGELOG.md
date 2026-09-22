@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Open scheme-less loopback development URLs containing a query or fragment over HTTP instead of treating them as a custom scheme or web search.
+- Preserve explicit custom-protocol addresses whose payload contains a dotted name instead of rewriting them as HTTPS URLs.
 
 ## [2.5.3] - 2026-09-22
 
