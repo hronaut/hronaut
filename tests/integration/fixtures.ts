@@ -99,11 +99,6 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
-  const traces = testTraces.get(base.info())
-  if (traces) {
-    applicationTraces.set(app, traces)
-    await traces.start(app)
-  }
   await app.evaluate(({ app }) => {
     const exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] = []
     const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
@@ -123,6 +118,14 @@ export async function launchHronaut(
     if (message.type() === 'error') console.error(`[renderer] ${message.text()}`)
   })
   await window.waitForLoadState('domcontentloaded')
+  // Electron exposes its context before the first Page is fully initialized.
+  // Starting earlier can miss installing Playwright's DOM snapshot streamer
+  // in that page for its entire lifetime, despite recording screenshots.
+  const traces = testTraces.get(base.info())
+  if (traces) {
+    applicationTraces.set(app, traces)
+    await traces.start(app)
+  }
   return { app, window }
 }
 
