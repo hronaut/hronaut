@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WalletPolicyUsageStore } from '../src/main/wallet/policy-usage.js'
 import type { WalletPolicy } from '../src/shared/wallet.js'
 import { createTestWalletAuthority, loadTestWalletAuthority } from './helpers/wallet-authority.js'
@@ -72,5 +72,17 @@ describe('WalletPolicyUsageStore', () => {
       sessionSpend: '0.75',
       dailySpend: '0'
     })
+  })
+
+  it('preserves session and persisted usage when removal cannot be saved', async () => {
+    const { value } = await store()
+    const now = new Date('2026-08-28T12:00:00.000Z')
+    await value.reserve(policy({ maximumOperationCount: 5 }), '0.75', now)
+    const before = value.snapshot('policy-1', now)
+    vi.spyOn(value['authority'], 'mutate').mockRejectedValueOnce(new Error('vault write failed'))
+
+    await expect(value.remove('policy-1')).rejects.toThrow('vault write failed')
+
+    expect(value.snapshot('policy-1', now)).toEqual(before)
   })
 })

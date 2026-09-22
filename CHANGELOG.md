@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve wallet policy usage counters when encrypted policy removal cannot be saved, keep policy attachment changes transactional, and reject moving an existing policy identity between wallets.
 - Bound wallet policy amounts and accumulated spend before arbitrary-size decimal arithmetic can stall the main process.
 - Show Hronaut after a minimized sign-in launch when the system tray cannot be created, avoiding an inaccessible hidden process.
 - Stop reporting a drifted Linux autostart entry as enabled when its `TryExec` points at a different application.

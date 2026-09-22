@@ -337,6 +337,81 @@ describe('WalletService', () => {
     })).rejects.toThrow('Wallet does not support signing automation')
   })
 
+  it('rolls back a new policy when its wallet descriptor cannot be updated', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Policy rollback', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    const vault = service['vault']
+    if (!vault) throw new Error('Expected initialized wallet vault')
+    vi.spyOn(vault, 'updateDescriptor').mockRejectedValueOnce(new Error('descriptor write failed'))
+
+    await expect(service.setPolicy({
+      id: 'policy-rollback', name: 'Rollback policy', mode: 'bounded-auto', walletId: generated.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })).rejects.toThrow('descriptor write failed')
+
+    expect(service.policies.list()).toEqual([])
+    expect(service.list()).toContainEqual(expect.objectContaining({ id: generated.wallet.id, policyIds: [] }))
+    service.dispose()
+    const restored = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await restored.initialize()
+    expect(restored.policies.list()).toEqual([])
+  })
+
+  it('keeps a policy attached when its wallet descriptor cannot be updated during removal', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const generated = await service.generate({
+      name: 'Removal rollback', chainFamily: 'evm', network, workspaceIds: ['workspace-1']
+    })
+    const policy = await service.setPolicy({
+      id: 'policy-removal-rollback', name: 'Retained policy', mode: 'bounded-auto', walletId: generated.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true, allowMessageSigning: false
+    })
+    const vault = service['vault']
+    if (!vault) throw new Error('Expected initialized wallet vault')
+    vi.spyOn(vault, 'updateDescriptor').mockRejectedValueOnce(new Error('descriptor write failed'))
+
+    await expect(service.removePolicy(policy.id)).rejects.toThrow('descriptor write failed')
+
+    expect(service.policies.list()).toEqual([policy])
+    expect(service.list()).toContainEqual(expect.objectContaining({
+      id: generated.wallet.id,
+      policyIds: [policy.id]
+    }))
+  })
+
+  it('rejects reusing a policy identity for a different wallet', async () => {
+    const path = await directory()
+    const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage() })
+    await service.initialize()
+    const first = await service.generate({ name: 'First', chainFamily: 'evm', network, workspaceIds: ['workspace-1'] })
+    const second = await service.generate({ name: 'Second', chainFamily: 'evm', network, workspaceIds: ['workspace-1'] })
+    const policy = {
+      id: 'stable-policy', name: 'Stable identity', mode: 'bounded-auto' as const, walletId: first.wallet.id,
+      workspaceId: 'workspace-1', networkIds: ['31337'], origins: ['https://dapp.example'],
+      destinations: ['0x0000000000000000000000000000000000000002'], methods: ['native-transfer'],
+      expiresAt: '2099-08-29T12:00:00.000Z', maximumOperationCount: 1,
+      requireSuccessfulSimulation: true as const, allowMessageSigning: false
+    }
+    await service.setPolicy(policy)
+
+    await expect(service.setPolicy({ ...policy, walletId: second.wallet.id }))
+      .rejects.toThrow('Wallet policy identity cannot be moved between wallets')
+    expect(service.list().find((wallet) => wallet.id === first.wallet.id)?.policyIds).toEqual([policy.id])
+    expect(service.list().find((wallet) => wallet.id === second.wallet.id)?.policyIds).toEqual([])
+  })
+
   it('requires a dedicated EVM agent wallet and complete limits for mainnet Bypass Approve mode', async () => {
     const path = await directory()
     const service = new WalletService({ directory: path, platform: 'linux', safeStorage: storage(), now: () => new Date('2026-09-04T12:00:00.000Z') })

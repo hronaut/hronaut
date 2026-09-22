@@ -464,17 +464,34 @@ export class WalletService {
         }
       }
     }
+    const previousPolicy = this.policies.list().find((entry) => entry.id === candidate.id)
+    if (previousPolicy && previousPolicy.walletId !== candidate.walletId) {
+      throw new Error('Wallet policy identity cannot be moved between wallets')
+    }
     const policy = await this.policies.set(candidate)
-    if (!wallet.policyIds.includes(policy.id)) {
-      const current = this.requireWallet(wallet.id)
-      const now = this.now().toISOString()
-      const updater = (descriptor: WalletDescriptor): WalletDescriptor => ({
-        ...descriptor,
-        policyIds: [...new Set([...descriptor.policyIds, policy.id])],
-        updatedAt: now
-      })
-      if (current.kind === 'watch-only') await this.watchOnly.update(wallet.id, updater)
-      else await this.readyVault().updateDescriptor(wallet.id, updater)
+    try {
+      if (!wallet.policyIds.includes(policy.id)) {
+        const current = this.requireWallet(wallet.id)
+        const now = this.now().toISOString()
+        const updater = (descriptor: WalletDescriptor): WalletDescriptor => ({
+          ...descriptor,
+          policyIds: [...new Set([...descriptor.policyIds, policy.id])],
+          updatedAt: now
+        })
+        if (current.kind === 'watch-only') await this.watchOnly.update(wallet.id, updater)
+        else await this.readyVault().updateDescriptor(wallet.id, updater)
+      }
+    } catch (descriptorError) {
+      try {
+        if (previousPolicy) await this.policies.set(previousPolicy)
+        else await this.policies.remove(policy.id)
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [descriptorError, rollbackError],
+          'Wallet policy descriptor update failed and its rollback was incomplete'
+        )
+      }
+      throw descriptorError
     }
     await this.audit.append('policy-updated', {
       policyId: policy.id, walletId: policy.walletId, workspaceId: policy.workspaceId, mode: policy.mode
@@ -486,18 +503,54 @@ export class WalletService {
   async removePolicy(policyId: string): Promise<boolean> {
     const policy = this.policies.list().find((entry) => entry.id === policyId)
     if (!policy) return false
-    const removed = await this.policies.remove(policyId)
-    await this.policyUsage.remove(policyId)
     const wallet = this.list().find((entry) => entry.id === policy.walletId)
-    if (wallet?.policyIds.includes(policyId)) {
-      const now = this.now().toISOString()
-      const updater = (descriptor: WalletDescriptor): WalletDescriptor => ({
-        ...descriptor,
-        policyIds: descriptor.policyIds.filter((id) => id !== policyId),
-        updatedAt: now
-      })
-      if (wallet.kind === 'watch-only') await this.watchOnly.update(wallet.id, updater)
-      else await this.readyVault().updateDescriptor(wallet.id, updater)
+    const descriptorNeedsUpdate = Boolean(wallet?.policyIds.includes(policyId))
+    let descriptorUpdated = false
+    let removed = false
+    try {
+      if (wallet && descriptorNeedsUpdate) {
+        const now = this.now().toISOString()
+        const updater = (descriptor: WalletDescriptor): WalletDescriptor => ({
+          ...descriptor,
+          policyIds: descriptor.policyIds.filter((id) => id !== policyId),
+          updatedAt: now
+        })
+        if (wallet.kind === 'watch-only') await this.watchOnly.update(wallet.id, updater)
+        else await this.readyVault().updateDescriptor(wallet.id, updater)
+        descriptorUpdated = true
+      }
+      removed = await this.policies.remove(policyId)
+      if (!removed) throw new Error('Wallet policy disappeared during removal')
+      await this.policyUsage.remove(policyId)
+    } catch (removalError) {
+      const rollbackErrors: unknown[] = []
+      if (removed) {
+        try {
+          await this.policies.set(policy)
+        } catch (error) {
+          rollbackErrors.push(error)
+        }
+      }
+      if (wallet && descriptorUpdated) {
+        const updater = (descriptor: WalletDescriptor): WalletDescriptor => ({
+          ...descriptor,
+          policyIds: [...new Set([...descriptor.policyIds, policyId])],
+          updatedAt: wallet.updatedAt
+        })
+        try {
+          if (wallet.kind === 'watch-only') await this.watchOnly.update(wallet.id, updater)
+          else await this.readyVault().updateDescriptor(wallet.id, updater)
+        } catch (error) {
+          rollbackErrors.push(error)
+        }
+      }
+      if (rollbackErrors.length) {
+        throw new AggregateError(
+          [removalError, ...rollbackErrors],
+          'Wallet policy removal failed and its rollback was incomplete'
+        )
+      }
+      throw removalError
     }
     if (removed) await this.audit.append('policy-removed', { policyId, walletId: policy.walletId }, this.now().toISOString())
     this.publish()

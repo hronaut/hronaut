@@ -91,12 +91,15 @@ export class WalletPolicyUsageStore {
 
   remove(policyId: string): Promise<boolean> {
     return this.queueMutation(async () => {
-      this.session.delete(policyId)
-      if (!this.persisted.has(policyId)) return false
+      if (!this.persisted.has(policyId)) {
+        this.session.delete(policyId)
+        return false
+      }
       const next = new Map(this.persisted)
       next.delete(policyId)
       await this.persist(next)
       this.replace(next)
+      this.session.delete(policyId)
       return true
     })
   }
