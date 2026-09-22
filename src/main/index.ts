@@ -1780,6 +1780,11 @@ async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> 
         mainWindow.webContents.send('address-overlay:dismissed')
       }
     })
+    webContents.on('render-process-gone', () => {
+      // A crashed renderer leaves its WebContents alive. Destroy that cached
+      // surface so the existing dismissal path allows fresh input to recreate it.
+      if (!webContents.isDestroyed()) webContents.close()
+    })
     try {
       await webContents.loadURL(expectedUrl)
       // Initial navigation resets the view's zoom. Apply the latest shell
