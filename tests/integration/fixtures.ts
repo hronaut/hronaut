@@ -7,12 +7,16 @@ import {
   _electron as electron,
   test as base,
   type ElectronApplication,
-  type Page
+  type Page,
+  type TestInfo
 } from '@playwright/test'
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import { integrationMcpPort } from './port-allocation.js'
+import { ElectronTraceRecorder } from './electron-tracing.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
+const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
+const applicationTraces = new WeakMap<ElectronApplication, ElectronTraceRecorder>()
 
 export interface HronautInstance {
   app: ElectronApplication
@@ -54,6 +58,7 @@ export async function blockFileDestination(path: string): Promise<() => Promise<
 }
 
 export interface HronautFixtures {
+  electronTraces: ElectronTraceRecorder
   appWindow: Page
   electronApp: ElectronApplication
   mcpToken: string
@@ -93,6 +98,11 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
+  const traces = testTraces.get(base.info())
+  if (traces) {
+    applicationTraces.set(app, traces)
+    await traces.start(app)
+  }
   await app.evaluate(({ app }) => {
     const exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] = []
     const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
@@ -116,6 +126,8 @@ export async function launchHronaut(
 }
 
 export async function closeHronaut(app: ElectronApplication): Promise<void> {
+  await applicationTraces.get(app)?.stop(app)
+  applicationTraces.delete(app)
   let child: ReturnType<ElectronApplication['process']>
   try {
     child = app.process()
@@ -170,6 +182,15 @@ async function waitForExit(
 }
 
 export const test = base.extend<HronautFixtures>({
+  electronTraces: [async ({}, use, testInfo) => {
+    const traces = new ElectronTraceRecorder(testInfo)
+    testTraces.set(testInfo, traces)
+    try { await use(traces) } finally {
+      testTraces.delete(testInfo)
+      await traces.finish()
+    }
+  }, { auto: true }],
+
   profileDirectory: async ({}, use) => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-integration-'))
     await use(directory)
