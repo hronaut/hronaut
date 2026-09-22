@@ -11,26 +11,30 @@ const fixture = await readFile(new URL('./fixtures/macos-update/latest-mac.yml',
 const directories: string[] = []
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))) })
 
-function updaterSupports(source: string, release: string): boolean {
+function updaterSupports(cases: Array<{ source: string; release: string }>): boolean[] {
   // Exercise the installed updater's real compatibility method, including its fail-open
-  // semver handling. Isolate the OS override from Vitest and other tests.
-  return execFileSync(process.execPath, ['-e', `
-    require('node:os').release = () => process.argv[1];
+  // semver handling. Share one isolated process so each OS case does not pay the
+  // updater's module-loading cost while the other validation gates are running.
+  return JSON.parse(execFileSync(process.execPath, ['-e', `
+    const os = require('node:os');
     const { AppUpdater } = require('electron-updater/out/AppUpdater.js');
-    const result = AppUpdater.prototype.checkIfUpdateSupported.call(
-      { _logger: { info() {}, warn() {} } }, JSON.parse(process.argv[2]));
-    process.stdout.write(JSON.stringify(result));
-  `, release, JSON.stringify(parse(source))], { encoding: 'utf8' }) === 'true'
+    const results = JSON.parse(process.argv[1]).map(({ release, manifest }) => {
+      os.release = () => release;
+      return AppUpdater.prototype.checkIfUpdateSupported.call(
+        { _logger: { info() {}, warn() {} } }, manifest);
+    });
+    process.stdout.write(JSON.stringify(results));
+  `, JSON.stringify(cases.map(({ source, release }) => ({ release, manifest: parse(source) })))], { encoding: 'utf8' })) as boolean[]
 }
 
 describe('macOS release updater protection', () => {
   it('blocks Monterey in the real updater while admitting Ventura and newer', () => {
-    expect(updaterSupports(fixture, '21.6.0')).toBe(true)
     const protectedManifest = protectMacUpdateManifest(fixture, '1.11.59')
-    expect(updaterSupports(protectedManifest, '21.6.0')).toBe(false)
-    for (const release of ['22.0.0', '22.1.0', '23.0.0', '25.0.0']) {
-      expect(updaterSupports(protectedManifest, release)).toBe(true)
-    }
+    expect(updaterSupports([
+      { source: fixture, release: '21.6.0' },
+      { source: protectedManifest, release: '21.6.0' },
+      ...['22.0.0', '22.1.0', '23.0.0', '25.0.0'].map(release => ({ source: protectedManifest, release }))
+    ])).toEqual([true, false, true, true, true, true])
     expect(parse(protectedManifest)).toEqual({ ...parse(fixture), minimumSystemVersion: '22.0.0' })
   })
 
