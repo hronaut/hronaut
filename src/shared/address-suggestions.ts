@@ -76,6 +76,15 @@ function matches(title: string, url: string, terms: string[]): boolean {
   return terms.every((term) => searchable.includes(term))
 }
 
+function matchesHostnamePrefix(url: string, term: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLocaleLowerCase().replace(/^www\./, '')
+    return hostname.startsWith(term.replace(/^www\./, ''))
+  } catch {
+    return false
+  }
+}
+
 export function buildLocalAddressSuggestions(input: AddressSuggestionInput): AddressSuggestion[] {
   const { scope, terms } = parseQuery(input.query)
   const limit = Math.max(1, Math.min(20, Math.trunc(input.limit ?? 8)))
@@ -83,7 +92,7 @@ export function buildLocalAddressSuggestions(input: AddressSuggestionInput): Add
   const seen = new Set<string>()
 
   const add = (suggestion: AddressSuggestion): void => {
-    if (suggestions.length >= limit || !matches(suggestion.title, suggestion.url, terms)) return
+    if (!matches(suggestion.title, suggestion.url, terms)) return
     const key = canonicalUrl(suggestion.url)
     if (seen.has(key)) return
     seen.add(key)
@@ -117,5 +126,17 @@ export function buildLocalAddressSuggestions(input: AddressSuggestionInput): Add
     if (scope === 'all' || scope === 'bookmarks') addBookmarks()
     if (scope === 'all' || scope === 'history') addHistory()
   }
-  return suggestions
+  // Rank before applying the display limit so an often-used hostname cannot
+  // disappear behind bookmarks or recent pages that merely mention it.
+  const term = terms[0]
+  if (terms.length === 1 && term) {
+    const hostnameMatches: AddressSuggestion[] = []
+    const otherMatches: AddressSuggestion[] = []
+    for (const suggestion of suggestions) {
+      const target = matchesHostnamePrefix(suggestion.url, term) ? hostnameMatches : otherMatches
+      target.push(suggestion)
+    }
+    return [...hostnameMatches, ...otherMatches].slice(0, limit)
+  }
+  return suggestions.slice(0, limit)
 }

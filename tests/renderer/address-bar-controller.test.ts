@@ -153,7 +153,7 @@ describe('address bar controller', () => {
     expect(rendered.onNavigate).toHaveBeenCalledWith('person@example.com')
   })
 
-  it('preserves a dirty edit through redirects and restores the committed URL on blur', async () => {
+  it('preserves a dirty edit through redirects, focus loss, and refocus', async () => {
     vi.useFakeTimers()
     const rendered = createHarness()
     const input = screen.getByRole('textbox', { name: 'Address' })
@@ -169,7 +169,62 @@ describe('address bar controller', () => {
     await fireEvent.focusOut(input)
     await vi.runAllTimersAsync()
     await nextTick()
+    expect(input).toHaveValue('https://typed.example/path')
+    expect(rendered.controller.dirty.value).toBe(true)
+    expect(rendered.controller.focused.value).toBe(false)
+    expect(rendered.controller.open.value).toBe(false)
+
+    await fireEvent.focus(input)
+    await fireEvent.focusOut(input)
+    await vi.runAllTimersAsync()
+    expect(input).toHaveValue('https://typed.example/path')
+    rendered.activeTab.value = tab('first', 'https://redirected.example/later')
+    await nextTick()
+    expect(input).toHaveValue('https://typed.example/path')
+  })
+
+  it('restores the committed URL after focus loss when there is no typed draft', async () => {
+    vi.useFakeTimers()
+    const rendered = createHarness()
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    rendered.activeTab.value = tab('first', 'https://redirected.example/final')
+    await nextTick()
+    await fireEvent.focusOut(input)
+    await vi.runAllTimersAsync()
+
     expect(input).toHaveValue('https://redirected.example/final')
+    expect(rendered.controller.dirty.value).toBe(false)
+  })
+
+  it('preserves a newer draft when an earlier navigation completes', async () => {
+    let finishNavigation!: () => void
+    const rendered = createHarness({ onNavigate: () => new Promise<void>(resolve => { finishNavigation = resolve }) })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'first destination')
+    const submission = rendered.controller.submit()
+
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'second unfinished destination')
+    finishNavigation()
+    await submission
+
+    expect(input).toHaveValue('second unfinished destination')
+    expect(rendered.controller.dirty.value).toBe(true)
+  })
+
+  it('uses Escape to discard a draft even after the suggestion popup was dismissed', async () => {
+    const rendered = createHarness()
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'unfinished search')
+    rendered.dismissOverlay()
+
+    await fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(input).toHaveValue('https://example.test/first')
+    expect(rendered.controller.dirty.value).toBe(false)
   })
 
   it('discards an edit and closes native suggestions when the active tab changes', async () => {
@@ -262,7 +317,7 @@ describe('address bar controller', () => {
     expect(rendered.onNavigate).not.toHaveBeenCalled()
   })
 
-  it('keeps the last native suggestion selectable after focus loss restores the address', async () => {
+  it('keeps the last native suggestion selectable after focus loss preserves the draft', async () => {
     vi.useFakeTimers()
     const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
     const rendered = createHarness({ bookmarks: [saved] })
@@ -275,7 +330,7 @@ describe('address bar controller', () => {
 
     await fireEvent.focusOut(input)
     await vi.runAllTimersAsync()
-    expect(input).toHaveValue('https://example.test/first')
+    expect(input).toHaveValue('saved')
     rendered.selectOverlay(request!.suggestions[0].id)
 
     await vi.waitFor(() => expect(rendered.onNavigate).toHaveBeenCalledWith(saved.url))

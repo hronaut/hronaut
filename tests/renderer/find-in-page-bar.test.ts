@@ -156,6 +156,47 @@ describe('FindInPageBar', () => {
     expect(search).toHaveValue('x'.repeat(MAX_FIND_QUERY_LENGTH))
   })
 
+  it.each([
+    ['same-URL reload', { navigationGeneration: 1 }],
+    ['another page', { url: 'https://example.test/another' }],
+    ['same-document route change', { url: 'https://example.test/first#profile', navigationGeneration: 1 }]
+  ])('clears old matches after %s in the same tab', async (_name, changes) => {
+    const { view, browser, activeTab } = renderBar()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await screen.findByText('1 / 3')
+
+    await view.rerender({ activeTab: { ...activeTab, ...changes } })
+
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    expect(screen.queryByText('1 / 3')).not.toBeInTheDocument()
+  })
+
+  it('discards a delayed match result from before a same-URL reload', async () => {
+    const pending = deferred<BrowserFindResult>()
+    const { view, browser, activeTab } = renderBar({ browser: { findInPage: () => pending.promise } })
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+
+    await view.rerender({ activeTab: { ...activeTab, navigationGeneration: 1 } })
+    pending.resolve({ activeMatchOrdinal: 1, matches: 9 })
+    await pending.promise
+
+    expect(browser.stopFindInPage).toHaveBeenCalledWith('first')
+    expect(view.emitted()['update:open']?.at(-1)).toEqual([false])
+    expect(screen.queryByText('1 / 9')).not.toBeInTheDocument()
+  })
+
+  it('keeps current matches through unrelated tab-state updates', async () => {
+    const { view, browser, activeTab } = renderBar()
+    await fireEvent.update(screen.getByRole('searchbox', { name: 'Find text' }), 'needle')
+    await screen.findByText('1 / 3')
+
+    await view.rerender({ activeTab: { ...activeTab, title: 'Updated title', audible: true } })
+
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+    expect(screen.getByText('1 / 3')).toBeVisible()
+  })
+
   it('invalidates pending work and clears the page selection when unmounted', async () => {
     const pending = deferred<BrowserFindResult>()
     const { view, browser } = renderBar({ browser: { findInPage: () => pending.promise } })

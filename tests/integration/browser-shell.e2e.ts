@@ -6858,6 +6858,83 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
   }
 })
 
+test('invalidates page matches after same-tab navigation and cleans up failed native searches', async ({ appWindow, electronApp }) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(`<!doctype html><title>Find navigation ${request.url}</title><main>needle</main>`)
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Find navigation fixture did not expose a port')
+    const url = `http://127.0.0.1:${address.port}/find`
+    const state = await appWindow.evaluate(async (url) => (
+      (window as unknown as { hronaut: HronautApi }).hronaut.newTab({ url, active: true })
+    ), url)
+    const tabId = state.activeTabId
+    if (!tabId) throw new Error('Find navigation fixture did not create a tab')
+    await expect.poll(() => appWindow.evaluate(async () => (
+      (await (window as unknown as { hronaut: HronautApi }).hronaut.getState()).tabs.find(tab => tab.active)?.loading
+    ))).toBe(false)
+
+    const listenersBefore = await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Find navigation page was not found')
+      const originalFind = page.findInPage
+      page.findInPage = function () {
+        page.findInPage = originalFind
+        throw new Error('Synthetic native find failure')
+      }
+      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
+    }, url)
+    const failure = await appWindow.evaluate(async (tabId) => {
+      try {
+        await (window as unknown as { hronaut: HronautApi }).hronaut.findInPage({ tabId, query: 'needle' })
+        return null
+      } catch (error) {
+        return String(error)
+      }
+    }, tabId)
+    expect(failure).toContain('Synthetic native find failure')
+    expect(await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Find navigation page was not found')
+      return { found: page.listenerCount('found-in-page'), destroyed: page.listenerCount('destroyed') }
+    }, url)).toEqual(listenersBefore)
+
+    const findBar = appWindow.getByRole('search', { name: 'Find in page' })
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await findBar.getByRole('searchbox', { name: 'Find text' }).fill('needle')
+    await expect(findBar.locator('.find-count')).toHaveText('1 / 1')
+
+    await appWindow.evaluate(async (tabId) => (window as unknown as { hronaut: HronautApi }).hronaut.reload(tabId), tabId)
+    await expect(findBar).toBeHidden()
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(findBar.getByRole('searchbox', { name: 'Find text' })).toHaveValue('needle')
+    await expect(findBar.locator('.find-count')).toHaveText('1 / 1')
+
+    await electronApp.evaluate(({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Find navigation page was not found')
+      return page.executeJavaScript('location.hash = "profile"')
+    }, url)
+    await expect(findBar).toBeHidden()
+    await appWindow.getByRole('button', { name: 'Find in page' }).click()
+    await expect(findBar.locator('.find-count')).toHaveText('1 / 1')
+
+    await appWindow.evaluate(async ({ tabId, url }) => (
+      (window as unknown as { hronaut: HronautApi }).hronaut.navigate({ tabId, url })
+    ), { tabId, url: `${url}/another` })
+    await expect(findBar).toBeHidden()
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('zooms website content with familiar shortcuts and visible controls', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })

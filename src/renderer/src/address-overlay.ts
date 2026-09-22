@@ -111,11 +111,12 @@ function render(state: AddressSuggestionOverlayState): void {
   panel.append(list, footer)
   root.replaceChildren(panel)
 
-  window.requestAnimationFrame(() => {
-    const selected = panel.querySelector<HTMLElement>('.address-suggestion.selected')
-    selected?.scrollIntoView({ block: 'nearest' })
-    window.hronautAddressOverlayView.measured(Math.ceil(panel.scrollHeight + 2))
-  })
+  // The native view stays hidden until this measurement arrives. Waiting for
+  // an animation frame can leave both sides waiting for the view to be shown.
+  // Reading scrollHeight performs layout even when frames are suspended.
+  const selected = panel.querySelector<HTMLElement>('.address-suggestion.selected')
+  selected?.scrollIntoView({ block: 'nearest' })
+  window.hronautAddressOverlayView.measured(Math.ceil(panel.scrollHeight + 2))
 }
 
 window.hronautAddressOverlayView.onState(render)

@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.4] - 2026-09-22
+
 ### Changed
 
 - Split the broad MCP capability test into 13 independently initialized cases, preserving its assertions while improving failure isolation and parallel test scheduling.
@@ -11,6 +13,11 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve typed address-bar drafts when focus moves to the page or other controls, and prevent an earlier navigation completion from erasing a newer draft. Escape still restores the current address.
+- Show local address suggestions without waiting for animation frames in the hidden native popup, preventing matching history or bookmarks from remaining invisible when frame delivery is suspended.
+- Prioritize matching website hostnames in local address suggestions so a visited site such as Google cannot be crowded out by bookmarks or other pages mentioning its name.
+- Clear Find in Page matches when the active tab navigates or reloads, discard delayed results from the previous page, and retain the query for a fresh search when reopened.
+- Release Find in Page listeners and its timeout immediately when Electron rejects starting a native search.
 - Show EVM and TRON token `transferFrom` source accounts in approval details, and require manual review when the source differs from the selected signer.
 - Treat only exact, canonically encoded TRC20 transfers, approvals, and delegated transfers as understood operations.
 - Prevent delayed Repro timeline keyboard focus from overriding a newer pointer-selected step.
