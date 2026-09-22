@@ -7940,10 +7940,13 @@ test('locks website input while keeping trusted browser chrome usable', async ({
     await electronApp.evaluate(async ({ webContents }) => {
       const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
       if (!home) throw new Error('Hronaut Home web contents was not found while tabs were locked')
+      // Centering an already visible control scrolls the outer document, which
+      // can shift the target after coordinates are read.
+      // Reveal only as much as needed before sending real native input.
       const guidePoint = await home.executeJavaScript(`(async () => {
         document.querySelector('[data-home-view="connect"]').click();
         const guide = document.querySelector('[data-guide="opencode"]')
-        guide.scrollIntoView({ block: 'center', behavior: 'instant' })
+        guide.scrollIntoView({ block: 'nearest', behavior: 'instant' })
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         const bounds = guide.getBoundingClientRect()
         return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
@@ -7961,7 +7964,7 @@ test('locks website input while keeping trusted browser chrome usable', async ({
       if (!home) throw new Error('Hronaut Home web contents was not found while copying setup')
       const point = await home.executeJavaScript(`(async () => {
         const copy = document.querySelector('[data-copy-target="guide-code"]')
-        copy.scrollIntoView({ block: 'center', behavior: 'instant' })
+        copy.scrollIntoView({ block: 'nearest', behavior: 'instant' })
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         const bounds = copy.getBoundingClientRect()
         return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }

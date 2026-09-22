@@ -19,6 +19,29 @@ async function createStore(): Promise<{ path: string; store: BookmarkStore }> {
 }
 
 describe('BookmarkStore', () => {
+  it('keeps complete Unicode characters when adding and renaming bounded titles', async () => {
+    const { path, store } = await createStore()
+    const prefix = 'T'.repeat(199)
+    const saved = await store.add({ url: 'https://unicode.example/', title: `${prefix}🧪` })
+    expect(saved.title).toBe(prefix)
+    const exactTitle = `${'T'.repeat(198)}🧪`
+    expect((await store.rename(saved.id, exactTitle)).title).toBe(exactTitle)
+    expect((await store.rename(saved.id, `${prefix}🚀`)).title).toBe(prefix)
+    expect((await new BookmarkStore(path).load())[0]!.title).toBe(prefix)
+  })
+
+  it('repairs titles previously saved with a split Unicode character', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const prefix = 'T'.repeat(199)
+    const now = new Date().toISOString()
+    await writeFile(path, JSON.stringify({ version: 1, bookmarks: [{
+      id: 'split-title', url: 'https://unicode.example/', title: `${prefix}\ud83e`, createdAt: now, updatedAt: now
+    }] }))
+    expect((await store.load())[0]!.title).toBe(prefix)
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks[0].title).toBe(prefix)
+  })
+
   it('lets shutdown wait for an already-queued bookmark write', async () => {
     const { path, store } = await createStore()
     const adding = store.add({ url: 'https://shutdown-bookmark.example/', title: 'Last bookmark before shutdown' })

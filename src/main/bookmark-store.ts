@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { BrowserBookmark } from '../shared/types.js'
+import { truncateText } from '../shared/text-boundaries.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 const MAX_BOOKMARKS = 500
@@ -41,7 +42,7 @@ function normalizeBookmarkTitle(value: string, url: string, sourceUrl = url): st
   let safeValue = value
   if (isCredentialFallback) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? value
-  const title = safeValue.replace(/\s+/g, ' ').trim().slice(0, MAX_BOOKMARK_TITLE)
+  const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_BOOKMARK_TITLE)
   return title || new URL(url).hostname
 }
 
