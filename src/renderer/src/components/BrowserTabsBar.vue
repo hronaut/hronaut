@@ -69,6 +69,8 @@ const canScrollTabsBack = ref(false)
 const canScrollTabsForward = ref(false)
 let tabsStripResizeObserver: ResizeObserver | undefined
 let activeVisibleBeforeResize = true
+let tabStripWidth = 0
+let tabStripHeight = 0
 const vertical = computed(() => props.orientation === 'vertical')
 // The shell owns reveal timing and focus/pointer coordination. This component
 // only renders that state, so it cannot expand ahead of a pending click.
@@ -194,14 +196,20 @@ function revealAfterLayout(revealActive = true): void {
 function handleTabStripResize(): void {
   updateTabOverflow()
   revealAfterLayout(activeVisibleBeforeResize)
-  activeVisibleBeforeResize = activeTabIntersectsVisibleStrip()
+  tabStripWidth = tabsStrip.value?.clientWidth ?? 0
+  tabStripHeight = tabsStrip.value?.clientHeight ?? 0
 }
 
 function handleTabStripScroll(): void {
   updateTabOverflow()
   // A passive reveal or resize must not undo scrolling away from the selected
   // page. Genuine tab selection and keyboard focus still reveal their target.
-  activeVisibleBeforeResize = activeTabIntersectsVisibleStrip()
+  const strip = tabsStrip.value
+  // Resizing can dispatch scroll before ResizeObserver. Keep the visibility
+  // from the previous layout instead of mistaking that scroll for user intent.
+  if (strip?.clientWidth === tabStripWidth && strip.clientHeight === tabStripHeight) {
+    activeVisibleBeforeResize = activeTabIntersectsVisibleStrip()
+  }
 }
 
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
@@ -454,6 +462,8 @@ onMounted(async () => {
   if (active) focusedTabId.value = active.id
   revealActiveTab()
   updateTabOverflow()
+  tabStripWidth = tabsStrip.value?.clientWidth ?? 0
+  tabStripHeight = tabsStrip.value?.clientHeight ?? 0
   if (typeof ResizeObserver !== 'undefined' && tabsStrip.value) {
     tabsStripResizeObserver = new ResizeObserver(handleTabStripResize)
     tabsStripResizeObserver.observe(tabsStrip.value)

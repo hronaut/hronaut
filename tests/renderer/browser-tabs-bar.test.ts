@@ -807,6 +807,40 @@ describe('BrowserTabsBar', () => {
     } finally { vi.restoreAllMocks(); vi.unstubAllGlobals() }
   })
 
+  it.each(['horizontal', 'vertical'] as const)('reveals the active %s tab after a resize-driven scroll', async orientation => {
+    let resize: (() => void) | undefined
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    try {
+      const active = tab('active', { active: true })
+      renderTabs(browserState({ tabs: [active], activeTabId: active.id }), true, orientation)
+      await nextTick()
+      const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+      const selected = screen.getByRole('tab', { name: active.title })
+      const scrollBy = vi.fn()
+      let extent = 400
+      Object.defineProperties(strip, {
+        clientWidth: { configurable: true, get: () => extent },
+        clientHeight: { configurable: true, get: () => extent },
+        scrollBy: { configurable: true, value: scrollBy }
+      })
+      vi.spyOn(strip, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, extent, extent))
+      vi.spyOn(selected, 'getBoundingClientRect').mockReturnValue(new DOMRect(250, 250, 34, 34))
+      resize!()
+      scrollBy.mockClear()
+      // Chromium can dispatch a scroll caused by layout before ResizeObserver.
+      // The previously visible selection is now outside the smaller viewport.
+      extent = 200
+      await fireEvent.scroll(strip)
+      resize!()
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining(orientation === 'vertical' ? { top: 122 } : { left: 115 }))
+    } finally { vi.restoreAllMocks(); vi.unstubAllGlobals() }
+  })
+
   it('reveals a newly active tab inside the scrolling strip', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
