@@ -6,6 +6,11 @@ import { useMcpWorkspace } from '../../scripts/mcp-workspace.js'
 import type { BrowserState } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
+// These cases deliberately kill renderers, including during pending waits.
+// Retain DOM/call/network traces without the screencast traffic that can race
+// forced crashes in Playwright's CDP driver (see renderer-crash-recovery).
+test.use({ trace: { mode: process.env.CI ? 'retain-on-failure' : 'off', screenshots: false } })
+
 function text(result: CallToolResult): string {
   const content = result.content.find((item) => item.type === 'text')
   return content?.type === 'text' ? content.text : ''

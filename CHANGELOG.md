@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Apply the selected interface size when address suggestions first open, keeping their text and controls consistent with the address bar.
+
+### Changed
+
+- Include Electron page snapshots in failed integration-test traces, retain evidence across manual app restarts, and bound trace export so diagnostics cannot prevent application cleanup.
+
 ## [2.5.5] - 2026-09-22
 
 ### Changed

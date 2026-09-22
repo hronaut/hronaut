@@ -1766,7 +1766,6 @@ async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> 
     addressSuggestionSurface = surface
     view.setBackgroundColor('#00000000')
     view.setVisible(false)
-    webContents.setZoomFactor(settings.interfaceScale)
     webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     webContents.on('will-navigate', (event, url) => {
       if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
@@ -1783,6 +1782,9 @@ async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> 
     })
     try {
       await webContents.loadURL(expectedUrl)
+      // Initial navigation resets the view's zoom. Apply the latest shell
+      // scale after loading, before sending state or measuring the popup.
+      if (!webContents.isDestroyed()) webContents.setZoomFactor(settings.interfaceScale)
       return surface
     } catch (error) {
       if (!webContents.isDestroyed()) webContents.close()
