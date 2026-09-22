@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Restore browsing-history visits in their actual time order when saved timestamps use different timezone offsets, so address suggestions stay recent-first.
 - Recognize Hronaut Home by its actual internal host across browser and shell controls so lookalike addresses cannot be routed to or hidden as Home.
 - Use explicit page bounds for full-page screenshots so a minimized capture cannot silently return only the viewport.
 

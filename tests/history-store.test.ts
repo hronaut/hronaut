@@ -237,6 +237,33 @@ describe('HistoryStore', () => {
     ])
   })
 
+  it('orders restored visits by time when persisted timestamps have different offsets', async () => {
+    const { path, store } = await storeAt(Date.UTC(2026, 7, 13, 12))
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [
+        {
+          id: 'earlier', url: 'https://earlier.example/', title: 'Earlier',
+          visitedAt: '2026-08-13T10:00:00+10:00', visitCount: 1
+        },
+        {
+          id: 'later', url: 'https://later.example/', title: 'Later',
+          visitedAt: '2026-08-13T01:00:00Z', visitCount: 1
+        }
+      ]
+    }))
+
+    expect((await store.load()).map((entry) => entry.id)).toEqual(['later', 'earlier'])
+    expect(store.list().map((entry) => entry.visitedAt)).toEqual([
+      '2026-08-13T01:00:00.000Z',
+      '2026-08-13T00:00:00.000Z'
+    ])
+    expect(JSON.parse(await readFile(path, 'utf8')).entries.map((entry: { visitedAt: string }) => entry.visitedAt)).toEqual([
+      '2026-08-13T01:00:00.000Z',
+      '2026-08-13T00:00:00.000Z'
+    ])
+  })
+
   it('repairs duplicate persisted IDs without dropping distinct history entries', async () => {
     const now = Date.UTC(2026, 7, 13)
     const { path, store } = await storeAt(now)

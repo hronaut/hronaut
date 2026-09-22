@@ -88,9 +88,12 @@ export class HistoryStore {
       let repairedPersistedHistory = validEntries.length !== value.entries.length
       const currentTimestamp = new Date(now).toISOString()
       const normalizedEntries = validEntries.map((entry) => {
-        if (Date.parse(entry.visitedAt) <= now) return entry
+        const visitedAt = Date.parse(entry.visitedAt) <= now
+          ? new Date(entry.visitedAt).toISOString()
+          : currentTimestamp
+        if (visitedAt === entry.visitedAt) return entry
         repairedPersistedHistory = true
-        return { ...entry, visitedAt: currentTimestamp }
+        return { ...entry, visitedAt }
       })
       const sorted = normalizedEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
