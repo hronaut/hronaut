@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bound wallet policy amounts and accumulated spend before arbitrary-size decimal arithmetic can stall the main process.
 - Show Hronaut after a minimized sign-in launch when the system tray cannot be created, avoiding an inaccessible hidden process.
 - Stop reporting a drifted Linux autostart entry as enabled when its `TryExec` points at a different application.
 - Preserve empty binary fields while serializing wallet requests instead of rejecting their canonical empty base64 representation.

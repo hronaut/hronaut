@@ -1,4 +1,10 @@
-import { walletAllowsWorkspace, type WalletDescriptor, type WalletOperationRequest, type WalletPolicy } from '../../shared/wallet.js'
+import {
+  MAX_WALLET_DECIMAL_LENGTH,
+  walletAllowsWorkspace,
+  type WalletDescriptor,
+  type WalletOperationRequest,
+  type WalletPolicy
+} from '../../shared/wallet.js'
 
 export interface WalletDecodedOperation {
   understood: boolean
@@ -110,7 +116,9 @@ export function isWalletNetworkEligibleForAutomation(wallet: WalletDescriptor): 
 }
 
 function decimal(value: string | undefined): DecimalValue {
-  const match = /^(\d+)(?:\.(\d+))?$/.exec(value ?? '0')
+  const source = value ?? '0'
+  if (source.length > MAX_WALLET_DECIMAL_LENGTH) throw new TypeError('Invalid wallet amount')
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(source)
   if (!match) throw new TypeError('Invalid wallet amount')
   const fraction = match[2] ?? ''
   return { digits: BigInt(`${match[1]}${fraction}`), scale: fraction.length }
@@ -130,9 +138,15 @@ export function walletDecimalAdd(leftValue: string | undefined, rightValue: stri
   const right = decimal(rightValue)
   const scale = Math.max(left.scale, right.scale)
   const digits = left.digits * 10n ** BigInt(scale - left.scale) + right.digits * 10n ** BigInt(scale - right.scale)
-  if (!scale) return digits.toString()
+  if (!scale) {
+    const result = digits.toString()
+    if (result.length > MAX_WALLET_DECIMAL_LENGTH) throw new TypeError('Invalid wallet amount')
+    return result
+  }
   const padded = digits.toString().padStart(scale + 1, '0')
-  return `${padded.slice(0, -scale)}.${padded.slice(-scale)}`
+  const result = `${padded.slice(0, -scale)}.${padded.slice(-scale)}`
+  if (result.length > MAX_WALLET_DECIMAL_LENGTH) throw new TypeError('Invalid wallet amount')
+  return result
 }
 
 function includesNormalized(values: readonly string[], target: string | undefined): boolean {

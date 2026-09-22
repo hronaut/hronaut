@@ -2,9 +2,15 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WalletPolicyUsageEntrySchema } from '../src/main/wallet/authority-state.js'
 import { WalletPermissionStore } from '../src/main/wallet/permissions.js'
-import { WalletPolicyEngine } from '../src/main/wallet/policy.js'
+import {
+  WalletPolicyEngine,
+  walletDecimalAdd,
+  walletDecimalCompare
+} from '../src/main/wallet/policy.js'
 import { createTestWalletAuthority } from './helpers/wallet-authority.js'
+import { MAX_WALLET_DECIMAL_LENGTH, WalletPolicySchema } from '../src/shared/wallet.js'
 import type {
   WalletDescriptor,
   WalletOperationRequest,
@@ -150,6 +156,19 @@ describe('WalletPolicyEngine', () => {
     blindMessage: false
   }
   const simulation = { attempted: true, success: true }
+
+  it('rejects oversized decimal policy values before arbitrary-size arithmetic', () => {
+    const oversized = '1'.repeat(MAX_WALLET_DECIMAL_LENGTH + 1)
+
+    expect(() => WalletPolicySchema.parse({ ...policy, maxNativeAmount: oversized })).toThrow()
+    expect(() => WalletPolicyUsageEntrySchema.parse({
+      policyId: 'policy-1', operationCount: 1, dailyDate: '2026-08-28', dailySpend: oversized
+    })).toThrow()
+    expect(() => walletDecimalCompare(oversized, '1')).toThrow(/invalid wallet amount/i)
+    expect(() => walletDecimalAdd('1', oversized)).toThrow(/invalid wallet amount/i)
+    expect(() => walletDecimalAdd('9'.repeat(MAX_WALLET_DECIMAL_LENGTH), '1'))
+      .toThrow(/invalid wallet amount/i)
+  })
 
   it('requires human approval for every mainnet sign or send despite a matching bounded policy', () => {
     const decision = new WalletPolicyEngine().evaluate({

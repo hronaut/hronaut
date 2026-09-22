@@ -305,6 +305,11 @@ export type WalletOperationRequest = z.infer<typeof WalletOperationRequestSchema
 export const WalletPolicyModeSchema = z.enum(['read-only', 'always-ask', 'bounded-auto', 'disabled'])
 export type WalletPolicyMode = z.infer<typeof WalletPolicyModeSchema>
 
+export const MAX_WALLET_DECIMAL_LENGTH = 256
+export const WalletDecimalSchema = z.string()
+  .max(MAX_WALLET_DECIMAL_LENGTH)
+  .regex(/^\d+(?:\.\d+)?$/)
+
 export const WalletPolicySchema = z.object({
   id: z.string().trim().min(1).max(128),
   name: z.string().trim().min(1).max(128),
@@ -318,11 +323,11 @@ export const WalletPolicySchema = z.object({
   )).max(256),
   destinations: z.array(z.string().trim().min(1).max(256)).max(256),
   methods: z.array(z.string().trim().min(1).max(256)).max(256),
-  maxNativeAmount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
-  maxTokenAmount: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
-  maxFee: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
-  sessionSpendLimit: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
-  dailySpendLimit: z.string().regex(/^\d+(?:\.\d+)?$/).optional(),
+  maxNativeAmount: WalletDecimalSchema.optional(),
+  maxTokenAmount: WalletDecimalSchema.optional(),
+  maxFee: WalletDecimalSchema.optional(),
+  sessionSpendLimit: WalletDecimalSchema.optional(),
+  dailySpendLimit: WalletDecimalSchema.optional(),
   expiresAt: IsoDateSchema,
   maximumOperationCount: z.number().int().positive().max(1_000_000),
   requireSuccessfulSimulation: z.literal(true),

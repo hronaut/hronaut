@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   WalletCapabilitySchema,
   WalletChainFamilySchema,
+  WalletDecimalSchema,
   WalletPolicySchema,
   WalletRequesterSchema,
   type WalletCapability,
@@ -51,7 +52,7 @@ export const WalletPolicyUsageEntrySchema = z.object({
   policyId: z.string().trim().min(1).max(128),
   operationCount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   dailyDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  dailySpend: z.string().regex(/^\d+(?:\.\d+)?$/)
+  dailySpend: WalletDecimalSchema
 }).strict()
 
 export type WalletPolicyUsageEntry = z.infer<typeof WalletPolicyUsageEntrySchema>
