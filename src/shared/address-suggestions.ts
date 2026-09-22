@@ -116,16 +116,10 @@ export function buildLocalAddressSuggestions(input: AddressSuggestionInput): Add
     }
   }
 
-  // With no query, behave like a browser's address bar: show recent visits
-  // immediately, then saved bookmarks that are not already represented. Once
-  // the user types, keep bookmarks first as an explicit saved destination.
-  if (scope === 'all' && !terms.length) {
-    addHistory()
-    addBookmarks()
-  } else {
-    if (scope === 'all' || scope === 'bookmarks') addBookmarks()
-    if (scope === 'all' || scope === 'history') addHistory()
-  }
+  // Recent visits are the primary address-bar suggestions, including while
+  // typing. Saved bookmarks fill the remaining slots without duplicating URLs.
+  if (scope === 'all' || scope === 'history') addHistory()
+  if (scope === 'all' || scope === 'bookmarks') addBookmarks()
   // Rank before applying the display limit so an often-used hostname cannot
   // disappear behind bookmarks or recent pages that merely mention it.
   const term = terms[0]

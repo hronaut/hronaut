@@ -114,6 +114,7 @@ test('routes a minimized full-page capture through a temporary rendering host', 
       if (!shellWindow || !contents) throw new Error('Minimized screenshot host was not found')
       const globals = globalThis as typeof globalThis & {
         __minimizedCaptureWindowCount?: number
+        __minimizedCaptureClipHeight?: number
         __restoreMinimizedCaptureProbe?: () => void
       }
       const originalIsVisible = shellWindow.isVisible
@@ -125,6 +126,7 @@ test('routes a minimized full-page capture through a temporary rendering host', 
         if (args[0] === 'Page.captureScreenshot') {
           globals.__minimizedCaptureWindowCount = BrowserWindow.getAllWindows()
             .filter((window) => !window.isDestroyed()).length
+          globals.__minimizedCaptureClipHeight = (args[1] as { clip?: { height?: number } } | undefined)?.clip?.height
         }
         return originalSendCommand.apply(this, args)
       }
@@ -152,15 +154,20 @@ test('routes a minimized full-page capture through a temporary rendering host', 
     expect(await electronApp.evaluate(() => (
       (globalThis as typeof globalThis & { __minimizedCaptureWindowCount?: number }).__minimizedCaptureWindowCount
     ))).toBe(2)
+    expect(await electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __minimizedCaptureClipHeight?: number }).__minimizedCaptureClipHeight
+    ))).toBeGreaterThanOrEqual(1_800)
   } finally {
     await electronApp.evaluate(() => {
       const globals = globalThis as typeof globalThis & {
         __restoreMinimizedCaptureProbe?: () => void
         __minimizedCaptureWindowCount?: number
+        __minimizedCaptureClipHeight?: number
       }
       globals.__restoreMinimizedCaptureProbe?.()
       delete globals.__restoreMinimizedCaptureProbe
       delete globals.__minimizedCaptureWindowCount
+      delete globals.__minimizedCaptureClipHeight
     }).catch(() => undefined)
     await client.close().catch(() => undefined)
   }

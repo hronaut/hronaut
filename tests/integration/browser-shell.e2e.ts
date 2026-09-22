@@ -2893,6 +2893,18 @@ test('keeps shell state usable when Electron destroys a tab WebContents independ
   expect(recovery.tabs.some((tab) => tab.id === recovery.activeTabId)).toBe(true)
 })
 
+test('does not route lookalike Home hosts to the privileged Home tab', async ({ appWindow }) => {
+  const before = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+
+  await expect(appWindow.evaluate("window.hronaut.newTab({ url: 'hronaut://home.example/' })"))
+    .rejects.toThrow()
+
+  const after = await appWindow.evaluate('window.hronaut.getState()') as BrowserState
+  expect(after.tabs.map((tab) => ({ id: tab.id, url: tab.url })))
+    .toEqual(before.tabs.map((tab) => ({ id: tab.id, url: tab.url })))
+  expect(after.activeTabId).toBe(before.activeTabId)
+})
+
 test('puts Help in the native application menu and opens shell dialogs above every page', async ({ appWindow, electronApp }) => {
   const menuItems = await electronApp.evaluate(({ Menu }) => {
     const menu = Menu.getApplicationMenu()
@@ -3693,7 +3705,7 @@ test('floats bookmark and history suggestions above pages while allowing duplica
     await address.fill('Suggestion')
     await expect(address).toHaveAttribute('aria-expanded', 'true')
     await expect(options).toHaveCount(2)
-    await expect(options.nth(0)).toContainText('Bookmark')
+    await expect(options.nth(0)).toContainText('History')
     await expect(options.nth(1)).toContainText('History')
     await expect.poll(addressOverlay).toMatchObject({
       attached: true,

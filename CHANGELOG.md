@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Show matching previously visited pages before saved bookmarks in address-bar suggestions while typing, with the existing history and bookmark filters still available.
+
+### Fixed
+
+- Recognize Hronaut Home by its actual internal host so lookalike addresses cannot be routed to the Home tab.
+- Use explicit page bounds for full-page screenshots so a minimized capture cannot silently return only the viewport.
+
 ## [2.5.6] - 2026-09-22
 
 ### Fixed
