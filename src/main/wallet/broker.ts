@@ -739,6 +739,11 @@ export class WalletBroker {
 
   private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
     const connectedWallet = this.activeAccountProviderWallet(context, 'solana', wallets)
+    if (method === 'disconnect') {
+      const wallet = connectedWallet ?? this.preferredPermittedWallet(context, wallets)
+      if (wallet) await this.disconnectWallet(context, wallet)
+      return undefined
+    }
     const permittedWallet = method === 'connect'
       ? this.preferredPermittedWallet(context, wallets)
       : undefined
@@ -757,10 +762,6 @@ export class WalletBroker {
         ],
         label: wallet.name
       })) }
-    }
-    if (method === 'disconnect') {
-      await this.disconnectWallet(context, wallet)
-      return undefined
     }
     this.assertAddressPermission(context, wallet, method === 'signAndSendTransaction' ? 'send' : 'sign')
     if (method === 'signTransaction' || method === 'signAllTransactions' || method === 'signAndSendTransaction') {

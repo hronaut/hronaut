@@ -2260,6 +2260,47 @@ describe('WalletBroker', () => {
     expect(service.permissions.list().filter((permission) => permission.chainFamily === 'solana')).toHaveLength(0)
   })
 
+  it('disconnects the permitted Solana wallet before session tracking and remains idempotent without wallets', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Unconnected managed Solana wallet',
+      chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const managed = await service.confirmRecovery(generated.wallet.id)
+    const permitted = await service.addWatchOnly({
+      name: 'Permitted observed Solana account',
+      chainFamily: 'solana',
+      publicAddress: '11111111111111111111111111111111',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    await service.permissions.grant({
+      walletId: permitted.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: permitted.publicAddress,
+      chainFamily: 'solana',
+      networkId: permitted.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'disconnect'
+    })).resolves.toBeUndefined()
+    expect(service.permissions.list().filter((permission) => permission.chainFamily === 'solana')).toEqual([])
+
+    await expect(broker.removeWallet(managed.id)).resolves.toBe(true)
+    await expect(broker.removeWallet(permitted.id)).resolves.toBe(true)
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'disconnect'
+    })).resolves.toBeUndefined()
+  })
+
   it('does not advertise signing features for a watch-only Solana account', async () => {
     const { service } = await setup()
     const wallet = await service.addWatchOnly({
