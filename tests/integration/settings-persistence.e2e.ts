@@ -81,3 +81,35 @@ test('keeps an automatic launch hidden until the user asks to show Hronaut', asy
     await closeHronaut(app)
   }
 })
+
+test('resets launch-at-startup preferences with the rest of Appearance', async ({
+  mcpPort,
+  profileDirectory
+}) => {
+  await writeFile(join(profileDirectory, 'settings.json'), `${JSON.stringify({
+    launchAtStartup: true,
+    launchMinimized: true
+  })}\n`, 'utf8')
+  const { app, window } = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await window.getByRole('button', { name: 'Settings' }).click()
+    const launchAtStartup = window.getByRole('checkbox', { name: 'Launch Hronaut when you sign in' })
+    const launchMinimized = window.getByRole('checkbox', { name: 'Launch minimized' })
+    await expect(launchAtStartup).toBeChecked()
+    await expect(launchMinimized).toBeChecked()
+
+    await window.locator('.settings-footer .secondary-button').click()
+
+    await expect(launchAtStartup).not.toBeChecked()
+    await expect(launchMinimized).not.toBeChecked()
+    await expect(launchMinimized).toBeDisabled()
+    await expect.poll(async () => JSON.parse(
+      await readFile(join(profileDirectory, 'settings.json'), 'utf8')
+    )).toMatchObject({
+      launchAtStartup: false,
+      launchMinimized: false
+    })
+  } finally {
+    await closeHronaut(app)
+  }
+})

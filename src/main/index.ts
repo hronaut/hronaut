@@ -441,7 +441,7 @@ function effectiveDownloadDirectory(value: AppSettings = settings): string {
 
 function updateSettings(
   updates: Partial<AppSettings>,
-  applyRuntime?: (value: AppSettings) => void
+  applyRuntime?: (value: AppSettings) => void | Promise<void>
 ): Promise<AppSettings> {
   let committed: AppSettings | undefined
   const operation = settingsMutationQueue.then(async () => {
@@ -3297,16 +3297,23 @@ function registerIpc(): void {
   })
   ipcMain.handle('settings:reset-appearance', async (event) => {
     assertTrustedShellSender(event)
+    if (app.isPackaged && !startupLaunchManager) {
+      throw new Error('Startup integration is unavailable')
+    }
     await updateSettings({
       theme: DEFAULT_SETTINGS.theme,
       interfaceScale: DEFAULT_SETTINGS.interfaceScale,
       tabPosition: DEFAULT_SETTINGS.tabPosition,
       useSystemTitleBar: DEFAULT_SETTINGS.useSystemTitleBar,
       hideInTray: DEFAULT_SETTINGS.hideInTray,
+      launchAtStartup: DEFAULT_SETTINGS.launchAtStartup,
+      launchMinimized: DEFAULT_SETTINGS.launchMinimized,
       attentionSound: DEFAULT_SETTINGS.attentionSound,
       attentionSoundCue: DEFAULT_SETTINGS.attentionSoundCue,
       languagePreference: DEFAULT_SETTINGS.languagePreference
-    })
+    }, app.isPackaged
+      ? (next) => startupLaunchManager!.setEnabled(next.launchAtStartup)
+      : undefined)
     applyTheme(settings.theme)
     applyInterfaceScale(settings.interfaceScale)
     await applyLanguagePreferenceRuntime(settings.languagePreference)

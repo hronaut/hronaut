@@ -17,6 +17,7 @@ All notable changes to Hronaut are documented in this file.
 - Saturate browser-reported storage byte counts before aggregation so malformed or extreme quota data cannot leak `Infinity` or unsafe integers into Site Storage reports.
 - Omit impossible completion-derived network phases and saturate extreme timing and response-byte values so out-of-order or malformed Chromium events cannot appear as valid zero-duration evidence, render as zero bytes, or expose non-finite diagnostics.
 - Keep macOS startup visible when the native login-item service cannot report whether Hronaut was opened at sign-in, instead of aborting application startup.
+- Reset launch-at-sign-in and minimized-launch preferences with the rest of Appearance, including removal and transactional rollback of an active packaged startup registration.
 
 ## [2.5.2] - 2026-09-21
 
