@@ -97,6 +97,25 @@ describe('bookmarks panel controller', () => {
     controller.dispose()
   })
 
+  it('does not focus a stale rename input after the draft is cancelled', async () => {
+    const { bookmarks, controller } = createController()
+    const editingInput = document.createElement('input')
+    const newerTarget = document.createElement('button')
+    document.body.append(editingInput, newerTarget)
+    controller.setEditingInput(editingInput)
+
+    const renaming = controller.beginRename(bookmarks.value[0])
+    controller.cancelRename()
+    newerTarget.focus()
+    await renaming
+
+    expect(controller.editingBookmarkId.value).toBeNull()
+    expect(document.activeElement).toBe(newerTarget)
+    editingInput.remove()
+    newerTarget.remove()
+    controller.dispose()
+  })
+
   it('deduplicates current-page mutations and accepts the authoritative result', async () => {
     let resolveAdd: ((bookmarks: BrowserBookmark[]) => void) | undefined
     const pendingAdd = new Promise<BrowserBookmark[]>((resolve) => {

@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import BrowserAddressBar from '../../src/renderer/src/components/BrowserAddressBar.vue'
 import DetachedPanelUnavailableState from '../../src/renderer/src/components/DetachedPanelUnavailableState.vue'
@@ -95,6 +95,7 @@ describe('extracted shell components', () => {
       props: {
         siteControlsOpen: true,
         panelDock: 'right',
+        activeTab: tab(),
         addressController,
         activeTabPresentation,
         emulationController,
@@ -129,6 +130,98 @@ describe('extracted shell components', () => {
     expect(resetPermission).toHaveBeenCalledWith(permission)
     expect(screen.getByRole('button', { name: 'Site controls for example.test' })).toHaveFocus()
     expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
+  })
+
+  it('does not reopen site controls or steal focus after a permission reset becomes stale', async () => {
+    const permission: SitePermissionEntry = {
+      origin: 'https://example.test',
+      permission: 'camera',
+      decision: 'deny'
+    }
+    let finishReset!: (removed: boolean) => void
+    const resetPermission = vi.fn(() => new Promise<boolean>((resolve) => {
+      finishReset = resolve
+    }))
+    const activeTabPresentation = {
+      activeWebUrl: ref('https://example.test/app'),
+      activeOrigin: ref('https://example.test'),
+      activeHostname: ref('example.test'),
+      activeSitePermissions: ref([permission]),
+      activeAddressKind: ref('Secure HTTPS connection'),
+      activeTabUsesDefaultProfile: ref(true)
+    } as unknown as ActiveTabPresentationController
+    const view = render(BrowserAddressBar, {
+      global,
+      props: {
+        siteControlsOpen: true,
+        panelDock: 'right',
+        activeTab: tab(),
+        addressController: {
+          address: ref('https://example.test/app'),
+          input: ref<HTMLInputElement | null>(null),
+          form: ref<HTMLFormElement | null>(null),
+          selection: ref(-1),
+          suggestions: ref([]),
+          visible: ref(false),
+          selected: ref(undefined),
+          suggestionId: vi.fn(),
+          suggestionMeta: vi.fn(),
+          handleFocus: vi.fn(),
+          handleInput: vi.fn(),
+          handleFocusOut: vi.fn(),
+          handleKeydown: vi.fn(),
+          submit: vi.fn()
+        } as unknown as AddressBarController,
+        activeTabPresentation,
+        emulationController: {
+          activeEmulation: ref(undefined),
+          resetPending: ref(false),
+          label: vi.fn(),
+          describe: vi.fn()
+        } as unknown as EmulationController,
+        pageToolsPresentation: { activeNetworkRouteCount: ref(0) } as unknown as PageToolsPresentationController,
+        siteDataController: {
+          summary: ref(null),
+          state: ref('idle'),
+          message: ref('')
+        } as unknown as SiteDataSummaryController,
+        sitePermissionsController: {
+          permissionLabel: (value: string) => value === 'camera' ? 'Camera' : value,
+          isPending: () => false
+        } as unknown as SitePermissionsController,
+        locale: 'en-US',
+        formatNumber: (value: number) => String(value),
+        runAction: (action: () => unknown) => action(),
+        actions: {
+          toggleSiteControls: vi.fn(),
+          resetActiveTabEmulation: vi.fn(),
+          openRequestConditions: vi.fn(),
+          setSitePermission: vi.fn(async () => true),
+          resetSitePermission: resetPermission,
+          openSitePermissionSettings: vi.fn(),
+          openSitePrivacySettings: vi.fn()
+        }
+      }
+    })
+    const user = userEvent.setup()
+    const resetButton = screen.getByRole('button', { name: /Reset Camera permission/ })
+    await user.click(resetButton)
+
+    await view.rerender({
+      siteControlsOpen: false,
+      activeTab: { ...tab(), id: 'tab-2', url: 'https://other.test/' }
+    })
+    const newerTarget = document.createElement('button')
+    document.body.append(newerTarget)
+    newerTarget.focus()
+
+    finishReset(true)
+    await vi.waitFor(() => expect(resetPermission).toHaveBeenCalledOnce())
+    await nextTick()
+
+    expect(view.emitted()['update:siteControlsOpen']).toBeUndefined()
+    expect(document.activeElement).toBe(newerTarget)
+    newerTarget.remove()
   })
 
   it('renders page failure details and delegates a retry', async () => {

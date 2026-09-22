@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent delayed Site Controls, Command Palette, and bookmark-rename completions from reopening obsolete UI or stealing focus from newer actions.
 - Separate Solana legacy-provider routing from Wallet Standard payloads so website-supplied fields cannot change standard response shapes.
 - Preflight every Solana batch transaction and message signer before creating approvals, preventing later invalid inputs from following earlier signing side effects.
 - Route full-page captures through a temporary rendering host whenever the main window is minimized, even if the platform still reports it as visible.

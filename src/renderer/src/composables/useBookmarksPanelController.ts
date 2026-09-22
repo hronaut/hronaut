@@ -105,6 +105,7 @@ export function useBookmarksPanelController(options: BookmarksPanelControllerOpt
     editingBookmarkId.value = bookmark.id
     editingBookmarkTitle.value = bookmark.title
     await nextTick()
+    if (editingBookmarkId.value !== bookmark.id) return
     editingInput.value?.focus()
     editingInput.value?.select()
   }

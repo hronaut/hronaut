@@ -8,6 +8,7 @@ import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconTune from '~icons/material-symbols/tune-rounded'
 import type {
+  BrowserTabState,
   PanelDock,
   SitePermissionDecision,
   SitePermissionEntry,
@@ -32,6 +33,7 @@ export interface BrowserAddressBarActions {
 }
 
 const props = defineProps<{
+  activeTab: BrowserTabState | undefined
   addressController: AddressBarController
   activeTabPresentation: ActiveTabPresentationController
   emulationController: EmulationController
@@ -81,10 +83,23 @@ function run(action: () => unknown): void {
 }
 
 async function resetSitePermission(entry: SitePermissionEntry): Promise<boolean> {
+  const tab = props.activeTab
+  const context = tab
+    ? { id: tab.id, url: tab.url, navigationGeneration: tab.navigationGeneration }
+    : null
   const removed = await props.actions.resetSitePermission(entry)
+  const activeTab = props.activeTab
+  if (
+    !removed
+    || !siteControlsOpen.value
+    || !context
+    || !activeTab
+    || activeTab.id !== context.id
+    || activeTab.url !== context.url
+    || activeTab.navigationGeneration !== context.navigationGeneration
+  ) return removed
   await nextTick()
-  siteControlsOpen.value = true
-  await nextTick()
+  if (!siteControlsOpen.value) return removed
   siteControlsButton.value?.focus()
   return removed
 }

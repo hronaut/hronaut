@@ -34,6 +34,7 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
   ))
   const commandIds = computed(() => commands.value.map((command) => command.id))
   const selectedCommand = computed(() => commands.value[selection.value])
+  let presentationGeneration = 0
 
   function commandElementId(command: CommandPaletteCommand): string {
     return `command-palette-${command.id}`
@@ -50,18 +51,21 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     revealSelectedCommand()
   }
 
-  async function focusAndReveal(): Promise<void> {
+  async function focusAndReveal(generation: number): Promise<boolean> {
     await nextTick()
+    if (generation !== presentationGeneration || !options.open.value) return false
     input.value?.focus()
     revealSelectedCommand()
+    return true
   }
 
   async function openPanel(): Promise<void> {
+    presentationGeneration += 1
     query.value = ''
     selection.value = 0
     options.open.value = true
-    await focusAndReveal()
-    input.value?.select()
+    const generation = presentationGeneration
+    if (await focusAndReveal(generation)) input.value?.select()
   }
 
   function close(): void {
@@ -122,6 +126,15 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     },
     { flush: 'sync' }
   )
+  const stopOpenTracking = watch(options.open, (isOpen) => {
+    if (!isOpen) presentationGeneration += 1
+  }, { flush: 'sync' })
+
+  function dispose(): void {
+    presentationGeneration += 1
+    stopCommandTracking()
+    stopOpenTracking()
+  }
 
   return {
     input,
@@ -135,6 +148,6 @@ export function useCommandPaletteController(options: CommandPaletteControllerOpt
     run,
     moveSelection,
     handleKeydown,
-    dispose: stopCommandTracking
+    dispose
   }
 }

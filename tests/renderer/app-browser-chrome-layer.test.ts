@@ -116,6 +116,7 @@ const BrowserAddressBarStub = defineComponent({
   props: {
     siteControlsOpen: Boolean,
     panelDock: String,
+    activeTab: Object,
     addressController: Object,
     activeTabPresentation: Object,
     emulationController: Object,
@@ -481,6 +482,7 @@ describe('AppBrowserChromeLayer', () => {
     expect(navigation.props('zoomOpen')).toBe(true)
     expect(address.props('siteControlsOpen')).toBe(true)
     expect(address.props('panelDock')).toBe('right')
+    expect(address.props('activeTab')).toEqual(harness.props.state.tabs[0])
     expect(page.props()).toMatchObject({ splitMenuOpen: true, pageToolsOpen: true })
 
     await harness.wrapper.setProps({

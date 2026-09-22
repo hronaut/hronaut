@@ -303,6 +303,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       <BrowserAddressBar
         v-model:site-controls-open="siteControlsOpen"
         v-model:panel-dock="panelDock"
+        :active-tab="activeTab"
         :address-controller="addressController"
         :active-tab-presentation="activeTabPresentationController"
         :emulation-controller="emulationController"

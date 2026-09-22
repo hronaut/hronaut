@@ -85,13 +85,21 @@ describe('command palette controller', () => {
     controller.dispose()
   })
 
-  it('does not reopen after it is closed while initial focus is pending', async () => {
+  it('does not steal focus after it is closed while initial focus is pending', async () => {
     const { open, controller } = createController()
+    const input = document.createElement('input')
+    const newerTarget = document.createElement('button')
+    document.body.append(input, newerTarget)
+    controller.input.value = input
     const opening = controller.openPanel()
     controller.close()
+    newerTarget.focus()
     await opening
 
     expect(open.value).toBe(false)
+    expect(document.activeElement).toBe(newerTarget)
+    input.remove()
+    newerTarget.remove()
     controller.dispose()
   })
 
