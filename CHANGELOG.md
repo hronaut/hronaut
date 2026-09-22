@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop reporting a drifted Linux autostart entry as enabled when its `TryExec` points at a different application.
 - Preserve empty binary fields while serializing wallet requests instead of rejecting their canonical empty base64 representation.
 - Open scheme-less loopback development URLs containing a query or fragment over HTTP instead of treating them as a custom scheme or web search.
 - Preserve explicit custom-protocol addresses whose payload contains a dotted name instead of rewriting them as HTTPS URLs.

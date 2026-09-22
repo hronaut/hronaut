@@ -112,9 +112,11 @@ export class StartupLaunchManager {
         if (!values) return false
         const hidden = values.get('Hidden')
         const command = values.get('Exec')
+        const tryExec = values.get('TryExec')
         return values.get('Type') === 'Application'
           && Boolean(values.get('Name')?.trim())
           && hidden?.trim().toLowerCase() !== 'true'
+          && (tryExec === undefined || tryExec === desktopStringValue(this.options.executablePath))
           && command === `${desktopExecArgument(this.options.executablePath)} ${STARTUP_LAUNCH_ARGUMENT}`
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false
