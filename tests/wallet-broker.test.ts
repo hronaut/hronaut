@@ -2291,7 +2291,9 @@ describe('WalletBroker', () => {
       family: 'solana', method: 'signTransaction', params: [input]
     }))
     await vi.waitFor(() => expect(broker.listPending().some((request) => (
-      request.walletId === wallet.id && request.operation === 'sign-transaction'
+      request.walletId === wallet.id
+      && request.operation === 'sign-transaction'
+      && request.status === 'awaiting-human'
     ))).toBe(true))
 
     expect(normalize).toHaveBeenCalledWith(wallet, input)
