@@ -21,10 +21,10 @@ export class ElectronTraceRecorder {
   private finished = false
   private cleanedUp = false
 
-  constructor(private readonly info: TraceInfo) {}
+  constructor(private readonly info: TraceInfo, private readonly trace = info.project.use.trace) {}
 
   private get options() {
-    const trace = this.info.project.use.trace ?? 'off'
+    const trace = this.trace ?? 'off'
     return typeof trace === 'string'
       ? { mode: trace === 'retry-with-trace' ? 'on-first-retry' as const : trace, screenshots: true, snapshots: true, sources: true }
       : trace

@@ -27,6 +27,16 @@ function harness(trace: TraceInfo['project']['use']['trace'] = 'retain-on-failur
 }
 
 describe('Electron failure traces', () => {
+  it('honors the resolved test option instead of the project default', async () => {
+    const h = harness('on')
+    const recorder = new ElectronTraceRecorder(h.info, 'off')
+    await recorder.start(h.app)
+    h.info.status = 'failed'
+    await recorder.finish()
+    expect(h.start).not.toHaveBeenCalled()
+    expect(h.attachments).toEqual([])
+  })
+
   it('retains an earlier closed application when the test fails after a restart', async () => {
     const h = harness()
     await h.recorder.start(h.app)

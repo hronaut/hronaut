@@ -27,7 +27,7 @@ test('retains Electron page snapshots for failed fixtures and manual restarts on
       timeout: 90_000,
       maxBuffer: 2 * 1024 * 1024
     })
-    throw new Error('The diagnostic fixture must contain two intentional test failures')
+    throw new Error('The diagnostic fixture must contain intentional test failures')
   } catch (error) {
     if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error
   }
@@ -54,7 +54,8 @@ test('retains Electron page snapshots for failed fixtures and manual restarts on
   expect(Object.fromEntries(results)).toEqual({
     'fixture failure': { status: 'failed', browserTraces: 1 },
     'failure after manual restart': { status: 'failed', browserTraces: 2 },
-    'passing fixture': { status: 'passed', browserTraces: 0 }
+    'passing fixture': { status: 'passed', browserTraces: 0 },
+    'failure with tracing disabled': { status: 'failed', browserTraces: 0 }
   })
   // Keep child diagnostics only if this verification fails. Successful suite
   // artifacts should not contain the fixture's intentional failures.

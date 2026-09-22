@@ -85,8 +85,9 @@ export async function launchHronaut(
   if (mcpPort === undefined) delete environment.HRONAUT_MCP_PORT
   else environment.HRONAUT_MCP_PORT = String(mcpPort)
   const app = await electron.launch({
+    executablePath: process.env.HRONAUT_TEST_EXECUTABLE,
     args: [
-      '.',
+      ...(process.env.HRONAUT_TEST_EXECUTABLE ? [] : ['.']),
       ...appArguments,
       ...(process.env.HRONAUT_TEST_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])
     ],
@@ -182,8 +183,8 @@ async function waitForExit(
 }
 
 export const test = base.extend<HronautFixtures>({
-  electronTraces: [async ({}, use, testInfo) => {
-    const traces = new ElectronTraceRecorder(testInfo)
+  electronTraces: [async ({ trace }, use, testInfo) => {
+    const traces = new ElectronTraceRecorder(testInfo, trace)
     testTraces.set(testInfo, traces)
     try { await use(traces) } finally {
       testTraces.delete(testInfo)
