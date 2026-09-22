@@ -4461,7 +4461,8 @@ app.whenReady().then(async () => {
       ? resolve(process.env.APPIMAGE)
       : process.execPath,
     autostartDirectory: join(app.getPath('appData'), 'autostart'),
-    nativeLoginItems: app
+    nativeLoginItems: app,
+    warn: (message, error) => { console.warn(`[startup] ${message}:`, error) }
   })
   await loadAuthoritativeSettings()
   if (app.isPackaged) await reconcileStartupSetting()

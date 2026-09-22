@@ -25,6 +25,7 @@ interface StartupLaunchManagerOptions {
   executablePath: string
   autostartDirectory: string
   nativeLoginItems?: NativeLoginItems
+  warn?: (message: string, error: unknown) => void
 }
 
 export interface StartupVisibilitySettings {
@@ -131,7 +132,12 @@ export class StartupLaunchManager {
 
   wasOpenedAtLogin(): boolean {
     if (this.options.platform !== 'darwin') return false
-    return this.requireNativeLoginItems().getLoginItemSettings().wasOpenedAtLogin === true
+    try {
+      return this.requireNativeLoginItems().getLoginItemSettings().wasOpenedAtLogin === true
+    } catch (error) {
+      this.options.warn?.('Could not determine whether Hronaut was opened at sign-in', error)
+      return false
+    }
   }
 
   async setEnabled(enabled: boolean): Promise<void> {

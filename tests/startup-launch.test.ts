@@ -225,4 +225,23 @@ describe('StartupLaunchManager', () => {
       { platform: 'darwin', argv: ['hronaut'], wasOpenedAtLogin: true }
     )).toBe(true)
   })
+
+  it('keeps macOS launches visible when native login provenance is unavailable', () => {
+    const error = new Error('login item service unavailable')
+    const warn = vi.fn()
+    const manager = new StartupLaunchManager({
+      platform: 'darwin',
+      isPackaged: true,
+      executablePath: '/Applications/Hronaut.app/Contents/MacOS/Hronaut',
+      autostartDirectory: 'unused',
+      nativeLoginItems: {
+        setLoginItemSettings: vi.fn(),
+        getLoginItemSettings: vi.fn(() => { throw error })
+      },
+      warn
+    })
+
+    expect(manager.wasOpenedAtLogin()).toBe(false)
+    expect(warn).toHaveBeenCalledWith('Could not determine whether Hronaut was opened at sign-in', error)
+  })
 })
