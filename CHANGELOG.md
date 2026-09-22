@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.6] - 2026-09-22
+
 ### Fixed
 
 - Restore address suggestions on fresh input after their renderer exits, including when the popup was hidden, without restarting the browser or losing the typed address.
@@ -11,7 +13,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
-- Include Electron page snapshots in failed integration-test traces, retain evidence across manual app restarts, and bound trace export so diagnostics cannot prevent application cleanup.
+- Include Electron page snapshots in failed integration-test traces, initialize capture after the shell is ready, retain evidence across manual app restarts, and bound trace export so diagnostics cannot prevent application cleanup.
+- Run updater compatibility checks in one isolated helper process to reduce test startup overhead without relaxing assertions or time limits.
 
 ## [2.5.5] - 2026-09-22
 
