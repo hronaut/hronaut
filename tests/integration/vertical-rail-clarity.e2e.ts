@@ -54,6 +54,11 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
       }
       await capture('vertical-focused.png')
       await uncovered(header)
+      await writeFile(testInfo.outputPath('tab-visibility.json'), JSON.stringify(await tabs.evaluateAll(elements => ({
+        strip: elements[0]!.closest('.tabs-strip')!.getBoundingClientRect().toJSON(),
+        header: elements[0]!.closest('.workspace-tab-section')!.querySelector('.tab-group-label')!.getBoundingClientRect().toJSON(),
+        tabs: elements.map(element => ({ name: element.getAttribute('aria-label'), bounds: element.getBoundingClientRect().toJSON() }))
+      })), null, 2))
       await expect.poll(() => tabs.evaluateAll(elements => {
         const strip = elements[0]!.closest('.tabs-strip')!.getBoundingClientRect()
         const header = elements[0]!.closest('.workspace-tab-section')!.querySelector('.tab-group-label')!.getBoundingClientRect()
@@ -83,7 +88,7 @@ for (const theme of ['light', 'cyberpunk-turbo']) {
         const state = await (window as unknown as { hronaut: HronautApi }).hronaut.getState()
         return state.tabs.find(tab => tab.active)?.mcpGroupId
       })).toBe(id)
-      // The pin remains a named keyboard-operable control beside Home.
+      // The pin remains a named keyboard-operable control below Home.
       const pin = appWindow.locator('.tab-rail-pin')
       await expect(pin).toHaveAttribute('aria-label', /.+/)
       await pin.focus()

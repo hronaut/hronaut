@@ -4,6 +4,20 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.5] - 2026-09-22
+
+### Changed
+
+- Make the vertical tab rail wait for deliberate hovering before opening, allow a short grace period before closing, and reveal immediately for keyboard focus. Keep it steady during clicks and tab drags.
+- Keep Home, the labeled pin control, workspace headings, and tabs at consistent vertical positions when the rail expands or collapses, with a denser header in short windows.
+
+### Fixed
+
+- Prevent a direct click on a collapsed tab from selecting a different tab as the rail opens.
+- Keep the rail open while either the pointer or keyboard focus is still using it.
+- Preserve a deliberately scrolled tab list when the rail changes width, while still revealing newly selected or keyboard-focused tabs.
+- Reserve a complete neighboring tab row when scrolling a focused vertical tab into view, preserving three readable rows in small windows at enlarged interface scales.
+
 ## [2.5.4] - 2026-09-22
 
 ### Changed
