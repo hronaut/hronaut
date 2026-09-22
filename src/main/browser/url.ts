@@ -53,3 +53,16 @@ export function normalizeAddress(input: string, searchEngine: SearchEngineName =
   if (SCHEME_PATTERN.test(value)) return value
   return searchUrl(value, searchEngine)
 }
+
+export function isHronautHomeUrl(url: string): boolean {
+  return url.startsWith('hronaut://home')
+}
+
+export function isWebUrl(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}

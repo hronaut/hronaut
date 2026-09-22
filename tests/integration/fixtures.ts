@@ -53,7 +53,7 @@ export async function blockFileDestination(path: string): Promise<() => Promise<
   }
 }
 
-interface HronautFixtures {
+export interface HronautFixtures {
   appWindow: Page
   electronApp: ElectronApplication
   mcpToken: string

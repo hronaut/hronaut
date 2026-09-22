@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Split the broad MCP capability test into 13 independently initialized cases, preserving its assertions while improving failure isolation and parallel test scheduling.
+- Separate coverage, CPU profiling, and memory diagnostics from the browser manager while preserving debugger ownership, recording limits, and navigation checks.
+
 ### Fixed
 
 - Prevent delayed Site Controls, Command Palette, and bookmark-rename completions from reopening obsolete UI or stealing focus from newer actions.

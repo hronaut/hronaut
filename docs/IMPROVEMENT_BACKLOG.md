@@ -66,11 +66,18 @@ performance baselines. This is a review lead, not a validated finding.
 
 ## Test infrastructure follow-up
 
-- Split the large MCP capability tour into independently initialized interaction,
-  storage, network, and diagnostics cases. The September 8 run reached 530
-  assertions before the old 45-second deadline; its complete no-retry run passed
-  in about 96 seconds with the per-test slow annotation. Splitting should preserve
-  every assertion and fixture cleanup while improving failure localization.
+- Completed September 22: split the MCP capability tour into 13 independently
+  initialized cases covering interaction, storage, network, diagnostics, and
+  exports. The shared `capability-fixtures.ts` owns each case's HTTP server,
+  sockets, MCP connection, workspace, and tab within an isolated Electron profile.
+  All 731 original `expect()` calls remain, with explicit setup for network
+  timing, failed responses, and emulation isolation. Cases use the normal
+  45-second deadline and can be sharded independently.
+- Extracted coverage, CPU profiling, and memory sampling into
+  `src/main/browser/profiling-controller.ts`. The browser manager still owns
+  tab lookup, debugger leases, navigation preparation, and state publication;
+  the controller preserves tab identity and generation checks for pending memory
+  measurements. Continue extracting cohesive responsibilities incrementally.
 - Investigate Electron trace completeness. The retained capability failure ZIP
   contained `test.trace` and resources, but no browser snapshots. Check explicit
   tracing of the Electron context and prove that a deliberate synthetic failure
