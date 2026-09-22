@@ -1476,15 +1476,20 @@ if (process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1') {
   }).__hronautRequestUserAttentionForTest = requestUserAttention
 }
 
-function createTray(): void {
-  if (tray && !tray.isDestroyed()) return
+function createTray(): boolean {
+  if (tray && !tray.isDestroyed()) return true
   try {
+    if (
+      process.env.HRONAUT_INTEGRATION_TEST_HOOKS === '1'
+      && process.env.HRONAUT_TEST_TRAY_CREATION_FAILURE === '1'
+    ) throw new Error('Simulated tray creation failure')
     trayIcon = loadTrayIcon(trayIconPath)
     trayAttentionIcon = loadTrayIcon(trayAttentionIconPath)
     tray = new Tray(trayIcon)
     tray.setToolTip('Hronaut')
     setTrayContextMenu()
     bindTrayActivation(tray, showWindow, process.platform)
+    return true
   } catch (error) {
     if (tray && !tray.isDestroyed()) tray.destroy()
     tray = null
@@ -1496,6 +1501,7 @@ function createTray(): void {
         console.error('[tray] Failed to disable hide-in-tray after tray creation failed:', saveError)
       )
     }
+    return false
   }
 }
 
@@ -4477,15 +4483,16 @@ app.whenReady().then(async () => {
   await discardObsoleteBrowserData(app.getPath('userData'))
   await configurePersistentSession()
   registerHomeProtocol()
-  await createWindow(shouldStartMinimized(settings, {
+  const startMinimized = shouldStartMinimized(settings, {
     platform: process.platform,
     argv: process.argv,
     wasOpenedAtLogin: startupLaunchManager.wasOpenedAtLogin()
-  }))
+  })
+  await createWindow(startMinimized)
   if (!settings.mcpAuthentication) {
     console.warn('[mcp] Authentication is disabled. Any local process can control this browser profile.')
   }
-  createTray()
+  if (!createTray() && startMinimized) showWindow()
   mcpServer = createRuntimeMcpServer(mcpPort)
   mcpServer.setPaused(mcpPauseState.paused)
   try {
