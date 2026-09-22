@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, type Ref } from 'vue'
 import type { BrowserTabState } from '../../../shared/types.js'
 
@@ -19,7 +20,7 @@ export function useHomeNavigationController(options: HomeNavigationControllerOpt
   const lastWebsiteTabId = ref<string | null>(null)
 
   function rememberWebsiteTab(tab: BrowserTabState | undefined): void {
-    if (tab && !tab.url.startsWith('hronaut://home')) lastWebsiteTabId.value = tab.id
+    if (tab && !isHronautHomeUrl(tab.url)) lastWebsiteTabId.value = tab.id
   }
 
   function preferredWebsiteTab(): BrowserTabState | undefined {

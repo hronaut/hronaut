@@ -109,6 +109,14 @@ describe('active tab presentation controller', () => {
     expect(controller.currentBookmark.value?.id).toBe('bookmark')
   })
 
+  it('does not treat a lookalike internal host as Hronaut Home', () => {
+    const active = tab({ url: 'hronaut://home.example/' })
+    const { controller } = create(active)
+
+    expect(controller.regularTabs.value.map((entry) => entry.id)).toEqual(['tab-1'])
+    expect(controller.activeIsHome.value).toBe(false)
+  })
+
   it('rejects non-web and malformed active addresses from site-scoped presentation', () => {
     const active = tab({ url: 'file:///tmp/page.html' })
     const { controller, activeTab } = create(active)

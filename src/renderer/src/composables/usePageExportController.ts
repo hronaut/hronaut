@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
 import type {
   BrowserPdfExport,
@@ -35,7 +36,7 @@ export function usePageExportController(options: PageExportControllerOptions) {
 
   function begin(kind: 'snapshot' | 'pdf'): PageRequest | null {
     const tab = options.activeTab.value
-    if (!tab || tab.url.startsWith('hronaut://home')) return null
+    if (!tab || isHronautHomeUrl(tab.url)) return null
     return {
       tabId: tab.id,
       url: tab.url,

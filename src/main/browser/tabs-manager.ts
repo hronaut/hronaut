@@ -3862,7 +3862,7 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     await this.wakeTab(tab.id)
     const webContents = tab.webContents
-    if (tab.url.startsWith('hronaut://home')) return false
+    if (isHronautHomeUrl(tab.url)) return false
     if (this.isHumanInteractionLocked(tab)) {
       if (webContents.isDevToolsOpened()) webContents.closeDevTools()
       return false

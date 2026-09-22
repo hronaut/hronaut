@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
 import { formatReproAsPlaywright } from '../../../shared/repro-export.js'
 import type {
@@ -162,7 +163,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
 
   function begin(domain: Domain): { tab: BrowserTabState; generation: number; sequence: number } | null {
     const tab = options.activeTab.value
-    if (!tab || tab.url.startsWith('hronaut://home')) return null
+    if (!tab || isHronautHomeUrl(tab.url)) return null
     return { tab: { ...tab }, generation, sequence: ++sequences[domain] }
   }
 

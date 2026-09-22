@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
 import type { HronautApi, BrowserTabState } from '../../../shared/types.js'
 
@@ -40,7 +41,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
 
   function activeWebsite(): BrowserTabState | null {
     const tab = options.activeTab.value
-    return tab && !tab.url.startsWith('hronaut://home') ? tab : null
+    return tab && !isHronautHomeUrl(tab.url) ? tab : null
   }
 
   function clearElementReset(): void {

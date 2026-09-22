@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, ref, type Ref } from 'vue'
 import type {
   AppSettings,
@@ -24,7 +25,7 @@ export function usePerformanceSettingsController(options: PerformanceSettingsCon
   const errorMessage = ref('')
   let generation = 0
 
-  const regularTabs = computed(() => options.browserState.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+  const regularTabs = computed(() => options.browserState.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
   const sleepingTabsCount = computed(() => regularTabs.value.filter((tab) => tab.sleeping).length)
   const busy = computed(() => state.value !== 'idle')
 

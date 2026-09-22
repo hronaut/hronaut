@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { Ref } from 'vue'
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type {
@@ -40,7 +41,7 @@ export function useBrowserShortcutController(options: BrowserShortcutControllerO
   let tabSelectionQueue: Promise<void> = Promise.resolve()
 
   function websiteTabs(): BrowserTabState[] {
-    return options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home'))
+    return options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url))
   }
 
   async function performRelativeTabSelection(offset: -1 | 1): Promise<void> {
