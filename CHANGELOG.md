@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.3] - 2026-09-22
+
 ### Fixed
 
 - Keep bounded website tab titles well-formed when the length limit lands inside a Unicode surrogate pair.
