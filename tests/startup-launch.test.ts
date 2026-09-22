@@ -138,7 +138,7 @@ describe('StartupLaunchManager', () => {
     }
   })
 
-  it('does not report a Linux autostart entry with a mismatched TryExec as enabled', async () => {
+  it('rejects only a non-empty mismatched Linux autostart TryExec value', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hronaut-startup-test-'))
     temporaryDirectories.push(directory)
     const executablePath = '/opt/Hronaut/hronaut'
@@ -159,6 +159,17 @@ describe('StartupLaunchManager', () => {
     ].join('\n'), 'utf8')
 
     expect(await manager.isEnabled()).toBe(false)
+
+    await writeFile(join(directory, 'hronaut.desktop'), [
+      '[Desktop Entry]',
+      'Type=Application',
+      'Name=Hronaut',
+      'TryExec=',
+      `Exec="${executablePath}" ${STARTUP_LAUNCH_ARGUMENT}`,
+      ''
+    ].join('\n'), 'utf8')
+
+    expect(await manager.isEnabled()).toBe(true)
   })
 
   it('rejects an otherwise matching Linux desktop entry with duplicate keys or groups', async () => {
