@@ -2,6 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { restoreWalletJson, walletJsonSafe } from '../src/main/wallet/json-safe.js'
 
 describe('wallet JSON serialization', () => {
+  it('round-trips empty byte arrays without rejecting their canonical base64 encoding', () => {
+    const restored = restoreWalletJson(walletJsonSafe({ data: new Uint8Array() })) as {
+      data: Uint8Array
+    }
+
+    expect(restored.data).toBeInstanceOf(Uint8Array)
+    expect(restored.data).toHaveLength(0)
+  })
+
   it('round-trips reserved tag names as ordinary untrusted data', () => {
     const input = {
       nested: {

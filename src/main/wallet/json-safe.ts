@@ -38,7 +38,11 @@ export function restoreWalletJson(value: unknown, depth = 0): unknown {
   if (hasExactTagShape(object, 'bigint') && typeof object[VALUE_KEY] === 'string' && /^\d+$/.test(object[VALUE_KEY])) {
     return BigInt(object[VALUE_KEY])
   }
-  if (hasExactTagShape(object, 'bytes') && typeof object[VALUE_KEY] === 'string' && /^[A-Za-z0-9+/]+={0,2}$/.test(object[VALUE_KEY])) {
+  if (
+    hasExactTagShape(object, 'bytes')
+    && typeof object[VALUE_KEY] === 'string'
+    && (object[VALUE_KEY] === '' || /^[A-Za-z0-9+/]+={0,2}$/.test(object[VALUE_KEY]))
+  ) {
     const bytes = Buffer.from(object[VALUE_KEY], 'base64')
     if (bytes.toString('base64') !== object[VALUE_KEY]) throw new Error('Wallet request byte encoding is invalid')
     return bytes
