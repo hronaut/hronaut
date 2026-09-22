@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.7] - 2026-09-23
+
 ### Changed
 
 - Show matching previously visited pages before saved bookmarks in address-bar suggestions while typing, with the existing history and bookmark filters still available.
