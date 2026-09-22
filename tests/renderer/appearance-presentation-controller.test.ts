@@ -27,6 +27,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   foley.play.mockReset()
   foley.set.mockReset()
   if (localStorageDescriptor) Object.defineProperty(window, 'localStorage', localStorageDescriptor)
@@ -78,6 +80,7 @@ describe('useAppearancePresentationController', () => {
   })
 
   it('persists an unpinned vertical rail and temporarily expands it for interaction', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     window.localStorage.setItem('hronaut:vertical-tab-rail-pinned', 'false')
     const settings = ref({ ...DEFAULT_RENDERER_SETTINGS, tabPosition: 'left' as const })
     const systemTheme = ref<'light' | 'dark'>('light')
@@ -107,6 +110,7 @@ describe('useAppearancePresentationController', () => {
     rail.dispatchEvent(new MouseEvent('mouseleave'))
     expect(controller.tabRailWidth.value).toBe(280)
     outsideControl.focus()
+    vi.advanceTimersByTime(300)
     expect(controller.tabRailWidth.value).toBe(56)
     controller.revealVerticalTabRail()
     window.dispatchEvent(new Event('blur'))
@@ -170,6 +174,7 @@ describe('useAppearancePresentationController', () => {
 
         if (completion === 'cancel') {
           action.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }))
+          vi.advanceTimersByTime(300)
           expect(controller.tabRailWidth.value).toBe(56)
         } else if (completion === 'native-blur') {
           window.dispatchEvent(new Event('blur'))

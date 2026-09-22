@@ -218,7 +218,7 @@ describe('BrowserTabsBar', () => {
     expect(strip.scrollTop).toBe(120)
   })
 
-  it('reveals an unpinned vertical rail for pointer or keyboard interaction and requests pinning', async () => {
+  it('renders the shell reveal state without independently moving pointer or keyboard targets', async () => {
     const view = renderTabs(browserState(), true, 'vertical', false)
     const navigation = screen.getByRole('navigation', { name: 'Tab navigation' })
     const pin = screen.getByRole('button', { name: 'Keep tab rail expanded' })
@@ -227,16 +227,18 @@ describe('BrowserTabsBar', () => {
     expect(pin).toHaveAttribute('aria-pressed', 'false')
 
     await fireEvent.mouseEnter(navigation)
+    expect(navigation).toHaveClass('rail-collapsed')
+    await view.rerender({ railRevealed: true })
     expect(navigation).not.toHaveClass('rail-collapsed')
-    expect(view.emitted('railRevealChange')?.at(-1)).toEqual([true])
 
     await fireEvent.mouseLeave(navigation)
+    expect(navigation).not.toHaveClass('rail-collapsed')
+    await view.rerender({ railRevealed: false })
     expect(navigation).toHaveClass('rail-collapsed')
-    expect(view.emitted('railRevealChange')?.at(-1)).toEqual([false])
 
     pin.focus()
     await fireEvent.focusIn(navigation)
-    expect(navigation).not.toHaveClass('rail-collapsed')
+    expect(navigation).toHaveClass('rail-collapsed')
     await fireEvent.click(pin)
     expect(view.emitted('toggleRailPinned')).toEqual([[]])
   })
@@ -781,6 +783,30 @@ describe('BrowserTabsBar', () => {
     })
   })
 
+  it('preserves a deliberately scrolled-away position during a passive rail resize', async () => {
+    let resize: (() => void) | undefined
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resize = callback }
+      observe(): void {}
+      disconnect(): void {}
+    })
+    try {
+      const active = tab('active', { active: true })
+      renderTabs(browserState({ tabs: [active, tab('later')], activeTabId: active.id }), true, 'vertical', false)
+      await nextTick()
+      const strip = screen.getByRole('group', { name: 'Browser tabs and workspaces' })
+      const selected = screen.getByRole('tab', { name: active.title })
+      const scrollBy = vi.fn()
+      Object.defineProperty(strip, 'scrollBy', { configurable: true, value: scrollBy })
+      vi.spyOn(strip, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 100, 56, 200))
+      vi.spyOn(selected, 'getBoundingClientRect').mockReturnValue(new DOMRect(10, -100, 34, 29))
+      await fireEvent.scroll(strip)
+      resize!()
+      expect(scrollBy).not.toHaveBeenCalled()
+    } finally { vi.restoreAllMocks(); vi.unstubAllGlobals() }
+  })
+
   it('reveals a newly active tab inside the scrolling strip', async () => {
     const scrollIntoView = vi.fn()
     const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
@@ -927,7 +953,9 @@ describe('BrowserTabsBar', () => {
     await fireEvent.keyDown(screen.getByRole('tab', { name: first.title }), { key: 'ArrowDown' })
     await vi.waitFor(() => {
       expect(target).toHaveFocus()
-      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ top: -22 }))
+      // Keep the target below the 28px sticky header and reserve a complete
+      // neighboring 34px row plus its gap when the strip has room.
+      expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ top: -28 }))
     })
   })
 

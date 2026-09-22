@@ -53,7 +53,6 @@ const emit = defineEmits<{
   closeTab: [tabId: string]
   dragStart: []
   toggleRailPinned: []
-  railRevealChange: [revealed: boolean]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -69,33 +68,13 @@ const hasTabOverflow = ref(false)
 const canScrollTabsBack = ref(false)
 const canScrollTabsForward = ref(false)
 let tabsStripResizeObserver: ResizeObserver | undefined
+let activeVisibleBeforeResize = true
 const vertical = computed(() => props.orientation === 'vertical')
-const railHovered = ref(false)
-const railFocusWithin = ref(false)
+// The shell owns reveal timing and focus/pointer coordination. This component
+// only renders that state, so it cannot expand ahead of a pending click.
 const railExpanded = computed(() => (
-  !props.forceRailCollapsed
-  && (props.railPinned || props.railRevealed || railHovered.value || railFocusWithin.value)
+  !props.forceRailCollapsed && (props.railPinned || props.railRevealed)
 ))
-
-function reportRailReveal(): void {
-  emit('railRevealChange', vertical.value && (railHovered.value || railFocusWithin.value))
-}
-
-function setRailHovered(hovered: boolean): void {
-  railHovered.value = hovered
-  reportRailReveal()
-}
-
-function setRailFocusWithin(focused: boolean): void {
-  railFocusWithin.value = focused
-  reportRailReveal()
-}
-
-function handleRailFocusOut(event: FocusEvent): void {
-  const navigation = event.currentTarget as HTMLElement
-  if (event.relatedTarget instanceof Node && navigation.contains(event.relatedTarget)) return
-  setRailFocusWithin(false)
-}
 
 function updateTabOverflow(): void {
   const strip = tabsStrip.value
@@ -149,7 +128,10 @@ function revealTab(activeTab: HTMLElement, behavior?: ScrollBehavior): void {
   // A sticky header already occupies the leading edge; never reserve its own
   // space when it receives focus (including after a rail resize).
   const isHeader = activeTab === header
-  const margin = isHeader ? 0 : Math.min(31, Math.max(0, availableSpan / 2))
+  // A vertical neighbor needs a whole tab row plus its gap. A fixed 31px
+  // clearance clips the next 34px row in short, enlarged interface layouts.
+  const desiredMargin = vertical.value ? tabBounds.height + 4 : 31
+  const margin = isHeader ? 0 : Math.min(desiredMargin, Math.max(0, availableSpan / 2))
   const leadingEdge = vertical.value ? tabBounds.top : tabBounds.left
   const trailingEdge = vertical.value ? tabBounds.bottom : tabBounds.right
   const headerBounds = header?.getBoundingClientRect()
@@ -211,7 +193,15 @@ function revealAfterLayout(revealActive = true): void {
 
 function handleTabStripResize(): void {
   updateTabOverflow()
-  revealAfterLayout()
+  revealAfterLayout(activeVisibleBeforeResize)
+  activeVisibleBeforeResize = activeTabIntersectsVisibleStrip()
+}
+
+function handleTabStripScroll(): void {
+  updateTabOverflow()
+  // A passive reveal or resize must not undo scrolling away from the selected
+  // page. Genuine tab selection and keyboard focus still reveal their target.
+  activeVisibleBeforeResize = activeTabIntersectsVisibleStrip()
 }
 
 function tabGroupStyle(tab: BrowserTabState): Record<string, string> | undefined {
@@ -446,6 +436,7 @@ watch(
 watch(
   () => props.state.activeTabId,
   async (activeTabId) => {
+    activeVisibleBeforeResize = true
     const tab = visibleTabs.value.find((candidate) => candidate.id === activeTabId)
     if (tab) focusedTabId.value = tab.id
     await nextTick()
@@ -471,14 +462,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   tabsStripResizeObserver?.disconnect()
-  emit('railRevealChange', false)
-})
-
-watch(vertical, (isVertical) => {
-  if (isVertical) return
-  railHovered.value = false
-  railFocusWithin.value = false
-  emit('railRevealChange', false)
 })
 
 watch(
@@ -510,10 +493,6 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     :class="[orientation, { 'rail-collapsed': vertical && !railExpanded }]"
     :data-shell-tab-rail="vertical ? '' : undefined"
     :aria-label="t('shell.tabs.navigation')"
-    @mouseenter="setRailHovered(true)"
-    @mouseleave="setRailHovered(false)"
-    @focusin="setRailFocusWithin(true)"
-    @focusout="handleRailFocusOut"
   >
   <div class="tab-rail-header">
   <UiButton appearance="application"
@@ -559,7 +538,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       class="tabs-strip"
       role="group"
       :aria-label="t('shell.tabs.list')"
-      @scroll="updateTabOverflow"
+      @scroll="handleTabStripScroll"
       @wheel="scrollTabsWithWheel"
     >
     <div
