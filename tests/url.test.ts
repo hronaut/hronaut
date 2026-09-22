@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { isAgentWorkspaceNavigationUrl, normalizeAddress } from '../src/main/browser/url.js'
+import { isAgentWorkspaceNavigationUrl, isHronautHomeUrl, normalizeAddress } from '../src/main/browser/url.js'
+
+describe('isHronautHomeUrl', () => {
+  it('recognizes the Home origin without accepting lookalike hosts or userinfo', () => {
+    expect(isHronautHomeUrl('hronaut://home/')).toBe(true)
+    expect(isHronautHomeUrl('hronaut://home/api/status')).toBe(true)
+    expect(isHronautHomeUrl('hronaut://home.example/')).toBe(false)
+    expect(isHronautHomeUrl('hronaut://home@other.example/')).toBe(false)
+    expect(isHronautHomeUrl('hronaut://homepage/')).toBe(false)
+  })
+})
 
 describe('normalizeAddress', () => {
   it('keeps explicit schemes', () => {

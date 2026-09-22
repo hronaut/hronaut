@@ -29,7 +29,7 @@ interface AddressBarControllerOptions {
 }
 
 function displayedAddress(url: string | undefined): string {
-  return url === 'about:blank' || url?.startsWith('hronaut://home') ? '' : url ?? ''
+  return url === 'about:blank' || url === 'hronaut://home/' ? '' : url ?? ''
 }
 
 export function useAddressBarController(options: AddressBarControllerOptions) {

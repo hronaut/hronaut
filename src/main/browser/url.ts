@@ -55,7 +55,16 @@ export function normalizeAddress(input: string, searchEngine: SearchEngineName =
 }
 
 export function isHronautHomeUrl(url: string): boolean {
-  return url.startsWith('hronaut://home')
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'hronaut:'
+      && parsed.hostname === 'home'
+      && !parsed.port
+      && !parsed.username
+      && !parsed.password
+  } catch {
+    return false
+  }
 }
 
 export function isWebUrl(url: string): boolean {

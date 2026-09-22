@@ -80,13 +80,23 @@ describe('buildLocalAddressSuggestions', () => {
     expect(suggestions).toEqual([expect.objectContaining({ id: 'history:google' })])
   })
 
-  it('retains bookmark deduplication and explicit scope when prioritizing hostnames', () => {
+  it('prefers a visited address over its bookmark and preserves explicit scopes', () => {
     const google = { id: 'google', title: 'Saved search engine', url: 'https://www.google.com/' }
     const visits = [{ id: 'google-visit', title: 'Search engine', url: google.url, visitCount: 1 }]
 
     expect(buildLocalAddressSuggestions({ query: 'google', bookmarks: [google], history: visits }))
-      .toEqual([expect.objectContaining({ id: 'bookmark:google' })])
+      .toEqual([expect.objectContaining({ id: 'history:google-visit' })])
     expect(buildLocalAddressSuggestions({ query: '@history google', bookmarks: [google], history: visits }))
       .toEqual([expect.objectContaining({ id: 'history:google-visit' })])
+    expect(buildLocalAddressSuggestions({ query: '@bookmarks google', bookmarks: [google], history: visits }))
+      .toEqual([expect.objectContaining({ id: 'bookmark:google' })])
+  })
+
+  it('puts a matching visited page before a matching bookmark while typing', () => {
+    expect(buildLocalAddressSuggestions({
+      query: 'docs',
+      bookmarks: [{ id: 'saved', title: 'Docs bookmark', url: 'https://saved.example/' }],
+      history: [{ id: 'visited', title: 'Docs visited', url: 'https://visited.example/', visitCount: 1 }]
+    }).map((suggestion) => suggestion.id)).toEqual(['history:visited', 'bookmark:saved'])
   })
 })
