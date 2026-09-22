@@ -10699,7 +10699,11 @@ export class BrowserTabsManager {
     try {
       if (!tabIsLive()) throw new Error('The tab closed while rendering its page.')
       try {
-        if (this.window.isVisible() && (tab.id === this.activeTabId || this.splitViewContains(tab.id))) return await operation()
+        if (
+          this.window.isVisible()
+          && !this.window.isMinimized()
+          && (tab.id === this.activeTabId || this.splitViewContains(tab.id))
+        ) return await operation()
 
         const originalBounds = tab.view.getBounds()
         // A visible host already has a compositor surface. Position the capture

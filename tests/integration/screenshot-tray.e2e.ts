@@ -76,6 +76,96 @@ test('keeps a tab visible when it is selected during an offscreen capture', asyn
   ))).toBe(1)
 })
 
+test('routes a minimized full-page capture through a temporary rendering host', async ({
+  electronApp,
+  mcpToken,
+  mcpPort
+}) => {
+  const authorization = `Bearer ${mcpToken}`
+  const client = new Client({ name: 'hronaut-minimized-full-page-test', version: '1.0.0' })
+  const transport = new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+    requestInit: { headers: { authorization } }
+  })
+
+  try {
+    await expect.poll(async () => {
+      try {
+        return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization } })).ok
+      } catch {
+        return false
+      }
+    }).toBe(true)
+    await client.connect(transport)
+    await useMcpWorkspace(client, 'Minimized full-page capture')
+    const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+    const tabId = JSON.parse(text(status)).activeTabId as string
+    await electronApp.evaluate(({ webContents }) => {
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
+      if (!contents) throw new Error('Minimized screenshot tab was not found')
+      return contents.executeJavaScript(`(() => {
+        document.documentElement.style.background = '#1357a6';
+        document.body.style.margin = '0';
+        document.body.innerHTML = '<main style="min-height:1800px;background:linear-gradient(#1357a6,#f4b942)"><h1>Minimized capture</h1></main>';
+      })()`)
+    })
+    await electronApp.evaluate(({ BrowserWindow, webContents }) => {
+      const shellWindow = BrowserWindow.getAllWindows()[0]
+      const contents = webContents.getAllWebContents().find((candidate) => candidate.getURL() === 'about:blank')
+      if (!shellWindow || !contents) throw new Error('Minimized screenshot host was not found')
+      const globals = globalThis as typeof globalThis & {
+        __minimizedCaptureWindowCount?: number
+        __restoreMinimizedCaptureProbe?: () => void
+      }
+      const originalIsVisible = shellWindow.isVisible
+      const originalIsMinimized = shellWindow.isMinimized
+      const originalSendCommand = contents.debugger.sendCommand
+      shellWindow.isVisible = () => true
+      shellWindow.isMinimized = () => true
+      contents.debugger.sendCommand = async function (...args) {
+        if (args[0] === 'Page.captureScreenshot') {
+          globals.__minimizedCaptureWindowCount = BrowserWindow.getAllWindows()
+            .filter((window) => !window.isDestroyed()).length
+        }
+        return originalSendCommand.apply(this, args)
+      }
+      globals.__restoreMinimizedCaptureProbe = () => {
+        shellWindow.isVisible = originalIsVisible
+        shellWindow.isMinimized = originalIsMinimized
+        contents.debugger.sendCommand = originalSendCommand
+      }
+    })
+
+    const screenshot = await client.callTool({
+      name: 'browser_screenshot',
+      arguments: { tabId, fullPage: true }
+    }) as CallToolResult
+
+    expect(screenshot.isError, text(screenshot)).not.toBe(true)
+    const image = screenshot.content.find((item) => item.type === 'image')
+    expect(image?.type).toBe('image')
+    if (image?.type === 'image') {
+      const png = Buffer.from(image.data, 'base64')
+      expect(png.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+      expect(png.readUInt32BE(16)).toBeGreaterThan(0)
+      expect(png.readUInt32BE(20)).toBeGreaterThanOrEqual(1_800)
+    }
+    expect(await electronApp.evaluate(() => (
+      (globalThis as typeof globalThis & { __minimizedCaptureWindowCount?: number }).__minimizedCaptureWindowCount
+    ))).toBe(2)
+  } finally {
+    await electronApp.evaluate(() => {
+      const globals = globalThis as typeof globalThis & {
+        __restoreMinimizedCaptureProbe?: () => void
+        __minimizedCaptureWindowCount?: number
+      }
+      globals.__restoreMinimizedCaptureProbe?.()
+      delete globals.__restoreMinimizedCaptureProbe
+      delete globals.__minimizedCaptureWindowCount
+    }).catch(() => undefined)
+    await client.close().catch(() => undefined)
+  }
+})
+
 test('captures hidden pages and survives tab teardown during offscreen rendering', async ({
   electronApp,
   mcpToken,

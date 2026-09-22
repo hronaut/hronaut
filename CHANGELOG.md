@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Route full-page captures through a temporary rendering host whenever the main window is minimized, even if the platform still reports it as visible.
+- Require Solana Wallet Standard sign-and-send requests to declare the active wallet chain before transaction normalization or approval.
 - Preserve wallet policy usage counters when encrypted policy removal cannot be saved, keep policy attachment changes transactional, and reject moving an existing policy identity between wallets.
 - Bound wallet policy amounts and accumulated spend before arbitrary-size decimal arithmetic can stall the main process.
 - Show Hronaut after a minimized sign-in launch when the system tray cannot be created, avoiding an inaccessible hidden process.

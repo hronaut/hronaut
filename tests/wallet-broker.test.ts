@@ -2208,6 +2208,96 @@ describe('WalletBroker', () => {
     expect(service.permissions.list()).toHaveLength(1)
   })
 
+  it.each([
+    ['signTransaction', {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: '11111111111111111111111111111111' },
+      chain: 'solana:devnet'
+    }, 'signer does not match'],
+    ['signTransaction', {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: 'selected' },
+      chain: 'solana:mainnet'
+    }, 'chain does not match'],
+    ['signAndSendTransaction', {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: 'selected' }
+    }, 'chain is required']
+  ] as const)('rejects Solana Wallet Standard %s input when its account or chain is not selected', async (method, rawInput, message) => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana input binding', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+    const input = {
+      ...rawInput,
+      account: rawInput.account.address === 'selected'
+        ? { address: wallet.publicAddress }
+        : rawInput.account
+    }
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method, params: [input]
+    })).rejects.toThrow(message)
+    expect(broker.listPending().filter((request) => request.walletId === wallet.id)).toEqual([])
+  })
+
+  it('accepts a Solana Wallet Standard transaction bound to the selected account and chain', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana selected input', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter()
+    const normalize = vi.spyOn(chain, 'normalizeTransaction')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter(), solana: chain } })
+    const input = {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: wallet.publicAddress },
+      chain: 'solana:devnet'
+    }
+
+    const signing = settle(broker.providerRequest(context(), {
+      family: 'solana', method: 'signTransaction', params: [input]
+    }))
+    await vi.waitFor(() => expect(broker.listPending().some((request) => (
+      request.walletId === wallet.id && request.operation === 'sign-transaction'
+    ))).toBe(true))
+
+    expect(normalize).toHaveBeenCalledWith(wallet, input)
+    await broker.cancelForTab('tab-1')
+    await expect(signing).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
+    })
+  })
+
   it('reconnects the previously authorized Solana wallet when another wallet sorts first', async () => {
     const { service } = await setup()
     const authorizedResult = await service.generate({

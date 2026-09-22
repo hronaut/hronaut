@@ -774,6 +774,7 @@ export class WalletBroker {
         const input = value && typeof value === 'object' && 'transaction' in value
           ? value
           : { transaction: value, account: wallet.publicAddress, chain: `solana:${wallet.network.id}` }
+        if (!legacy) this.assertSolanaTransactionInput(wallet, input, broadcast)
         const result = await this.transactionRequest(context, wallet, input, broadcast)
         if (broadcast) {
           const signature = getBase58Encoder().encode(String(result))
@@ -803,6 +804,29 @@ export class WalletBroker {
       return legacy ? results[0] : results
     }
     throw new Error(`Unsupported Solana wallet method: ${method}`)
+  }
+
+  private assertSolanaTransactionInput(
+    wallet: WalletDescriptor,
+    input: object,
+    requireChain: boolean
+  ): void {
+    const candidate = input as { account?: unknown; chain?: unknown }
+    const requestedAddress = typeof candidate.account === 'string'
+      ? candidate.account
+      : candidate.account && typeof candidate.account === 'object'
+        ? (candidate.account as { address?: unknown }).address
+        : undefined
+    if (requestedAddress !== wallet.publicAddress) {
+      throw new Error('Solana transaction signer does not match the selected wallet')
+    }
+    const expectedChain = `solana:${wallet.network.id}`
+    if (requireChain && candidate.chain === undefined) {
+      throw new Error('Solana transaction chain is required')
+    }
+    if (candidate.chain !== undefined && candidate.chain !== expectedChain) {
+      throw new Error('Solana transaction chain does not match the selected wallet')
+    }
   }
 
   private async tronRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
