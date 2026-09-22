@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Separate Solana legacy-provider routing from Wallet Standard payloads so website-supplied fields cannot change standard response shapes.
+- Preflight every Solana batch transaction and message signer before creating approvals, preventing later invalid inputs from following earlier signing side effects.
 - Route full-page captures through a temporary rendering host whenever the main window is minimized, even if the platform still reports it as visible.
 - Require Solana Wallet Standard sign-and-send requests to declare the active wallet chain before transaction normalization or approval.
 - Preserve wallet policy usage counters when encrypted policy removal cannot be saved, keep policy attachment changes transactional, and reject moving an existing policy identity between wallets.

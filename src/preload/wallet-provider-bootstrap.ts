@@ -325,16 +325,16 @@ export function installHronautWalletProviders(): void {
   globalThis.dispatchEvent(registerEvent)
   globalThis.addEventListener('wallet-standard:app-ready', (event) => registerSolana((event as CustomEvent).detail))
 
-  const serializeLegacyTransaction = (transaction: unknown): { transaction: Uint8Array; compatibility: 'legacy' } => {
-    if (transaction instanceof Uint8Array) return { transaction: Uint8Array.from(transaction), compatibility: 'legacy' }
+  const serializeLegacyTransaction = (transaction: unknown): { transaction: Uint8Array } => {
+    if (transaction instanceof Uint8Array) return { transaction: Uint8Array.from(transaction) }
     const serialize = (transaction as { serialize?: unknown } | null)?.serialize
     if (typeof serialize !== 'function') throw new TypeError('Solana transaction must provide a serialize method')
     const value = serialize.call(transaction, { requireAllSignatures: false, verifySignatures: false })
     if (!(value instanceof Uint8Array)) throw new TypeError('Solana transaction serialization failed')
-    return { transaction: Uint8Array.from(value), compatibility: 'legacy' }
+    return { transaction: Uint8Array.from(value) }
   }
   const legacySignedTransaction = async (transaction: unknown): Promise<unknown> => {
-    const signed = await solanaRequest('signTransaction', [serializeLegacyTransaction(transaction)])
+    const signed = await solanaRequest('legacy_signTransaction', [serializeLegacyTransaction(transaction)])
     if (!(signed instanceof Uint8Array)) throw new Error('Solana signing returned an invalid transaction')
     if (transaction instanceof Uint8Array) return Uint8Array.from(signed)
     if (!transaction || typeof transaction !== 'object') return signed
@@ -358,7 +358,7 @@ export function installHronautWalletProviders(): void {
     signTransaction: legacySignedTransaction,
     signAllTransactions: async (transactions: unknown[]) => {
       if (!Array.isArray(transactions) || !transactions.length) throw new TypeError('Solana transactions are required')
-      const signed = await solanaRequest('signAllTransactions', transactions.map(serializeLegacyTransaction))
+      const signed = await solanaRequest('legacy_signAllTransactions', transactions.map(serializeLegacyTransaction))
       if (!Array.isArray(signed) || signed.length !== transactions.length) throw new Error('Solana batch signing returned an invalid result')
       if (signed.some((bytes) => !(bytes instanceof Uint8Array))) throw new Error('Solana batch signing returned an invalid transaction')
       return transactions.map((transaction, index) => {
@@ -374,15 +374,14 @@ export function installHronautWalletProviders(): void {
       })
     },
     signAndSendTransaction: async (transaction: unknown, options?: unknown) => {
-      const signature = await solanaRequest('signAndSendTransaction', [{
+      const signature = await solanaRequest('legacy_signAndSendTransaction', [{
         ...serializeLegacyTransaction(transaction), options
       }])
       return { signature }
     },
-    signMessage: (message: unknown, display?: unknown) => solanaRequest('signMessage', [{
+    signMessage: (message: unknown, display?: unknown) => solanaRequest('legacy_signMessage', [{
       message: message instanceof Uint8Array ? Uint8Array.from(message) : message,
-      display,
-      compatibility: 'legacy'
+      display
     }]),
     on: solanaEvents.on,
     off: solanaEvents.off,

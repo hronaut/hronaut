@@ -11,7 +11,7 @@ import {
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
-import type { WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
+import type { WalletChainFamily, WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
 
 const directories: string[] = []
 const brokers: BaseWalletBroker[] = []
@@ -78,17 +78,20 @@ function deferred<T = void>() {
   return { promise, resolve, reject }
 }
 
-function adapter(): WalletChainAdapter & { sign: ReturnType<typeof vi.fn>; broadcast: ReturnType<typeof vi.fn> } {
+function adapter(family: WalletChainFamily = 'evm'): WalletChainAdapter & {
+  sign: ReturnType<typeof vi.fn>
+  broadcast: ReturnType<typeof vi.fn>
+} {
   const sign = vi.fn(async (_wallet: WalletDescriptor, secret: { material: Buffer }) => {
     expect(secret.material.length).toBeGreaterThan(0)
     return 'signed-transaction'
   })
   const broadcast = vi.fn(async () => '0xtransaction')
   return {
-    family: 'evm',
+    family,
     validateAddress: () => true,
     normalizeTransaction: async (wallet): Promise<WalletNormalizedTransaction> => ({
-      chainFamily: 'evm', networkId: wallet.network.id, signer: wallet.publicAddress, nonceOrBlockhash: '7',
+      chainFamily: family, networkId: wallet.network.id, signer: wallet.publicAddress, nonceOrBlockhash: '7',
       raw: { to: '0x0000000000000000000000000000000000000002', value: 1n, nonce: 7n },
       decoded: {
         understood: true,
@@ -2296,6 +2299,128 @@ describe('WalletBroker', () => {
     await expect(signing).resolves.toMatchObject({
       status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('cancelled') })
     })
+  })
+
+  it('preflights every Solana transaction before creating the first approval', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana batch preflight', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read', 'sign'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter('solana')
+    const normalize = chain.normalizeTransaction.bind(chain)
+    const normalization = vi.spyOn(chain, 'normalizeTransaction')
+      .mockImplementationOnce(normalize)
+      .mockRejectedValueOnce(new Error('Solana transaction is malformed'))
+    const create = vi.spyOn(service.approvals, 'create')
+      .mockRejectedValue(new Error('Approval creation must wait for batch preflight'))
+    const input = {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: wallet.publicAddress },
+      chain: 'solana:devnet'
+    }
+    const broker = new WalletBroker(service, { adapters: { evm: adapter(), solana: chain } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'signTransaction', params: [input, {
+        ...input,
+        transaction: Uint8Array.from(input.transaction),
+        account: { ...input.account }
+      }]
+    })).rejects.toThrow('Solana transaction is malformed')
+
+    expect(normalization).toHaveBeenCalledTimes(2)
+    expect(create).not.toHaveBeenCalled()
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('preflights every Solana message signer before creating the first approval', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana message preflight', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read', 'sign'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const create = vi.spyOn(service.approvals, 'create')
+      .mockRejectedValue(new Error('Approval creation must wait for batch preflight'))
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
+
+    await expect(broker.providerRequest(context(), {
+      family: 'solana', method: 'signMessage', params: [
+        { account: { address: wallet.publicAddress }, message: Uint8Array.from([1]) },
+        { message: Uint8Array.from([2]) }
+      ]
+    })).rejects.toThrow('Solana message signer does not match the selected wallet')
+
+    expect(create).not.toHaveBeenCalled()
+  })
+
+  it('does not let a Wallet Standard input opt into legacy Solana response handling', async () => {
+    const { service } = await setup()
+    const generated = await service.generate({
+      name: 'Solana standard boundary', chainFamily: 'solana',
+      network: { id: 'devnet', name: 'Solana devnet', environment: 'testnet', rpcUrl: 'http://127.0.0.1:8899' },
+      workspaceIds: ['workspace-1']
+    })
+    const wallet = await service.confirmRecovery(generated.wallet.id)
+    await service.permissions.grant({
+      walletId: wallet.id,
+      workspaceId: 'workspace-1',
+      origin: 'https://dapp.example',
+      account: wallet.publicAddress,
+      chainFamily: 'solana',
+      networkId: wallet.network.id,
+      capabilities: ['read', 'sign'],
+      requester: { type: 'website', id: 'https://dapp.example' },
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    })
+    const chain = adapter('solana')
+    chain.sign.mockResolvedValueOnce('AQID')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter(), solana: chain } })
+    const signing = broker.providerRequest(context(), {
+      family: 'solana', method: 'signTransaction', params: [{
+        transaction: Uint8Array.from([1, 2, 3]),
+        account: { address: wallet.publicAddress },
+        chain: 'solana:devnet',
+        compatibility: 'legacy'
+      }]
+    })
+    await vi.waitFor(() => expect(broker.listPending().filter((request) => (
+      request.walletId === wallet.id && request.operation === 'sign-transaction' && request.status === 'awaiting-human'
+    ))).toHaveLength(1))
+    const request = broker.listPending().find((entry) => (
+      entry.walletId === wallet.id && entry.operation === 'sign-transaction' && entry.status === 'awaiting-human'
+    ))!
+
+    await broker.approve(request.id)
+
+    await expect(signing).resolves.toEqual([{ signedTransaction: Uint8Array.from([1, 2, 3]) }])
   })
 
   it('reconnects the previously authorized Solana wallet when another wallet sorts first', async () => {

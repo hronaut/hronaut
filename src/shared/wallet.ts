@@ -416,7 +416,10 @@ export const WALLET_PROVIDER_METHODS = {
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
     'eth_sendTransaction', 'eth_signTransaction', 'personal_sign', 'eth_signTypedData_v4', 'eth_sign'
   ],
-  solana: ['connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage'],
+  solana: [
+    'connect', 'disconnect', 'signTransaction', 'signAllTransactions', 'signAndSendTransaction', 'signMessage',
+    'legacy_signTransaction', 'legacy_signAllTransactions', 'legacy_signAndSendTransaction', 'legacy_signMessage'
+  ],
   tron: [
     'eth_accounts', 'eth_requestAccounts', 'eth_chainId', 'wallet_switchEthereumChain',
     'tron_signTransaction', 'tron_signAndSendTransaction', 'tron_signMessage'

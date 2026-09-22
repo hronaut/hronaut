@@ -738,18 +738,20 @@ export class WalletBroker {
   }
 
   private async solanaRequest(context: WalletBrokerContext, wallets: WalletDescriptor[], method: string, params: unknown): Promise<unknown> {
+    const legacy = method.startsWith('legacy_')
+    const walletMethod = legacy ? method.slice('legacy_'.length) : method
     const connectedWallet = this.activeAccountProviderWallet(context, 'solana', wallets)
-    if (method === 'disconnect') {
+    if (walletMethod === 'disconnect') {
       const wallet = connectedWallet ?? this.preferredPermittedWallet(context, wallets)
       if (wallet) await this.disconnectWallet(context, wallet)
       return undefined
     }
-    const permittedWallet = method === 'connect'
+    const permittedWallet = walletMethod === 'connect'
       ? this.preferredPermittedWallet(context, wallets)
       : undefined
-    if (method === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
+    if (walletMethod === 'connect' && isSilentSolanaConnect(params) && !permittedWallet) return { accounts: [] }
     const wallet = connectedWallet ?? permittedWallet ?? this.selectWallet(wallets)
-    if (method === 'connect') {
+    if (walletMethod === 'connect') {
       const accounts = await this.connect(context, wallet)
       this.trackAccountProviderSession(context, wallet)
       return { accounts: (accounts as string[]).map((value) => ({
@@ -763,19 +765,28 @@ export class WalletBroker {
         label: wallet.name
       })) }
     }
-    this.assertAddressPermission(context, wallet, method === 'signAndSendTransaction' ? 'send' : 'sign')
-    if (method === 'signTransaction' || method === 'signAllTransactions' || method === 'signAndSendTransaction') {
+    this.assertAddressPermission(context, wallet, walletMethod === 'signAndSendTransaction' ? 'send' : 'sign')
+    if (walletMethod === 'signTransaction' || walletMethod === 'signAllTransactions' || walletMethod === 'signAndSendTransaction') {
       const values = paramsArray(params)
       if (!values.length || values.length > 64) throw new Error('Solana wallet request must include between 1 and 64 transactions')
-      const legacy = values.every((value) => Boolean(value && typeof value === 'object' && (value as { compatibility?: unknown }).compatibility === 'legacy'))
-      const broadcast = method === 'signAndSendTransaction'
-      const results: unknown[] = []
-      for (const value of values) {
-        const input = value && typeof value === 'object' && 'transaction' in value
+      if (legacy && walletMethod !== 'signAllTransactions' && values.length !== 1) {
+        throw new Error('Legacy Solana wallet request must include exactly one transaction')
+      }
+      const broadcast = walletMethod === 'signAndSendTransaction'
+      const inputs = values.map((value) => (
+        value && typeof value === 'object' && 'transaction' in value
           ? value
           : { transaction: value, account: wallet.publicAddress, chain: `solana:${wallet.network.id}` }
-        if (!legacy) this.assertSolanaTransactionInput(wallet, input, broadcast)
-        const result = await this.transactionRequest(context, wallet, input, broadcast)
+      ))
+      if (!legacy) inputs.forEach((input) => this.assertSolanaTransactionInput(wallet, input, broadcast))
+      const normalized: WalletNormalizedTransaction[] = []
+      for (const input of inputs) {
+        normalized.push(await this.adapters.solana.normalizeTransaction(wallet, input))
+        this.assertRequestContextActive(context)
+      }
+      const results: unknown[] = []
+      for (const [index, input] of inputs.entries()) {
+        const result = await this.transactionRequest(context, wallet, input, broadcast, false, normalized[index])
         if (broadcast) {
           const signature = getBase58Encoder().encode(String(result))
           results.push(legacy ? String(result) : { signature })
@@ -784,17 +795,21 @@ export class WalletBroker {
           results.push(legacy ? signedTransaction : { signedTransaction })
         }
       }
-      return legacy && method !== 'signAllTransactions' ? results[0] : results
+      return legacy && walletMethod !== 'signAllTransactions' ? results[0] : results
     }
-    if (method === 'signMessage') {
-      const inputs = paramsArray(params) as Array<{ account?: { address?: unknown } | string; message?: unknown; compatibility?: unknown }>
+    if (walletMethod === 'signMessage') {
+      const inputs = paramsArray(params) as Array<{ account?: { address?: unknown } | string; message?: unknown }>
       if (!inputs.length || inputs.length > 64) throw new Error('Solana wallet request must include between 1 and 64 messages')
-      const legacy = inputs.every((input) => input?.compatibility === 'legacy')
-      const results: unknown[] = []
-      for (const input of inputs) {
+      if (legacy && inputs.length !== 1) throw new Error('Legacy Solana wallet request must include exactly one message')
+      const messages = inputs.map((input) => {
         const requestedAddress = typeof input?.account === 'string' ? input.account : input?.account?.address
-        if (requestedAddress && requestedAddress !== wallet.publicAddress) throw new Error('Solana message signer does not match the selected wallet')
-        const message = this.messageBytes(input?.message)
+        if ((!legacy || requestedAddress !== undefined) && requestedAddress !== wallet.publicAddress) {
+          throw new Error('Solana message signer does not match the selected wallet')
+        }
+        return this.messageBytes(input?.message)
+      })
+      const results: unknown[] = []
+      for (const message of messages) {
         const signature = await this.messageRequest(context, wallet, { kind: 'message', message })
         const signatureBytes = this.base64ResultBytes(signature, 'Solana message signature')
         results.push(legacy
@@ -803,7 +818,7 @@ export class WalletBroker {
       }
       return legacy ? results[0] : results
     }
-    throw new Error(`Unsupported Solana wallet method: ${method}`)
+    throw new Error(`Unsupported Solana wallet method: ${walletMethod}`)
   }
 
   private assertSolanaTransactionInput(
@@ -906,10 +921,11 @@ export class WalletBroker {
     wallet: WalletDescriptor,
     payload: unknown,
     broadcast: boolean,
-    returnSummary = false
+    returnSummary = false,
+    prepared?: WalletNormalizedTransaction
   ): Promise<unknown> {
     const adapter = this.adapters[wallet.chainFamily]
-    const normalized = await adapter.normalizeTransaction(wallet, payload)
+    const normalized = prepared ?? await adapter.normalizeTransaction(wallet, payload)
     this.assertRequestContextActive(context)
     const operation: WalletOperation = broadcast ? 'sign-and-send-transaction' : 'sign-transaction'
     const currentWallet = this.requireAccessibleWallet(context, wallet.id)

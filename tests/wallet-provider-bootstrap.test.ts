@@ -195,9 +195,33 @@ describe('wallet provider bootstrap', () => {
     expect([...signed.serialize()]).toEqual([9, 8, 7])
     expect(transaction.serialize).toHaveBeenCalledWith({ requireAllSignatures: false, verifySignatures: false })
     expect(target.__hronautWalletBridge?.request).toHaveBeenCalledWith({
-      family: 'solana', method: 'signTransaction', params: [{
-        transaction: Uint8Array.from([1, 2, 3]), compatibility: 'legacy'
-      }]
+      family: 'solana', method: 'legacy_signTransaction',
+      params: [{ transaction: Uint8Array.from([1, 2, 3]) }]
+    })
+  })
+
+  it('keeps website-controlled compatibility fields inside the Wallet Standard request', async () => {
+    const register = vi.fn()
+    window.addEventListener('wallet-standard:register-wallet', (event) => {
+      ;(event as CustomEvent).detail({ register })
+    }, { once: true })
+    target.__hronautWalletBridge!.request.mockResolvedValueOnce([{
+      signedTransaction: Uint8Array.from([9, 8, 7])
+    }])
+    installHronautWalletProviders()
+    const wallet = register.mock.calls[0]?.[0]
+    const input = {
+      transaction: Uint8Array.from([1, 2, 3]),
+      account: { address: 'standard-account' },
+      chain: 'solana:devnet',
+      compatibility: 'legacy'
+    }
+
+    await expect(wallet.features['solana:signTransaction'].signTransaction(input)).resolves.toEqual([{
+      signedTransaction: Uint8Array.from([9, 8, 7])
+    }])
+    expect(target.__hronautWalletBridge?.request).toHaveBeenCalledWith({
+      family: 'solana', method: 'signTransaction', params: [input]
     })
   })
 
