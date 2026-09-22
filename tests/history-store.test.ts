@@ -18,6 +18,28 @@ async function storeAt(now = Date.UTC(2026, 7, 13)): Promise<{ path: string; sto
 }
 
 describe('HistoryStore', () => {
+  it('keeps complete Unicode characters when recording and updating bounded titles', async () => {
+    const { path, store } = await storeAt()
+    const url = 'https://unicode.example/'
+    const prefix = 'T'.repeat(199)
+    expect((await store.record({ url, title: `${prefix}🧪` }))!.title).toBe(prefix)
+    const exactTitle = `${'T'.repeat(198)}🧪`
+    expect((await store.updateTitle({ url, title: exactTitle }))!.title).toBe(exactTitle)
+    expect((await store.updateTitle({ url, title: `${prefix}🚀` }))!.title).toBe(prefix)
+    expect((await new HistoryStore(path, () => Date.UTC(2026, 7, 13)).load())[0]!.title).toBe(prefix)
+  })
+
+  it('repairs titles previously saved with a split Unicode character', async () => {
+    const { path, store } = await storeAt()
+    const prefix = 'T'.repeat(199)
+    await writeFile(path, JSON.stringify({ version: 1, entries: [{
+      id: 'split-title', url: 'https://unicode.example/', title: `${prefix}\ud83e`,
+      visitedAt: new Date(Date.UTC(2026, 7, 13)).toISOString(), visitCount: 2
+    }] }))
+    expect((await store.load())[0]!.title).toBe(prefix)
+    expect(JSON.parse(await readFile(path, 'utf8')).entries[0].title).toBe(prefix)
+  })
+
   it('ignores a history file containing JSON null', async () => {
     const { path, store } = await storeAt()
     await writeFile(path, 'null\n', 'utf8')

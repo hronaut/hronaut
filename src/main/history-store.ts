@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { BrowserHistoryEntry } from '../shared/types.js'
+import { truncateText } from '../shared/text-boundaries.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 const HISTORY_VERSION = 1
@@ -44,7 +45,7 @@ function normalizeTitle(value: string, url: string, sourceUrl = url): string {
   let safeValue = value
   if (isCredentialFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? value
-  const title = safeValue.replace(/\s+/g, ' ').trim().slice(0, MAX_HISTORY_TITLE)
+  const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_HISTORY_TITLE)
   return title || new URL(url).hostname
 }
 

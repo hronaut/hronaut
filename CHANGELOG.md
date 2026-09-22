@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep bookmark and history titles from splitting a Unicode character at their length limit, and repair titles previously stored with an incomplete trailing character.
 - Restore address suggestions on fresh input after their renderer exits, including when the popup was hidden, without restarting the browser or losing the typed address.
 - Apply the selected interface size when address suggestions first open, keeping their text and controls consistent with the address bar.
 
