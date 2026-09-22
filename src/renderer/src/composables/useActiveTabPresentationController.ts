@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, type Ref } from 'vue'
 import type {
   BrowserBookmark,
@@ -24,9 +25,9 @@ export interface ActiveTabPresentationControllerOptions {
 }
 
 export function useActiveTabPresentationController(options: ActiveTabPresentationControllerOptions) {
-  const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+  const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
   const activeIsHome = computed(() => (
-    !options.state.value.activeTabId || options.activeTab.value?.url.startsWith('hronaut://home') === true
+    !options.state.value.activeTabId || isHronautHomeUrl(options.activeTab.value?.url) === true
   ))
   const activeWebUrl = computed(() => {
     try {

@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { Ref } from 'vue'
 import type { BrowserShortcutAction } from '../../../shared/browser-shortcuts.js'
 import type { CommandPaletteCommandId } from '../../../shared/command-palette.js'
@@ -237,7 +238,7 @@ export function useAppShellInteractionFeatureController(
   })
   const home = useHomeNavigationController({
     activeTab: options.activeTab,
-    websiteTabs: () => options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')),
+    websiteTabs: () => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)),
     settingsOpen: surfaces.settings.open,
     updateNoticeOpen: surfaces.updateNotice,
     downloadsOpen: features.collections.downloadsOpen,

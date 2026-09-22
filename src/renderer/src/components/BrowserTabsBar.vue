@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -56,8 +57,8 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
-const homeTab = computed(() => props.state.tabs.find((tab) => tab.url.startsWith('hronaut://home')))
-const regularTabs = computed(() => props.state.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+const homeTab = computed(() => props.state.tabs.find((tab) => isHronautHomeUrl(tab.url)))
+const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
 const collapsedTabGroupIds = ref(new Set<string>(loadCollapsedTabGroupIds()))
 const focusedTabId = ref<string | null>(null)
 const draggedTabId = ref<string | null>(null)

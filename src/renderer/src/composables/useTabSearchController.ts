@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { isImeCompositionEvent } from '../keyboard-composition.js'
 import type {
@@ -76,7 +77,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   let previewWindowFocused = true
   let actionToken: symbol | null = null
 
-  const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+  const regularTabs = computed(() => options.state.value.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
   const filteredTabs = computed(() => {
     const normalized = query.value.trim().toLocaleLowerCase()
     if (!normalized) return regularTabs.value
@@ -106,7 +107,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     const knownWorkspaceIds = new Set(options.state.value.mcpTabGroups.map((group) => group.id))
     const groups = options.state.value.mcpTabGroups.flatMap((group): TabSearchWorkspaceGroup[] => {
       const tabs = options.state.value.tabs.filter((tab) => (
-        tab.mcpGroupId === group.id && matchedTabs.has(tab.id) && !tab.url.startsWith('hronaut://home')
+        tab.mcpGroupId === group.id && matchedTabs.has(tab.id) && !isHronautHomeUrl(tab.url)
       ))
       return tabs.length ? [{ id: group.id, name: group.name, color: group.color, tabs }] : []
     })

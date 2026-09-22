@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -29,7 +30,7 @@ let disposed = false
 
 function availableTab(): BrowserTabState | undefined {
   const tab = props.activeTab
-  return tab && !tab.url.startsWith('hronaut://home') ? tab : undefined
+  return tab && !isHronautHomeUrl(tab.url) ? tab : undefined
 }
 
 function close(): void {
@@ -38,7 +39,7 @@ function close(): void {
 }
 
 function openForTab(tab: BrowserTabState | undefined = availableTab()): void {
-  if (!tab || tab.url.startsWith('hronaut://home')) return
+  if (!tab || isHronautHomeUrl(tab.url)) return
   targetTabId = tab.id
   open.value = true
 }
@@ -71,7 +72,7 @@ watch(open, (isOpen) => {
 }, { immediate: true })
 
 watch([() => props.activeTab?.id, () => props.activeTab?.url], ([tabId, url]) => {
-  if (open.value && targetTabId && (tabId !== targetTabId || !url || url.startsWith('hronaut://home'))) close()
+  if (open.value && targetTabId && (tabId !== targetTabId || !url || isHronautHomeUrl(url))) close()
 })
 
 onBeforeUnmount(() => {

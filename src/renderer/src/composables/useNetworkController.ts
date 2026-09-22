@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, nextTick, ref, type Ref } from 'vue'
 import type {
   BrowserNetworkAbortReason,
@@ -224,7 +225,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   async function refresh(clear = false): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || tab.url.startsWith('hronaut://home')) return
+    if (!tab || isHronautHomeUrl(tab.url)) return
     const expectedGeneration = generation
     const sequence = ++monitorRequestSequence
     monitorState.value = 'loading'
@@ -262,7 +263,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
 
   async function refreshRoutes(silent = false): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || tab.url.startsWith('hronaut://home')) return
+    if (!tab || isHronautHomeUrl(tab.url)) return
     const expectedGeneration = generation
     const sequence = ++routeRequestSequence
     if (!silent) routeState.value = 'loading'

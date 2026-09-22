@@ -1,4 +1,5 @@
 import { DEFAULT_SEARCH_ENGINE, searchUrl, type SearchEngineName } from '../../shared/search-engine.js'
+export { isHronautHomeUrl } from '../../shared/home-url.js'
 
 const SCHEME_PATTERN = /^[a-zA-Z][a-zA-Z\d+.-]*:/
 const HOST_LIKE_PATTERN = /^(localhost\.?|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\]|[^\s/:?#]+\.[^\s/:?#]+)(?::\d+)?(?:[/?#].*)?$/i
@@ -52,19 +53,6 @@ export function normalizeAddress(input: string, searchEngine: SearchEngineName =
   }
   if (SCHEME_PATTERN.test(value)) return value
   return searchUrl(value, searchEngine)
-}
-
-export function isHronautHomeUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return parsed.protocol === 'hronaut:'
-      && parsed.hostname === 'home'
-      && !parsed.port
-      && !parsed.username
-      && !parsed.password
-  } catch {
-    return false
-  }
 }
 
 export function isWebUrl(url: string): boolean {

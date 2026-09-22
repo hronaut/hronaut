@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { nextTick, watch, type Ref } from 'vue'
 import type { DetachablePanelId } from '../../../shared/types.js'
 
@@ -72,7 +73,7 @@ export function useDetachedPanelRefreshController(options: DetachedPanelRefreshC
         !options.detachedWindow
         || !tabId
         || !url
-        || url.startsWith('hronaut://home')
+        || isHronautHomeUrl(url)
         || loading
       ) return
       if (tabId === previousTabId && url === previousUrl && previousLoading !== true) return

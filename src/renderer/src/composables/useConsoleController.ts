@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, ref, watch, type Ref } from 'vue'
 import type {
   BrowserConsoleMessage,
@@ -66,7 +67,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
 
   async function refresh(clear = false, silent = false): Promise<void> {
     const tab = options.activeTab.value
-    if (!tab || tab.url.startsWith('hronaut://home')) return
+    if (!tab || isHronautHomeUrl(tab.url)) return
     const expectedGeneration = generation
     const sequence = ++requestSequence
     if (!silent) state.value = 'loading'

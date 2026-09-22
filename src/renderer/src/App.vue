@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHronautHomeUrl } from '../../shared/home-url.js'
 import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
 import { storeToRefs } from 'pinia'
@@ -296,7 +297,7 @@ const {
 const appSiteNavigationFeatureController = useAppSiteNavigationFeatureController({
   state,
   activeTab,
-  isHome: () => activeTab.value?.url.startsWith('hronaut://home') ?? true,
+  isHome: () => !activeTab.value || isHronautHomeUrl(activeTab.value.url),
   browser,
   syncState,
   collections: {

@@ -1,3 +1,4 @@
+import { isHronautHomeUrl } from '../shared/home-url.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
@@ -4052,7 +4053,7 @@ function configureBrowserSession(browserSession: Session): void {
       callback(allowed)
     }
     const requestingUrl = details.requestingUrl || webContents.getURL()
-    if (requestingUrl.startsWith('hronaut://home')) {
+    if (isHronautHomeUrl(requestingUrl)) {
       respond(false)
       return
     }

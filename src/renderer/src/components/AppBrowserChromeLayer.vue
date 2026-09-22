@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useI18n } from 'vue-i18n'
 import { computed, ref } from 'vue'
 import type {
@@ -117,7 +118,7 @@ const {
   toggleFollowAgentActivity
 } = props.settingsController
 const { state: updateState } = updateSettingsController
-const websiteTabs = computed(() => props.state.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+const websiteTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
 const allTabsMuted = computed(() => props.state.allTabsMuted === true)
 const { open: settingsOpen, toggle: toggleSettings } = settingsDialogController
 const {

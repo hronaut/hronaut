@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -27,7 +28,7 @@ const emit = defineEmits<{
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const busy = ref(false)
-const regularTabs = computed(() => props.state.tabs.filter((tab) => !tab.url.startsWith('hronaut://home')))
+const regularTabs = computed(() => props.state.tabs.filter((tab) => !isHronautHomeUrl(tab.url)))
 const available = computed(() => regularTabs.value.length > 1 || props.state.splitView !== undefined)
 const splitViewTabs = computed(() => props.state.splitView
   ? [
