@@ -12,7 +12,8 @@ import type { WalletDescriptor } from '../src/shared/wallet.js'
 
 const TOKEN_ABI = parseAbi([
   'function transfer(address to, uint256 amount) returns (bool)',
-  'function approve(address spender, uint256 amount) returns (bool)'
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function transferFrom(address from, address to, uint256 amount) returns (bool)'
 ])
 const mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'
 
@@ -71,6 +72,42 @@ describe('EvmWalletAdapter', () => {
       method: 'erc20.approve',
       destination: '0x0000000000000000000000000000000000000003',
       unlimitedAllowance: true
+    })
+  })
+
+  it('shows the token source and requires manual review for third-party transferFrom calls', async () => {
+    const adapter = new EvmWalletAdapter(() => rpc() as never)
+    const signer = wallet().publicAddress as `0x${string}`
+    const destination = '0x0000000000000000000000000000000000000003' as const
+    const ownTransfer = await adapter.normalizeTransaction(wallet(), {
+      to: '0x0000000000000000000000000000000000000010',
+      data: encodeFunctionData({
+        abi: TOKEN_ABI,
+        functionName: 'transferFrom',
+        args: [signer, destination, 123n]
+      })
+    })
+    expect(ownTransfer.decoded).toMatchObject({
+      understood: true,
+      method: 'erc20.transferFrom',
+      source: signer,
+      destination,
+      tokenAmount: '123'
+    })
+
+    const thirdPartyTransfer = await adapter.normalizeTransaction(wallet(), {
+      to: '0x0000000000000000000000000000000000000010',
+      data: encodeFunctionData({
+        abi: TOKEN_ABI,
+        functionName: 'transferFrom',
+        args: ['0x0000000000000000000000000000000000000004', destination, 123n]
+      })
+    })
+    expect(thirdPartyTransfer.decoded).toMatchObject({
+      understood: false,
+      method: 'erc20.transferFrom',
+      source: '0x0000000000000000000000000000000000000004',
+      destination
     })
   })
 

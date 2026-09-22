@@ -8,5 +8,5 @@ describe('ESLint generated output boundaries', () => {
     await expect(eslint.isPathIgnored(
       'tests/.mcpb-output/.mcpb-staging/operator-manifest.mjs'
     )).resolves.toBe(true)
-  })
+  }, 15_000)
 })

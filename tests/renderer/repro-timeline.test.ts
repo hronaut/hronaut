@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
 import ReproTimeline from '../../src/renderer/src/components/ReproTimeline.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -76,5 +77,23 @@ describe('reproduction timeline navigation', () => {
     expect(options[199]).toHaveFocus()
     expect(options[199]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('region', { name: 'Selected reproduction step' })).toHaveTextContent('click step 200')
+  })
+
+  it('does not let delayed keyboard focus override a newer pointer interaction', async () => {
+    render(ReproTimeline, {
+      global,
+      props: { locale: 'en-US', recording: recording('2026-09-15T10:00:00.000Z', [step(1), step(2), step(3)]) }
+    })
+    const options = screen.getAllByRole('option')
+    options[0].focus()
+
+    options[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    options[2].focus()
+    options[2].click()
+    await nextTick()
+
+    expect(options[2]).toHaveAttribute('aria-selected', 'true')
+    expect(options[2]).toHaveFocus()
+    expect(screen.getByRole('region', { name: 'Selected reproduction step' })).toHaveTextContent('click step 3')
   })
 })

@@ -80,7 +80,7 @@ function sameAddress(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase()
 }
 
-function decodeOperation(to: Address | undefined, data: Hex, value: bigint) {
+function decodeOperation(to: Address | undefined, data: Hex, value: bigint, signer: Address) {
   if (!to) {
     return {
       understood: false,
@@ -128,8 +128,10 @@ function decodeOperation(to: Address | undefined, data: Hex, value: bigint) {
         blindMessage: false
       }
     }
+    const source = decoded.args[0]
     return {
-      understood: true,
+      understood: sameAddress(source, signer),
+      source,
       destination: decoded.args[1],
       method: 'erc20.transferFrom',
       nativeAmount: formatEther(value),
@@ -210,7 +212,7 @@ export class EvmWalletAdapter implements WalletChainAdapter {
       signer: getAddress(wallet.publicAddress),
       ...(nonce === undefined ? {} : { nonceOrBlockhash: nonce.toString() }),
       raw: raw as Record<string, unknown>,
-      decoded: decodeOperation(to, data, value)
+      decoded: decodeOperation(to, data, value, getAddress(wallet.publicAddress))
     }
   }
 

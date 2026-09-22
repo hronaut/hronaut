@@ -45,8 +45,13 @@ async function selectAndFocus(position: number): Promise<void> {
   const bounded = Math.max(0, Math.min(props.recording.steps.length - 1, position))
   const step = props.recording.steps[bounded]
   if (!step) return
+  const recordingKey = `${props.recording.tabId}:${props.recording.startedAt ?? ''}`
   selectedIndex.value = step.index
   await nextTick()
+  if (
+    selectedIndex.value !== step.index
+    || `${props.recording.tabId}:${props.recording.startedAt ?? ''}` !== recordingKey
+  ) return
   timeline.value
     ?.querySelector<HTMLButtonElement>(`[data-repro-step-index="${step.index}"]`)
     ?.focus()

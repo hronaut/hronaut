@@ -383,6 +383,7 @@ export const enUS = {
       requester: 'Requester',
       requesterValue: '{name} ({type})',
       method: 'Method',
+      source: 'Source account',
       destination: 'Destination',
       nativeAmount: 'Native amount',
       tokenAmount: 'Token amount',

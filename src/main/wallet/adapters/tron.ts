@@ -66,6 +66,11 @@ function uint256Word(value: string): bigint {
   return BigInt(`0x${value}`)
 }
 
+function addressWord(value: string): string {
+  if (!/^0{24}[a-fA-F0-9]{40}$/.test(value)) throw new Error('Tron contract address argument is invalid')
+  return fromHexAddress(value.slice(24))
+}
+
 function contractOperation(contract: z.infer<typeof TronContractSchema>) {
   const value = contract.parameter.value
   if (contract.type === 'TransferContract') {
@@ -93,13 +98,17 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
     const data = value.data.toLowerCase()
     const selector = data.slice(0, 8)
     const words = data.slice(8).match(/.{64}/g) ?? []
-    if ((selector === 'a9059cbb' || selector === '095ea7b3') && words.length >= 2) {
+    if (
+      (selector === 'a9059cbb' || selector === '095ea7b3')
+      && data.length === 8 + 64 * 2
+      && /^0{24}[a-fA-F0-9]{40}$/.test(words[0] ?? '')
+    ) {
       const amount = uint256Word(words[1]!)
       return {
         owner,
         decoded: {
           understood: true,
-          destination: fromHexAddress(words[0]!.slice(24)),
+          destination: addressWord(words[0]!),
           method: selector === 'a9059cbb' ? 'trc20.transfer' : 'trc20.approve',
           tokenAmount: amount.toString(),
           unlimitedAllowance: selector === '095ea7b3' && amount === (1n << 256n) - 1n,
@@ -108,12 +117,19 @@ function contractOperation(contract: z.infer<typeof TronContractSchema>) {
         }
       }
     }
-    if (selector === '23b872dd' && words.length >= 3) {
+    if (
+      selector === '23b872dd'
+      && data.length === 8 + 64 * 3
+      && /^0{24}[a-fA-F0-9]{40}$/.test(words[0] ?? '')
+      && /^0{24}[a-fA-F0-9]{40}$/.test(words[1] ?? '')
+    ) {
+      const source = addressWord(words[0]!)
       return {
         owner,
         decoded: {
-          understood: true,
-          destination: fromHexAddress(words[1]!.slice(24)),
+          understood: source === owner,
+          source,
+          destination: addressWord(words[1]!),
           method: 'trc20.transferFrom',
           tokenAmount: uint256Word(words[2]!).toString(),
           unlimitedAllowance: false,

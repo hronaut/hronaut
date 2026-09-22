@@ -18,6 +18,7 @@ function request(id = 'request-1', walletName = 'Main wallet'): WalletRequestSum
       walletName, publicAddress: '0x0000000000000000000000000000000000000001',
       chainFamily: 'evm', networkName: 'Ethereum', capability: 'sign', understood: true,
       simulationAttempted: false, simulationSuccess: false, method: 'personal_sign',
+      source: '0x0000000000000000000000000000000000000002',
       raw: { messageCanonicalBase64: 'c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=', messageUtf8Preview: 'sign this exact message' }
     }
   }
@@ -46,6 +47,8 @@ describe('WalletApprovalDialog', () => {
     expect(dialog).toHaveTextContent('sign this exact message')
     expect(dialog).toHaveTextContent('c2lnbiB0aGlzIGV4YWN0IG1lc3NhZ2U=')
     expect(dialog).toHaveTextContent('Primary workspace')
+    expect(dialog).toHaveTextContent('Source account')
+    expect(dialog).toHaveTextContent('0x0000000000000000000000000000000000000002')
     await userEvent.setup().click(view.container.querySelector('.wallet-approval-overlay')!)
     expect(wallets.approve).not.toHaveBeenCalled()
 

@@ -43,6 +43,7 @@ function rawDetails(): string {
         <div><dt>{{ t('wallets.approval.workspace') }}</dt><dd :title="request.workspaceId">{{ workspaceName }}</dd></div>
         <div><dt>{{ t('wallets.approval.requester') }}</dt><dd>{{ t('wallets.approval.requesterValue', { name: request.requester.name ?? request.requester.id, type: request.requester.type }) }}</dd></div>
         <div v-if="request.details?.method"><dt>{{ t('wallets.approval.method') }}</dt><dd>{{ request.details.method }}</dd></div>
+        <div v-if="request.details?.source"><dt>{{ t('wallets.approval.source') }}</dt><dd><code>{{ request.details.source }}</code></dd></div>
         <div v-if="request.details?.destination"><dt>{{ t('wallets.approval.destination') }}</dt><dd><code>{{ request.details.destination }}</code></dd></div>
         <div v-if="request.details?.nativeAmount"><dt>{{ t('wallets.approval.nativeAmount') }}</dt><dd>{{ request.details.nativeAmount }}</dd></div>
         <div v-if="request.details?.tokenAmount"><dt>{{ t('wallets.approval.tokenAmount') }}</dt><dd>{{ request.details.tokenAmount }}</dd></div>

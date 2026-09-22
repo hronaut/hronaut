@@ -11,6 +11,9 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show EVM and TRON token `transferFrom` source accounts in approval details, and require manual review when the source differs from the selected signer.
+- Treat only exact, canonically encoded TRC20 transfers, approvals, and delegated transfers as understood operations.
+- Prevent delayed Repro timeline keyboard focus from overriding a newer pointer-selected step.
 - Prevent delayed Site Controls, Command Palette, and bookmark-rename completions from reopening obsolete UI or stealing focus from newer actions.
 - Separate Solana legacy-provider routing from Wallet Standard payloads so website-supplied fields cannot change standard response shapes.
 - Preflight every Solana batch transaction and message signer before creating approvals, preventing later invalid inputs from following earlier signing side effects.

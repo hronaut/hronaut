@@ -359,6 +359,7 @@ export const WalletRequestSummarySchema = z.object({
     understood: z.boolean(),
     simulationAttempted: z.boolean(),
     simulationSuccess: z.boolean(),
+    source: z.string().max(512).optional(),
     destination: z.string().max(512).optional(),
     method: z.string().max(512).optional(),
     nativeAmount: z.string().max(256).optional(),

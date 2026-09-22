@@ -8,6 +8,7 @@ import {
 
 export interface WalletDecodedOperation {
   understood: boolean
+  source?: string
   destination?: string
   method?: string
   nativeAmount?: string

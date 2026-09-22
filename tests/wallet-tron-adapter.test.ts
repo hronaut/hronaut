@@ -45,7 +45,10 @@ function transfer(amount = 1_500_000): Record<string, unknown> {
   })
 }
 
-function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint): Record<string, unknown> {
+function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint, options: {
+  addressWordPrefix?: string
+  suffix?: string
+} = {}): Record<string, unknown> {
   const destinationWord = TronWeb.address.toHex(destination).slice(2).padStart(64, '0')
   const amountWord = amount.toString(16).padStart(64, '0')
   return compile({
@@ -56,7 +59,30 @@ function trc20(selector: 'a9059cbb' | '095ea7b3', amount: bigint): Record<string
           value: {
             owner_address: TronWeb.address.toHex(owner),
             contract_address: TronWeb.address.toHex(destination),
-            data: `${selector}${destinationWord}${amountWord}`
+            data: `${selector}${options.addressWordPrefix ?? destinationWord}${amountWord}${options.suffix ?? ''}`
+          },
+          type_url: 'type.googleapis.com/protocol.TriggerSmartContract'
+        },
+        type: 'TriggerSmartContract'
+      }],
+      ref_block_bytes: '0000', ref_block_hash: '0000000000000000', expiration: 2_000_000_000_000, timestamp: 1_999_999_000_000
+    }
+  })
+}
+
+function trc20TransferFrom(source: string, amount: bigint): Record<string, unknown> {
+  const sourceWord = TronWeb.address.toHex(source).slice(2).padStart(64, '0')
+  const destinationWord = TronWeb.address.toHex(destination).slice(2).padStart(64, '0')
+  const amountWord = amount.toString(16).padStart(64, '0')
+  return compile({
+    visible: false,
+    raw_data: {
+      contract: [{
+        parameter: {
+          value: {
+            owner_address: TronWeb.address.toHex(owner),
+            contract_address: TronWeb.address.toHex(destination),
+            data: `23b872dd${sourceWord}${destinationWord}${amountWord}`
           },
           type_url: 'type.googleapis.com/protocol.TriggerSmartContract'
         },
@@ -101,6 +127,35 @@ describe('TronWalletAdapter', () => {
     const multiple = transfer() as { raw_data: { contract: unknown[] } }
     multiple.raw_data.contract.push(structuredClone(multiple.raw_data.contract[0]))
     await expect(adapter.normalizeTransaction(wallet(), multiple)).rejects.toThrow('Multi-contract')
+  })
+
+  it('does not present non-canonical TRC20 calldata as an understood transfer', async () => {
+    const adapter = new TronWalletAdapter(() => rpc())
+    const destinationWord = TronWeb.address.toHex(destination).slice(2).padStart(64, '0')
+    const dirtyAddressWord = `01${destinationWord.slice(2)}`
+    const extraArgument = '0'.repeat(64)
+
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 123n, {
+      addressWordPrefix: dirtyAddressWord
+    }))).resolves.toMatchObject({
+      decoded: { understood: false, method: 'contract-call:a9059cbb', newContractOrProgram: true }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20('a9059cbb', 123n, {
+      suffix: extraArgument
+    }))).resolves.toMatchObject({
+      decoded: { understood: false, method: 'contract-call:a9059cbb', newContractOrProgram: true }
+    })
+  })
+
+  it('shows the token source and requires manual review for third-party transferFrom calls', async () => {
+    const adapter = new TronWalletAdapter(() => rpc())
+
+    await expect(adapter.normalizeTransaction(wallet(), trc20TransferFrom(owner, 123n))).resolves.toMatchObject({
+      decoded: { understood: true, source: owner, destination, method: 'trc20.transferFrom', tokenAmount: '123' }
+    })
+    await expect(adapter.normalizeTransaction(wallet(), trc20TransferFrom(destination, 123n))).resolves.toMatchObject({
+      decoded: { understood: false, source: destination, destination, method: 'trc20.transferFrom', tokenAmount: '123' }
+    })
   })
 
   it('rejects transaction JSON that does not match its signed Tron bytes and hash', async () => {

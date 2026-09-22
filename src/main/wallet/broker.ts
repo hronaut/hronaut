@@ -163,6 +163,7 @@ function summary(record: WalletApprovalRecord, wallet?: WalletDescriptor): Walle
         understood: normalized?.decoded.understood ?? record.request.operation === 'connect-account',
         simulationAttempted: record.simulation?.attempted ?? false,
         simulationSuccess: record.simulation?.success ?? false,
+        ...(normalized?.decoded.source ? { source: normalized.decoded.source } : {}),
         ...(normalized?.decoded.destination ? { destination: normalized.decoded.destination } : {}),
         ...(normalized?.decoded.method ? { method: normalized.decoded.method } : {}),
         ...(normalized?.decoded.nativeAmount ? { nativeAmount: normalized.decoded.nativeAmount } : {}),
