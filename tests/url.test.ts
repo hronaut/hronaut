@@ -17,11 +17,15 @@ describe('normalizeAddress', () => {
     ['LOCALHOST', 'http://LOCALHOST'],
     ['LOCALHOST:5173', 'http://LOCALHOST:5173'],
     ['Localhost:5173/app', 'http://Localhost:5173/app'],
+    ['localhost:5173?mode=qa', 'http://localhost:5173?mode=qa'],
+    ['localhost#readiness', 'http://localhost#readiness'],
     ['localhost.', 'http://localhost.'],
     ['app.localhost:4173/dashboard', 'http://app.localhost:4173/dashboard'],
     ['127.0.0.1:8081/ui-kit', 'http://127.0.0.1:8081/ui-kit'],
+    ['127.0.0.1:8081?panel=network', 'http://127.0.0.1:8081?panel=network'],
     ['127.42.0.9:3000', 'http://127.42.0.9:3000'],
-    ['[::1]:6006', 'http://[::1]:6006']
+    ['[::1]:6006', 'http://[::1]:6006'],
+    ['[::1]:6006#storybook', 'http://[::1]:6006#storybook']
   ])('uses HTTP for a scheme-less loopback development address %s', (input, expected) => {
     expect(normalizeAddress(input)).toBe(expected)
   })

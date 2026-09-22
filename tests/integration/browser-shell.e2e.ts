@@ -268,10 +268,12 @@ test("keeps the compact What's new reader usable at desktop and minimum window s
   await expect.poll(async () => (await websiteBounds())?.height ?? 0).toBeGreaterThan(1)
 })
 
-test('opens a scheme-less loopback address over HTTP from the address bar', async ({ appWindow }) => {
-  const server = createServer((_request, response) => {
+test('opens a scheme-less loopback address with query and fragment over HTTP', async ({ appWindow }) => {
+  const server = createServer((request, response) => {
     response.writeHead(200, { 'content-type': 'text/html', 'cache-control': 'no-store' })
-    response.end('<!doctype html><title>Scheme-less loopback</title><main>Local development server</main>')
+    response.end(request.url === '/?mode=qa'
+      ? '<!doctype html><title>Scheme-less loopback query</title><main>Local development server</main>'
+      : '<!doctype html><title>Unexpected loopback URL</title>')
   })
   const address = await new Promise<{ port: number }>((resolve, reject) => {
     server.once('error', reject)
@@ -281,15 +283,15 @@ test('opens a scheme-less loopback address over HTTP from the address bar', asyn
   try {
     await appWindow.getByRole('button', { name: 'New tab' }).click()
     const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
-    await addressInput.fill(`LOCALHOST:${address.port}/scheme-less`)
+    await addressInput.fill(`LOCALHOST:${address.port}?mode=qa#readiness`)
     await addressInput.press('Enter')
 
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)'
-    )).toBe(`http://localhost:${address.port}/scheme-less`)
+    )).toBe(`http://localhost:${address.port}/?mode=qa#readiness`)
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)'
-    )).toBe('Scheme-less loopback')
+    )).toBe('Scheme-less loopback query')
   } finally {
     await closeFixtureServer(server)
   }
