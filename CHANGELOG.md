@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.8] - 2026-09-23
+
 ### Fixed
 
 - Restore saved bookmarks in actual time order when their timestamps use different timezone offsets, keeping address suggestions correctly ordered after restart.
