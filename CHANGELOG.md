@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Restore saved bookmarks in actual time order when their timestamps use different timezone offsets, keeping address suggestions correctly ordered after restart.
+- Remove embedded HTTP credentials from tab titles truncated from URL fallbacks when saving or restoring active and archived tabs.
 
 ## [2.5.7] - 2026-09-23
 

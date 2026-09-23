@@ -288,6 +288,49 @@ describe('TabStateStore', () => {
     expect(repaired).not.toContain('saved-secret')
   })
 
+  it('removes credentials from URL fallback titles truncated before save', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    const activeUrl = `https://user:${'active-secret-'.repeat(50)}@shop.example/checkout`
+    const savedUrl = `view-source:https://user:${'saved-secret-'.repeat(50)}@docs.example/orders`
+    state.tabs[1]!.url = activeUrl
+    state.tabs[1]!.title = activeUrl.slice(0, MAX_TAB_TITLE_CHARS)
+    state.savedTabGroups![0]!.tabs[0]!.url = savedUrl
+    state.savedTabGroups![0]!.tabs[0]!.title = savedUrl.slice(0, MAX_TAB_TITLE_CHARS)
+
+    await store.save(state)
+
+    const persisted = await readFile(path, 'utf8')
+    expect(persisted).not.toMatch(/active-secret|saved-secret/)
+    expect(JSON.parse(persisted)).toMatchObject({
+      tabs: expect.arrayContaining([expect.objectContaining({
+        id: ACTIVE_TAB_ID, url: 'https://shop.example/checkout', title: 'https://shop.example/checkout'
+      })]),
+      savedTabGroups: [{ tabs: [{
+        url: 'view-source:https://docs.example/orders', title: 'view-source:https://docs.example/orders'
+      }] }]
+    })
+  })
+
+  it('repairs legacy truncated URL fallback titles containing credentials on load', async () => {
+    const { path, store } = await createStore()
+    const state = currentState()
+    const activeUrl = `https://user:${'active-secret-'.repeat(50)}@shop.example/checkout`
+    const savedUrl = `view-source:https://user:${'saved-secret-'.repeat(50)}@docs.example/orders`
+    state.tabs[1]!.url = activeUrl
+    state.tabs[1]!.title = activeUrl.slice(0, MAX_TAB_TITLE_CHARS)
+    state.savedTabGroups![0]!.tabs[0]!.url = savedUrl
+    state.savedTabGroups![0]!.tabs[0]!.title = savedUrl.slice(0, MAX_TAB_TITLE_CHARS)
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify(state), 'utf8')
+
+    const restored = await store.load()
+
+    expect(restored?.tabs[1]?.title).toBe('https://shop.example/checkout')
+    expect(restored?.savedTabGroups?.[0]?.tabs[0]?.title).toBe('view-source:https://docs.example/orders')
+    expect(await readFile(path, 'utf8')).not.toMatch(/active-secret|saved-secret/)
+  })
+
   it('repairs privileged URLs left in active and archived agent workspaces', async () => {
     const { path, store } = await createStore()
     const state = currentState()

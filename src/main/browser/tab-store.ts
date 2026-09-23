@@ -7,7 +7,7 @@ import {
 } from '../../shared/split-view.js'
 import { isUuidV7 } from '../uuid-v7.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
-import { normalizeTabTitle } from './tab-metadata.js'
+import { MAX_TAB_TITLE_CHARS, normalizeTabTitle } from './tab-metadata.js'
 import { isAgentWorkspaceNavigationUrl } from './url.js'
 import { normalizeWorkspaceDescription } from '../../shared/workspace-description.js'
 import {
@@ -213,6 +213,15 @@ function normalizePersistedTabUrl(value: unknown): string | null {
   }
 }
 
+function sanitizedUrlFallbackTitle(title: string, sourceUrl: string, normalizedUrl: string): string {
+  if (title === sourceUrl || (
+    sourceUrl !== normalizedUrl
+    && title.length >= MAX_TAB_TITLE_CHARS - 1
+    && sourceUrl.startsWith(title)
+  )) return normalizedUrl
+  return title
+}
+
 function persistedFaviconDataUrl(value: unknown): string | undefined {
   if (typeof value !== 'string'
     || value.length > MAX_PERSISTED_FAVICON_DATA_URL_LENGTH
@@ -250,7 +259,7 @@ function sanitizePersistedStateUrls(state: PersistedBrowserState): PersistedBrow
     const url = allowed ? normalized : 'about:blank'
     return {
       ...tab,
-      title: url !== normalized ? 'New tab' : tab.title === originalUrl ? normalized : tab.title,
+      title: url !== normalized ? 'New tab' : sanitizedUrlFallbackTitle(tab.title, originalUrl, normalized),
       url
     }
   }
@@ -464,7 +473,7 @@ export class TabStateStore {
             const title = (tab as Record<string, unknown>).title as string
             const normalizedTitle = url !== normalizedUrl
               ? 'New tab'
-              : normalizeTabTitle(title === originalUrl ? url : title, url)
+              : normalizeTabTitle(sanitizedUrlFallbackTitle(title, originalUrl, url), url)
             if (url !== originalUrl) repairedPersistedState = true
             if (normalizedTitle !== title) repairedPersistedState = true
             return {
@@ -512,7 +521,7 @@ export class TabStateStore {
         if (candidate.faviconDataUrl !== undefined && faviconDataUrl === undefined) repairedPersistedState = true
         const normalizedTitle = normalizedUrl !== url
           ? 'New tab'
-          : normalizeTabTitle(candidate.title === candidate.url ? normalizedUrl : candidate.title, normalizedUrl)
+          : normalizeTabTitle(sanitizedUrlFallbackTitle(candidate.title, candidate.url as string, normalizedUrl), normalizedUrl)
         if (normalizedTitle !== candidate.title) repairedPersistedState = true
         usedTabIds.add(candidate.id)
         tabs.push({
