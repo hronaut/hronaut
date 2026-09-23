@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.10] - 2026-09-23
+
 ### Fixed
 
 - Repair older browsing-history titles truncated inside HTTP credentials after their saved URL was sanitized, keeping those credentials out of address suggestions.
