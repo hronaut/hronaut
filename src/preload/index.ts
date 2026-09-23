@@ -18,6 +18,7 @@ import type {
   HronautUpdatesApi,
   BrowserActionFailure,
   BrowserState,
+  UserAttentionRequest,
   BrowserTabGroupUpdate,
   BrowserWorkspaceCreateOptions,
   BrowserWorkspaceStorageTransferOptions,
@@ -85,6 +86,12 @@ import type { AddressSuggestionOverlayRequest } from '../shared/address-suggesti
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
+  getUserAttention: () => ipcRenderer.invoke('attention:get'),
+  onUserAttentionChanged: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, request: UserAttentionRequest | null): void => listener(request)
+    ipcRenderer.on('attention:changed', handler)
+    return () => ipcRenderer.removeListener('attention:changed', handler)
+  },
   getTabOverviewPreviews: (tabIds: string[]) => ipcRenderer.invoke('browser:get-tab-overview-previews', tabIds),
   getTabOverviewPagePreview: (tabId: string) => ipcRenderer.invoke('browser:get-tab-overview-page-preview', tabId),
   copyText: (text: string) => ipcRenderer.invoke('browser:copy-text', text),

@@ -19,18 +19,20 @@ import IconKeepOff from '~icons/material-symbols/keep-off-rounded'
 import IconLanguage from '~icons/material-symbols/language-rounded'
 import IconLock from '~icons/material-symbols/lock-rounded'
 import IconPauseCircle from '~icons/material-symbols/pause-circle-rounded'
+import IconPriorityHigh from '~icons/material-symbols/priority-high-rounded'
 import IconHelp from '~icons/material-symbols/help-outline-rounded'
 import IconRoute from '~icons/material-symbols/route-rounded'
 import IconSpeed from '~icons/material-symbols/speed-rounded'
 import IconVerticalSplit from '~icons/material-symbols/vertical-split-rounded'
 import IconVolumeOff from '~icons/material-symbols/volume-off-rounded'
 import IconVolumeUp from '~icons/material-symbols/volume-up-rounded'
-import type { BrowserState, BrowserTabGroupColor, BrowserTabState, McpTabActivity } from '../../../shared/types.js'
+import type { BrowserState, BrowserTabGroupColor, BrowserTabState, McpTabActivity, UserAttentionRequest } from '../../../shared/types.js'
 import { BROWSER_TAB_GROUP_COLOR_HEX, defaultTabGroupColor } from '../../../shared/tab-groups.js'
 import { readLocalPreference, writeLocalPreference } from '../local-preferences.js'
 
 const props = defineProps<{
   state: BrowserState
+  userAttention?: UserAttentionRequest | null
   hydrated: boolean
   orientation: 'horizontal' | 'vertical'
   railPinned: boolean
@@ -599,13 +601,14 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             'drop-after': tabDropTargetId === tab.id && tabDropPlacement === 'after',
             locked: state.allHumanInteractionLocked || tab.humanInteractionLocked,
             'split-visible': state.splitView?.firstTabId === tab.id || state.splitView?.secondTabId === tab.id,
-            'mcp-active': Boolean(mcpActivityByTab[tab.id])
+            'mcp-active': Boolean(mcpActivityByTab[tab.id]),
+            'needs-attention': userAttention?.tabId === tab.id
           }"
           :style="tabGroupStyle(tab)"
-          :title="mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
+          :title="userAttention?.tabId === tab.id ? `${tabTooltip(tab)}\n\n${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? `${tabTooltip(tab)}\n\n${t('tabSearch.meta.agent')}` : tabTooltip(tab)"
           :data-mcp-command="mcpActivityByTab[tab.id]?.toolName"
           :aria-label="tabTooltip(tab)"
-          :aria-description="mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
+          :aria-description="userAttention?.tabId === tab.id ? `${t('shell.tabs.agentAttention')}: ${userAttention.reason}` : mcpActivityByTab[tab.id] ? t('tabSearch.meta.agent') : undefined"
           type="button"
           role="tab"
           :tabindex="tabKeyboardIndex(tab)"
@@ -625,6 +628,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           @dragend="clearTabDrag"
         >
           <span v-if="tab.active" class="tab-active-indicator" aria-hidden="true" />
+          <span v-if="userAttention?.tabId === tab.id" class="tab-attention-badge" aria-hidden="true"><IconPriorityHigh /></span>
           <span v-if="tab.loading" class="spinner" :aria-label="t('shell.loading')" />
           <IconError v-else-if="tab.pageProblem" class="favicon-fallback tab-problem-icon" :aria-label="t('shell.tabs.pageAttention')" />
           <img v-else-if="tab.faviconDataUrl" class="favicon-image" :src="tab.faviconDataUrl" alt="" draggable="false" />

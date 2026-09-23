@@ -6,6 +6,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [2.5.10] - 2026-09-23
 
+### Added
+
+- Let agents provide a short system notification message when requesting human attention, and mark the requested tab with a visible, accessible attention badge until the request ends.
+
 ### Fixed
 
 - Repair older browsing-history titles truncated inside HTTP credentials after their saved URL was sanitized, keeping those credentials out of address suggestions.

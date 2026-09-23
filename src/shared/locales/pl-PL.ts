@@ -1235,6 +1235,7 @@ export const plPL = {
       "scrollBack": "Pokaż poprzednie karty",
       "scrollForward": "Pokaż następne karty",
       "pageAttention": "Strona wymaga uwagi",
+      "agentAttention": "Agent wymaga Twojej uwagi",
       "sleeping": "Uśpiona, aby oszczędzać zasoby",
       "frozen": "Strona zamrożona do kontroli",
       "freezeUnknown": "Wynik zatrzymania strony nieznany",
