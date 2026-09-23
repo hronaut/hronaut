@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.11] - 2026-09-23
+
 ### Fixed
 
 - Reject bookmark addresses whose encoded URL exceeds the storage limit instead of saving a bookmark that disappears after restart, while allowing long discarded HTTP credentials when the safe address fits.
