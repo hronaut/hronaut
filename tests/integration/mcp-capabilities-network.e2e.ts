@@ -235,7 +235,12 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
     ))
   }).toBe(true)
   expect(networkRequests).toEqual(
-    expect.arrayContaining([expect.objectContaining({ url: `http://127.0.0.1:${address.port}/api`, status: 200 })])
+    expect.arrayContaining([expect.objectContaining({
+      url: `http://127.0.0.1:${address.port}/api-details?view=compact&timing=baseline`,
+      method: 'POST',
+      status: 200,
+      detailsAvailable: true
+    })])
   )
   const detailedRequest = [...networkRequests].reverse().find((request) => (
     String(request.url).includes('/api-details') && request.detailsAvailable === true
