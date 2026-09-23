@@ -25,6 +25,13 @@ test('forks disabled archived workspace data without source access and honors cl
     const state = await appWindow.evaluate(`window.hronaut.createWorkspace(${JSON.stringify({ name: 'Human restricted source', description: 'Authenticated source state for the fork test.', storage: 'scratch', agentAccess: false, navigationPolicy: { mode: 'restricted', rules: [origin] } })})`) as BrowserState
     const source = state.mcpTabGroups.find((workspace) => workspace.name === 'Human restricted source')!
     expect(source.agentAccess).toBe(false)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const activeList = await call('browser_workspaces', { action: 'list' })
+    expect(activeList.isError, resultText(activeList)).not.toBe(true)
+    expect(JSON.parse(resultText(activeList))).toContainEqual({
+      id: source.id, name: source.name, description: source.description, color: source.color,
+      archived: false, agentAccess: false, forkOnly: true
+    })
     const sourceUrl = `${origin}/source`
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(state.activeTabId)}, url: ${JSON.stringify(sourceUrl)} })`)
     await expect.poll(() => electronApp.evaluate(({ webContents }, url) => (
@@ -37,7 +44,12 @@ test('forks disabled archived workspace data without source access and honors cl
       await contents.session.cookies.set({ url, name: 'fork-cookie', value: 'original', httpOnly: true })
     }, sourceUrl)
     await appWindow.evaluate(`window.hronaut.saveAndCloseTabGroup(${JSON.stringify(source.id)})`)
-    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), { requestInit: { headers: { authorization: `Bearer ${mcpToken}` } } }))
+    const ordinaryList = await call('browser_workspaces', { action: 'list' })
+    expect(ordinaryList.isError, resultText(ordinaryList)).not.toBe(true)
+    expect(JSON.parse(resultText(ordinaryList))).toContainEqual({
+      id: source.id, name: source.name, description: source.description, color: source.color,
+      archived: true, agentAccess: false, forkOnly: true
+    })
     const catalog = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(catalog.isError, resultText(catalog)).not.toBe(true)
     const entry = JSON.parse(resultText(catalog)).find((workspace: { id: string }) => workspace.id === source.id)

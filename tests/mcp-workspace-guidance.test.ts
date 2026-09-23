@@ -8,9 +8,11 @@ describe('MCP workspace guidance', () => {
   const description = BROWSER_TOOL_CATALOG.find((tool) => tool.name === 'browser_workspaces')?.description
 
   it('advertises only scratch and explicit workspace forks', () => {
-    expect(description).toContain('Required first step: call browser_workspaces with action=create')
+    expect(description).toContain('Start with action=list to see existing workspaces marked forkOnly')
+    expect(description).toContain('action=create to make a fresh task workspace')
     expect(description).toContain('Creation choice 1 — from scratch: storage=scratch')
     expect(description).toContain('Creation choice 2 — fork a workspace')
+    expect(description).toContain('action=list includes metadata-only entries marked forkOnly')
     expect(description).toContain('contextClass=public-observer')
     expect(description).toContain('blocks page mutation tools')
     for (const removed of ['fork-default', 'import-default', 'save-default', 'isDefault']) expect(description).not.toContain(removed)
@@ -25,6 +27,7 @@ describe('MCP workspace guidance', () => {
   it('advertises the cross-tool workflow during MCP initialization', () => {
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('persist after this MCP client disconnects')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('create a fresh isolated workspace')
+    expect(BROWSER_SERVER_INSTRUCTIONS).toContain('metadata-only forkOnly sources')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('Never browse another workspace')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_snapshot and browser_find')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_snapshot action=assess-quality')

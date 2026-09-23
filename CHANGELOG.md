@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show workspaces with direct agent access disabled as metadata-only fork sources in the normal agent workspace list.
+
 ### Fixed
 
 - Keep a reopened address suggestion popup visible when a delayed dismissal from an earlier native popup arrives.

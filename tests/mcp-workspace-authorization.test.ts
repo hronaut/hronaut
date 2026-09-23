@@ -45,6 +45,7 @@ describe('MCP workspace authorization recovery', () => {
       }),
       isWorkspaceAgentAccessible: vi.fn(() => true),
       listMcpTabGroups: vi.fn(() => [workspace]),
+      listWorkspaceForkSources: vi.fn(() => []),
       listSavedTabGroups: vi.fn(() => []),
       mcpWorkspaceResumeKey: vi.fn(() => resumeKey),
       requireMcpTabGroup: vi.fn(() => workspace)

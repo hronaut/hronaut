@@ -492,14 +492,14 @@ export function assertMcpToolRegistrationContract(
 }
 
 const BROWSER_WORKSPACES_DESCRIPTION = [
-  'Required first step: call browser_workspaces with action=create and a fresh task workspace before using any page tools.',
+  'Start with action=list to see existing workspaces marked forkOnly, or action=list-fork-sources to inspect all reusable sources. Before using any page tools, call browser_workspaces with action=create to make a fresh task workspace.',
   'Creation choice 1 — from scratch: storage=scratch (the default) starts a clean isolated browser profile. Example: {"action":"create","name":"Task name","storage":"scratch"}.',
-  'Creation choice 2 — fork a workspace: call action=list-fork-sources for active and archived source metadata, then create with storage=fork-workspace and sourceWorkspaceId. Even sources with direct agent access disabled can be forked. The fresh workspace inherits source navigation restrictions and permits direct agent access; the original remains unauthorized. Forks copy cookies and localStorage, not source tabs. Example: {"action":"create","name":"Task name","storage":"fork-workspace","sourceWorkspaceId":"<id from list-fork-sources>"}.',
+  'Creation choice 2 — fork a workspace: action=list includes metadata-only entries marked forkOnly for sources with direct agent access disabled; action=list-fork-sources shows every active and archived source. Create with storage=fork-workspace and sourceWorkspaceId from either list. Even sources with direct agent access disabled can be forked. The fresh workspace inherits source navigation restrictions and permits direct agent access; the original remains unauthorized. Forks copy cookies and localStorage, not source tabs. Example: {"action":"create","name":"Task name","storage":"fork-workspace","sourceWorkspaceId":"<id from list-fork-sources>"}.',
   'For an independent logged-out observation, create storage=scratch with contextClass=public-observer and observerOrigin. Hronaut pins that clean workspace to the declared origin and blocks page mutation tools. This workspace class is an isolation boundary, not by itself proof that an outcome is public.',
   'Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
   'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
   'Creation claims a five-minute exclusive write lease for this MCP transport; resume claims it when available and otherwise remains read-only while reporting busy ownership. Read-only inspection remains shareable. Use action=ownership-status to inspect it, action=claim-ownership after revalidating state to recover an expired or released claim, and action=release-ownership before an intentional handoff. Conflicts return typed BUSY or LEASE_LOST outcomes and never dispatch the mutation.',
-  'action=list returns only owned or resumed workspaces whose direct agent access remains enabled. list-fork-sources separately exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
+  'action=list returns owned or resumed workspaces with direct access, plus forkOnly metadata for sources whose direct access is disabled. A forkOnly entry grants no page, archive, resume, or ownership access. list-fork-sources exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
 ].join('\n')
 
 const PUBLIC_OBSERVER_LOCAL_TOOLS = new Set([
@@ -544,6 +544,7 @@ function publicOutcomeTargetFingerprint(key: Buffer, value: string): string {
 
 export const BROWSER_SERVER_INSTRUCTIONS = [
   'Hronaut is a visible, local browser whose workspaces, tabs, cookies, and storage persist after this MCP client disconnects.',
+  'Call browser_workspaces action=list to discover metadata-only forkOnly sources, including workspaces whose direct agent access is disabled. Fork one with action=create, storage=fork-workspace, and sourceWorkspaceId; this grants access only to the new workspace, never to the source.',
   'Before using page tools, call browser_workspaces to create a fresh isolated workspace with a clear task name. Never browse another workspace or reuse a workspace or tab created by another task.',
   'Keep the private resumeKey returned by workspace creation if this task must reconnect; after reconnecting, call browser_workspaces with action=resume before using that persistent workspace.',
   'Creating claims a bounded exclusive write lease for this transport; resume claims it when available and otherwise permits shared inspection only. A BUSY or LEASE_LOST mutation was not dispatched. After pause, takeover, disconnect, or expiry, inspect fresh state and use browser_workspaces action=claim-ownership before writing; use release-ownership for intentional handoff.',
@@ -1543,13 +1544,13 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_workspaces'),
       inputSchema: {
-        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'ownership-status', 'claim-ownership', 'release-ownership']).default('list').describe('Start with create. Create and resume claim exclusive write ownership. Use ownership-status to inspect it, claim-ownership after fresh inspection to recover it, and release-ownership for handoff. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations.'),
+        action: z.enum(['list', 'list-fork-sources', 'create', 'resume', 'update', 'rename', 'close', 'list-origins', 'ownership-status', 'claim-ownership', 'release-ownership']).default('list').describe('Use list to discover forkOnly sources even when direct access is disabled; create a fresh task workspace before page tools. Create and resume claim exclusive write ownership. Use ownership-status to inspect it, claim-ownership after fresh inspection to recover it, and release-ownership for handoff. Use resume only after reconnecting, with the private resumeKey returned by create or archive operations.'),
         workspaceId: workspaceIdSchema.optional().describe('Stable UUIDv7 id returned by your own create call or by reopening your own archive. Pass this created workspace id to page tools. A rename changes only the human name, never this ID.'),
         resumeKey: workspaceResumeKeySchema.optional().describe('Private resume key returned when this workspace was created, archived, resumed, or reopened. Required only for resume after reconnecting. Never share it with another client or website.'),
         name: z.string().trim().min(1).max(80).optional().describe('Human-readable workspace name for create, update, or rename.'),
         description: z.string().max(1_000).optional().describe('Durable workspace purpose and context. Describe why it exists, current work, and what useful browser state it stores. Returned by list and resume.'),
         color: z.enum(BROWSER_TAB_GROUP_COLORS).optional().describe('Visible workspace color for create or update.'),
-        sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose an active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
+        sourceWorkspaceId: workspaceIdSchema.optional().describe('Required with storage=fork-workspace. Choose a forkOnly ID from list or any active or archived ID from list-fork-sources, including sources with direct agent access disabled. Forking never authorizes access to the source.'),
         storage: z.enum(['scratch', 'fork-workspace']).optional().describe('Required choice for an explicit create workflow: scratch (the default when omitted) starts from a clean isolated profile. fork-workspace copies reusable cookies and localStorage from sourceWorkspaceId into a fresh isolated workspace, inheriting its navigation restrictions. Forks do not copy source tabs. Source direct access may be disabled; the new agent workspace permits direct access. No fork authorizes browsing the original workspace.'),
         origins: z.array(z.string().url()).max(100).optional().describe('Optional HTTP(S) origins whose cookies and localStorage are copied during fork-workspace. Omit to copy all available cookies and known localStorage from the selected source.'),
         contextClass: z.enum(['standard', 'public-observer']).default('standard').describe('Use public-observer only for a clean, origin-scoped, read-only independent observation workspace.'),
@@ -1569,10 +1570,16 @@ function createBrowserMcpServer(
       contextClass: 'standard' | 'public-observer'
       observerOrigin?: string
     }) => {
-      if (action === 'list') return textResult(authorizedActiveWorkspaces().map(workspace => ({
-        ...workspace,
-        writeLease: workspaceLeases.status(workspace.id, client.id)
-      })))
+      if (action === 'list') return textResult([
+        ...authorizedActiveWorkspaces().map(workspace => ({
+          ...workspace,
+          writeLease: workspaceLeases.status(workspace.id, client.id)
+        })),
+        ...manager.listWorkspaceForkSources().filter(source => !source.agentAccess).map(source => ({
+          ...source,
+          forkOnly: true as const
+        }))
+      ])
       if (action === 'list-fork-sources') return textResult(manager.listWorkspaceForkSources())
       if (action === 'create') {
         if (!name) throw new TypeError('name is required to create a workspace')

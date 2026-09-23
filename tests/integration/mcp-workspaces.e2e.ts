@@ -590,12 +590,12 @@ test('requires visible workspaces and keeps each tool inside its selected worksp
   try {
     const availableTools = await first.listTools()
     const groupsTool = availableTools.tools.find((tool) => tool.name === 'browser_workspaces')
-    expect(groupsTool?.description).toContain('Required first step: call browser_workspaces with action=create')
+    expect(groupsTool?.description).toContain('Start with action=list to see existing workspaces marked forkOnly')
     expect(groupsTool?.description).toContain('Creation choice 1 — from scratch: storage=scratch (the default)')
     expect(groupsTool?.description).toContain('{"action":"create","name":"Task name","storage":"scratch"}')
     expect(groupsTool?.description).toContain('Pass the stable UUIDv7 id returned by your own create call as workspaceId')
     expect(groupsTool?.description).toContain('Create also returns a private resumeKey')
-    expect(groupsTool?.description).toContain('action=list returns only owned or resumed workspaces whose direct agent access remains enabled')
+    expect(groupsTool?.description).toContain('action=list returns owned or resumed workspaces with direct access, plus forkOnly metadata')
     expect(groupsTool?.inputSchema).toMatchObject({
       properties: {
         action: {

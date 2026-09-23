@@ -101,8 +101,13 @@ describe('MCP workspace fork sources and direct access', () => {
     }
   }
 
-  it('allows a disabled archived source to be discovered and forked without granting source access', async () => {
+  it.each([{ archived: false, label: 'active' }, { archived: true, label: 'archived' }])('allows a disabled $label source to be discovered and forked without granting source access', async ({ archived }) => {
     const { manager, source, call } = await setup()
+    source.archived = archived
+    const ordinaryList = await call('browser_workspaces', { action: 'list' })
+    expect(ordinaryList.isError).not.toBe(true)
+    expect(parsed(ordinaryList)).toEqual([{ ...source, forkOnly: true }])
+    expect(JSON.stringify(ordinaryList)).not.toContain(key)
     const listed = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(listed.isError).not.toBe(true)
     expect(parsed(listed)).toEqual([source])
@@ -207,7 +212,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     expect((await call('browser_workspaces', { action: 'rename', workspaceId: ownId, name: 'Before' })).isError).not.toBe(true)
     disable()
-    expect(parsed(await call('browser_workspaces', { action: 'list' }))).toEqual([])
+    expect(parsed(await call('browser_workspaces', { action: 'list' }))).toEqual([{ ...manager.listWorkspaceForkSources()[0], forkOnly: true }])
     for (const [name, args] of [
       ['browser_tabs', { workspaceId: ownId }],
       ['browser_workspaces', { action: 'rename', workspaceId: ownId, name: 'After' }],
