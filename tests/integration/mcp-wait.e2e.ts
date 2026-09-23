@@ -345,11 +345,15 @@ test('fails MCP page, URL, text, element, and network waits promptly on tab tear
     expect(ambiguousTarget.isError).toBe(true)
     expect(text(ambiguousTarget)).toContain('Provide either ref or selector, not both')
 
+    const elementWaitActivity = appWindow.locator(`[role="tab"][data-tab-id="${elementTabId}"][data-mcp-command="browser_wait"]`)
+    // A completed wait keeps its badge briefly. Observe this new request,
+    // rather than closing the tab while the prior badge is still visible.
+    await expect(elementWaitActivity).toHaveCount(0)
     const waitingForElement = client.callTool({
       name: 'browser_wait',
       arguments: { tabId: elementTabId, selector: '#never-visible', state: 'visible', timeoutMs: 10_000 }
     }) as Promise<CallToolResult>
-    await expect(appWindow.locator('[role="tab"][data-mcp-command="browser_wait"]')).toBeVisible()
+    await expect(elementWaitActivity).toBeVisible()
     await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(elementTabId)})`)
     const closedElementWait = await Promise.race([
       waitingForElement,
