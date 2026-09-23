@@ -73,6 +73,25 @@ function parseReleaseHistoryPage(page: number, text: string, link: string | null
   }
 }
 
+async function readBoundedReleaseHistoryText(response: Response): Promise<string> {
+  if (!response.body) return ''
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let bytes = 0
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      bytes += chunk.value.byteLength
+      if (bytes > MAX_RESPONSE_LENGTH) throw new Error('GitHub returned an oversized release history response.')
+      chunks.push(chunk.value)
+    }
+  } finally {
+    await reader.cancel()
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks))
+}
+
 export class ReleaseHistoryService {
   readonly #fetch: ReleaseHistoryFetch
   readonly #now: () => number
@@ -106,9 +125,10 @@ export class ReleaseHistoryService {
       if (!response.ok) throw new Error(`GitHub release history request failed with status ${response.status}.`)
       const contentLength = Number(response.headers.get('content-length') ?? '0')
       if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_LENGTH) {
+        await response.body?.cancel()
         throw new Error('GitHub returned an oversized release history response.')
       }
-      const value = parseReleaseHistoryPage(page, await response.text(), response.headers.get('link'))
+      const value = parseReleaseHistoryPage(page, await readBoundedReleaseHistoryText(response), response.headers.get('link'))
       if (bypassCache && page === 1) {
         for (const cachedPage of this.#cache.keys()) {
           if (cachedPage > page) this.#cache.delete(cachedPage)

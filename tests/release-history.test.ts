@@ -122,4 +122,36 @@ describe('ReleaseHistoryService', () => {
     await expect(service.getPage(21)).rejects.toThrow('Invalid release history page')
     await expect(service.getPage(1)).rejects.toThrow('Could not load release history from GitHub')
   })
+
+  it('stops an oversized response without a length header before consuming the whole stream', async () => {
+    let pulls = 0
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1
+        controller.enqueue(new Uint8Array(1_000_000))
+        if (pulls === 8) controller.close()
+      },
+      cancel() { cancelled = true }
+    })
+    const fetch = vi.fn(async () => new Response(stream))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await expect(service.getPage(1)).rejects.toThrow('Could not load release history from GitHub')
+    expect(pulls).toBeLessThanOrEqual(4)
+    expect(cancelled).toBe(true)
+  })
+
+  it('cancels an oversized response advertised by its length header', async () => {
+    let cancelled = false
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new Uint8Array(1)) },
+      cancel() { cancelled = true }
+    })
+    const fetch = vi.fn(async () => new Response(stream, { headers: { 'content-length': '2500001' } }))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await expect(service.getPage(1)).rejects.toThrow('Could not load release history from GitHub')
+    expect(cancelled).toBe(true)
+  })
 })
