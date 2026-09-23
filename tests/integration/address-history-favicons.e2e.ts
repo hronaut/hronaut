@@ -38,6 +38,7 @@ test('shows the latest history suggestions when requests arrive during popup sta
   await address.fill('no-existing-matches')
   await expect(address).toHaveAttribute('aria-expanded', 'false')
   const request: AddressSuggestionOverlayRequest = {
+    sessionId: 1,
     bounds: { x: 300, y: 100, width: 560, maxHeight: 440 },
     suggestions: [{ id: 'history:first', kind: 'history', title: 'First match', url: 'https://first.example/' }],
     selectedIndex: -1,

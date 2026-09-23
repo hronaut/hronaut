@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep a reopened address suggestion popup visible when a delayed dismissal from an earlier native popup arrives.
+
 ## [2.5.11] - 2026-09-23
 
 ### Fixed

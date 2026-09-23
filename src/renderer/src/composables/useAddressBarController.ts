@@ -11,7 +11,7 @@ interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void
   onSelected(listener: (suggestionId: string) => void): () => void
-  onDismissed(listener: () => void): () => void
+  onDismissed(listener: (sessionId: number) => void): () => void
 }
 
 interface AddressBarControllerOptions {
@@ -32,6 +32,8 @@ function displayedAddress(url: string | undefined): string {
   return url === 'about:blank' || url === 'hronaut://home/' ? '' : url ?? ''
 }
 
+let nextAddressOverlaySessionId = 0
+
 export function useAddressBarController(options: AddressBarControllerOptions) {
   const address = ref('')
   const input = ref<HTMLInputElement | null>(null)
@@ -51,6 +53,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   let blurTimer: number | undefined
   let presentedSuggestions: AddressSuggestion[] = []
   let presentedSuggestionOwner: Pick<BrowserTabState, 'id' | 'navigationGeneration'> | null = null
+  let overlaySessionId = 0
   let cleanupCallbacks: (() => void)[] = []
   let pendingNavigation: {
     tabId: string | undefined
@@ -104,6 +107,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     // can focus the address bar again before the destroyed overlay's dismissal
     // event has completed its IPC round trip.
     if (!open.value) {
+      overlaySessionId = ++nextAddressOverlaySessionId
       discardPresentedSuggestions()
       options.overlay?.hide()
     }
@@ -239,6 +243,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
       ? { id: activeTab.id, navigationGeneration: activeTab.navigationGeneration }
       : null
     overlay.show({
+      sessionId: overlaySessionId,
       bounds: { x, y, width, maxHeight },
       suggestions: presentedSuggestions,
       selectedIndex: selection.value,
@@ -303,8 +308,8 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
         if (suggestion) void chooseSuggestion(suggestion)
       }),
-      () => overlay.onDismissed(() => {
-        if (disposed) return
+      () => overlay.onDismissed((sessionId) => {
+        if (disposed || sessionId !== overlaySessionId) return
         open.value = false
         discardPresentedSuggestions()
         overlay.hide()

@@ -494,8 +494,8 @@ contextBridge.exposeInMainWorld('hronautAddressOverlay', {
     ipcRenderer.on('address-overlay:selected', handler)
     return () => ipcRenderer.removeListener('address-overlay:selected', handler)
   },
-  onDismissed: (listener: () => void) => {
-    const handler = (): void => listener()
+  onDismissed: (listener: (sessionId: number) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, sessionId: number): void => listener(sessionId)
     ipcRenderer.on('address-overlay:dismissed', handler)
     return () => ipcRenderer.removeListener('address-overlay:dismissed', handler)
   }

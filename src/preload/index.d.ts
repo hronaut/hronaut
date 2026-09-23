@@ -22,7 +22,7 @@ declare global {
       show(request: AddressSuggestionOverlayRequest): void
       hide(): void
       onSelected(listener: (suggestionId: string) => void): () => void
-      onDismissed(listener: () => void): () => void
+      onDismissed(listener: (sessionId: number) => void): () => void
     }
     hronautShell: HronautShellApi
   }

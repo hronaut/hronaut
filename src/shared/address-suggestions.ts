@@ -46,6 +46,7 @@ export interface AddressSuggestionOverlayState {
 }
 
 export interface AddressSuggestionOverlayRequest extends AddressSuggestionOverlayState {
+  sessionId: number
   bounds: AddressSuggestionOverlayBounds
 }
 

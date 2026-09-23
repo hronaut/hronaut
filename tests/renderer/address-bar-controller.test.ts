@@ -41,7 +41,7 @@ function createHarness(options: {
   const onNavigate = vi.fn(options.onNavigate ?? (async () => undefined))
   const onFocusLeft = vi.fn()
   let selectedListener: ((id: string) => void) | undefined
-  let dismissedListener: (() => void) | undefined
+  let dismissedListener: ((sessionId: number) => void) | undefined
   const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
   const unsubscribeDismissed = vi.fn()
   const overlay = {
@@ -51,7 +51,7 @@ function createHarness(options: {
       selectedListener = listener
       return unsubscribeSelected
     }),
-    onDismissed: vi.fn((listener: () => void) => {
+    onDismissed: vi.fn((listener: (sessionId: number) => void) => {
       dismissedListener = listener
       return unsubscribeDismissed
     })
@@ -99,7 +99,7 @@ function createHarness(options: {
     unsubscribeSelected,
     unsubscribeDismissed,
     selectOverlay: (id: string) => selectedListener?.(id),
-    dismissOverlay: () => dismissedListener?.()
+    dismissOverlay: (sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => dismissedListener?.(sessionId)
   }
 }
 
@@ -433,6 +433,28 @@ describe('address bar controller', () => {
     expect(rendered.overlay.show.mock.calls.at(-1)?.[0].suggestions).toEqual([
       expect.objectContaining({ kind: 'history', url: 'https://visited.example/path' })
     ])
+  })
+
+  it('keeps a newly reopened popup visible when an earlier dismissal arrives late', async () => {
+    const rendered = createHarness({
+      bookmarks: [{ id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const previousPopup = rendered.overlay.show.mock.calls.at(-1)![0]
+
+    rendered.controller.close()
+    await nextTick()
+    rendered.controller.handleFocus()
+    await waitFor(() => expect(rendered.overlay.show.mock.calls.length).toBeGreaterThan(1))
+    const reopenedPopup = rendered.overlay.show.mock.calls.at(-1)![0]
+    expect(reopenedPopup.sessionId).not.toBe(previousPopup.sessionId)
+
+    rendered.dismissOverlay(previousPopup.sessionId)
+    expect(rendered.controller.open.value).toBe(true)
+    expect(input).toHaveValue('saved')
   })
 
   it('rolls back the selected listener when dismissed-listener registration fails', () => {

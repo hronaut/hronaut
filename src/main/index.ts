@@ -240,6 +240,7 @@ let panelWindow: BrowserWindow | null = null
 interface AddressSuggestionSurface {
   view: WebContentsView
   webContents: WebContents
+  sessionId: number
 }
 let addressSuggestionSurface: AddressSuggestionSurface | null = null
 let addressSuggestionSurfaceLoad: Promise<AddressSuggestionSurface> | null = null
@@ -1715,6 +1716,9 @@ function validAddressSuggestion(value: unknown): value is AddressSuggestion {
 function validatedAddressOverlayRequest(value: unknown): AddressSuggestionOverlayRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid address overlay request')
   const request = value as Record<string, unknown>
+  if (typeof request.sessionId !== 'number' || !Number.isSafeInteger(request.sessionId) || request.sessionId < 1) {
+    throw new TypeError('Invalid address overlay session')
+  }
   const bounds = request.bounds
   if (!bounds || typeof bounds !== 'object' || Array.isArray(bounds)) throw new TypeError('Invalid address overlay bounds')
   const rawBounds = bounds as Record<string, unknown>
@@ -1769,11 +1773,19 @@ function hideAddressSuggestionOverlay(): void {
   }
 }
 
-async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> {
+async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSuggestionSurface> {
   // A view exists before its preload and renderer are ready to receive state.
   // Every concurrent typing update must wait for that same initial load.
-  if (addressSuggestionSurfaceLoad) return addressSuggestionSurfaceLoad
-  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) return addressSuggestionSurface
+  if (addressSuggestionSurfaceLoad) {
+    if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
+      addressSuggestionSurface.sessionId = sessionId
+    }
+    return addressSuggestionSurfaceLoad
+  }
+  if (addressSuggestionSurface && !addressSuggestionSurface.webContents.isDestroyed()) {
+    addressSuggestionSurface.sessionId = sessionId
+    return addressSuggestionSurface
+  }
   addressSuggestionSurfaceLoad = (async () => {
     const expectedUrl = trustedAddressOverlayUrl()
     const view = new WebContentsView({
@@ -1790,7 +1802,7 @@ async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> 
     // asynchronous lifecycle path must use this stable reference instead of
     // reading the getter again.
     const webContents = view.webContents
-    const surface: AddressSuggestionSurface = { view, webContents }
+    const surface: AddressSuggestionSurface = { view, webContents, sessionId }
     addressSuggestionSurface = surface
     view.setBackgroundColor('#00000000')
     view.setVisible(false)
@@ -1805,7 +1817,7 @@ async function ensureAddressSuggestionView(): Promise<AddressSuggestionSurface> 
       hideAddressSuggestionOverlay()
       addressSuggestionSurface = null
       if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('address-overlay:dismissed')
+        mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
       }
     })
     webContents.on('render-process-gone', () => {
@@ -2107,7 +2119,7 @@ function registerIpc(): void {
       theme: request.theme,
       locale: resolvedLocale
     }
-    void ensureAddressSuggestionView().then(({ view, webContents }) => {
+    void ensureAddressSuggestionView(request.sessionId).then(({ view, webContents }) => {
       if (
         generation !== addressSuggestionOverlayGeneration
         || !mainWindow
