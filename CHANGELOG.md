@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep browsing-history visit counts within JavaScript's safe integer range when restoring older data and recording another visit.
+- Search invalid scheme-less IP addresses and ports instead of navigating to malformed URLs.
 
 ## [2.5.13] - 2026-09-23
 

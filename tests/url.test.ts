@@ -49,6 +49,12 @@ describe('normalizeAddress', () => {
     )
   })
 
+  it.each(['999.999.999.999', 'localhost:65536', 'example.com:65536'])(
+    'searches an invalid scheme-less host instead of navigating to %s', (input) => {
+      expect(normalizeAddress(input)).toBe(`https://www.google.com/search?q=${encodeURIComponent(input)}`)
+    }
+  )
+
   it('searches email-shaped input instead of treating it as URL credentials', () => {
     expect(normalizeAddress('person@example.com')).toBe(
       'https://www.google.com/search?q=person%40example.com'

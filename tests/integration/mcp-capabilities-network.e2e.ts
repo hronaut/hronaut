@@ -5,8 +5,10 @@ import { expect, test, text } from './capability-fixtures.js'
 
 test('inspects network waits, streams, redirects and redacted diagnostic exports', async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
   const { client, tabId, address, fixtureOrigin, redactedFixtureUrl, openPageTool } = capabilities
-  // Initial page requests may precede debugger attachment. Seed a completed
-  // baseline here so duration sorting never depends on another capability case.
+  // The fixture page can load before debugger attachment. Wait for network
+  // monitoring before seeding a request that must have detailed CDP timing.
+  const monitoring = await client.callTool({ name: 'browser_network', arguments: { tabId } }) as CallToolResult
+  expect(monitoring.isError, text(monitoring)).not.toBe(true)
   const baselineFetch = await client.callTool({
     name: 'browser_evaluate',
     arguments: { tabId, script: `fetch('/api-details?view=compact&timing=baseline', {

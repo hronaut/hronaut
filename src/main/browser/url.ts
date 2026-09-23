@@ -49,7 +49,13 @@ export function normalizeAddress(input: string, searchEngine: SearchEngineName =
   if (!value) return 'about:blank'
   if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value) || /^(about|data|file|view-source):/i.test(value)) return value
   if (!hasSchemeLessUserInfo(value) && HOST_LIKE_PATTERN.test(value)) {
-    return `${isLoopbackAddress(value) ? 'http' : 'https'}://${value}`
+    const candidate = `${isLoopbackAddress(value) ? 'http' : 'https'}://${value}`
+    try {
+      new URL(candidate)
+      return candidate
+    } catch {
+      return searchUrl(value, searchEngine)
+    }
   }
   if (SCHEME_PATTERN.test(value)) return value
   return searchUrl(value, searchEngine)
