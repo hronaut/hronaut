@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.15] - 2026-09-24
+
 ### Added
 
 - Show archived workspaces as metadata-only fork sources in the agent's saved workspace list, even when direct agent access is disabled.
