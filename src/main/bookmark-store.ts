@@ -7,6 +7,7 @@ import { writeTextFileAtomically } from './atomic-file.js'
 const MAX_BOOKMARKS = 500
 const MAX_BOOKMARK_TITLE = 200
 const MAX_BOOKMARK_URL = 4_096
+const MAX_BOOKMARK_INPUT_URL = 32_768
 
 interface PersistedBookmarks {
   version: 1
@@ -14,13 +15,13 @@ interface PersistedBookmarks {
 }
 
 export function normalizeBookmarkUrl(value: string): string | null {
-  if (!value || value.length > MAX_BOOKMARK_URL) return null
+  if (!value || value.length > MAX_BOOKMARK_INPUT_URL) return null
   try {
     const url = new URL(value)
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
     url.username = ''
     url.password = ''
-    return url.href
+    return url.href.length <= MAX_BOOKMARK_URL ? url.href : null
   } catch {
     return null
   }
@@ -134,7 +135,7 @@ export class BookmarkStore {
 
   async add(value: { url: string; title: string }): Promise<BrowserBookmark> {
     const url = normalizeBookmarkUrl(value.url)
-    if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address')
+    if (!url) throw new TypeError('Bookmark URL must be an HTTP or HTTPS address within 4,096 encoded characters')
     return this.queueMutation(async () => {
       const nextEntries = new Map(this.entries)
       const existing = [...nextEntries.values()].find((entry) => entry.url === url)
