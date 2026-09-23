@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Repair older browsing-history titles that still contain a URL fragment even when the saved address is already clean, so private fragments do not reappear in address suggestions.
+
 ## [2.5.9] - 2026-09-23
 
 ### Fixed

@@ -41,7 +41,9 @@ function hasEmbeddedHttpCredentials(value: string): boolean {
 
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
   const isUrlFallback = (
-    value === sourceUrl || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
+    value === sourceUrl
+    || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
+    || normalizeHistoryUrl(value) === url
   )
   let safeValue = value
   if (isUrlFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value

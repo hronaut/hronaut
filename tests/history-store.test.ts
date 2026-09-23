@@ -166,6 +166,27 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('legacy-fragment-token')
   })
 
+  it('repairs legacy URL fallback titles even when their stored URLs already lost the fragment', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const url = 'https://fragment.example/page'
+    const fragmentTitle = `${url}#private-fragment-token`
+    const truncatedTitle = `${url}#${'long-private-fragment-'.repeat(12)}`.slice(0, 200)
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [
+        { id: 'full', url, title: fragmentTitle, visitedAt: new Date(now).toISOString(), visitCount: 1 },
+        { id: 'truncated', url: `${url}/second`, title: truncatedTitle.replace(url, `${url}/second`).slice(0, 200), visitedAt: new Date(now - 1).toISOString(), visitCount: 1 }
+      ]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([
+      expect.objectContaining({ id: 'full', title: url }),
+      expect.objectContaining({ id: 'truncated', title: `${url}/second` })
+    ])
+    expect(await readFile(path, 'utf8')).not.toContain('private-fragment')
+  })
+
   it('repairs credential-bearing persisted history URLs and matching fallback titles', async () => {
     const now = Date.UTC(2026, 7, 13)
     const { path, store } = await storeAt(now)
