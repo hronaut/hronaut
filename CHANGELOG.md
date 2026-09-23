@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Keep matching visited pages ahead of bookmarks in address suggestions even when a bookmark hostname matches the typed text more closely.
+- Record visited pages with long discarded URL fragments in browsing history, while keeping the stored URL within its length limit after encoding. Remove fragments from URL fallback titles, including those saved by older versions.
 
 ## [2.5.8] - 2026-09-23
 

@@ -53,6 +53,25 @@ describe('HistoryStore', () => {
     expect(normalizeHistoryUrl('data:text/plain,secret')).toBeNull()
   })
 
+  it('records a visited page even when its discarded fragment exceeds the stored URL limit', async () => {
+    const { path, store } = await storeAt()
+    const pageUrl = 'https://fragment.example/page?view=one'
+    const visitedUrl = `${pageUrl}#${'section'.repeat(800)}`
+
+    expect(await store.record({ url: visitedUrl, title: 'Fragment page' })).toMatchObject({ url: pageUrl })
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([
+      expect.objectContaining({ url: pageUrl, title: 'Fragment page' })
+    ])
+    expect(await new HistoryStore(path, () => Date.UTC(2026, 7, 13)).load()).toEqual(store.list())
+    expect(normalizeHistoryUrl(`https://fragment.example/page?q=${'x'.repeat(4_096)}`)).toBeNull()
+  })
+
+  it('rejects addresses that expand past the stored URL limit after encoding', () => {
+    const rawUrl = `https://unicode.example/${'é'.repeat(1_400)}`
+    expect(rawUrl.length).toBeLessThan(4_096)
+    expect(normalizeHistoryUrl(rawUrl)).toBeNull()
+  })
+
   it('persists visits, deduplicates addresses, and increments visit counts', async () => {
     const { path, store } = await storeAt()
     await store.record({ url: 'https://example.com/page#first', title: ' First   title ' })
@@ -115,6 +134,36 @@ describe('HistoryStore', () => {
       title: 'https://example.com/private'
     })
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
+  it('does not persist a URL fragment from a fallback history title', async () => {
+    const { path, store } = await storeAt()
+    const privateUrl = 'https://fragment.example/page#private-fragment-token'
+
+    expect(await store.record({ url: privateUrl, title: privateUrl })).toMatchObject({
+      url: 'https://fragment.example/page',
+      title: 'https://fragment.example/page'
+    })
+    expect(await readFile(path, 'utf8')).not.toContain('private-fragment-token')
+  })
+
+  it('repairs a legacy fallback title truncated inside a URL fragment', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const privateUrl = `https://fragment.example/page#${'legacy-fragment-token-'.repeat(12)}`
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [{
+        id: 'truncated-fragment', url: privateUrl, title: privateUrl.slice(0, 200),
+        visitedAt: new Date(now - 1_000).toISOString(), visitCount: 1
+      }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      url: 'https://fragment.example/page',
+      title: 'https://fragment.example/page'
+    })])
+    expect(await readFile(path, 'utf8')).not.toContain('legacy-fragment-token')
   })
 
   it('repairs credential-bearing persisted history URLs and matching fallback titles', async () => {
