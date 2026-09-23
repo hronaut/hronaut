@@ -305,9 +305,36 @@ describe('HistoryStore', () => {
       ]
     }))
     await store.load()
-    expect(store.list()).toEqual([expect.objectContaining({ id: 'new' })])
+    expect(store.list()).toEqual([expect.objectContaining({ id: 'new', visitCount: 3 })])
     expect((JSON.parse(await readFile(path, 'utf8')) as { entries: Array<{ id: string }> }).entries)
-      .toEqual([expect.objectContaining({ id: 'new' })])
+      .toEqual([expect.objectContaining({ id: 'new', visitCount: 3 })])
+  })
+
+  it('preserves visit counts when older saved addresses normalize to the same page', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      entries: [
+        {
+          id: 'latest', url: 'https://example.com/page#latest', title: 'Latest title',
+          visitedAt: new Date(now - 1_000).toISOString(), visitCount: 3
+        },
+        {
+          id: 'earlier', url: 'https://example.com/page#earlier', title: 'Earlier title',
+          visitedAt: new Date(now - 2_000).toISOString(), visitCount: 2
+        }
+      ]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'latest', url: 'https://example.com/page', title: 'Latest title', visitCount: 5
+    })])
+    expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([
+      expect.objectContaining({ id: 'latest', url: 'https://example.com/page', visitCount: 5 })
+    ])
+    expect(await store.record({ url: 'https://example.com/page', title: 'New visit' }))
+      .toMatchObject({ visitCount: 6 })
   })
 
   it('repairs future visit timestamps without discarding the history entry', async () => {

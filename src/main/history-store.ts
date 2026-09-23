@@ -106,21 +106,31 @@ export class HistoryStore {
       })
       const sorted = normalizedEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
-      const seenUrls = new Set<string>()
+      const seenUrls = new Map<string, string>()
       const seenIds = new Set<string>()
       for (const entry of sorted) {
         const normalizedUrl = normalizeHistoryUrl(entry.url)!
         const normalizedTitle = normalizeTitle(entry.title, normalizedUrl, entry.url)
-        if (seenUrls.has(normalizedUrl) || this.entries.size >= MAX_HISTORY_ENTRIES) {
+        const existingId = seenUrls.get(normalizedUrl)
+        if (existingId) {
+          const existing = this.entries.get(existingId)!
+          this.entries.set(existingId, {
+            ...existing,
+            visitCount: Math.min(Number.MAX_SAFE_INTEGER, existing.visitCount + entry.visitCount)
+          })
           repairedPersistedHistory = true
           continue
         }
-        seenUrls.add(normalizedUrl)
+        if (this.entries.size >= MAX_HISTORY_ENTRIES) {
+          repairedPersistedHistory = true
+          continue
+        }
         const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle }
         if (normalizedUrl !== entry.url || normalizedTitle !== entry.title) repairedPersistedHistory = true
         const restored = seenIds.has(entry.id) ? { ...normalized, id: randomUUID() } : normalized
         if (restored.id !== normalized.id) repairedPersistedHistory = true
         seenIds.add(restored.id)
+        seenUrls.set(normalizedUrl, restored.id)
         this.entries.set(restored.id, restored)
       }
       if (repairedPersistedHistory) await this.persist()

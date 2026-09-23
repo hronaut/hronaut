@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve visit totals when older browsing-history records resolve to the same page during restoration.
 - Stop reading oversized live release history responses at the size limit and cancel responses that advertise an excessive `Content-Length`.
 - Keep script and style text out of generated release notes when a longer closing tag name appears, and preserve safe text after Unicode characters.
 - Keep a reopened address suggestion popup visible when a delayed dismissal from an earlier native popup arrives.
