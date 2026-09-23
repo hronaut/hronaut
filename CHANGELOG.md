@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.14] - 2026-09-24
+
 ### Fixed
 
 - Keep browsing-history visit counts within JavaScript's safe integer range when restoring older data and recording another visit.
