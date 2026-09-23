@@ -3815,6 +3815,47 @@ test('floats bookmark and history suggestions above pages while allowing duplica
   }
 })
 
+test('suggests a page visited through a link with a long URL fragment', async ({ appWindow, electronApp }) => {
+  const fragment = 'section'.repeat(800)
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html' })
+    response.end(request.url === '/start'
+      ? `<!doctype html><title>Fragment start</title><a id="destination" href="/destination#${fragment}">Visit destination</a>`
+      : '<!doctype html><title>Fragment destination</title><main>Destination</main>')
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve())
+  })
+  try {
+    const serverAddress = server.address()
+    if (!serverAddress || typeof serverAddress === 'string') throw new Error('History fixture did not expose a port')
+    const startUrl = `http://127.0.0.1:${serverAddress.port}/start`
+    const destinationUrl = `http://127.0.0.1:${serverAddress.port}/destination`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(startUrl)}, active: true })`)
+    await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toEqual([
+      expect.objectContaining({ url: startUrl, title: 'Fragment start' })
+    ])
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+      if (!page) throw new Error('Start page was not found')
+      await page.executeJavaScript('document.querySelector("#destination")?.click()')
+    }, startUrl)
+    await expect.poll(() => appWindow.evaluate('window.hronautHistory.list()')).toEqual([
+      expect.objectContaining({ url: destinationUrl, title: 'Fragment destination' }),
+      expect.objectContaining({ url: startUrl, title: 'Fragment start' })
+    ])
+
+    await appWindow.evaluate('window.hronaut.newTab({ active: true })')
+    await appWindow.getByRole('combobox', { name: 'Address' }).fill('Fragment destination')
+    const suggestions = appWindow.locator('#address-suggestions [role="option"]')
+    await expect(suggestions).toHaveCount(1)
+    await expect(suggestions.first()).toContainText(destinationUrl)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('suggests a committed address before every page resource finishes loading', async ({ appWindow, electronApp }) => {
   let finishPendingResource: (() => void) | undefined
   const server = createServer((request, response) => {

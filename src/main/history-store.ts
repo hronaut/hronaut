@@ -16,14 +16,15 @@ interface PersistedHistory {
 }
 
 export function normalizeHistoryUrl(value: string): string | null {
-  if (!value || value.length > MAX_HISTORY_URL) return null
+  const fragmentStart = value.indexOf('#')
+  const address = fragmentStart < 0 ? value : value.slice(0, fragmentStart)
+  if (!address || address.length > MAX_HISTORY_URL) return null
   try {
-    const url = new URL(value)
+    const url = new URL(address)
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
     url.username = ''
     url.password = ''
-    url.hash = ''
-    return url.href
+    return url.href.length <= MAX_HISTORY_URL ? url.href : null
   } catch {
     return null
   }
@@ -39,11 +40,11 @@ function hasEmbeddedHttpCredentials(value: string): boolean {
 }
 
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
-  const isCredentialFallback = hasEmbeddedHttpCredentials(sourceUrl) && (
+  const isUrlFallback = (
     value === sourceUrl || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
   )
   let safeValue = value
-  if (isCredentialFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
+  if (isUrlFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? value
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_HISTORY_TITLE)
   return title || new URL(url).hostname
