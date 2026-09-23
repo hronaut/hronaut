@@ -1,11 +1,11 @@
 import './address-overlay.css'
-import type { AddressSuggestion, AddressSuggestionOverlayState } from '../../shared/address-suggestions.js'
+import type { AddressSuggestion, AddressSuggestionOverlayState, AddressSuggestionSelection } from '../../shared/address-suggestions.js'
 import { translate } from '../../shared/i18n.js'
 import type { SupportedLocale } from '../../shared/locale.js'
 
 interface HronautAddressOverlayViewApi {
   onState(listener: (state: AddressSuggestionOverlayState) => void): () => void
-  select(suggestionId: string): void
+  select(selection: AddressSuggestionSelection): void
   measured(height: number): void
 }
 
@@ -32,17 +32,19 @@ function suggestionMeta(suggestion: AddressSuggestion, locale: SupportedLocale):
     : translate(locale, 'addressOverlay.history')
 }
 
-function selectSuggestion(suggestionId: string): void {
-  if (selectedSuggestionId === suggestionId) return
-  selectedSuggestionId = suggestionId
-  window.hronautAddressOverlayView.select(suggestionId)
+function selectSuggestion(selection: AddressSuggestionSelection): void {
+  const selectionKey = `${selection.sessionId}:${selection.suggestionId}`
+  if (selectedSuggestionId === selectionKey) return
+  selectedSuggestionId = selectionKey
+  window.hronautAddressOverlayView.select(selection)
   window.setTimeout(() => {
-    if (selectedSuggestionId === suggestionId) selectedSuggestionId = null
+    if (selectedSuggestionId === selectionKey) selectedSuggestionId = null
   }, 0)
 }
 
 function suggestionButton(
   suggestion: AddressSuggestion,
+  sessionId: number,
   index: number,
   selectedIndex: number,
   locale: SupportedLocale
@@ -73,11 +75,11 @@ function suggestionButton(
   button.append(icon, copy, meta)
   button.addEventListener('pointerdown', (event) => {
     event.preventDefault()
-    selectSuggestion(suggestion.id)
+    selectSuggestion({ sessionId, suggestionId: suggestion.id })
   })
   button.addEventListener('click', (event) => {
     event.preventDefault()
-    selectSuggestion(suggestion.id)
+    selectSuggestion({ sessionId, suggestionId: suggestion.id })
   })
   return button
 }
@@ -95,7 +97,7 @@ function render(state: AddressSuggestionOverlayState): void {
   const list = document.createElement('div')
   list.className = 'address-suggestion-list'
   state.suggestions.forEach((suggestion, index) => {
-    list.append(suggestionButton(suggestion, index, state.selectedIndex, state.locale))
+    list.append(suggestionButton(suggestion, state.sessionId, index, state.selectedIndex, state.locale))
   })
 
   const footer = document.createElement('footer')

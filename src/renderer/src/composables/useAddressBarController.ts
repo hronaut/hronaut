@@ -1,6 +1,6 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useResizeObserver } from '@vueuse/core'
-import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme } from '../../../shared/address-suggestions.js'
+import type { AddressSuggestion, AddressSuggestionOverlayRequest, AddressSuggestionOverlayTheme, AddressSuggestionSelection } from '../../../shared/address-suggestions.js'
 import { buildLocalAddressSuggestions } from '../../../shared/address-suggestions.js'
 import type { SupportedLocale } from '../../../shared/locale.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../../shared/types.js'
@@ -10,7 +10,7 @@ import { disposeAll, registerDisposers } from './dispose-all.js'
 interface AddressOverlayApi {
   show(request: AddressSuggestionOverlayRequest): void
   hide(): void
-  onSelected(listener: (suggestionId: string) => void): () => void
+  onSelected(listener: (selection: AddressSuggestionSelection) => void): () => void
   onDismissed(listener: (sessionId: number) => void): () => void
 }
 
@@ -297,15 +297,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const overlay = options.overlay
   if (overlay) {
     registrations.push(
-      () => overlay.onSelected((id) => {
-        if (disposed) return
+      () => overlay.onSelected(({ sessionId, suggestionId }) => {
+        if (disposed || sessionId !== overlaySessionId) return
         const activeTab = options.activeTab.value
         if (
           !activeTab
           || activeTab.id !== presentedSuggestionOwner?.id
           || activeTab.navigationGeneration !== presentedSuggestionOwner.navigationGeneration
         ) return
-        const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
+        const suggestion = presentedSuggestions.find((candidate) => candidate.id === suggestionId)
         if (suggestion) void chooseSuggestion(suggestion)
       }),
       () => overlay.onDismissed((sessionId) => {

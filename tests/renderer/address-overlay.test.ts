@@ -23,6 +23,7 @@ describe('native address overlay renderer', () => {
     await import('../../src/renderer/src/address-overlay.js')
 
     const state: AddressSuggestionOverlayState = {
+      sessionId: 1,
       suggestions: [{ id: 'history:google', kind: 'history', title: 'Search engine', url: 'https://www.google.com/' }],
       selectedIndex: -1,
       theme: 'light',
@@ -35,5 +36,31 @@ describe('native address overlay renderer', () => {
     receiveState({ ...state, suggestions: [] })
     expect(measured).toHaveBeenCalledTimes(2)
     expect(document.querySelector('[role=option]')).toBeNull()
+  })
+
+  it('keeps the original session on a button retained after the popup rerenders', async () => {
+    document.body.innerHTML = '<div id="address-overlay-root"></div>'
+    const select = vi.fn()
+    let receiveState!: (state: AddressSuggestionOverlayState) => void
+    vi.stubGlobal('hronautAddressOverlayView', {
+      onState: (listener: typeof receiveState) => { receiveState = listener; return () => undefined },
+      select,
+      measured: vi.fn()
+    })
+    await import('../../src/renderer/src/address-overlay.js')
+    const state: AddressSuggestionOverlayState = {
+      sessionId: 1,
+      suggestions: [{ id: 'history:google', kind: 'history', title: 'Search engine', url: 'https://www.google.com/' }],
+      selectedIndex: -1,
+      theme: 'light',
+      locale: 'en-US'
+    }
+    receiveState(state)
+    const oldButton = document.querySelector<HTMLButtonElement>('[role=option]')!
+    receiveState({ ...state, sessionId: 2 })
+    oldButton.click()
+    document.querySelector<HTMLButtonElement>('[role=option]')!.click()
+    expect(select).toHaveBeenNthCalledWith(1, { sessionId: 1, suggestionId: 'history:google' })
+    expect(select).toHaveBeenNthCalledWith(2, { sessionId: 2, suggestionId: 'history:google' })
   })
 })

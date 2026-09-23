@@ -82,7 +82,7 @@ import type {
   WalletWatchOnlyInput
 } from '../shared/wallet.js'
 import type { BrowserShortcutAction } from '../shared/browser-shortcuts.js'
-import type { AddressSuggestionOverlayRequest } from '../shared/address-suggestions.js'
+import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../shared/address-suggestions.js'
 
 const api: HronautApi = {
   getState: () => ipcRenderer.invoke('browser:get-state'),
@@ -489,8 +489,8 @@ contextBridge.exposeInMainWorld('hronautPanelWindow', panelWindowApi)
 contextBridge.exposeInMainWorld('hronautAddressOverlay', {
   show: (request: AddressSuggestionOverlayRequest) => ipcRenderer.send('address-overlay:show', request),
   hide: () => ipcRenderer.send('address-overlay:hide'),
-  onSelected: (listener: (suggestionId: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, suggestionId: string): void => listener(suggestionId)
+  onSelected: (listener: (selection: AddressSuggestionSelection) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, selection: AddressSuggestionSelection): void => listener(selection)
     ipcRenderer.on('address-overlay:selected', handler)
     return () => ipcRenderer.removeListener('address-overlay:selected', handler)
   },

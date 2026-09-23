@@ -39,6 +39,7 @@ export interface AddressSuggestionOverlayBounds {
 export type AddressSuggestionOverlayTheme = Exclude<import('./types.js').ThemeName, 'system'>
 
 export interface AddressSuggestionOverlayState {
+  sessionId: number
   suggestions: AddressSuggestion[]
   selectedIndex: number
   theme: AddressSuggestionOverlayTheme
@@ -46,8 +47,12 @@ export interface AddressSuggestionOverlayState {
 }
 
 export interface AddressSuggestionOverlayRequest extends AddressSuggestionOverlayState {
-  sessionId: number
   bounds: AddressSuggestionOverlayBounds
+}
+
+export interface AddressSuggestionSelection {
+  sessionId: number
+  suggestionId: string
 }
 
 function parseQuery(rawQuery: string): { scope: AddressSuggestionScope; terms: string[] } {

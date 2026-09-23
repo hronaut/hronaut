@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/vue'
 import { computed, defineComponent, nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useAddressBarController } from '../../src/renderer/src/composables/useAddressBarController.js'
-import type { AddressSuggestionOverlayRequest } from '../../src/shared/address-suggestions.js'
+import type { AddressSuggestionOverlayRequest, AddressSuggestionSelection } from '../../src/shared/address-suggestions.js'
 import type { BrowserBookmark, BrowserHistoryEntry, BrowserTabState } from '../../src/shared/types.js'
 
 function tab(id: string, url = `https://example.test/${id}`): BrowserTabState {
@@ -40,14 +40,14 @@ function createHarness(options: {
   const onOpen = vi.fn()
   const onNavigate = vi.fn(options.onNavigate ?? (async () => undefined))
   const onFocusLeft = vi.fn()
-  let selectedListener: ((id: string) => void) | undefined
+  let selectedListener: ((selection: AddressSuggestionSelection) => void) | undefined
   let dismissedListener: ((sessionId: number) => void) | undefined
   const unsubscribeSelected = vi.fn(options.selectedUnsubscribe ?? (() => undefined))
   const unsubscribeDismissed = vi.fn()
   const overlay = {
     show: vi.fn<(request: AddressSuggestionOverlayRequest) => void>(),
     hide: vi.fn(),
-    onSelected: vi.fn((listener: (id: string) => void) => {
+    onSelected: vi.fn((listener: (selection: AddressSuggestionSelection) => void) => {
       selectedListener = listener
       return unsubscribeSelected
     }),
@@ -98,7 +98,7 @@ function createHarness(options: {
     onFocusLeft,
     unsubscribeSelected,
     unsubscribeDismissed,
-    selectOverlay: (id: string) => selectedListener?.(id),
+    selectOverlay: (suggestionId: string, sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => selectedListener?.({ sessionId, suggestionId }),
     dismissOverlay: (sessionId = overlay.show.mock.calls.at(-1)?.[0].sessionId ?? 0) => dismissedListener?.(sessionId)
   }
 }
@@ -318,6 +318,28 @@ describe('address bar controller', () => {
     await Promise.resolve()
 
     expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('ignores an earlier popup selection after the same suggestion is shown again', async () => {
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const first = rendered.overlay.show.mock.calls.at(-1)![0]
+
+    await fireEvent.focusOut(input)
+    await fireEvent.focus(input)
+    await waitFor(() => expect(rendered.overlay.show.mock.calls.at(-1)?.[0].sessionId).not.toBe(first.sessionId))
+    const reopened = rendered.overlay.show.mock.calls.at(-1)![0]
+    expect(reopened.suggestions[0].id).toBe(first.suggestions[0].id)
+
+    rendered.selectOverlay(first.suggestions[0].id, first.sessionId)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    expect(rendered.controller.open.value).toBe(true)
   })
 
   it('resumes committed URL updates after a tab change discards an edit', async () => {

@@ -196,7 +196,8 @@ import { loadNativeWindowWithRollback } from './native-window-load.js'
 import type {
   AddressSuggestion,
   AddressSuggestionOverlayRequest,
-  AddressSuggestionOverlayState
+  AddressSuggestionOverlayState,
+  AddressSuggestionSelection
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 
@@ -2114,6 +2115,7 @@ function registerIpc(): void {
       maxHeight: scaleShellMetric(request.bounds.maxHeight, scale)
     }
     const state: AddressSuggestionOverlayState = {
+      sessionId: request.sessionId,
       suggestions: request.suggestions,
       selectedIndex: request.selectedIndex,
       theme: request.theme,
@@ -2169,11 +2171,17 @@ function registerIpc(): void {
   })
   ipcMain.on('address-overlay:select', (event, value: unknown) => {
     assertAddressOverlaySender(event)
-    if (typeof value !== 'string' || value.length < 1 || value.length > 512) {
-      throw new TypeError('Invalid address suggestion identifier')
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new TypeError('Invalid address suggestion selection')
     }
+    const selection = value as AddressSuggestionSelection
+    if (!Number.isSafeInteger(selection.sessionId) || selection.sessionId < 1
+      || typeof selection.suggestionId !== 'string' || selection.suggestionId.length < 1 || selection.suggestionId.length > 512) {
+      throw new TypeError('Invalid address suggestion selection')
+    }
+    if (selection.sessionId !== addressSuggestionSurface?.sessionId) return
     if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-      mainWindow.webContents.send('address-overlay:selected', value)
+      mainWindow.webContents.send('address-overlay:selected', selection)
     }
     addressSuggestionOverlayGeneration += 1
     hideAddressSuggestionOverlay()
