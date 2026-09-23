@@ -228,6 +228,34 @@ describe('BookmarkStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('super-secret')
   })
 
+  it('rejects a URL whose encoded form exceeds the persisted limit instead of losing the bookmark on restart', async () => {
+    const { path, store } = await createStore()
+    const prefix = 'https://example.com/'
+    const maximumAddress = `${prefix}${'a'.repeat(4_096 - prefix.length)}`
+    expect(normalizeBookmarkUrl(maximumAddress)).toBe(maximumAddress)
+    const saved = await store.add({ url: maximumAddress, title: 'Boundary bookmark' })
+    expect(await new BookmarkStore(path).load()).toEqual([saved])
+
+    const address = `https://example.com/${'é'.repeat(1400)}`
+    expect(address.length).toBeLessThan(4_096)
+    expect(new URL(address).href.length).toBeGreaterThan(4_096)
+
+    expect(normalizeBookmarkUrl(address)).toBeNull()
+    await expect(store.add({ url: address, title: 'Long Unicode path' })).rejects.toThrow(/Bookmark URL/)
+    expect(store.list()).toEqual([saved])
+  })
+
+  it('keeps a bookmark with long discarded credentials when its saved address fits the limit', async () => {
+    const { path, store } = await createStore()
+    const address = `https://person:${'credential-'.repeat(400)}@example.com/docs`
+    expect(address.length).toBeGreaterThan(4_096)
+
+    const saved = await store.add({ url: address, title: address })
+    expect(saved).toMatchObject({ url: 'https://example.com/docs', title: 'https://example.com/docs' })
+    expect(await new BookmarkStore(path).load()).toEqual([saved])
+    expect(await readFile(path, 'utf8')).not.toContain('credential-')
+  })
+
   it('repairs embedded credentials in an existing bookmark without dropping it', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })
