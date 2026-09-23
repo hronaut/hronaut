@@ -8,6 +8,7 @@ const HISTORY_VERSION = 1
 const MAX_HISTORY_ENTRIES = 2_000
 const MAX_HISTORY_TITLE = 200
 const MAX_HISTORY_URL = 4_096
+const MAX_HISTORY_INPUT_URL = 32_768
 const HISTORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1_000
 
 interface PersistedHistory {
@@ -18,7 +19,7 @@ interface PersistedHistory {
 export function normalizeHistoryUrl(value: string): string | null {
   const fragmentStart = value.indexOf('#')
   const address = fragmentStart < 0 ? value : value.slice(0, fragmentStart)
-  if (!address || address.length > MAX_HISTORY_URL) return null
+  if (!address || address.length > MAX_HISTORY_INPUT_URL) return null
   try {
     const url = new URL(address)
     if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !url.hostname) return null
@@ -40,10 +41,15 @@ function hasEmbeddedHttpCredentials(value: string): boolean {
 }
 
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
+  // Older fallback titles were capped before credentials were removed. If the
+  // cap cut off the hostname, the saved URL is the only safe address to show.
+  const truncatedUrlAuthority = value.length === MAX_HISTORY_TITLE
+    && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
   const isUrlFallback = (
     value === sourceUrl
     || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
     || normalizeHistoryUrl(value) === url
+    || truncatedUrlAuthority
   )
   let safeValue = value
   if (isUrlFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
