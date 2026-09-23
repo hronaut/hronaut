@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Restore the newest bookmarked page when saved duplicates or an oversized bookmark file are out of order.
 - Keep bookmarks to different page sections visible as distinct address suggestions, including beside a visit to the same page.
 
 ## [2.5.12] - 2026-09-23

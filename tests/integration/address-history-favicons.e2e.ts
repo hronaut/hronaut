@@ -61,6 +61,30 @@ test('shows separate bookmarked page sections alongside a visit to the same page
   }
 })
 
+test('suggests the newest saved bookmark when duplicate addresses were stored out of order', async ({ profileDirectory, mcpPort }) => {
+  const earlier = new Date(Date.now() - 2_000).toISOString()
+  const later = new Date(Date.now() - 1_000).toISOString()
+  await writeFile(join(profileDirectory, 'bookmarks.json'), JSON.stringify({
+    version: 1,
+    bookmarks: [
+      { id: 'old', url: 'https://example.com', title: 'Old title', createdAt: earlier, updatedAt: earlier },
+      { id: 'new', url: 'https://example.com/', title: 'New title', createdAt: earlier, updatedAt: later }
+    ]
+  }), 'utf8')
+
+  const instance = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await instance.window.evaluate('window.hronaut.newTab({ active: true })')
+    await instance.window.getByRole('combobox', { name: 'Address' }).fill('example.com')
+    const option = instance.window.locator('#address-suggestions [role="option"]')
+    await expect(option).toHaveCount(1)
+    await expect(option).toHaveAttribute('id', 'address-suggestion-bookmark:new')
+    await expect(option).toContainText('New title')
+  } finally {
+    await closeHronaut(instance.app)
+  }
+})
+
 test('shows the latest history suggestions when requests arrive during popup startup', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate('window.hronaut.newTab({ active: true })')
   const address = appWindow.getByRole('combobox', { name: 'Address' })

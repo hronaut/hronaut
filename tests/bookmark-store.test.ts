@@ -99,6 +99,47 @@ describe('BookmarkStore', () => {
       .toEqual([expect.objectContaining({ id: 'one' })])
   })
 
+  it('keeps the newest saved version when duplicate bookmark URLs are out of order', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const earlier = new Date(Date.UTC(2026, 7, 13)).toISOString()
+    const later = new Date(Date.UTC(2026, 7, 14)).toISOString()
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [
+        { id: 'old', url: 'https://example.com', title: 'Old title', createdAt: earlier, updatedAt: earlier },
+        { id: 'new', url: 'https://example.com/', title: 'New title', createdAt: earlier, updatedAt: later }
+      ]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({
+      id: 'new', url: 'https://example.com/', title: 'New title', updatedAt: later
+    })])
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks).toEqual([
+      expect.objectContaining({ id: 'new', title: 'New title' })
+    ])
+  })
+
+  it('keeps the most recently updated bookmarks when a saved file exceeds the limit', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const firstVisit = Date.UTC(2026, 7, 13)
+    const bookmarks = Array.from({ length: 501 }, (_, index) => ({
+      id: `saved-${index}`,
+      url: `https://example.com/page-${index}`,
+      title: `Page ${index}`,
+      createdAt: new Date(firstVisit + index * 1_000).toISOString(),
+      updatedAt: new Date(firstVisit + index * 1_000).toISOString()
+    }))
+    await writeFile(path, JSON.stringify({ version: 1, bookmarks }), 'utf8')
+
+    const restored = await store.load()
+    expect(restored).toHaveLength(500)
+    expect(restored[0]?.id).toBe('saved-500')
+    expect(restored.some((entry) => entry.id === 'saved-0')).toBe(false)
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks).toHaveLength(500)
+  })
+
   it('repairs duplicate persisted IDs without dropping distinct bookmarks', async () => {
     const { path, store } = await createStore()
     await mkdir(dirname(path), { recursive: true })

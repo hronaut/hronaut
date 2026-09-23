@@ -81,14 +81,14 @@ export class BookmarkStore {
       if (value.version !== 1 || !Array.isArray(value.bookmarks)) return []
       const seenUrls = new Set<string>()
       const seenIds = new Set<string>()
-      let repairedPersistedBookmarks = false
+      const validBookmarks = value.bookmarks.filter(validBookmark)
+      let repairedPersistedBookmarks = validBookmarks.length !== value.bookmarks.length
       const currentTimestamp = new Date().toISOString()
       const currentTime = Date.parse(currentTimestamp)
-      for (const entry of value.bookmarks) {
-        if (!validBookmark(entry)) {
-          repairedPersistedBookmarks = true
-          continue
-        }
+      // Saved files can be out of order after migration or partial repair.
+      // Apply deduplication and the size cap to the newest entries first.
+      const newestFirst = validBookmarks.sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+      for (const entry of newestFirst) {
         const normalizedUrl = normalizeBookmarkUrl(entry.url)!
         if (seenUrls.has(normalizedUrl) || this.entries.size >= MAX_BOOKMARKS) {
           repairedPersistedBookmarks = true
