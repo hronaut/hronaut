@@ -69,7 +69,7 @@ function parseReleaseHistoryPage(page: number, text: string, link: string | null
   return {
     page,
     releases: parsed.map(releaseEntry).filter((entry): entry is AppReleaseHistoryEntry => Boolean(entry)),
-    hasMore: NEXT_LINK_PATTERN.test(link ?? '')
+    hasMore: page < MAX_PAGE && NEXT_LINK_PATTERN.test(link ?? '')
   }
 }
 

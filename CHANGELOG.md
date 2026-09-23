@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Hide the release history Load more action at the supported page limit instead of leading to an invalid page.
+
 ## [2.5.15] - 2026-09-24
 
 ### Added

@@ -44,6 +44,17 @@ describe('ReleaseHistoryService', () => {
     )
   })
 
+  it('does not advertise a page beyond the supported history limit', async () => {
+    const fetch = vi.fn(async () => new Response(JSON.stringify([release()]), {
+      headers: { link: '<https://api.github.com/repos/hronaut/hronaut/releases?per_page=10&page=21>; rel="next"' }
+    }))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+
+    await expect(service.getPage(20)).resolves.toMatchObject({ page: 20, hasMore: false })
+    await expect(service.getPage(21)).rejects.toThrow('Invalid release history page')
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
   it('uses a fresh cache and falls back to stale cached history when GitHub is unavailable', async () => {
     let now = 10
     const fetch = vi.fn()
