@@ -92,6 +92,23 @@ describe('buildLocalAddressSuggestions', () => {
       .toEqual([expect.objectContaining({ id: 'bookmark:google' })])
   })
 
+  it('keeps bookmarked page sections as distinct destinations beside page history', () => {
+    const sections = [
+      { id: 'intro', title: 'Guide introduction', url: 'https://docs.example/guide#intro' },
+      { id: 'api', title: 'Guide API', url: 'https://docs.example/guide#api' }
+    ]
+    const visits = [{
+      id: 'guide', title: 'Guide', url: 'https://docs.example/guide', visitCount: 3
+    }]
+
+    expect(buildLocalAddressSuggestions({ query: 'guide', bookmarks: sections, history: visits })
+      .map((suggestion) => suggestion.id))
+      .toEqual(['history:guide', 'bookmark:intro', 'bookmark:api'])
+    expect(buildLocalAddressSuggestions({ query: '@bookmarks guide', bookmarks: sections, history: visits })
+      .map((suggestion) => suggestion.url))
+      .toEqual(['https://docs.example/guide#intro', 'https://docs.example/guide#api'])
+  })
+
   it('puts a matching visited page before a matching bookmark while typing', () => {
     expect(buildLocalAddressSuggestions({
       query: 'docs',

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep bookmarks to different page sections visible as distinct address suggestions, including beside a visit to the same page.
+
 ## [2.5.12] - 2026-09-23
 
 ### Added

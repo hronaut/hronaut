@@ -66,10 +66,11 @@ function parseQuery(rawQuery: string): { scope: AddressSuggestionScope; terms: s
   }
 }
 
-function canonicalUrl(url: string): string {
+function canonicalUrl(url: string, kind: AddressSuggestionKind): string {
   try {
     const parsed = new URL(url)
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') parsed.hash = ''
+    // Visits represent pages; saved bookmarks can target distinct page sections.
+    if (kind === 'history' && (parsed.protocol === 'http:' || parsed.protocol === 'https:')) parsed.hash = ''
     return parsed.href
   } catch {
     return url
@@ -99,7 +100,7 @@ export function buildLocalAddressSuggestions(input: AddressSuggestionInput): Add
 
   const add = (suggestion: AddressSuggestion): void => {
     if (!matches(suggestion.title, suggestion.url, terms)) return
-    const key = canonicalUrl(suggestion.url)
+    const key = canonicalUrl(suggestion.url, suggestion.kind)
     if (seen.has(key)) return
     seen.add(key)
     suggestions.push(suggestion)

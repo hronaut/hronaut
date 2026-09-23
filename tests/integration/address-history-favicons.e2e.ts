@@ -32,6 +32,35 @@ test('repairs a legacy credential title before showing a visited address suggest
   }
 })
 
+test('shows separate bookmarked page sections alongside a visit to the same page', async ({ profileDirectory, mcpPort }) => {
+  const now = new Date().toISOString()
+  const pageUrl = 'https://docs.example/guide'
+  await writeFile(join(profileDirectory, 'history.json'), JSON.stringify({
+    version: 1,
+    entries: [{ id: 'guide-visit', url: pageUrl, title: 'Guide', visitedAt: now, visitCount: 2 }]
+  }), 'utf8')
+  await writeFile(join(profileDirectory, 'bookmarks.json'), JSON.stringify({
+    version: 1,
+    bookmarks: [
+      { id: 'intro', url: `${pageUrl}#intro`, title: 'Guide introduction', createdAt: now, updatedAt: now },
+      { id: 'api', url: `${pageUrl}#api`, title: 'Guide API', createdAt: now, updatedAt: now }
+    ]
+  }), 'utf8')
+
+  const instance = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await instance.window.evaluate('window.hronaut.newTab({ active: true })')
+    await instance.window.getByRole('combobox', { name: 'Address' }).fill('guide')
+    const options = instance.window.locator('#address-suggestions [role="option"]')
+    await expect(options).toHaveCount(3)
+    await expect(options.nth(0)).toHaveAttribute('id', 'address-suggestion-history:guide-visit')
+    await expect(options.filter({ hasText: `${pageUrl}#intro` })).toHaveCount(1)
+    await expect(options.filter({ hasText: `${pageUrl}#api` })).toHaveCount(1)
+  } finally {
+    await closeHronaut(instance.app)
+  }
+})
+
 test('shows the latest history suggestions when requests arrive during popup startup', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate('window.hronaut.newTab({ active: true })')
   const address = appWindow.getByRole('combobox', { name: 'Address' })
