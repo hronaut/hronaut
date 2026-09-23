@@ -269,6 +269,57 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('https://second.example/unsaved-form')
   })
 
+  it('ignores a delayed native selection after Escape cancels the address search', async () => {
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const suggestionId = rendered.overlay.show.mock.calls.at(-1)![0].suggestions[0].id
+
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    rendered.selectOverlay(suggestionId)
+    await Promise.resolve()
+
+    expect(input).toHaveValue('https://example.test/first')
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('ignores a delayed native selection after the popup is dismissed', async () => {
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const suggestionId = rendered.overlay.show.mock.calls.at(-1)![0].suggestions[0].id
+
+    rendered.dismissOverlay()
+    rendered.selectOverlay(suggestionId)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('saved')
+  })
+
+  it('ignores a selection from an earlier popup after reopening the address bar', async () => {
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const suggestionId = rendered.overlay.show.mock.calls.at(-1)![0].suggestions[0].id
+
+    await fireEvent.focusOut(input)
+    rendered.controller.handleFocus()
+    rendered.selectOverlay(suggestionId)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+  })
+
   it('resumes committed URL updates after a tab change discards an edit', async () => {
     const rendered = createHarness()
     const input = screen.getByRole('textbox', { name: 'Address' })

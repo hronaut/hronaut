@@ -91,6 +91,11 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     options.overlay?.hide()
   }
 
+  function discardPresentedSuggestions(): void {
+    presentedSuggestions = []
+    presentedSuggestionOwner = null
+  }
+
   function openSuggestions(): void {
     if (disposed) return
     cancelBlur()
@@ -98,7 +103,10 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     // Clear any pending native-overlay dismissal before reopening. A renderer
     // can focus the address bar again before the destroyed overlay's dismissal
     // event has completed its IPC round trip.
-    if (!open.value) options.overlay?.hide()
+    if (!open.value) {
+      discardPresentedSuggestions()
+      options.overlay?.hide()
+    }
     open.value = true
     options.onOpen()
   }
@@ -193,6 +201,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     if (event.key === 'Escape' && (open.value || dirty.value)) {
       event.preventDefault()
       close()
+      discardPresentedSuggestions()
       restoreActiveAddress()
       input.value?.select()
       return
@@ -292,12 +301,12 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
           || activeTab.navigationGeneration !== presentedSuggestionOwner.navigationGeneration
         ) return
         const suggestion = presentedSuggestions.find((candidate) => candidate.id === id)
-          ?? suggestions.value.find((candidate) => candidate.id === id)
         if (suggestion) void chooseSuggestion(suggestion)
       }),
       () => overlay.onDismissed(() => {
         if (disposed) return
         open.value = false
+        discardPresentedSuggestions()
         overlay.hide()
       })
     )
@@ -314,8 +323,7 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     disposed = true
     cancelBlur()
     open.value = false
-    presentedSuggestions = []
-    presentedSuggestionOwner = null
+    discardPresentedSuggestions()
     pendingNavigation = null
     const callbacks = cleanupCallbacks
     cleanupCallbacks = []

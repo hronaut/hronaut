@@ -5,6 +5,7 @@ type TestWindow = Window & {
   hronaut: HronautApi
   hronautBookmarks: HronautBookmarksApi
   hronautHistory: HronautHistoryApi
+  hronautAddressOverlay: { onSelected(listener: (id: string) => void): () => void }
 }
 
 test('keeps an address draft when focus moves to the page or another shell control', async ({ appWindow, electronApp }) => {
@@ -34,6 +35,47 @@ test('keeps an address draft when focus moves to the page or another shell contr
   await address.focus()
   await address.press('Escape')
   await expect(address).toHaveValue(url)
+})
+
+test('ignores a delayed native suggestion selection after Escape cancels the search', async ({ appWindow, electronApp }) => {
+  const destination = 'https://saved.example/'
+  await appWindow.evaluate(async url => (window as unknown as TestWindow).hronautBookmarks.add(url, 'Saved page'), destination)
+  const initialTabId = await appWindow.evaluate(async () => {
+    await (window as unknown as TestWindow).hronaut.newTab({ active: true })
+    return (await (window as unknown as TestWindow).hronaut.getState()).activeTabId
+  })
+  const address = appWindow.getByRole('combobox', { name: 'Address' })
+  await address.fill('Saved page')
+  await expect(appWindow.locator('#address-suggestions [role="option"]')).toHaveCount(1)
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    return overlay?.executeJavaScript("document.querySelector('[role=option]')?.getAttribute('data-suggestion-id')")
+  })).toMatch(/^bookmark:/)
+  const suggestionId = await electronApp.evaluate(async ({ webContents }) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    if (!overlay) throw new Error('Address popup was not found')
+    return overlay.executeJavaScript("document.querySelector('[role=option]')?.getAttribute('data-suggestion-id')") as Promise<string>
+  })
+  await appWindow.evaluate(() => {
+    const off = (window as unknown as TestWindow).hronautAddressOverlay.onSelected((id) => {
+      document.documentElement.dataset.lastAddressSelection = id
+      off()
+    })
+  })
+  // The event is emitted from the native overlay after the shell has cancelled it.
+  await address.press('Escape')
+  await electronApp.evaluate(async ({ webContents }, id) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    if (!overlay) throw new Error('Address popup was not found')
+    await overlay.executeJavaScript(`window.hronautAddressOverlayView.select(${JSON.stringify(id)})`)
+  }, suggestionId)
+  await expect(appWindow.locator('html')).toHaveAttribute('data-last-address-selection', suggestionId)
+  expect(await appWindow.evaluate(async () => {
+    const state = await (window as unknown as TestWindow).hronaut.getState()
+    return state.tabs.find(tab => tab.id === state.activeTabId)?.url
+  })).toBe('about:blank')
+  expect(await appWindow.evaluate(async () => (await (window as unknown as TestWindow).hronaut.getState()).activeTabId)).toBe(initialTabId)
+  await expect(address).toHaveValue('')
 })
 
 test('suggests a previously visited Google hostname in the visible native popup', async ({ appWindow, electronApp }) => {

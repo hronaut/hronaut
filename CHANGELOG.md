@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Reject bookmark addresses whose encoded URL exceeds the storage limit instead of saving a bookmark that disappears after restart, while allowing long discarded HTTP credentials when the safe address fits.
+- Ignore delayed address suggestion selections after cancelling, dismissing, or reopening the suggestion popup.
 
 ## [2.5.10] - 2026-09-23
 
