@@ -6,6 +6,7 @@ import type {
   BrowserState,
   BrowserTabState,
   HronautApi,
+  UserAttentionRequest,
   SupportedLocale
 } from '../../../shared/types.js'
 import type { AddressBarController } from '../composables/useAddressBarController.js'
@@ -45,6 +46,7 @@ const { t } = useI18n({ useScope: 'global' })
 
 const props = defineProps<{
   state: BrowserState
+  userAttention?: UserAttentionRequest | null
   hydrated: boolean
   locale: SupportedLocale
   browser: HronautApi
@@ -217,6 +219,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
     <BrowserTabsBar
       ref="browserTabsBar"
       :state="state"
+      :user-attention="userAttention"
       :hydrated="hydrated"
       :orientation="tabOrientation"
       :rail-pinned="verticalTabRailPinned"

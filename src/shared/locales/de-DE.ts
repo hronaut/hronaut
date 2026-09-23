@@ -1235,6 +1235,7 @@ export const deDE = {
       "scrollBack": "Vorherige Tabs anzeigen",
       "scrollForward": "Weitere Tabs anzeigen",
       "pageAttention": "Seite erfordert Aufmerksamkeit",
+      "agentAttention": "Agent benötigt Ihre Aufmerksamkeit",
       "sleeping": "Ruhezustand zum Sparen von Ressourcen",
       "frozen": "Seite zur Prüfung eingefroren",
       "freezeUnknown": "Ergebnis des Seitenhalts unbekannt",

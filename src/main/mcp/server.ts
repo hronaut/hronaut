@@ -80,8 +80,11 @@ import type {
   McpServerStatus,
   McpTabActivity,
   McpActivityResult,
-  McpCapabilityProfileCreateInput
+  McpCapabilityProfileCreateInput,
+  UserAttentionInput,
+  UserAttentionRequest
 } from '../../shared/types.js'
+export type { UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
 import { BROWSER_NETWORK_ABORT_REASONS } from '../../shared/types.js'
 import { formatNetworkRequestCopy, type BrowserNetworkRequestCopyFormat } from '../../shared/network-request-copy.js'
 import { sortNetworkRequests } from '../../shared/network-request-sort.js'
@@ -275,19 +278,6 @@ export interface McpHttpServerOptions {
   siteData: SiteDataOperations
   wallets?: WalletAgentOperations
   onTabActivity?: (activity: McpTabActivity) => void
-}
-
-export interface UserAttentionInput {
-  reason: string
-  humanWaitingDecisionId?: string
-  expiresAt?: number
-  workspaceId?: string
-  tabId?: string
-}
-
-export interface UserAttentionRequest extends UserAttentionInput {
-  id: string
-  requestedAt: string
 }
 
 export interface BrowserToolDefinition {
@@ -728,7 +718,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   {
     name: 'browser_request_user_attention',
     category: 'Session',
-    description: 'Pulse the Hronaut tray icon when a person must complete a manual browser step.'
+    description: 'Alert a person to a manual browser step with a tray pulse, system notification, and a visible marker on the requested tab. Supply a short, secret-free notificationMessage for the system notification.'
   },
   { name: 'browser_tabs', category: 'Session', description: 'List tabs and navigation state in the selected agent workspace.' },
   { name: 'browser_new_tab', category: 'Session', description: 'Open a visible tab inside the selected agent workspace.' },
@@ -3001,14 +2991,15 @@ function createBrowserMcpServer(
       description: toolDescription('browser_request_user_attention'),
       inputSchema: {
         reason: z.string().trim().min(1).max(280).describe('What the user needs to do, without secrets or credentials.'),
+        notificationMessage: z.string().trim().min(1).max(200).optional().describe('Short, secret-free text for the system notification. Defaults to reason.'),
         tabId: tabIdSchema.optional().describe('The browser tab that needs the user, when applicable.')
       }
     },
-    tabTool('browser_request_user_attention', async ({ reason, workspaceId, tabId }: UserAttentionInput) => {
+    tabTool('browser_request_user_attention', async ({ reason, notificationMessage, workspaceId, tabId }: UserAttentionInput) => {
       if (tabId && !manager.getState().tabs.some((tab) => tab.id === tabId)) {
         throw new Error(`Unknown tab: ${tabId}`)
       }
-      return textResult(await requestUserAttention({ reason, workspaceId, tabId }))
+      return textResult(await requestUserAttention({ reason, notificationMessage, workspaceId, tabId }))
     })
   )
   registerWorkspaceTool(

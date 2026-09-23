@@ -78,11 +78,11 @@ describe('MCP user-attention presentation failures', () => {
 
     const attention = await client.callTool({
       name: 'browser_request_user_attention',
-      arguments: { workspaceId, tabId, reason: 'Review this page.' }
+      arguments: { workspaceId, tabId, reason: 'Review this page.', notificationMessage: 'Approval needed on the checkout tab.' }
     }) as CallToolResult
     expect(attention.isError).toBe(true)
     expect(text(attention)).toContain('simulated async attention rejection')
-    expect(requestUserAttention).toHaveBeenCalledWith({ reason: 'Review this page.', tabId, workspaceId })
+    expect(requestUserAttention).toHaveBeenCalledWith({ reason: 'Review this page.', notificationMessage: 'Approval needed on the checkout tab.', tabId, workspaceId })
 
     const show = await client.callTool({
       name: 'browser_show',
@@ -171,6 +171,7 @@ describe('MCP user-attention presentation failures', () => {
     expect(attention.isError).not.toBe(true)
     expect(requestUserAttention).toHaveBeenCalledWith({
       reason: 'Create the first tab.',
+      notificationMessage: undefined,
       tabId: undefined,
       workspaceId
     })

@@ -453,6 +453,20 @@ export interface BrowserState {
   savedTabGroups: BrowserSavedTabGroupState[]
 }
 
+export interface UserAttentionInput {
+  reason: string
+  notificationMessage?: string
+  humanWaitingDecisionId?: string
+  expiresAt?: number
+  workspaceId?: string
+  tabId?: string
+}
+
+export interface UserAttentionRequest extends UserAttentionInput {
+  id: string
+  requestedAt: string
+}
+
 export interface McpTabActivity {
   activityId: string
   tabId: string
@@ -2347,6 +2361,8 @@ export interface BrowserStorageChangesReport {
 
 export interface HronautApi {
   getState(): Promise<BrowserState>
+  getUserAttention(): Promise<UserAttentionRequest | null>
+  onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void
   getTabOverviewPreviews(tabIds: string[]): Promise<BrowserTabOverviewPreview[]>
   getTabOverviewPagePreview(tabId: string): Promise<BrowserTabOverviewPreview>
   copyText(text: string): Promise<void>
