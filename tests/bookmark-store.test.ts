@@ -163,6 +163,34 @@ describe('BookmarkStore', () => {
     ])
   })
 
+  it('orders restored bookmarks by actual time when timestamps use different offsets', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.UTC(2026, 7, 13, 12))
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [
+        {
+          id: 'earlier', url: 'https://earlier.example/', title: 'Earlier',
+          createdAt: '2026-08-13T10:00:00+10:00', updatedAt: '2026-08-13T10:00:00+10:00'
+        },
+        {
+          id: 'later', url: 'https://later.example/', title: 'Later',
+          createdAt: '2026-08-13T01:00:00Z', updatedAt: '2026-08-13T01:00:00Z'
+        }
+      ]
+    }))
+
+    expect((await store.load()).map((bookmark) => bookmark.id)).toEqual(['later', 'earlier'])
+    expect(store.list().map((bookmark) => bookmark.updatedAt)).toEqual([
+      '2026-08-13T01:00:00.000Z', '2026-08-13T00:00:00.000Z'
+    ])
+    expect(JSON.parse(await readFile(path, 'utf8')).bookmarks.map((bookmark: { updatedAt: string }) => bookmark.updatedAt)).toEqual([
+      '2026-08-13T01:00:00.000Z', '2026-08-13T00:00:00.000Z'
+    ])
+  })
+
   it('keeps bookmarks unchanged when an update cannot be persisted', async () => {
     const { path, store } = await createStore()
     const saved = await store.add({ url: 'https://example.com/', title: 'Original' })
