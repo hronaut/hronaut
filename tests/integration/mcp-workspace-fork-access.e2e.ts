@@ -50,6 +50,13 @@ test('forks disabled archived workspace data without source access and honors cl
       id: source.id, name: source.name, description: source.description, color: source.color,
       archived: true, agentAccess: false, forkOnly: true
     })
+    const savedList = await call('browser_saved_workspaces', { action: 'list' })
+    expect(savedList.isError, resultText(savedList)).not.toBe(true)
+    expect(JSON.parse(resultText(savedList))).toContainEqual({
+      id: source.id, name: source.name, description: source.description, color: source.color,
+      archived: true, agentAccess: false, forkOnly: true
+    })
+    expect(resultText(savedList)).not.toContain(sourceUrl)
     const catalog = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(catalog.isError, resultText(catalog)).not.toBe(true)
     const entry = JSON.parse(resultText(catalog)).find((workspace: { id: string }) => workspace.id === source.id)

@@ -712,7 +712,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   {
     name: 'browser_saved_workspaces',
     category: 'Session',
-    description: 'Archive your own task workspace for later or reopen an authorized archive with the same stable workspaceId. Listing returns only archives authorized for this MCP connection. After reconnecting, call resume with the archived ID and its private resumeKey before opening or deleting it.'
+    description: 'Archive your own task workspace for later or reopen an authorized archive with the same stable workspaceId. Listing also shows other archives as metadata-only forkOnly sources, including those with direct agent access disabled. Fork one through browser_workspaces action=create with storage=fork-workspace and sourceWorkspaceId; forkOnly does not grant access to the original. After reconnecting, call resume with the archived ID and its private resumeKey before opening or deleting it.'
   },
   { name: 'browser_status', category: 'Session', description: 'Show the current workspace, endpoint, tabs, and active workspace tab.' },
   { name: 'browser_show', category: 'Session', description: 'Show the visible Hronaut window without taking keyboard or mouse focus.' },
@@ -1724,7 +1724,16 @@ function createBrowserMcpServer(
       savedWorkspaceId?: string
       resumeKey?: string
     }) => {
-      if (action === 'list') return textResult(authorizedSavedWorkspaces())
+      if (action === 'list') {
+        const authorized = authorizedSavedWorkspaces()
+        const authorizedIds = new Set(authorized.map(workspace => workspace.id))
+        return textResult([
+          ...authorized,
+          ...manager.listWorkspaceForkSources()
+            .filter(source => source.archived && !authorizedIds.has(source.id))
+            .map(source => ({ ...source, forkOnly: true as const }))
+        ])
+      }
       if (action === 'save') {
         if (!workspaceId) throw new TypeError('workspaceId is required to save a workspace')
         requireAgentWorkspace(workspaceId)

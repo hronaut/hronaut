@@ -38,7 +38,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const address = ref('')
   const input = ref<HTMLInputElement | null>(null)
   const form = ref<HTMLFormElement | null>(null)
-  const open = ref(false)
+  const openState = ref(false)
+  const open = computed({
+    get: () => openState.value,
+    set: (value: boolean) => {
+      if (!value) discardPresentedSuggestions()
+      openState.value = value
+    }
+  })
   const selection = ref(-1)
   const focused = ref(false)
   const editing = ref(false)
@@ -89,9 +96,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     dirty.value = false
   }
 
-  function close(): void {
-    open.value = false
+  function hideSuggestions(preservePresentedSuggestions = false): void {
+    if (preservePresentedSuggestions) openState.value = false
+    else open.value = false
     options.overlay?.hide()
+  }
+
+  function close(): void {
+    hideSuggestions()
   }
 
   function discardPresentedSuggestions(): void {
@@ -140,12 +152,14 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
     const staysInForm = next instanceof Node && (event.currentTarget as HTMLElement).contains(next)
     const leftInput = event.target === input.value && next !== input.value
     if (leftInput) {
-      close()
+      // The native suggestion view is outside this DOM and may deliver its
+      // selection after the input loses focus. Other DOM controls invalidate it.
+      hideSuggestions(next === null)
       cancelBlur()
       blurTimer = window.setTimeout(finishBlur, 0)
     }
     if (!staysInForm) {
-      close()
+      if (!leftInput) close()
       options.onFocusLeft()
     }
   }

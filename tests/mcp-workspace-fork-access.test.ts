@@ -111,6 +111,7 @@ describe('MCP workspace fork sources and direct access', () => {
     const listed = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(listed.isError).not.toBe(true)
     expect(parsed(listed)).toEqual([source])
+    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual(archived ? [{ ...source, forkOnly: true }] : [])
     const fork = await call('browser_workspaces', { action: 'create', name: 'Task', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(fork.isError).not.toBe(true)
     expect(parsed(fork)).toMatchObject({ id: ownId, resumeKey: key })
@@ -227,7 +228,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     await call('browser_saved_workspaces', { action: 'save', workspaceId: ownId })
     disable()
-    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual([])
+    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual([{ ...manager.listWorkspaceForkSources()[0], forkOnly: true }])
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }

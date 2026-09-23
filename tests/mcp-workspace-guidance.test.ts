@@ -37,4 +37,11 @@ describe('MCP workspace guidance', () => {
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('fresh baseline after any invalidation')
     expect(BROWSER_SERVER_INSTRUCTIONS).toContain('browser_request_user_attention only when')
   })
+
+  it('explains how to fork archived workspaces from the saved list', () => {
+    const savedDescription = BROWSER_TOOL_CATALOG.find((tool) => tool.name === 'browser_saved_workspaces')?.description
+    expect(savedDescription).toContain('metadata-only forkOnly sources')
+    expect(savedDescription).toContain('direct agent access disabled')
+    expect(savedDescription).toContain('storage=fork-workspace and sourceWorkspaceId')
+  })
 })

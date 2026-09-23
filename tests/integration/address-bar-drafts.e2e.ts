@@ -79,6 +79,44 @@ test('ignores a delayed native suggestion selection after Escape cancels the sea
   await expect(address).toHaveValue('')
 })
 
+test('ignores a delayed native suggestion selection after Settings replaces the popup', async ({ appWindow, electronApp }) => {
+  const destination = 'https://saved.example/'
+  await appWindow.evaluate(async url => (window as unknown as TestWindow).hronautBookmarks.add(url, 'Saved page'), destination)
+  await appWindow.evaluate(async () => (window as unknown as TestWindow).hronaut.newTab({ active: true }))
+  const address = appWindow.getByRole('combobox', { name: 'Address' })
+  await address.fill('Saved page')
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    return overlay?.executeJavaScript("document.querySelector('[role=option]')?.getAttribute('data-suggestion-id')")
+  })).toMatch(/^bookmark:/)
+  const suggestionId = await electronApp.evaluate(async ({ webContents }) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    if (!overlay) throw new Error('Address popup was not found')
+    return overlay.executeJavaScript("document.querySelector('[role=option]')?.getAttribute('data-suggestion-id')") as Promise<string>
+  })
+  await appWindow.evaluate(() => {
+    const off = (window as unknown as TestWindow).hronautAddressOverlay.onSelected((selection) => {
+      document.documentElement.dataset.lastAddressSelection = selection.suggestionId
+      off()
+    })
+  })
+
+  await appWindow.getByRole('button', { name: 'Settings' }).click()
+  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+  await electronApp.evaluate(async ({ webContents }, id) => {
+    const overlay = webContents.getAllWebContents().find(contents => contents.getURL().includes('address-overlay.html'))
+    if (!overlay) throw new Error('Address popup was not found')
+    await overlay.executeJavaScript(`document.querySelector('[data-suggestion-id=${JSON.stringify(id)}]')?.click()`)
+  }, suggestionId)
+
+  await expect(appWindow.locator('html')).toHaveAttribute('data-last-address-selection', suggestionId)
+  expect(await appWindow.evaluate(async () => {
+    const state = await (window as unknown as TestWindow).hronaut.getState()
+    return state.tabs.find(tab => tab.id === state.activeTabId)?.url
+  })).toBe('about:blank')
+  await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
+})
+
 test('keeps reopened native suggestions when an earlier button clicks the same bookmark', async ({ appWindow, electronApp }) => {
   const destination = 'https://saved.example/'
   await appWindow.evaluate(async url => (window as unknown as TestWindow).hronautBookmarks.add(url, 'Saved page'), destination)

@@ -787,7 +787,7 @@ test('allows private MCP clients to use the same human label without revealing n
   }
 })
 
-test('keeps workspace identifiers and page access private to the creating MCP client', async ({ mcpPort, mcpToken }) => {
+test('shows fork metadata while keeping page access private to the creating MCP client', async ({ mcpPort, mcpToken }) => {
   const owner = await connectClient('workspace-owner', mcpPort, mcpToken)
   const other = await connectClient('workspace-other-client', mcpPort, mcpToken)
   try {
@@ -840,7 +840,12 @@ test('keeps workspace identifiers and page access private to the creating MCP cl
       name: 'browser_saved_workspaces',
       arguments: { action: 'list' }
     }) as CallToolResult
-    expect(JSON.parse(text(archivesByOther))).toEqual([])
+    expect(JSON.parse(text(archivesByOther))).toEqual([{
+      id: archived.id, name: 'Private client workspace', description: '', color: 'purple',
+      archived: true, agentAccess: true, forkOnly: true
+    }])
+    expect(text(archivesByOther)).not.toContain(archived.resumeKey)
+    expect(text(archivesByOther)).not.toContain('Private client tab')
     const deleteByOther = await other.callTool({
       name: 'browser_saved_workspaces',
       arguments: { action: 'delete', savedWorkspaceId: archived.id }
@@ -963,7 +968,12 @@ test('requires the private resume key to recover an archived workspace after rec
       name: 'browser_saved_workspaces',
       arguments: { action: 'list' }
     }) as CallToolResult
-    expect(JSON.parse(text(initialList))).toEqual([])
+    expect(JSON.parse(text(initialList))).toEqual([{
+      id: saved.id, name: 'Archived private workspace', description: '', color: 'orange',
+      archived: true, agentAccess: true, forkOnly: true
+    }])
+    expect(text(initialList)).not.toContain(saved.resumeKey)
+    expect(text(initialList)).not.toContain('Archived private tab')
 
     const openBeforeResume = await resumedClient.callTool({
       name: 'browser_saved_workspaces',

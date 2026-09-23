@@ -303,6 +303,43 @@ describe('address bar controller', () => {
     expect(input).toHaveValue('saved')
   })
 
+  it('ignores a delayed native selection after another control closes suggestions', async () => {
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const request = rendered.overlay.show.mock.calls.at(-1)![0]
+
+    rendered.controller.close()
+    rendered.selectOverlay(request.suggestions[0].id, request.sessionId)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('saved')
+  })
+
+  it('invalidates a pending native selection when the shell closes the shared popup state', async () => {
+    vi.useFakeTimers()
+    const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    const rendered = createHarness({ bookmarks: [saved] })
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, 'saved')
+    await waitFor(() => expect(rendered.overlay.show).toHaveBeenCalled())
+    const request = rendered.overlay.show.mock.calls.at(-1)![0]
+
+    await fireEvent.focusOut(input)
+    await vi.runAllTimersAsync()
+    rendered.controller.open.value = false
+    rendered.selectOverlay(request.suggestions[0].id, request.sessionId)
+    await Promise.resolve()
+
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+    expect(input).toHaveValue('saved')
+  })
+
   it('ignores a selection from an earlier popup after reopening the address bar', async () => {
     const saved: BrowserBookmark = { id: 'saved', title: 'Saved page', url: 'https://saved.example/', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
     const rendered = createHarness({ bookmarks: [saved] })

@@ -4,6 +4,14 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Show archived workspaces as metadata-only fork sources in the agent's saved workspace list, even when direct agent access is disabled.
+
+### Fixed
+
+- Ignore delayed native address suggestions after another browser control closes the popup.
+
 ## [2.5.14] - 2026-09-24
 
 ### Fixed
