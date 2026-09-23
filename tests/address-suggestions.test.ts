@@ -101,10 +101,14 @@ describe('buildLocalAddressSuggestions', () => {
   })
 
   it('keeps visited pages ahead of bookmark hostname matches', () => {
-    expect(buildLocalAddressSuggestions({
+    const input = {
       query: 'google',
       bookmarks: [{ id: 'saved', title: 'Saved page', url: 'https://google.example/' }],
       history: [{ id: 'visited', title: 'Google account', url: 'https://account.example/', visitCount: 2 }]
-    }).map((suggestion) => suggestion.id)).toEqual(['history:visited', 'bookmark:saved'])
+    }
+    expect(buildLocalAddressSuggestions(input).map((suggestion) => suggestion.id))
+      .toEqual(['history:visited', 'bookmark:saved'])
+    expect(buildLocalAddressSuggestions({ ...input, limit: 1 }).map((suggestion) => suggestion.id))
+      .toEqual(['history:visited'])
   })
 })
