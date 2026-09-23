@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.12] - 2026-09-23
+
 ### Added
 
 - Show workspaces with direct agent access disabled as metadata-only fork sources in the normal agent workspace list.
