@@ -40,8 +40,12 @@ function normalizeBookmarkTitle(value: string, url: string, sourceUrl = url): st
   const isCredentialFallback = hasEmbeddedHttpCredentials(sourceUrl) && (
     value === sourceUrl || (value.length === MAX_BOOKMARK_TITLE && sourceUrl.startsWith(value))
   )
+  // A legacy URL fallback may have been truncated before its @ sign, even if
+  // the saved address was already sanitized in a later write.
+  const truncatedUrlAuthority = value.length === MAX_BOOKMARK_TITLE
+    && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
   let safeValue = value
-  if (isCredentialFallback) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
+  if (isCredentialFallback || truncatedUrlAuthority) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? value
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_BOOKMARK_TITLE)
   return title || new URL(url).hostname

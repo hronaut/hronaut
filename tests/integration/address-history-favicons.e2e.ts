@@ -32,6 +32,34 @@ test('repairs a legacy credential title before showing a visited address suggest
   }
 })
 
+test('repairs a legacy credential title before showing a bookmarked address suggestion', async ({ profileDirectory, mcpPort }) => {
+  const url = 'https://example.com/private'
+  const privateUrl = `https://person:${'private-bookmark-token-'.repeat(12)}@example.com/private`
+  const now = new Date().toISOString()
+  await writeFile(join(profileDirectory, 'bookmarks.json'), JSON.stringify({
+    version: 1,
+    bookmarks: [{
+      id: 'legacy-bookmark', url, title: privateUrl.slice(0, 200), createdAt: now, updatedAt: now
+    }]
+  }), 'utf8')
+
+  const instance = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await expect.poll(() => instance.window.evaluate('window.hronautBookmarks.list()')).toEqual([
+      expect.objectContaining({ url, title: url })
+    ])
+    await instance.window.evaluate('window.hronaut.newTab({ active: true })')
+    await instance.window.getByRole('combobox', { name: 'Address' }).fill('example.com')
+    const option = instance.window.locator('#address-suggestions [role="option"]')
+    await expect(option).toHaveCount(1)
+    await expect(option).toContainText(url)
+    await expect(option).not.toContainText('private-bookmark-token')
+    expect(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8')).not.toContain('private-bookmark-token')
+  } finally {
+    await closeHronaut(instance.app)
+  }
+})
+
 test('shows separate bookmarked page sections alongside a visit to the same page', async ({ profileDirectory, mcpPort }) => {
   const now = new Date().toISOString()
   const pageUrl = 'https://docs.example/guide'

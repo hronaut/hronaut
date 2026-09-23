@@ -346,4 +346,21 @@ describe('BookmarkStore', () => {
     })])
     expect(await readFile(path, 'utf8')).not.toContain('legacy-secret')
   })
+
+  it('repairs a truncated credential title after the saved bookmark URL was already sanitized', async () => {
+    const { path, store } = await createStore()
+    await mkdir(dirname(path), { recursive: true })
+    const now = new Date().toISOString()
+    const url = 'https://example.com/docs'
+    const privateUrl = `https://person:${'private-bookmark-token-'.repeat(12)}@example.com/docs`
+    const title = privateUrl.slice(0, 200)
+    expect(normalizeBookmarkUrl(privateUrl)).toBe(url)
+    await writeFile(path, JSON.stringify({
+      version: 1,
+      bookmarks: [{ id: 'sanitized-bookmark', url, title, createdAt: now, updatedAt: now }]
+    }), 'utf8')
+
+    expect(await store.load()).toEqual([expect.objectContaining({ id: 'sanitized-bookmark', url, title: url })])
+    expect(await readFile(path, 'utf8')).not.toContain('private-bookmark-token')
+  })
 })

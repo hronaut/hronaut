@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove partial HTTP credentials from older bookmark fallback titles even when their saved address was already sanitized.
 - Restore the newest bookmarked page when saved duplicates or an oversized bookmark file are out of order.
 - Keep bookmarks to different page sections visible as distinct address suggestions, including beside a visit to the same page.
 
