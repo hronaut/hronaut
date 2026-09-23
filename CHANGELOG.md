@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Repair older browsing-history titles truncated inside HTTP credentials after their saved URL was sanitized, keeping those credentials out of address suggestions.
+- Keep visits with long discarded HTTP credentials in browsing history when the sanitized address fits its storage limit.
 - Repair older browsing-history titles that still contain a URL fragment even when the saved address is already clean, so private fragments do not reappear in address suggestions.
 
 ## [2.5.9] - 2026-09-23

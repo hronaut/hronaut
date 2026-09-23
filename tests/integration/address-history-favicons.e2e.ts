@@ -1,8 +1,36 @@
 import { createServer } from 'node:http'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { AddressSuggestionOverlayRequest } from '../../src/shared/address-suggestions.js'
-import { closeFixtureServer, expect, test } from './fixtures.js'
+import { closeFixtureServer, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
+
+test('repairs a legacy credential title before showing a visited address suggestion', async ({ profileDirectory, mcpPort }) => {
+  const url = 'https://example.com/private'
+  const privateUrl = `https://person:${'private-history-token-'.repeat(12)}@example.com/private`
+  await writeFile(join(profileDirectory, 'history.json'), JSON.stringify({
+    version: 1,
+    entries: [{
+      id: 'legacy-visit', url, title: privateUrl.slice(0, 200),
+      visitedAt: new Date().toISOString(), visitCount: 1
+    }]
+  }), 'utf8')
+
+  const instance = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await expect.poll(() => instance.window.evaluate('window.hronautHistory.list()')).toEqual([
+      expect.objectContaining({ url, title: url })
+    ])
+    await instance.window.evaluate('window.hronaut.newTab({ active: true })')
+    await instance.window.getByRole('combobox', { name: 'Address' }).fill('example.com')
+    const option = instance.window.locator('#address-suggestions [role="option"]')
+    await expect(option).toHaveCount(1)
+    await expect(option).toContainText(url)
+    await expect(option).not.toContainText('private-history-token')
+    expect(await readFile(join(profileDirectory, 'history.json'), 'utf8')).not.toContain('private-history-token')
+  } finally {
+    await closeHronaut(instance.app)
+  }
+})
 
 test('shows the latest history suggestions when requests arrive during popup startup', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate('window.hronaut.newTab({ active: true })')
