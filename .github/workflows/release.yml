@@ -586,7 +586,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt
-          npm ci
+          npm ci --ignore-scripts
           npx vitest run tests/update-scoop-manifest.test.ts tests/scoop-packaging.test.ts
 
       - name: Push the verified manifest

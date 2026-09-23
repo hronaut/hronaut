@@ -87,7 +87,10 @@ describe('Scoop package QA', () => {
     expect(releaseWorkflow).toContain('name: Publish verified Scoop manifest')
     expect(releaseWorkflow).toContain('Guard against a newer release on main')
     expect(releaseWorkflow).toContain('gh attestation verify release-checksums/hashes.txt')
-    expect(releaseWorkflow).toContain('node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt')
+    const updateStep = releaseWorkflow.split('      - name: Update and test the Scoop manifest\n')[1]
+      ?.split('      - name: Push the verified manifest\n')[0]
+    expect(updateStep).toContain('node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt')
+    expect(updateStep).toContain('npm ci --ignore-scripts')
     expect(releaseWorkflow).toContain('git push origin HEAD:main')
     expect(releaseWorkflow).toContain('gh workflow run ci.yml')
     expect(releaseWorkflow).toContain('gh workflow run scoop-smoke.yml')
