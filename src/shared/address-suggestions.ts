@@ -120,17 +120,22 @@ export function buildLocalAddressSuggestions(input: AddressSuggestionInput): Add
   // typing. Saved bookmarks fill the remaining slots without duplicating URLs.
   if (scope === 'all' || scope === 'history') addHistory()
   if (scope === 'all' || scope === 'bookmarks') addBookmarks()
-  // Rank before applying the display limit so an often-used hostname cannot
-  // disappear behind bookmarks or recent pages that merely mention it.
+  // Rank before applying the display limit. Keep visited pages ahead of
+  // bookmarks while preferring hostname matches within each source.
   const term = terms[0]
   if (terms.length === 1 && term) {
-    const hostnameMatches: AddressSuggestion[] = []
-    const otherMatches: AddressSuggestion[] = []
+    const visitedHostnameMatches: AddressSuggestion[] = []
+    const otherVisits: AddressSuggestion[] = []
+    const bookmarkedHostnameMatches: AddressSuggestion[] = []
+    const otherBookmarks: AddressSuggestion[] = []
     for (const suggestion of suggestions) {
-      const target = matchesHostnamePrefix(suggestion.url, term) ? hostnameMatches : otherMatches
+      const hostnameMatches = matchesHostnamePrefix(suggestion.url, term)
+      const target = suggestion.kind === 'history'
+        ? hostnameMatches ? visitedHostnameMatches : otherVisits
+        : hostnameMatches ? bookmarkedHostnameMatches : otherBookmarks
       target.push(suggestion)
     }
-    return [...hostnameMatches, ...otherMatches].slice(0, limit)
+    return [...visitedHostnameMatches, ...otherVisits, ...bookmarkedHostnameMatches, ...otherBookmarks].slice(0, limit)
   }
   return suggestions.slice(0, limit)
 }

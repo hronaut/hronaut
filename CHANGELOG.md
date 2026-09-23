@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep matching visited pages ahead of bookmarks in address suggestions even when a bookmark hostname matches the typed text more closely.
+
 ## [2.5.8] - 2026-09-23
 
 ### Fixed
