@@ -312,6 +312,7 @@ let attentionRequestGeneration = 0
 let attentionPulseTimer: NodeJS.Timeout | null = null
 let attentionExpiryTimer: NodeJS.Timeout | null = null
 let attentionPulseOn = false
+let attentionNotification: Notification | null = null
 let trayIcon: NativeImage | null = null
 let trayAttentionIcon: NativeImage | null = null
 // Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
@@ -1402,6 +1403,8 @@ function clearUserAttention(): void {
   attentionDecisionId = undefined
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
+  attentionNotification?.close()
+  attentionNotification = null
   if (!userAttention && !attentionPulseTimer) return
   userAttention = null
   if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', null)
@@ -1449,6 +1452,8 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   }
   if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
   userAttention = request
+  attentionNotification?.close()
+  attentionNotification = null
   if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', request)
   attentionDecisionId = input.humanWaitingDecisionId
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
@@ -1475,6 +1480,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   if (Notification.isSupported()) {
     try {
       const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || request.reason })
+      attentionNotification = notification
       notification.on('click', () => {
         if (userAttention?.id !== request.id) return
         runNativeBrowserAction('show the requested tab', async () => {
