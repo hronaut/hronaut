@@ -100,9 +100,10 @@ export class HistoryStore {
         const visitedAt = Date.parse(entry.visitedAt) <= now
           ? new Date(entry.visitedAt).toISOString()
           : currentTimestamp
-        if (visitedAt === entry.visitedAt) return entry
+        const visitCount = Math.min(entry.visitCount, Number.MAX_SAFE_INTEGER)
+        if (visitedAt === entry.visitedAt && visitCount === entry.visitCount) return entry
         repairedPersistedHistory = true
-        return { ...entry, visitedAt }
+        return { ...entry, visitedAt, visitCount }
       })
       const sorted = normalizedEntries
         .sort((left, right) => right.visitedAt.localeCompare(left.visitedAt))
@@ -160,7 +161,7 @@ export class HistoryStore {
         url,
         title: normalizeTitle(value.title, url, value.url),
         visitedAt: new Date(this.now()).toISOString(),
-        visitCount: (existing?.visitCount ?? 0) + 1
+        visitCount: Math.min((existing?.visitCount ?? 0) + 1, Number.MAX_SAFE_INTEGER)
       }
       if (existing) nextEntries.delete(existing.id)
       nextEntries.set(entry.id, entry)

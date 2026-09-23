@@ -95,6 +95,21 @@ describe('HistoryStore', () => {
     expect(restored.list()).toEqual(store.list())
   })
 
+  it('caps restored and newly recorded visit counts at the safe integer limit', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const url = 'https://frequent.example/'
+    await writeFile(path, JSON.stringify({ version: 1, entries: [{
+      id: 'frequent', url, title: 'Frequent page',
+      visitedAt: new Date(now).toISOString(), visitCount: Number.MAX_SAFE_INTEGER + 1
+    }] }), 'utf8')
+
+    expect((await store.load())[0]?.visitCount).toBe(Number.MAX_SAFE_INTEGER)
+    expect(JSON.parse(await readFile(path, 'utf8')).entries[0].visitCount).toBe(Number.MAX_SAFE_INTEGER)
+    expect((await store.record({ url, title: 'Frequent page' }))?.visitCount).toBe(Number.MAX_SAFE_INTEGER)
+    expect(JSON.parse(await readFile(path, 'utf8')).entries[0].visitCount).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
   it('updates a recorded page title without counting another visit', async () => {
     const { path, store } = await storeAt()
     await store.record({ url: 'https://example.com/dashboard#loading', title: 'Loading account' })
