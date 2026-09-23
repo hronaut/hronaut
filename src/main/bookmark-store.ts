@@ -95,8 +95,9 @@ export class BookmarkStore {
         }
         seenUrls.add(normalizedUrl)
         const normalizedTitle = normalizeBookmarkTitle(entry.title, normalizedUrl, entry.url)
-        const updatedAt = Date.parse(entry.updatedAt) > currentTime ? currentTimestamp : entry.updatedAt
-        const createdAt = Date.parse(entry.createdAt) > Date.parse(updatedAt) ? updatedAt : entry.createdAt
+        const updatedTime = Math.min(Date.parse(entry.updatedAt), currentTime)
+        const updatedAt = new Date(updatedTime).toISOString()
+        const createdAt = new Date(Math.min(Date.parse(entry.createdAt), updatedTime)).toISOString()
         const normalized = { ...entry, url: normalizedUrl, title: normalizedTitle, createdAt, updatedAt }
         if (normalizedUrl !== entry.url
           || normalizedTitle !== entry.title
