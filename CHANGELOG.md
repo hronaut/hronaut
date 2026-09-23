@@ -10,6 +10,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep script and style text out of generated release notes when a longer closing tag name appears, and preserve safe text after Unicode characters.
 - Keep a reopened address suggestion popup visible when a delayed dismissal from an earlier native popup arrives.
 - Ignore delayed clicks from an earlier suggestion popup after the same visited page or bookmark appears again.
 

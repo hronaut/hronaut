@@ -38,7 +38,6 @@ export interface ReleaseHistoryArtifact {
 function notes(value: unknown): string {
   if (typeof value !== 'string') return ''
   const plainTextChunks: string[] = []
-  const lowerValue = value.toLowerCase()
   for (let index = 0; index < value.length;) {
     const tagStart = value.indexOf('<', index)
     if (tagStart < 0) {
@@ -57,9 +56,11 @@ function notes(value: unknown): string {
     const tag = /^\s*(\/?)\s*([a-z][a-z0-9:-]*)/iu.exec(value.slice(index + 1, tagEnd))
     const tagName = tag?.[2]?.toLowerCase()
     if (tag?.[1] !== '/' && (tagName === 'script' || tagName === 'style')) {
-      const closingStart = lowerValue.indexOf(`</${tagName}`, tagEnd + 1)
-      if (closingStart < 0) break
-      const closingEnd = value.indexOf('>', closingStart + tagName.length + 2)
+      const closingTag = tagName === 'script' ? /<\/script(?=[\s/>])/giu : /<\/style(?=[\s/>])/giu
+      closingTag.lastIndex = tagEnd + 1
+      const closingMatch = closingTag.exec(value)
+      if (!closingMatch) break
+      const closingEnd = value.indexOf('>', closingMatch.index + closingMatch[0].length)
       index = closingEnd < 0 ? value.length : closingEnd + 1
       continue
     }

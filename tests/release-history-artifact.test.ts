@@ -51,6 +51,21 @@ describe('published release history artifact', () => {
     }
   })
 
+  it('does not treat a longer closing tag name as the end of hidden script or style text', async () => {
+    const artifact = await generate([
+      release('1.11.51', { body: 'Before <script>private</scripture>still private</script> After' })
+    ], 'Before <style>private</stylesheet>still private</style> After')
+    for (const entry of artifact.releases) {
+      expect(entry.notes).toBe('Before  After')
+      expect(entry.notes).not.toContain('private')
+    }
+  })
+
+  it('preserves safe text after a script when earlier Unicode lowercase expands', async () => {
+    const artifact = await generate([], 'İ<script>private</script> Safe')
+    expect(artifact.releases[0]?.notes).toBe('İ Safe')
+  })
+
   it('fails the candidate when a later upstream page is unavailable', async () => {
     const fetcher = vi.fn(async (url: Parameters<typeof fetch>[0]) => String(url).endsWith('page=1') ? Response.json(Array.from({ length: 100 }, (_, i) => release(`1.0.${i}`))) : new Response('rate limited', { status: 403 })) as unknown as typeof fetch
     await expect(generateReleaseHistory('1.11.55', 'Notes', { fetcher })).rejects.toThrow('403')
