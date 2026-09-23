@@ -111,6 +111,84 @@ test('previews and plays the selected Foley cue for user attention', async ({
   }
 })
 
+test('uses the agent notification message and marks the requested tab until it closes', async ({
+  appWindow, electronApp, mcpPort, mcpToken
+}) => {
+  await electronApp.evaluate(({ Notification }) => {
+    const scope = globalThis as typeof globalThis & {
+      __hronautAttentionNotification?: {
+        supported: typeof Notification.isSupported
+        show: typeof Notification.prototype.show
+        close: typeof Notification.prototype.close
+        shown: Array<{ title: string; body: string }>
+        closed: number
+      }
+    }
+    scope.__hronautAttentionNotification = {
+      supported: Notification.isSupported,
+      show: Notification.prototype.show,
+      close: Notification.prototype.close,
+      shown: [],
+      closed: 0
+    }
+    Notification.isSupported = () => true
+    Notification.prototype.show = function () {
+      scope.__hronautAttentionNotification!.shown.push({ title: this.title, body: this.body })
+    }
+    Notification.prototype.close = function () {
+      scope.__hronautAttentionNotification!.closed += 1
+    }
+  })
+  const client = new Client({ name: 'attention-notification-test', version: '1' })
+  try {
+    await expect.poll(async () => {
+      try { return (await fetch(`http://127.0.0.1:${mcpPort}/healthz`, { headers: { authorization: `Bearer ${mcpToken}` } })).ok } catch { return false }
+    }).toBe(true)
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${mcpPort}/mcp`), {
+      requestInit: { headers: { authorization: `Bearer ${mcpToken}` } }
+    }))
+    await useMcpWorkspace(client, 'Attention notification')
+    const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url: 'about:blank', active: true } }) as CallToolResult
+    expect(opened.isError, text(opened)).not.toBe(true)
+    const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    const requested = await client.callTool({
+      name: 'browser_request_user_attention',
+      arguments: { tabId, reason: 'Review the browser step.', notificationMessage: 'Please approve the browser step.' }
+    }) as CallToolResult
+    expect(requested.isError, text(requested)).not.toBe(true)
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionNotification?: { shown: Array<{ title: string; body: string }> } }
+    ).__hronautAttentionNotification?.shown)).toContainEqual({ title: 'Hronaut', body: 'Please approve the browser step.' })
+    const tab = appWindow.locator(`[data-tab-id="${tabId}"]`)
+    await expect(tab).toHaveClass(/needs-attention/)
+    await expect(tab.locator('.tab-attention-badge')).toBeVisible()
+    await expect(tab).toHaveAttribute('aria-description', /Agent needs your attention: Review the browser step\./)
+    await client.callTool({ name: 'browser_close_tab', arguments: { tabId } })
+    await expect(tab).toHaveCount(0)
+    await expect.poll(async () => {
+      const status = await client.callTool({ name: 'browser_status', arguments: {} }) as CallToolResult
+      return JSON.parse(text(status)).userAttention
+    }).toBeNull()
+    await expect.poll(() => electronApp.evaluate(() => (
+      globalThis as typeof globalThis & { __hronautAttentionNotification?: { closed: number } }
+    ).__hronautAttentionNotification?.closed)).toBe(1)
+  } finally {
+    await client.close()
+    await electronApp.evaluate(({ Notification }) => {
+      const scope = globalThis as typeof globalThis & {
+        __hronautAttentionNotification?: { supported: typeof Notification.isSupported; show: typeof Notification.prototype.show; close: typeof Notification.prototype.close }
+      }
+      const original = scope.__hronautAttentionNotification
+      if (original) {
+        Notification.isSupported = original.supported
+        Notification.prototype.show = original.show
+        Notification.prototype.close = original.close
+      }
+      delete scope.__hronautAttentionNotification
+    }).catch(() => undefined)
+  }
+})
+
 test('clears native user attention when its tab or workspace closes', async ({
   electronApp,
   mcpPort,

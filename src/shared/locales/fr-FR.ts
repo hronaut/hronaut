@@ -1235,6 +1235,7 @@ export const frFR = {
       "scrollBack": "Afficher les onglets précédents",
       "scrollForward": "Afficher les onglets suivants",
       "pageAttention": "La page requiert votre attention",
+      "agentAttention": "L’agent a besoin de votre attention",
       "sleeping": "En veille pour économiser les ressources",
       "frozen": "Page figée pour vérification",
       "freezeUnknown": "Résultat du gel inconnu",

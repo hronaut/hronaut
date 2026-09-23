@@ -18,6 +18,7 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  Notification,
   protocol,
   safeStorage,
   screen,
@@ -311,6 +312,7 @@ let attentionRequestGeneration = 0
 let attentionPulseTimer: NodeJS.Timeout | null = null
 let attentionExpiryTimer: NodeJS.Timeout | null = null
 let attentionPulseOn = false
+let attentionNotification: Notification | null = null
 let trayIcon: NativeImage | null = null
 let trayAttentionIcon: NativeImage | null = null
 // Keep the current clipboard image alive while Hronaut owns the X11 clipboard.
@@ -1401,8 +1403,11 @@ function clearUserAttention(): void {
   attentionDecisionId = undefined
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
+  attentionNotification?.close()
+  attentionNotification = null
   if (!userAttention && !attentionPulseTimer) return
   userAttention = null
+  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', null)
   if (attentionPulseTimer) clearInterval(attentionPulseTimer)
   attentionPulseTimer = null
   attentionPulseOn = false
@@ -1436,6 +1441,7 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   const request: UserAttentionRequest = {
     id: randomUUID(),
     reason: input.reason.replace(/\s+/g, ' ').trim(),
+    ...(input.notificationMessage && { notificationMessage: input.notificationMessage.replace(/\s+/g, ' ').trim() }),
     requestedAt: new Date().toISOString(),
     ...(input.workspaceId && { workspaceId: input.workspaceId }),
     ...(input.tabId && { tabId: input.tabId })
@@ -1446,6 +1452,9 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   }
   if (input.expiresAt !== undefined && (!Number.isSafeInteger(input.expiresAt) || input.expiresAt <= Date.now())) throw new Error('User attention request expired')
   userAttention = request
+  attentionNotification?.close()
+  attentionNotification = null
+  if (mainWindow && !mainWindow.webContents.isDestroyed()) mainWindow.webContents.send('attention:changed', request)
   attentionDecisionId = input.humanWaitingDecisionId
   if (attentionExpiryTimer) clearTimeout(attentionExpiryTimer)
   attentionExpiryTimer = null
@@ -1467,6 +1476,24 @@ async function requestUserAttention(input: UserAttentionInput): Promise<UserAtte
   }
   if (mainWindow && !mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send('attention:requested')
+  }
+  if (Notification.isSupported()) {
+    try {
+      const notification = new Notification({ title: 'Hronaut', body: request.notificationMessage || request.reason })
+      attentionNotification = notification
+      notification.on('click', () => {
+        if (userAttention?.id !== request.id) return
+        runNativeBrowserAction('show the requested tab', async () => {
+          if (request.tabId) await tabsManager?.selectTabAndWait(request.tabId)
+          if (userAttention?.id !== request.id) return
+          showWindow()
+          clearUserAttention()
+        })
+      })
+      notification.show()
+    } catch (error) {
+      console.error('[attention] Failed to show system notification:', error)
+    }
   }
   return { ...request }
 }
@@ -2291,6 +2318,10 @@ function registerIpc(): void {
     assertTrustedShellSender(event)
     await tabsInitializationPromise
     return tabsManager!.getState()
+  })
+  ipcMain.handle('attention:get', (event) => {
+    assertMainShellSender(event)
+    return userAttention ? { ...userAttention } : null
   })
   ipcMain.handle('browser:get-tab-overview-previews', async (event, value: unknown) => {
     assertTrustedShellSender(event)

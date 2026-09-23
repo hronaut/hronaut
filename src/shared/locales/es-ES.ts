@@ -1235,6 +1235,7 @@ export const esES = {
       "scrollBack": "Mostrar pestañas anteriores",
       "scrollForward": "Mostrar pestañas siguientes",
       "pageAttention": "La página requiere atención",
+      "agentAttention": "El agente necesita tu atención",
       "sleeping": "Suspendida para ahorrar recursos",
       "frozen": "Página congelada para revisión",
       "freezeUnknown": "Resultado de la pausa desconocido",

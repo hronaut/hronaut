@@ -330,6 +330,10 @@
   content: "";
   @apply pointer-events-none;
 }
+.tab-attention-badge {
+  @apply absolute [z-index:4] [top:-4px] [right:-4px] grid [width:17px] [height:17px] place-items-center [border:2px_solid_var(--toolbar)] rounded-full [background:#b65900] text-white [font-size:11px] [font-weight:800] [line-height:1] pointer-events-none;
+}
+.tab-attention-badge svg { @apply [width:12px] [height:12px]; }
 @keyframes tab-agent-pulse {
   0%, 100% { opacity: .38; }
   50% { opacity: 1; }
@@ -349,6 +353,10 @@
 .tab.grouped { @apply [background:transparent]; }
 .tab.grouped:hover { @apply [background:var(--tab-hover)]; }
 .tab.grouped.active { @apply [background:var(--toolbar)]; }
+.tab.needs-attention {
+  @apply [border-color:#e49a32] [background:color-mix(in_srgb,_#e49a32_19%,_var(--toolbar))] [box-shadow:inset_0_0_0_1px_#e49a32,_0_0_0_2px_color-mix(in_srgb,_#e49a32_35%,_transparent)];
+}
+.tab.needs-attention .tab-title { @apply [font-weight:750]; }
 .tab.sleeping { @apply [color:color-mix(in_srgb,_var(--text)_68%,_var(--muted))]; }
 .tab.frozen { @apply [box-shadow:inset_0_-2px_0_color-mix(in_srgb,_var(--accent)_72%,_#6f7cff)]; }
 .tab.sleeping .favicon-image,

@@ -112,6 +112,21 @@ function renderTabs(
 }
 
 describe('BrowserTabsBar', () => {
+  it.each(['horizontal', 'vertical'] as const)('marks only the requested tab in the %s rail and clears it with the request', async orientation => {
+    const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }), true, orientation)
+    const first = screen.getByRole('tab', { name: 'Page first' })
+    const second = screen.getByRole('tab', { name: 'Page second' })
+    await view.rerender({ userAttention: { id: 'attention-1', reason: 'Approve this step.', requestedAt: '2026-09-23T00:00:00.000Z', tabId: 'first' } })
+    expect(first).toHaveClass('needs-attention')
+    expect(first).toHaveAccessibleDescription('Agent needs your attention: Approve this step.')
+    expect(first.querySelector('.tab-attention-badge')).toBeInTheDocument()
+    expect(second).not.toHaveClass('needs-attention')
+    await view.rerender({ userAttention: null })
+    expect(first).not.toHaveClass('needs-attention')
+    expect(first.querySelector('.tab-attention-badge')).not.toBeInTheDocument()
+    expect(first).not.toHaveAttribute('aria-description')
+  })
+
   it('describes agent activity without replacing the tab name or its navigation controls', async () => {
     const view = renderTabs(browserState({ tabs: [tab('first'), tab('second', { active: true })], activeTabId: 'second' }))
     const first = screen.getByRole('tab', { name: 'Page first' })

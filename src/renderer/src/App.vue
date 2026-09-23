@@ -53,6 +53,16 @@ const {
   formatPercent: localPercent
 } = useLocaleFormatters(resolvedLocale)
 const browser = window.hronaut
+const userAttention = ref<Awaited<ReturnType<typeof browser.getUserAttention>>>(null)
+let attentionRevision = 0
+const disposeAttention = browser.onUserAttentionChanged((request) => {
+  attentionRevision += 1
+  userAttention.value = request
+})
+const initialAttentionRevision = attentionRevision
+void browser.getUserAttention().then((request) => {
+  if (attentionRevision === initialAttentionRevision) userAttention.value = request
+})
 const appToastController = useAppToastController()
 const {
   toasts: appToasts,
@@ -753,6 +763,7 @@ useAppLifecycleController({
     browserStore.dispose,
     settingsStore.dispose,
     disposeAppEventsController,
+    disposeAttention,
     disposeAppPageToolsPanelFeatureController,
     disposeHelpDialogController,
     disposeAppSiteNavigationFeatureController,
@@ -802,6 +813,7 @@ useAppLifecycleController({
       v-model:split-menu-open="splitMenuOpen"
       v-model:page-tools-open="pageToolsOpen"
       :state="state"
+      :user-attention="userAttention"
       :hydrated="browserStateInitialized"
       :locale="resolvedLocale"
       :browser="browser"
