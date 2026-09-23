@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.13] - 2026-09-23
+
 ### Fixed
 
 - Remove partial HTTP credentials from older bookmark fallback titles even when their saved address was already sanitized.
