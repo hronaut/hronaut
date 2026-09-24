@@ -65,7 +65,7 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
 test('recovers Home after its renderer exits without losing the selected client', async ({ appWindow, electronApp }) => {
   const homeContents = async () => electronApp.evaluate(({ webContents }) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
-    return home ? { id: home.id, processId: home.getOSProcessId() } : undefined
+    return home ? { id: home.id, processId: home.getOSProcessId(), loading: home.isLoadingMainFrame(), crashed: home.isCrashed() } : undefined
   })
   await expect.poll(homeContents).toBeTruthy()
   await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
@@ -76,6 +76,11 @@ test('recovers Home after its renderer exits without losing the selected client'
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
     await home.executeJavaScript(`document.querySelector('[data-guide="opencode"]').click()`)
   })
+  // Finish Playwright's attachment before deliberately killing this target.
+  // Main-process executeJavaScript can succeed while CDP initialization is pending.
+  await expect.poll(() => electronApp.context().pages().some(page => page.url().startsWith('hronaut://home'))).toBe(true)
+  const homePage = electronApp.context().pages().find(page => page.url().startsWith('hronaut://home'))!
+  await expect(homePage.locator('#guide-name')).toHaveText('OpenCode')
   const before = await homeContents()
   expect(before?.processId).toBeGreaterThan(0)
   await electronApp.evaluate((_electron, processId) => process.kill(processId, 'SIGKILL'), before!.processId)
@@ -85,6 +90,12 @@ test('recovers Home after its renderer exits without losing the selected client'
     const shell = await electronApp.firstWindow()
     return shell.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.pageProblem ?? null)`)
   }).toBeNull()
+  // The shell clears pageProblem before loadURL finishes. Avoid dispatching a
+  // JavaScript read to the old crashed renderer while its replacement starts.
+  await expect.poll(async () => {
+    const home = await homeContents()
+    return Boolean(home && home.processId > 0 && home.processId !== before!.processId && !home.loading && !home.crashed)
+  }).toBe(true)
   await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
     return home.executeJavaScript(`document.getElementById('guide-name')?.textContent`)

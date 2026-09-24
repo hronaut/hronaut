@@ -266,3 +266,11 @@ commit, and detached panels retain their separate open-state behavior.
   client and starts a different renderer process. This fixes recovery UI, not
   the cause of the intermittent exit-139 crash. Twenty focused onboarding
   repetitions also passed without reproducing that spontaneous crash.
+
+- The first full Home-recovery run hit `Target crashed` in the forced-kill test.
+  Its exit attachment recorded only the intentional Home SIGKILL. Waiting for
+  native recovery alone still produced one failure and two flaky cases in ten
+  repetitions. The fixture now completes a Playwright DOM assertion on Home
+  before killing it, then waits for a different, loaded native renderer before
+  reading the recovered DOM. All ten subsequent repetitions passed. This
+  fixture synchronization does not explain the earlier spontaneous exit 139.
