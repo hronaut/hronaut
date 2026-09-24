@@ -176,6 +176,37 @@ describe('modal dialog focus lifecycle', () => {
     background.remove()
   })
 
+  it('preserves a newer focus choice while modal-close focus restoration awaits IPC', async () => {
+    const original = document.createElement('button')
+    const newer = document.createElement('button')
+    original.textContent = 'Original focus'
+    newer.textContent = 'New focus'
+    document.body.append(original, newer)
+    original.focus()
+    const isWindowFocused = vi.fn().mockResolvedValue(true)
+    Object.defineProperty(window, 'hronautShell', { configurable: true, value: { isWindowFocused } })
+    const view = render(BackgroundModalHarness)
+    try {
+      await vi.waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus())
+      const pending = deferred<boolean>()
+      isWindowFocused.mockImplementationOnce(() => pending.promise)
+      screen.getByRole('button', { name: 'Close background modal' }).click()
+      await nextTick()
+      await nextTick()
+      newer.focus()
+      pending.resolve(true)
+      await pending.promise
+      await nextTick()
+      await nextTick()
+      expect(newer).toHaveFocus()
+    } finally {
+      view.unmount()
+      Reflect.deleteProperty(window, 'hronautShell')
+      original.remove()
+      newer.remove()
+    }
+  })
+
   it('fails closed when the native window-focus query is unavailable during modal cleanup', async () => {
     const background = document.createElement('button')
     background.textContent = 'Previous Hronaut focus owner'

@@ -191,6 +191,10 @@ export function useModalDialogFocus(options: ModalDialogFocusOptions): void {
       const target = returnFocus
       returnFocus = null
       if (!applicationFocused || !target?.isConnected) return
+      // Native focus checks can finish after the user has chosen another control.
+      const activeElement = document.activeElement
+      if (activeElement && activeElement !== document.body && activeElement !== document.documentElement
+        && !options.panel.value?.contains(activeElement)) return
       target.focus({ preventScroll: true })
     },
     { immediate: true }
