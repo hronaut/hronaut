@@ -169,13 +169,14 @@ describe('MCPB release package', () => {
     }
   })
 
-  it('initializes and calls a tool through the bundled stdio-to-HTTP adapter', async () => {
+  it.each(process.platform === 'linux' ? ['archive', 'alias'] : ['alias'])(
+    'initializes and calls a tool through the bundled stdio-to-HTTP adapter (%s)', async launchPath => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
     const artifactPath = join(outputDirectory, `hronaut-mcp-adapter-${packageJson.version}.mcpb`)
     const artifact = await readFile(artifactPath)
     let extractionDirectory: string | undefined
     let adapterPath: string
-    if (process.platform === 'linux') {
+    if (launchPath === 'archive') {
       extractionDirectory = await mkdtemp(join(tmpdir(), 'hronaut-mcpb-smoke-'))
       const extraction = spawnSync('unzip', ['-q', artifactPath, '-d', extractionDirectory], {
         encoding: 'utf8'
@@ -242,12 +243,20 @@ describe('MCPB release package', () => {
       await client.connect(transport)
       const result = await client.callTool({ name: 'echo', arguments: { value: 'adapter-ready' } })
       expect(result.content).toEqual([{ type: 'text', text: 'adapter-ready' }])
-    } finally {
       await client.close()
       await vi.waitFor(() => expect(terminationRequests).toBe(1))
-      if (session) await session.server.close()
-      await new Promise<void>((resolve) => httpServer.close(() => resolve()))
-      if (extractionDirectory) await rm(extractionDirectory, { recursive: true, force: true })
+    } finally {
+      try {
+        await client.close()
+      } finally {
+        try {
+          if (session) await session.server.close()
+        } finally {
+          httpServer.closeAllConnections()
+          await new Promise<void>((resolve) => httpServer.close(() => resolve()))
+          if (extractionDirectory) await rm(extractionDirectory, { recursive: true, force: true })
+        }
+      }
     }
   }, 15_000)
 

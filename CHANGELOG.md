@@ -4,10 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
-## [2.5.26] - 2026-09-25
+## [2.5.27] - 2026-09-25
 
 ### Fixed
 
+- Start the MCPB adapter correctly when launched through a filesystem alias.
 - Prevent concurrent update checks from scheduling duplicate restarts after a Linux package replacement.
 - Keep iframe connection and certificate details out of the main document's security report.
 - Keep recorded iframe and open-shadow interactions as manual steps instead of exporting selectors for their outer containers.

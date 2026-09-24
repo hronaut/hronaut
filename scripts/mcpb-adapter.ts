@@ -2,7 +2,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js'
 import { open } from 'node:fs/promises'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 const DEFAULT_ENDPOINT = 'http://127.0.0.1:47812/mcp'
 const MAX_STDIO_BUFFER_BYTES = 10 * 1024 * 1024
@@ -172,7 +172,7 @@ export async function runAdapter(environment: NodeJS.ProcessEnv = process.env): 
   process.stdin.once('end', () => void close())
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   runAdapter().catch(() => {
     process.stderr.write('Hronaut MCP adapter could not start. Check the local configuration shown in Hronaut Home.\n')
     process.exitCode = 1

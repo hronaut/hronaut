@@ -657,3 +657,17 @@ commit, and detached panels retain their separate open-state behavior.
   The waiting catalog-only validation was stopped before creating any container;
   the catalog extraction and this infrastructure fix will share one new immutable
   validation run after the unchanged v2.5.26 release candidate finishes.
+
+
+- The v2.5.26 release gate passed Linux but failed the macOS and Windows MCPB
+  smoke tests. Their teardown assertion hid an earlier adapter startup failure.
+  Running the same filesystem-alias launch on Linux reproduced `Connection
+  closed`, while launching the extracted archive succeeded. The adapter's CLI
+  guard compared a resolved module URL with an unresolved argv path and silently
+  skipped startup. It now shares `isMainModule` with operator metadata generation.
+  Linux packaging coverage exercises both actual extraction and alias launch;
+  cleanup always releases the fixture server and no longer asserts termination
+  after a failed initialization. All 30 focused adapter, packaging and entry-point
+  cases pass. Version 2.5.26 remains an immutable, unpublished failed candidate;
+  2.5.27 carries its fixes plus this correction and the pending catalog/networking
+  batch. Fresh full validation and all platform release gates remain required.
