@@ -1,3 +1,4 @@
+import { registerWalletIpc } from './wallet/ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
@@ -47,16 +48,6 @@ import { generateWalletWithRecoveryConfirmation } from './wallet/onboarding.js'
 import { WalletService } from './wallet/service.js'
 import { walletStartupFailureStatus } from './wallet/startup-status.js'
 import { createWalletLifecycleCallbacks } from './wallet/lifecycle-callbacks.js'
-import {
-  WalletChainFamilySchema,
-  WalletPolicySchema,
-  WalletSecretFormatSchema,
-  type WalletCreateInput,
-  type WalletImportDetails,
-  type WalletProviderRequest,
-  type WalletUpdateInput,
-  type WalletWatchOnlyInput
-} from '../shared/wallet.js'
 import { flushBrowserSessionStorage, workspacePartition } from './browser/workspace-storage.js'
 import { normalizeWorkspaceNavigationPolicy } from './browser/workspace-navigation-policy.js'
 import { BookmarkStore } from './bookmark-store.js'
@@ -1930,13 +1921,6 @@ function assertWalletPageSender(event: Electron.IpcMainInvokeEvent) {
   return walletBrokerContextFromIpc(event, tabsManager)
 }
 
-function walletIdentifier(value: unknown, label: string): string {
-  if (typeof value !== 'string' || value.trim() !== value || value.length < 1 || value.length > 128) {
-    throw new TypeError(`Invalid ${label}`)
-  }
-  return value
-}
-
 function requireWalletService(): WalletService {
   if (!walletService) throw new Error('Wallet service is unavailable')
   return walletService
@@ -2225,115 +2209,31 @@ function registerIpc(): void {
     console.info(paused ? '[mcp] Paused by the user.' : '[mcp] Resumed by the user.')
     return state
   })
-  ipcMain.handle('wallet-provider:request', (event, input: WalletProviderRequest) => (
-    requireWalletBroker().providerRequest(assertWalletPageSender(event), input)
-  ))
-  ipcMain.handle('wallets:status', (event) => {
-    assertMainShellSender(event)
-    return currentWalletServiceStatus()
-  })
-  ipcMain.handle('wallets:list', (event) => {
-    assertMainShellSender(event)
-    return walletService?.list() ?? []
-  })
-  ipcMain.handle('wallets:setup-passphrase', async (event, passphrase: unknown) => {
-    assertMainShellSender(event)
-    if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
-    return requireWalletService().setupPassphrase(passphrase)
-  })
-  ipcMain.handle('wallets:unlock', async (event, passphrase: unknown) => {
-    assertMainShellSender(event)
-    if (typeof passphrase !== 'string') throw new TypeError('Wallet passphrase must be a string')
-    return requireWalletService().unlock(passphrase)
-  })
-  ipcMain.handle('wallets:lock', async (event) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().lock()
-  })
-  ipcMain.handle('wallets:generate', async (event, input: WalletCreateInput) => {
-    assertMainShellSender(event)
-    const service = requireWalletService()
-    const owner = mainWindow
-    if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-    return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
-      if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
-      const { response } = await dialog.showMessageBox(owner, {
-        type: 'warning',
-        title: 'Save wallet recovery material',
-        message: 'Write down this recovery phrase and store it offline.',
-        detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
-        buttons: ['I saved it', 'Not yet'],
-        defaultId: 1,
-        cancelId: 1,
-        noLink: true
+  registerWalletIpc(ipcMain, {
+    assertMainShellSender,
+    assertWalletPageSender,
+    service: () => walletService,
+    broker: () => walletBroker,
+    status: currentWalletServiceStatus,
+    generateWallet: async (input) => {
+      const service = requireWalletService()
+      const owner = mainWindow
+      if (!owner || owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
+      return generateWalletWithRecoveryConfirmation(service, input, async (recoveryMaterial) => {
+        if (owner.isDestroyed()) throw new Error('The Hronaut window is unavailable')
+        const { response } = await dialog.showMessageBox(owner, {
+          type: 'warning',
+          title: 'Save wallet recovery material',
+          message: 'Write down this recovery phrase and store it offline.',
+          detail: `${recoveryMaterial}\n\nHronaut cannot recover this phrase. Never share it with a website or coding agent.`,
+          buttons: ['I saved it', 'Not yet'],
+          defaultId: 1,
+          cancelId: 1,
+          noLink: true
+        })
+        return response === 0
       })
-      return response === 0
-    })
-  })
-  ipcMain.handle('wallets:prepare-import', (event, chainFamily: unknown, format: unknown, recoveryMaterial: unknown) => {
-    assertMainShellSender(event)
-    if (typeof recoveryMaterial !== 'string') throw new TypeError('Wallet recovery material must be a string')
-    return requireWalletService().prepareImport(
-      WalletChainFamilySchema.parse(chainFamily),
-      WalletSecretFormatSchema.parse(format),
-      recoveryMaterial
-    )
-  })
-  ipcMain.handle('wallets:confirm-import', (event, token: unknown, details: WalletImportDetails) => {
-    assertMainShellSender(event)
-    return requireWalletService().confirmImport(walletIdentifier(token, 'wallet import token'), details)
-  })
-  ipcMain.handle('wallets:cancel-import', (event, token: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletService().cancelImport(walletIdentifier(token, 'wallet import token'))
-  })
-  ipcMain.handle('wallets:add-watch-only', (event, input: WalletWatchOnlyInput) => {
-    assertMainShellSender(event)
-    return requireWalletService().addWatchOnly(input)
-  })
-  ipcMain.handle('wallets:update', (event, walletId: unknown, changes: WalletUpdateInput) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().updateWallet(walletIdentifier(walletId, 'wallet identifier'), changes)
-  })
-  ipcMain.handle('wallets:remove', (event, walletId: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().removeWallet(walletIdentifier(walletId, 'wallet identifier'))
-  })
-  ipcMain.handle('wallets:list-policies', (event, walletId?: unknown) => {
-    assertMainShellSender(event)
-    return walletService?.policies.list(walletId === undefined ? undefined : walletIdentifier(walletId, 'wallet identifier')) ?? []
-  })
-  ipcMain.handle('wallets:set-policy', (event, input: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().setPolicy(WalletPolicySchema.parse(input))
-  })
-  ipcMain.handle('wallets:remove-policy', (event, policyId: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().removePolicy(walletIdentifier(policyId, 'wallet policy identifier'))
-  })
-  ipcMain.handle('wallets:list-permissions', (event) => {
-    assertMainShellSender(event)
-    return walletService?.permissions.list() ?? []
-  })
-  ipcMain.handle('wallets:revoke-permission', (event, permissionId: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().revokePermission(walletIdentifier(permissionId, 'wallet permission identifier'))
-  })
-  ipcMain.handle('wallets:list-requests', (event) => {
-    assertMainShellSender(event)
-    return walletBroker?.listPending() ?? []
-  })
-  ipcMain.handle('wallets:approve-request', (event, requestId: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().approve(walletIdentifier(requestId, 'wallet request identifier'))
-  })
-  ipcMain.handle('wallets:reject-request', (event, requestId: unknown) => {
-    assertMainShellSender(event)
-    return requireWalletBroker().reject(walletIdentifier(requestId, 'wallet request identifier'))
-  })
-  ipcMain.handle('wallets:audit-history', (event) => {
-    assertMainShellSender(event)
-    return walletService?.auditHistory() ?? []
+    }
   })
   ipcMain.handle('browser:get-state', async (event) => {
     assertTrustedShellSender(event)
