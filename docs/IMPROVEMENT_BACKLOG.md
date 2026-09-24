@@ -141,10 +141,15 @@ generator previously exited successfully without writing its output through a
 symlinked directory; the real MCPB packaging regression failed before this fix.
 The same helper replaces eight duplicated CLI checks.
 
-The next queue refactoring boundary is shared scheduling for debugger actions and
-explicit page lifecycle changes. Preserve serialization through ambiguous command
-timeouts and the DevTools handoff; a timed-out native command must retain its queue
-slot until it actually settles. Review also found a queued-freeze navigation race:
+Debugger actions and explicit page lifecycle changes now share scheduling in
+`src/main/browser/debugger-queue.ts`. Six focused unit cases cover ordering,
+independent tabs, failed commands, caller deadlines, DevTools handoff, and shutdown
+bookkeeping. A timed-out native command retains its queue slot until it actually
+settles; Electron attachment and document authority remain in the manager.
+All eight focused native cases pass after extraction, covering emulation,
+rollback ordering, the stale-document regression, explicit page holds, and
+DevTools handoff. Focused lint and typechecking pass as well.
+Review also found a queued-freeze navigation race:
 the lifecycle command checked the document generation only after dispatch. A real
 Electron regression holds an earlier emulation command, queues Freeze, then
 navigates before releasing the queue. It observed a freeze command sent to the new

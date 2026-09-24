@@ -4,6 +4,7 @@ import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareB
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { HomeRefresh } from './home-refresh.js'
+import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
@@ -1230,7 +1231,7 @@ export class BrowserTabsManager {
   private readonly networkHookSessions = new WeakSet<Session>()
   private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   private readonly webContentsToTab = new Map<number, string>()
-  private readonly debuggerQueues = new Map<number, Promise<void>>()
+  private readonly debuggerQueue = new BrowserDebuggerQueue()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
     matchingRequest: (tab, options, minCaptureSequence) => {
@@ -3332,8 +3333,7 @@ export class BrowserTabsManager {
         throw new Error('The document changed before its page lifecycle command was dispatched.')
       }
     }
-    const previous = this.debuggerQueues.get(webContents.id) ?? Promise.resolve()
-    const command = previous.catch(() => undefined).then(async () => {
+    const command = this.debuggerQueue.run(webContents.id, async () => {
       assertCurrentDocument()
       await this.dialogMonitorAttachPromises.get(webContents.id)
       if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
@@ -3387,11 +3387,6 @@ export class BrowserTabsManager {
         }
         tab.pageLifecycleAnimations = undefined
       }
-    })
-    const tail = command.then(() => undefined, () => undefined)
-    this.debuggerQueues.set(webContents.id, tail)
-    void tail.finally(() => {
-      if (this.debuggerQueues.get(webContents.id) === tail) this.debuggerQueues.delete(webContents.id)
     })
     const deadline = Symbol('page-lifecycle-command-timeout')
     let timer: NodeJS.Timeout | undefined
@@ -7279,7 +7274,7 @@ export class BrowserTabsManager {
     this.authorizedAgentMouseInput.clear()
     this.authorizedAgentKeyboardInput.clear()
     this.downloadController.destroy()
-    this.debuggerQueues.clear()
+    this.debuggerQueue.clear()
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)
     this.networkRouteRefreshTimers.clear()
@@ -9694,13 +9689,7 @@ export class BrowserTabsManager {
   }
 
   private async withDebugger<T>(webContents: BrowserTab['view']['webContents'], operation: () => Promise<T>): Promise<T> {
-    const previous = this.debuggerQueues.get(webContents.id) ?? Promise.resolve()
-    let releaseQueue!: () => void
-    const gate = new Promise<void>((resolve) => { releaseQueue = resolve })
-    const tail = previous.then(() => gate)
-    this.debuggerQueues.set(webContents.id, tail)
-    await previous
-    try {
+    return this.debuggerQueue.run(webContents.id, async () => {
       await this.dialogMonitorAttachPromises.get(webContents.id)
       if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
         throw new Error('Close Developer Tools for this tab before using this MCP action')
@@ -9721,10 +9710,7 @@ export class BrowserTabsManager {
           await webContents.debugger.sendCommand('Runtime.enable').catch(() => undefined)
         }
       }
-    } finally {
-      releaseQueue()
-      if (this.debuggerQueues.get(webContents.id) === tail) this.debuggerQueues.delete(webContents.id)
-    }
+    })
   }
 
   private async withOptionalDialogHandling<T>(
@@ -9878,7 +9864,7 @@ export class BrowserTabsManager {
     this.devToolsOpening.add(webContents.id)
     try {
       await this.dialogMonitorAttachPromises.get(webContents.id)
-      const pendingDebugger = this.debuggerQueues.get(webContents.id)
+      const pendingDebugger = this.debuggerQueue.pending(webContents.id)
       if (pendingDebugger) await pendingDebugger
       if (webContents.isDestroyed() || webContents.isDevToolsOpened()) return
       if (webContents.debugger.isAttached()) webContents.debugger.detach()
