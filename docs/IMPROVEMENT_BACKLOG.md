@@ -481,3 +481,38 @@ commit, and detached panels retain their separate open-state behavior.
   Nine focused cases (three repetitions each) and focused lint/typechecking pass
   without increasing deadlines. The superseded full run is not counted as a pass;
   the final 551-case immutable image must pass before publication.
+
+- Fresh thumbnail review found that timeout cleanup removed overview eligibility
+  but did not retain native capture ownership. Opening trusted chrome re-added
+  eligibility, allowing another `capturePage` while the first was still pending.
+  A real Electron regression observed two native calls on both failing-before
+  attempts. `native-preview-capture.ts` now owns native in-flight identity and
+  caller deadlines separately: the shared queue can continue for other pages,
+  while this page remains protected until its native promise settles. The manager
+  retains eligibility, image processing, cache publication, and late recovery.
+  Five focused unit cases, the native regression, and all three thumbnail quality
+  cases pass, as do focused lint and typechecking. This follow-up is isolated from
+  the immutable v2.5.25 candidate and still needs its own full validation.
+
+- Thumbnail coalescing and global serialization now live in
+  `preview-capture-queue.ts`. Each active capture owns its pending request, so
+  clearing bookkeeping cannot let an older completion consume a newer entry's
+  work. Six focused queue cases cover newest/equal-sequence replacement,
+  cross-tab serialization, pending cancellation, rejection recovery, and clearing
+  during active work. Together with native ownership coverage, all eleven focused
+  unit cases and all four native thumbnail cases pass; focused static checks pass.
+  Eligibility, settle timers, image encoding, and cache publication remain in the
+  manager. The earlier ownership-only validation launcher was stopped before it
+  started any containers, so this combined batch receives the next full gate.
+
+- Removing the integrated export checkout exposed a focused-runner cleanup bug:
+  `.cache/hronaut/focused-build-app.sha256` and both parent directories remained
+  owned by root, so the host user could not remove the checkout normally. The
+  launcher's existing ownership repair now includes `.cache`. Two real CLI
+  regressions with a controlled Docker command failed before the fix for both
+  successful and failing test exits; all thirteen focused Docker feedback cases
+  pass afterward. An actual Docker run changed the existing cache from UID/GID
+  0:0 to the host's 1000:1000. Focused lint/typechecking pass. This is a launcher
+  change only; the running `c54f33d` image still contains the exact application
+  code and Electron suite for the thumbnail batch. Updated full static validation
+  covers the additional launcher regression tests before integration.

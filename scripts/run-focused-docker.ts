@@ -124,7 +124,7 @@ if (result.error) {
 
 let ownershipRepairStatus = 0
 if (process.platform === 'linux' && typeof process.getuid === 'function' && typeof process.getgid === 'function') {
-  const generatedPaths = ['out', 'test-results', 'playwright-report']
+  const generatedPaths = ['out', 'test-results', 'playwright-report', '.cache']
     .filter(path => existsSync(path))
     .map(path => `/workspace/${path}`)
   if (generatedPaths.length > 0) {
