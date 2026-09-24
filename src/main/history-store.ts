@@ -81,10 +81,18 @@ export class HistoryStore {
   private readonly entries = new Map<string, BrowserHistoryEntry>()
   private mutationQueue: Promise<void> = Promise.resolve()
   private saveQueue: Promise<void> = Promise.resolve()
+  private expiryTimer: NodeJS.Timeout | undefined
+  private disposed = false
 
-  constructor(private readonly path: string, private readonly now: () => number = Date.now) {}
+  constructor(
+    private readonly path: string,
+    private readonly now: () => number = Date.now,
+    private readonly onExpired?: () => void
+  ) {}
 
   async load(): Promise<BrowserHistoryEntry[]> {
+    if (this.expiryTimer) clearTimeout(this.expiryTimer)
+    this.expiryTimer = undefined
     this.entries.clear()
     try {
       const parsed = JSON.parse(await readFile(this.path, 'utf8')) as unknown
@@ -139,15 +147,40 @@ export class HistoryStore {
       const code = (error as NodeJS.ErrnoException).code
       if (code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error
     }
+    this.scheduleExpiry()
     return this.list()
   }
 
   list(): BrowserHistoryEntry[] {
-    return sortedHistory(this.entries.values())
+    const oldestAllowed = this.now() - HISTORY_RETENTION_MS
+    return sortedHistory([...this.entries.values()].filter((entry) => Date.parse(entry.visitedAt) >= oldestAllowed))
   }
 
   flush(): Promise<void> {
     return this.mutationQueue
+  }
+
+  dispose(): void {
+    this.disposed = true
+    if (this.expiryTimer) clearTimeout(this.expiryTimer)
+    this.expiryTimer = undefined
+  }
+
+  async pruneExpired(): Promise<number> {
+    return this.queueMutation(async () => {
+      const nextEntries = new Map(this.entries)
+      const before = nextEntries.size
+      this.prune(nextEntries)
+      const removed = before - nextEntries.size
+      if (!removed) {
+        this.scheduleExpiry()
+        return 0
+      }
+      await this.persist(nextEntries.values())
+      this.replaceEntries(nextEntries)
+      if (!this.disposed) this.onExpired?.()
+      return removed
+    })
   }
 
   async record(value: { url: string; title: string }): Promise<BrowserHistoryEntry | null> {
@@ -155,6 +188,7 @@ export class HistoryStore {
     if (!url) return null
     return this.queueMutation(async () => {
       const nextEntries = new Map(this.entries)
+      this.prune(nextEntries)
       const existing = [...nextEntries.values()].find((entry) => entry.url === url)
       const entry: BrowserHistoryEntry = {
         id: existing?.id ?? randomUUID(),
@@ -204,7 +238,7 @@ export class HistoryStore {
     await this.queueMutation(async () => {
       if (!this.entries.size) return
       await this.persist([])
-      this.entries.clear()
+      this.replaceEntries(new Map())
     })
   }
 
@@ -242,6 +276,23 @@ export class HistoryStore {
   private replaceEntries(entries: ReadonlyMap<string, BrowserHistoryEntry>): void {
     this.entries.clear()
     for (const [id, entry] of entries) this.entries.set(id, entry)
+    this.scheduleExpiry()
+  }
+
+  private scheduleExpiry(minimumDelay = 1): void {
+    if (this.expiryTimer) clearTimeout(this.expiryTimer)
+    this.expiryTimer = undefined
+    if (!this.onExpired || this.disposed || !this.entries.size) return
+    const firstExpiration = Math.min(...[...this.entries.values()].map((entry) => Date.parse(entry.visitedAt) + HISTORY_RETENTION_MS + 1))
+    const delay = Math.max(minimumDelay, Math.min(2_147_483_647, firstExpiration - this.now()))
+    this.expiryTimer = setTimeout(() => {
+      this.expiryTimer = undefined
+      void this.pruneExpired().catch((error) => {
+        console.error('[history] Failed to prune expired visits:', error)
+        this.scheduleExpiry(60_000)
+      })
+    }, delay)
+    this.expiryTimer.unref()
   }
 
   private persist(entries: Iterable<BrowserHistoryEntry> = this.entries.values()): Promise<void> {

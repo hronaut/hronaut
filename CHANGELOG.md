@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Do not count an iframe's in-page navigation as another visit to its parent website.
+- Expire browsing-history visits during long-running sessions and reset repeat-visit counts after the 90-day retention window.
 
 ## [2.5.16] - 2026-09-24
 

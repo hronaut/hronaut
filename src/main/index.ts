@@ -3822,7 +3822,7 @@ async function reconcileStartupSetting(): Promise<void> {
 async function createWindow(startMinimized = false): Promise<void> {
   bookmarkStore = new BookmarkStore(join(app.getPath('userData'), 'bookmarks.json'))
   await bookmarkStore.load()
-  historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'))
+  historyStore = new HistoryStore(join(app.getPath('userData'), 'history.json'), Date.now, publishVisitHistory)
   await historyStore.load()
   persistentSession?.setDownloadPath(effectiveDownloadDirectory())
   await configureCredentialStore()
@@ -4207,6 +4207,7 @@ async function releaseRuntimeResources(): Promise<void> {
   const broker = walletBroker
   mcpServer = null
   runtimeShutdown = (async () => {
+    historyStore?.dispose()
     const results = [
       ...await Promise.allSettled([server?.stop()]),
       ...await Promise.allSettled([auditReceipts?.stopAll()]),

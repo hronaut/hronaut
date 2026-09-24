@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { HistoryStore, normalizeHistoryUrl } from '../src/main/history-store.js'
 
 const directories: string[] = []
@@ -93,6 +93,55 @@ describe('HistoryStore', () => {
     const restored = new HistoryStore(path, () => Date.UTC(2026, 7, 13))
     await restored.load()
     expect(restored.list()).toEqual(store.list())
+  })
+
+  it('stops showing a visit after 90 days even when the browser stays open', async () => {
+    let now = Date.UTC(2026, 0, 1)
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const store = new HistoryStore(join(directory, 'history.json'), () => now)
+    await store.record({ url: 'https://expired.example/', title: 'Old visit' })
+
+    now += 91 * 24 * 60 * 60 * 1_000
+
+    expect(store.list()).toEqual([])
+    await store.pruneExpired()
+    expect(JSON.parse(await readFile(join(directory, 'history.json'), 'utf8')).entries).toEqual([])
+  })
+
+  it('starts a fresh visit count when an expired page is visited again', async () => {
+    let now = Date.UTC(2026, 0, 1)
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const store = new HistoryStore(join(directory, 'history.json'), () => now)
+    await store.record({ url: 'https://return.example/', title: 'First visit' })
+
+    now += 91 * 24 * 60 * 60 * 1_000
+
+    expect(await store.record({ url: 'https://return.example/', title: 'New visit' })).toMatchObject({ visitCount: 1 })
+  })
+
+  it('removes expired visits from disk and publishes the change while the app stays open', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(Date.UTC(2026, 0, 1))
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const path = join(directory, 'history.json')
+    const onExpired = vi.fn()
+    const store = new HistoryStore(path, Date.now, onExpired)
+    try {
+      await store.record({ url: 'https://retained.example/', title: 'Retained visit' })
+
+      await vi.advanceTimersByTimeAsync(90 * 24 * 60 * 60 * 1_000 + 1)
+      await store.flush()
+
+      expect(store.list()).toEqual([])
+      expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([])
+      expect(onExpired).toHaveBeenCalledTimes(1)
+    } finally {
+      store.dispose()
+      vi.useRealTimers()
+    }
   })
 
   it('caps restored and newly recorded visit counts at the safe integer limit', async () => {
