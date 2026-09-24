@@ -15,15 +15,16 @@ retain the distinct storage limits, retention, deduplication and visit-count
 behavior in their owning stores. Avoid introducing a generic persistence layer
 as part of this change.
 
-## Next: download ownership
+## Download ownership
 
-`src/main/browser/tabs-manager.ts` owns download maps, session listeners,
-reserved paths, cancellation and reveal actions alongside tab lifecycle.
-Extract a download controller with a narrow host interface for workspace/tab
-lookup, settings, native dialogs and change publication. Follow the existing
-`profiling-controller.ts` pattern. Preserve session listener lifetime, duplicate
-path reservation, workspace attribution, cancellation and shutdown behavior.
-Use the existing real Electron download cases as the behavioral contract.
+`src/main/browser/downloads-controller.ts` now owns download maps, session
+listeners, reserved paths, cancellation, reveal actions and notifications. Its
+host interface supplies settings, download source attribution, workspace
+generations and publication; tab and workspace authority stays in the manager.
+The existing real Electron cases cover progress, cancellation, clear, reveal,
+path collisions, interrupted transfers and workspace archive/restore. Controller
+tests additionally cover the history cap and active transfers across workspace
+observation generations.
 
 Before extraction, regression coverage now exercises resumable interrupted downloads. Electron's
 [DownloadItem contract](https://www.electronjs.org/docs/latest/api/download-item)
@@ -34,8 +35,7 @@ terminal assumption. The real Electron regression reproduced a spurious
 completion timestamp after listing a resumable item. The fix retains native
 items while resumable and shares active/finished classification through
 `src/shared/download-state.ts`; cancellation and clear behavior now pass in
-Docker, with renderer coverage for live and terminal interruptions. The larger
-download-controller extraction remains pending.
+Docker, with renderer coverage for live and terminal interruptions. The controller extraction retains these lifecycle rules.
 
 ## Main-process composition
 

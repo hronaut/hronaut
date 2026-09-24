@@ -1,4 +1,4 @@
-import { isActiveDownload } from '../../shared/download-state.js'
+import { BrowserDownloadsController } from './downloads-controller.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
@@ -20,7 +20,7 @@ import { SplitDividerController } from './split-divider-controller.js'
 import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { validateHeaderName, validateHeaderValue } from 'node:http'
 import { basename, dirname, extname, isAbsolute, join } from 'node:path'
@@ -32,11 +32,9 @@ import {
   nativeImage,
   screen,
   session,
-  shell,
   webContents as electronWebContents,
   WebContentsView,
   type ContextMenuParams,
-  type DownloadItem,
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
@@ -392,7 +390,6 @@ function workspaceNameKey(name: string): string {
   return name.trim().normalize('NFKC').toLowerCase()
 }
 
-const MAX_DOWNLOAD_HISTORY = 200
 const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
@@ -1211,11 +1208,7 @@ export class BrowserTabsManager {
       tab.securitySnapshot = undefined
       this.rejectNetworkWaiters(tab.id, 'Workspace control changed while waiting for network activity.')
     }
-    for (const [downloadId, ownerWorkspaceId] of this.downloadWorkspaceIds) {
-      if (ownerWorkspaceId !== workspaceId) continue
-      const download = this.downloads.get(downloadId)
-      if (download && !isActiveDownload(download)) download.observationGeneration = observationGeneration
-    }
+    this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
   }
 
   private workspaceObservationGeneration(workspaceId: string): number {
@@ -1305,14 +1298,33 @@ export class BrowserTabsManager {
   private contentInsets = { top: 0, right: 0, bottom: 0, left: 0 }
   private browserContentOccluded = false
   private followAgentActivitySuspended = false
+  private readonly downloadController = new BrowserDownloadsController({
+    getSettings: () => ({
+      downloadDirectory: this.options.downloadDirectory,
+      askWhereToSaveDownloads: this.options.askWhereToSaveDownloads,
+      saveDialogTitle: this.text('native.dialog.saveDownload')
+    }),
+    getSource: (webContentsId, downloadUrl) => {
+      const tabId = webContentsId === undefined ? undefined : this.webContentsToTab.get(webContentsId)
+      const tab = tabId ? this.tabs.get(tabId) : undefined
+      const sourceRequest = tab ? [...tab.networkRequests].reverse().find(request => request.url === downloadUrl) : undefined
+      return {
+        tabId,
+        workspaceId: tab?.mcpGroupId,
+        observationGeneration: sourceRequest?.observationGeneration ?? tab?.observationGeneration ?? 0
+      }
+    },
+    workspaceObservationGeneration: (workspaceId) => this.workspaceObservationGeneration(workspaceId),
+    isAvailable: () => !this.destroyed && !this.window.isDestroyed(),
+    publish: (downloads) => {
+      if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
+      this.window.webContents.send('browser:downloads-changed', downloads)
+      this.options.onDownloadsChanged?.(downloads)
+    }
+  })
   private readonly networkHookSessions = new WeakSet<Session>()
-  private readonly downloadHookSessions = new WeakSet<Session>()
   private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
   private readonly webContentsToTab = new Map<number, string>()
-  private readonly downloads = new Map<string, BrowserDownloadState>()
-  private readonly downloadItems = new Map<string, DownloadItem>()
-  private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
-  private readonly reservedDownloadPaths = new Set<string>()
   private readonly debuggerQueues = new Map<number, Promise<void>>()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaiters = new Map<string, Set<BrowserNetworkWaiter>>()
@@ -1332,7 +1344,6 @@ export class BrowserTabsManager {
   private readonly tabOverviewPreviewableTabs = new Set<string>()
   private tabOverviewCaptureQueue: Promise<void> = Promise.resolve()
   private tabOverviewLiveCaptureCursor = 0
-  private downloadNotifyTimer: NodeJS.Timeout | null = null
   private readonly closedTabs: BrowserClosedTabState[] = []
   private mcpUrl: string
 
@@ -6601,39 +6612,11 @@ export class BrowserTabsManager {
   }
 
   listDownloads(): BrowserDownloadState[] {
-    for (const [id, item] of this.downloadItems) {
-      const download = this.downloads.get(id)
-      if (!download) continue
-      download.state = item.getState()
-      download.receivedBytes = item.getReceivedBytes()
-      download.totalBytes = item.getTotalBytes()
-      this.syncDownloadPath(download, item)
-      if (download.state !== 'progressing' && !item.canResume()) {
-        download.completedAt ??= new Date().toISOString()
-        this.downloadItems.delete(id)
-      }
-    }
-    return [...this.downloads.values()]
-      .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
-      .map((download) => ({ ...download }))
+    return this.downloadController.listDownloads()
   }
 
   manageDownloads(action: 'list' | 'cancel' | 'clear', downloadId?: string): BrowserDownloadState[] {
-    if (action === 'cancel') {
-      if (!downloadId) throw new Error('downloadId is required to cancel a download')
-      const item = this.downloadItems.get(downloadId)
-      if (!item) throw new Error(`Active download not found: ${downloadId}`)
-      item.cancel()
-    } else if (action === 'clear') {
-      for (const [id, download] of this.downloads) {
-        if (isActiveDownload(download)) continue
-        this.downloads.delete(id)
-        this.downloadWorkspaceIds.delete(id)
-      }
-    }
-    const downloads = this.listDownloads()
-    if (action !== 'list') this.sendDownloadsChanged(downloads)
-    return downloads
+    return this.downloadController.manageDownloads(action, downloadId)
   }
 
   manageWorkspaceDownloads(
@@ -6641,49 +6624,15 @@ export class BrowserTabsManager {
     action: 'list' | 'cancel' | 'clear',
     downloadId?: string
   ): BrowserDownloadState[] {
-    const observationGeneration = this.workspaceObservationGeneration(workspaceId)
-    if (action === 'cancel') {
-      if (!downloadId) throw new Error('downloadId is required to cancel a download')
-      const item = this.downloadWorkspaceIds.get(downloadId) === workspaceId
-        && this.downloads.get(downloadId)?.observationGeneration === observationGeneration
-        ? this.downloadItems.get(downloadId)
-        : undefined
-      if (!item) throw new Error(`Active download not found: ${downloadId}`)
-      item.cancel()
-    } else if (action === 'clear') {
-      this.listDownloads()
-      for (const [id, download] of this.downloads) {
-        if (this.downloadWorkspaceIds.get(id) !== workspaceId
-          || download.observationGeneration !== observationGeneration
-          || isActiveDownload(download)) continue
-        this.downloads.delete(id)
-        this.downloadWorkspaceIds.delete(id)
-      }
-    }
-    const downloads = this.listDownloads()
-    if (action !== 'list') this.sendDownloadsChanged(downloads)
-    return downloads.filter((download) => (
-      this.downloadWorkspaceIds.get(download.id) === workspaceId
-      && download.observationGeneration === observationGeneration
-    ))
+    return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)
   }
 
   private remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
-    for (const [downloadId, workspaceId] of this.downloadWorkspaceIds) {
-      if (workspaceId !== sourceWorkspaceId) continue
-      this.downloadWorkspaceIds.set(downloadId, targetWorkspaceId)
-      const download = this.downloads.get(downloadId)
-      if (download) download.observationGeneration = this.workspaceObservationGeneration(targetWorkspaceId)
-    }
+    this.downloadController.remapDownloadWorkspaceOwnership(sourceWorkspaceId, targetWorkspaceId)
   }
 
   showDownloadInFolder(downloadId: string): void {
-    const download = this.downloads.get(downloadId)
-    if (!download) throw new Error(`Download not found: ${downloadId}`)
-    if (download.state !== 'completed' || !download.savePath || !existsSync(download.savePath)) {
-      throw new Error('Only a completed download that still exists can be shown in its folder')
-    }
-    shell.showItemInFolder(download.savePath)
+    this.downloadController.showDownloadInFolder(downloadId)
   }
 
   async uploadFiles(
@@ -7632,10 +7581,7 @@ export class BrowserTabsManager {
       clearTimeout(this.persistTimer)
       this.persistTimer = null
     }
-    if (this.downloadNotifyTimer) {
-      clearTimeout(this.downloadNotifyTimer)
-      this.downloadNotifyTimer = null
-    }
+    this.downloadController.clearPendingNotification()
     // The manager exists before the shell finishes loading so IPC can be
     // registered early. A quit request during that window must not replace a
     // valid on-disk session with this still-empty in-memory model.
@@ -7694,7 +7640,7 @@ export class BrowserTabsManager {
     this.stopPresentationWatcher?.()
     if (this.persistTimer) clearTimeout(this.persistTimer)
     if (this.memorySaverTimer) clearInterval(this.memorySaverTimer)
-    if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
+    this.downloadController.clearPendingNotification()
     for (const timer of this.tabOverviewPreviewTimers.values()) clearTimeout(timer)
     this.tabOverviewPreviewTimers.clear()
     this.tabOverviewPreviewCaptures.clear()
@@ -7730,9 +7676,7 @@ export class BrowserTabsManager {
     this.webContentsToTab.clear()
     this.authorizedAgentMouseInput.clear()
     this.authorizedAgentKeyboardInput.clear()
-    this.downloadItems.clear()
-    this.downloadWorkspaceIds.clear()
-    this.reservedDownloadPaths.clear()
+    this.downloadController.destroy()
     this.debuggerQueues.clear()
     this.networkRouteQueues.clear()
     for (const timer of this.networkRouteRefreshTimers.values()) clearTimeout(timer)
@@ -8923,7 +8867,7 @@ export class BrowserTabsManager {
     if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
     if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
     if ((this.mcpActivitiesByTab.get(tab.id)?.size ?? 0) > 0) return 'A tab with an active MCP command stays active.'
-    if ([...this.downloads.values()].some((download) => download.tabId === tab.id && isActiveDownload(download))) {
+    if (this.downloadController.hasActiveDownload(tab.id)) {
       return 'A tab with an active download stays active.'
     }
     return undefined
@@ -11273,98 +11217,7 @@ export class BrowserTabsManager {
       })
     }
 
-    if (!this.downloadHookSessions.has(browserSession)) {
-      this.downloadHookSessions.add(browserSession)
-      browserSession.on('will-download', (event, item, webContents) => {
-        this.trimDownloadHistory()
-        if (this.downloads.size >= MAX_DOWNLOAD_HISTORY) {
-          event.preventDefault()
-          return
-        }
-        const id = randomUUID()
-        const tabId = webContents ? this.webContentsToTab.get(webContents.id) : undefined
-        const tab = tabId ? this.tabs.get(tabId) : undefined
-        const workspaceId = tab?.mcpGroupId
-        const downloadUrl = item.getURL()
-        const sourceRequest = tab ? [...tab.networkRequests].reverse().find(request => request.url === downloadUrl) : undefined
-        const suggestedPath = this.reserveAvailableDownloadPath(item.getFilename())
-        try {
-          if (this.options.askWhereToSaveDownloads) {
-            item.setSaveDialogOptions({
-              title: this.text('native.dialog.saveDownload'),
-              defaultPath: suggestedPath
-            })
-          } else {
-            item.setSavePath(suggestedPath)
-          }
-        } catch (error) {
-          this.reservedDownloadPaths.delete(suggestedPath)
-          throw error
-        }
-        const download: BrowserDownloadState = {
-          id,
-          observationGeneration: sourceRequest?.observationGeneration ?? tab?.observationGeneration ?? 0,
-          tabId,
-          url: downloadUrl,
-          filename: basename(suggestedPath),
-          savePath: this.options.askWhereToSaveDownloads ? '' : suggestedPath,
-          state: 'progressing',
-          receivedBytes: item.getReceivedBytes(),
-          totalBytes: item.getTotalBytes(),
-          startedAt: new Date().toISOString()
-        }
-        this.downloads.set(id, download)
-        this.downloadItems.set(id, item)
-        this.downloadWorkspaceIds.set(id, workspaceId)
-        this.notifyDownloadsChanged(true)
-        item.on('updated', (_downloadEvent, state) => {
-          download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
-          download.receivedBytes = item.getReceivedBytes()
-          download.totalBytes = item.getTotalBytes()
-          this.syncDownloadPath(download, item)
-          this.notifyDownloadsChanged()
-        })
-        item.once('done', (_downloadEvent, state) => {
-          this.reservedDownloadPaths.delete(suggestedPath)
-          download.state = state
-          download.receivedBytes = item.getReceivedBytes()
-          download.totalBytes = item.getTotalBytes()
-          this.syncDownloadPath(download, item)
-          download.completedAt = new Date().toISOString()
-          this.downloadItems.delete(id)
-          this.trimDownloadHistory()
-          this.notifyDownloadsChanged(true)
-        })
-      })
-    }
-  }
-
-  private reserveAvailableDownloadPath(filename: string): string {
-    const sourceFilename = basename(filename) || 'download'
-    const safeFilename = isWindowsReservedFilename(sourceFilename)
-      ? `download-${sourceFilename}`
-      : sourceFilename
-    const direct = join(this.options.downloadDirectory, safeFilename)
-    if (!existsSync(direct) && !this.reservedDownloadPaths.has(direct)) {
-      this.reservedDownloadPaths.add(direct)
-      return direct
-    }
-    const extension = extname(safeFilename)
-    const stem = safeFilename.slice(0, safeFilename.length - extension.length)
-    for (let index = 1; index <= 9_999; index += 1) {
-      const candidate = join(this.options.downloadDirectory, `${stem} (${index})${extension}`)
-      if (existsSync(candidate) || this.reservedDownloadPaths.has(candidate)) continue
-      this.reservedDownloadPaths.add(candidate)
-      return candidate
-    }
-    throw new Error(`Could not allocate a unique download path for ${safeFilename}`)
-  }
-
-  private syncDownloadPath(download: BrowserDownloadState, item: DownloadItem): void {
-    const savePath = item.getSavePath()
-    if (!savePath) return
-    download.savePath = savePath
-    download.filename = basename(savePath)
+    this.downloadController.attachSession(browserSession)
   }
 
   private async writeUniqueDownload(filename: string, data: Buffer): Promise<string> {
@@ -11382,39 +11235,6 @@ export class BrowserTabsManager {
       }
     }
     throw new Error(`Could not allocate a unique download path for ${filename}`)
-  }
-
-  private trimDownloadHistory(): void {
-    if (this.downloads.size < MAX_DOWNLOAD_HISTORY) return
-    const removable = [...this.downloads.values()]
-      .filter((download) => !isActiveDownload(download))
-      .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
-    while (this.downloads.size >= MAX_DOWNLOAD_HISTORY && removable.length) {
-      const id = removable.shift()!.id
-      this.downloads.delete(id)
-      this.downloadWorkspaceIds.delete(id)
-    }
-  }
-
-  private notifyDownloadsChanged(immediate = false): void {
-    if (this.destroyed || this.window.isDestroyed()) return
-    if (immediate) {
-      if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
-      this.downloadNotifyTimer = null
-      this.sendDownloadsChanged(this.listDownloads())
-      return
-    }
-    if (this.downloadNotifyTimer) return
-    this.downloadNotifyTimer = setTimeout(() => {
-      this.downloadNotifyTimer = null
-      this.sendDownloadsChanged(this.listDownloads())
-    }, 120)
-  }
-
-  private sendDownloadsChanged(downloads: BrowserDownloadState[]): void {
-    if (this.destroyed || this.window.isDestroyed() || this.window.webContents.isDestroyed()) return
-    this.window.webContents.send('browser:downloads-changed', downloads)
-    this.options.onDownloadsChanged?.(downloads)
   }
 
   private changed(persist = true): void {
