@@ -159,6 +159,32 @@ The regression and three related native cases now pass, including explicit
 freeze/resume and emulation serialization; focused lint and typechecking pass.
 Full static and immutable-image verification remain required before delivery.
 
+### Next bounded extractions
+
+A fresh review after the debugger-queue and Home work identified these candidates;
+they are proposals, not completed changes or confirmed defects:
+
+1. **Tab overview thumbnail scheduling.** Move the per-tab settle timers,
+   coalesced requests, process-wide capture queue, timeout handling, and late
+   completion recovery out of `tabs-manager.ts` together. Keep current tab,
+   navigation, visibility, and workspace eligibility supplied by the manager.
+   Characterize a pending capture followed by navigation, closure, timeout,
+   rejection, and a newer request before moving code. Preserve the difference
+   between releasing the global queue on timeout and avoiding duplicate native
+   captures for that page. The separate full-page preview path is a later change.
+2. **Network diagnostic event reduction.** The large `handleNetworkDebuggerMessage`
+   switch combines CDP payload parsing with bounded request/WebSocket/SSE history
+   mutation. A focused reducer can own those transitions while the manager owns
+   session hooks, debugger attachment, route dispatch, and workspace access.
+   Preserve capture sequence, observation generation, redaction, eviction, and
+   out-of-order event handling; retain the real MCP network tests.
+3. **Page diagnostic attachment lifecycle.** `ensureDialogMonitoring` now enables
+   several domains, network routes, input policy, and emulation, so its name and
+   placement obscure its broader responsibility. Extract attachment/handoff only
+   after its invariants are covered: DevTools opening during attach, destruction,
+   failed domain enablement, and retained emulation. Keep command scheduling in
+   the existing debugger queue rather than creating another competing queue.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
