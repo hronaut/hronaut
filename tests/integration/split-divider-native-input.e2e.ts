@@ -86,10 +86,24 @@ for (const compact of [false, true]) for (const scale of [1, 1.25]) for (const o
     for (const page of await views()) {
       await exec('python3', [join(process.cwd(), 'tests/integration/x11-input.py'), String(origin.x + page.bounds.x + Math.round(page.bounds.width / 2)), String(origin.y + page.bounds.y + Math.round(page.bounds.height / 2)), '--click'])
     }
-    expect((await pageCounts()).every(page => page.clicks === 1)).toBe(true)
-    const screenshot = await electronApp.evaluate(async ({ desktopCapturer }) => (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1200 } }))[0]!.thumbnail.toPNG())
-    await writeFile(testInfo.outputPath('physical-desktop.png'), Buffer.from(screenshot))
-    await writeFile(testInfo.outputPath('native-divider.json'), JSON.stringify({ scale, orientation, before, after, pageCounts: await pageCounts() }, null, 2))
+    const deliverySamples: Array<{ at: number; pages: Awaited<ReturnType<typeof pageCounts>> }> = []
+    try {
+      // XSync acknowledges the X server, not Chromium's page event handlers.
+      // Observe delivery without sending another click; duplicate or lost input
+      // still fails with the exact counts for both pages.
+      await expect.poll(async () => {
+        const pages = (await pageCounts()).sort((left, right) => left.title.localeCompare(right.title))
+        deliverySamples.push({ at: Date.now(), pages })
+        return pages
+      }).toEqual([
+        { title: 'Divider Alpha', clicks: 1 },
+        { title: 'Divider Beta', clicks: 1 }
+      ])
+    } finally {
+      await writeFile(testInfo.outputPath('native-divider.json'), JSON.stringify({ scale, orientation, before, after, deliverySamples }, null, 2))
+      const screenshot = await electronApp.evaluate(async ({ desktopCapturer }) => (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1200 } }))[0]!.thumbnail.toPNG())
+      await writeFile(testInfo.outputPath('physical-desktop.png'), Buffer.from(screenshot))
+    }
   })
 }
 
