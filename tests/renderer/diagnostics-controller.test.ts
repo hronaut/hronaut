@@ -263,6 +263,23 @@ describe('diagnostics controller', () => {
     controller.dispose()
   })
 
+  it.each(['start', 'stop', 'clear'] as const)('keeps DOM recorder %s authoritative during background refreshes', async (action) => {
+    const pending = deferred<BrowserDomChangesReport>()
+    const { browser, controller } = createController()
+    browser.manageDomChanges.mockImplementationOnce(() => pending.promise)
+    const operation = controller.manageDomChanges(action)
+    await controller.manageDomChanges('get', true)
+
+    expect(controller.domChangesState.value).toBe('loading')
+    expect(browser.manageDomChanges).toHaveBeenCalledTimes(1)
+    const result = { ...domReport(action === 'start'), changeCount: 7 }
+    pending.resolve(result)
+    await operation
+    expect(controller.domChangesReport.value).toEqual(result)
+    expect(controller.domChangesState.value).toBe('ready')
+    controller.dispose()
+  })
+
   it('polls active DOM recordings only while the panel is open', async () => {
     vi.useFakeTimers()
     const { browser, controller } = createController()

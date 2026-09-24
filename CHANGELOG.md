@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep DOM recorder actions authoritative while automatic refreshes are pending.
+
 - Preserve a newer keyboard focus choice when delayed dialog-close cleanup finishes.
 
 - Keep recorder controls busy until pending actions finish, and preserve their results or errors when live tab updates trigger refreshes.

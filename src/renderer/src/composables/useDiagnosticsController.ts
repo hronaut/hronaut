@@ -9,6 +9,7 @@ import type {
   BrowserDebugReport,
   BrowserDesignOverviewReport,
   BrowserDomChangesReport,
+  BrowserDomChangesAction,
   BrowserInspectorIssuesReport,
   BrowserMemoryReport,
   BrowserPageMetadataReport,
@@ -152,7 +153,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     visual: 0,
     issues: 0
   }
-  let reproMutationRequest: ReturnType<typeof begin> = null
+  const recorderMutations: Partial<Record<'repro' | 'dom', NonNullable<ReturnType<typeof begin>>>> = {}
   let domRefreshTimer: number | undefined
   let domChangesReadRequest: {
     tabId: string
@@ -174,6 +175,19 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       && options.activeTab.value?.id === request.tab.id
       && options.activeTab.value.url === request.tab.url
       && options.activeTab.value.navigationGeneration === request.tab.navigationGeneration
+  }
+
+  function beginRecorderRequest(domain: 'repro' | 'dom', action: BrowserDomChangesAction): ReturnType<typeof begin> {
+    // Background reads must not supersede an in-flight user action on this page.
+    const mutation = recorderMutations[domain]
+    if (action === 'get' && mutation && current(domain, mutation)) return null
+    const request = begin(domain)
+    if (request && action !== 'get') recorderMutations[domain] = request
+    return request
+  }
+
+  function finishRecorderRequest(domain: 'repro' | 'dom', request: NonNullable<ReturnType<typeof begin>>): void {
+    if (recorderMutations[domain] === request) delete recorderMutations[domain]
   }
 
   function scheduleFeedbackReset(key: CopyFeedback, callback: () => void): void {
@@ -465,14 +479,11 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear'): Promise<void> {
-    // A live tab refresh must not supersede the result of an in-flight user action.
-    if (action === 'get' && reproMutationRequest && current('repro', reproMutationRequest)) return
-    const request = begin('repro')
+    const request = beginRecorderRequest('repro', action)
     if (!request) return
     reproState.value = 'loading'
     reproError.value = ''
     if (action !== 'get') {
-      reproMutationRequest = request
       reproCopied.value = false
       reproPlaywrightCopied.value = false
     }
@@ -486,7 +497,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       reproState.value = 'error'
       reproError.value = cause instanceof Error ? cause.message : String(cause)
     } finally {
-      if (reproMutationRequest === request) reproMutationRequest = null
+      finishRecorderRequest('repro', request)
     }
   }
 
@@ -515,7 +526,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function manageDomChanges(action: 'start' | 'get' | 'stop' | 'clear', quiet = false): Promise<void> {
-    const request = begin('dom')
+    const request = beginRecorderRequest('dom', action)
     if (!request) return
     if (!quiet) domChangesState.value = 'loading'
     domChangesError.value = ''
@@ -547,6 +558,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       if (!current('dom', request)) return
       domChangesState.value = 'error'
       domChangesError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      finishRecorderRequest('dom', request)
     }
   }
 
