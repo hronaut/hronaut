@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -17,11 +17,18 @@ import { readStoredZipEntries } from '../scripts/zip-archive.js'
 
 const rootDirectory = join(import.meta.dirname, '..')
 let outputDirectory = ''
+let fixtureDirectory = ''
 
 beforeAll(async () => {
   const cacheDirectory = join(rootDirectory, 'node_modules/.cache')
   await mkdir(cacheDirectory, { recursive: true })
-  outputDirectory = await mkdtemp(join(cacheDirectory, 'hronaut-mcpb-test-'))
+  fixtureDirectory = await mkdtemp(join(cacheDirectory, 'hronaut-mcpb-test-'))
+  const actualDirectory = join(fixtureDirectory, 'actual')
+  outputDirectory = join(fixtureDirectory, 'alias')
+  await mkdir(actualDirectory)
+  await symlink(actualDirectory, outputDirectory, process.platform === 'win32' ? 'junction' : 'dir')
+  // Build once through the filesystem alias. Every artifact assertion exercises
+  // the symlink regression without a second complete bundle in a timed test.
   const result = spawnSync(process.execPath, ['scripts/build-mcpb.ts', outputDirectory], {
     cwd: rootDirectory,
     encoding: 'utf8'
@@ -30,26 +37,16 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  if (outputDirectory) await rm(outputDirectory, { recursive: true, force: true })
+  if (fixtureDirectory) await rm(fixtureDirectory, { recursive: true, force: true })
 })
 
 describe('MCPB release package', () => {
   it('generates operator metadata when the output directory is a symlink', async () => {
-    const directory = await mkdtemp(join(rootDirectory, 'node_modules/.cache/hronaut-mcpb-symlink-'))
-    const output = join(directory, 'actual')
-    const alias = join(directory, 'alias')
-    try {
-      await mkdir(output)
-      await symlink(output, alias, process.platform === 'win32' ? 'junction' : 'dir')
-      const result = spawnSync(process.execPath, ['scripts/build-mcpb.ts', alias], { cwd: rootDirectory, encoding: 'utf8' })
-      expect(result.status, result.stderr || result.stdout).toBe(0)
-      const manifest = JSON.parse(await readFile(join(alias, 'hronaut-operator-manifest.json'), 'utf8'))
-      const packageJson = JSON.parse(await readFile(join(rootDirectory, 'package.json'), 'utf8'))
-      expect(manifest.hronautVersion).toBe(packageJson.version)
-      expect(manifest.tools.length).toBeGreaterThan(0)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
+    expect((await lstat(outputDirectory)).isSymbolicLink()).toBe(true)
+    const manifest = JSON.parse(await readFile(join(outputDirectory, 'hronaut-operator-manifest.json'), 'utf8'))
+    const packageJson = JSON.parse(await readFile(join(rootDirectory, 'package.json'), 'utf8'))
+    expect(manifest.hronautVersion).toBe(packageJson.version)
+    expect(manifest.tools.length).toBeGreaterThan(0)
   })
 
   it('contains only the adapter, metadata, and public license notices', async () => {
