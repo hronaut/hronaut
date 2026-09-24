@@ -1,3 +1,4 @@
+import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
@@ -122,7 +123,6 @@ import {
   type CdpAppManifestResult,
   type CdpInstallabilityError
 } from '../../shared/pwa.js'
-import { domChangesPageScript } from '../../shared/dom-changes.js'
 import {
   formatElementInspectionForAgent,
   normalizeElementInspection
@@ -425,7 +425,6 @@ const ACCESSIBILITY_AUDIT_WORLD_ID = 1001
 const PERFORMANCE_AUDIT_WORLD_ID = 1002
 const DESIGN_OVERVIEW_WORLD_ID = 1003
 const PAGE_METADATA_WORLD_ID = 1004
-const DOM_CHANGES_WORLD_ID = 1005
 const ELEMENT_INSPECTION_WORLD_ID = 1006
 const INDEXED_DB_WORLD_ID = 1007
 const PWA_INSPECTOR_WORLD_ID = 1008
@@ -670,12 +669,7 @@ interface BrowserTab extends BrowserProfilingState {
     details?: BrowserSecurityDetailsInput
   }
   reproRecording?: BrowserReproRecordingInternal
-  domChangesRecording?: {
-    active: boolean
-    changeCount: number
-    startedAt: string
-    observationGeneration: number
-  }
+  domChangesRecording?: BrowserDomRecordingState
   visualComparison?: BrowserVisualComparisonInternal
   visualComparisonGeneration: number
   storageComparison?: {
@@ -1207,7 +1201,10 @@ export class BrowserTabsManager {
   }
 
   private readonly tabs = new Map<string, BrowserTab>()
-  private readonly domRecordingRequests = new WeakMap<BrowserTab, { action?: symbol; requested: number; applied: number }>()
+  private readonly domRecorder = new BrowserDomRecorder<BrowserTab>({
+    isCurrent: tab => this.tabs.get(tab.id) === tab,
+    changed: () => this.changed(false)
+  })
   private readonly reproRecorder = new BrowserReproRecorder<BrowserTab>({
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
@@ -6154,64 +6151,7 @@ export class BrowserTabsManager {
   }
 
   async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before recording DOM changes')
-    if (!['start', 'get', 'stop', 'clear'].includes(action)) throw new Error('Unsupported DOM changes action')
-
-    const observationGeneration = tab.observationGeneration
-    const navigationGeneration = tab.navigationGeneration
-    const webContents = tab.webContents
-    const effectiveAction = tab.domChangesRecording
-      && tab.domChangesRecording.observationGeneration !== observationGeneration
-      && action !== 'start'
-      ? 'clear'
-      : action
-    const requests = this.domRecordingRequests.get(tab) ?? { requested: 0, applied: 0 }
-    this.domRecordingRequests.set(tab, requests)
-    if (effectiveAction !== 'get') requests.action = Symbol(effectiveAction)
-    const recordingAction = requests.action
-    const request = ++requests.requested
-    const result = await webContents.executeJavaScriptInIsolatedWorld(
-      DOM_CHANGES_WORLD_ID,
-      [{ code: domChangesPageScript(effectiveAction) }],
-      false
-    ) as Omit<BrowserDomChangesReport, 'tabId' | 'title' | 'url' | 'caveats'>
-    if (tab.observationGeneration !== observationGeneration) {
-      throw new Error('Workspace control changed while reading DOM changes')
-    }
-    if (this.tabs.get(tab.id) !== tab
-      || tab.webContents !== webContents
-      || webContents.isDestroyed()
-      || tab.navigationGeneration !== navigationGeneration) {
-      throw new Error('The page changed while reading DOM changes. Start a fresh recording.')
-    }
-    if (requests.action !== recordingAction || request < requests.applied) {
-      throw new Error('The recording changed while reading DOM changes. Try again.')
-    }
-    requests.applied = request
-    if (result.startedAt) {
-      tab.domChangesRecording = {
-        active: result.active,
-        changeCount: result.changeCount,
-        startedAt: result.startedAt,
-        observationGeneration
-      }
-    } else {
-      tab.domChangesRecording = undefined
-    }
-    this.changed(false)
-    return {
-      tabId: tab.id,
-      title: tab.title,
-      url: redactNetworkUrl(tab.url),
-      ...result,
-      caveats: [
-        'Only structural selectors, mutation types, attribute names, tag names, and counts are recorded.',
-        'Page text, HTML, attribute values, IDs, classes, form values, clipboard content, and file paths are never recorded.',
-        'Cross-origin frames and changes inside existing shadow roots are not observed.',
-        'A full document navigation clears the recording because it creates a new DOM.'
-      ]
-    }
+    return this.domRecorder.manage(this.getTab(tabId), action)
   }
 
   async inspectorIssues(tabId?: string, clear = false): Promise<BrowserInspectorIssuesReport> {
