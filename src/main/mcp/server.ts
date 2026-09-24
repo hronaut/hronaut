@@ -1,3 +1,4 @@
+import { networkRouteInputSchema } from '../browser/network-route-input.js'
 import { createServer, type Server } from 'node:http'
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { AddressInfo } from 'node:net'
@@ -85,7 +86,6 @@ import type {
   UserAttentionRequest
 } from '../../shared/types.js'
 export type { UserAttentionInput, UserAttentionRequest } from '../../shared/types.js'
-import { BROWSER_NETWORK_ABORT_REASONS } from '../../shared/types.js'
 import { formatNetworkRequestCopy, type BrowserNetworkRequestCopyFormat } from '../../shared/network-request-copy.js'
 import { sortNetworkRequests } from '../../shared/network-request-sort.js'
 import { filterNetworkRequests, normalizeNetworkHarOptions } from '../../shared/network-har.js'
@@ -4546,16 +4546,12 @@ function createBrowserMcpServer(
         routeId: z.string().optional(),
         direction: z.enum(['up', 'down']).optional()
           .describe('Move a first-match-wins condition one position up or down. Requires action move and routeId.'),
-        urlPattern: z.string().min(1).max(2_048).optional(),
-        method: z.string().min(1).max(32).optional(),
-        times: z.number().int().min(1).max(100).optional(),
-        response: z.object({
-          status: z.number().int().min(100).max(599).optional(),
-          headers: z.record(z.string(), z.string()).optional(),
-          body: z.string().max(512 * 1024).optional()
-        }).optional(),
-        abort: z.enum(BROWSER_NETWORK_ABORT_REASONS).optional(),
-        throttle: z.enum(['fast-4g', 'slow-4g', 'slow-3g']).optional()
+        urlPattern: networkRouteInputSchema.shape.urlPattern.optional(),
+        method: networkRouteInputSchema.shape.method,
+        times: networkRouteInputSchema.shape.times,
+        response: networkRouteInputSchema.shape.response,
+        abort: networkRouteInputSchema.shape.abort,
+        throttle: networkRouteInputSchema.shape.throttle
           .describe('Throttle only matching URLs until the condition is removed. Cannot be combined with method or times.')
       }
     },

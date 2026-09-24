@@ -28,17 +28,6 @@ and shared audit contracts. These are proposals, not shipped features.
    Cross-restart recovery needs a separate persistence and partial-file validation
    design; it is not implied by this proposal.
 
-3. **Consolidate network-route input validation.** `src/main/index.ts` validates
-   IPC route objects manually, `src/main/mcp/server.ts` repeats their shape and
-   limits in Zod, and `BrowserTabsManager.addNetworkRoute` normalizes and validates
-   the behavior again. Extract reusable parsing and normalization before moving
-   the debugger-backed route engine. Keep sender and workspace authorization at
-   their existing boundaries. Cover exactly-one-behavior rules, throttle/method
-   conflicts, byte limits for non-ASCII response bodies, header limits, and valid
-   unusual header names such as `__proto__`. The latter needs an end-to-end check:
-   the current header validator assigns into a plain object, so do not assume
-   every accepted header name survives that representation.
-
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
@@ -127,6 +116,13 @@ commit, and detached panels retain their separate open-state behavior.
 
 ## Test infrastructure follow-up
 
+- Consolidated network-route input schemas and normalization in
+  `src/main/browser/network-route-input.ts`. IPC and MCP use the same field
+  contracts, and the browser manager validates before changing native routes.
+  Coverage includes behavior conflicts, UTF-8 byte limits, header limits and
+  prototype-like header names. Two real Electron regressions reproduced loss
+  of `__proto__` through both shell IPC and MCP; header records now preserve it
+  as an own string property without changing their prototype.
 - Completed September 22: split the MCP capability tour into 13 independently
   initialized cases covering interaction, storage, network, diagnostics, and
   exports. The shared `capability-fixtures.ts` owns each case's HTTP server,

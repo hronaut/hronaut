@@ -1,3 +1,4 @@
+import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
 import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
@@ -114,7 +115,6 @@ import {
 import {
   DETACHABLE_PANEL_IDS,
   PANEL_DOCKS,
-  BROWSER_NETWORK_ABORT_REASONS,
   isAttentionSoundCue,
   validateTabOverviewPreviewIds,
   type AppSettings,
@@ -138,7 +138,6 @@ import {
   type BrowserNetworkHarOptions,
   type BrowserNetworkHarSaveOptions,
   type BrowserNetworkSearchOptions,
-  type BrowserNetworkRouteInput,
   type BrowserBookmark,
   type BrowserHistoryEntry,
   type BrowserTabGroupUpdate,
@@ -2649,32 +2648,8 @@ function registerIpc(): void {
   })
   ipcMain.handle('browser:add-network-route', async (event, tabId: unknown, value: unknown) => {
     assertTrustedShellSender(event)
-    if (typeof tabId !== 'string' || typeof value !== 'object' || value === null) {
-      throw new TypeError('Invalid network route')
-    }
-    const { urlPattern, method, times, response, abort, throttle } = value as Record<string, unknown>
-    const responseRecord = typeof response === 'object' && response !== null && !Array.isArray(response)
-      ? response as Record<string, unknown>
-      : undefined
-    const headersRecord = responseRecord && typeof responseRecord.headers === 'object' && responseRecord.headers !== null && !Array.isArray(responseRecord.headers)
-      ? responseRecord.headers as Record<string, unknown>
-      : undefined
-    if (
-      typeof urlPattern !== 'string'
-      || (method !== undefined && typeof method !== 'string')
-      || (times !== undefined && (typeof times !== 'number' || !Number.isInteger(times) || times < 1 || times > 100))
-      || [response, abort, throttle].filter((behavior) => behavior !== undefined).length !== 1
-      || (abort !== undefined && !(BROWSER_NETWORK_ABORT_REASONS as readonly unknown[]).includes(abort))
-      || (throttle !== undefined && throttle !== 'fast-4g' && throttle !== 'slow-4g' && throttle !== 'slow-3g')
-      || (throttle !== undefined && method !== undefined)
-      || (throttle !== undefined && times !== undefined)
-      || (response !== undefined && !responseRecord)
-      || (responseRecord?.status !== undefined && (typeof responseRecord.status !== 'number' || !Number.isInteger(responseRecord.status)))
-      || (responseRecord?.body !== undefined && typeof responseRecord.body !== 'string')
-      || (responseRecord?.headers !== undefined && !headersRecord)
-      || (headersRecord && Object.values(headersRecord).some((headerValue) => typeof headerValue !== 'string'))
-    ) throw new TypeError('Invalid network route')
-    return tabsManager!.addNetworkRoute(tabId, value as BrowserNetworkRouteInput)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid tab ID')
+    return tabsManager!.addNetworkRoute(tabId, parseNetworkRouteInput(value))
   })
   ipcMain.handle('browser:remove-network-route', async (event, tabId: unknown, routeId: unknown) => {
     assertTrustedShellSender(event)

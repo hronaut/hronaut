@@ -1,3 +1,4 @@
+import { normalizeNetworkRouteInput } from './network-route-input.js'
 import { BrowserDownloadsController } from './downloads-controller.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
@@ -185,7 +186,7 @@ import {
   buildBrowserStorageUsageReport,
   storageManagerUsageBreakdown
 } from '../../shared/storage-usage.js'
-import { networkRoutePatternMatches, validateNetworkRoutePattern } from '../../shared/network-routes.js'
+import { networkRoutePatternMatches } from '../../shared/network-routes.js'
 import { boundedScreenshotSize, cssScreenshotBounds, fullPageScreenshotBounds, type ScreenshotLayoutMetrics } from '../../shared/screenshot.js'
 import { compareBgraBitmaps, normalizeVisualCompareThreshold } from '../../shared/visual-compare.js'
 import { normalizeInspectorIssue } from '../../shared/browser-issues.js'
@@ -285,7 +286,6 @@ import type {
   BrowserNetworkRouteInput,
   BrowserNetworkRouteMoveDirection,
   BrowserNetworkRouteSummary,
-  BrowserNetworkThrottlePreset,
   BrowserElementInspection,
   BrowserElementInspectionOptions,
   BrowserInspectorIssue,
@@ -416,9 +416,6 @@ const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
 const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
 const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
-const MAX_NETWORK_ROUTE_BODY_BYTES = 512 * 1024
-const MAX_NETWORK_ROUTE_HEADERS = 50
-const MAX_NETWORK_ROUTE_HEADER_BYTES = 32 * 1024
 const MAX_STORAGE_ITEMS = 200
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
@@ -6502,75 +6499,10 @@ export class BrowserTabsManager {
     const tab = this.getTab(tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before adding a network route')
     if (tab.networkRoutes.length >= MAX_NETWORK_ROUTES) throw new Error(`Network route limit reached (${MAX_NETWORK_ROUTES})`)
-    const behaviorCount = [input.response, input.abort, input.throttle].filter((value) => value !== undefined).length
-    if (behaviorCount !== 1) {
-      throw new Error('Provide exactly one network route behavior: response, abort, or throttle')
-    }
-
-    const urlPattern = validateNetworkRoutePattern(input.urlPattern)
-    const method = input.method?.trim().toUpperCase()
-    if (method && !/^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]{0,31}$/.test(method)) {
-      throw new Error('Network route method must be a valid HTTP method with at most 32 characters')
-    }
-    if (input.throttle !== undefined && !['fast-4g', 'slow-4g', 'slow-3g'].includes(input.throttle)) {
-      throw new Error('Unsupported individual network throttle profile')
-    }
-    if (input.throttle !== undefined && method) {
-      throw new Error('Individual request throttling matches URLs and cannot be restricted by HTTP method')
-    }
-    const remainingMatches = input.times ?? 1
-    if (input.throttle !== undefined && input.times !== undefined) {
-      throw new Error('Throttle conditions stay active until removed and cannot use times')
-    }
-    if (input.throttle === undefined && (!Number.isInteger(remainingMatches) || remainingMatches < 1 || remainingMatches > 100)) {
-      throw new Error('Network route times must be an integer between 1 and 100')
-    }
-
-    let route: BrowserNetworkRouteRecord
-    if (input.response !== undefined) {
-      const status = input.response.status ?? 200
-      if (!Number.isInteger(status) || status < 100 || status > 599) {
-        throw new Error('Mock response status must be an integer between 100 and 599')
-      }
-      const responseBody = input.response.body ?? ''
-      const bodyBytes = Buffer.byteLength(responseBody)
-      if (bodyBytes > MAX_NETWORK_ROUTE_BODY_BYTES) {
-        throw new Error(`Mock response body cannot exceed ${MAX_NETWORK_ROUTE_BODY_BYTES} bytes`)
-      }
-      const responseHeaders = this.validateNetworkRouteHeaders(input.response.headers ?? {})
-      route = {
-        id: randomUUID(),
-        urlPattern,
-        ...(method ? { method } : {}),
-        behavior: 'fulfill',
-        remainingMatches,
-        createdAt: new Date().toISOString(),
-        response: {
-          status,
-          headerNames: Object.keys(responseHeaders),
-          bodyBytes
-        },
-        responseHeaders,
-        responseBody
-      }
-    } else if (input.abort !== undefined) {
-      route = {
-        id: randomUUID(),
-        urlPattern,
-        ...(method ? { method } : {}),
-        behavior: 'abort',
-        remainingMatches,
-        createdAt: new Date().toISOString(),
-        abort: input.abort
-      }
-    } else {
-      route = {
-        id: randomUUID(),
-        urlPattern,
-        behavior: 'throttle',
-        createdAt: new Date().toISOString(),
-        throttle: input.throttle as BrowserNetworkThrottlePreset
-      }
+    const route: BrowserNetworkRouteRecord = {
+      ...normalizeNetworkRouteInput(input),
+      id: randomUUID(),
+      createdAt: new Date().toISOString()
     }
 
     tab.networkRoutes.push(route)
@@ -9282,25 +9214,6 @@ export class BrowserTabsManager {
       ...(route.abort ? { abort: route.abort } : {}),
       ...(route.throttle ? { throttle: route.throttle } : {})
     }
-  }
-
-  private validateNetworkRouteHeaders(headers: Record<string, string>): Record<string, string> {
-    const entries = Object.entries(headers)
-    if (entries.length > MAX_NETWORK_ROUTE_HEADERS) {
-      throw new Error(`Mock response cannot have more than ${MAX_NETWORK_ROUTE_HEADERS} headers`)
-    }
-    let bytes = 0
-    const validated: Record<string, string> = {}
-    for (const [name, value] of entries) {
-      validateHeaderName(name)
-      validateHeaderValue(name, value)
-      bytes += Buffer.byteLength(name) + Buffer.byteLength(value)
-      if (bytes > MAX_NETWORK_ROUTE_HEADER_BYTES) {
-        throw new Error(`Mock response headers cannot exceed ${MAX_NETWORK_ROUTE_HEADER_BYTES} bytes`)
-      }
-      validated[name] = value
-    }
-    return validated
   }
 
   private async applyNetworkRoutes(tab: BrowserTab): Promise<void> {

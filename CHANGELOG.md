@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve the `__proto__` mock response header when adding request conditions through the UI or MCP.
+
 ## [2.5.18] - 2026-09-24
 
 ### Fixed
