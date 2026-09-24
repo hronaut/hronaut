@@ -1,7 +1,22 @@
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { ElectronApplication, Locator } from '@playwright/test'
 import type { AppUpdateState, BrowserState, HronautApi } from '../../src/shared/types.js'
-import { expect, test } from './fixtures.js'
+import { expect, test as base } from './fixtures.js'
+
+const test = base.extend({
+  profileDirectory: async ({ profileDirectory }, use) => {
+    // The layout test owns the injected badge state; startup checks must not
+    // replace it with the unpackaged application's unavailable-update state.
+    await writeFile(join(profileDirectory, 'settings.json'), JSON.stringify({
+      checkForUpdatesOnStartup: false,
+      interfaceScale: 1,
+      tabPosition: 'top',
+      mcpToolSet: 'complete'
+    }))
+    await use(profileDirectory)
+  }
+})
 
 async function captureChrome(app: ElectronApplication, path: string): Promise<void> {
   const image = await app.evaluate(async ({ BrowserWindow }) => (await BrowserWindow.getAllWindows()[0]!.capturePage()).toPNG().toString('base64'))
