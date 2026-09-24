@@ -470,3 +470,14 @@ commit, and detached panels retain their separate open-state behavior.
   for multiple reads, one write, privacy, and skipped duplicate dispatch. All five
   focused repetitions and focused static checks pass. No production verification
   timeout or retry policy changed.
+
+- Deferred Home failure coverage passed 30 consecutive native cases. Full static
+  validation passed 3,243 tests across 414 files in both the immutable runtime
+  image and v2.5.25 release candidate. The subsequent Docker run had a retry-only
+  timeout in the 430-line emulation scenario: its trace spent 15 seconds in setup
+  and progressed through the final panel reset before its 45-second deadline.
+  The API/isolation/reload, DevTools handoff, and human panel flows now have
+  independent fixtures, with shared emulation setup and all original assertions.
+  Nine focused cases (three repetitions each) and focused lint/typechecking pass
+  without increasing deadlines. The superseded full run is not counted as a pass;
+  the final 551-case immutable image must pass before publication.

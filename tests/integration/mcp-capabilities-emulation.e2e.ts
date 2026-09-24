@@ -1,5 +1,46 @@
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
+
+async function applyDiagnosticEmulation(client: Client, tabId: string): Promise<CallToolResult> {
+  return await client.callTool({
+    name: 'browser_emulate',
+    arguments: {
+      tabId,
+      network: 'slow-4g',
+      dataSaver: 'enabled',
+      cpuThrottlingRate: 4,
+      animationPlaybackRate: 0,
+      colorScheme: 'dark',
+      reducedMotion: 'reduce',
+      mediaType: 'print',
+      forcedColors: 'active',
+      contrast: 'more',
+      reducedTransparency: 'reduce',
+      visionDeficiency: 'deuteranopia',
+      userAgent: 'Hronaut Emulation Test/1.0',
+      locale: 'fr-CA',
+      timezoneId: 'America/Toronto',
+      viewport: {
+        width: 390,
+        height: 844,
+        deviceScaleFactor: 3,
+        mobile: true,
+        touch: true,
+        orientation: 'portrait'
+      },
+      geolocation: { latitude: 50.4501, longitude: 30.5234, accuracy: 25 },
+      renderingDebug: {
+        paintFlashing: true,
+        layoutShiftRegions: true,
+        layerBorders: true,
+        fpsCounter: true,
+        scrollBottlenecks: true
+      },
+      extraHttpHeaders: { 'X-Hronaut-Test': 'device-emulation' }
+    }
+  }) as CallToolResult
+}
 
 test('applies responsive presets and resets only the viewport', async ({ capabilities, appWindow }) => {
   const { client, tabId, openPageTool } = capabilities
@@ -73,8 +114,8 @@ test('applies responsive presets and resets only the viewport', async ({ capabil
 
 })
 
-test('isolates environment settings and applies and resets them through the panel', async ({ capabilities, electronApp, appWindow }) => {
-  const { client, tabId, fixtureOrigin, openPageTool } = capabilities
+test('isolates emulation between tabs and preserves it across reload', async ({ capabilities, appWindow }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
   await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow')`)
   const isolatedTabResult = await client.callTool({
     name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
@@ -84,45 +125,7 @@ test('isolates environment settings and applies and resets them through the pane
   expect(isolatedTabId).toBeTruthy()
   await client.callTool({ name: 'browser_wait', arguments: { tabId: isolatedTabId } })
   await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
-  const routePattern = `${fixtureOrigin}/route-target`
-
-  const emulated = await client.callTool({
-    name: 'browser_emulate',
-    arguments: {
-      tabId,
-      network: 'slow-4g',
-      dataSaver: 'enabled',
-      cpuThrottlingRate: 4,
-      animationPlaybackRate: 0,
-      colorScheme: 'dark',
-      reducedMotion: 'reduce',
-      mediaType: 'print',
-      forcedColors: 'active',
-      contrast: 'more',
-      reducedTransparency: 'reduce',
-      visionDeficiency: 'deuteranopia',
-      userAgent: 'Hronaut Emulation Test/1.0',
-      locale: 'fr-CA',
-      timezoneId: 'America/Toronto',
-      viewport: {
-        width: 390,
-        height: 844,
-        deviceScaleFactor: 3,
-        mobile: true,
-        touch: true,
-        orientation: 'portrait'
-      },
-      geolocation: { latitude: 50.4501, longitude: 30.5234, accuracy: 25 },
-      renderingDebug: {
-        paintFlashing: true,
-        layoutShiftRegions: true,
-        layerBorders: true,
-        fpsCounter: true,
-        scrollBottlenecks: true
-      },
-      extraHttpHeaders: { 'X-Hronaut-Test': 'device-emulation' }
-    }
-  }) as CallToolResult
+  const emulated = await applyDiagnosticEmulation(client, tabId)
   expect(emulated.isError, text(emulated)).not.toBe(true)
   expect(JSON.parse(text(emulated))).toEqual({
     network: 'slow-4g',
@@ -307,6 +310,13 @@ test('isolates environment settings and applies and resets them through the pane
   const pausedAfterReloadTimes = JSON.parse(text(pausedAnimationAfterReload)) as { before: number; after: number }
   expect(Math.abs(pausedAfterReloadTimes.after - pausedAfterReloadTimes.before)).toBeLessThan(1)
 
+})
+
+test('hands emulation diagnostics to DevTools and restores them after closing it', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureOrigin } = capabilities
+  const seeded = await applyDiagnosticEmulation(client, tabId)
+  expect(seeded.isError, text(seeded)).not.toBe(true)
+  const routePattern = `${fixtureOrigin}/route-target`
   await client.callTool({
     name: 'browser_network_routes',
     arguments: { action: 'add', tabId, urlPattern: routePattern, times: 3, abort: 'Failed' }
@@ -353,6 +363,12 @@ test('isolates environment settings and applies and resets them through the pane
     return text(result)
   }).toBe('Hronaut Emulation Test/1.0|true')
 
+})
+
+test('applies and resets environment conditions through the panel', async ({ capabilities, appWindow }) => {
+  const { client, tabId, openPageTool } = capabilities
+  const seeded = await applyDiagnosticEmulation(client, tabId)
+  expect(seeded.isError, text(seeded)).not.toBe(true)
   await openPageTool(/Environment: 20 active conditions/)
   const environmentPanel = appWindow.getByRole('dialog', { name: 'Environment' })
   await expect(environmentPanel).toBeVisible()
