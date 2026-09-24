@@ -596,3 +596,14 @@ commit, and detached panels retain their separate open-state behavior.
   candidate includes main at `7751c94`, including its Scoop manifest. It remains
   local until the exact release source passes full static validation and the
   immutable Electron/native-dialog gate.
+
+- The updater ownership review reproduced a Linux replacement race: two trusted
+  checks reached the asynchronous package read before either claimed the update
+  operation, then each scheduled a helper and requested quit. A controlled native
+  regression failed on both attempts with two reads, two helper requests, and two
+  quit requests. The check now reserves its existing operation guard before the
+  read and releases it through the same `finally` path. The regression and all
+  four existing update UI cases pass, as do focused lint/typechecking. Helper
+  launch and quit are intercepted by the fixture; this is not a real package
+  installation result. This follow-up is separate from the immutable v2.5.26
+  candidate and needs its own full gate before integration.

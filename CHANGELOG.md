@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent concurrent update checks from scheduling duplicate restarts after a Linux package replacement.
+
 ## [2.5.26] - 2026-09-25
 
 ### Fixed

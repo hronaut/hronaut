@@ -1045,11 +1045,13 @@ async function checkForUpdates(): Promise<AppUpdateState> {
   const unavailable = updatesUnavailableInThisBuild()
   if (unavailable) return unavailable
   if (updateInstallationInProgress) return { ...updateState }
-  if (await restartAfterPackageReplacement()) return { ...updateState }
   if (!canStartUpdateOperation(updateState.status, updateOperation, 'check')) return { ...updateState }
   updateOperation = 'check'
-  publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
   try {
+    // Reserve ownership before the package read yields: concurrent checks must
+    // not independently schedule a restart for the same replaced installation.
+    if (await restartAfterPackageReplacement()) return { ...updateState }
+    publishUpdateState({ status: 'checking', percent: undefined, message: undefined })
     await autoUpdater.checkForUpdates()
   } catch (error) {
     console.error('[updates] Check failed:', error)
