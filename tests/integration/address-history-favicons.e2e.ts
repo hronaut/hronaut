@@ -149,6 +149,54 @@ test('shows the latest history suggestions when requests arrive during popup sta
   })).toMatchObject({ visible: true, text: expect.stringContaining('Latest history match') })
 })
 
+test('does not count an iframe in-page navigation as another visit to its parent page', async ({ appWindow, electronApp }) => {
+  const server = createServer((request, response) => {
+    response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+    response.end(request.url === '/page'
+      ? '<!doctype html><title>Parent visit</title><main>Parent visit</main><iframe src="/child"></iframe>'
+      : '<!doctype html><title>Child frame</title><main>Child frame</main>')
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('History fixture port is unavailable')
+    const url = `http://127.0.0.1:${address.port}/page`
+    await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
+    const visitCount = () => appWindow.evaluate(`window.hronautHistory.list().then((entries) => entries.find((entry) => entry.url === ${JSON.stringify(url)})?.visitCount)`)
+    await expect.poll(visitCount).toBe(1)
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, target) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === target)
+      return page?.executeJavaScript("document.querySelector('iframe')?.contentWindow?.location.pathname")
+    }, url)).toBe('/child')
+
+    const navigation = await electronApp.evaluate(async ({ webContents }, target) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === target)
+      if (!page) throw new Error('Parent page is unavailable')
+      const navigation = new Promise<{ url: string; isMainFrame: boolean }>((resolve) => {
+        page.once('did-navigate-in-page', (_event, nextUrl, isMainFrame) => resolve({ url: nextUrl, isMainFrame }))
+      })
+      await page.executeJavaScript("document.querySelector('iframe').contentWindow.location.hash = 'next'")
+      return navigation
+    }, url)
+    expect(navigation).toEqual({ url: `${new URL(url).origin}/child#next`, isMainFrame: false })
+    expect(await visitCount()).toBe(1)
+
+    const mainNavigation = await electronApp.evaluate(async ({ webContents }, target) => {
+      const page = webContents.getAllWebContents().find((contents) => contents.getURL() === target)
+      if (!page) throw new Error('Parent page is unavailable')
+      const navigation = new Promise<{ url: string; isMainFrame: boolean }>((resolve) => {
+        page.once('did-navigate-in-page', (_event, nextUrl, isMainFrame) => resolve({ url: nextUrl, isMainFrame }))
+      })
+      await page.executeJavaScript("location.hash = 'section'")
+      return navigation
+    }, url)
+    expect(mainNavigation).toEqual({ url: `${url}#section`, isMainFrame: true })
+    await expect.poll(visitCount).toBe(2)
+  } finally {
+    await closeFixtureServer(server)
+  }
+})
+
 test('updates address history when a client-rendered page sets its final title', async ({ appWindow, electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })

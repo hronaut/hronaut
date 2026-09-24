@@ -1,16 +1,19 @@
 # Improvement research and QA queue
 
-Reviewed 2026-09-15 against the current README, REFERENCE, renderer controllers,
+Reviewed 2026-09-24 against the current README, REFERENCE, renderer controllers,
 and shared audit contracts. These are proposals, not shipped features.
 
 ## Priorities
 
-1. **CSS edit review.** Investigate whether Hronaut's existing design and
-   inspection tools need a compact view of deliberate style edits with copy and
-   revert actions. Chrome's
-   [Changes panel](https://developer.chrome.com/docs/devtools/changes) provides
-   a reference for reviewing changes. First verify actual editing workflows and
-   debugger ownership; do not add a second competing editor without evidence.
+1. **CSS edit review — defer pending workflow evidence.** Hronaut provides native
+   DevTools and a read-only Design overview, but no separate CSS editing flow.
+   Chrome's [Changes panel](https://developer.chrome.com/docs/devtools/changes)
+   already shows edits made in DevTools, with copy and revert actions; its edits
+   disappear after a page or DevTools reload unless local overrides or a source
+   workspace is configured. A second Hronaut editor would need a clear persistence
+   contract and would compete with DevTools for the one debugger connection.
+   Gather a concrete workflow that the existing Changes panel cannot serve
+   before implementing another editor.
 
 ## Rotating QA review
 

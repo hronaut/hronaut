@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Do not count an iframe's in-page navigation as another visit to its parent website.
+
 ## [2.5.16] - 2026-09-24
 
 ### Fixed

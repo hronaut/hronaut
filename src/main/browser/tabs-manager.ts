@@ -8453,9 +8453,12 @@ export class BrowserTabsManager {
         })
       }
     })
-    webContents.on('did-navigate-in-page', (_event, url) => {
+    webContents.on('did-navigate-in-page', (_event, url, isMainFrame) => {
       if (tab.sleeping) return
       this.trackWorkspaceOrigin(tab, url)
+      // A frame's hash or history change does not represent another visit to
+      // the tab's top-level page.
+      if (!isMainFrame) return
       syncNavigation()
       if (tab.reproRecording?.active) {
         this.addReproStep(tab, {
