@@ -37,6 +37,17 @@ download links against the advertised tag. Open website issues #22 (community
 hub), #5 (reviewer grants), and #2 (Search Console) remain separate work items;
 their presence is not evidence of a newly reproduced website defect.
 
+### Wallet discovery follow-up (September 24)
+
+Re-read [discussion #212](https://github.com/orgs/hronaut/discussions/212).
+Its older jsdom and local-chain demonstrations remain version-specific. Added
+`tests/integration/wallet-discovery.e2e.ts` against the current Electron build:
+late EVM/TRON discovery listeners receive separate announcements, repeated
+requests after a same-document route change preserve provider identity and
+frozen metadata, and the wallet request list stays empty. The focused Docker
+case passed. This checks discovery only; it is not a transaction, external
+wallet, installer or protocol-conformance result.
+
 ### Completed QA and next boundaries
 
 Completed in the current Unreleased cycle: accessibility comparison now keeps a

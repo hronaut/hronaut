@@ -57,7 +57,12 @@ Do not create alternative registration paths that can bypass dispatch checks.
 
 Split `tests/integration/browser-shell.e2e.ts` by behavior, preserving isolated
 profiles, semantic assertions and teardown. The earlier capability-suite split
-provides a precedent. Tests that inject update state must disable startup update
+provides a precedent. The emulation suite is now split into responsive preview,
+environment configuration and JavaScript/offline reset workflows, preserving
+isolation and reset assertions while removing their shared 45-second deadline.
+Activity assertions now hold a real MCP command open until both indicators are
+checked, rather than racing its completion grace period.
+Tests that inject update state must disable startup update
 checks before launch; the workspace-scale failure demonstrated how an unrelated
 timer can invalidate an otherwise correct layout assertion.
 

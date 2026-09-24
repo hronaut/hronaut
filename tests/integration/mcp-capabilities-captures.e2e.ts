@@ -4,14 +4,38 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
 test('exports bounded screenshots and PDFs and records downloads and activity', async ({ capabilities, electronApp, appWindow, profileDirectory }) => {
-  const { client, tabId, address, openPageTool } = capabilities
-  await client.callTool({
+  const { client, tabId, address, fixtureUrl, openPageTool } = capabilities
+  // Keep the command live while checking both activity indicators. The brief
+  // completion grace period can expire between assertions on a loaded runner.
+  const pendingActivity = client.callTool({
     name: 'browser_evaluate',
-    arguments: { tabId, script: 'document.title' }
-  })
+    arguments: { tabId, script: `new Promise(resolve => {
+      if (window.__hronautActivityReleased) resolve(document.title);
+      else window.__hronautReleaseActivity = () => resolve(document.title);
+    })` }
+  }).then(result => ({ result }), error => ({ error }))
   const commandedTab = appWindow.locator('.tab.active')
-  await expect(commandedTab).toHaveClass(/mcp-active/)
-  await expect(commandedTab).toHaveAttribute('aria-description', 'Agent active')
+  try {
+    await expect.poll(() => electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      return page?.executeJavaScript('typeof window.__hronautReleaseActivity === \'function\'')
+    }, fixtureUrl)).toBe(true)
+    await expect(commandedTab).toHaveClass(/mcp-active/)
+    await expect(commandedTab).toHaveAttribute('aria-description', 'Agent active')
+  } finally {
+    await electronApp.evaluate(async ({ webContents }, url) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL() === url)
+      if (!page) throw new Error('Activity fixture page was not found')
+      await page.executeJavaScript(`
+        window.__hronautActivityReleased = true;
+        window.__hronautReleaseActivity?.();
+        delete window.__hronautReleaseActivity;
+      `)
+    }, fixtureUrl)
+  }
+  const completedActivity = await pendingActivity
+  if ('error' in completedActivity) throw completedActivity.error
+  expect((completedActivity.result as CallToolResult).isError).not.toBe(true)
   await expect(commandedTab).not.toHaveClass(/mcp-active/, { timeout: 3_000 })
 
   await openPageTool('Save page as PDF')

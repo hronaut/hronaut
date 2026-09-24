@@ -1,19 +1,8 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { expect, test, text } from './capability-fixtures.js'
 
-test('isolates and restores responsive, runtime and environment emulation', async ({ capabilities, electronApp, appWindow }) => {
-  const { client, tabId, fixtureOrigin, openPageTool } = capabilities
-  await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow')`)
-  const isolatedTabResult = await client.callTool({
-    name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
-  }) as CallToolResult
-  expect(isolatedTabResult.isError, text(isolatedTabResult)).not.toBe(true)
-  const isolatedTabId = JSON.parse(text(isolatedTabResult)).tabs.find((tab: { url: string }) => tab.url === `${fixtureOrigin}/`)?.id as string
-  expect(isolatedTabId).toBeTruthy()
-  await client.callTool({ name: 'browser_wait', arguments: { tabId: isolatedTabId } })
-  await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
-  const routePattern = `${fixtureOrigin}/route-target`
-
+test('applies responsive presets and resets only the viewport', async ({ capabilities, appWindow }) => {
+  const { client, tabId, openPageTool } = capabilities
   const seededEmulation = await client.callTool({
     name: 'browser_emulate',
     arguments: { tabId, colorScheme: 'dark' }
@@ -81,6 +70,21 @@ test('isolates and restores responsive, runtime and environment emulation', asyn
   }) as CallToolResult
   expect(ambiguousViewport.isError).toBe(true)
   expect(text(ambiguousViewport)).toContain('cannot be combined')
+
+})
+
+test('isolates environment settings and applies and resets them through the panel', async ({ capabilities, electronApp, appWindow }) => {
+  const { client, tabId, fixtureOrigin, openPageTool } = capabilities
+  await appWindow.evaluate(`window.hronautPermissions.set(${JSON.stringify(fixtureOrigin)}, 'geolocation', 'allow')`)
+  const isolatedTabResult = await client.callTool({
+    name: 'browser_new_tab', arguments: { url: `${fixtureOrigin}/`, active: false }
+  }) as CallToolResult
+  expect(isolatedTabResult.isError, text(isolatedTabResult)).not.toBe(true)
+  const isolatedTabId = JSON.parse(text(isolatedTabResult)).tabs.find((tab: { url: string }) => tab.url === `${fixtureOrigin}/`)?.id as string
+  expect(isolatedTabId).toBeTruthy()
+  await client.callTool({ name: 'browser_wait', arguments: { tabId: isolatedTabId } })
+  await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
+  const routePattern = `${fixtureOrigin}/route-target`
 
   const emulated = await client.callTool({
     name: 'browser_emulate',
@@ -498,6 +502,23 @@ test('isolates and restores responsive, runtime and environment emulation', asyn
     extraHttpHeaderNames: ['X-Hronaut-Test']
   })
   await environmentPanel.getByRole('button', { name: 'Close Environment' }).click()
+
+})
+
+test('restores JavaScript and clears offline emulation, viewport and headers', async ({ capabilities, appWindow }) => {
+  const { client, tabId, fixtureOrigin, openPageTool } = capabilities
+  // Preserve the reset contract previously covered after the environment UI
+  // scenario, but give this independent workflow its own profile and deadline.
+  const seeded = await client.callTool({
+    name: 'browser_emulate',
+    arguments: {
+      tabId,
+      viewport: { width: 390, height: 844, deviceScaleFactor: 3, mobile: true, touch: true, orientation: 'portrait' },
+      extraHttpHeaders: { 'X-Hronaut-Test': 'device-emulation' }
+    }
+  }) as CallToolResult
+  expect(seeded.isError, text(seeded)).not.toBe(true)
+  const emulationResetButton = appWindow.getByRole('button', { name: /^Reset tab emulation:/ })
 
   const disabledJavaScript = await client.callTool({
     name: 'browser_emulate',
