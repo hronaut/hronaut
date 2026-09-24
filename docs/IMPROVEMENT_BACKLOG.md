@@ -684,3 +684,13 @@ commit, and detached panels retain their separate open-state behavior.
   focused lint/typechecking pass. The initial 2.5.27 candidate passed all 3,275
   static tests; its queued publication process was stopped before native startup
   so a new immutable candidate can include this fixture correction.
+
+- The completed v2.5.26 release run passed all five native shards and all seven
+  desktop packaging jobs, but publication was correctly skipped after macOS and
+  Windows MCPB tests failed. Desktop packaging had no dependency on that failing
+  adapter gate, so those seven packages were built despite being unpublishable.
+  Added `test-mcpb` to the Linux, macOS, and Windows packaging prerequisites while
+  retaining independent native/adapter test matrices. Three dependency-contract
+  cases failed before the change; all 32 release-quality cases and focused
+  lint/typechecking pass after it. This workflow-only follow-up is separate from
+  the immutable v2.5.27 candidate and has not yet run in a hosted release.

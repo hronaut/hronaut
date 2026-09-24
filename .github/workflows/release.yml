@@ -233,6 +233,7 @@ jobs:
       - prepare-release
       - test-integration
       - validate
+      - test-mcpb
     strategy:
       fail-fast: false
       matrix:
@@ -285,6 +286,7 @@ jobs:
       - prepare-release
       - test-integration
       - validate
+      - test-mcpb
     strategy:
       fail-fast: false
       matrix:
@@ -331,6 +333,7 @@ jobs:
       - prepare-release
       - test-integration
       - validate
+      - test-mcpb
     strategy:
       fail-fast: false
       matrix:

@@ -215,6 +215,20 @@ describe('release quality gates', () => {
     }
   })
 
+  it.each(['build-linux', 'build-macos', 'build-windows'])(
+    'does not package desktop artifacts after adapter validation fails (%s)', async build => {
+      const workflow = parse(await readFile('.github/workflows/release.yml', 'utf8')) as {
+        jobs: Record<string, { needs?: string[], if?: string }>
+      }
+      const packaging = workflow.jobs[build]!
+      expect(packaging.needs).toEqual(expect.arrayContaining([
+        'prepare-release', 'validate', 'test-integration', 'test-mcpb'
+      ]))
+      // Keep Actions' default success gate; do not bypass a failed prerequisite.
+      expect(packaging.if).toBeUndefined()
+    }
+  )
+
   it('does not restore dependency caches across untrusted and privileged release jobs', async () => {
     const workflow = await readFile('.github/workflows/release.yml', 'utf8')
 
