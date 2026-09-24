@@ -4,18 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.20] - 2026-09-24
+
 ### Fixed
 
-- Reject malformed diagnostic action and mode values before they can change recording state.
-
-- Keep DOM recorder actions authoritative while automatic refreshes are pending.
-
-- Preserve a newer keyboard focus choice when delayed dialog-close cleanup finishes.
-
-- Keep recorder controls busy until pending actions finish, and preserve their results or errors when live tab updates trigger refreshes.
-
-- Prevent delayed recorder stops from capturing into a replacement recording, and preserve the final scroll when Stop is requested concurrently.
-- Cancel downloads cleanly and show a destination failure when native save setup fails or no unique destination name can be allocated.
+- Keep delayed recorder stops tied to their original recording, and preserve the final scroll when Stop is requested concurrently.
+- Preserve pending reproduction and DOM recorder actions, their busy state, and their errors during automatic refreshes.
+- Keep the user's newer keyboard focus choice when delayed dialog-close cleanup finishes.
+- Report download destination setup failures cleanly and release reserved filenames for later downloads.
+- Reject malformed diagnostic actions and modes before they can change recording state.
 
 ## [2.5.19] - 2026-09-24
 

@@ -32,6 +32,18 @@ and shared audit contracts. Entries distinguish proposals from completed work.
    Cross-restart recovery needs a separate persistence and partial-file validation
    design; it is not implied by this proposal.
 
+3. **Explicit recorder assertions — proposed after the maintenance release.**
+   [Playwright's generator](https://playwright.dev/docs/codegen) lets users select
+   visibility, text, and value assertions. Hronaut's Playwright export deliberately
+   ends with a TODO error until an expected result is added. A user-selected
+   visibility assertion could reduce that manual work while keeping expected
+   behavior explicit. Reuse the element picker, retain bounded selectors and
+   recording limits, and reject results from obsolete page/recording contexts.
+   Cover hidden/removed elements, duplicate selectors, frame support, export
+   escaping, and concurrent stop. Text/value capture needs a separate explicit
+   privacy contract. This is research, not an implemented assertion or replay
+   feature; the current TODO remains appropriate for action-only recordings.
+
 ## Developer feedback speed
 
 The full Docker dependency stage now separates release metadata from installation
