@@ -516,3 +516,19 @@ commit, and detached panels retain their separate open-state behavior.
   change only; the running `c54f33d` image still contains the exact application
   code and Electron suite for the thumbnail batch. Updated full static validation
   covers the additional launcher regression tests before integration.
+
+- v2.5.25 (`664fe8c`) passed all 3,243 static tests and 551 local Electron
+  cases plus native dialogs without retries, then all hosted release gates and
+  seven desktop packaging jobs. Release run 36058086181 published 26 assets;
+  independent readback verified the website's release manifest and eleven download
+  redirects, and MCP Registry reports version 2.5.25 active/latest. The verified
+  Scoop manifest was committed at `0b4ec58`; its separate Windows smoke is still
+  being monitored. The earlier v2.5.24 tag remains an unpublished failed release.
+
+- The thumbnail runtime image at `c54f33d` passed all 552 Electron cases and native
+  dialogs with no retries. The ownership follow-up at `ae59e8a` passed full static
+  validation: 3,256 tests across 417 files, lint, typechecks, and build. The only
+  differences from that runtime image are the separately reproduced and verified
+  focused-launcher ownership repair, its tests, and notes. This batch is now
+  integrated on main together with the Scoop update. Recorder scope changes at
+  `b036355` remain in a separate immutable full-validation run.
