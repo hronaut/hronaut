@@ -1,6 +1,6 @@
 # Technical-debt reduction plan
 
-Reviewed September 24, 2026. Implement one independently verifiable extraction
+Reviewed September 25, 2026. Implement one independently verifiable extraction
 per commit. Status is recorded under each boundary below.
 
 ## First: collection title sanitization
@@ -76,6 +76,10 @@ operator manifest is identical before and after the move; esbuild reports four
 source modules instead of 39 for that entry point. A dependency-graph test guards
 this boundary, alongside the existing live MCP catalog and bundled adapter tests.
 This is a coupling reduction, not a measured startup or packaging speed claim.
+The catalog and Docker-networking batch passed its 3,274-test static gate;
+full native validation and main integration remain pending. The corrected
+v2.5.27 candidate includes those changes plus alias-safe adapter startup and
+explicit network-recording preconditions in the workspace handoff fixture.
 
 ## Test organization and fixture ownership
 
@@ -106,7 +110,7 @@ runtime passed 552 Electron cases and native dialogs without retries.
 stream-retention, and request-trimming helpers form a synchronous boundary.
 They now live with `BrowserNetworkRequestRecord` in `network-recording.ts`.
 Its state contains only request history, capture sequence, observation generation,
-and the security snapshot; it does not need Electron `WebContents` or the complete
+main-frame identity, and the security snapshot; it does not need Electron `WebContents` or the complete
 `BrowserTab`. The existing mutation model is preserved so waiters and diagnostic
 readers continue to see the same tab-owned records.
 
@@ -121,8 +125,13 @@ Nine characterization cases exercise redirects reusing a CDP request ID,
 redirects crossing an observation generation, WebSocket creation and handshake
 ordering, completed-request filtering, stream retention/drop counts, failed
 loads, and document security metadata. All 25 focused unit cases and five native network
-cases pass, as do focused lint and typechecking. The immutable full gate remains
-required before integration. Existing real Electron network and
+cases pass, as do focused lint and typechecking. The extraction independently
+passed 554 Electron cases and native dialogs without retries. The later
+main-frame attribution fix, updater ownership fix, and recording changes passed
+3,271 unit/component tests, 557 Electron cases, and native dialogs together at
+`1f12319`, which is now on main. The v2.5.26 release was not published because
+platform adapter tests exposed a separate filesystem-alias startup bug.
+Existing real Electron network and
 workspace-handoff coverage must continue to verify privacy, request relationships,
 and isolation. Preserve current retention order and timestamp semantics during
 the extraction; any policy change needs its own failing-before regression.
