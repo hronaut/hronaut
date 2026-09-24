@@ -118,6 +118,14 @@ semantics, nested state isolation, viewport limits, private header handling, and
 unsupported inherited overlay names; the latter three cases failed before the
 validation changed from prototype membership to own-property membership.
 
+Emulation updates now keep rebasing, native application, rollback, and state
+commit inside the existing per-tab debugger queue. Two Electron regressions
+failed before the fix: a simultaneous viewport change discarded a completed
+dark-mode change, and a failed earlier update rolled back a successful later
+viewport while stored state still reported 390px. The queued transaction keeps
+stored and native settings aligned. Seven focused native cases cover both races
+alongside emulation reset, isolation, validation, and performance comparisons.
+
 Performance environment fingerprints now live in
 `src/main/browser/performance-environment.ts`. Object keys are ordered before
 hashing, so applying equivalent settings in separate actions or in one action

@@ -5559,21 +5559,33 @@ export class BrowserTabsManager {
   async emulate(options: BrowserEmulationOptions = {}): Promise<BrowserEmulationState> {
     const tab = this.getTab(options.tabId)
     if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before changing browser emulation')
-    const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
-    if (!prepared) return cloneEmulationState(tab.emulation)
-    const previous = cloneEmulationState(tab.emulation)
-    const previousHeaders = { ...tab.emulationExtraHttpHeaders }
-    const { state: next, headers: nextHeaders } = prepared
-    try {
-      await this.withDebugger(tab.webContents, () => this.applyEmulationState(tab, next, nextHeaders))
-    } catch (error) {
-      await this.withDebugger(tab.webContents, () => this.applyEmulationState(tab, previous, previousHeaders)).catch(() => undefined)
-      throw error
+    // Validate before queuing, while preserving read-only access without a debugger.
+    if (!prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)) {
+      return cloneEmulationState(tab.emulation)
     }
-    tab.emulation = next
-    tab.emulationExtraHttpHeaders = nextHeaders
-    this.changed(false)
-    return cloneEmulationState(next)
+    const webContents = tab.webContents
+    return this.withDebugger(webContents, async () => {
+      if (this.getTab(tab.id) !== tab || tab.webContents !== webContents) {
+        throw new Error('The target tab changed before emulation could be applied')
+      }
+      // Rebase on the last committed settings after acquiring the per-tab queue.
+      const prepared = prepareBrowserEmulation(tab.emulation, tab.emulationExtraHttpHeaders, options)
+      if (!prepared) return cloneEmulationState(tab.emulation)
+      const previous = cloneEmulationState(tab.emulation)
+      const previousHeaders = { ...tab.emulationExtraHttpHeaders }
+      const { state: next, headers: nextHeaders } = prepared
+      try {
+        await this.applyEmulationState(tab, next, nextHeaders)
+      } catch (error) {
+        // Roll back before another queued operation can change native state.
+        await this.applyEmulationState(tab, previous, previousHeaders).catch(() => undefined)
+        throw error
+      }
+      tab.emulation = next
+      tab.emulationExtraHttpHeaders = nextHeaders
+      this.changed(false)
+      return cloneEmulationState(next)
+    })
   }
 
   async scroll(options: {
