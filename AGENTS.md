@@ -81,6 +81,11 @@ The authoritative clean-environment Electron gate is:
 npm run test:integration:docker
 ```
 
+Keep both Playwright image pins in `Dockerfile.test` aligned with the resolved
+`playwright` version in `package-lock.json` when upgrading the test driver.
+`tests/docker-playwright-version.test.ts` checks this: a mismatched image can
+pass Electron-only tests while standalone browser launches cannot find a binary.
+
 It builds and runs both the Playwright Electron suite and native-dialog checks
 inside the pinned Docker/Xvfb image. Its dependency stage normalizes only the
 root application version, so release-only version bumps can reuse installed

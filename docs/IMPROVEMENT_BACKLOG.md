@@ -272,6 +272,14 @@ commit, and detached panels retain their separate open-state behavior.
 
 ## Test infrastructure follow-up
 
+- The standalone recorder probe exposed a Docker/runtime mismatch: the locked
+  Playwright driver was 1.63.0 while both image stages remained 1.62.1. A normal
+  Chromium launch failed because the driver expected a browser absent from that
+  image. Both pins now match 1.63.0, with a configuration regression that failed
+  before the update and checks every pinned Playwright stage against the lockfile.
+  Validate default browser launch and the full Electron/native-dialog gate in the
+  updated image; the earlier explicit-browser-path probe is not that proof.
+
 - Reproduction export had a selector-scope mismatch on pages with shadow-DOM
   components: recording validated a selector with document.querySelectorAll,
   but default Playwright locators also matched nodes in open shadow roots.
