@@ -49,7 +49,7 @@ async function fixture() {
     const event = { preventDefault: vi.fn() }
     session.emit('will-download', event, item as DownloadItem, { id: tabId })
     return {
-      event, cancel,
+      event, cancel, item,
       interrupt: () => { state = 'interrupted'; item.emit('updated', {}, state) },
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
@@ -95,4 +95,37 @@ it('retains interrupted transfers at the history limit and admits another downlo
   expect(download().event.preventDefault).not.toHaveBeenCalled()
   expect(controller.listDownloads()).toHaveLength(200)
   expect(controller.listDownloads().some(entry => entry.id === entries[0]!.id)).toBe(false)
+})
+
+it('releases only its own session and transfer listeners when destroyed', async () => {
+  const { controller, session, download } = await fixture()
+  const transfer = download()
+  const otherSessionListener = vi.fn()
+  const otherTransferListener = vi.fn()
+  session.on('will-download', otherSessionListener)
+  transfer.item.on('updated', otherTransferListener)
+  transfer.interrupt()
+  const before = controller.listDownloads()
+
+  controller.destroy()
+  controller.destroy()
+
+  expect(session.listeners('will-download')).toEqual([otherSessionListener])
+  expect(transfer.item.listeners('updated')).toEqual([otherTransferListener])
+  expect(transfer.item.listenerCount('done')).toBe(0)
+  transfer.complete()
+  expect(controller.listDownloads()).toEqual(before)
+  controller.attachSession(session as Session)
+  download()
+  expect(controller.listDownloads()).toEqual(before)
+  expect(otherSessionListener).toHaveBeenCalledOnce()
+})
+
+it('releases update listeners as soon as a transfer completes', async () => {
+  const { controller, download } = await fixture()
+  const transfer = download()
+  transfer.complete()
+  expect(transfer.item.listenerCount('updated')).toBe(0)
+  expect(transfer.item.listenerCount('done')).toBe(0)
+  expect(controller.listDownloads()[0]?.state).toBe('completed')
 })

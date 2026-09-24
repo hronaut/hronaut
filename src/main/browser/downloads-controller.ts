@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
-import { shell, type DownloadItem, type Session } from 'electron'
+import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../shared/download-state.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadState } from '../../shared/types.js'
@@ -22,7 +22,9 @@ interface BrowserDownloadsHost {
 
 /** Owns native downloads; the manager remains authoritative for tabs and workspaces. */
 export class BrowserDownloadsController {
-  private readonly downloadHookSessions = new WeakSet<Session>()
+  private readonly downloadHookSessions = new Map<Session, () => void>()
+  private readonly downloadItemListeners = new Map<DownloadItem, () => void>()
+  private destroyed = false
   private readonly downloads = new Map<string, BrowserDownloadState>()
   private readonly downloadItems = new Map<string, DownloadItem>()
   private readonly downloadWorkspaceIds = new Map<string, string | undefined>()
@@ -49,7 +51,12 @@ export class BrowserDownloadsController {
   }
 
   destroy(): void {
+    this.destroyed = true
     this.clearPendingNotification()
+    for (const detach of this.downloadHookSessions.values()) detach()
+    this.downloadHookSessions.clear()
+    for (const detach of this.downloadItemListeners.values()) detach()
+    this.downloadItemListeners.clear()
     this.downloadItems.clear()
     this.downloadWorkspaceIds.clear()
     this.reservedDownloadPaths.clear()
@@ -142,9 +149,8 @@ export class BrowserDownloadsController {
   }
 
   attachSession(browserSession: Session): void {
-    if (!this.downloadHookSessions.has(browserSession)) {
-      this.downloadHookSessions.add(browserSession)
-      browserSession.on('will-download', (event, item, webContents) => {
+    if (!this.destroyed && !this.downloadHookSessions.has(browserSession)) {
+      const onWillDownload = (event: Event, item: DownloadItem, webContents: WebContents) => {
         this.trimDownloadHistory()
         if (this.downloads.size >= MAX_DOWNLOAD_HISTORY) {
           event.preventDefault()
@@ -183,15 +189,15 @@ export class BrowserDownloadsController {
         this.downloads.set(id, download)
         this.downloadItems.set(id, item)
         this.downloadWorkspaceIds.set(id, workspaceId)
-        this.notifyDownloadsChanged(true)
-        item.on('updated', (_downloadEvent, state) => {
+        const onUpdated = (_downloadEvent: Event, state: 'interrupted' | 'progressing') => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
           this.syncDownloadPath(download, item)
           this.notifyDownloadsChanged()
-        })
-        item.once('done', (_downloadEvent, state) => {
+        }
+        const onDone = (_downloadEvent: Event, state: 'completed' | 'cancelled' | 'interrupted') => {
+          detachItemListeners()
           this.reservedDownloadPaths.delete(suggestedPath)
           download.state = state
           download.receivedBytes = item.getReceivedBytes()
@@ -201,8 +207,19 @@ export class BrowserDownloadsController {
           this.downloadItems.delete(id)
           this.trimDownloadHistory()
           this.notifyDownloadsChanged(true)
-        })
-      })
+        }
+        const detachItemListeners = () => {
+          item.removeListener('updated', onUpdated)
+          item.removeListener('done', onDone)
+          this.downloadItemListeners.delete(item)
+        }
+        this.downloadItemListeners.set(item, detachItemListeners)
+        item.on('updated', onUpdated)
+        item.once('done', onDone)
+        this.notifyDownloadsChanged(true)
+      }
+      browserSession.on('will-download', onWillDownload)
+      this.downloadHookSessions.set(browserSession, () => browserSession.removeListener('will-download', onWillDownload))
     }
   }
 
@@ -247,7 +264,7 @@ export class BrowserDownloadsController {
   }
 
   private notifyDownloadsChanged(immediate = false): void {
-    if (!this.host.isAvailable()) return
+    if (this.destroyed || !this.host.isAvailable()) return
     if (immediate) {
       if (this.downloadNotifyTimer) clearTimeout(this.downloadNotifyTimer)
       this.downloadNotifyTimer = null

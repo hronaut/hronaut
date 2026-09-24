@@ -15,6 +15,19 @@ and shared audit contracts. These are proposals, not shipped features.
    Gather a concrete workflow that the existing Changes panel cannot serve
    before implementing another editor.
 
+2. **Pause and resume downloads in the current session.** The extracted downloads
+   controller gives this a focused home. [Firefox's download manager](https://support.mozilla.org/en-US/kb/where-find-and-manage-downloaded-files-firefox)
+   already exposes pause/resume; [Electron's DownloadItem API](https://www.electronjs.org/docs/latest/api/download-item)
+   provides the native operations and availability state. Add typed IPC/MCP
+   actions and accessible panel controls, preserving workspace and observation
+   generation checks. Keep terminal interruptions distinct from resumable ones.
+   Test pause/resume, cancellation while paused, stale workspace access, and
+   server behavior with and without range support and validators. Electron says
+   byte continuation needs range requests plus Last-Modified and ETag; otherwise
+   resuming restarts from the beginning. UI must tolerate progress decreasing.
+   Cross-restart recovery needs a separate persistence and partial-file validation
+   design; it is not implied by this proposal.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)

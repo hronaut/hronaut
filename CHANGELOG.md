@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Release native download listeners when their controller closes or a transfer finishes.
+
 - Reject new website and agent wallet requests once application shutdown begins.
 - Cancel waiting wallet approvals during shutdown and reject transaction preparation that finishes after shutdown.
 
