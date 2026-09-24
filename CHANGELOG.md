@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.16] - 2026-09-24
+
 ### Fixed
 
 - Show the exact fork action on metadata-only workspace entries so agents can copy workspaces with direct access disabled.
