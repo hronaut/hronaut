@@ -862,17 +862,14 @@ describe('WalletBroker', () => {
     await broker.providerRequest(context(), {
       family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0xaa36a7' }]
     })
-    const signing = broker.providerRequest(context(), {
+    const signing = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'eth_signTransaction', params: [{ from: secondSameChain.wallet.publicAddress }]
-    })
-    await vi.waitFor(() => expect(broker.listPending().find((request) => (
+    }))
+    const pending = await broker.waitForPending(request => (
       request.walletId === secondSameChain.wallet.id && request.status === 'awaiting-human'
-    ))).toBeDefined())
-    const pending = broker.listPending().find((request) => (
-      request.walletId === secondSameChain.wallet.id && request.status === 'awaiting-human'
-    ))!
+    ))
     await broker.approve(pending.id)
-    await expect(signing).resolves.toBe('signed-transaction')
+    await expect(signing).resolves.toEqual({ status: 'fulfilled', value: 'signed-transaction' })
     expect(normalize).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: secondSameChain.wallet.id }),
       { from: secondSameChain.wallet.publicAddress }
@@ -883,21 +880,18 @@ describe('WalletBroker', () => {
       expect.objectContaining({ signer: secondSameChain.wallet.publicAddress })
     )
 
-    const messageSigning = broker.providerRequest(context(), {
+    const messageSigning = settle(broker.providerRequest(context(), {
       family: 'evm', method: 'personal_sign', params: ['0x6869', secondSameChain.wallet.publicAddress]
-    })
-    await vi.waitFor(() => expect(broker.listPending().find((request) => (
+    }))
+    const pendingMessage = await broker.waitForPending(request => (
       request.walletId === secondSameChain.wallet.id
       && request.operation === 'sign-message'
       && request.status === 'awaiting-human'
-    ))).toBeDefined())
-    const pendingMessage = broker.listPending().find((request) => (
-      request.walletId === secondSameChain.wallet.id
-      && request.operation === 'sign-message'
-      && request.status === 'awaiting-human'
-    ))!
+    ))
     await broker.approve(pendingMessage.id)
-    await expect(messageSigning).resolves.toMatch(/^0x[0-9a-f]+$/i)
+    await expect(messageSigning).resolves.toEqual({
+      status: 'fulfilled', value: expect.stringMatching(/^0x[0-9a-f]+$/i)
+    })
 
     await broker.providerRequest(context(), {
       family: 'evm', method: 'wallet_switchEthereumChain', params: [{ chainId: '0x14a34' }]

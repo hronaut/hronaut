@@ -712,3 +712,13 @@ commit, and detached panels retain their separate open-state behavior.
   bootstrap scripts also have local entry checks, but their self-contained image
   inputs and cache-key contracts need a separate review before sharing imports.
   This release-tool follow-up does not alter the current v2.5.27 candidate.
+
+- Full static validation of the release-tool follow-up failed an existing EVM
+  account-isolation test after its default polling deadline expired before the
+  message request reached human approval. Teardown then cancelled its unobserved
+  signing promise, producing an unhandled rejection. The test now reuses the
+  file's event-based pending-request helper and immediately settles both signing
+  promises, retaining exact account, chain, and signature assertions. All 85
+  wallet-broker cases and focused lint/typechecking pass without increasing a
+  timeout. The failed full run is retained; a fresh static gate is required for
+  this follow-up. No production wallet behavior changed.
