@@ -532,3 +532,12 @@ commit, and detached panels retain their separate open-state behavior.
   focused-launcher ownership repair, its tests, and notes. This batch is now
   integrated on main together with the Scoop update. Recorder scope changes at
   `b036355` remain in a separate immutable full-validation run.
+
+- The separate v2.5.25 Windows Scoop smoke run 36060045426 passed. Main at
+  `306ee72` also passed hosted CI and CodeQL. Removing the integrated thumbnail
+  checkout succeeded normally after the focused Docker cache ownership repair.
+  The recorder scope image passed all static gates and 3,260 unit/component tests
+  across 417 files; its 554-case Electron and native-dialog gate is still running.
+  The next network recording extraction is isolated in its own checkout, with
+  tab-owned state and debugger/waiter ownership kept explicit in the refactoring
+  plan.
