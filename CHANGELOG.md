@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Avoid overlapping native thumbnail captures when the overview opens after an earlier capture times out.
+
 ## [2.5.25] - 2026-09-24
 
 ### Fixed

@@ -481,3 +481,15 @@ commit, and detached panels retain their separate open-state behavior.
   Nine focused cases (three repetitions each) and focused lint/typechecking pass
   without increasing deadlines. The superseded full run is not counted as a pass;
   the final 551-case immutable image must pass before publication.
+
+- Fresh thumbnail review found that timeout cleanup removed overview eligibility
+  but did not retain native capture ownership. Opening trusted chrome re-added
+  eligibility, allowing another `capturePage` while the first was still pending.
+  A real Electron regression observed two native calls on both failing-before
+  attempts. `native-preview-capture.ts` now owns native in-flight identity and
+  caller deadlines separately: the shared queue can continue for other pages,
+  while this page remains protected until its native promise settles. The manager
+  retains eligibility, image processing, cache publication, and late recovery.
+  Five focused unit cases, the native regression, and all three thumbnail quality
+  cases pass, as do focused lint and typechecking. This follow-up is isolated from
+  the immutable v2.5.25 candidate and still needs its own full validation.

@@ -3,6 +3,7 @@ import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from './emulation-state.js'
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
+import { NativePreviewCapture } from './native-preview-capture.js'
 import { HomeRefresh } from './home-refresh.js'
 import { BrowserDebuggerQueue } from './debugger-queue.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
@@ -48,7 +49,6 @@ import {
   type LoadURLOptions,
   type MenuItemConstructorOptions,
   type NavigationEntry,
-  type NativeImage,
   type PostBody,
   type Rectangle,
   type Referrer,
@@ -1252,6 +1252,7 @@ export class BrowserTabsManager {
   private readonly tabOverviewPreviewTimers = new Map<string, NodeJS.Timeout>()
   private readonly tabOverviewPreviewCaptures = new Map<string, Promise<void>>()
   private readonly tabOverviewPendingCaptures = new Map<string, TabOverviewPreviewCaptureRequest>()
+  private readonly nativePreviewCapture = new NativePreviewCapture(TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
   private readonly tabOverviewPreviewableTabs = new Set<string>()
   private tabOverviewCaptureQueue: Promise<void> = Promise.resolve()
   private tabOverviewLiveCaptureCursor = 0
@@ -10584,39 +10585,15 @@ export class BrowserTabsManager {
     )
     if (!isEligible()) return
     const navigationGeneration = tab.navigationGeneration
-    let captureTimeout: NodeJS.Timeout | undefined
-    let captureTimedOut = false
-    let nativeCapture: Promise<NativeImage> | undefined
-    let captured: NativeImage
-    try {
-      nativeCapture = mode === 'overview'
+    const captured = await this.nativePreviewCapture.run(
+      tab.webContents,
+      () => mode === 'overview'
         ? tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: false })
-        : tab.webContents.capturePage()
-      captured = await Promise.race([
-        nativeCapture,
-        new Promise<never>((_resolve, reject) => {
-          captureTimeout = setTimeout(() => {
-            captureTimedOut = true
-            reject(new Error(`Tab overview capture exceeded ${TAB_OVERVIEW_CAPTURE_TIMEOUT_MS} ms`))
-          }, TAB_OVERVIEW_CAPTURE_TIMEOUT_MS)
-          captureTimeout.unref()
-        })
-      ])
-    } catch (error) {
-      // A renderer that cannot paint must not permanently block the
-      // process-wide preview queue or accumulate repeated native captures.
-      if (captureTimedOut && nativeCapture) {
-        this.tabOverviewPreviewableTabs.delete(tab.id)
-        void nativeCapture.then(
-          () => this.resumeTabOverviewPreviewAfterLateCapture(tab),
-          () => undefined
-        )
-      }
-      throw error
-    } finally {
-      if (captureTimeout) clearTimeout(captureTimeout)
-    }
-    if (!isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
+        : tab.webContents.capturePage(),
+      () => { this.tabOverviewPreviewableTabs.delete(tab.id) },
+      () => this.resumeTabOverviewPreviewAfterLateCapture(tab)
+    )
+    if (!captured || !isEligible() || tab.navigationGeneration !== navigationGeneration || captured.isEmpty()) return
     const original = captured.getSize()
     // Only the single website card is enlarged. Keep normal cached captures
     // compact and promote the active frame during its existing overview refresh.
