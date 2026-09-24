@@ -493,3 +493,14 @@ commit, and detached panels retain their separate open-state behavior.
   Five focused unit cases, the native regression, and all three thumbnail quality
   cases pass, as do focused lint and typechecking. This follow-up is isolated from
   the immutable v2.5.25 candidate and still needs its own full validation.
+
+- Thumbnail coalescing and global serialization now live in
+  `preview-capture-queue.ts`. Each active capture owns its pending request, so
+  clearing bookkeeping cannot let an older completion consume a newer entry's
+  work. Six focused queue cases cover newest/equal-sequence replacement,
+  cross-tab serialization, pending cancellation, rejection recovery, and clearing
+  during active work. Together with native ownership coverage, all eleven focused
+  unit cases and all four native thumbnail cases pass; focused static checks pass.
+  Eligibility, settle timers, image encoding, and cache publication remain in the
+  manager. The earlier ownership-only validation launcher was stopped before it
+  started any containers, so this combined batch receives the next full gate.
