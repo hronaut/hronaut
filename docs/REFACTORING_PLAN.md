@@ -39,10 +39,13 @@ Docker, with renderer coverage for live and terminal interruptions. The controll
 
 ## Main-process composition
 
-Move cohesive IPC registration groups out of `src/main/index.ts`, beginning with
-collections and downloads. Pass explicit dependencies and retain trusted-sender
-checks on every privileged handler. Leave startup ordering, window ownership
-and shutdown orchestration in the entry point. Update and license lifecycle
+Collection and download IPC registration now lives in
+`src/main/collection-ipc.ts`. Dependencies resolve lazily after the trusted-sender
+check, preserving early registration before the window loads. Tests cover every
+channel rejecting untrusted callers, argument validation, and publishing only
+after successful persistence. Startup ordering, window ownership and shutdown
+orchestration remain in the entry point. Continue extracting cohesive domains
+with explicit dependencies and trusted-sender checks on every privileged handler. Update and license lifecycle
 extraction should be separate changes with their existing regression suites.
 
 ## MCP tool families

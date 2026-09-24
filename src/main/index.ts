@@ -1,3 +1,4 @@
+import { registerCollectionIpc } from './collection-ipc.js'
 import { isHronautHomeUrl } from '../shared/home-url.js'
 import { homeWorkspaceState, runHomeWorkspaceAction } from './home-workspace-actions.js'
 import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
@@ -2924,60 +2925,13 @@ function registerIpc(): void {
     ) throw new TypeError('Invalid PDF options')
     return tabsManager!.savePdf({ tabId, filename, landscape, pageSize })
   })
-  ipcMain.handle('downloads:list', (event) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.listDownloads()
-  })
-  ipcMain.handle('downloads:cancel', (event, downloadId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    return tabsManager!.manageDownloads('cancel', downloadId)
-  })
-  ipcMain.handle('downloads:clear-finished', (event) => {
-    assertTrustedShellSender(event)
-    return tabsManager!.manageDownloads('clear')
-  })
-  ipcMain.handle('downloads:show-in-folder', (event, downloadId: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    tabsManager!.showDownloadInFolder(downloadId)
-  })
-  ipcMain.handle('bookmarks:list', (event) => {
-    assertTrustedShellSender(event)
-    return bookmarkStore!.list()
-  })
-  ipcMain.handle('bookmarks:add', async (event, url: unknown, title: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof url !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark')
-    await bookmarkStore!.add({ url, title })
-    return publishBookmarks()
-  })
-  ipcMain.handle('bookmarks:rename', async (event, id: unknown, title: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string' || typeof title !== 'string') throw new TypeError('Invalid bookmark update')
-    await bookmarkStore!.rename(id, title)
-    return publishBookmarks()
-  })
-  ipcMain.handle('bookmarks:remove', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('Invalid bookmark ID')
-    await bookmarkStore!.remove(id)
-    return publishBookmarks()
-  })
-  ipcMain.handle('visit-history:list', (event) => {
-    assertTrustedShellSender(event)
-    return historyStore!.list()
-  })
-  ipcMain.handle('visit-history:remove', async (event, id: unknown) => {
-    assertTrustedShellSender(event)
-    if (typeof id !== 'string') throw new TypeError('Invalid history entry ID')
-    await historyStore!.remove(id)
-    return publishVisitHistory()
-  })
-  ipcMain.handle('visit-history:clear', async (event) => {
-    assertTrustedShellSender(event)
-    await historyStore!.clear()
-    return publishVisitHistory()
+  registerCollectionIpc(ipcMain, {
+    assertTrustedSender: assertTrustedShellSender,
+    bookmarks: () => bookmarkStore!,
+    history: () => historyStore!,
+    downloads: () => tabsManager!,
+    publishBookmarks,
+    publishVisitHistory
   })
   ipcMain.handle('browsing-data:summary', (event) => {
     assertTrustedShellSender(event)
