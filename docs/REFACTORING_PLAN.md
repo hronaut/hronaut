@@ -67,6 +67,16 @@ human review and cancellation centralized. Extract a low-coupling family first
 and compare advertised schemas and tool behavior before and after the move.
 Do not create alternative registration paths that can bypass dispatch checks.
 
+The first catalog extraction moves descriptions, annotations, tool-set selection,
+and server instructions into `src/main/mcp/tool-catalog.ts`. The server retains
+compatibility exports and the existing capability-classification assertions,
+registration checks, and mandatory dispatch wrapper. Packaging imports the
+catalog directly, removing its dependency on the server runtime. The generated
+operator manifest is identical before and after the move; esbuild reports four
+source modules instead of 39 for that entry point. A dependency-graph test guards
+this boundary, alongside the existing live MCP catalog and bundled adapter tests.
+This is a coupling reduction, not a measured startup or packaging speed claim.
+
 ## Test organization and fixture ownership
 
 Split `tests/integration/browser-shell.e2e.ts` by behavior, preserving isolated

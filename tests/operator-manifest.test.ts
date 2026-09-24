@@ -1,3 +1,4 @@
+import { build } from 'esbuild'
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import {
@@ -8,6 +9,24 @@ import { BROWSER_TOOL_CATALOG, mcpToolCatalogForSet } from '../src/main/mcp/serv
 import { MCP_TOOL_SETS } from '../src/shared/mcp-tool-sets.js'
 
 describe('version-matched operator manifest', () => {
+  it('generates packaging metadata without loading the MCP server runtime', async () => {
+    const result = await build({
+      entryPoints: ['scripts/operator-manifest.ts'],
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      packages: 'external',
+      write: false,
+      metafile: true
+    })
+    const runtimeInputs = Object.keys(result.metafile.inputs)
+      .filter(path => path.startsWith('src/main/'))
+    expect(runtimeInputs).toEqual(['src/main/mcp/tool-catalog.ts'])
+    expect(result.metafile.outputs['operator-manifest.js']?.imports.every(entry =>
+      entry.path.startsWith('node:')
+    )).toBe(true)
+  })
+
   it('derives every advertised tool set from the runtime catalog', () => {
     const manifest = generateOperatorManifest('9.8.7')
 

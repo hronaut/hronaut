@@ -4,7 +4,7 @@ import {
   BROWSER_SERVER_INSTRUCTIONS,
   BROWSER_TOOL_CATALOG,
   mcpToolCatalogForSet
-} from '../src/main/mcp/server.ts'
+} from '../src/main/mcp/tool-catalog.ts'
 import { MCP_TOOL_SETS } from '../src/shared/mcp-tool-sets.ts'
 
 export const OPERATOR_MANIFEST_SCHEMA_VERSION = '1.0'

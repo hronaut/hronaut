@@ -632,3 +632,16 @@ commit, and detached panels retain their separate open-state behavior.
   v2.5.26 candidate. The next immutable run covers all 557 Electron cases together
   with native dialogs; the failed image and both stopped publish guards are not
   counted as success.
+
+- Extracted the pure MCP catalog and tool-set selection from `server.ts` into
+  `tool-catalog.ts`; packaging now imports that module directly. Capability
+  classification, saved-task capability validation, registration contracts, and
+  dispatch remain in the server, which preserves its public catalog exports.
+  All catalog bodies moved unchanged, and before/after generated operator
+  manifests compare equal. The packaging entry point bundles four source modules
+  instead of 39; no timing improvement is claimed. A new dependency-graph test
+  prevents importing the server runtime for metadata. All 34 focused contract,
+  documentation, and packaging tests passed; the final metadata-import correction
+  also passed the 19 directly affected cases and focused lint/typechecking.
+  Full immutable validation is queued separately from the unchanged v2.5.26
+  release candidate; these focused results are not release-gate evidence.
