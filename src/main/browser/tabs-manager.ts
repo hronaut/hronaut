@@ -1235,6 +1235,7 @@ export class BrowserTabsManager {
 
   private readonly tabs = new Map<string, BrowserTab>()
   private readonly pendingReproStarts = new WeakMap<BrowserTab, symbol>()
+  private readonly pendingReproStops = new WeakMap<BrowserReproRecordingInternal, Promise<BrowserReproRecording>>()
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
   private readonly webMcpDescriptorCache = new Map<string, string>()
@@ -6223,20 +6224,43 @@ export class BrowserTabsManager {
     const recording = tab.reproRecording
     if (!recording) return this.reproRecordingResult(tab)
     if (action === 'get') return this.reproRecordingResult(tab)
-    if (action === 'stop' && recording.active) {
-      await recording.queue.catch(() => undefined)
-      if (recording.scrollTimer) {
-        clearTimeout(recording.scrollTimer)
-        recording.scrollTimer = undefined
-        await this.captureReproScroll(tab)
+    return this.stopReproRecording(tab, recording)
+  }
+
+  private async stopReproRecording(tab: BrowserTab, recording: BrowserReproRecordingInternal): Promise<BrowserReproRecording> {
+    const existing = this.pendingReproStops.get(recording)
+    if (existing) return existing
+    const assertCurrent = () => {
+      if (this.tabs.get(tab.id) !== tab || tab.reproRecording !== recording) {
+        throw new Error('Reproduction recording changed while stopping')
       }
-      recording.active = false
-      recording.stoppedAt = new Date().toISOString()
-      recording.pendingPointer = undefined
     }
-    await recording.queue.catch(() => undefined)
-    this.changed(false)
-    return this.reproRecordingResult(tab)
+    const stop = (async () => {
+      assertCurrent()
+      if (recording.active) {
+        await recording.queue.catch(() => undefined)
+        assertCurrent()
+        if (recording.scrollTimer) {
+          clearTimeout(recording.scrollTimer)
+          recording.scrollTimer = undefined
+          await this.captureReproScroll(tab)
+          assertCurrent()
+        }
+        recording.active = false
+        recording.stoppedAt = new Date().toISOString()
+        recording.pendingPointer = undefined
+      }
+      await recording.queue.catch(() => undefined)
+      assertCurrent()
+      this.changed(false)
+      return this.reproRecordingResult(tab)
+    })()
+    this.pendingReproStops.set(recording, stop)
+    try {
+      return await stop
+    } finally {
+      this.pendingReproStops.delete(recording)
+    }
   }
 
   async domChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport> {
@@ -9573,7 +9597,10 @@ export class BrowserTabsManager {
   private clearReproRecording(tab: BrowserTab): void {
     this.pendingReproStarts.delete(tab)
     const recording = tab.reproRecording
-    if (recording?.scrollTimer) clearTimeout(recording.scrollTimer)
+    if (recording?.scrollTimer) {
+      clearTimeout(recording.scrollTimer)
+      recording.scrollTimer = undefined
+    }
     if (recording) recording.active = false
     tab.reproRecording = undefined
   }

@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent delayed recorder stops from capturing into a replacement recording, and preserve the final scroll when Stop is requested concurrently.
 - Cancel downloads cleanly and show a destination failure when native save setup fails or no unique destination name can be allocated.
 
 ## [2.5.19] - 2026-09-24

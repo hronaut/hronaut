@@ -1,7 +1,7 @@
 # Improvement research and QA queue
 
 Reviewed 2026-09-24 against the current README, REFERENCE, renderer controllers,
-and shared audit contracts. These are proposals, not shipped features.
+and shared audit contracts. Entries distinguish proposals from completed work.
 
 ## Priorities
 
@@ -57,9 +57,17 @@ This is a proposed experiment, not a reported compatibility pass. Check access
 to the Windows loopback endpoint before using a container-backed client; use
 a Windows-local client if that boundary cannot be reached. An RCIP bridge is
 a separate feature decision and should wait for evidence from the UI experiment.
-The linked starter could not be retrieved during this review, so its current
-implementation and behavior remain unverified. Do not infer them from the
-discussion or add a product integration on that basis.
+The published starter guide remains unavailable through the web reader, but the
+source was reviewed at RCIP commit `e2eb619f85a287e8082dee48131188e126092522`.
+The [standalone starter](https://github.com/binariedus/rcip/blob/e2eb619f85a287e8082dee48131188e126092522/templates/react-starter/src/App.tsx)
+is a counter with app-owned approval, decline, and cancellation controls; it has
+no Todos/Profile navigation. The separate
+[pilot example](https://github.com/binariedus/rcip/blob/e2eb619f85a287e8082dee48131188e126092522/examples/pilot-web/src/App.tsx)
+does contain Todos/Profile areas. Select and pin that fixture explicitly before
+attempting the proposed navigation check. The guide states that its approval
+button is ordinary page UI, not proof of human activation, and the starter exposes
+neither a global client nor a network bridge. This is source review only, not an
+executed Hronaut, Windows/Codex, or RCIP-bridge compatibility result.
 
 The website repository's latest commit is `7b251b4`, which validates release
 download links against the advertised tag. Open website issues #22 (community
