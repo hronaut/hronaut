@@ -20,10 +20,31 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   await settings.screenshot({ path: testInfo.outputPath('cyberpunk-turbo-settings.png') })
   await settings.locator('.settings-footer').getByRole('button', { name: 'Close', exact: true }).click()
 
-  await expect.poll(() => electronApp.evaluate(({ webContents }) => {
-    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
-    return home.executeJavaScript('document.documentElement.dataset.theme')
-  })).toBe('cyberpunk-turbo')
+  let homeRead: Record<string, unknown> = {}
+  try {
+    await expect.poll(async () => {
+      // Save native state before awaiting JavaScript: a stalled evaluation must
+      // remain distinguishable from repeated reads of an incorrect theme.
+      const homes = await electronApp.evaluate(({ webContents }) => webContents.getAllWebContents()
+        .filter(contents => contents.getURL().startsWith('hronaut://home'))
+        .map(contents => ({ id: contents.id, loading: contents.isLoading(), loadingMainFrame: contents.isLoadingMainFrame() })))
+      const read = { homes, startedAt: Date.now(), completed: false, theme: undefined as unknown }
+      homeRead = read
+      const theme = await electronApp.evaluate(({ webContents }) => {
+        const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
+        return home.executeJavaScript('document.documentElement.dataset.theme')
+      })
+      read.completed = true
+      read.theme = theme
+      return theme
+    }).toBe('cyberpunk-turbo')
+  } catch (error) {
+    await testInfo.attach('home-theme-read', {
+      body: Buffer.from(JSON.stringify({ ...homeRead, failedAt: Date.now() }, null, 2)),
+      contentType: 'application/json'
+    })
+    throw error
+  }
   const homeContrast = await electronApp.evaluate(async ({ webContents }, source) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
     const typography = await home.executeJavaScript('({ family: getComputedStyle(document.body).fontFamily, color: getComputedStyle(document.body).color })')

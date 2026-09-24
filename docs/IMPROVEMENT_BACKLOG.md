@@ -214,3 +214,11 @@ commit, and detached panels retain their separate open-state behavior.
   broker pending-state notifications. Release CI previously exhausted the
   separate one-second polling default during asynchronous persistence; the
   owning 85-case Docker suite passes with the event-driven fixture.
+- A four-shard Docker run of `b6d6433` failed its strict flaky-test gate because
+  the Cyberpunk Turbo Home-theme poll stalled for eight seconds, then passed on
+  retry. Three focused repetitions passed. This is unresolved: the failure did
+  not report repeated wrong theme values, and native-view occlusion did not make
+  `document.visibilityState` hidden in a diagnostic experiment. The theme test
+  now attaches native Home loading state and JavaScript-read completion on
+  recurrence. Do not increase the timeout or claim a visibility-event fix from
+  the available evidence. The failed run also did not reach native-dialog checks.
