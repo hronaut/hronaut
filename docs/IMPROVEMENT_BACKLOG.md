@@ -434,3 +434,13 @@ commit, and detached panels retain their separate open-state behavior.
   Both immediate/deferred native cases and the original hosted case pass, as do
   focused lint and typechecking. The failed release tag remains immutable; a new
   release requires the final batch's full static and immutable Docker gates.
+
+- The Playwright-aligned `c13aaf4` image passed full static validation (3,241
+  tests across 414 files). Its full Electron run exposed an existing timing-only
+  assertion in the post-write verification fixture: under load the 250 ms DOM
+  timer finished before the first read, so a correct one-attempt result violated
+  the intended multi-attempt test. Both attempts failed. The fixture now performs
+  the real first read before publishing its DOM update, preserving the assertions
+  for multiple reads, one write, privacy, and skipped duplicate dispatch. All five
+  focused repetitions and focused static checks pass. No production verification
+  timeout or retry policy changed.

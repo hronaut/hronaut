@@ -10,7 +10,7 @@ test('reconciles before a write and reads delayed postconditions without replayi
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end(`<!doctype html><title>Postcondition fixture</title>
       <div id="account">Account fixture</div><div id="state">Saving</div>
-      <input id="draft" value="unsaved fixture"><button id="write" onclick="window.writes++;setTimeout(() => document.getElementById('state').textContent = 'Saved fixture', 250)">Submit</button>
+      <input id="draft" value="unsaved fixture"><button id="write" onclick="window.writes++">Submit</button>
       <script>
         window.writes=0;window.hooks=0;window.privateInputSeen=false;
         const originalScrollIntoView = Element.prototype.scrollIntoView;
@@ -117,6 +117,28 @@ test('reconciles before a write and reads delayed postconditions without replayi
       await page.executeJavaScript(`document.getElementById('state').textContent = 'Saving'`)
     }, origin)
 
+    // Publish the fixture's update only after the first real postcondition read.
+    // A fixed timer can finish before that read when native dispatch is slow,
+    // accidentally skipping the retry behavior this case is intended to cover.
+    await electronApp.evaluate(({ webContents }, origin) => {
+      const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(origin))!
+      const descriptor = Object.getOwnPropertyDescriptor(page, 'executeJavaScriptInIsolatedWorld')
+      const evaluate = page.executeJavaScriptInIsolatedWorld.bind(page)
+      const restore = (): void => {
+        if (descriptor) Object.defineProperty(page, 'executeJavaScriptInIsolatedWorld', descriptor)
+        else Reflect.deleteProperty(page, 'executeJavaScriptInIsolatedWorld')
+      }
+      ;(globalThis as typeof globalThis & { __restorePostconditionRead?: () => void }).__restorePostconditionRead = restore
+      Object.defineProperty(page, 'executeJavaScriptInIsolatedWorld', { configurable: true, value: async (...args: Parameters<typeof evaluate>) => {
+        const result = await evaluate(...args)
+        if (result === 'not-yet-visible') {
+          restore()
+          await page.executeJavaScript(`document.getElementById('state').textContent = 'Saved fixture'`)
+        }
+        return result
+      } })
+    }, origin)
+
     const click = decode<{
       preWriteReconciliation: { status: string; actionable: boolean }
       postWriteVerification: { status: string; reason: string; attempt: number }
@@ -179,6 +201,11 @@ test('reconciles before a write and reads delayed postconditions without replayi
     ]))
     expect(JSON.stringify(report)).not.toMatch(/Account fixture|Saved fixture|#account|#state|private-item-key|private-target-id|private-source-revision/)
   } finally {
+    await electronApp.evaluate(() => {
+      const state = globalThis as typeof globalThis & { __restorePostconditionRead?: () => void }
+      state.__restorePostconditionRead?.()
+      delete state.__restorePostconditionRead
+    })
     await client.close()
     await closeFixtureServer(fixture)
   }
