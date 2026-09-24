@@ -703,3 +703,12 @@ commit, and detached panels retain their separate open-state behavior.
   tests and started its own fresh native gate, including adapter alias startup
   and the workspace-handoff fixture correction. Integration remains batched
   behind that candidate's complete verification.
+
+- The entry-point audit found the same unresolved-path guard in the release
+  history CLI. A direct invocation without arguments returned the expected usage
+  failure, while a directory-alias invocation silently exited zero. The new CLI
+  regression failed before sharing `isMainModule` and passes afterward, along
+  with all 30 focused release-history/helper cases and lint/typechecking. Docker
+  bootstrap scripts also have local entry checks, but their self-contained image
+  inputs and cache-key contracts need a separate review before sharing imports.
+  This release-tool follow-up does not alter the current v2.5.27 candidate.

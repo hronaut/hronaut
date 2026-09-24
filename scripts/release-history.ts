@@ -1,5 +1,5 @@
 import { readFile, writeFile } from 'node:fs/promises'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 const ENDPOINT = 'https://api.github.com/repos/hronaut/hronaut/releases'
 const URL_PREFIX = 'https://github.com/hronaut/hronaut/releases/tag/'
@@ -181,6 +181,6 @@ async function main(): Promise<void> {
   await writeFile(outputPath, `${JSON.stringify(artifact)}\n`)
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   main().catch(error => { console.error(error instanceof Error ? error.message : 'Unable to generate release history'); process.exitCode = 1 })
 }
