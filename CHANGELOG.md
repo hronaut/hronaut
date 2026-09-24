@@ -4,10 +4,13 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.21] - 2026-09-24
+
 ### Fixed
 
 - Wait for an already running scroll capture before stopping a reproduction recording, preserving its final scroll step.
-- Reject delayed DOM recording results after navigation, renderer replacement, tab closure, a newer clear, stop, or restart action, or a refresh that already returned newer counts instead of restoring stale recording state.
+- Keep DOM recording state current when delayed responses arrive after navigation, tab closure, clear, stop, or restart.
+- Preserve newer DOM mutation counts when an older refresh response arrives late.
 
 ## [2.5.20] - 2026-09-24
 
