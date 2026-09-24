@@ -694,3 +694,12 @@ commit, and detached panels retain their separate open-state behavior.
   cases failed before the change; all 32 release-quality cases and focused
   lint/typechecking pass after it. This workflow-only follow-up is separate from
   the immutable v2.5.27 candidate and has not yet run in a hosted release.
+
+
+- The immutable catalog/networking image at `b2c07f2` completed all 3,274 static
+  tests, all 557 Electron cases, and native dialogs with no retries or OOM.
+  Its test container used Docker's existing bridge and allocated no project
+  network. The revised v2.5.27 image at `be2156d` has passed all 3,275 static
+  tests and started its own fresh native gate, including adapter alias startup
+  and the workspace-handoff fixture correction. Integration remains batched
+  behind that candidate's complete verification.

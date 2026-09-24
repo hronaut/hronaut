@@ -76,8 +76,9 @@ operator manifest is identical before and after the move; esbuild reports four
 source modules instead of 39 for that entry point. A dependency-graph test guards
 this boundary, alongside the existing live MCP catalog and bundled adapter tests.
 This is a coupling reduction, not a measured startup or packaging speed claim.
-The catalog and Docker-networking batch passed its 3,274-test static gate;
-full native validation and main integration remain pending. The corrected
+The catalog and Docker-networking batch at `b2c07f2` passed its 3,274-test
+static gate, all 557 Electron cases, and native dialogs without retries.
+Main integration is batched with the v2.5.27 corrections. The corrected
 v2.5.27 candidate includes those changes plus alias-safe adapter startup and
 explicit network-recording preconditions in the workspace handoff fixture.
 
