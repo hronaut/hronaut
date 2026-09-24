@@ -327,6 +327,67 @@ describe('diagnostics controller', () => {
     controller.dispose()
   })
 
+  it('keeps a recorder stop authoritative while tab updates request a refresh', async () => {
+    const pending = deferred<BrowserReproRecording>()
+    const { activeTab, browser, controller } = createController()
+    const recording = { ...reproRecording(), active: true, stoppedAt: undefined }
+    controller.reproPanelOpen.value = true
+    controller.reproRecording.value = recording
+    browser.manageRepro.mockImplementationOnce(() => pending.promise)
+    browser.manageRepro.mockResolvedValue(recording)
+
+    const stopping = controller.stopReproRecording()
+    activeTab.value = { ...tab(), reproRecording: { active: true, stepCount: recording.stepCount, startedAt: '2026-08-21T12:00:00.000Z' } }
+    await nextTick()
+    await nextTick()
+
+    expect(controller.reproState.value).toBe('loading')
+    expect(browser.manageRepro).toHaveBeenCalledTimes(1)
+    pending.resolve(reproRecording())
+    await stopping
+    expect(controller.reproState.value).toBe('ready')
+    expect(controller.reproRecording.value?.active).toBe(false)
+    controller.dispose()
+  })
+
+  it('shows recorder action failures despite an intervening refresh', async () => {
+    const pending = deferred<void>()
+    const { browser, controller } = createController()
+    browser.manageRepro.mockImplementationOnce(async () => {
+      await pending.promise
+      throw new Error('Recording changed while stopping')
+    })
+    const stopping = controller.stopReproRecording()
+    await controller.manageRepro('get')
+    pending.resolve()
+    await stopping
+
+    expect(controller.reproState.value).toBe('error')
+    expect(controller.reproError.value).toBe('Recording changed while stopping')
+    browser.manageRepro.mockResolvedValue(reproRecording())
+    await controller.manageRepro('get')
+    expect(controller.reproState.value).toBe('ready')
+    controller.dispose()
+  })
+
+  it('allows a new page refresh while an obsolete recorder action is pending', async () => {
+    const pending = deferred<BrowserReproRecording>()
+    const { activeTab, browser, controller } = createController()
+    browser.manageRepro.mockImplementationOnce(() => pending.promise)
+    const stopping = controller.stopReproRecording()
+    activeTab.value = { ...tab(), navigationGeneration: 1 }
+    await nextTick()
+    const replacement = { ...reproRecording(), active: true, stoppedAt: undefined }
+    browser.manageRepro.mockResolvedValue(replacement)
+    await controller.manageRepro('get')
+    expect(controller.reproRecording.value?.active).toBe(true)
+
+    pending.resolve(reproRecording())
+    await stopping
+    expect(controller.reproRecording.value?.active).toBe(true)
+    controller.dispose()
+  })
+
   it('keeps repro copy feedback during a read-only recording refresh', async () => {
     vi.useFakeTimers()
     const { browser, controller } = createController()

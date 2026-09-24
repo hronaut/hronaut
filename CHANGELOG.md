@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep recorder controls busy until pending actions finish, and preserve their results or errors when live tab updates trigger refreshes.
+
 - Prevent delayed recorder stops from capturing into a replacement recording, and preserve the final scroll when Stop is requested concurrently.
 - Cancel downloads cleanly and show a destination failure when native save setup fails or no unique destination name can be allocated.
 

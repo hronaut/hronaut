@@ -152,6 +152,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     visual: 0,
     issues: 0
   }
+  let reproMutationRequest: ReturnType<typeof begin> = null
   let domRefreshTimer: number | undefined
   let domChangesReadRequest: {
     tabId: string
@@ -464,11 +465,14 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   async function manageRepro(action: 'start' | 'get' | 'stop' | 'clear'): Promise<void> {
+    // A live tab refresh must not supersede the result of an in-flight user action.
+    if (action === 'get' && reproMutationRequest && current('repro', reproMutationRequest)) return
     const request = begin('repro')
     if (!request) return
     reproState.value = 'loading'
     reproError.value = ''
     if (action !== 'get') {
+      reproMutationRequest = request
       reproCopied.value = false
       reproPlaywrightCopied.value = false
     }
@@ -481,6 +485,8 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
       if (!current('repro', request)) return
       reproState.value = 'error'
       reproError.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      if (reproMutationRequest === request) reproMutationRequest = null
     }
   }
 
