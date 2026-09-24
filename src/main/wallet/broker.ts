@@ -256,18 +256,26 @@ export class WalletBroker {
 
     this.shutdownPromise = (async () => {
       await this.lifecycleQueue
-      const drained = await this.drainConfirmationTasks()
-      if (!drained) {
-        this.confirmationShutdown.abort()
-        while (this.confirmationTasks.size > 0) {
-          await Promise.allSettled([...this.confirmationTasks])
+      try {
+        await this.service.approvals.cancelAll()
+      } finally {
+        for (const requestId of [...this.pending.keys()]) {
+          this.rejectPending(requestId, new Error('Wallet broker is shutting down'))
         }
+        const drained = await this.drainConfirmationTasks()
+        if (!drained) {
+          this.confirmationShutdown.abort()
+          while (this.confirmationTasks.size > 0) {
+            await Promise.allSettled([...this.confirmationTasks])
+          }
+        }
+        for (const cancel of this.requestExpiryCancellations.values()) cancel()
+        this.requestExpiryCancellations.clear()
+        for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
+        this.evmProviderSessions.clear()
+        this.accountProviderSessions.clear()
+        this.publish()
       }
-      for (const cancel of this.requestExpiryCancellations.values()) cancel()
-      this.requestExpiryCancellations.clear()
-      for (const requestId of [...this.pendingMessages.keys()]) this.clearPendingMessage(requestId)
-      this.evmProviderSessions.clear()
-      this.accountProviderSessions.clear()
     })()
     return this.shutdownPromise
   }
@@ -1287,12 +1295,13 @@ export class WalletBroker {
 
   private isRequestContextActive(context: WalletBrokerContext): boolean {
     const minimumGeneration = this.minimumNavigationGeneration.get(context.tabId)
-    return !this.closedTabs.has(context.tabId)
+    return !this.shuttingDown && !this.closedTabs.has(context.tabId)
       && (minimumGeneration === undefined || context.navigationGeneration >= minimumGeneration)
       && this.isAgentOperationActive(context)
   }
 
   private assertRequestContextActive(context: WalletBrokerContext): void {
+    if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
     this.assertAgentOperationActive(context)
     const minimumGeneration = this.minimumNavigationGeneration.get(context.tabId)
     if (

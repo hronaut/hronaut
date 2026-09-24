@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Reject new website and agent wallet requests once application shutdown begins.
+- Cancel waiting wallet approvals during shutdown and reject transaction preparation that finishes after shutdown.
 
 ## [2.5.17] - 2026-09-24
 

@@ -144,6 +144,79 @@ describe('WalletBroker', () => {
     await shutdown
   })
 
+  it('cancels persisted approvals and settles waiting website requests during shutdown', async () => {
+    const { service } = await setup()
+    const ready = deferred()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      onPendingChanged: requests => {
+        if (requests.some(request => request.status === 'awaiting-human')) ready.resolve()
+      }
+    })
+    const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+    await ready.promise
+    const requestId = broker.listPending().find(request => request.status === 'awaiting-human')!.id
+    await broker.shutdown()
+    expect(service.approvals.get(requestId)?.status).toBe('cancelled')
+    await expect(result).resolves.toMatchObject({ status: 'rejected' })
+  })
+
+  it('settles waiting callers even when persisting shutdown cancellation fails', async () => {
+    const { service } = await setup()
+    const ready = deferred()
+    // This case owns teardown because shutdown is deliberately made to reject.
+    const broker = new BaseWalletBroker(service, {
+      adapters: { evm: adapter() },
+      onPendingChanged: requests => {
+        if (requests.some(request => request.status === 'awaiting-human')) ready.resolve()
+      }
+    })
+    try {
+      const result = settle(broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' }))
+      await ready.promise
+      vi.spyOn(service.approvals, 'cancelAll').mockRejectedValueOnce(new Error('Disk unavailable'))
+      await expect(broker.shutdown()).rejects.toThrow('Disk unavailable')
+      await expect(result).resolves.toMatchObject({
+        status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('shutting down') })
+      })
+    } finally {
+      await broker.shutdown().catch(() => undefined)
+    }
+  })
+
+  it('rejects transaction preparation that resumes after shutdown without creating another approval', async () => {
+    const { service, wallet } = await setup()
+    const chain = adapter()
+    const published = deferred<{ status: 'accepted-after-shutdown' }>()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: chain },
+      onPendingChanged: requests => {
+        if (requests.some(request => request.operation === 'sign-transaction' && request.status === 'awaiting-human')) {
+          published.resolve({ status: 'accepted-after-shutdown' })
+        }
+      }
+    })
+    await connect(broker)
+    const existingIds = broker.listPending().map(request => request.id)
+    const entered = deferred()
+    const release = deferred()
+    const normalize = chain.normalizeTransaction.bind(chain)
+    vi.spyOn(chain, 'normalizeTransaction').mockImplementation(async (...args) => {
+      entered.resolve()
+      await release.promise
+      return normalize(...args)
+    })
+    const result = settle(broker.providerRequest(context(), {
+      family: 'evm', method: 'eth_signTransaction', params: [{ from: wallet.publicAddress, to: wallet.publicAddress, value: '0x0' }]
+    }))
+    await entered.promise
+    await broker.shutdown()
+    release.resolve()
+    await expect(Promise.race([result, published.promise])).resolves.toMatchObject({ status: 'rejected' })
+    expect(broker.listPending().map(request => request.id)).toEqual(existingIds)
+    expect(chain.sign).not.toHaveBeenCalled()
+  })
+
   it('shares one approval when a website requests the same wallet connection twice', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })
