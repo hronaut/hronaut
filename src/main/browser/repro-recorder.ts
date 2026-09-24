@@ -10,7 +10,7 @@ const MAX_REPRO_STEPS = 200
 export interface BrowserReproRecordingInternal {
   active: boolean
   startedAt: string
-  startedAtMs: number
+  startedAtMonotonicMs: number
   stoppedAt?: string
   steps: BrowserReproStep[]
   truncated: boolean
@@ -65,6 +65,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       const navigationGeneration = tab.navigationGeneration
       const observationGeneration = tab.observationGeneration
       const startedAtMs = Date.now()
+      const startedAtMonotonicMs = performance.now()
       const initialScroll = await webContents.executeJavaScript(reproScrollScript(), true)
         .catch(() => ({ x: 0, y: 0 })) as { x: number; y: number }
       const ownsStart = this.pendingReproStarts.get(tab) === start
@@ -78,7 +79,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       tab.reproRecording = {
         active: true,
         startedAt: new Date(startedAtMs).toISOString(),
-        startedAtMs,
+        startedAtMonotonicMs,
         steps: [],
         truncated: false,
         queue: Promise.resolve(),
@@ -202,16 +203,17 @@ export class BrowserReproRecorder<T extends ReproTab> {
       || tab.navigationGeneration !== expectedContext.navigationGeneration
     ))) return
     const now = Date.now()
+    const elapsedMs = Math.max(0, Math.round(performance.now() - recording.startedAtMonotonicMs))
     const target = value.target
     const last = recording.steps.at(-1)
     if (
       value.kind === 'input'
       && last?.kind === 'input'
       && last.target?.selector === target?.selector
-      && now - new Date(last.occurredAt).getTime() <= 1_500
+      && elapsedMs - last.elapsedMs <= 1_500
     ) {
       last.occurredAt = new Date(now).toISOString()
-      last.elapsedMs = now - recording.startedAtMs
+      last.elapsedMs = elapsedMs
       this.host.changed()
       return
     }
@@ -223,7 +225,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
       index: recording.steps.length + 1,
       kind: value.kind,
       occurredAt: new Date(now).toISOString(),
-      elapsedMs: now - recording.startedAtMs,
+      elapsedMs,
       description: redactDiagnosticText(value.description).slice(0, 500),
       url: redactNetworkUrl(tab.url),
       ...(target ? { target: { ...target } } : {}),

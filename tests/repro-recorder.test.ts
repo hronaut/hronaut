@@ -1,5 +1,5 @@
 import type { Input, WebContents } from 'electron'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from '../src/main/browser/repro-recorder.js'
 import { reproScrollScript } from '../src/main/browser/page-scripts.js'
 
@@ -25,6 +25,8 @@ function fixture() {
   const recorder = new BrowserReproRecorder({ isCurrent: candidate => candidate === tab, isAgentInput, changed })
   return { tab, recorder, executeJavaScript, changed, isAgentInput }
 }
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('reproduction recorder data contracts', () => {
   it('returns independent timeline and target snapshots', async () => {
@@ -72,4 +74,41 @@ describe('reproduction recorder data contracts', () => {
     expect(stopped).toMatchObject({ active: false, stepCount: 1 })
     expect(f.executeJavaScript).not.toHaveBeenCalled()
   })
+
+  it.each([-60_000, 60_000])('keeps elapsed time independent of a %i ms wall-clock adjustment', async (adjustment) => {
+    let wallTime = 100_000
+    let elapsedTime = 100
+    vi.spyOn(Date, 'now').mockImplementation(() => wallTime)
+    vi.spyOn(performance, 'now').mockImplementation(() => elapsedTime)
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    wallTime += adjustment
+    elapsedTime += 500
+    f.recorder.navigated(f.tab, 'https://example.test/next', false)
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps.at(-1)!.elapsedMs).toBe(500)
+    expect(report.steps.at(-1)!.occurredAt).toBe(new Date(wallTime).toISOString())
+  })
+
+  it.each([
+    { gap: 1000, clockChange: 60_000, steps: 2 },
+    { gap: 2000, clockChange: -60_000, steps: 3 }
+  ])('coalesces typing by elapsed time with a $clockChange ms clock change', async ({ gap, clockChange, steps }) => {
+    let wallTime = 100_000
+    let elapsedTime = 100
+    vi.spyOn(Date, 'now').mockImplementation(() => wallTime)
+    vi.spyOn(performance, 'now').mockImplementation(() => elapsedTime)
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: 'a', code: 'KeyA' })
+    await f.tab.reproRecording!.queue
+    wallTime += clockChange
+    elapsedTime += gap
+    f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: 'b', code: 'KeyB' })
+    await f.tab.reproRecording!.queue
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.stepCount).toBe(steps)
+    expect(report.steps.at(-1)!.elapsedMs).toBe(gap)
+  })
+
 })

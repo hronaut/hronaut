@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep reproduction step durations and typing groups stable when the system clock changes.
+
 ## [2.5.21] - 2026-09-24
 
 ### Fixed
