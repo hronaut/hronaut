@@ -48,6 +48,17 @@ orchestration remain in the entry point. Continue extracting cohesive domains
 with explicit dependencies and trusted-sender checks on every privileged handler. Update and license lifecycle
 extraction should be separate changes with their existing regression suites.
 
+Updater extraction needs native operation-ownership coverage before moving its
+state. The existing update integration cases mainly exercise UI projection and
+unavailable-development-build behavior. A new controlled Linux native case
+holds the package-manifest read while two trusted checks arrive: it reproduced
+two restart-helper requests and two quit requests. Reserving the check operation
+before that asynchronous read prevents both callers from claiming the same
+replacement. Keep package replacement, explicit installation, and shutdown
+ownership distinct when extracting this lifecycle; they have different failure
+and recovery paths. The fixture intercepts helper launch and quit, so it does
+not install a package or restart the test process.
+
 ## MCP tool families
 
 Separate tool definitions and domain handlers from `src/main/mcp/server.ts`.

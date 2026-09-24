@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent concurrent update checks from scheduling duplicate restarts after a Linux package replacement.
 - Keep iframe connection and certificate details out of the main document's security report.
 - Keep recorded iframe and open-shadow interactions as manual steps instead of exporting selectors for their outer containers.
 - Avoid overlapping native thumbnail captures when the overview opens after an earlier capture times out.
