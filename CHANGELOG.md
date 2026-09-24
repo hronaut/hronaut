@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.17] - 2026-09-24
+
 ### Fixed
 
 - Keep resumable interrupted downloads cancellable and retain them when clearing finished downloads.
