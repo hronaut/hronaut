@@ -541,3 +541,16 @@ commit, and detached panels retain their separate open-state behavior.
   The next network recording extraction is isolated in its own checkout, with
   tab-owned state and debugger/waiter ownership kept explicit in the refactoring
   plan.
+
+- Recorder scope review found that document hit testing and focus retarget shadow
+  descendants to their host, and iframe interactions yielded the iframe element.
+  Both were exported as if that outer container were the recorded control. Two
+  unit regressions and both real native click cases failed before the fix.
+  Recorder page scripts now live together in `repro-page-scripts.ts`; open-shadow
+  target resolution retains the actual target as manual when it cannot be
+  represented by a top-level selector, and frames are explicitly manual. Slotted
+  light-DOM controls and deliberately focused hosts remain exportable. All 17
+  focused unit cases and 18 native selector/start/stop/scope cases pass, with
+  focused lint/typechecking. Cross-root replay and closed-shadow detection remain
+  unsupported. The combined batch still requires full static and immutable-image
+  verification before integration and release.

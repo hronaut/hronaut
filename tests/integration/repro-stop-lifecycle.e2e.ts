@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, BrowserState } from '../../src/shared/types.js'
-import { reproScrollScript, reproTargetScript } from '../../src/main/browser/page-scripts.js'
+import { reproScrollScript, reproTargetScript } from '../../src/main/browser/repro-page-scripts.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const cases = [

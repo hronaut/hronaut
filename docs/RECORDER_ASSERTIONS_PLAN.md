@@ -28,6 +28,7 @@ The current Hronaut recorder now validates selector uniqueness within a
 500-character bound and preserves unresolved targets as manual export steps.
 Assertion selection must reject unresolved targets rather than count them as
 exportable expectations. This groundwork does not implement assertion capture.
+Existing recorder capture now keeps detected iframe/frame and open-shadow targets as manual steps. This does not add cross-root replay or closed-shadow detection.
 Exported locators must retain the same light-DOM scope used to validate captured
 selectors. A unique document button can become ambiguous if plain Playwright CSS
 also matches buttons inside unrelated open shadow roots.
@@ -45,7 +46,7 @@ also matches buttons inside unrelated open shadow roots.
   side effects. Do not route the feature through it.
 - Both native pointer selection and the page picker need the same bounded
   structural-selector algorithm. The inspection picker currently prefers IDs,
-  test attributes, and classes; `reproTargetScript` uses structural positions.
+  test attributes, and classes; `reproTargetScript` in `repro-page-scripts.ts` uses structural positions.
   Share structural selector generation without changing ordinary inspection
   behavior. Do not include text, values, attributes, or clipboard content in the
   assertion result. Validate that the selector uniquely identifies the selected

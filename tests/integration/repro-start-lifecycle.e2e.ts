@@ -1,6 +1,6 @@
 import { createServer } from 'node:http'
 import type { BrowserReproRecording, BrowserState } from '../../src/shared/types.js'
-import { reproScrollScript } from '../../src/main/browser/page-scripts.js'
+import { reproScrollScript } from '../../src/main/browser/repro-page-scripts.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 for (const action of ['clear', 'stop', 'restart', 'navigate', 'close'] as const) {
