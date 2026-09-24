@@ -43,6 +43,8 @@ and shared audit contracts. Entries distinguish proposals from completed work.
    escaping, and concurrent stop. Text/value capture needs a separate explicit
    privacy contract. This is research, not an implemented assertion or replay
    feature; the current TODO remains appropriate for action-only recordings.
+   See [the implementation proposal](RECORDER_ASSERTIONS_PLAN.md) for picker
+   boundaries, cancellation rules, and required end-to-end evidence.
 
 ## Developer feedback speed
 
