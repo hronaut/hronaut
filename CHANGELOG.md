@@ -4,14 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.25] - 2026-09-24
+
 ### Fixed
 
 - Handle deferred Home refresh failures without allowing an event-handler exception to interrupt the application.
 - Keep exported reproduction targets scoped to the recorded document when pages contain shadow-DOM components.
-
-## [2.5.24] - 2026-09-24
-
-### Fixed
 
 - Preserve overlapping emulation changes and finish failed updates before applying newer settings.
 - Generate complete MCPB metadata when the output directory is accessed through a filesystem alias.
