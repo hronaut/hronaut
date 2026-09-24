@@ -1,10 +1,7 @@
+import { INSTALL_MANIFEST_FIELDS } from './docker-install-inputs.ts'
 import { readFileSync } from 'node:fs'
 import { isDeepStrictEqual } from 'node:util'
 
-const installFields = [
-  'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies',
-  'peerDependenciesMeta', 'engines', 'os', 'cpu', 'workspaces'
-] as const
 const unsupportedInstallFields = ['overrides', 'bundledDependencies', 'bundleDependencies'] as const
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as Record<string, unknown>
 const packageLock = JSON.parse(readFileSync('package-lock.json', 'utf8')) as {
@@ -24,7 +21,7 @@ for (const field of unsupportedInstallFields) {
   }
 }
 
-for (const field of installFields) {
+for (const field of INSTALL_MANIFEST_FIELDS) {
   if (!isDeepStrictEqual(packageJson[field], lockRoot[field])) {
     console.error(`package.json and package-lock.json disagree on ${field}; run npm install before Docker tests`)
     process.exit(1)

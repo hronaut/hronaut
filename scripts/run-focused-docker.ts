@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto'
+import { dependencyInstallManifest } from './docker-install-inputs.ts'
+import { dependencyCacheKey } from './docker-dependency-cache-key.ts'
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 
@@ -34,45 +35,33 @@ const manifestCheck = spawnSync(process.execPath, ['scripts/verify-dependency-ma
 if (manifestCheck.status !== 0) process.exit(manifestCheck.status ?? 1)
 
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8')) as Record<string, unknown>
-const installFields = [
-  'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies',
-  'peerDependenciesMeta', 'engines', 'os', 'cpu', 'workspaces'
-]
-const installManifest = Object.fromEntries(
-  installFields.filter((field) => packageJson[field] !== undefined).map((field) => [field, packageJson[field]])
-)
+const installManifest = dependencyInstallManifest(packageJson)
 
-const dependencyLockHash = spawnSync(
-  process.execPath,
-  ['scripts/docker-dependency-cache-key.ts', 'package-lock.json'],
-  { encoding: 'utf8' }
-)
-if (dependencyLockHash.status !== 0) process.exit(dependencyLockHash.status ?? 1)
-const dependencyCacheKey = createHash('sha256')
-  .update(dependencyLockHash.stdout.trim())
-  .update(readFileSync('Dockerfile.test'))
-  .update(readFileSync('scripts/docker-dependency-cache-key.ts'))
-  .update(JSON.stringify(installManifest))
-  .digest('hex')
-  .slice(0, 20)
-const volumeName = `${cachePrefix}${dependencyCacheKey}`
+const cacheKey = dependencyCacheKey({
+  packageLockSource: readFileSync('package-lock.json', 'utf8'),
+  dockerfileSource: readFileSync('Dockerfile.test', 'utf8'),
+  cacheKeySource: readFileSync('scripts/docker-dependency-cache-key.ts', 'utf8'),
+  installInputSource: readFileSync('scripts/docker-install-inputs.ts', 'utf8'),
+  installManifestSource: JSON.stringify(installManifest)
+})
+const volumeName = `${cachePrefix}${cacheKey}`
 const volumeCreate = spawnSync('docker', ['volume', 'create', volumeName], {
   stdio: ['ignore', 'ignore', 'inherit']
 })
 if (volumeCreate.status !== 0) process.exit(volumeCreate.status ?? 1)
-const imageName = `hronaut-focused-${dependencyCacheKey}-integration`
+const imageName = `hronaut-focused-${cacheKey}-integration`
 const imageAvailable = spawnSync('docker', ['image', 'inspect', imageName], {
   stdio: 'ignore'
 }).status === 0
 const composeBaseArguments = [
   'compose',
-  '--project-name', `hronaut-focused-${dependencyCacheKey}`,
+  '--project-name', `hronaut-focused-${cacheKey}`,
   '--file', 'compose.test.ci.yaml',
   '--file', 'compose.test.focused.yaml'
 ]
 const focusedDockerEnvironment = {
   ...process.env,
-  HRONAUT_DEPENDENCY_CACHE_KEY: dependencyCacheKey,
+  HRONAUT_DEPENDENCY_CACHE_KEY: cacheKey,
   ...(mode === 'integration-all' ? { HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'true' } : {})
 }
 

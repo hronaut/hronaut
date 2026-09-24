@@ -26,11 +26,24 @@ describe('focused Docker dependency cache keys', () => {
     const inputs = {
       dockerfileSource: 'dockerfile',
       cacheKeySource: 'cache-key-source',
-      installManifestSource: '{}'
+      installManifestSource: '{}',
+      installInputSource: 'install-inputs'
     }
     expect(dependencyCacheKey({ ...inputs, packageLockSource: JSON.stringify(nextRelease) }))
       .toBe(dependencyCacheKey({ ...inputs, packageLockSource: JSON.stringify(baseLock) }))
   })
+
+  it.each(['dockerfileSource', 'cacheKeySource', 'installInputSource', 'installManifestSource'] as const)(
+    'invalidates a focused dependency image when %s changes', field => {
+      const inputs = {
+        packageLockSource: JSON.stringify(baseLock),
+        dockerfileSource: 'dockerfile', cacheKeySource: 'key',
+        installInputSource: 'inputs', installManifestSource: '{}'
+      }
+      expect(dependencyCacheKey({ ...inputs, [field]: `${inputs[field]} changed` }))
+        .not.toBe(dependencyCacheKey(inputs))
+    }
+  )
 
   it('invalidates the cache when an installed dependency changes', () => {
     const dependencyUpdate = structuredClone(baseLock)

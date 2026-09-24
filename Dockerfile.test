@@ -1,11 +1,17 @@
+FROM mcr.microsoft.com/playwright:v1.62.1-noble AS install-inputs
+
+WORKDIR /inputs
+COPY package-lock.json ./
+COPY scripts/docker-install-inputs.ts ./scripts/
+RUN node scripts/docker-install-inputs.ts package-lock.json /install
+
 FROM mcr.microsoft.com/playwright:v1.62.1-noble AS dependencies
 
 ENV CI=true
 WORKDIR /workspace
 
-COPY package-lock.json ./
+COPY --from=install-inputs /install/package.json /install/package-lock.json ./
 COPY scripts/docker-dependency-cache-key.ts ./scripts/
-RUN node -e "const fs=require('node:fs');const root=JSON.parse(fs.readFileSync('package-lock.json','utf8')).packages[''];const fields=['dependencies','devDependencies','optionalDependencies','peerDependencies','peerDependenciesMeta','engines','os','cpu','workspaces'];const manifest={name:root.name,version:root.version,private:true};for(const field of fields)if(root[field]!==undefined)manifest[field]=root[field];fs.writeFileSync('package.json',JSON.stringify(manifest))"
 RUN npm ci \
     && node node_modules/electron/install.js \
     && ./node_modules/.bin/electron-builder install-app-deps \

@@ -32,6 +32,18 @@ and shared audit contracts. These are proposals, not shipped features.
    Cross-restart recovery needs a separate persistence and partial-file validation
    design; it is not implied by this proposal.
 
+## Developer feedback speed
+
+The full Docker dependency stage now separates release metadata from installation
+inputs and shares its supported manifest fields with the focused launcher and
+manifest verifier. In a local two-build check, the initial dependency image took
+179.98 seconds to build; a release-version-only rebuild took 5.68 seconds.
+The second build marked the `npm ci`, native dependency installation, and OS-package
+layers cached; both images had identical filesystem layer digests. These are local
+measurements, not a hosted CI timing guarantee. Dependency entries and root install
+constraints remain part of the copied inputs, and the immutable integration image
+still receives the original manifest and complete source checkout.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)

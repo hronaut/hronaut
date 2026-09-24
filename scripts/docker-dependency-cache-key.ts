@@ -26,12 +26,14 @@ export function dependencyCacheKey(inputs: {
   dockerfileSource: string
   cacheKeySource: string
   installManifestSource: string
+  installInputSource: string
 }): string {
   return createHash('sha256')
     .update(dependencyLockSource(inputs.packageLockSource))
     .update(inputs.dockerfileSource)
     .update(inputs.cacheKeySource)
     .update(inputs.installManifestSource)
+    .update(inputs.installInputSource)
     .digest('hex')
     .slice(0, 20)
 }
