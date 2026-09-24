@@ -237,3 +237,14 @@ commit, and detached panels retain their separate open-state behavior.
   now attaches native Home loading state and JavaScript-read completion on
   recurrence. Do not increase the timeout or claim a visibility-event fix from
   the available evidence. The failed run also did not reach native-dialog checks.
+
+- The subsequent DOM-recorder extraction Docker run encountered a Home onboarding
+  readiness timeout and failed its strict flaky-test gate (537 passed, one
+  passed only on retry); native-dialog checks did not run. Both that trace and the prior Cyberpunk Turbo trace contain
+  a renderer exit with reason `crashed`, exit code 139, and WebContents ID 2.
+  The onboarding trace shows one JavaScript read remaining pending until teardown,
+  rather than repeated false readiness values. Existing exit records lack surface
+  identity and timing, so they do not establish which renderer crashed or causality.
+  The fixture now records a bounded surface category and timestamp without URLs
+  or profile paths. Three focused onboarding repetitions passed with the added
+  diagnostics. Investigate native crash evidence before changing timeouts.

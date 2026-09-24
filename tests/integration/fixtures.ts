@@ -100,11 +100,17 @@ export async function launchHronaut(
     }
   })
   await app.evaluate(({ app }) => {
-    const exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] = []
+    const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
     const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
       let type = 'destroyed'
-      try { type = contents.getType() } catch { /* Renderer may already be destroyed. */ }
-      exits.push({ reason: details.reason, exitCode: details.exitCode, webContentsId: contents.id, type })
+      let surface = 'unknown'
+      try {
+        type = contents.getType()
+        const url = contents.getURL()
+        surface = url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : 'page'
+      } catch { /* Renderer may already be destroyed. */ }
+      // Classify the surface without attaching page URLs or profile paths.
+      exits.push({ reason: details.reason, exitCode: details.exitCode, webContentsId: contents.id, type, surface, occurredAt: Date.now() })
       if (exits.length > 16) exits.shift()
     }
     app.on('render-process-gone', listener)
