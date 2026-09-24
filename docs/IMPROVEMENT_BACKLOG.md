@@ -541,3 +541,17 @@ commit, and detached panels retain their separate open-state behavior.
   focused unit cases and five real Electron network cases pass, with focused
   lint/typechecking. Full immutable validation is queued separately before
   integration; no network retention or privacy policy changed.
+
+- Reviewing the network event module exposed a connection-report attribution bug:
+  every `Document` response, including iframes, could replace the main document's
+  security snapshot. Two unit regressions failed before the fix. A native test
+  with real frame IDs and controlled response metadata reproduced the main
+  report changing from "Main issuer" to "Iframe issuer" on both attempts.
+  Diagnostic attachment now initializes the main CDP frame ID, main-frame
+  navigation refreshes it, detach clears it, and recording accepts security
+  metadata only for that identified frame. The 13 focused unit cases pass, as do
+  the native attribution case, a real HTTP/1.1 parent with an HTTP/1.0 iframe, and
+  the existing metadata workflow. The real HTTP fixture reloads after enabling
+  Network because the first navigation may precede diagnostic attachment; its
+  initial missing-metadata result is not counted as attribution-bug evidence.
+  Full static and immutable Docker validation remain required for this follow-up.

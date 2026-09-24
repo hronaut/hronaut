@@ -29,6 +29,7 @@ import {
 
 /** Tab-owned history; native debugger ownership and publication stay with the manager. */
 export interface BrowserNetworkRecordingState {
+  mainFrameId?: string
   networkRequests: BrowserNetworkRequestRecord[]
   networkCaptureSequence: number
   observationGeneration: number
@@ -380,6 +381,7 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
 
   if (method === 'Network.responseReceived') {
     const responseDetails = params as {
+      frameId?: string
       type?: string
       response?: {
         url?: string
@@ -406,6 +408,8 @@ export function recordNetworkDebuggerMessage(tab: BrowserNetworkRecordingState, 
     applyNetworkResponseMetadata(request, response)
     request.resourceTiming = response.timing
     if (responseDetails.type === 'Document'
+      && tab.mainFrameId !== undefined
+      && responseDetails.frameId === tab.mainFrameId
       && request.observationGeneration === tab.observationGeneration) {
       tab.securitySnapshot = {
         url: String(response.url ?? request.url),

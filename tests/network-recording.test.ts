@@ -5,7 +5,7 @@ import {
 } from '../src/main/browser/network-recording.js'
 
 function state(): BrowserNetworkRecordingState {
-  return { networkRequests: [], networkCaptureSequence: 0, observationGeneration: 1 }
+  return { mainFrameId: 'main', networkRequests: [], networkCaptureSequence: 0, observationGeneration: 1 }
 }
 
 function start(tab: BrowserNetworkRecordingState, requestId: string, extra: Record<string, unknown> = {}): void {
@@ -21,6 +21,26 @@ function start(tab: BrowserNetworkRecordingState, requestId: string, extra: Reco
 afterEach(() => { vi.useRealTimers() })
 
 describe('network event recording', () => {
+  it('does not replace main-document security with an iframe response for the same URL', () => {
+    const tab = Object.assign(state(), { mainFrameId: 'main' })
+    start(tab, 'main')
+    record(tab, 'Network.responseReceived', { requestId: 'main', frameId: 'main', type: 'Document', response: { protocol: 'h2' } })
+    const snapshot = tab.securitySnapshot
+    expect(snapshot).toBeDefined()
+    start(tab, 'child', { request: { url: 'https://example.test/main', method: 'GET' } })
+    record(tab, 'Network.responseReceived', { requestId: 'child', frameId: 'child', type: 'Document', response: { protocol: 'http/1.1' } })
+    expect(tab.securitySnapshot).toBe(snapshot)
+    expect(tab.networkRequests[1]?.protocol).toBe('http/1.1')
+  })
+
+  it('does not claim document security when the main frame identity is unknown', () => {
+    const tab = state()
+    tab.mainFrameId = undefined
+    start(tab, 'unknown')
+    record(tab, 'Network.responseReceived', { requestId: 'unknown', type: 'Document', response: { protocol: 'h2' } })
+    expect(tab.securitySnapshot).toBeUndefined()
+  })
+
   it('keeps separate redirect hops while completing only the current request', () => {
     const tab = state()
     start(tab, 'redirect')
@@ -120,7 +140,7 @@ describe('network event recording', () => {
     start(tab, 'document')
     const details = { protocol: 'TLS 1.3', issuer: 'Test issuer' }
     record(tab, 'Network.responseReceived', {
-      requestId: 'document', type: 'Document', response: {
+      requestId: 'document', frameId: 'main', type: 'Document', response: {
         status: 200, url: 'https://example.test/page', protocol: 'h2', securityState: 'secure',
         securityDetails: details, fromServiceWorker: true, serviceWorkerResponseSource: 'cache-storage', cacheStorageCacheName: 'offline'
       }

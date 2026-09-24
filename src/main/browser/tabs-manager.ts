@@ -7699,6 +7699,9 @@ export class BrowserTabsManager {
       } else if (method.startsWith('Network.')) {
         recordNetworkDebuggerMessage(tab, method, params)
         this.networkWaitController.notify(tab)
+      } else if (method === 'Page.frameNavigated') {
+        const frame = (params as { frame?: { id?: string; parentId?: string } }).frame
+        if (frame?.id && !frame.parentId) tab.mainFrameId = frame.id
       } else if (method === 'Log.entryAdded') {
         const message = normalizeConsoleLogEntry((params as { entry?: CdpLogEntry }).entry)
         if (message) this.appendConsoleMessage(tab, message, 'log')
@@ -7768,6 +7771,7 @@ export class BrowserTabsManager {
     })
     webContents.debugger.on('detach', () => {
       tab.dialog = undefined
+      tab.mainFrameId = undefined
       tab.networkDebuggerEnabled = false
       if (tab.pageLifecycleState === 'frozen') {
         tab.pageLifecycleState = 'unknown'
@@ -9739,6 +9743,12 @@ export class BrowserTabsManager {
       try {
         if (!webContents.debugger.isAttached()) webContents.debugger.attach('1.3')
         await webContents.debugger.sendCommand('Page.enable')
+        // Network Document responses also include iframes. Establish the native
+        // main-frame identity before recording any connection-security metadata.
+        const frameTree = await webContents.debugger.sendCommand('Page.getFrameTree') as {
+          frameTree?: { frame?: { id?: string } }
+        }
+        tab.mainFrameId = frameTree.frameTree?.frame?.id
         await webContents.debugger.sendCommand('Runtime.enable')
         await webContents.debugger.sendCommand('Runtime.setAsyncCallStackDepth', { maxDepth: 8 }).catch(() => undefined)
         await webContents.debugger.sendCommand('Log.enable').catch(() => undefined)
