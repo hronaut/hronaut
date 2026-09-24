@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Cancel downloads cleanly and show a destination failure when native save setup fails or no unique destination name can be allocated.
+
 ## [2.5.19] - 2026-09-24
 
 ### Added

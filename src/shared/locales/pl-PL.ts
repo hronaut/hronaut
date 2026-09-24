@@ -2606,6 +2606,7 @@ export const plPL = {
     "close": "Zamknij sterowanie powiększeniem strony"
   },
   "downloads": {
+    "destinationUnavailable": "Nie udało się przygotować miejsca pobierania",
     "pause": "Wstrzymaj",
     "pauseAria": "Wstrzymaj {filename}",
     "resume": "Wznów",

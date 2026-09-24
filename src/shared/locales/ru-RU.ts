@@ -2606,6 +2606,7 @@ export const ruRU = {
     "close": "Закрыть управление масштабом страницы"
   },
   "downloads": {
+    "destinationUnavailable": "Не удалось подготовить место загрузки",
     "pause": "Приостановить",
     "pauseAria": "Приостановить {filename}",
     "resume": "Продолжить",

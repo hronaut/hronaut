@@ -473,6 +473,7 @@ export const ukUA = {
   find: { region: 'Пошук на сторінці', text: 'Текст для пошуку', placeholder: 'Знайти на сторінці', matchCaseTitle: 'Враховувати регістр', matchCase: 'Враховувати регістр', matchCaseShort: 'Aa', previousTitle: 'Попередній збіг (Shift+Enter)', previous: 'Попередній збіг', nextTitle: 'Наступний збіг (Enter)', next: 'Наступний збіг', closeTitle: 'Закрити (Escape)', close: 'Закрити пошук на сторінці' },
   zoom: { controls: 'Керування масштабом сторінки', heading: 'Масштаб сторінки', outTitle: 'Зменшити масштаб (Ctrl/Cmd+-)', out: 'Зменшити масштаб', inTitle: 'Збільшити масштаб (Ctrl/Cmd++)', in: 'Збільшити масштаб', reset: 'Скинути', closeTitle: 'Закрити (Escape)', close: 'Закрити керування масштабом сторінки' },
   downloads: {
+    destinationUnavailable: "Не вдалося підготувати місце завантаження",
     pause: 'Призупинити',
     pauseAria: 'Призупинити {filename}',
     resume: 'Продовжити',

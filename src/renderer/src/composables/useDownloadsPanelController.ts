@@ -30,6 +30,7 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   }
 
   function downloadMeta(download: BrowserDownloadState): string {
+    if (download.failureReason === 'destination-unavailable') return options.translate('downloads.destinationUnavailable')
     if (download.state === 'progressing') {
       const received = options.formatBytes(download.receivedBytes)
       const progress = download.totalBytes > 0

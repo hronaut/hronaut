@@ -2013,6 +2013,7 @@ export interface BrowserPdfExport {
 export type BrowserDownloadAction = 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
 
 export interface BrowserDownloadState {
+  failureReason?: 'destination-unavailable'
   id: string
   observationGeneration?: number
   tabId?: string

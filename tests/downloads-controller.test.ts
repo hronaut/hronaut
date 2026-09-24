@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -6,6 +7,11 @@ import type { DownloadItem, Session } from 'electron'
 import { afterEach, expect, it, vi } from 'vitest'
 import { BrowserDownloadsController } from '../src/main/browser/downloads-controller.js'
 
+vi.mock('node:fs', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return { ...actual, existsSync: vi.fn(actual.existsSync) }
+})
+
 vi.mock('electron', () => ({ shell: { showItemInFolder: vi.fn() } }))
 
 const cleanups: (() => Promise<void> | void)[] = []
@@ -13,13 +19,13 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
 })
 
-async function fixture() {
+async function fixture(askWhereToSaveDownloads = false) {
   const directory = await mkdtemp(join(tmpdir(), 'hronaut-download-controller-'))
   cleanups.push(() => rm(directory, { recursive: true, force: true }))
   const session = new EventEmitter()
   const generations = new Map([['first', 0], ['second', 0]])
   const controller = new BrowserDownloadsController({
-    getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save' }),
+    getSettings: () => ({ downloadDirectory: directory, saveDialogTitle: 'Save', askWhereToSaveDownloads }),
     getSource: id => ({ tabId: String(id), workspaceId: id === 1 ? 'first' : 'second', observationGeneration: 0 }),
     workspaceObservationGeneration: id => generations.get(id) ?? 0,
     isAvailable: () => true,
@@ -27,7 +33,7 @@ async function fixture() {
   })
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
-  function download(tabId = 1) {
+  function download(tabId = 1, failSetup = false) {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
@@ -48,7 +54,13 @@ async function fixture() {
       pause, resume,
       canResume: () => state === 'interrupted',
       getSavePath: () => savePath,
-      setSavePath: (value: string) => { savePath = value },
+      setSavePath: (value: string) => {
+        if (failSetup) throw new Error('Injected native setup failure')
+        savePath = value
+      },
+      setSaveDialogOptions: () => {
+        if (failSetup) throw new Error('Injected dialog setup failure')
+      },
       cancel
     })
     const event = { preventDefault: vi.fn() }
@@ -166,4 +178,35 @@ it('rejects pause and resume across workspaces and stale observation generations
   }
   expect(transfer.pause).toHaveBeenCalledOnce()
   expect(transfer.resume).not.toHaveBeenCalled()
+})
+
+it.each([false, true])('records native download setup failure without throwing or retaining a live item (dialog=%s)', async dialog => {
+  const { controller, download } = await fixture(dialog)
+  let rejected!: ReturnType<typeof download>
+  expect(() => { rejected = download(1, true) }).not.toThrow()
+  expect(rejected.event.preventDefault).toHaveBeenCalledOnce()
+  expect(rejected.item.listenerCount('updated')).toBe(0)
+  expect(rejected.item.listenerCount('done')).toBe(0)
+  expect(controller.hasActiveDownload('1')).toBe(false)
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([
+    expect.objectContaining({ state: 'interrupted', failureReason: 'destination-unavailable', completedAt: expect.any(String), canResume: false })
+  ])
+  expect(controller.manageWorkspaceDownloads('second', 'list')).toEqual([])
+  controller.manageDownloads('clear')
+  download()
+  expect(controller.listDownloads()[0]?.filename).toBe('file.txt')
+})
+
+it('rejects an exhausted destination without an uncaught exception or losing existing history', async () => {
+  const { controller, download } = await fixture()
+  download().complete()
+  vi.mocked(existsSync).mockReturnValue(true)
+  try {
+    expect(() => download()).not.toThrow()
+    expect(controller.listDownloads()).toHaveLength(2)
+    expect(controller.listDownloads().find(item => item.state === 'interrupted')).toMatchObject({ failureReason: 'destination-unavailable', completedAt: expect.any(String) })
+  } finally {
+    vi.mocked(existsSync).mockReset()
+    vi.mocked(existsSync).mockImplementation((await vi.importActual<typeof import('node:fs')>('node:fs')).existsSync)
+  }
 })

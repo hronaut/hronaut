@@ -2606,6 +2606,7 @@ export const esES = {
     "close": "Cerrar los controles de zoom de la página"
   },
   "downloads": {
+    "destinationUnavailable": "No se pudo preparar el destino de la descarga",
     "pause": "Pausar",
     "pauseAria": "Pausar {filename}",
     "resume": "Reanudar",

@@ -2606,6 +2606,7 @@ export const frFR = {
     "close": "Fermer les contrôles du zoom de la page"
   },
   "downloads": {
+    "destinationUnavailable": "Impossible de préparer la destination du téléchargement",
     "pause": "Mettre en pause",
     "pauseAria": "Mettre {filename} en pause",
     "resume": "Reprendre",

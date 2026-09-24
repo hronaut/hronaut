@@ -2606,6 +2606,7 @@ export const deDE = {
     "close": "Steuerung des Seitenzooms schließen"
   },
   "downloads": {
+    "destinationUnavailable": "Downloadziel konnte nicht vorbereitet werden",
     "pause": "Pausieren",
     "pauseAria": "{filename} pausieren",
     "resume": "Fortsetzen",

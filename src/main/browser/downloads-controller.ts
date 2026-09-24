@@ -164,8 +164,24 @@ export class BrowserDownloadsController {
         const downloadUrl = item.getURL()
         const { tabId, workspaceId, observationGeneration } = this.host.getSource(webContents?.id, downloadUrl)
         const settings = this.host.getSettings()
-        const suggestedPath = this.reserveAvailableDownloadPath(item.getFilename(), settings.downloadDirectory)
+        const filename = item.getFilename()
+        const download: BrowserDownloadState = {
+          id,
+          observationGeneration,
+          tabId,
+          url: downloadUrl,
+          filename: basename(filename) || 'download',
+          savePath: '',
+          state: 'progressing',
+          receivedBytes: item.getReceivedBytes(),
+          totalBytes: item.getTotalBytes(),
+          startedAt: new Date().toISOString()
+        }
+        this.downloads.set(id, download)
+        this.downloadWorkspaceIds.set(id, workspaceId)
+        let suggestedPath = ''
         try {
+          suggestedPath = this.reserveAvailableDownloadPath(filename, settings.downloadDirectory)
           if (settings.askWhereToSaveDownloads) {
             item.setSaveDialogOptions({
               title: settings.saveDialogTitle,
@@ -174,25 +190,20 @@ export class BrowserDownloadsController {
           } else {
             item.setSavePath(suggestedPath)
           }
-        } catch (error) {
+        } catch {
           this.reservedDownloadPaths.delete(suggestedPath)
-          throw error
+          event.preventDefault()
+          download.state = 'interrupted'
+          download.failureReason = 'destination-unavailable'
+          download.completedAt = new Date().toISOString()
+          download.paused = false
+          download.canResume = false
+          this.notifyDownloadsChanged(true)
+          return
         }
-        const download: BrowserDownloadState = {
-          id,
-          observationGeneration,
-          tabId,
-          url: downloadUrl,
-          filename: basename(suggestedPath),
-          savePath: settings.askWhereToSaveDownloads ? '' : suggestedPath,
-          state: 'progressing',
-          receivedBytes: item.getReceivedBytes(),
-          totalBytes: item.getTotalBytes(),
-          startedAt: new Date().toISOString()
-        }
-        this.downloads.set(id, download)
+        download.filename = basename(suggestedPath)
+        download.savePath = settings.askWhereToSaveDownloads ? '' : suggestedPath
         this.downloadItems.set(id, item)
-        this.downloadWorkspaceIds.set(id, workspaceId)
         const onUpdated = (_downloadEvent: Event, state: 'interrupted' | 'progressing') => {
           download.state = state === 'interrupted' ? 'interrupted' : 'progressing'
           download.receivedBytes = item.getReceivedBytes()

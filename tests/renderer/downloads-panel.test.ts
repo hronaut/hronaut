@@ -45,6 +45,14 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('explains destination setup failures and offers only finished cleanup', () => {
+    renderPanel({ downloads: [{ ...download('failed', 'interrupted', 0, 100), failureReason: 'destination-unavailable', completedAt: '2026-08-22T00:01:00.000Z' }] })
+    expect(screen.getByText('Could not prepare download destination')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Resume failed.bin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancel failed.bin' })).toBeNull()
+  })
+
   it('shows a paused transfer without a spinner and resumes it from the keyboard', async () => {
     const resumeDownload = vi.fn(async () => [])
     const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })
