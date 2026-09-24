@@ -671,3 +671,16 @@ commit, and detached panels retain their separate open-state behavior.
   cases pass. Version 2.5.26 remains an immutable, unpublished failed candidate;
   2.5.27 carries its fixes plus this correction and the pending catalog/networking
   batch. Fresh full validation and all platform release gates remain required.
+
+- Main CI for `1f12319` failed its strict native gate because the pause/resume
+  fixture did not find `/hold-read` in the network list on its first attempt;
+  the retry and the release workflow's independent native run passed. The failed
+  trace is retained. The fixture issued its request before explicitly awaiting
+  diagnostics and then assumed HTTP-server receipt ordered CDP delivery. It now
+  enables diagnostics before the request and awaits the recorded request ID
+  before handoff, preserving all stale-result and privacy assertions. The trace
+  does not distinguish attachment timing from delayed CDP delivery, so this is
+  not claimed as a proven product-event-loss fix. Three focused native runs and
+  focused lint/typechecking pass. The initial 2.5.27 candidate passed all 3,275
+  static tests; its queued publication process was stopped before native startup
+  so a new immutable candidate can include this fixture correction.

@@ -50,6 +50,9 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
     const state = parse<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url: `http://127.0.0.1:${address.port}` }))
     const audit = parse<{ id: string }>(await call('browser_audit_receipts', { workspaceId: workspace.id, action: 'start' }))
     const args = { workspaceId: workspace.id, tabId: state.activeTabId! }
+    // Arm diagnostics before issuing the request whose identity must cross the
+    // handoff. Requests sent before Network.enable need not be retained.
+    parse<BrowserNetworkRequest[]>(await call('browser_network', args))
     expect((await call('browser_evaluate', { ...args, script: `(() => {
       const getter = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'innerText').get;
       Object.defineProperty(document.body, 'innerText', { get() { void fetch('/read-started'); return getter.call(this); } });
@@ -59,9 +62,13 @@ test('fences delayed reads, writes, and redirects across a real pause/resume', a
     const read = call('browser_wait', { ...args, text: 'late-read-canary', timeoutMs: 10000 })
     void read.catch(() => undefined)
     await expect.poll(() => readStarted && held.has('/hold-read')).toBe(true)
-    const beforeHandoffNetwork = parse<BrowserNetworkRequest[]>(await call('browser_network', args))
-    const crossedRequest = beforeHandoffNetwork.find(request => request.url.endsWith('/hold-read'))
-    expect(crossedRequest).toBeDefined()
+    let crossedRequest: BrowserNetworkRequest | undefined
+    // Fixture-server receipt does not order delivery of the CDP event to main.
+    await expect.poll(async () => {
+      const requests = parse<BrowserNetworkRequest[]>(await call('browser_network', args))
+      crossedRequest = requests.find(request => request.url.endsWith('/hold-read'))
+      return crossedRequest?.id
+    }).toBeTruthy()
     await pauseAndResume()
     held.get('/hold-read')!.end('release')
     const readResult = await read
