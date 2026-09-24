@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject malformed diagnostic action and mode values before they can change recording state.
+
 - Keep DOM recorder actions authoritative while automatic refreshes are pending.
 
 - Preserve a newer keyboard focus choice when delayed dialog-close cleanup finishes.

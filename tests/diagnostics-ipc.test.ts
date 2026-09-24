@@ -108,3 +108,19 @@ it('converts only existing visual diffs and awaits clipboard completion', async 
   host.copyPng.mockRejectedValueOnce(new Error('Clipboard unavailable'))
   await expect(invoke('copy-visual-diff', 'tab')).rejects.toThrow('Clipboard unavailable')
 })
+
+it.each([
+  ['accessibility-audit', { action: ['measure'] }],
+  ['accessibility-audit', { standard: ['wcag-aa'] }],
+  ['code-coverage', { action: ['start'] }],
+  ['code-coverage', { mode: ['block'] }],
+  ['cpu-profile', { action: ['stop'] }],
+  ['memory', { action: ['measure'] }],
+  ['repro-recording', { action: ['get'] }],
+  ['dom-changes', { action: ['clear'] }],
+  ['visual-compare', { action: ['compare'] }]
+])('rejects array-valued enums in %s before touching browser state', async (channel, options) => {
+  const { host, invoke } = fixture()
+  await expect(invoke(channel as string, options)).rejects.toThrow(TypeError)
+  expect(host.tabs).not.toHaveBeenCalled()
+})

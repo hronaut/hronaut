@@ -40,6 +40,10 @@ interface DiagnosticsIpcHost {
   copyPng(data: Buffer): Promise<{ width: number; height: number }>
 }
 
+function isAllowedString(value: unknown, allowed: readonly string[]): value is string {
+  return typeof value === 'string' && allowed.includes(value)
+}
+
 /** Keep services lazy: registration precedes browser-window initialization. */
 export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: DiagnosticsIpcHost): void {
   ipcMain.handle('browser:accessibility-audit', (event, value: unknown) => {
@@ -48,9 +52,9 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     const { tabId, action, selector, standard, maxViolations, maxNodesPerViolation } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== undefined && !['measure', 'set-baseline', 'clear-baseline'].includes(String(action)))
+      || (action !== undefined && !isAllowedString(action, ['measure', 'set-baseline', 'clear-baseline']))
       || (selector !== undefined && typeof selector !== 'string')
-      || (standard !== undefined && !['wcag-aa', 'wcag-aaa', 'best-practice', 'all'].includes(String(standard)))
+      || (standard !== undefined && !isAllowedString(standard, ['wcag-aa', 'wcag-aaa', 'best-practice', 'all']))
       || (maxViolations !== undefined && typeof maxViolations !== 'number')
       || (maxNodesPerViolation !== undefined && typeof maxNodesPerViolation !== 'number')
     ) {
@@ -96,8 +100,8 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     const { tabId, action, mode, reload } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== undefined && !['get', 'start', 'stop', 'clear'].includes(String(action)))
-      || (mode !== undefined && !['function', 'block'].includes(String(mode)))
+      || (action !== undefined && !isAllowedString(action, ['get', 'start', 'stop', 'clear']))
+      || (mode !== undefined && !isAllowedString(mode, ['function', 'block']))
       || (reload !== undefined && typeof reload !== 'boolean')
     ) {
       throw new TypeError('Invalid code coverage options')
@@ -110,7 +114,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     const { tabId, action } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== undefined && !['get', 'start', 'stop', 'clear'].includes(String(action)))
+      || (action !== undefined && !isAllowedString(action, ['get', 'start', 'stop', 'clear']))
     ) {
       throw new TypeError('Invalid JavaScript CPU profile options')
     }
@@ -122,14 +126,14 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     const { tabId, action, collectGarbage } = value as Record<string, unknown>
     if (
       (tabId !== undefined && typeof tabId !== 'string')
-      || (action !== undefined && ![
+      || (action !== undefined && !isAllowedString(action, [
         'measure',
         'set-baseline',
         'clear-baseline',
         'start-allocation-sampling',
         'stop-allocation-sampling',
         'clear-allocation-sampling'
-      ].includes(String(action)))
+      ]))
       || (collectGarbage !== undefined && typeof collectGarbage !== 'boolean')
     ) {
       throw new TypeError('Invalid memory options')
@@ -161,7 +165,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid repro recording options')
     const { action, tabId } = value as Record<string, unknown>
     if (
-      !['start', 'get', 'stop', 'clear'].includes(String(action))
+      !isAllowedString(action, ['start', 'get', 'stop', 'clear'])
       || (tabId !== undefined && typeof tabId !== 'string')
     ) throw new TypeError('Invalid repro recording options')
     return host.tabs().reproRecording(action as BrowserReproAction, tabId as string | undefined)
@@ -171,7 +175,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid DOM changes options')
     const { action, tabId } = value as Record<string, unknown>
     if (
-      !['start', 'get', 'stop', 'clear'].includes(String(action))
+      !isAllowedString(action, ['start', 'get', 'stop', 'clear'])
       || (tabId !== undefined && typeof tabId !== 'string')
     ) throw new TypeError('Invalid DOM changes options')
     return host.tabs().domChanges(action as BrowserDomChangesAction, tabId as string | undefined)
@@ -181,7 +185,7 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid visual comparison options')
     const { action, tabId, threshold, settleMs } = value as Record<string, unknown>
     if (
-      !['get', 'set-baseline', 'compare', 'clear'].includes(String(action))
+      !isAllowedString(action, ['get', 'set-baseline', 'compare', 'clear'])
       || (tabId !== undefined && typeof tabId !== 'string')
       || (threshold !== undefined && typeof threshold !== 'number')
       || (settleMs !== undefined && typeof settleMs !== 'number')
