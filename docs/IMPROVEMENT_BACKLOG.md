@@ -420,3 +420,17 @@ commit, and detached panels retain their separate open-state behavior.
   superseded before completion by the combined 546-case image. It is not counted
   as a pass. The v2.5.24 candidate must remain unpublished until the combined
   immutable Docker gate and release-candidate static validation pass.
+
+- The combined `abfd867` Docker image passed all 546 Electron cases and native
+  dialogs; candidate `bf284bc` passed 3,240 unit/component tests and all static
+  gates. Hosted v2.5.24 release run 36052676414 nevertheless failed its strict
+  gate: the injected Home reload failure stalled shard 1 and passed only on
+  retry. Packaging and publication were skipped; v2.5.24 was not published.
+  A deterministic native test then reproduced a deferred reload exception
+  escaping `did-stop-loading`, while the immediate path remained handled.
+  HomeRefresh now returns a shared pending operation and the tab manager forwards
+  its rejection to the existing committed-change error handler. Two unit cases
+  failed before the fix; all seven now pass, including cancellation and recovery.
+  Both immediate/deferred native cases and the original hosted case pass, as do
+  focused lint and typechecking. The failed release tag remains immutable; a new
+  release requires the final batch's full static and immutable Docker gates.

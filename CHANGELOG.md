@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Handle deferred Home refresh failures without allowing an event-handler exception to interrupt the application.
 - Keep exported reproduction targets scoped to the recorded document when pages contain shadow-DOM components.
 
 ## [2.5.24] - 2026-09-24

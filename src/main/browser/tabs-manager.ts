@@ -2390,7 +2390,7 @@ export class BrowserTabsManager {
     const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
     if (!home) return
     const contents = home.webContents
-    this.homeRefresh.request(contents, () => this.tabs.get(home.id) === home
+    return this.homeRefresh.request(contents, () => this.tabs.get(home.id) === home
       && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
