@@ -9663,12 +9663,9 @@ test('controls whether bounded diagnostic logs survive page navigation', async (
 })
 
 test('quits cleanly while a tab navigation is still active', async ({ appWindow, electronApp }) => {
-  const server = createServer((_request, response) => {
-    setTimeout(() => {
-      response.writeHead(200, { 'content-type': 'text/html' })
-      response.end('<!doctype html><title>Delayed page</title>')
-    }, 500)
-  })
+  // Keep the response pending until shutdown. A 500 ms delay could expire
+  // before a loaded runner observed the navigation's loading state.
+  const server = createServer((_request, _response) => {})
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
     server.listen(0, '127.0.0.1', () => resolve())
