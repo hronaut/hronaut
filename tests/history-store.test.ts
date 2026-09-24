@@ -273,6 +273,18 @@ describe('HistoryStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('history-secret')
   })
 
+  it.each(['x'.repeat(4_096), 'x'.repeat(32_768)])('scrubs credentials from oversized URL titles (%#. boundary)', async (suffix) => {
+    const { path, store } = await storeAt()
+    const url = 'https://example.com/page'
+    const title = `https://person:history-secret@example.com/${suffix}`
+
+    expect(await store.record({ url, title })).toMatchObject({ url, title: url })
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+    await store.updateTitle({ url, title: 'Ordinary title' })
+    expect(await store.updateTitle({ url, title })).toMatchObject({ title: url, visitCount: 1 })
+    expect(await readFile(path, 'utf8')).not.toContain('history-secret')
+  })
+
   it('does not persist a URL fragment from a fallback history title', async () => {
     const { path, store } = await storeAt()
     const privateUrl = 'https://fragment.example/page#private-fragment-token'

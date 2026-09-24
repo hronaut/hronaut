@@ -269,6 +269,19 @@ describe('BookmarkStore', () => {
     expect(await readFile(path, 'utf8')).not.toContain('super-secret')
   })
 
+  it.each(['x'.repeat(4_096), 'x'.repeat(32_768)])('scrubs credentials from oversized URL titles (%#. boundary)', async (suffix) => {
+    const { path, store } = await createStore()
+    const url = 'https://example.com/page'
+    const title = `https://person:bookmark-secret@example.com/${suffix}`
+
+    const saved = await store.add({ url, title })
+    expect(saved).toMatchObject({ url, title: url })
+    expect(await readFile(path, 'utf8')).not.toContain('bookmark-secret')
+    await store.rename(saved.id, 'Ordinary title')
+    expect(await store.rename(saved.id, title)).toMatchObject({ title: url })
+    expect(await readFile(path, 'utf8')).not.toContain('bookmark-secret')
+  })
+
   it('rejects a URL whose encoded form exceeds the persisted limit instead of losing the bookmark on restart', async () => {
     const { path, store } = await createStore()
     const prefix = 'https://example.com/'

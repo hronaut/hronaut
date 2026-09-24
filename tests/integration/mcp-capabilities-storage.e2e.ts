@@ -1,5 +1,33 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { expect, test, text } from './capability-fixtures.js'
+
+test('scrubs oversized credential URL titles when agents add and rename bookmarks', async ({ capabilities, appWindow, profileDirectory }) => {
+  const { client, fixtureUrl } = capabilities
+  const added = await client.callTool({
+    name: 'browser_bookmarks',
+    arguments: {
+      action: 'add', url: fixtureUrl,
+      title: `https://person:synthetic-bookmark-secret@example.com/${'x'.repeat(4_096)}`
+    }
+  }) as CallToolResult
+  expect(added.isError, text(added)).not.toBe(true)
+  const bookmarks = JSON.parse(text(added)) as Array<{ id: string; url: string; title: string }>
+  expect(bookmarks).toEqual([expect.objectContaining({ url: fixtureUrl, title: fixtureUrl })])
+  const renamed = await client.callTool({
+    name: 'browser_bookmarks',
+    arguments: {
+      action: 'rename', id: bookmarks[0]!.id,
+      title: `https://person:synthetic-bookmark-secret@example.com/${'x'.repeat(32_768)}`
+    }
+  }) as CallToolResult
+  expect(renamed.isError, text(renamed)).not.toBe(true)
+  const updatedBookmarks = JSON.parse(text(renamed))
+  expect(updatedBookmarks).toEqual([expect.objectContaining({ id: bookmarks[0]!.id, url: fixtureUrl, title: fixtureUrl })])
+  expect(await appWindow.evaluate('window.hronautBookmarks.list()')).toEqual(updatedBookmarks)
+  expect(await readFile(join(profileDirectory, 'bookmarks.json'), 'utf8')).not.toContain('synthetic-bookmark-secret')
+})
 
 test('isolates storage and manages site data, history and bookmarks', async ({ capabilities, electronApp, appWindow }) => {
   const { client, tabId, address, fixtureUrl, fixtureOrigin, openPageTool } = capabilities

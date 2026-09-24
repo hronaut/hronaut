@@ -53,7 +53,7 @@ function normalizeTitle(value: string, url: string, sourceUrl = url): string {
   )
   let safeValue = value
   if (isUrlFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
-  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? value
+  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? url
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_HISTORY_TITLE)
   return title || new URL(url).hostname
 }

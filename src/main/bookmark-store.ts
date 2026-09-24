@@ -46,7 +46,7 @@ function normalizeBookmarkTitle(value: string, url: string, sourceUrl = url): st
     && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
   let safeValue = value
   if (isCredentialFallback || truncatedUrlAuthority) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
-  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? value
+  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? url
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_BOOKMARK_TITLE)
   return title || new URL(url).hostname
 }

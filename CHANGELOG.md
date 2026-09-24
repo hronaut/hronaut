@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove embedded HTTP credentials from history and bookmark titles even when the title's URL exceeds the storage length limits.
 - Do not count an iframe's in-page navigation as another visit to its parent website.
 - Expire browsing-history visits during long-running sessions and reset repeat-visit counts after the 90-day retention window.
 
