@@ -3324,11 +3324,17 @@ export class BrowserTabsManager {
     const navigationGeneration = tab.navigationGeneration
     const webContents = tab.webContents
     let dispatched = false
-    const previous = this.debuggerQueues.get(webContents.id) ?? Promise.resolve()
-    const command = previous.catch(() => undefined).then(async () => {
-      if (this.destroyed || this.tabs.get(tab.id) !== tab || webContents.isDestroyed()) {
+    const assertCurrentDocument = (): void => {
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.webContents !== webContents || webContents.isDestroyed()) {
         throw new Error('The tab closed before its page lifecycle command was dispatched.')
       }
+      if (tab.navigationGeneration !== navigationGeneration) {
+        throw new Error('The document changed before its page lifecycle command was dispatched.')
+      }
+    }
+    const previous = this.debuggerQueues.get(webContents.id) ?? Promise.resolve()
+    const command = previous.catch(() => undefined).then(async () => {
+      assertCurrentDocument()
       await this.dialogMonitorAttachPromises.get(webContents.id)
       if (this.devToolsOpening.has(webContents.id) || webContents.isDevToolsOpened()) {
         throw new Error('Close Developer Tools for this tab before changing its page lifecycle.')
@@ -3337,6 +3343,8 @@ export class BrowserTabsManager {
         webContents.debugger.attach('1.3')
         await webContents.debugger.sendCommand('Page.enable')
       }
+      // Queueing and debugger attachment may outlive the requested document.
+      assertCurrentDocument()
       if (requestedState === 'frozen') {
         dispatched = true
         let records: unknown = []

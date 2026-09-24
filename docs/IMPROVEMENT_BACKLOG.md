@@ -141,6 +141,19 @@ generator previously exited successfully without writing its output through a
 symlinked directory; the real MCPB packaging regression failed before this fix.
 The same helper replaces eight duplicated CLI checks.
 
+The next queue refactoring boundary is shared scheduling for debugger actions and
+explicit page lifecycle changes. Preserve serialization through ambiguous command
+timeouts and the DevTools handoff; a timed-out native command must retain its queue
+slot until it actually settles. Review also found a queued-freeze navigation race:
+the lifecycle command checked the document generation only after dispatch. A real
+Electron regression holds an earlier emulation command, queues Freeze, then
+navigates before releasing the queue. It observed a freeze command sent to the new
+document on both attempts. Lifecycle dispatch now checks tab/content identity and
+document generation both after acquiring the queue and after debugger attachment.
+The regression and three related native cases now pass, including explicit
+freeze/resume and emulation serialization; focused lint and typechecking pass.
+Full static and immutable-image verification remain required before delivery.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
