@@ -24,6 +24,15 @@ lookup, settings, native dialogs and change publication. Follow the existing
 path reservation, workspace attribution, cancellation and shutdown behavior.
 Use the existing real Electron download cases as the behavioral contract.
 
+Before extraction, investigate resumable interrupted downloads. Electron's
+[DownloadItem contract](https://www.electronjs.org/docs/latest/api/download-item)
+distinguishes nonterminal `updated: interrupted` from terminal
+`done: interrupted`. The current `listDownloads()` removes the live item whenever
+its state differs from `progressing`, and clear/trim use the same state-based
+terminal assumption. Reproduce cancellation and clear behavior with a real
+interrupted item in Docker before deciding whether this requires a fix. This
+review identified a candidate, not a verified runtime failure.
+
 ## Main-process composition
 
 Move cohesive IPC registration groups out of `src/main/index.ts`, beginning with
