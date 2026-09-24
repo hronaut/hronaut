@@ -1,3 +1,4 @@
+import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
@@ -392,7 +393,6 @@ const MAX_FAVICON_BYTES = 512 * 1024
 const MAX_NETWORK_TOTAL_BUFFER_BYTES = 8 * 1024 * 1024
 const MAX_NETWORK_RESOURCE_BUFFER_BYTES = 2 * 1024 * 1024
 const MAX_NETWORK_POST_DATA_BYTES = 64 * 1024
-const MAX_NETWORK_WAITERS_PER_TAB = 20
 const MAX_NETWORK_ROUTES = 50
 const MAX_INSPECTOR_ISSUES = 200
 const MAX_VISUAL_COMPARE_WIDTH = 1_920
@@ -783,16 +783,6 @@ function applyNetworkResponseMetadata(
   }
 }
 
-interface BrowserNetworkWaiter {
-  options: NormalizedBrowserNetworkWaitOptions
-  minCaptureSequence: number
-  observationGeneration: number
-  startedAt: number
-  timer: NodeJS.Timeout
-  resolve: (result: BrowserNetworkWaitResult) => void
-  reject: (error: Error) => void
-}
-
 interface BrowserNetworkRouteRecord extends BrowserNetworkRouteSummary {
   responseHeaders?: Record<string, string>
   responseBody?: string
@@ -1171,7 +1161,7 @@ export class BrowserTabsManager {
       tab.inspectorIssues = []
       tab.inspectorIssuesTruncated = false
       tab.securitySnapshot = undefined
-      this.rejectNetworkWaiters(tab.id, 'Workspace control changed while waiting for network activity.')
+      this.networkWaitController.reject(tab.id, 'Workspace control changed while waiting for network activity.')
     }
     this.downloadController.advanceWorkspaceObservationGeneration(workspaceId, observationGeneration)
   }
@@ -1301,7 +1291,12 @@ export class BrowserTabsManager {
   private readonly webContentsToTab = new Map<number, string>()
   private readonly debuggerQueues = new Map<number, Promise<void>>()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
-  private readonly networkWaiters = new Map<string, Set<BrowserNetworkWaiter>>()
+  private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
+    matchingRequest: (tab, options, minCaptureSequence) => {
+      const request = this.matchingNetworkWaitRequest(tab, options, minCaptureSequence)
+      return request ? this.networkRequestSummary(request) : undefined
+    }
+  })
   private readonly networkRouteRefreshTimers = new Map<number, NodeJS.Timeout>()
   private readonly dialogMonitorAttachPromises = new Map<number, Promise<void>>()
   private readonly defaultExecutionContexts = new Map<number, Map<string, number>>()
@@ -4329,7 +4324,7 @@ export class BrowserTabsManager {
       }
     }
     const wasActive = tab.id === this.activeTabId
-    this.rejectNetworkWaiters(tab.id, 'The tab closed while waiting for network activity.')
+    this.networkWaitController.reject(tab.id, 'The tab closed while waiting for network activity.')
     this.reproRecorder.clearReproRecording(tab)
     this.cancelNativeSelectionSessions(tab)
     const { splitPartnerId, nextId } = this.closeTabTransition(tab)
@@ -5979,40 +5974,7 @@ export class BrowserTabsManager {
       }
       minCaptureSequence = cursor.captureSequence
     }
-    const retained = this.matchingNetworkWaitRequest(tab, normalized, minCaptureSequence)
-    if (retained) {
-      return {
-        tabId: tab.id,
-        phase: normalized.phase,
-        matchedFrom: 'retained',
-        waitedMs: 0,
-        request: this.networkRequestSummary(retained)
-      }
-    }
-
-    const waiters = this.networkWaiters.get(tab.id) ?? new Set<BrowserNetworkWaiter>()
-    if (waiters.size >= MAX_NETWORK_WAITERS_PER_TAB) {
-      throw new Error(`Network wait limit reached for this tab (${MAX_NETWORK_WAITERS_PER_TAB})`)
-    }
-    return new Promise<BrowserNetworkWaitResult>((resolve, reject) => {
-      const waiter: BrowserNetworkWaiter = {
-        options: normalized,
-        minCaptureSequence,
-        observationGeneration: tab.observationGeneration,
-        startedAt: Date.now(),
-        timer: setTimeout(() => {
-          this.removeNetworkWaiter(tab.id, waiter)
-          reject(new Error(`Timed out after ${normalized.timeoutMs} ms waiting for a matching network ${normalized.phase}.`))
-        }, normalized.timeoutMs),
-        resolve,
-        reject
-      }
-      waiter.timer.unref()
-      waiters.add(waiter)
-      this.networkWaiters.set(tab.id, waiters)
-      // Close the small registration race if an event arrived after the retained scan.
-      this.notifyNetworkWaiters(tab)
-    })
+    return this.networkWaitController.wait(tab, normalized, minCaptureSequence)
   }
 
   async networkSearch(options: BrowserNetworkSearchOptions): Promise<BrowserNetworkSearchResult> {
@@ -7466,9 +7428,7 @@ export class BrowserTabsManager {
     this.tabOverviewPendingCaptures.clear()
     this.tabOverviewPreviewableTabs.clear()
     this.tabOverviewPreviews.clear()
-    for (const tabId of this.networkWaiters.keys()) {
-      this.rejectNetworkWaiters(tabId, 'Hronaut closed while waiting for network activity.')
-    }
+    this.networkWaitController.dispose()
     for (const session of this.screenshotAreaSessions.values()) {
       session.canceled = true
       session.resolve({ canceled: true })
@@ -7795,7 +7755,7 @@ export class BrowserTabsManager {
       this.invalidateTabOverviewPreview(tab)
       this.tabOverviewPendingCaptures.delete(tab.id)
       this.tabOverviewPreviewableTabs.delete(tab.id)
-      this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
+      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (this.expectedTabClosures.has(webContents)) {
         this.dialogMonitorAttachPromises.delete(webContents.id)
@@ -8003,7 +7963,7 @@ export class BrowserTabsManager {
         this.queueNetworkRouteRequest(tab, params)
       } else if (method.startsWith('Network.')) {
         this.handleNetworkDebuggerMessage(tab, method, params)
-        this.notifyNetworkWaiters(tab)
+        this.networkWaitController.notify(tab)
       } else if (method === 'Log.entryAdded') {
         const message = normalizeConsoleLogEntry((params as { entry?: CdpLogEntry }).entry)
         if (message) this.appendConsoleMessage(tab, message, 'log')
@@ -8286,7 +8246,7 @@ export class BrowserTabsManager {
         this.recoveringRendererExits.add(webContents.id)
         return
       }
-      this.rejectNetworkWaiters(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
+      this.networkWaitController.reject(tab.id, 'The tab renderer became unavailable while waiting for network activity.')
       this.cancelNativeSelectionSessions(tab)
       if (tab.pageLifecycleState !== 'active') {
         tab.pageLifecycleState = 'unknown'
@@ -9001,47 +8961,6 @@ export class BrowserTabsManager {
       request.observationGeneration === tab.observationGeneration
       && request.captureSequence > minCaptureSequence && networkRequestMatchesWait(request, options)
     ))
-  }
-
-  private removeNetworkWaiter(tabId: string, waiter: BrowserNetworkWaiter): void {
-    const waiters = this.networkWaiters.get(tabId)
-    if (!waiters) return
-    waiters.delete(waiter)
-    if (!waiters.size) this.networkWaiters.delete(tabId)
-  }
-
-  private notifyNetworkWaiters(tab: BrowserTab): void {
-    const waiters = this.networkWaiters.get(tab.id)
-    if (!waiters?.size) return
-    for (const waiter of [...waiters]) {
-      if (waiter.observationGeneration !== tab.observationGeneration) {
-        clearTimeout(waiter.timer)
-        this.removeNetworkWaiter(tab.id, waiter)
-        waiter.reject(new Error('Workspace control changed while waiting for network activity.'))
-        continue
-      }
-      const request = this.matchingNetworkWaitRequest(tab, waiter.options, waiter.minCaptureSequence)
-      if (!request) continue
-      clearTimeout(waiter.timer)
-      this.removeNetworkWaiter(tab.id, waiter)
-      waiter.resolve({
-        tabId: tab.id,
-        phase: waiter.options.phase,
-        matchedFrom: 'future',
-        waitedMs: Math.max(0, Date.now() - waiter.startedAt),
-        request: this.networkRequestSummary(request)
-      })
-    }
-  }
-
-  private rejectNetworkWaiters(tabId: string, message: string): void {
-    const waiters = this.networkWaiters.get(tabId)
-    if (!waiters?.size) return
-    this.networkWaiters.delete(tabId)
-    for (const waiter of waiters) {
-      clearTimeout(waiter.timer)
-      waiter.reject(new Error(message))
-    }
   }
 
   private networkRequestRelationships(
@@ -10736,7 +10655,7 @@ export class BrowserTabsManager {
             detailsAvailable: false
           })
           this.trimNetworkRequests(tab)
-          this.notifyNetworkWaiters(tab)
+          this.networkWaitController.notify(tab)
         }
         callback({})
       })
@@ -10749,7 +10668,7 @@ export class BrowserTabsManager {
         request.fromCache = details.fromCache
         request.responseSource = details.fromCache ? 'other-cache' : 'network'
         const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab) this.notifyNetworkWaiters(tab)
+        if (tab) this.networkWaitController.notify(tab)
       })
       browserSession.webRequest.onErrorOccurred((details) => {
         const tabId = details.webContentsId ? this.webContentsToTab.get(details.webContentsId) : undefined
@@ -10758,7 +10677,7 @@ export class BrowserTabsManager {
         request.completedAt = new Date().toISOString()
         request.error = details.error
         const tab = tabId ? this.tabs.get(tabId) : undefined
-        if (tab) this.notifyNetworkWaiters(tab)
+        if (tab) this.networkWaitController.notify(tab)
       })
     }
 

@@ -88,6 +88,16 @@ and refresh results arriving out of order. Six focused unit cases additionally
 cover workspace ownership, replaced or destroyed contents, removed tabs, stale
 workspace cleanup, and a failed refresh while Start is pending.
 
+Network waiter lifecycle now lives in
+`src/main/browser/network-wait-controller.ts`. Timer ownership, per-tab limits,
+completion, cancellation, and shutdown cleanup move together. The manager keeps
+tab access, cursor validation, request matching, and sanitized summaries. Seven
+unit cases cover retained results, registration races, workspace ownership,
+capacity recovery, tab isolation, disposal, and clock changes. The three native
+MCP network/wait cases also pass, including renderer loss and teardown.
+Reported elapsed time uses a monotonic clock: regressions proved that forward
+and backward system-clock changes previously distorted `waitedMs`.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
