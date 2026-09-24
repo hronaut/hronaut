@@ -1236,6 +1236,7 @@ export class BrowserTabsManager {
   }
 
   private readonly tabs = new Map<string, BrowserTab>()
+  private readonly pendingReproStarts = new WeakMap<BrowserTab, symbol>()
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
   private readonly webMcpDescriptorCache = new Map<string, string>()
@@ -6178,9 +6179,22 @@ export class BrowserTabsManager {
 
     if (action === 'start') {
       this.clearReproRecording(tab)
+      const start = Symbol('repro start')
+      this.pendingReproStarts.set(tab, start)
+      const webContents = tab.webContents
+      const navigationGeneration = tab.navigationGeneration
+      const observationGeneration = tab.observationGeneration
       const startedAtMs = Date.now()
-      const initialScroll = await tab.webContents.executeJavaScript(reproScrollScript(), true)
+      const initialScroll = await webContents.executeJavaScript(reproScrollScript(), true)
         .catch(() => ({ x: 0, y: 0 })) as { x: number; y: number }
+      const ownsStart = this.pendingReproStarts.get(tab) === start
+      if (ownsStart) this.pendingReproStarts.delete(tab)
+      if (!ownsStart || this.tabs.get(tab.id) !== tab
+        || tab.webContents !== webContents || webContents.isDestroyed()
+        || tab.navigationGeneration !== navigationGeneration
+        || tab.observationGeneration !== observationGeneration) {
+        throw new Error('Reproduction recording changed while starting')
+      }
       tab.reproRecording = {
         active: true,
         startedAt: new Date(startedAtMs).toISOString(),
@@ -6207,6 +6221,7 @@ export class BrowserTabsManager {
       return this.reproRecordingResult(tab)
     }
 
+    if (action === 'stop') this.pendingReproStarts.delete(tab)
     const recording = tab.reproRecording
     if (!recording) return this.reproRecordingResult(tab)
     if (action === 'get') return this.reproRecordingResult(tab)
@@ -9642,6 +9657,7 @@ export class BrowserTabsManager {
   }
 
   private clearReproRecording(tab: BrowserTab): void {
+    this.pendingReproStarts.delete(tab)
     const recording = tab.reproRecording
     if (recording?.scrollTimer) clearTimeout(recording.scrollTimer)
     if (recording) recording.active = false
