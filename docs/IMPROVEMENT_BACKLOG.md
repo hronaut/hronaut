@@ -370,4 +370,7 @@ commit, and detached panels retain their separate open-state behavior.
   coalesces requests, verifies the tab and contents still belong to Home, and
   removes pending listeners on destruction. Three unit regressions failed with
   the former immediate-reload behavior; all five lifecycle cases pass after the
-  change. Native stress and immutable-image verification remain required.
+  change. All 25 native repetitions passed with the unchanged timeout while the
+  earlier four-shard gate was still running. Focused lint and typechecking also
+  passed. Full static and immutable-image verification of this change remain
+  required; these repetitions do not establish that every Home failure is fixed.
