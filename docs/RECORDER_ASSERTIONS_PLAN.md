@@ -28,6 +28,9 @@ The current Hronaut recorder now validates selector uniqueness within a
 500-character bound and preserves unresolved targets as manual export steps.
 Assertion selection must reject unresolved targets rather than count them as
 exportable expectations. This groundwork does not implement assertion capture.
+Exported locators must retain the same light-DOM scope used to validate captured
+selectors. A unique document button can become ambiguous if plain Playwright CSS
+also matches buttons inside unrelated open shadow roots.
 
 ## Integration boundaries
 
@@ -58,6 +61,9 @@ exportable expectations. This groundwork does not implement assertion capture.
   existing JavaScript literal escaping. Remove the final assertion TODO only
   when a supported, exportable explicit assertion exists. Preserve warnings for
   active or truncated recordings and incomplete or redacted actions.
+  Unexportable manual steps must still stop execution explicitly: adding a later
+  assertion that is already true must not turn an incomplete timeline into a
+  passing test merely because the final assertion TODO was removed.
 
 ## Selection and ordering rules
 
@@ -80,6 +86,8 @@ executed Playwright assertion.
 1. Unit tests cover assertion export, escaping, missing/invalid targets, mixed
    action/assertion timelines, TODO retention, recording limits, and detached
    snapshots. Test uniqueness and bounded selectors on repeated/deep structures.
+   Include a light-DOM target beside unrelated shadow-root matches, and an
+   unresolved action followed by an assertion that passes without that action.
 2. Controller/component tests cover cancel, busy/error retention during refresh,
    keyboard operation, and timeline selection after restart.
 3. Docker Electron cases cover actual native selection and the page picker,

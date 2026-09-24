@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep exported reproduction targets scoped to the recorded document when pages contain shadow-DOM components.
+
 ## [2.5.24] - 2026-09-24
 
 ### Fixed

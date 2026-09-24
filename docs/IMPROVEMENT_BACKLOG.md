@@ -272,6 +272,17 @@ commit, and detached panels retain their separate open-state behavior.
 
 ## Test infrastructure follow-up
 
+- Reproduction export had a selector-scope mismatch on pages with shadow-DOM
+  components: recording validated a selector with document.querySelectorAll,
+  but default Playwright locators also matched nodes in open shadow roots.
+  A real Electron regression recorded a light-DOM button click and executed its
+  generated action; both attempts failed with a strict-mode ambiguity before
+  export retained light-DOM scope. The fixed replay clicks only the recorded
+  button and still reaches the deliberate missing-assertion TODO. All three
+  selector integration cases and three export unit cases pass, as do focused
+  lint and typechecks. Full validation remains required. This follow-up is
+  separate from the v2.5.24 candidate under verification.
+
 - Consolidated network-route input schemas and normalization in
   `src/main/browser/network-route-input.ts`. IPC and MCP use the same field
   contracts, and the browser manager validates before changing native routes.

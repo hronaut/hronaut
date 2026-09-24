@@ -13,7 +13,9 @@ function playwrightKey(key: string): string {
 }
 
 function targetExpression(step: BrowserReproStep): string | null {
-  return step.target?.selector ? `page.locator(${quoted(step.target.selector)})` : null
+  // Recording validates selectors with document.querySelectorAll. Plain
+  // Playwright CSS also pierces shadow roots and can select additional nodes.
+  return step.target?.selector ? `page.locator(${quoted(`css:light=${step.target.selector}`)})` : null
 }
 
 export function formatReproAsPlaywright(recording: BrowserReproRecording): string {
