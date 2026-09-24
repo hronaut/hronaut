@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.19] - 2026-09-24
+
 ### Added
 
 - Pause and resume downloads in the current session from the Downloads panel or workspace-scoped MCP controls.
