@@ -618,3 +618,17 @@ commit, and detached panels retain their separate open-state behavior.
   launch and quit are intercepted by the fixture; this is not a real package
   installation result. This follow-up is separate from the immutable v2.5.26
   candidate and needs its own full gate before integration.
+
+- The `ee18dcd` release image failed its strict gate when the horizontal 1x
+  split-divider case read click counts immediately after physical input; that
+  case passed on retry, so publication and native-dialog checks did not proceed.
+  The original trace does not contain per-page counts. The test now observes
+  exactly one delivered click on each named page and saves count samples and a
+  desktop capture even on failure. It does not resend input or extend timeouts.
+  All 24 focused layout/scale/orientation runs passed on their first samples, so
+  they do not establish the original failure's precise cause. Fresh full-gate
+  evidence remains necessary. The updater and packaging follow-up passed its
+  revised full static gate (3,271 tests), and is now batched into the unpublished
+  v2.5.26 candidate. The next immutable run covers all 557 Electron cases together
+  with native dialogs; the failed image and both stopped publish guards are not
+  counted as success.
