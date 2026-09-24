@@ -517,6 +517,31 @@ commit, and detached panels retain their separate open-state behavior.
   code and Electron suite for the thumbnail batch. Updated full static validation
   covers the additional launcher regression tests before integration.
 
+- v2.5.25 (`664fe8c`) passed all 3,243 static tests and 551 local Electron
+  cases plus native dialogs without retries, then all hosted release gates and
+  seven desktop packaging jobs. Release run 36058086181 published 26 assets;
+  independent readback verified the website's release manifest and eleven download
+  redirects, and MCP Registry reports version 2.5.25 active/latest. The verified
+  Scoop manifest was committed at `0b4ec58`; its separate Windows smoke is still
+  being monitored. The earlier v2.5.24 tag remains an unpublished failed release.
+
+- The thumbnail runtime image at `c54f33d` passed all 552 Electron cases and native
+  dialogs with no retries. The ownership follow-up at `ae59e8a` passed full static
+  validation: 3,256 tests across 417 files, lint, typechecks, and build. The only
+  differences from that runtime image are the separately reproduced and verified
+  focused-launcher ownership repair, its tests, and notes. This batch is now
+  integrated on main together with the Scoop update. Recorder scope changes at
+  `b036355` remain in a separate immutable full-validation run.
+
+- The separate v2.5.25 Windows Scoop smoke run 36060045426 passed. Main at
+  `306ee72` also passed hosted CI and CodeQL. Removing the integrated thumbnail
+  checkout succeeded normally after the focused Docker cache ownership repair.
+  The recorder scope image passed all static gates and 3,260 unit/component tests
+  across 417 files; its 554-case Electron and native-dialog gate is still running.
+  The next network recording extraction is isolated in its own checkout, with
+  tab-owned state and debugger/waiter ownership kept explicit in the refactoring
+  plan.
+
 - Recorder scope review found that document hit testing and focus retarget shadow
   descendants to their host, and iframe interactions yielded the iframe element.
   Both were exported as if that outer container were the recorded control. Two
@@ -529,6 +554,16 @@ commit, and detached panels retain their separate open-state behavior.
   focused lint/typechecking. Cross-root replay and closed-shadow detection remain
   unsupported. The combined batch still requires full static and immutable-image
   verification before integration and release.
+
+- Recorder scope source `b036355` passed all 554 Electron cases and native-dialog
+  checks with no retries in its immutable image, alongside the 3,260-test static
+  gate. The merge has identical application, test, and validation-script contents
+  and is now verified for main. The next network recording extraction at
+  `763c66a` passed all static gates and 3,269 tests across 418 files; its full
+  Docker Electron gate has started and remains separate from main. The refreshed
+  discussions #201 and #212 point to v2.5.25 and describe a proposed Windows/Codex
+  evaluation, without a new executed bug report. The website repository remains
+  at `7b251b4` with unchanged open issues.
 
 - Extracted synchronous network event recording from `TabsManager` into
   `network-recording.ts`, with a narrow tab-owned state interface. Native debugger
