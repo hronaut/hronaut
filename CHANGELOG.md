@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.26] - 2026-09-25
+
 ### Fixed
 
 - Keep iframe connection and certificate details out of the main document's security report.

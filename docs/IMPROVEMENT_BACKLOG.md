@@ -590,3 +590,9 @@ commit, and detached panels retain their separate open-state behavior.
   Network because the first navigation may precede diagnostic attachment; its
   initial missing-metadata result is not counted as attribution-bug evidence.
   Full static and immutable Docker validation remain required for this follow-up.
+
+- Prepared v2.5.26 to batch the verified thumbnail and recorder fixes with the
+  network recording extraction and main-frame connection attribution fix. The
+  candidate includes main at `7751c94`, including its Scoop manifest. It remains
+  local until the exact release source passes full static validation and the
+  immutable Electron/native-dialog gate.
