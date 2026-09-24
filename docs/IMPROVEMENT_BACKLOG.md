@@ -504,3 +504,15 @@ commit, and detached panels retain their separate open-state behavior.
   Eligibility, settle timers, image encoding, and cache publication remain in the
   manager. The earlier ownership-only validation launcher was stopped before it
   started any containers, so this combined batch receives the next full gate.
+
+- Removing the integrated export checkout exposed a focused-runner cleanup bug:
+  `.cache/hronaut/focused-build-app.sha256` and both parent directories remained
+  owned by root, so the host user could not remove the checkout normally. The
+  launcher's existing ownership repair now includes `.cache`. Two real CLI
+  regressions with a controlled Docker command failed before the fix for both
+  successful and failing test exits; all thirteen focused Docker feedback cases
+  pass afterward. An actual Docker run changed the existing cache from UID/GID
+  0:0 to the host's 1000:1000. Focused lint/typechecking pass. This is a launcher
+  change only; the running `c54f33d` image still contains the exact application
+  code and Electron suite for the thumbnail batch. Updated full static validation
+  covers the additional launcher regression tests before integration.
