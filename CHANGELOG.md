@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Reject unsupported rendering-overlay names before applying emulation settings.
+- Keep performance comparisons consistent when identical emulation settings are reapplied in a different order.
 
 ## [2.5.22] - 2026-09-24
 

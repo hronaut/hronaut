@@ -118,6 +118,14 @@ semantics, nested state isolation, viewport limits, private header handling, and
 unsupported inherited overlay names; the latter three cases failed before the
 validation changed from prototype membership to own-property membership.
 
+Performance environment fingerprints now live in
+`src/main/browser/performance-environment.ts`. Object keys are ordered before
+hashing, so applying equivalent settings in separate actions or in one action
+does not create a false baseline mismatch. Two unit regressions and one real
+Electron comparison failed before this change. Tests also retain detection of
+actual locale, private header, viewport, and zoom changes; private values remain
+inside the hash rather than the public performance environment summary.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
@@ -306,6 +314,7 @@ commit, and detached panels retain their separate open-state behavior.
 
 - The immutable `fa63de0` image passed all 539 Electron cases and native-dialog
   checks with no retries required. It includes Home recovery, the synchronized
-  forced-crash fixture, and network waiter extraction/timing. Selector changes
-  at `a342a10` are being verified separately; this pass does not prove that the
-  earlier spontaneous renderer crashes cannot recur.
+  forced-crash fixture, and network waiter extraction/timing. Subsequent immutable
+  images for selector changes at `a342a10` and native selection sessions at
+  `6652fa5` each passed 541 Electron cases and native-dialog checks. These passes
+  do not prove that the earlier spontaneous renderer crashes cannot recur.

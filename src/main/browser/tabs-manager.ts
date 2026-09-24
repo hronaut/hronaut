@@ -1,3 +1,4 @@
+import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from './emulation-state.js'
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
@@ -9512,14 +9513,12 @@ export class BrowserTabsManager {
 
   private performanceEnvironmentFingerprint(tab: BrowserTab): string {
     const bounds = tab.view.getBounds()
-    const emulation = cloneEmulationState(tab.emulation)
-    if (emulation.extraHttpHeaderNames) emulation.extraHttpHeaderNames.sort()
-    return createHash('sha256').update(JSON.stringify({
-      emulation,
-      extraHttpHeaders: Object.fromEntries(Object.entries(tab.emulationExtraHttpHeaders).sort(([left], [right]) => left.localeCompare(right))),
-      viewport: { width: bounds.width, height: bounds.height },
-      zoomPercent: Math.round(tab.webContents.getZoomFactor() * 100)
-    })).digest('hex')
+    return performanceEnvironmentFingerprint(
+      tab.emulation,
+      tab.emulationExtraHttpHeaders,
+      bounds,
+      Math.round(tab.webContents.getZoomFactor() * 100)
+    )
   }
 
   private async applyEmulationState(
