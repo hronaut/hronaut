@@ -4,7 +4,7 @@ import { closeFixtureServer, expect, test } from './fixtures.js'
 
 const cases = [
   ...(['navigation', 'same-url navigation', 'close'] as const).map(change => ({ change, action: 'start' as const })),
-  ...(['clear', 'stop', 'restart'] as const).flatMap(change => (['start', 'get'] as const).map(action => ({ change, action })))
+  ...(['clear', 'stop', 'restart', 'refresh'] as const).flatMap(change => (['start', 'get'] as const).map(action => ({ change, action })))
 ]
 
 for (const { change, action } of cases) {
@@ -49,6 +49,13 @@ for (const { change, action } of cases) {
       await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __domLifecycleHeld?: boolean }).__domLifecycleHeld === true)).toBe(true)
       if (change === 'close') {
         await appWindow.evaluate(`window.hronaut.closeTab(${JSON.stringify(tabId)})`)
+      } else if (change === 'refresh') {
+        await electronApp.evaluate(async ({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find(page => page.getURL() === url)!
+          await page.executeJavaScript("document.body.appendChild(document.createElement('section'))")
+        }, before)
+        const refreshed = await appWindow.evaluate(`window.hronaut.manageDomChanges('get', ${JSON.stringify(tabId)})`) as { changeCount: number }
+        expect(refreshed.changeCount).toBeGreaterThan(0)
       } else if (change === 'clear' || change === 'stop' || change === 'restart') {
         await appWindow.evaluate(`window.hronaut.manageDomChanges(${JSON.stringify(change === 'restart' ? 'start' : change)}, ${JSON.stringify(tabId)})`)
       } else {

@@ -1235,7 +1235,7 @@ export class BrowserTabsManager {
 
   private readonly tabs = new Map<string, BrowserTab>()
   private readonly pendingReproStarts = new WeakMap<BrowserTab, symbol>()
-  private readonly domRecordingActions = new WeakMap<BrowserTab, symbol>()
+  private readonly domRecordingRequests = new WeakMap<BrowserTab, { action?: symbol; requested: number; applied: number }>()
   private readonly pendingReproStops = new WeakMap<BrowserReproRecordingInternal, Promise<BrowserReproRecording>>()
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
@@ -6277,8 +6277,11 @@ export class BrowserTabsManager {
       && action !== 'start'
       ? 'clear'
       : action
-    if (effectiveAction !== 'get') this.domRecordingActions.set(tab, Symbol(effectiveAction))
-    const recordingAction = this.domRecordingActions.get(tab)
+    const requests = this.domRecordingRequests.get(tab) ?? { requested: 0, applied: 0 }
+    this.domRecordingRequests.set(tab, requests)
+    if (effectiveAction !== 'get') requests.action = Symbol(effectiveAction)
+    const recordingAction = requests.action
+    const request = ++requests.requested
     const result = await webContents.executeJavaScriptInIsolatedWorld(
       DOM_CHANGES_WORLD_ID,
       [{ code: domChangesPageScript(effectiveAction) }],
@@ -6293,9 +6296,10 @@ export class BrowserTabsManager {
       || tab.navigationGeneration !== navigationGeneration) {
       throw new Error('The page changed while reading DOM changes. Start a fresh recording.')
     }
-    if (this.domRecordingActions.get(tab) !== recordingAction) {
+    if (requests.action !== recordingAction || request < requests.applied) {
       throw new Error('The recording changed while reading DOM changes. Try again.')
     }
+    requests.applied = request
     if (result.startedAt) {
       tab.domChangesRecording = {
         active: result.active,
