@@ -64,12 +64,12 @@ browser access, sender authorization, and image/clipboard adapters; the extracte
 module retains argument checks and result forwarding. This keeps native setup
 out of focused boundary tests without moving browser authority into the renderer.
 
-The next larger extraction candidate is reproduction recording in
-`BrowserTabsManager`: public actions, pending start/stop ownership, input queues,
-scroll debounce, and cleanup currently span several parts of the class. Move
-those together only with the existing navigation, clear, restart, closure, and
-concurrent-stop regressions intact. Separating only the public methods would
-leave lifecycle ownership split across modules and provide little benefit.
+Reproduction recording now lives in `src/main/browser/repro-recorder.ts`.
+Public actions, pending start/stop ownership, input queues, scroll debounce,
+navigation updates, and cleanup move together. `BrowserTabsManager` retains tab
+lookup, workspace authority, and native event wiring; it supplies current-tab and
+agent-input checks plus state-change notification. Existing navigation, clear,
+restart, closure, and concurrent-stop regression suites cover this boundary.
 
 ## Rotating QA review
 
