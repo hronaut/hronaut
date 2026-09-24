@@ -1,3 +1,4 @@
+import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
@@ -793,15 +794,6 @@ interface BrowserElementPickerScriptResult {
   inspection?: unknown
 }
 
-interface BrowserNativeSelectionSession<Result> {
-  canceled: boolean
-  inputQueue: Promise<void>
-  settled: boolean
-  result: Promise<Result>
-  resolve: (result: Result) => void
-  reject: (error: unknown) => void
-}
-
 interface BrowserElementPickerSession extends BrowserNativeSelectionSession<BrowserElementPickerScriptResult> {
   pointerDown: boolean
 }
@@ -822,34 +814,6 @@ export interface BrowserScreenshotAreaResult {
 interface BrowserScreenshotAreaSession extends BrowserNativeSelectionSession<BrowserScreenshotAreaResult> {
   start?: { x: number; y: number }
   current?: { x: number; y: number }
-}
-
-function createNativeSelectionSession<Result>(): BrowserNativeSelectionSession<Result> {
-  let resolvePromise!: (result: Result) => void
-  let rejectPromise!: (error: unknown) => void
-  const result = new Promise<Result>((resolve, reject) => {
-    resolvePromise = resolve
-    rejectPromise = reject
-  })
-  const session: BrowserNativeSelectionSession<Result> = {
-    canceled: false,
-    inputQueue: Promise.resolve(),
-    settled: false,
-    result,
-    resolve: () => undefined,
-    reject: () => undefined
-  }
-  session.resolve = (value) => {
-    if (session.settled) return
-    session.settled = true
-    resolvePromise(value)
-  }
-  session.reject = (error) => {
-    if (session.settled) return
-    session.settled = true
-    rejectPromise(error)
-  }
-  return session
 }
 
 function nativeSelectionContextUnavailable(error: unknown): boolean {
@@ -5239,10 +5203,7 @@ export class BrowserTabsManager {
       existing.resolve({ canceled: true })
       await webContents.executeJavaScript(cancelElementPickerScript(), true).catch(() => false)
     }
-    const session: BrowserElementPickerSession = {
-      ...createNativeSelectionSession<BrowserElementPickerScriptResult>(),
-      pointerDown: false
-    }
+    const session = createElementPickerSession<BrowserElementPickerScriptResult>()
     this.elementPickerSessions.set(webContents.id, session)
     try {
       if (this.isHumanInteractionLocked(tab)) await this.syncHumanInteractionInputGuard(tab)

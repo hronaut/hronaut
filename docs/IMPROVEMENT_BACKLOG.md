@@ -98,6 +98,17 @@ MCP network/wait cases also pass, including renderer loss and teardown.
 Reported elapsed time uses a monotonic clock: regressions proved that forward
 and backward system-clock changes previously distorted `waitedMs`.
 
+Native selection completion now lives in
+`src/main/browser/native-selection-session.ts`. Element picking extends the
+original session object so promise callbacks and queued native input share the
+same completion state. Previously, spreading the session copied `settled` while
+callbacks updated the original object. Three regression cases failed with that
+copy; six cases cover completion and late resolve/reject callbacks for both
+selection types. Four focused Electron cases cover picker output, screenshot
+output, modal priority, and navigation cancellation. This fixes the internal
+state invariant; no duplicate-selection symptom or renderer crash cause was
+established from it.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
