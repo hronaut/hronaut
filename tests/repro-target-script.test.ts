@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { reproTargetScript } from '../src/main/browser/page-scripts.js'
+import { reproTargetScript } from '../src/main/browser/repro-page-scripts.js'
 import type { BrowserReproTarget } from '../src/shared/types.js'
 
 function capture(element: HTMLElement): BrowserReproTarget {
@@ -29,4 +29,39 @@ describe('reproduction target selectors', () => {
     expect(target.tag).toBeTruthy()
     expect(target.selector).toBe('')
   })
+  it('retains a focused shadow input as a manual target rather than exporting its host', () => {
+    const host = document.createElement('custom-input')
+    document.body.append(host)
+    const root = host.attachShadow({ mode: 'open' })
+    root.innerHTML = '<input aria-label="Search">'
+    const target = capture(root.querySelector('input')!)
+    expect(target).toMatchObject({ selector: '', tag: 'input', inputType: 'text' })
+  })
+
+  it('retains frame focus as a manual target rather than exporting the iframe element', () => {
+    const frame = document.createElement('iframe')
+    document.body.append(frame)
+    const target = capture(frame)
+    expect(target).toMatchObject({ selector: '', tag: 'iframe' })
+  })
+
+  it('keeps light-DOM controls assigned to a shadow slot exportable', () => {
+    const host = document.createElement('custom-slot')
+    host.attachShadow({ mode: 'open' }).innerHTML = '<slot></slot>'
+    host.innerHTML = '<button>Continue</button>'
+    document.body.append(host)
+    const button = host.querySelector('button')!
+    const target = capture(button)
+    expect([...document.querySelectorAll(target.selector)]).toEqual([button])
+  })
+
+  it('keeps a deliberately focused host distinct from a focused shadow descendant', () => {
+    const host = document.createElement('custom-control')
+    host.tabIndex = 0
+    host.attachShadow({ mode: 'open' }).innerHTML = '<input>'
+    document.body.append(host)
+    const target = capture(host)
+    expect([...document.querySelectorAll(target.selector)]).toEqual([host])
+  })
+
 })

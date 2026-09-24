@@ -516,3 +516,16 @@ commit, and detached panels retain their separate open-state behavior.
   change only; the running `c54f33d` image still contains the exact application
   code and Electron suite for the thumbnail batch. Updated full static validation
   covers the additional launcher regression tests before integration.
+
+- Recorder scope review found that document hit testing and focus retarget shadow
+  descendants to their host, and iframe interactions yielded the iframe element.
+  Both were exported as if that outer container were the recorded control. Two
+  unit regressions and both real native click cases failed before the fix.
+  Recorder page scripts now live together in `repro-page-scripts.ts`; open-shadow
+  target resolution retains the actual target as manual when it cannot be
+  represented by a top-level selector, and frames are explicitly manual. Slotted
+  light-DOM controls and deliberately focused hosts remain exportable. All 17
+  focused unit cases and 18 native selector/start/stop/scope cases pass, with
+  focused lint/typechecking. Cross-root replay and closed-shadow detection remain
+  unsupported. The combined batch still requires full static and immutable-image
+  verification before integration and release.

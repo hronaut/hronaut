@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep recorded iframe and open-shadow interactions as manual steps instead of exporting selectors for their outer containers.
 - Avoid overlapping native thumbnail captures when the overview opens after an earlier capture times out.
 
 ## [2.5.25] - 2026-09-24

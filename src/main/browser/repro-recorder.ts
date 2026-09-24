@@ -2,7 +2,7 @@ import type { WebContents, WebContentsView } from 'electron'
 import type { BrowserReproAction, BrowserReproRecording, BrowserReproStep, BrowserReproTarget } from '../../shared/types.js'
 import { redactDiagnosticText } from '../../shared/debug-report.js'
 import { redactNetworkUrl } from '../../shared/network-details.js'
-import { reproScrollScript, reproTargetScript } from './page-scripts.js'
+import { reproScrollScript, reproTargetScript } from './repro-page-scripts.js'
 import { isHronautHomeUrl } from './url.js'
 
 const MAX_REPRO_STEPS = 200
