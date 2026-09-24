@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Reject delayed DOM recording results after navigation, renderer replacement, or tab closure instead of restoring stale recording state.
+- Reject delayed DOM recording results after navigation, renderer replacement, tab closure, or a newer clear, stop, or restart action instead of restoring stale recording state.
 
 ## [2.5.20] - 2026-09-24
 
