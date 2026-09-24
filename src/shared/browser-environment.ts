@@ -24,7 +24,7 @@ const CONTRAST_VALUES: readonly BrowserContrastEmulation[] = ['auto', 'more', 'l
 const REDUCED_TRANSPARENCY_VALUES: readonly BrowserReducedTransparencyEmulation[] = ['auto', 'reduce', 'no-preference']
 const VISION_DEFICIENCY_VALUES: readonly BrowserVisionDeficiencyEmulation[] = ['none', 'blurredVision', 'reducedContrast', 'protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia']
 
-const DEFAULT_RENDERING_DEBUG = {
+export const DEFAULT_RENDERING_DEBUG = {
   paintFlashing: false,
   layoutShiftRegions: false,
   layerBorders: false,

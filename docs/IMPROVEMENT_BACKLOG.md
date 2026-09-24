@@ -109,6 +109,15 @@ output, modal priority, and navigation cancellation. This fixes the internal
 state invariant; no duplicate-selection symptom or renderer crash cause was
 established from it.
 
+Emulation configuration now lives in `src/main/browser/emulation-state.ts`:
+option validation, defaults, reset/merge behavior, state cloning, and override
+detection can be tested without Electron. The manager retains tab authorization,
+native debugger commands, rollback, and state-change notification. Rendering
+overlay defaults are shared with the environment UI. Tests cover reset and clear
+semantics, nested state isolation, viewport limits, private header handling, and
+unsupported inherited overlay names; the latter three cases failed before the
+validation changed from prototype membership to own-property membership.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)

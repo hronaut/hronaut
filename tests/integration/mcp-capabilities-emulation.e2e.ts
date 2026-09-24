@@ -611,3 +611,20 @@ test('restores JavaScript and clears offline emulation, viewport and headers', a
   expect(JSON.parse(text(resetPage)).touchPoints).toBe(0)
   expect(JSON.parse(text(resetPage)).header).toEqual({ marker: null, language: expect.any(String) })
 })
+
+test('rejects unsupported rendering overlays from environment IPC without changing tab state', async ({ capabilities, appWindow }) => {
+  const { client, tabId } = capabilities
+  const { DEFAULT_BROWSER_ENVIRONMENT } = await import('../../src/shared/browser-environment.js')
+  for (const name of ['toString', 'constructor', '__proto__']) {
+    const environment = {
+      ...DEFAULT_BROWSER_ENVIRONMENT,
+      network: 'offline',
+      renderingDebug: { ...DEFAULT_BROWSER_ENVIRONMENT.renderingDebug, ...JSON.parse(`{"${name}":true}`) }
+    }
+    await expect(appWindow.evaluate(`window.hronaut.setTabEnvironment(${JSON.stringify(tabId)}, JSON.parse(${JSON.stringify(JSON.stringify(environment))}))`))
+      .rejects.toThrow(`Invalid rendering debug overlay: ${name}`)
+  }
+  const state = JSON.parse(text(await client.callTool({ name: 'browser_emulate', arguments: { tabId } }) as CallToolResult))
+  expect(state.network).toBe('none')
+  expect(state.renderingDebug).toBeUndefined()
+})
