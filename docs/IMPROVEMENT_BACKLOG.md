@@ -645,3 +645,15 @@ commit, and detached panels retain their separate open-state behavior.
   also passed the 19 directly affected cases and focused lint/typechecking.
   Full immutable validation is queued separately from the unchanged v2.5.26
   release candidate; these focused results are not release-gate evidence.
+
+- Reproduced Docker address-pool exhaustion with a new validation project: the
+  container could not start because Compose attempted to allocate another
+  subnet. Both new networking contract cases failed on the original configuration.
+  The single test service now uses Docker's existing bridge; it has no service
+  DNS dependencies or published ports. The same project then started and passed
+  a loopback HTTP check without creating a network. All 15 focused Docker cases,
+  lint/typechecking, and two native MCP network/tool-set cases pass. Existing
+  networks are not automatically deleted, avoiding races with concurrent runs.
+  The waiting catalog-only validation was stopped before creating any container;
+  the catalog extraction and this infrastructure fix will share one new immutable
+  validation run after the unchanged v2.5.26 release candidate finishes.

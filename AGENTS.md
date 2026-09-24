@@ -87,7 +87,13 @@ Keep both Playwright image pins in `Dockerfile.test` aligned with the resolved
 pass Electron-only tests while standalone browser launches cannot find a binary.
 
 It builds and runs both the Playwright Electron suite and native-dialog checks
-inside the pinned Docker/Xvfb image. Its dependency stage normalizes only the
+inside the pinned Docker/Xvfb image. The single test service uses Docker's
+existing bridge network: Electron, MCP, and fixture servers communicate through
+container-local loopback. New project names and dependency cache keys therefore
+do not allocate extra subnets. Do not add service-name DNS dependencies or host
+port mappings without revisiting this setup and its networking regression tests.
+
+Its dependency stage normalizes only the
 root application version, so release-only version bumps can reuse installed
 dependencies. Dependency contents and install constraints still invalidate that
 cache; the final integration stage copies the original checkout and version. Local runs use four isolated Xvfb shards

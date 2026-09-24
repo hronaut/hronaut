@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.test
+    # All fixtures and Electron run in one container; avoid a subnet per test project.
+    network_mode: bridge
     init: true
     ipc: host
     environment:
