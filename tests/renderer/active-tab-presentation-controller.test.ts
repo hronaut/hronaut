@@ -148,6 +148,8 @@ describe('active tab presentation controller', () => {
     downloads.value[0].state = 'completed'
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.complete:file.zip]')
     downloads.value[0].state = 'interrupted'
+    expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.progress:#1]')
+    downloads.value[0].completedAt = '2026-08-22T00:01:00.000Z'
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.recent]')
     downloads.value = []
     expect(controller.downloadButtonLabel.value).toBe('[runtime.downloads.heading]')

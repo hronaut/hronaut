@@ -1,14 +1,15 @@
 # Technical-debt reduction plan
 
-Reviewed September 24, 2026. These are proposed boundaries, not completed
-refactors. Implement one independently verifiable extraction per commit.
+Reviewed September 24, 2026. Implement one independently verifiable extraction
+per commit. Status is recorded under each boundary below.
 
 ## First: collection title sanitization
 
 `src/main/history-store.ts` and `src/main/bookmark-store.ts` duplicate credential
 detection, fallback-title repair, whitespace cleanup and Unicode truncation.
 The oversized credential URL title bug needed the same fix in both stores.
-Extract the shared title policy after the regression fix is verified. Keep
+Implemented the shared title policy in `src/main/collection-title.ts`, with
+explicit URL normalization and fallback policies supplied by each store. Keep
 history's fragment removal and bookmarks' fragment retention explicit, and
 retain the distinct storage limits, retention, deduplication and visit-count
 behavior in their owning stores. Avoid introducing a generic persistence layer
@@ -24,14 +25,17 @@ lookup, settings, native dialogs and change publication. Follow the existing
 path reservation, workspace attribution, cancellation and shutdown behavior.
 Use the existing real Electron download cases as the behavioral contract.
 
-Before extraction, investigate resumable interrupted downloads. Electron's
+Before extraction, regression coverage now exercises resumable interrupted downloads. Electron's
 [DownloadItem contract](https://www.electronjs.org/docs/latest/api/download-item)
 distinguishes nonterminal `updated: interrupted` from terminal
-`done: interrupted`. The current `listDownloads()` removes the live item whenever
-its state differs from `progressing`, and clear/trim use the same state-based
-terminal assumption. Reproduce cancellation and clear behavior with a real
-interrupted item in Docker before deciding whether this requires a fix. This
-review identified a candidate, not a verified runtime failure.
+`done: interrupted`. The previous `listDownloads()` removed the live item whenever
+its state differed from `progressing`, and clear/trim used the same state-based
+terminal assumption. The real Electron regression reproduced a spurious
+completion timestamp after listing a resumable item. The fix retains native
+items while resumable and shares active/finished classification through
+`src/shared/download-state.ts`; cancellation and clear behavior now pass in
+Docker, with renderer coverage for live and terminal interruptions. The larger
+download-controller extraction remains pending.
 
 ## Main-process composition
 

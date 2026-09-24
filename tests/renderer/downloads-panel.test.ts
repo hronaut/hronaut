@@ -43,6 +43,20 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('keeps a resumable interruption cancellable and out of finished cleanup', async () => {
+    const cancelDownload = vi.fn(async () => [])
+    renderPanel({ downloads: [download('partial', 'interrupted', 25, 100)], cancelDownload })
+    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel partial.bin' }))
+    expect(cancelDownload).toHaveBeenCalledWith('partial')
+  })
+
+  it('allows clearing a terminal interruption without offering cancellation', () => {
+    renderPanel({ downloads: [{ ...download('partial', 'interrupted', 25, 100), completedAt: '2026-08-22T00:01:00.000Z' }] })
+    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Cancel partial.bin' })).not.toBeInTheDocument()
+  })
+
   it('renders determinate and indeterminate progress accessibly', () => {
     renderPanel()
 

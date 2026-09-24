@@ -1,3 +1,4 @@
+import { isActiveDownload } from '../../../shared/download-state.js'
 import { computed, ref, watch, type Ref } from 'vue'
 import type { BrowserDownloadState } from '../../../shared/types.js'
 
@@ -17,7 +18,7 @@ export interface DownloadsPanelControllerOptions {
 export function useDownloadsPanelController(options: DownloadsPanelControllerOptions) {
   const error = ref('')
   const pendingAction = ref<string | null>(null)
-  const finishedDownloads = computed(() => options.downloads.value.filter((download) => download.state !== 'progressing'))
+  const finishedDownloads = computed(() => options.downloads.value.filter((download) => !isActiveDownload(download)))
   let actionGeneration = 0
 
   function downloadProgress(download: BrowserDownloadState): number {

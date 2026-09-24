@@ -1,3 +1,4 @@
+import { isActiveDownload } from '../../../shared/download-state.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { computed, type Ref } from 'vue'
 import type {
@@ -63,7 +64,7 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
   const activeCredentials = computed(() => (
     options.credentials.value.filter((credential) => credential.origin === activeOrigin.value)
   ))
-  const activeDownloads = computed(() => options.downloads.value.filter((download) => download.state === 'progressing'))
+  const activeDownloads = computed(() => options.downloads.value.filter((download) => isActiveDownload(download)))
   const currentBookmark = computed(() => (
     options.bookmarks.value.find((bookmark) => bookmark.url === activeWebUrl.value)
   ))

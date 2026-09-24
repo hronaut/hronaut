@@ -1,3 +1,4 @@
+import { isActiveDownload } from '../../shared/download-state.js'
 import { BrowserProfilingController, type BrowserProfilingState } from './profiling-controller.js'
 import { WorkspaceContinuityStore } from '../mcp/workspace-continuity-store.js'
 import { WorkspaceContinuityEvidenceFactory } from '../mcp/workspace-continuity-evidence.js'
@@ -1213,7 +1214,7 @@ export class BrowserTabsManager {
     for (const [downloadId, ownerWorkspaceId] of this.downloadWorkspaceIds) {
       if (ownerWorkspaceId !== workspaceId) continue
       const download = this.downloads.get(downloadId)
-      if (download && download.state !== 'progressing') download.observationGeneration = observationGeneration
+      if (download && !isActiveDownload(download)) download.observationGeneration = observationGeneration
     }
   }
 
@@ -6607,7 +6608,7 @@ export class BrowserTabsManager {
       download.receivedBytes = item.getReceivedBytes()
       download.totalBytes = item.getTotalBytes()
       this.syncDownloadPath(download, item)
-      if (download.state !== 'progressing') {
+      if (download.state !== 'progressing' && !item.canResume()) {
         download.completedAt ??= new Date().toISOString()
         this.downloadItems.delete(id)
       }
@@ -6625,7 +6626,7 @@ export class BrowserTabsManager {
       item.cancel()
     } else if (action === 'clear') {
       for (const [id, download] of this.downloads) {
-        if (download.state === 'progressing') continue
+        if (isActiveDownload(download)) continue
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
       }
@@ -6654,7 +6655,7 @@ export class BrowserTabsManager {
       for (const [id, download] of this.downloads) {
         if (this.downloadWorkspaceIds.get(id) !== workspaceId
           || download.observationGeneration !== observationGeneration
-          || download.state === 'progressing') continue
+          || isActiveDownload(download)) continue
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
       }
@@ -8922,7 +8923,7 @@ export class BrowserTabsManager {
     if (tab.cpuProfile?.recording) return 'A tab recording a JavaScript CPU profile stays active.'
     if (tab.memoryAllocation?.recording) return 'A tab recording memory allocations stays active.'
     if ((this.mcpActivitiesByTab.get(tab.id)?.size ?? 0) > 0) return 'A tab with an active MCP command stays active.'
-    if ([...this.downloads.values()].some((download) => download.tabId === tab.id && download.state === 'progressing')) {
+    if ([...this.downloads.values()].some((download) => download.tabId === tab.id && isActiveDownload(download))) {
       return 'A tab with an active download stays active.'
     }
     return undefined
@@ -11386,7 +11387,7 @@ export class BrowserTabsManager {
   private trimDownloadHistory(): void {
     if (this.downloads.size < MAX_DOWNLOAD_HISTORY) return
     const removable = [...this.downloads.values()]
-      .filter((download) => download.state !== 'progressing')
+      .filter((download) => !isActiveDownload(download))
       .sort((left, right) => left.startedAt.localeCompare(right.startedAt))
     while (this.downloads.size >= MAX_DOWNLOAD_HISTORY && removable.length) {
       const id = removable.shift()!.id
