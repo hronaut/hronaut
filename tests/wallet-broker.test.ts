@@ -117,6 +117,33 @@ async function connect(broker: WalletBroker): Promise<void> {
 }
 
 describe('WalletBroker', () => {
+  it.each([
+    ['website', 'started'], ['website', 'completed'],
+    ['agent', 'started'], ['agent', 'completed']
+  ] as const)('rejects new %s wallet requests when shutdown has %s without creating an approval', async (source, phase) => {
+    const { service, wallet } = await setup()
+    const approvalPublished = deferred<{ status: 'accepted-after-shutdown' }>()
+    const broker = new WalletBroker(service, {
+      adapters: { evm: adapter() },
+      requestExpiryScheduler: () => () => {},
+      onPendingChanged: requests => {
+        if (requests.some(request => request.status === 'awaiting-human')) {
+          approvalPublished.resolve({ status: 'accepted-after-shutdown' })
+        }
+      }
+    })
+    const shutdown = broker.shutdown()
+    if (phase === 'completed') await shutdown
+    const result = settle(source === 'website'
+      ? broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+      : broker.agentBalance(context({ requester: { type: 'agent', id: 'shutdown-test-agent' } }), wallet.id))
+    await expect(Promise.race([result, approvalPublished.promise])).resolves.toMatchObject({
+      status: 'rejected', reason: expect.objectContaining({ message: expect.stringContaining('shutting down') })
+    })
+    expect(broker.listPending()).toEqual([])
+    await shutdown
+  })
+
   it('shares one approval when a website requests the same wallet connection twice', async () => {
     const { service, wallet } = await setup()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() } })

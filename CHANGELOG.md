@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reject new website and agent wallet requests once application shutdown begins.
+
 ## [2.5.17] - 2026-09-24
 
 ### Fixed

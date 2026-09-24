@@ -501,6 +501,7 @@ export class WalletBroker {
 
   async providerRequest(context: WalletBrokerContext, input: WalletProviderRequest): Promise<unknown> {
     try {
+      if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
       this.assertRequestContextActive(context)
       this.assertSupportedProviderMethod(input)
       const request = WalletProviderRequestSchema.parse(input)
@@ -1241,6 +1242,7 @@ export class WalletBroker {
   }
 
   private async withAgentOperation<T>(context: WalletBrokerContext, operation: () => Promise<T>): Promise<T> {
+    if (this.shuttingDown) throw new Error('Wallet broker is shutting down')
     if (context.requester.type !== 'agent') return operation()
     const requesterId = context.requester.id
     const lifecycle = this.agentOperations.get(requesterId) ?? {
