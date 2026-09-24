@@ -554,3 +554,13 @@ commit, and detached panels retain their separate open-state behavior.
   focused lint/typechecking. Cross-root replay and closed-shadow detection remain
   unsupported. The combined batch still requires full static and immutable-image
   verification before integration and release.
+
+- Recorder scope source `b036355` passed all 554 Electron cases and native-dialog
+  checks with no retries in its immutable image, alongside the 3,260-test static
+  gate. The merge has identical application, test, and validation-script contents
+  and is now verified for main. The next network recording extraction at
+  `763c66a` passed all static gates and 3,269 tests across 418 files; its full
+  Docker Electron gate has started and remains separate from main. The refreshed
+  discussions #201 and #212 point to v2.5.25 and describe a proposed Windows/Codex
+  evaluation, without a new executed bug report. The website repository remains
+  at `7b251b4` with unchanged open issues.
