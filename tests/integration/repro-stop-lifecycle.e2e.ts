@@ -10,11 +10,12 @@ const cases = [
   { phase: 'scroll flush', action: 'restart' },
   { phase: 'scroll flush', action: 'clear' },
   { phase: 'scroll flush', action: 'close' },
-  { phase: 'concurrent stops', action: 'restart' }
+  { phase: 'concurrent stops', action: 'restart' },
+  { phase: 'in-flight scroll', action: 'restart' }
 ] as const
 
 for (const { phase, action } of cases) {
-  test(phase === 'concurrent stops' ? 'shares the final scroll flush between concurrent recorder stops' : `rejects a recorder stop waiting for ${phase} after ${action}`, async ({ appWindow, electronApp }) => {
+  test(phase === 'in-flight scroll' ? 'waits for an already running scroll capture before stopping' : phase === 'concurrent stops' ? 'shares the final scroll flush between concurrent recorder stops' : `rejects a recorder stop waiting for ${phase} after ${action}`, async ({ appWindow, electronApp }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
       response.end('<!doctype html><title>Repro stop lifecycle</title><main tabindex="0" style="height:4000px">Scrollable fixture</main>')
@@ -48,11 +49,11 @@ for (const { phase, action } of cases) {
           })
           return result
         }
-        // Keep the debounce timer pending until Stop flushes it. The shim is
-        // installed only during this synchronous native input dispatch.
+        // Control whether the debounce fires before Stop or is flushed by it.
+        // The shim exists only during this synchronous native input dispatch.
         const nativeSetTimeout = globalThis.setTimeout
         globalThis.setTimeout = ((handler: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) =>
-          nativeSetTimeout(handler, delay === 250 ? 60_000 : delay, ...args)
+          nativeSetTimeout(handler, delay === 250 ? (input.inFlight ? 0 : 60_000) : delay, ...args)
         ) as typeof setTimeout
         try {
           if (input.queuedInput) {
@@ -63,13 +64,16 @@ for (const { phase, action } of cases) {
         } finally {
           globalThis.setTimeout = nativeSetTimeout
         }
-      }, { url, concurrent: phase === 'concurrent stops', queuedInput: phase === 'queued input', script: phase === 'queued input' ? reproTargetScript() : reproScrollScript() })
+      }, { url, inFlight: phase === 'in-flight scroll', concurrent: phase === 'concurrent stops' || phase === 'in-flight scroll', queuedInput: phase === 'queued input', script: phase === 'queued input' ? reproTargetScript() : reproScrollScript() })
+      if (phase === 'in-flight scroll') {
+        await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __reproStopHeld?: boolean }).__reproStopHeld === true)).toBe(true)
+      }
       // Send Stop before any replacement start on the same renderer IPC channel.
       await appWindow.evaluate(`globalThis.__reproPendingStop = window.hronaut.manageRepro('stop', ${JSON.stringify(tabId)}).then(
         () => ({ ok: true }), error => ({ ok: false, error: String(error) })
       ); undefined`)
       await expect.poll(() => electronApp.evaluate(() => (globalThis as typeof globalThis & { __reproStopHeld?: boolean }).__reproStopHeld === true)).toBe(true)
-      if (phase === 'concurrent stops') {
+      if (phase === 'concurrent stops' || phase === 'in-flight scroll') {
         await appWindow.evaluate(`globalThis.__reproSecondStop = window.hronaut.manageRepro('stop', ${JSON.stringify(tabId)}); undefined`)
         await appWindow.evaluate(`window.hronaut.manageRepro('get', ${JSON.stringify(tabId)})`)
         await electronApp.evaluate(() => {

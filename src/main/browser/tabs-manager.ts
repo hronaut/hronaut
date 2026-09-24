@@ -9813,10 +9813,8 @@ export class BrowserTabsManager {
     if (recording.scrollTimer) clearTimeout(recording.scrollTimer)
     recording.scrollTimer = setTimeout(() => {
       recording.scrollTimer = undefined
-      void this.captureReproScroll(tab).catch((error) => {
-        if (recording.active && tab.reproRecording === recording) {
-          console.warn('[browser] Could not record a delayed reproduction scroll step:', error)
-        }
+      this.queueReproTask(tab, async () => {
+        await this.captureReproScroll(tab)
       })
     }, 250)
     recording.scrollTimer.unref()
