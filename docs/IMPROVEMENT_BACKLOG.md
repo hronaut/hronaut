@@ -103,18 +103,15 @@ their presence is not evidence of a newly reproduced website defect.
 
 ### Community release-reference consistency (September 24)
 
-The latest edit to [discussion #201](https://github.com/orgs/hronaut/discussions/201)
-labels its welcome section v2.5.18, but its Registry link still targets the
-v2.5.16 record and its feature summary describes the v2.5.16 changelog. Direct
-reads of both official Registry records confirmed that each returns the version
-in its URL; the older record is not marked latest. When the announcement is next
-edited, update its release label, Registry URL, adapter guide, and feature summary
-together. Keep the explicitly versioned v2.4.22/jsdom and v2.4.24 demonstration
-claims unchanged. No new external compatibility result was posted in the recent
-comments, and no public discussion message was sent during this review. A second
-read after the v2.5.18 announcement confirmed that the same link and summary
-mismatch remains; the website repository is still at `7b251b4` with the same
-three open issues.
+The earlier mismatch in [discussion #201](https://github.com/orgs/hronaut/discussions/201)
+was resolved in the September 24, 15:26 UTC edit. A fresh read confirmed that the
+welcome section, Registry version link, adapter guide, and feature summary now
+consistently refer to v2.5.19. Keep these references aligned on future updates,
+while preserving explicitly versioned historical demonstration claims. The
+Windows/Codex React workflow remains a proposed experiment, without a new
+compatibility receipt in the comments. No public discussion message was sent
+during this review. The website remains at `7b251b4` with the same three open
+issues.
 
 ### Wallet discovery follow-up (September 24)
 
