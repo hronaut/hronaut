@@ -115,7 +115,17 @@ commit, and detached panels retain their separate open-state behavior.
   tab lookup, debugger leases, navigation preparation, and state publication;
   the controller preserves tab identity and generation checks for pending memory
   measurements. Continue extracting cohesive responsibilities incrementally.
-- Investigate Electron trace completeness. The retained capability failure ZIP
-  contained `test.trace` and resources, but no browser snapshots. Check explicit
-  tracing of the Electron context and prove that a deliberate synthetic failure
-  produces usable shell screenshots and snapshots before changing CI retention.
+- Electron trace completeness is covered by `electron-tracing.e2e.ts`: intentional
+  failures retain browser frame snapshots, manual restarts retain both contexts,
+  and passing or tracing-disabled fixtures retain none. Keep this regression
+  when changing startup or trace ownership.
+- A local four-shard run of the 2.5.17 candidate intermittently failed to find
+  the Home page through Playwright in `workspace-library.e2e.ts`; three focused
+  Docker repetitions and the release five-shard run passed. The failure was at
+  initial page discovery, not a workspace mutation assertion. Preserve native
+  WebContents state and Playwright page inventory on recurrence before changing
+  timing or treating this as a product defect.
+- Wallet broker connection setup and the workspace-detachment case now await
+  broker pending-state notifications. Release CI previously exhausted the
+  separate one-second polling default during asynchronous persistence; the
+  owning 85-case Docker suite passes with the event-driven fixture.

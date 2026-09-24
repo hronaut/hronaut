@@ -11,15 +11,39 @@ import {
 import type { WalletChainAdapter, WalletNormalizedTransaction } from '../src/main/wallet/adapters/types.js'
 import { WalletService } from '../src/main/wallet/service.js'
 import type { WalletSafeStorage } from '../src/main/wallet/key-provider.js'
-import type { WalletChainFamily, WalletDescriptor, WalletPolicy } from '../src/shared/wallet.js'
+import type { WalletChainFamily, WalletDescriptor, WalletPolicy, WalletRequestSummary } from '../src/shared/wallet.js'
 
 const directories: string[] = []
 const brokers: BaseWalletBroker[] = []
 
 class WalletBroker extends BaseWalletBroker {
+  private readonly pendingListeners: Set<(requests: WalletRequestSummary[]) => void>
+
   constructor(service: WalletService, options?: WalletBrokerOptions) {
-    super(service, options)
+    const listeners = new Set<(requests: WalletRequestSummary[]) => void>()
+    super(service, {
+      ...options,
+      onPendingChanged: requests => {
+        options?.onPendingChanged?.(requests)
+        for (const listener of listeners) listener(requests)
+      }
+    })
+    this.pendingListeners = listeners
     brokers.push(this)
+  }
+
+  waitForPending(predicate: (request: WalletRequestSummary) => boolean): Promise<WalletRequestSummary> {
+    const existing = this.listPending().find(predicate)
+    if (existing) return Promise.resolve(existing)
+    return new Promise(resolve => {
+      const listener = (requests: WalletRequestSummary[]) => {
+        const match = requests.find(predicate)
+        if (!match) return
+        this.pendingListeners.delete(listener)
+        resolve(match)
+      }
+      this.pendingListeners.add(listener)
+    })
   }
 }
 
@@ -110,8 +134,7 @@ function adapter(family: WalletChainFamily = 'evm'): WalletChainAdapter & {
 
 async function connect(broker: WalletBroker): Promise<void> {
   const result = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
-  await vi.waitFor(() => expect(broker.listPending().some((request) => request.status === 'awaiting-human')).toBe(true))
-  const pending = broker.listPending().find((request) => request.status === 'awaiting-human')!
+  const pending = await broker.waitForPending(request => request.status === 'awaiting-human')
   await broker.approve(pending.id)
   await expect(result).resolves.toHaveLength(1)
 }
@@ -2673,8 +2696,7 @@ describe('WalletBroker', () => {
       family: 'evm', method: 'eth_signTransaction',
       params: [{ to: '0x0000000000000000000000000000000000000002' }]
     }))
-    await vi.waitFor(() => expect(broker.listPending().filter((request) => request.operation === 'sign-transaction').at(-1)?.status)
-      .toBe('awaiting-human'))
+    await broker.waitForPending(request => request.operation === 'sign-transaction' && request.status === 'awaiting-human')
 
     await broker.updateWallet(wallet.id, { workspaceIds: ['workspace-2'] })
 
