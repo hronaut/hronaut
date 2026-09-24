@@ -77,7 +77,7 @@ describe('Scoop package QA', () => {
     expect(JSON.parse(packageManifest).scripts['smoke:profile:prepare']).toBe('node scripts/profile-smoke.ts prepare')
   })
 
-  it('publishes the verified Scoop hash and dispatches its post-release gates', async () => {
+  it('publishes the verified Scoop hash and dispatches its dedicated package gate', async () => {
     const [releaseWorkflow, ciWorkflow, updater] = await Promise.all([
       read('.github/workflows/release.yml'),
       read('.github/workflows/ci.yml'),
@@ -92,7 +92,7 @@ describe('Scoop package QA', () => {
     expect(updateStep).toContain('node scripts/update-scoop-manifest.ts "$VERSION" release-checksums/hashes.txt')
     expect(updateStep).toContain('npm ci --ignore-scripts')
     expect(releaseWorkflow).toContain('git push origin HEAD:main')
-    expect(releaseWorkflow).toContain('gh workflow run ci.yml')
+    expect(releaseWorkflow).not.toContain('gh workflow run ci.yml')
     expect(releaseWorkflow).toContain('gh workflow run scoop-smoke.yml')
     expect(ciWorkflow).toMatch(/on:\n[ ]{2}workflow_dispatch:/)
     expect(updater).toContain('Expected exactly one checksum')

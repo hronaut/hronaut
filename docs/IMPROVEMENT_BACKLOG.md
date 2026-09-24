@@ -58,6 +58,13 @@ measurements, not a hosted CI timing guarantee. Dependency entries and root inst
 constraints remain part of the copied inputs, and the immutable integration image
 still receives the original manifest and complete source checkout.
 
+Scoop publication now retains its manifest tests and dedicated Windows smoke
+workflow without dispatching a second full application CI run. The redundant
+manual dispatch canceled in-progress application checks after both the 2.5.20
+and 2.5.21 manifest updates. Ordinary pushes, pull requests, and release gates
+retain their existing full validation. The bot stages only the manifest; its
+commit intentionally receives the package-specific checks instead.
+
 ## Refactoring boundaries
 
 Diagnostic IPC registration now lives in `src/main/diagnostics-ipc.ts`, beside

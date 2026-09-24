@@ -121,6 +121,16 @@ describe.skipIf(process.platform === 'win32')('auto-tag push range', () => {
 })
 
 describe('release quality gates', () => {
+  it('validates Scoop-only publication without canceling application CI', async () => {
+    const source = await readFile('.github/workflows/release.yml', 'utf8')
+    const scoop = job(source, 'update-scoop-manifest')
+    expect(scoop).toContain('npx vitest run tests/update-scoop-manifest.test.ts tests/scoop-packaging.test.ts')
+    expect(scoop).toContain('git add packaging/scoop/hronaut.json')
+    expect(scoop).toContain('gh workflow run scoop-smoke.yml --repo "$GITHUB_REPOSITORY" --ref main')
+    expect(scoop).not.toContain('gh workflow run ci.yml')
+    expect(scoop).toContain("if: steps.push.outputs.pushed == 'true'")
+  })
+
   it('binds the checkout and baseline to the triggering event', async () => {
     const workflow = await readFile('.github/workflows/auto-tag.yml', 'utf8')
     expect(workflow).toContain('ref: ${{ github.sha }}')
