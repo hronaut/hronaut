@@ -6269,18 +6269,26 @@ export class BrowserTabsManager {
     if (!['start', 'get', 'stop', 'clear'].includes(action)) throw new Error('Unsupported DOM changes action')
 
     const observationGeneration = tab.observationGeneration
+    const navigationGeneration = tab.navigationGeneration
+    const webContents = tab.webContents
     const effectiveAction = tab.domChangesRecording
       && tab.domChangesRecording.observationGeneration !== observationGeneration
       && action !== 'start'
       ? 'clear'
       : action
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
+    const result = await webContents.executeJavaScriptInIsolatedWorld(
       DOM_CHANGES_WORLD_ID,
       [{ code: domChangesPageScript(effectiveAction) }],
       false
     ) as Omit<BrowserDomChangesReport, 'tabId' | 'title' | 'url' | 'caveats'>
     if (tab.observationGeneration !== observationGeneration) {
       throw new Error('Workspace control changed while reading DOM changes')
+    }
+    if (this.tabs.get(tab.id) !== tab
+      || tab.webContents !== webContents
+      || webContents.isDestroyed()
+      || tab.navigationGeneration !== navigationGeneration) {
+      throw new Error('The page changed while reading DOM changes. Start a fresh recording.')
     }
     if (result.startedAt) {
       tab.domChangesRecording = {
