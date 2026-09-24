@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show the recovery message and retry action when the Home renderer crashes.
 - Keep reproduction step durations and typing groups stable when the system clock changes.
 
 ## [2.5.21] - 2026-09-24

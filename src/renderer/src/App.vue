@@ -862,7 +862,7 @@ useAppLifecycleController({
       :keeps-separate-panel-open="keepsSeparatePanelOpen"
     />
     <PageProblemBar
-      v-if="!activeIsHome && activeTab?.pageProblem"
+      v-if="activeTab?.pageProblem"
       :tab="activeTab"
       :details="pageProblemDetails"
       @retry="runShellAction(retryActivePageProblem)"

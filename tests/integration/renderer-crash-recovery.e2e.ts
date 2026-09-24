@@ -61,3 +61,33 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     await closeFixtureServer(server)
   }
 })
+
+test('recovers Home after its renderer exits without losing the selected client', async ({ appWindow, electronApp }) => {
+  const homeContents = async () => electronApp.evaluate(({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    return home ? { id: home.id, processId: home.getOSProcessId() } : undefined
+  })
+  await expect.poll(homeContents).toBeTruthy()
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
+    return home.executeJavaScript(`Boolean(document.querySelector('[data-guide="opencode"]'))`)
+  })).toBe(true)
+  await electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
+    await home.executeJavaScript(`document.querySelector('[data-guide="opencode"]').click()`)
+  })
+  const before = await homeContents()
+  expect(before?.processId).toBeGreaterThan(0)
+  await electronApp.evaluate((_electron, processId) => process.kill(processId, 'SIGKILL'), before!.processId)
+  await expect(appWindow.getByRole('alert')).toContainText(/The page process (crashed|was terminated)\./)
+  await appWindow.getByRole('alert').getByRole('button', { name: 'Try again' }).click()
+  await expect.poll(async () => {
+    const shell = await electronApp.firstWindow()
+    return shell.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.pageProblem ?? null)`)
+  }).toBeNull()
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
+    return home.executeJavaScript(`document.getElementById('guide-name')?.textContent`)
+  })).toBe('OpenCode')
+  expect((await homeContents())?.processId).not.toBe(before!.processId)
+})

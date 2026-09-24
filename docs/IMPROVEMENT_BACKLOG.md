@@ -248,3 +248,11 @@ commit, and detached panels retain their separate open-state behavior.
   The fixture now records a bounded surface category and timestamp without URLs
   or profile paths. Three focused onboarding repetitions passed with the added
   diagnostics. Investigate native crash evidence before changing timeouts.
+
+- Home crash recovery now uses the same visible problem bar and retry action as
+  website tabs. A deterministic native test failed before the fix because the
+  shell excluded Home from that component. After removing the exclusion, both
+  website and Home recovery tests pass; Home preserves the selected OpenCode
+  client and starts a different renderer process. This fixes recovery UI, not
+  the cause of the intermittent exit-139 crash. Twenty focused onboarding
+  repetitions also passed without reproducing that spontaneous crash.
