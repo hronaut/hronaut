@@ -44,6 +44,21 @@ measurements, not a hosted CI timing guarantee. Dependency entries and root inst
 constraints remain part of the copied inputs, and the immutable integration image
 still receives the original manifest and complete source checkout.
 
+## Refactoring boundaries
+
+Diagnostic IPC registration now lives in `src/main/diagnostics-ipc.ts`, beside
+wallet and collection registration modules. The main entry point supplies lazy
+browser access, sender authorization, and image/clipboard adapters; the extracted
+module retains argument checks and result forwarding. This keeps native setup
+out of focused boundary tests without moving browser authority into the renderer.
+
+The next larger extraction candidate is reproduction recording in
+`BrowserTabsManager`: public actions, pending start/stop ownership, input queues,
+scroll debounce, and cleanup currently span several parts of the class. Move
+those together only with the existing navigation, clear, restart, closure, and
+concurrent-stop regressions intact. Separating only the public methods would
+leave lifecycle ownership split across modules and provide little benefit.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
