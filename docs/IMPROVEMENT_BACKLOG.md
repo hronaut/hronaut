@@ -203,13 +203,16 @@ The [commit comparison](https://github.com/electron/electron/compare/bb27a30d926
 places its tag 90 commits ahead and zero behind the tray backport merge.
 This verifies inclusion, not only issue closure.
 
-The maintenance update advances the existing 44-series pin to 44.3.0 for its
-upstream crash and permission fixes, including a separate Linux sandbox tray
-fix. Keep [Hronaut #1](https://github.com/hronaut/hronaut/issues/1) open until its
-remaining packaged-app evidence is complete: GNOME with AppIndicator, KDE plus
-Xfce or Cinnamon, icon/click/menu/attention/quit behavior, and Windows/macOS
-lifecycle smoke. Dependency audit and automated Docker gates do not substitute
-for those desktop checks.
+Current pin review, September 24: Hronaut remains on 44.3.0. The Dependabot
+configuration excludes 44.4.x because of trusted-control positioning regressions
+and a 44.4.1 continuity QA crash (`1ba5514`, `d8854bc`). Do not treat the September
+9 version observation above as a current latest-version recommendation.
+[Hronaut #1](https://github.com/hronaut/hronaut/issues/1) is closed; its body still
+contains the older 42.10.1 prerequisite text. Its desktop checklist remains
+useful for future upgrades: GNOME with AppIndicator, KDE plus Xfce or Cinnamon,
+icon/click/menu/attention/quit behavior, and Windows/macOS lifecycle smoke.
+Dependency audit and automated Docker gates do not establish those desktop
+compatibility results.
 
 Navigation context review completed 2026-09-24: `useDiagnosticsController` and
 page export already invalidate pending results by navigation generation. The
