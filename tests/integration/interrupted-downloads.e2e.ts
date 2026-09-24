@@ -8,6 +8,9 @@ test('keeps a resumable interrupted download cancellable after listing it', asyn
   await writeFile(path, 'partial')
   const pageUrl = 'data:text/html,<title>Interrupted download fixture</title>'
   await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(pageUrl)}, active: true })`)
+  await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+    webContents.getAllWebContents().some(contents => contents.getURL() === url), pageUrl
+  )).toBe(true)
   const nativeState = await electronApp.evaluate(async ({ webContents }, { pageUrl, path }) => {
     const page = webContents.getAllWebContents().find(contents => contents.getURL() === pageUrl)
     if (!page) throw new Error('Download fixture page was not found')

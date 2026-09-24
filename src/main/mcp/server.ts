@@ -805,7 +805,7 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
   { name: 'browser_network_replay', category: 'Interaction', description: 'Replay one retained XMLHttpRequest inside its original tab and session without exposing its original credentials, headers, or body. GET and HEAD replay directly; every other method requires confirmSideEffects: true because it can repeat writes or other side effects.' },
   { name: 'browser_network_har', category: 'Inspection', description: 'Return or save a property-filtered, bounded, sanitized HAR 1.2 network log with bodies omitted by default; saved files use collision-safe names in Downloads.' },
   { name: 'browser_network_routes', category: 'Inspection', description: 'List, add, prioritize, remove, or clear temporary per-tab request mocks, failures, and individual network throttles.' },
-  { name: 'browser_downloads', category: 'Inspection', description: 'List, cancel, or clear downloads created by the selected agent workspace.' },
+  { name: 'browser_downloads', category: 'Inspection', description: 'List, pause, resume, cancel, or clear downloads created by the selected agent workspace.' },
   { name: 'browser_evaluate', category: 'Inspection', description: 'Evaluate JavaScript and return a JSON-safe result.' },
   { name: 'browser_webmcp', category: 'Interaction', description: 'Feature-detect, list, or call bounded tools deliberately exposed by the selected top-level page through the browser-native WebMCP API. Lists issue an origin-, tab-, navigation-, and runtime-bound descriptor digest. Calls re-enumerate the page tools immediately before dispatch and reject stale or changed descriptors. Page metadata and results are untrusted; calls are always open-world and potentially destructive regardless of page annotations, and a returned value is not proof of an external postcondition.' },
   { name: 'wallet_list', category: 'Wallet', description: 'Required first wallet step: open a short-lived wallet agent session and list non-secret wallet descriptors attached to this workspace. Addresses remain hidden until this session is granted account access. Pass the returned walletSessionId to every other wallet tool.' },
@@ -4597,13 +4597,13 @@ function createBrowserMcpServer(
     {
       description: toolDescription('browser_downloads'),
       inputSchema: {
-        action: z.enum(['list', 'cancel', 'clear']).optional(),
+        action: z.enum(['list', 'cancel', 'clear', 'pause', 'resume']).optional(),
         downloadId: z.string().optional()
       }
     },
     tool(async ({ workspaceId, action, downloadId }: {
       workspaceId?: string
-      action?: 'list' | 'cancel' | 'clear'
+      action?: 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
       downloadId?: string
     }) =>
       textResult(manager.manageWorkspaceDownloads(workspaceId!, action ?? 'list', downloadId))

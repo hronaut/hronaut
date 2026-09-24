@@ -175,7 +175,7 @@
 .downloads-header-actions > button:disabled { @apply cursor-default [opacity:.35]; }
 .downloads-list { @apply min-h-0 overflow-y-auto; }
 .download-item {
-  @apply grid [grid-template-columns:34px_minmax(0,_1fr)_34px] items-center [gap:10px] [min-height:78px] [padding:12px_13px];
+  @apply grid [grid-template-columns:34px_minmax(0,_1fr)_auto] items-center [gap:10px] [min-height:78px] [padding:12px_13px];
 }
 .download-item + .download-item { @apply [border-top:1px_solid_var(--border-soft)]; }
 .download-state-icon {
@@ -198,6 +198,8 @@
   from { transform: translateX(-110%); }
   to { transform: translateX(300%); }
 }
+.download-actions { @apply flex [gap:4px]; }
+.download-item.paused .download-progress > span.indeterminate { animation-play-state: paused; }
 .download-action {
   @apply grid [width:32px] [height:32px] p-0 place-items-center border-0 [border-radius:8px] text-muted bg-transparent cursor-pointer;
 }

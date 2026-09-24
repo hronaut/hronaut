@@ -2606,6 +2606,12 @@ export const frFR = {
     "close": "Fermer les contrôles du zoom de la page"
   },
   "downloads": {
+    "pause": "Mettre en pause",
+    "pauseAria": "Mettre {filename} en pause",
+    "resume": "Reprendre",
+    "resumeAria": "Reprendre {filename}",
+    "paused": "En pause",
+
     "kicker": "Fichiers du navigateur",
     "heading": "Téléchargements",
     "clearFinished": "Effacer les terminés",

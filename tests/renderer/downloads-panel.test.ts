@@ -34,6 +34,8 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
       ],
       formatBytes: (bytes: number) => `${bytes} B`,
       formatPercent: (percent: number) => `${percent}%`,
+      pauseDownload: vi.fn(async () => []),
+      resumeDownload: vi.fn(async () => []),
       cancelDownload: vi.fn(async () => []),
       clearFinished: vi.fn(async () => []),
       showInFolder: vi.fn(async () => undefined),
@@ -43,6 +45,27 @@ function renderPanel(overrides: Record<string, unknown> = {}) {
 }
 
 describe('DownloadsPanel', () => {
+  it('shows a paused transfer without a spinner and resumes it from the keyboard', async () => {
+    const resumeDownload = vi.fn(async () => [])
+    const view = renderPanel({ downloads: [{ ...download('paused', 'progressing', 25, 100), paused: true, canResume: true }], resumeDownload })
+    expect(screen.getByText('Paused · 25% · 25 B of 100 B')).toBeVisible()
+    expect(view.container.querySelector('.state-spinner')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Clear finished' })).toBeDisabled()
+    const resume = screen.getByRole('button', { name: 'Resume paused.bin' })
+    resume.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(resumeDownload).toHaveBeenCalledWith('paused')
+  })
+
+  it('offers pause for active transfers and resume only for resumable interruptions', async () => {
+    const pauseDownload = vi.fn(async () => [])
+    renderPanel({ downloads: [download('active', 'progressing', 10, 100), { ...download('partial', 'interrupted', 25, 100), canResume: true }, { ...download('failed', 'interrupted', 25, 100), completedAt: '2026-08-22T00:01:00.000Z', canResume: false }], pauseDownload })
+    expect(screen.getByRole('button', { name: 'Resume partial.bin' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Resume failed.bin' })).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Pause active.bin' }))
+    expect(pauseDownload).toHaveBeenCalledWith('active')
+  })
+
   it('keeps a resumable interruption cancellable and out of finished cleanup', async () => {
     const cancelDownload = vi.fn(async () => [])
     renderPanel({ downloads: [download('partial', 'interrupted', 25, 100)], cancelDownload })

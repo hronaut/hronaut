@@ -256,6 +256,7 @@ import type {
   BrowserPwaReport,
   BrowserStorageChangesAction,
   BrowserStorageChangesReport,
+  BrowserDownloadAction,
   BrowserDownloadState,
   BrowserConsoleMessage,
   BrowserDebugReport,
@@ -6562,13 +6563,13 @@ export class BrowserTabsManager {
     return this.downloadController.listDownloads()
   }
 
-  manageDownloads(action: 'list' | 'cancel' | 'clear', downloadId?: string): BrowserDownloadState[] {
+  manageDownloads(action: BrowserDownloadAction, downloadId?: string): BrowserDownloadState[] {
     return this.downloadController.manageDownloads(action, downloadId)
   }
 
   manageWorkspaceDownloads(
     workspaceId: string,
-    action: 'list' | 'cancel' | 'clear',
+    action: BrowserDownloadAction,
     downloadId?: string
   ): BrowserDownloadState[] {
     return this.downloadController.manageWorkspaceDownloads(workspaceId, action, downloadId)

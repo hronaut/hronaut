@@ -24,6 +24,8 @@ function createController(initialDownloads = [download('complete', 'completed', 
   const open = ref(true)
   const downloads = ref(initialDownloads)
   const cancelDownload = vi.fn(async (id: string) => [download(id, 'cancelled')])
+  const pauseDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [{ ...download(id), paused: true, canResume: true }])
+  const resumeDownload = vi.fn(async (id: string): Promise<BrowserDownloadState[]> => [download(id)])
   const clearFinished = vi.fn(async () => [])
   const showInFolder = vi.fn(async () => undefined)
   const controller = useDownloadsPanelController({
@@ -37,11 +39,13 @@ function createController(initialDownloads = [download('complete', 'completed', 
     },
     formatBytes: (bytes) => `${bytes} B`,
     formatPercent: (percent) => `${percent}%`,
+    pauseDownload,
+    resumeDownload,
     cancelDownload,
     clearFinished,
     showInFolder
   })
-  return { open, downloads, cancelDownload, clearFinished, showInFolder, controller }
+  return { open, downloads, pauseDownload, resumeDownload, cancelDownload, clearFinished, showInFolder, controller }
 }
 
 describe('downloads panel controller', () => {
@@ -75,6 +79,23 @@ describe('downloads panel controller', () => {
 
     expect(downloads.value[0]?.state).toBe('cancelled')
     expect(controller.pendingAction.value).toBeNull()
+    controller.dispose()
+  })
+
+  it('ignores a pause result after closing the panel and accepts lower progress on resume', async () => {
+    const { open, downloads, pauseDownload, resumeDownload, controller } = createController([download('slow')])
+    let settle!: (downloads: BrowserDownloadState[]) => void
+    pauseDownload.mockReturnValueOnce(new Promise(resolve => { settle = resolve }))
+    const pending = controller.pause('slow')
+    open.value = false
+    open.value = true
+    resumeDownload.mockResolvedValueOnce([download('slow', 'progressing', 5, 100)])
+    await controller.resume('slow')
+    settle([{ ...download('slow'), paused: true }])
+    await pending
+    expect(downloads.value[0]).toMatchObject({ receivedBytes: 5 })
+    expect(downloads.value[0]?.paused).not.toBe(true)
+    expect(controller.downloadProgress(downloads.value[0])).toBe(5)
     controller.dispose()
   })
 

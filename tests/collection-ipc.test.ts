@@ -4,7 +4,7 @@ import { registerCollectionIpc } from '../src/main/collection-ipc.js'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
-  'downloads:list', 'downloads:cancel', 'downloads:clear-finished', 'downloads:show-in-folder',
+  'downloads:list', 'downloads:cancel', 'downloads:pause', 'downloads:resume', 'downloads:clear-finished', 'downloads:show-in-folder',
   'bookmarks:list', 'bookmarks:add', 'bookmarks:rename', 'bookmarks:remove',
   'visit-history:list', 'visit-history:remove', 'visit-history:clear'
 ]
@@ -42,6 +42,8 @@ it.each(channels)('rejects untrusted %s calls before looking up services', async
 
 it.each([
   ['downloads:cancel', [null]],
+  ['downloads:pause', [null]],
+  ['downloads:resume', [null]],
   ['downloads:show-in-folder', [7]],
   ['bookmarks:add', ['https://example.com/', {}]],
   ['bookmarks:rename', ['bookmark', null]],
@@ -75,11 +77,13 @@ it('registers lazily and publishes a bookmark mutation only after persistence su
 it('routes download actions and publishes completed history mutations', async () => {
   const { invoke, downloads, history, host } = fixture()
   await invoke('downloads:list')
+  await invoke('downloads:pause', 'transfer')
+  await invoke('downloads:resume', 'transfer')
   await invoke('downloads:cancel', 'transfer')
   await invoke('downloads:clear-finished')
   await invoke('downloads:show-in-folder', 'transfer')
   expect(downloads.listDownloads).toHaveBeenCalledOnce()
-  expect(downloads.manageDownloads.mock.calls).toEqual([['cancel', 'transfer'], ['clear']])
+  expect(downloads.manageDownloads.mock.calls).toEqual([['pause', 'transfer'], ['resume', 'transfer'], ['cancel', 'transfer'], ['clear']])
   expect(downloads.showDownloadInFolder).toHaveBeenCalledWith('transfer')
   await invoke('visit-history:remove', 'visit')
   expect(history.remove).toHaveBeenCalledWith('visit')

@@ -20,6 +20,8 @@ function createController() {
   const openHistoryEntry = vi.fn(async () => undefined)
   const controller = {
     browserCollectionsController: {
+      pauseDownload: vi.fn(async () => []),
+      resumeDownload: vi.fn(async () => []),
       cancelDownload: vi.fn(async () => []),
       clearFinishedDownloads: vi.fn(async () => []),
       revealDownload: vi.fn(async () => undefined),

@@ -7,6 +7,8 @@ import IconClose from '~icons/material-symbols/close-rounded'
 import IconDownload from '~icons/material-symbols/download-rounded'
 import IconDownloadDone from '~icons/material-symbols/download-done-rounded'
 import IconFolderOpen from '~icons/material-symbols/folder-open-rounded'
+import IconPause from '~icons/material-symbols/pause-rounded'
+import IconResume from '~icons/material-symbols/play-arrow-rounded'
 import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import IconWarning from '~icons/material-symbols/warning-rounded'
 import type { BrowserDownloadState } from '../../../shared/types.js'
@@ -15,6 +17,8 @@ import { useDownloadsPanelController } from '../composables/useDownloadsPanelCon
 const props = defineProps<{
   formatBytes: (bytes: number) => string
   formatPercent: (percent: number) => string
+  pauseDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
+  resumeDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   cancelDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
@@ -29,6 +33,8 @@ const {
   finishedDownloads,
   downloadProgress,
   downloadMeta,
+  pause,
+  resume,
   cancel,
   clear,
   reveal,
@@ -39,6 +45,8 @@ const {
   translate: (key, parameters) => t(key, parameters ?? {}),
   formatBytes: props.formatBytes,
   formatPercent: props.formatPercent,
+  pauseDownload: props.pauseDownload,
+  resumeDownload: props.resumeDownload,
   cancelDownload: props.cancelDownload,
   clearFinished: props.clearFinished,
   showInFolder: props.showInFolder
@@ -65,9 +73,10 @@ onBeforeUnmount(dispose)
       <span>{{ t('downloads.emptyDescription') }}</span>
     </div>
     <div v-else class="downloads-list">
-      <article v-for="download in downloads" :key="download.id" class="download-item" :class="download.state">
+      <article v-for="download in downloads" :key="download.id" class="download-item" :class="[download.state, { paused: download.paused }]">
         <span class="download-state-icon" aria-hidden="true">
-          <IconProgress v-if="download.state === 'progressing'" class="state-spinner" />
+          <IconPause v-if="download.paused" />
+          <IconProgress v-else-if="download.state === 'progressing'" class="state-spinner" />
           <IconDownloadDone v-else-if="download.state === 'completed'" />
           <IconWarning v-else />
         </span>
@@ -78,7 +87,11 @@ onBeforeUnmount(dispose)
             <span :class="{ indeterminate: download.totalBytes <= 0 }" :style="download.totalBytes > 0 ? { width: `${downloadProgress(download)}%` } : undefined" />
           </div>
         </div>
-        <UiButton appearance="application" v-if="isActiveDownload(download)" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="cancel(download.id)"><IconClose aria-hidden="true" /></UiButton>
+        <div v-if="isActiveDownload(download)" class="download-actions">
+          <UiButton appearance="application" v-if="download.canResume" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.resumeAria', { filename: download.filename })" :title="t('downloads.resume')" @click="resume(download.id)"><IconResume aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" v-else-if="download.state === 'progressing' && !download.paused" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.pauseAria', { filename: download.filename })" :title="t('downloads.pause')" @click="pause(download.id)"><IconPause aria-hidden="true" /></UiButton>
+        <UiButton appearance="application" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.cancelAria', { filename: download.filename })" :title="t('downloads.cancel')" @click="cancel(download.id)"><IconClose aria-hidden="true" /></UiButton>
+        </div>
         <UiButton appearance="application" v-else-if="download.state === 'completed'" class="download-action" type="button" :disabled="pendingAction !== null" :aria-label="t('downloads.showAria', { filename: download.filename })" :title="t('downloads.show')" @click="reveal(download.id)"><IconFolderOpen aria-hidden="true" /></UiButton>
       </article>
     </div>

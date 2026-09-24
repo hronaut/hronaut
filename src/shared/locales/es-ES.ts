@@ -2606,6 +2606,12 @@ export const esES = {
     "close": "Cerrar los controles de zoom de la página"
   },
   "downloads": {
+    "pause": "Pausar",
+    "pauseAria": "Pausar {filename}",
+    "resume": "Reanudar",
+    "resumeAria": "Reanudar {filename}",
+    "paused": "En pausa",
+
     "kicker": "Archivos del navegador",
     "heading": "Descargas",
     "clearFinished": "Borrar finalizadas",

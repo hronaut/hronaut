@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Pause and resume downloads in the current session from the Downloads panel or workspace-scoped MCP controls.
+
 ### Fixed
 
 - Preserve the `__proto__` mock response header when adding request conditions through the UI or MCP.

@@ -2606,6 +2606,12 @@ export const ruRU = {
     "close": "Закрыть управление масштабом страницы"
   },
   "downloads": {
+    "pause": "Приостановить",
+    "pauseAria": "Приостановить {filename}",
+    "resume": "Продолжить",
+    "resumeAria": "Продолжить {filename}",
+    "paused": "Приостановлено",
+
     "kicker": "Файлы браузера",
     "heading": "Загрузки",
     "clearFinished": "Очистить завершённые",

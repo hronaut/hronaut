@@ -19,11 +19,13 @@ export function registerCollectionIpc(ipcMain: Pick<IpcMain, 'handle'>, host: Co
     host.assertTrustedSender(event)
     return host.downloads().listDownloads()
   })
-  ipcMain.handle('downloads:cancel', (event, downloadId: unknown) => {
-    host.assertTrustedSender(event)
-    if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
-    return host.downloads().manageDownloads('cancel', downloadId)
-  })
+  for (const action of ['cancel', 'pause', 'resume'] as const) {
+    ipcMain.handle(`downloads:${action}`, (event, downloadId: unknown) => {
+      host.assertTrustedSender(event)
+      if (typeof downloadId !== 'string') throw new TypeError('Invalid download ID')
+      return host.downloads().manageDownloads(action, downloadId)
+    })
+  }
   ipcMain.handle('downloads:clear-finished', (event) => {
     host.assertTrustedSender(event)
     return host.downloads().manageDownloads('clear')

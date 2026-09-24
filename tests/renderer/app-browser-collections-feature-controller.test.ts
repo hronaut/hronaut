@@ -60,6 +60,8 @@ function createHarness() {
   const unsubscribeHistory = vi.fn()
   const listDownloads = vi.fn(async (): Promise<BrowserDownloadState[]> => [])
   const downloadsApi: HronautDownloadsApi = {
+    pause: vi.fn(async () => []),
+    resume: vi.fn(async () => []),
     list: listDownloads,
     cancel: vi.fn(async () => []),
     clearFinished: vi.fn(async () => []),

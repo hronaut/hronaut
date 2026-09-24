@@ -114,6 +114,14 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     return resolveDownloads(() => options.downloadsApi.list())
   }
 
+  function pauseDownload(downloadId: string): Promise<BrowserDownloadState[]> {
+    return resolveDownloads(() => options.downloadsApi.pause(downloadId))
+  }
+
+  function resumeDownload(downloadId: string): Promise<BrowserDownloadState[]> {
+    return resolveDownloads(() => options.downloadsApi.resume(downloadId))
+  }
+
   function cancelDownload(downloadId: string): Promise<BrowserDownloadState[]> {
     return resolveDownloads(() => options.downloadsApi.cancel(downloadId))
   }
@@ -179,6 +187,8 @@ export function useBrowserCollectionsController(options: BrowserCollectionsContr
     history,
     initialize,
     refreshDownloads,
+    pauseDownload,
+    resumeDownload,
     cancelDownload,
     clearFinishedDownloads,
     revealDownload,

@@ -4,7 +4,7 @@ import { basename, extname, join } from 'node:path'
 import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../shared/download-state.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
-import type { BrowserDownloadState } from '../../shared/types.js'
+import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 
 const MAX_DOWNLOAD_HISTORY = 200
 
@@ -70,7 +70,11 @@ export class BrowserDownloadsController {
       download.receivedBytes = item.getReceivedBytes()
       download.totalBytes = item.getTotalBytes()
       this.syncDownloadPath(download, item)
+      download.paused = item.isPaused()
+      download.canResume = download.paused || (download.state === 'interrupted' && item.canResume())
       if (download.state !== 'progressing' && !item.canResume()) {
+        download.paused = false
+        download.canResume = false
         download.completedAt ??= new Date().toISOString()
         this.downloadItems.delete(id)
       }
@@ -80,54 +84,54 @@ export class BrowserDownloadsController {
       .map((download) => ({ ...download }))
   }
 
-  manageDownloads(action: 'list' | 'cancel' | 'clear', downloadId?: string): BrowserDownloadState[] {
-    if (action === 'cancel') {
-      if (!downloadId) throw new Error('downloadId is required to cancel a download')
-      const item = this.downloadItems.get(downloadId)
-      if (!item) throw new Error(`Active download not found: ${downloadId}`)
-      item.cancel()
-    } else if (action === 'clear') {
-      for (const [id, download] of this.downloads) {
-        if (isActiveDownload(download)) continue
-        this.downloads.delete(id)
-        this.downloadWorkspaceIds.delete(id)
-      }
-    }
-    const downloads = this.listDownloads()
-    if (action !== 'list') this.sendDownloadsChanged(downloads)
-    return downloads
+  manageDownloads(action: BrowserDownloadAction, downloadId?: string): BrowserDownloadState[] {
+    return this.manageScopedDownloads(action, downloadId)
   }
 
   manageWorkspaceDownloads(
     workspaceId: string,
-    action: 'list' | 'cancel' | 'clear',
+    action: BrowserDownloadAction,
     downloadId?: string
   ): BrowserDownloadState[] {
-    const observationGeneration = this.host.workspaceObservationGeneration(workspaceId)
-    if (action === 'cancel') {
-      if (!downloadId) throw new Error('downloadId is required to cancel a download')
-      const item = this.downloadWorkspaceIds.get(downloadId) === workspaceId
-        && this.downloads.get(downloadId)?.observationGeneration === observationGeneration
-        ? this.downloadItems.get(downloadId)
-        : undefined
+    return this.manageScopedDownloads(action, downloadId, workspaceId)
+  }
+
+  private manageScopedDownloads(
+    action: BrowserDownloadAction,
+    downloadId?: string,
+    workspaceId?: string
+  ): BrowserDownloadState[] {
+    const generation = workspaceId === undefined ? undefined : this.host.workspaceObservationGeneration(workspaceId)
+    const inScope = (download: BrowserDownloadState) => workspaceId === undefined || (
+      this.downloadWorkspaceIds.get(download.id) === workspaceId
+      && download.observationGeneration === generation
+    )
+    this.listDownloads()
+    if (action === 'cancel' || action === 'pause' || action === 'resume') {
+      if (!downloadId) throw new Error(`downloadId is required to ${action} a download`)
+      const download = this.downloads.get(downloadId)
+      const item = download && inScope(download) ? this.downloadItems.get(downloadId) : undefined
       if (!item) throw new Error(`Active download not found: ${downloadId}`)
-      item.cancel()
+      if (action === 'cancel') item.cancel()
+      else if (action === 'pause') {
+        if (item.getState() !== 'progressing') throw new Error('Only a progressing download can be paused')
+        item.pause()
+      } else {
+        if (!item.isPaused() && !(item.getState() === 'interrupted' && item.canResume())) {
+          throw new Error('Download is not paused or resumable')
+        }
+        item.resume()
+      }
     } else if (action === 'clear') {
-      this.listDownloads()
       for (const [id, download] of this.downloads) {
-        if (this.downloadWorkspaceIds.get(id) !== workspaceId
-          || download.observationGeneration !== observationGeneration
-          || isActiveDownload(download)) continue
+        if (!inScope(download) || isActiveDownload(download)) continue
         this.downloads.delete(id)
         this.downloadWorkspaceIds.delete(id)
       }
     }
     const downloads = this.listDownloads()
     if (action !== 'list') this.sendDownloadsChanged(downloads)
-    return downloads.filter((download) => (
-      this.downloadWorkspaceIds.get(download.id) === workspaceId
-      && download.observationGeneration === observationGeneration
-    ))
+    return downloads.filter(inScope)
   }
 
   remapDownloadWorkspaceOwnership(sourceWorkspaceId: string, targetWorkspaceId: string): void {
@@ -203,6 +207,8 @@ export class BrowserDownloadsController {
           download.receivedBytes = item.getReceivedBytes()
           download.totalBytes = item.getTotalBytes()
           this.syncDownloadPath(download, item)
+          download.paused = false
+          download.canResume = false
           download.completedAt = new Date().toISOString()
           this.downloadItems.delete(id)
           this.trimDownloadHistory()

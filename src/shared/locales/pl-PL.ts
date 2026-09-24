@@ -2606,6 +2606,12 @@ export const plPL = {
     "close": "Zamknij sterowanie powiększeniem strony"
   },
   "downloads": {
+    "pause": "Wstrzymaj",
+    "pauseAria": "Wstrzymaj {filename}",
+    "resume": "Wznów",
+    "resumeAria": "Wznów {filename}",
+    "paused": "Wstrzymano",
+
     "kicker": "Pliki przeglądarki",
     "heading": "Pobrane pliki",
     "clearFinished": "Wyczyść ukończone",

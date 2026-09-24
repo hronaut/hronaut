@@ -2010,6 +2010,8 @@ export interface BrowserPdfExport {
   bytes: number
 }
 
+export type BrowserDownloadAction = 'list' | 'cancel' | 'clear' | 'pause' | 'resume'
+
 export interface BrowserDownloadState {
   id: string
   observationGeneration?: number
@@ -2018,6 +2020,8 @@ export interface BrowserDownloadState {
   filename: string
   savePath?: string
   state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'
+  paused?: boolean
+  canResume?: boolean
   receivedBytes: number
   totalBytes: number
   startedAt: string
@@ -2520,6 +2524,8 @@ export interface HronautPanelWindowApi {
 
 export interface HronautDownloadsApi {
   list(): Promise<BrowserDownloadState[]>
+  pause(downloadId: string): Promise<BrowserDownloadState[]>
+  resume(downloadId: string): Promise<BrowserDownloadState[]>
   cancel(downloadId: string): Promise<BrowserDownloadState[]>
   clearFinished(): Promise<BrowserDownloadState[]>
   showInFolder(downloadId: string): Promise<void>

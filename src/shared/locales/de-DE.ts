@@ -2606,6 +2606,12 @@ export const deDE = {
     "close": "Steuerung des Seitenzooms schließen"
   },
   "downloads": {
+    "pause": "Pausieren",
+    "pauseAria": "{filename} pausieren",
+    "resume": "Fortsetzen",
+    "resumeAria": "{filename} fortsetzen",
+    "paused": "Pausiert",
+
     "kicker": "Browserdateien",
     "heading": "Downloads",
     "clearFinished": "Abgeschlossene löschen",

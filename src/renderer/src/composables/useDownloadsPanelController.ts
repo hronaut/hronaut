@@ -10,6 +10,8 @@ export interface DownloadsPanelControllerOptions {
   translate: Translate
   formatBytes: (bytes: number) => string
   formatPercent: (percent: number) => string
+  pauseDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
+  resumeDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   cancelDownload: (downloadId: string) => Promise<BrowserDownloadState[]>
   clearFinished: () => Promise<BrowserDownloadState[]>
   showInFolder: (downloadId: string) => Promise<void>
@@ -30,9 +32,10 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
   function downloadMeta(download: BrowserDownloadState): string {
     if (download.state === 'progressing') {
       const received = options.formatBytes(download.receivedBytes)
-      return download.totalBytes > 0
+      const progress = download.totalBytes > 0
         ? `${options.formatPercent(downloadProgress(download))} · ${options.translate('downloads.received', { received, total: options.formatBytes(download.totalBytes) })}`
         : options.translate('downloads.downloaded', { received })
+      return download.paused ? `${options.translate('downloads.paused')} · ${progress}` : progress
     }
     if (download.state === 'completed') return options.translate('downloads.complete', { size: options.formatBytes(download.receivedBytes) })
     if (download.state === 'cancelled') return options.translate('downloads.cancelled')
@@ -68,6 +71,14 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     }
   }
 
+  function pause(downloadId: string): Promise<void> {
+    return runAction(`pause:${downloadId}`, () => options.pauseDownload(downloadId))
+  }
+
+  function resume(downloadId: string): Promise<void> {
+    return runAction(`resume:${downloadId}`, () => options.resumeDownload(downloadId))
+  }
+
   function cancel(downloadId: string): Promise<void> {
     return runAction(`cancel:${downloadId}`, () => options.cancelDownload(downloadId))
   }
@@ -97,6 +108,8 @@ export function useDownloadsPanelController(options: DownloadsPanelControllerOpt
     downloadProgress,
     downloadMeta,
     resetError,
+    pause,
+    resume,
     cancel,
     clear,
     reveal,

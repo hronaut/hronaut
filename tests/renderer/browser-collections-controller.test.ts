@@ -67,6 +67,8 @@ function createHarness() {
     return unsubscribeDownloads
   })
   const downloadsApi: HronautDownloadsApi = {
+    pause: vi.fn(async () => []),
+    resume: vi.fn(async () => []),
     list: listDownloads,
     cancel: cancelDownload,
     clearFinished: clearFinishedDownloads,

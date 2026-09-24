@@ -41,6 +41,8 @@ const {
     v-model:downloads="downloads"
     :format-bytes="formatBytes"
     :format-percent="formatPercent"
+    :pause-download="browserCollectionsController.pauseDownload"
+    :resume-download="browserCollectionsController.resumeDownload"
     :cancel-download="browserCollectionsController.cancelDownload"
     :clear-finished="browserCollectionsController.clearFinishedDownloads"
     :show-in-folder="browserCollectionsController.revealDownload"

@@ -31,6 +31,9 @@ async function fixture() {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
+    let paused = false
+    const pause = vi.fn(() => { paused = true })
+    const resume = vi.fn(() => { paused = false; state = 'progressing' })
     const cancel = vi.fn(() => {
       state = 'cancelled'
       item.emit('done', {}, state)
@@ -41,6 +44,8 @@ async function fixture() {
       getState: () => state,
       getReceivedBytes: () => 1,
       getTotalBytes: () => 100,
+      isPaused: () => paused,
+      pause, resume,
       canResume: () => state === 'interrupted',
       getSavePath: () => savePath,
       setSavePath: (value: string) => { savePath = value },
@@ -49,7 +54,7 @@ async function fixture() {
     const event = { preventDefault: vi.fn() }
     session.emit('will-download', event, item as DownloadItem, { id: tabId })
     return {
-      event, cancel, item,
+      event, cancel, pause, resume, item,
       interrupt: () => { state = 'interrupted'; item.emit('updated', {}, state) },
       complete: () => { state = 'completed'; item.emit('done', {}, state) }
     }
@@ -128,4 +133,37 @@ it('releases update listeners as soon as a transfer completes', async () => {
   expect(transfer.item.listenerCount('updated')).toBe(0)
   expect(transfer.item.listenerCount('done')).toBe(0)
   expect(controller.listDownloads()[0]?.state).toBe('completed')
+})
+
+it('pauses and resumes live downloads without clearing their history and permits cancellation while paused', async () => {
+  const { controller, download } = await fixture()
+  const transfer = download()
+  const [entry] = controller.listDownloads()
+  expect(() => controller.manageDownloads('resume', entry!.id)).toThrow('not paused or resumable')
+  expect(controller.manageDownloads('pause', entry!.id)[0]).toMatchObject({ paused: true, canResume: true })
+  expect(controller.manageDownloads('clear')).toHaveLength(1)
+  expect(controller.manageDownloads('resume', entry!.id)[0]).toMatchObject({ paused: false, canResume: false })
+  expect(transfer.resume).toHaveBeenCalledOnce()
+  transfer.interrupt()
+  expect(() => controller.manageDownloads('pause', entry!.id)).toThrow('Only a progressing')
+  expect(controller.manageDownloads('resume', entry!.id)[0]?.state).toBe('progressing')
+  controller.manageDownloads('pause', entry!.id)
+  expect(controller.manageDownloads('cancel', entry!.id)[0]).toMatchObject({ state: 'cancelled', paused: false, canResume: false })
+  expect(() => controller.manageDownloads('resume', entry!.id)).toThrow('Active download not found')
+})
+
+it('rejects pause and resume across workspaces and stale observation generations', async () => {
+  const { controller, download, generations } = await fixture()
+  const transfer = download()
+  const [entry] = controller.listDownloads()
+  for (const action of ['pause', 'resume'] as const) {
+    expect(() => controller.manageWorkspaceDownloads('second', action, entry!.id)).toThrow('Active download not found')
+  }
+  controller.manageWorkspaceDownloads('first', 'pause', entry!.id)
+  generations.set('first', 1)
+  for (const action of ['pause', 'resume'] as const) {
+    expect(() => controller.manageWorkspaceDownloads('first', action, entry!.id)).toThrow('Active download not found')
+  }
+  expect(transfer.pause).toHaveBeenCalledOnce()
+  expect(transfer.resume).not.toHaveBeenCalled()
 })
