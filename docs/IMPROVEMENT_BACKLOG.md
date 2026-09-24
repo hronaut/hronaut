@@ -720,5 +720,19 @@ commit, and detached panels retain their separate open-state behavior.
   file's event-based pending-request helper and immediately settles both signing
   promises, retaining exact account, chain, and signature assertions. All 85
   wallet-broker cases and focused lint/typechecking pass without increasing a
-  timeout. The failed full run is retained; a fresh static gate is required for
-  this follow-up. No production wallet behavior changed.
+  timeout. A fresh immutable static run at `650f4a5` passed all 3,279 tests in
+  420 files, lint, typechecking, and the application build. The failed full run
+  is retained. No production wallet behavior changed.
+
+- The v2.5.27 candidate at `be2156d` failed the strict native gate because the
+  website renderer-crash case retried once; main was not advanced and native
+  dialogs did not run. The original trace records an asynchronous Playwright
+  `Target crashed` error during the recovery click, while the application
+  recovered in a new renderer process and only the deliberately killed website
+  process exited. The website fixture now completes a Playwright DOM read before
+  SIGKILL, matching the existing Home fixture's initialization precondition.
+  Both crash cases passed five times each with retries disabled, and focused
+  lint/typechecking passed. This is a fixture-ordering correction, not proof of
+  a new application crash bug or conclusive attribution of the driver's error.
+  A new combined immutable gate must pass before integrating the candidate and
+  the already statically verified release-tool follow-up.

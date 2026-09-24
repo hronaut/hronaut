@@ -21,6 +21,12 @@ test('recovers a crashed website renderer in a fresh process', async ({ appWindo
     const url = `http://127.0.0.1:${address.port}/crash-recovery`
     await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true })`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Crash recovery fixture')
+    // Shell title publication can precede Playwright's page initialization.
+    // Complete a read through that target before deliberately terminating it,
+    // just as the Home crash case does below.
+    await expect.poll(() => electronApp.context().pages().some(page => page.url() === url)).toBe(true)
+    const websitePage = electronApp.context().pages().find(page => page.url() === url)!
+    await expect(websitePage.locator('main')).toHaveText('Renderer recovered')
     const firstProcessId = await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Crash recovery web contents was not found')
