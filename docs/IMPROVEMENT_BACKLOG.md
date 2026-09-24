@@ -84,7 +84,9 @@ DOM recording now has a matching focused module in
 `src/main/browser/dom-recorder.ts`. It owns isolated-world execution and request
 ordering, while the manager retains authoritative tab lookup and navigation
 cleanup. The eleven lifecycle regressions cover obsolete pages, later actions,
-and refresh results arriving out of order.
+and refresh results arriving out of order. Six focused unit cases additionally
+cover workspace ownership, replaced or destroyed contents, removed tabs, stale
+workspace cleanup, and a failed refresh while Start is pending.
 
 ## Rotating QA review
 
