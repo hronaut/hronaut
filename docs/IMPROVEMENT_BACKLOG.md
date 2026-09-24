@@ -17,6 +17,28 @@ and shared audit contracts. These are proposals, not shipped features.
 
 ## Rotating QA review
 
+### Community workflow follow-up (September 24)
+
+Re-read [discussion #201](https://github.com/orgs/hronaut/discussions/201).
+The proposed next external check is Windows browser-UI interaction with an
+account-free React application: read a human-edited value, decline a proposed
+write and verify the value is unchanged, then navigate from Todos to Profile
+while a decision is pending and read back route, value and decision state.
+This is a proposed experiment, not a reported compatibility pass. Check access
+to the Windows loopback endpoint before using a container-backed client; use
+a Windows-local client if that boundary cannot be reached. An RCIP bridge is
+a separate feature decision and should wait for evidence from the UI experiment.
+The linked starter could not be retrieved during this review, so its current
+implementation and behavior remain unverified. Do not infer them from the
+discussion or add a product integration on that basis.
+
+The website repository's latest commit is `7b251b4`, which validates release
+download links against the advertised tag. Open website issues #22 (community
+hub), #5 (reviewer grants), and #2 (Search Console) remain separate work items;
+their presence is not evidence of a newly reproduced website defect.
+
+### Completed QA and next boundaries
+
 Completed in the current Unreleased cycle: accessibility comparison now keeps a
 volatile tab baseline, compares deduplicated rule-and-target fingerprints, flags
 scope, engine and URL drift, and withholds new or resolved classifications when

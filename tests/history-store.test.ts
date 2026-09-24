@@ -144,6 +144,68 @@ describe('HistoryStore', () => {
     }
   })
 
+  it('retries automatic expiry after a disk failure without publishing an unsaved change', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(Date.UTC(2026, 0, 1))
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const path = join(directory, 'history.json')
+    const onExpired = vi.fn()
+    const reportError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const errorReported = new Promise<void>((resolve) => {
+      reportError.mockImplementation(() => resolve())
+    })
+    const store = new HistoryStore(path, Date.now, onExpired)
+    try {
+      await store.record({ url: 'https://retained.example/', title: 'Retained visit' })
+      const saved = await readFile(path, 'utf8')
+      await rename(path, `${path}.backup`)
+      await mkdir(path)
+
+      await vi.advanceTimersByTimeAsync(90 * 24 * 60 * 60 * 1_000 + 1)
+      await store.flush()
+      await errorReported
+      expect(reportError).toHaveBeenCalledTimes(1)
+      expect(onExpired).not.toHaveBeenCalled()
+      expect(await readFile(`${path}.backup`, 'utf8')).toBe(saved)
+
+      await rm(path, { recursive: true })
+      await rename(`${path}.backup`, path)
+      await vi.advanceTimersByTimeAsync(59_999)
+      expect(await readFile(path, 'utf8')).toBe(saved)
+      await vi.advanceTimersByTimeAsync(1)
+      await store.flush()
+      expect(JSON.parse(await readFile(path, 'utf8')).entries).toEqual([])
+      expect(onExpired).toHaveBeenCalledTimes(1)
+    } finally {
+      store.dispose()
+      reportError.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels automatic expiry when the store is disposed', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    vi.setSystemTime(Date.UTC(2026, 0, 1))
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-history-'))
+    directories.push(directory)
+    const path = join(directory, 'history.json')
+    const onExpired = vi.fn()
+    const store = new HistoryStore(path, Date.now, onExpired)
+    try {
+      await store.record({ url: 'https://retained.example/', title: 'Retained visit' })
+      const saved = await readFile(path, 'utf8')
+      store.dispose()
+      await vi.advanceTimersByTimeAsync(91 * 24 * 60 * 60 * 1_000)
+      await store.flush()
+      expect(await readFile(path, 'utf8')).toBe(saved)
+      expect(onExpired).not.toHaveBeenCalled()
+    } finally {
+      store.dispose()
+      vi.useRealTimers()
+    }
+  })
+
   it('caps restored and newly recorded visit counts at the safe integer limit', async () => {
     const now = Date.UTC(2026, 7, 13)
     const { path, store } = await storeAt(now)
