@@ -4,12 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.18] - 2026-09-24
+
 ### Fixed
 
 - Reject delayed reproduction recording starts after a newer clear, stop, restart, navigation, or tab closure.
-
 - Release native download listeners when their controller closes or a transfer finishes.
-
 - Reject new website and agent wallet requests once application shutdown begins.
 - Cancel waiting wallet approvals during shutdown and reject transaction preparation that finishes after shutdown.
 
