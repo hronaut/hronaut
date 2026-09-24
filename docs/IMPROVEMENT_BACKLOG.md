@@ -338,3 +338,13 @@ commit, and detached panels retain their separate open-state behavior.
   images for selector changes at `a342a10` and native selection sessions at
   `6652fa5` each passed 541 Electron cases and native-dialog checks. These passes
   do not prove that the earlier spontaneous renderer crashes cannot recur.
+
+- The immutable concurrency-fix image completed 545 Electron cases with one
+  retry-only Home startup result, so the strict gate failed and native-dialog
+  checks did not run. `desktop-design.e2e.ts` could not discover the Home page
+  within eight seconds; its renderer-exit attachment was empty. This does not
+  establish the cause or rule out an earlier unobserved renderer exit. The trace
+  and native logs are preserved. Ten focused repetitions passed without changing
+  the timeout. Failure diagnostics now include bounded native surface, loading,
+  crash, and process state to distinguish native-page readiness from Playwright
+  target discovery on a subsequent failure.

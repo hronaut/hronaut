@@ -218,11 +218,26 @@ export const test = base.extend<HronautFixtures>({
     } finally {
       try {
         if (testInfo.status !== testInfo.expectedStatus) {
-          const diagnostics = await instance.app.evaluate(() => {
+          const diagnostics = await instance.app.evaluate(({ webContents }) => {
             const scope = globalThis as typeof globalThis & {
               __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
             }
-            return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [] }
+            const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
+              try {
+                const url = contents.getURL()
+                return {
+                  id: contents.id,
+                  type: contents.getType(),
+                  surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
+                  loading: contents.isLoadingMainFrame(),
+                  crashed: contents.isCrashed(),
+                  processId: contents.getOSProcessId()
+                }
+              } catch {
+                return { id: contents.id, unavailable: true }
+              }
+            })
+            return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
           }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
           await testInfo.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
         }
