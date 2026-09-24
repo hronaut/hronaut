@@ -3,6 +3,7 @@ import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
 import { DEFAULT_EMULATION, cloneEmulationState, hasEmulationOverrides, prepareBrowserEmulation } from './emulation-state.js'
 import { createElementPickerSession, createNativeSelectionSession, type BrowserNativeSelectionSession } from './native-selection-session.js'
 import { BrowserNetworkWaitController } from './network-wait-controller.js'
+import { HomeRefresh } from './home-refresh.js'
 import { BrowserDomRecorder, type BrowserDomRecordingState } from './dom-recorder.js'
 import { BrowserReproRecorder, type BrowserReproRecordingInternal } from './repro-recorder.js'
 import { normalizeNetworkRouteInput } from './network-route-input.js'
@@ -2382,9 +2383,14 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  private readonly homeRefresh = new HomeRefresh()
+
   async reloadHome(): Promise<void> {
     const home = [...this.tabs.values()].find((tab) => isHronautHomeUrl(tab.url))
-    if (home) home.webContents.reload()
+    if (!home) return
+    const contents = home.webContents
+    this.homeRefresh.request(contents, () => this.tabs.get(home.id) === home
+      && home.webContents === contents && isHronautHomeUrl(home.url))
   }
 
   async manageStorage(options: BrowserStorageOptions): Promise<BrowserStorageResult> {

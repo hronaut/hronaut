@@ -358,3 +358,16 @@ commit, and detached panels retain their separate open-state behavior.
   The failing trace is preserved separately from subsequent runs. A protocol
   diagnostic run is collecting target initialization evidence before changing
   application startup or weakening the test.
+
+- The protocol diagnostic reproduced the failure once in 25 runs. Home's initial
+  navigation was immediately followed by a reload while Playwright initialized
+  its target. The client received an empty initial frame tree and no Home
+  committed-navigation event, although Home continued fetching its dashboard.
+  Native teardown again reported Home loaded and not crashed. This is stronger
+  evidence of a discovery race than the previous timeout alone; it does not
+  explain the older renderer exit 139 failures.
+  Automatic Home refresh now waits for an in-flight main-frame load to stop,
+  coalesces requests, verifies the tab and contents still belong to Home, and
+  removes pending listeners on destruction. Three unit regressions failed with
+  the former immediate-reload behavior; all five lifecycle cases pass after the
+  change. Native stress and immutable-image verification remain required.
