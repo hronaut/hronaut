@@ -529,3 +529,15 @@ commit, and detached panels retain their separate open-state behavior.
   focused lint/typechecking. Cross-root replay and closed-shadow detection remain
   unsupported. The combined batch still requires full static and immutable-image
   verification before integration and release.
+
+- Extracted synchronous network event recording from `TabsManager` into
+  `network-recording.ts`, with a narrow tab-owned state interface. Native debugger
+  attachment, interception, body retrieval, observation-generation changes, and
+  waiter notifications remain in the manager. The moved handlers and stream
+  helpers retain their original bodies apart from signatures and local calls.
+  Nine new cases characterize redirect ID reuse, generation boundaries, WebSocket
+  handshake ordering, completed-event filtering, both stream retention budgets,
+  document security metadata, failed loads, and the request-history cap. All 25
+  focused unit cases and five real Electron network cases pass, with focused
+  lint/typechecking. Full immutable validation is queued separately before
+  integration; no network retention or privacy policy changed.

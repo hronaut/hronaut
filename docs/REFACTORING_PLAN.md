@@ -69,14 +69,47 @@ Tests that inject update state must disable startup update
 checks before launch; the workspace-scale failure demonstrated how an unrelated
 timer can invalidate an otherwise correct layout assertion.
 
-## Later extractions
+## Preview capture
 
-Preview capture and network interception are further candidates within
-`TabsManager`, once downloads establish the boundary pattern. Keep navigation
-generation checks, debugger leases, focus restoration and disposal explicit.
-Avoid a broad asynchronous-controller abstraction until its differing lifecycle
-requirements are documented; similar generation counters do not necessarily
-represent interchangeable semantics.
+Implemented two separate boundaries: `native-preview-capture.ts` retains native
+capture ownership beyond the caller's timeout, and `preview-capture-queue.ts`
+owns per-tab coalescing and global serialization. The manager still owns tab
+eligibility, settle timers, image encoding, cache publication, and late recovery.
+Keep these policies explicit rather than moving the remaining preview methods
+into a controller that merely forwards calls back to the manager. The combined
+runtime passed 552 Electron cases and native dialogs without retries.
+
+## Network event recording
+
+`TabsManager.handleNetworkDebuggerMessage` and its adjacent lookup, timestamp,
+stream-retention, and request-trimming helpers form a synchronous boundary.
+They now live with `BrowserNetworkRequestRecord` in `network-recording.ts`.
+Its state contains only request history, capture sequence, observation generation,
+and the security snapshot; it does not need Electron `WebContents` or the complete
+`BrowserTab`. The existing mutation model is preserved so waiters and diagnostic
+readers continue to see the same tab-owned records.
+
+Keep debugger attachment, `Fetch.requestPaused` interception, response-body
+retrieval, navigation clearing, and control-handoff generation changes in the
+manager. In particular, the debugger message listener must notify network waiters
+after applying each event, as it does today. Moving interception into this first
+extraction would combine asynchronous native ownership with synchronous history
+updates and make the change harder to verify.
+
+Nine characterization cases exercise redirects reusing a CDP request ID,
+redirects crossing an observation generation, WebSocket creation and handshake
+ordering, completed-request filtering, stream retention/drop counts, failed
+loads, and document security metadata. All 25 focused unit cases and five native network
+cases pass, as do focused lint and typechecking. The immutable full gate remains
+required before integration. Existing real Electron network and
+workspace-handoff coverage must continue to verify privacy, request relationships,
+and isolation. Preserve current retention order and timestamp semantics during
+the extraction; any policy change needs its own failing-before regression.
+
+Debugger attachment and DevTools handoff remain a later independent extraction.
+Keep generation checks, debugger leases, focus restoration, and disposal
+explicit. Similar generation counters do not necessarily represent
+interchangeable lifecycle semantics.
 
 ## Verification
 
