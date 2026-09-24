@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { BrowserBookmark } from '../shared/types.js'
-import { truncateText } from '../shared/text-boundaries.js'
+import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 const MAX_BOOKMARKS = 500
@@ -27,28 +27,12 @@ export function normalizeBookmarkUrl(value: string): string | null {
   }
 }
 
-function hasEmbeddedHttpCredentials(value: string): boolean {
-  try {
-    const candidate = new URL(value)
-    return (candidate.protocol === 'http:' || candidate.protocol === 'https:') && Boolean(candidate.username || candidate.password)
-  } catch {
-    return false
-  }
-}
-
 function normalizeBookmarkTitle(value: string, url: string, sourceUrl = url): string {
-  const isCredentialFallback = hasEmbeddedHttpCredentials(sourceUrl) && (
-    value === sourceUrl || (value.length === MAX_BOOKMARK_TITLE && sourceUrl.startsWith(value))
-  )
-  // A legacy URL fallback may have been truncated before its @ sign, even if
-  // the saved address was already sanitized in a later write.
-  const truncatedUrlAuthority = value.length === MAX_BOOKMARK_TITLE
-    && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
-  let safeValue = value
-  if (isCredentialFallback || truncatedUrlAuthority) safeValue = normalizeBookmarkUrl(sourceUrl) ?? value
-  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeBookmarkUrl(value) ?? url
-  const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_BOOKMARK_TITLE)
-  return title || new URL(url).hostname
+  return normalizeCollectionTitle(value, url, sourceUrl, {
+    maxLength: MAX_BOOKMARK_TITLE,
+    normalizeUrl: normalizeBookmarkUrl,
+    urlFallbacks: 'credentials'
+  })
 }
 
 function validBookmark(value: unknown): value is BrowserBookmark {

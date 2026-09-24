@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import type { BrowserHistoryEntry } from '../shared/types.js'
-import { truncateText } from '../shared/text-boundaries.js'
+import { normalizeCollectionTitle } from './collection-title.js'
 import { writeTextFileAtomically } from './atomic-file.js'
 
 const HISTORY_VERSION = 1
@@ -31,31 +31,12 @@ export function normalizeHistoryUrl(value: string): string | null {
   }
 }
 
-function hasEmbeddedHttpCredentials(value: string): boolean {
-  try {
-    const candidate = new URL(value)
-    return (candidate.protocol === 'http:' || candidate.protocol === 'https:') && Boolean(candidate.username || candidate.password)
-  } catch {
-    return false
-  }
-}
-
 function normalizeTitle(value: string, url: string, sourceUrl = url): string {
-  // Older fallback titles were capped before credentials were removed. If the
-  // cap cut off the hostname, the saved URL is the only safe address to show.
-  const truncatedUrlAuthority = value.length === MAX_HISTORY_TITLE
-    && /^https?:\/\/[^/?#\s@]+$/iu.test(value)
-  const isUrlFallback = (
-    value === sourceUrl
-    || (value.length === MAX_HISTORY_TITLE && sourceUrl.startsWith(value))
-    || normalizeHistoryUrl(value) === url
-    || truncatedUrlAuthority
-  )
-  let safeValue = value
-  if (isUrlFallback) safeValue = normalizeHistoryUrl(sourceUrl) ?? value
-  else if (hasEmbeddedHttpCredentials(value)) safeValue = normalizeHistoryUrl(value) ?? url
-  const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), MAX_HISTORY_TITLE)
-  return title || new URL(url).hostname
+  return normalizeCollectionTitle(value, url, sourceUrl, {
+    maxLength: MAX_HISTORY_TITLE,
+    normalizeUrl: normalizeHistoryUrl,
+    urlFallbacks: 'all'
+  })
 }
 
 function validEntry(value: unknown, oldestAllowed: number): value is BrowserHistoryEntry {
