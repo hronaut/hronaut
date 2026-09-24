@@ -1,6 +1,6 @@
 # Explicit recorder assertions
 
-Status: implementation proposal, reviewed September 24, 2026 against `280a129`.
+Status: implementation proposal, reviewed September 24, 2026 against `a342a10`.
 This feature is not implemented or included in a release.
 
 ## Intended behavior
@@ -17,6 +17,17 @@ visibility, text, and value assertions. Start with visibility so the expectation
 can be recorded without collecting a new class of page content. Playwright's
 [assertion API](https://playwright.dev/docs/test-assertions) supplies the retrying
 `await expect(locator).toBeVisible()` export form.
+
+Chrome's [Recorder reference](https://developer.chrome.com/docs/devtools/recorder/reference#add-assertions)
+also documents explicit `waitForElement` assertions, including visibility, plus
+manual hover steps for menus that cannot be reached by a click alone. This
+supports prioritizing an explicit visibility expectation first; an editable hover
+step is a separate follow-up candidate, not a reason to record every pointer move.
+
+The current Hronaut recorder now validates selector uniqueness within a
+500-character bound and preserves unresolved targets as manual export steps.
+Assertion selection must reject unresolved targets rather than count them as
+exportable expectations. This groundwork does not implement assertion capture.
 
 ## Integration boundaries
 

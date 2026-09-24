@@ -283,3 +283,9 @@ commit, and detached panels retain their separate open-state behavior.
   across unknown inputs, and targeted keys never become global keyboard actions.
   Four regression tests failed before the fix; focused native clicks cover both
   deep repeated controls and the selector bound.
+
+- The immutable `fa63de0` image passed all 539 Electron cases and native-dialog
+  checks with no retries required. It includes Home recovery, the synchronized
+  forced-crash fixture, and network waiter extraction/timing. Selector changes
+  at `a342a10` are being verified separately; this pass does not prove that the
+  earlier spontaneous renderer crashes cannot recur.

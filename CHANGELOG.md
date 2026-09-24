@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.22] - 2026-09-24
+
 ### Fixed
 
 - Keep reproduction selectors unique on deeply nested layouts and retain unresolvable actions as explicit manual export steps.
