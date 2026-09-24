@@ -1530,7 +1530,7 @@ export class BrowserTabsManager {
     for (const tabId of tabIds) {
       const tab = this.tabs.get(tabId)
       const preview = this.tabOverviewPreviews.get(tabId)
-      if (!tab || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
+      if (!tab || tab.sleeping || !preview || preview.navigationGeneration !== tab.navigationGeneration) {
         if (preview) this.tabOverviewPreviews.delete(tabId)
         continue
       }

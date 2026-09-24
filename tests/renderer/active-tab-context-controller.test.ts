@@ -108,17 +108,47 @@ describe('active tab context controller', () => {
 
     harness.activeTab.value = tab('tab-1', {
       url: 'https://example.test/redirected',
-      loading: true
+      loading: true,
+      navigationGeneration: 1
     })
     await nextTick()
     harness.activeTab.value = tab('tab-1', {
       url: 'https://example.test/redirected',
-      loading: false
+      loading: false,
+      navigationGeneration: 1
     })
     await nextTick()
 
     expect(harness.callbacks.resetNetwork).toHaveBeenCalledOnce()
     expect(harness.callbacks.resetConsole).toHaveBeenCalledOnce()
+    harness.controller.dispose()
+  })
+
+  it('resets panels when a same-document navigation keeps the tab URL unchanged', async () => {
+    const harness = createHarness()
+    vi.clearAllMocks()
+
+    harness.activeTab.value = tab('tab-1', { navigationGeneration: 1 })
+    await nextTick()
+
+    expect(harness.callbacks.resetSiteData).toHaveBeenCalledOnce()
+    expect(harness.callbacks.resetNetwork).toHaveBeenCalledOnce()
+    expect(harness.siteControlsOpen.value).toBe(false)
+    expect(harness.pageToolsOpen.value).toBe(false)
+
+    harness.activeTab.value = tab('tab-1', {
+      url: 'https://example.test/page#updated', navigationGeneration: 1
+    })
+    await nextTick()
+    expect(harness.callbacks.resetSiteData).toHaveBeenCalledOnce()
+    expect(harness.callbacks.resetNetwork).toHaveBeenCalledOnce()
+
+    harness.activeTab.value = tab('tab-1', {
+      url: 'https://example.test/another-page', navigationGeneration: 1
+    })
+    await nextTick()
+    expect(harness.callbacks.resetSiteData).toHaveBeenCalledTimes(2)
+    expect(harness.callbacks.resetNetwork).toHaveBeenCalledTimes(2)
     harness.controller.dispose()
   })
 

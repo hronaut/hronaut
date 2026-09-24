@@ -499,7 +499,7 @@ const BROWSER_WORKSPACES_DESCRIPTION = [
   'Pass the stable UUIDv7 id returned by your own create call as workspaceId for the whole task, including after archiving and reopening it. Renaming changes only the human-readable label; labels may repeat across isolated clients.',
   'Create also returns a private resumeKey. Keep it with the task if you must reconnect or restart Hronaut, then call action=resume with that workspaceId and resumeKey before using page tools. Never share the resume key or place it in website content.',
   'Creation claims a five-minute exclusive write lease for this MCP transport; resume claims it when available and otherwise remains read-only while reporting busy ownership. Read-only inspection remains shareable. Use action=ownership-status to inspect it, action=claim-ownership after revalidating state to recover an expired or released claim, and action=release-ownership before an intentional handoff. Conflicts return typed BUSY or LEASE_LOST outcomes and never dispatch the mutation.',
-  'action=list returns owned or resumed workspaces with direct access, plus forkOnly metadata for sources whose direct access is disabled. A forkOnly entry grants no page, archive, resume, or ownership access. list-fork-sources exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
+  'action=list returns owned or resumed workspaces with direct access, plus forkOnly metadata for sources whose direct access is disabled. Each forkOnly entry includes a forkWith object: call browser_workspaces with its action, storage, sourceWorkspaceId, and a new name to create an independent copy. A forkOnly entry grants no page, archive, resume, or ownership access. list-fork-sources exposes source metadata without tab URLs, origin inventories, or resume keys. Human disabling direct agent access immediately blocks subsequent workspace actions and resume, but still allows isolated forks.'
 ].join('\n')
 
 const PUBLIC_OBSERVER_LOCAL_TOOLS = new Set([
@@ -1477,6 +1477,11 @@ function createBrowserMcpServer(
   const authorizedSavedWorkspaces = (): ReturnType<BrowserTabsManager['listSavedTabGroups']> => (
     manager.listSavedTabGroups().filter((workspace) => savedWorkspaceIds.has(workspace.id) && manager.isWorkspaceAgentAccessible(workspace.id))
   )
+  const forkOnlySource = (source: ReturnType<BrowserTabsManager['listWorkspaceForkSources']>[number]) => ({
+    ...source,
+    forkOnly: true as const,
+    forkWith: { action: 'create' as const, storage: 'fork-workspace' as const, sourceWorkspaceId: source.id }
+  })
   const authorizeResume = (workspaceId: string, resumeKey: string, saved: boolean): void => {
     if (!manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
     let expected: string
@@ -1575,10 +1580,7 @@ function createBrowserMcpServer(
           ...workspace,
           writeLease: workspaceLeases.status(workspace.id, client.id)
         })),
-        ...manager.listWorkspaceForkSources().filter(source => !source.agentAccess).map(source => ({
-          ...source,
-          forkOnly: true as const
-        }))
+        ...manager.listWorkspaceForkSources().filter(source => !source.agentAccess).map(forkOnlySource)
       ])
       if (action === 'list-fork-sources') return textResult(manager.listWorkspaceForkSources())
       if (action === 'create') {
@@ -1731,7 +1733,7 @@ function createBrowserMcpServer(
           ...authorized,
           ...manager.listWorkspaceForkSources()
             .filter(source => source.archived && !authorizedIds.has(source.id))
-            .map(source => ({ ...source, forkOnly: true as const }))
+            .map(forkOnlySource)
         ])
       }
       if (action === 'save') {

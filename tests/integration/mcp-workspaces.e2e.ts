@@ -842,7 +842,8 @@ test('shows fork metadata while keeping page access private to the creating MCP 
     }) as CallToolResult
     expect(JSON.parse(text(archivesByOther))).toEqual([{
       id: archived.id, name: 'Private client workspace', description: '', color: 'purple',
-      archived: true, agentAccess: true, forkOnly: true
+      archived: true, agentAccess: true, forkOnly: true,
+      forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: archived.id }
     }])
     expect(text(archivesByOther)).not.toContain(archived.resumeKey)
     expect(text(archivesByOther)).not.toContain('Private client tab')
@@ -970,7 +971,8 @@ test('requires the private resume key to recover an archived workspace after rec
     }) as CallToolResult
     expect(JSON.parse(text(initialList))).toEqual([{
       id: saved.id, name: 'Archived private workspace', description: '', color: 'orange',
-      archived: true, agentAccess: true, forkOnly: true
+      archived: true, agentAccess: true, forkOnly: true,
+      forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: saved.id }
     }])
     expect(text(initialList)).not.toContain(saved.resumeKey)
     expect(text(initialList)).not.toContain('Archived private tab')

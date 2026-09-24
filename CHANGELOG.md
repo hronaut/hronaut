@@ -6,7 +6,10 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show the exact fork action on metadata-only workspace entries so agents can copy workspaces with direct access disabled.
+- Discard cached tab overview previews as soon as a tab goes to sleep.
 - Hide the release history Load more action at the supported page limit instead of leading to an invalid page.
+- Close stale site controls and page panels when same-document navigation keeps the website address unchanged.
 
 ## [2.5.15] - 2026-09-24
 

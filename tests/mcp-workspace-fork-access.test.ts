@@ -10,6 +10,10 @@ const targetId = '01912345-6790-7abc-8def-0123456789ab'
 const sourceId = '01912345-6789-7abc-8def-0123456789ac'
 const key = `hrw1_${'R'.repeat(43)}`
 const parsed = (result: CallToolResult): unknown => JSON.parse(result.content.find((entry) => entry.type === 'text')!.text)
+const forkOnly = <T extends { id: string }>(source: T) => ({
+  ...source, forkOnly: true,
+  forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: source.id }
+})
 
 describe('MCP workspace fork sources and direct access', () => {
   let server: McpHttpServer
@@ -106,12 +110,12 @@ describe('MCP workspace fork sources and direct access', () => {
     source.archived = archived
     const ordinaryList = await call('browser_workspaces', { action: 'list' })
     expect(ordinaryList.isError).not.toBe(true)
-    expect(parsed(ordinaryList)).toEqual([{ ...source, forkOnly: true }])
+    expect(parsed(ordinaryList)).toEqual([forkOnly(source)])
     expect(JSON.stringify(ordinaryList)).not.toContain(key)
     const listed = await call('browser_workspaces', { action: 'list-fork-sources' })
     expect(listed.isError).not.toBe(true)
     expect(parsed(listed)).toEqual([source])
-    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual(archived ? [{ ...source, forkOnly: true }] : [])
+    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual(archived ? [forkOnly(source)] : [])
     const fork = await call('browser_workspaces', { action: 'create', name: 'Task', storage: 'fork-workspace', sourceWorkspaceId: sourceId })
     expect(fork.isError).not.toBe(true)
     expect(parsed(fork)).toMatchObject({ id: ownId, resumeKey: key })
@@ -213,7 +217,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     expect((await call('browser_workspaces', { action: 'rename', workspaceId: ownId, name: 'Before' })).isError).not.toBe(true)
     disable()
-    expect(parsed(await call('browser_workspaces', { action: 'list' }))).toEqual([{ ...manager.listWorkspaceForkSources()[0], forkOnly: true }])
+    expect(parsed(await call('browser_workspaces', { action: 'list' }))).toEqual([forkOnly(manager.listWorkspaceForkSources()[0]!)])
     for (const [name, args] of [
       ['browser_tabs', { workspaceId: ownId }],
       ['browser_workspaces', { action: 'rename', workspaceId: ownId, name: 'After' }],
@@ -228,7 +232,7 @@ describe('MCP workspace fork sources and direct access', () => {
     await call('browser_workspaces', { action: 'create', name: 'Task' })
     await call('browser_saved_workspaces', { action: 'save', workspaceId: ownId })
     disable()
-    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual([{ ...manager.listWorkspaceForkSources()[0], forkOnly: true }])
+    expect(parsed(await call('browser_saved_workspaces', { action: 'list' }))).toEqual([forkOnly(manager.listWorkspaceForkSources()[0]!)])
     for (const action of ['open', 'delete', 'resume']) {
       expect((await call('browser_saved_workspaces', { action, savedWorkspaceId: ownId, resumeKey: key })).isError).toBe(true)
     }

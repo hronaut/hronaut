@@ -44,11 +44,12 @@ Xfce or Cinnamon, icon/click/menu/attention/quit behavior, and Windows/macOS
 lifecycle smoke. Dependency audit and automated Docker gates do not substitute
 for those desktop checks.
 
-Next code-review lead: `useDiagnosticsController` also identifies its active
-document by tab ID and URL. Reproduce same-URL reload behavior for pending audits
-and completed reports before deciding how navigation should affect docked versus
-detached panels and long-running recorders. Preserve intentional cross-navigation
-performance baselines. This is a review lead, not a validated finding.
+Navigation context review completed 2026-09-24: `useDiagnosticsController` and
+page export already invalidate pending results by navigation generation. The
+active-tab shell now resets stale panels for a same-document navigation that
+keeps the URL unchanged; unit and Electron regressions cover that case. Normal
+same-URL reloads still reset at loading start without a duplicate reset at
+commit, and detached panels retain their separate open-state behavior.
 
 - Pending actions: success and rejection after navigation, same-URL reload,
   tab switch, dialog close/reopen, and disposal; newer actions must retain state.

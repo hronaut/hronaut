@@ -23,6 +23,7 @@ export interface ActiveTabContextControllerOptions {
 
 export function useActiveTabContextController(options: ActiveTabContextControllerOptions) {
   let navigationResetTabId: string | null = null
+  let navigationResetGeneration: number | undefined
 
   function resetContext(tab: BrowserTabState | undefined, preserveEnvironment: boolean): void {
     const keepPanelOpen = options.keepsSeparatePanelOpen()
@@ -54,31 +55,46 @@ export function useActiveTabContextController(options: ActiveTabContextControlle
   const stopContextWatch = watch(
     () => {
       const tab = options.activeTab.value
-      return [tab?.id, tab?.url, tab?.loading] as const
+      return [tab?.id, tab?.url, tab?.loading, tab?.navigationGeneration] as const
     },
-    ([tabId, url, loading], previousContext) => {
-      const [previousTabId, previousUrl, previousLoading] = previousContext ?? []
+    ([tabId, url, loading, navigationGeneration], previousContext) => {
+      const [previousTabId, previousUrl, previousLoading, previousNavigationGeneration] = previousContext ?? []
       const tabChanged = tabId !== previousTabId
       const urlChanged = url !== previousUrl
+      const navigationChanged = navigationGeneration !== previousNavigationGeneration
       const navigationStarted = loading === true && previousLoading !== true
       const navigationAlreadyReset = navigationResetTabId !== null && navigationResetTabId === tabId
+        && (loading === true || navigationGeneration === navigationResetGeneration)
       const preserveEnvironment = !tabChanged
         && navigationStarted
         && options.preserveEnvironmentReload()
 
       if (tabChanged) options.onTabChanged(options.activeTab.value)
-      if (tabChanged || navigationStarted || (urlChanged && !navigationAlreadyReset)) {
+      if (tabChanged || navigationStarted || ((urlChanged || navigationChanged) && !navigationAlreadyReset)) {
         resetContext(options.activeTab.value, preserveEnvironment)
       }
 
-      if (tabChanged || navigationStarted) navigationResetTabId = loading ? tabId ?? null : null
-      if (previousLoading === true && loading !== true) navigationResetTabId = null
+      if (tabChanged || navigationStarted) {
+        navigationResetTabId = loading ? tabId ?? null : null
+        navigationResetGeneration = loading ? navigationGeneration : undefined
+      } else if (navigationChanged && tabId) {
+        navigationResetTabId = loading || !urlChanged ? tabId : null
+        navigationResetGeneration = loading || !urlChanged ? navigationGeneration : undefined
+      } else if (urlChanged && navigationAlreadyReset && !loading) {
+        navigationResetTabId = null
+        navigationResetGeneration = undefined
+      }
+      if (previousLoading === true && loading !== true) {
+        navigationResetTabId = null
+        navigationResetGeneration = undefined
+      }
     },
     { immediate: true }
   )
 
   function dispose(): void {
     navigationResetTabId = null
+    navigationResetGeneration = undefined
     stopContextWatch()
   }
 

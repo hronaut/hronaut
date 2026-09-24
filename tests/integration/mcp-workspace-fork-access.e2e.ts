@@ -30,7 +30,8 @@ test('forks disabled archived workspace data without source access and honors cl
     expect(activeList.isError, resultText(activeList)).not.toBe(true)
     expect(JSON.parse(resultText(activeList))).toContainEqual({
       id: source.id, name: source.name, description: source.description, color: source.color,
-      archived: false, agentAccess: false, forkOnly: true
+      archived: false, agentAccess: false, forkOnly: true,
+      forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: source.id }
     })
     const sourceUrl = `${origin}/source`
     await appWindow.evaluate(`window.hronaut.navigate({ tabId: ${JSON.stringify(state.activeTabId)}, url: ${JSON.stringify(sourceUrl)} })`)
@@ -48,13 +49,15 @@ test('forks disabled archived workspace data without source access and honors cl
     expect(ordinaryList.isError, resultText(ordinaryList)).not.toBe(true)
     expect(JSON.parse(resultText(ordinaryList))).toContainEqual({
       id: source.id, name: source.name, description: source.description, color: source.color,
-      archived: true, agentAccess: false, forkOnly: true
+      archived: true, agentAccess: false, forkOnly: true,
+      forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: source.id }
     })
     const savedList = await call('browser_saved_workspaces', { action: 'list' })
     expect(savedList.isError, resultText(savedList)).not.toBe(true)
     expect(JSON.parse(resultText(savedList))).toContainEqual({
       id: source.id, name: source.name, description: source.description, color: source.color,
-      archived: true, agentAccess: false, forkOnly: true
+      archived: true, agentAccess: false, forkOnly: true,
+      forkWith: { action: 'create', storage: 'fork-workspace', sourceWorkspaceId: source.id }
     })
     expect(resultText(savedList)).not.toContain(sourceUrl)
     const catalog = await call('browser_workspaces', { action: 'list-fork-sources' })
