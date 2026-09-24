@@ -596,3 +596,14 @@ commit, and detached panels retain their separate open-state behavior.
   candidate includes main at `7751c94`, including its Scoop manifest. It remains
   local until the exact release source passes full static validation and the
   immutable Electron/native-dialog gate.
+
+- The updater follow-up's full static run exposed a 5-second timeout in the
+  existing MCPB symlink test while 3,270 other tests passed. That suite built the
+  complete bundle in setup and then rebuilt it inside the symlink case. It now
+  builds once through a symlink in shared setup; all archive, registry, operator
+  metadata, and adapter checks use that same artifact. The symlink identity is
+  asserted explicitly. All six focused packaging cases and focused static checks
+  pass without changing timeouts. This test-only fix is included before v2.5.26
+  publication. The running `ee18dcd` image retains identical application, scripts,
+  package versions, and Electron tests; fresh full static validation covers the
+  revised candidate, and the publish guard checks that exact scope of difference.
