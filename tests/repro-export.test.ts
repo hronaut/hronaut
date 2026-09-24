@@ -41,4 +41,12 @@ describe('Playwright repro export', () => {
     expect(result).toContain('recording was still active')
     expect(result).toContain('flow is incomplete')
   })
+  it('leaves unresolved target actions as manual steps instead of global keyboard input', () => {
+    const result = formatReproAsPlaywright({ ...recording, steps: [
+      { ...recording.steps[2]!, target: { selector: '', tag: 'input' } }
+    ] })
+    expect(result).toContain('// TODO: Recreate step 3: key')
+    expect(result).not.toContain('page.keyboard.press')
+  })
+
 })

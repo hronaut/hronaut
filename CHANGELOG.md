@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep reproduction selectors unique on deeply nested layouts and retain unresolvable actions as explicit manual export steps.
 - Show the recovery message and retry action when the Home renderer crashes.
 - Keep reported network wait durations accurate when the system clock changes.
 - Keep reproduction step durations and typing groups stable when the system clock changes.

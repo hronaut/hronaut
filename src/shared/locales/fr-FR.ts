@@ -2368,6 +2368,7 @@ export const frFR = {
     }
   },
   "repro": {
+    "selectorUnavailable": "Aucun sélecteur unique ; recréez cette étape manuellement.",
     "kicker": "Chronologie respectueuse de la vie privée",
     "heading": "Enregistreur de reproduction",
     "close": "Fermer l’enregistreur de reproduction",

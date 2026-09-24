@@ -43,7 +43,7 @@ export function formatReproAsPlaywright(recording: BrowserReproRecording): strin
         `  if (${variable} === undefined) throw new Error(${quoted(`Set ${environmentName} to a safe test value before running this reproduction`)})`,
         `  await ${target}.fill(${variable})`
       )
-    } else if (step.kind === 'key' && step.key) {
+    } else if (step.kind === 'key' && step.key && (!step.target || target)) {
       const action = `${target ?? 'page.keyboard'}.press(${quoted(playwrightKey(step.key))})`
       lines.push(`  await ${action}`)
     } else if (step.kind === 'scroll' && step.scroll) {

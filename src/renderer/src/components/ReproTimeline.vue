@@ -105,7 +105,7 @@ function moveSelection(event: KeyboardEvent, step: BrowserReproStep): void {
       <dl>
         <div><dt>{{ t('repro.action') }}</dt><dd>{{ selectedStep.kind }}</dd></div>
         <div v-if="selectedStep.target"><dt>{{ t('repro.target') }}</dt><dd>{{ selectedStep.target.label || selectedStep.target.role || selectedStep.target.tag }}</dd></div>
-        <div v-if="selectedStep.target"><dt>{{ t('repro.selector') }}</dt><dd><code>{{ selectedStep.target.selector }}</code></dd></div>
+        <div v-if="selectedStep.target"><dt>{{ t('repro.selector') }}</dt><dd><code v-if="selectedStep.target.selector">{{ selectedStep.target.selector }}</code><span v-else>{{ t('repro.selectorUnavailable') }}</span></dd></div>
         <div v-if="selectedStep.key"><dt>{{ t('repro.key') }}</dt><dd><code>{{ selectedStep.key }}</code></dd></div>
         <div v-if="selectedStep.scroll"><dt>{{ t('repro.position') }}</dt><dd><code>x={{ selectedStep.scroll.x }}, y={{ selectedStep.scroll.y }}</code></dd></div>
         <div><dt>{{ t('repro.page') }}</dt><dd><code>{{ selectedStep.url }}</code></dd></div>

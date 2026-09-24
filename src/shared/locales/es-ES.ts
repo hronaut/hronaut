@@ -2368,6 +2368,7 @@ export const esES = {
     }
   },
   "repro": {
+    "selectorUnavailable": "No hay un selector único; recrea este paso manualmente.",
     "kicker": "Cronología con privacidad",
     "heading": "Grabador de reproducción",
     "close": "Cerrar el grabador de reproducción",

@@ -29,6 +29,21 @@ function fixture() {
 afterEach(() => vi.restoreAllMocks())
 
 describe('reproduction recorder data contracts', () => {
+  it('retains unresolved input targets without merging separate edits', async () => {
+    const f = fixture()
+    await f.recorder.manage(f.tab, 'start')
+    f.executeJavaScript.mockResolvedValue({ selector: '', tag: 'input', label: 'Unresolved field' })
+    for (let index = 0; index < 2; index++) {
+      f.recorder.observeReproKeyboard(f.tab, { ...enterKey, key: 'a', code: 'KeyA' })
+      await f.tab.reproRecording!.queue
+    }
+    const report = await f.recorder.manage(f.tab, 'stop')
+    expect(report.steps.slice(1)).toMatchObject([
+      { kind: 'input', target: { selector: '', tag: 'input' } },
+      { kind: 'input', target: { selector: '', tag: 'input' } }
+    ])
+  })
+
   it('returns independent timeline and target snapshots', async () => {
     const f = fixture()
     await f.recorder.manage(f.tab, 'start')

@@ -2368,6 +2368,7 @@ export const plPL = {
     }
   },
   "repro": {
+    "selectorUnavailable": "Brak unikalnego selektora; odtwórz ten krok ręcznie.",
     "kicker": "Oś czasu chroniąca prywatność",
     "heading": "Rejestrator odtwarzania",
     "close": "Zamknij rejestrator odtwarzania",

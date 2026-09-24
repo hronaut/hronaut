@@ -274,3 +274,12 @@ commit, and detached panels retain their separate open-state behavior.
   before killing it, then waits for a different, loaded native renderer before
   reading the recovered DOM. All ten subsequent repetitions passed. This
   fixture synchronization does not explain the earlier spontaneous exit 139.
+
+- Reproduction selectors now grow until they identify the captured element
+  uniquely, within a 500-character bound. The old seven-ancestor cutoff made
+  repeated deep layouts ambiguous, and string slicing could truncate CSS.
+  Unresolved targets remain visible in the timeline with a translated manual-step
+  explanation and export as TODO actions; they are neither dropped nor merged
+  across unknown inputs, and targeted keys never become global keyboard actions.
+  Four regression tests failed before the fix; focused native clicks cover both
+  deep repeated controls and the selector bound.

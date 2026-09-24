@@ -1810,6 +1810,7 @@ export type BrowserReproAction = 'start' | 'get' | 'stop' | 'clear'
 export type BrowserReproStepKind = 'navigate' | 'click' | 'input' | 'key' | 'scroll'
 
 export interface BrowserReproTarget {
+  /** Empty when no bounded, unique structural selector is available; export as a manual step. */
   selector: string
   tag: string
   role?: string

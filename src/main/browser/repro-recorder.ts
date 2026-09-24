@@ -209,6 +209,7 @@ export class BrowserReproRecorder<T extends ReproTab> {
     if (
       value.kind === 'input'
       && last?.kind === 'input'
+      && Boolean(target?.selector)
       && last.target?.selector === target?.selector
       && elapsedMs - last.elapsedMs <= 1_500
     ) {
@@ -264,14 +265,14 @@ export class BrowserReproRecorder<T extends ReproTab> {
   ): Promise<BrowserReproTarget | null> {
     if (tab.webContents.isDestroyed()) return null
     const target = await tab.webContents.executeJavaScript(reproTargetScript(point), true) as BrowserReproTarget | null
-    if (!target?.selector || !target.tag) return null
+    if (!target?.tag) return null
     const clean = (value: string | undefined, limit: number): string | undefined => {
       if (!value) return undefined
       const next = redactDiagnosticText(value).replace(/\s+/g, ' ').trim().slice(0, limit)
       return next || undefined
     }
     return {
-      selector: clean(target.selector, 500) ?? target.tag.slice(0, 64),
+      selector: target.selector && clean(target.selector, 500) === target.selector ? target.selector : '',
       tag: clean(target.tag, 64) ?? 'element',
       ...(clean(target.role, 64) ? { role: clean(target.role, 64) } : {}),
       ...(clean(target.label, 180) ? { label: clean(target.label, 180) } : {}),

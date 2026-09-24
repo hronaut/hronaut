@@ -2368,6 +2368,7 @@ export const deDE = {
     }
   },
   "repro": {
+    "selectorUnavailable": "Kein eindeutiger Selektor; diesen Schritt manuell nachbilden.",
     "kicker": "Datenschutzfreundliche Zeitleiste",
     "heading": "Reproduktionsaufzeichnung",
     "close": "Reproduktionsaufzeichnung schließen",

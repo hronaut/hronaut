@@ -36,6 +36,16 @@ function recording(startedAt: string, steps: BrowserReproStep[], truncated = fal
 }
 
 describe('reproduction timeline navigation', () => {
+  it('explains when an action needs a manually supplied selector', () => {
+    render(ReproTimeline, {
+      global,
+      props: { locale: 'en-US', recording: recording('2026-09-15T10:00:00.000Z', [
+        { ...step(1), target: { selector: '', tag: 'button' } }
+      ]) }
+    })
+    expect(screen.getByRole('region', { name: 'Selected reproduction step' })).toHaveTextContent('No unique selector; recreate this step manually.')
+  })
+
   it('selects steps with pointer and keyboard navigation and presents focused evidence', async () => {
     render(ReproTimeline, {
       global,

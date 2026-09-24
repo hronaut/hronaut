@@ -1237,7 +1237,7 @@ export function reproTargetScript(point?: {
     const selectorFor = (target) => {
       const parts = [];
       let node = target;
-      while (node instanceof Element && node !== document.documentElement && parts.length < 7) {
+      while (node instanceof Element && node !== document.documentElement) {
         let part = node.localName || 'element';
         const parent = node.parentElement;
         if (parent) {
@@ -1245,9 +1245,15 @@ export function reproTargetScript(point?: {
           if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')';
         }
         parts.unshift(part);
+        const selector = parts.join(' > ');
+        if (selector.length > 500) return '';
+        try {
+          const matches = document.querySelectorAll(selector);
+          if (matches.length === 1 && matches[0] === target) return selector;
+        } catch { return ''; }
         node = parent;
       }
-      return parts.join(' > ').slice(0, 500);
+      return '';
     };
     const input = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement;
     const associatedLabel = input && 'labels' in element && element.labels?.length
