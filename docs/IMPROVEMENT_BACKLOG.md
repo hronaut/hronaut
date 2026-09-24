@@ -348,3 +348,13 @@ commit, and detached panels retain their separate open-state behavior.
   the timeout. Failure diagnostics now include bounded native surface, loading,
   crash, and process state to distinguish native-page readiness from Playwright
   target discovery on a subsequent failure.
+
+- Repeating the same Home case 25 times alongside the four-shard Docker gate
+  reproduced one retry-only failure with the unchanged eight-second timeout.
+  At failure teardown, Electron reported a Home web contents with loading false,
+  crashed false, and a live process ID; the renderer-exit list remained empty.
+  This narrows the next investigation to Playwright target discovery or URL
+  tracking, but does not yet establish the cause or prove Home's DOM was usable.
+  The failing trace is preserved separately from subsequent runs. A protocol
+  diagnostic run is collecting target initialization evidence before changing
+  application startup or weakening the test.
