@@ -392,3 +392,12 @@ commit, and detached panels retain their separate open-state behavior.
   earlier four-shard gate was still running. Focused lint and typechecking also
   passed. Full static and immutable-image verification of this change remain
   required; these repetitions do not establish that every Home failure is fixed.
+
+- The combined Home/lifecycle/debugger-queue batch at `abfd867` passed full static
+  validation: 3,240 unit/component tests across 413 files, lint, all typechecks,
+  and application build. The earlier `10984ab` immutable image passed all 545
+  Electron cases and native-dialog checks; its emulation/CLI batch is on main
+  with passing hosted CI and CodeQL. The Home-only Docker run was deliberately
+  superseded before completion by the combined 546-case image. It is not counted
+  as a pass. The v2.5.24 candidate must remain unpublished until the combined
+  immutable Docker gate and release-candidate static validation pass.

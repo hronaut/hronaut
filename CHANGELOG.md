@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.24] - 2026-09-24
+
 ### Fixed
 
 - Preserve overlapping emulation changes and finish failed updates before applying newer settings.
