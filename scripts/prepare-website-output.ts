@@ -1,6 +1,6 @@
 import { rm } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 export async function prepareWebsiteOutput(repositoryRoot = process.cwd()): Promise<void> {
   const outputDirectory = resolve(repositoryRoot, 'docs')
@@ -11,5 +11,4 @@ export async function prepareWebsiteOutput(repositoryRoot = process.cwd()): Prom
   ])
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) await prepareWebsiteOutput()
+if (isMainModule(import.meta.url)) await prepareWebsiteOutput()

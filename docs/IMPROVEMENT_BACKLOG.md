@@ -134,6 +134,13 @@ Electron comparison failed before this change. Tests also retain detection of
 actual locale, private header, viewport, and zoom changes; private values remain
 inside the hash rather than the public performance environment summary.
 
+Release and maintenance scripts now share `scripts/is-main-module.ts` for direct
+execution checks. Comparing canonical filesystem paths supports directory aliases
+while retaining import-only behavior in tests. The bundled operator metadata
+generator previously exited successfully without writing its output through a
+symlinked directory; the real MCPB packaging regression failed before this fix.
+The same helper replaces eight duplicated CLI checks.
+
 ## Rotating QA review
 
 ### Community workflow follow-up (September 24)
@@ -143,7 +150,9 @@ The proposed next external check is Windows browser-UI interaction with an
 account-free React application: read a human-edited value, decline a proposed
 write and verify the value is unchanged, then navigate from Todos to Profile
 while a decision is pending and read back route, value and decision state.
-This is a proposed experiment, not a reported compatibility pass. Check access
+The September 24, 18:49 UTC maintainer reply agrees to this browser-UI-only
+scope on v2.5.22; no executed compatibility result or sanitized receipt has
+been posted. Check access
 to the Windows loopback endpoint before using a container-backed client; use
 a Windows-local client if that boundary cannot be reached. An RCIP bridge is
 a separate feature decision and should wait for evidence from the UI experiment.

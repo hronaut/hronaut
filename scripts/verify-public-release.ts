@@ -1,5 +1,4 @@
-import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 const DEFAULT_SITE_URL = 'https://hronaut.dev'
 const DEFAULT_ATTEMPTS = 24
@@ -197,8 +196,7 @@ export async function waitForPublicRelease(
   })
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const version = process.argv[2]
   if (!version) throw new Error('Usage: node scripts/verify-public-release.ts <version>')
   const release = await waitForPublicRelease({

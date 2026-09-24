@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/
 const SHA256_PATTERN = /^[a-f0-9]{64}$/
@@ -102,8 +102,7 @@ export async function updateScoopManifest(
   return true
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const version = process.argv[2]
   const checksumsPath = process.argv[3]
   if (!version || !checksumsPath) {

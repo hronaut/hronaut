@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 export function changelogReleaseNotes(changelog: string, version: string): string {
   if (!/^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/.test(version)) {
@@ -64,8 +64,7 @@ export function completeReleaseNotes(changelog: string, version: string, current
   return sections.join('\n\n')
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const version = process.argv[2]
   if (!version) throw new Error('Usage: node scripts/release-notes.ts <version> [changelog-path] [current-notes-path]')
   const changelog = await readFile(resolve(process.argv[3] ?? 'CHANGELOG.md'), 'utf8')

@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 import {
   BROWSER_SERVER_INSTRUCTIONS,
   BROWSER_TOOL_CATALOG,
@@ -99,8 +98,7 @@ export function generateOperatorManifest(version: string) {
   }
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const [version, outputPath] = process.argv.slice(2)
   if (!version || !outputPath) throw new Error('Usage: node scripts/operator-manifest.ts VERSION OUTPUT_JSON')
   await writeFile(outputPath, `${JSON.stringify(generateOperatorManifest(version), null, 2)}\n`)

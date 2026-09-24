@@ -7,6 +7,7 @@ All notable changes to Hronaut are documented in this file.
 ### Fixed
 
 - Preserve overlapping emulation changes and finish failed updates before applying newer settings.
+- Generate complete MCPB metadata when the output directory is accessed through a filesystem alias.
 
 ## [2.5.23] - 2026-09-24
 

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -34,6 +34,24 @@ afterAll(async () => {
 })
 
 describe('MCPB release package', () => {
+  it('generates operator metadata when the output directory is a symlink', async () => {
+    const directory = await mkdtemp(join(rootDirectory, 'node_modules/.cache/hronaut-mcpb-symlink-'))
+    const output = join(directory, 'actual')
+    const alias = join(directory, 'alias')
+    try {
+      await mkdir(output)
+      await symlink(output, alias, process.platform === 'win32' ? 'junction' : 'dir')
+      const result = spawnSync(process.execPath, ['scripts/build-mcpb.ts', alias], { cwd: rootDirectory, encoding: 'utf8' })
+      expect(result.status, result.stderr || result.stdout).toBe(0)
+      const manifest = JSON.parse(await readFile(join(alias, 'hronaut-operator-manifest.json'), 'utf8'))
+      const packageJson = JSON.parse(await readFile(join(rootDirectory, 'package.json'), 'utf8'))
+      expect(manifest.hronautVersion).toBe(packageJson.version)
+      expect(manifest.tools.length).toBeGreaterThan(0)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('contains only the adapter, metadata, and public license notices', async () => {
     const packageJson = JSON.parse(await readFile('package.json', 'utf8')) as { version: string }
     const artifact = join(outputDirectory, `hronaut-mcp-adapter-${packageJson.version}.mcpb`)

@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
-import { basename, resolve } from 'node:path'
+import { basename } from 'node:path'
 import { spawn } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 import { releaseAssetUploadArgument } from './release-asset-labels.ts'
 
 const DEFAULT_UPLOAD_TIMEOUT_MS = 10 * 60 * 1_000
@@ -403,8 +403,7 @@ async function main(): Promise<void> {
   console.log(`Release asset recovery complete: preserved ${summary.preserved}, uploaded ${summary.uploaded}, retried ${summary.retries}, verified ${summary.verified}; ${tag} is public.`)
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main().catch((error: unknown) => {
     const message = error instanceof Error ? error.message : 'unknown release publication failure'
     const nextStep = message.includes('already public')

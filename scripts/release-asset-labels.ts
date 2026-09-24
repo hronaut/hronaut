@@ -1,5 +1,5 @@
-import { basename, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { basename } from 'node:path'
+import { isMainModule } from './is-main-module.ts'
 
 const RELEASE_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
 
@@ -44,8 +44,7 @@ export function releaseAssetUploadArguments(paths: readonly string[]): string[] 
   return paths.map(releaseAssetUploadArgument)
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const paths = process.argv.slice(2)
   if (paths.length === 0) throw new Error('Usage: node scripts/release-asset-labels.ts <asset-path> [...]')
   for (const argument of releaseAssetUploadArguments(paths)) process.stdout.write(`${argument}\0`)

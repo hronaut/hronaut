@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readdir, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { isMainModule } from './is-main-module.ts'
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:[+-][0-9A-Za-z.-]+)?$/
 const SAFE_ASSET_NAME = /^[0-9A-Za-z._+-]+$/
@@ -113,8 +113,7 @@ export async function writeLinuxUpdateManifests(directory: string, version: stri
   }))
 }
 
-const invokedPath = process.argv[1] ? resolve(process.argv[1]) : ''
-if (invokedPath === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const directory = process.argv[2]
   const version = process.argv[3]
   if (!directory || !version) throw new Error('Usage: node scripts/linux-update-manifests.ts <asset-directory> <version>')
