@@ -151,7 +151,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           bare
           id="setting-mcp-authentication"
           :checked="settings.mcpAuthentication"
-          :disabled="busy || settings.mcpRemoteAccess"
+          :disabled="busy"
           @change="changeAuthentication"
         />
       </label>

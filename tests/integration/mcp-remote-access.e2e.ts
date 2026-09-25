@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { blockFileDestination, closeHronaut, expect, launchHronaut, test } from './fixtures.js'
 
-test('opts into authenticated LAN MCP after restart and returns to localhost after disabling it', async ({ profileDirectory, mcpPort }) => {
+test('supports optional LAN authentication and returns to localhost after remote access is disabled', async ({ profileDirectory, mcpPort }) => {
   test.setTimeout(120_000)
   const address = Object.values(networkInterfaces()).flat().find(entry => entry?.family === 'IPv4' && !entry.internal)?.address
   if (!address) throw new Error('LAN listener regression needs a non-loopback IPv4 interface')
@@ -31,13 +31,20 @@ test('opts into authenticated LAN MCP after restart and returns to localhost aft
     const remote = instance.window.locator('#setting-mcp-remote-access')
     await expect(remote).not.toBeChecked()
     await remote.check()
-    await expect(instance.window.locator('#setting-mcp-authentication')).toBeChecked()
+    await expect(instance.window.locator('#setting-mcp-authentication')).not.toBeChecked()
     await expect.poll(async () => JSON.parse(await readFile(join(profileDirectory, 'settings.json'), 'utf8')).mcpRemoteAccess).toBe(true)
     const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
     expect(await health(token)).toBe(0)
     await closeHronaut(instance.app)
     instance = await launchHronaut(profileDirectory, mcpPort)
-    await expect.poll(() => health()).toBe(401)
+    await expect.poll(() => health()).toBe(200)
+    const anonymousClient = new Client({ name: 'anonymous-lan-regression', version: '1' })
+    try {
+      await anonymousClient.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+      expect((await anonymousClient.listTools()).tools.some(tool => tool.name === 'browser_snapshot')).toBe(true)
+    } finally { await anonymousClient.close() }
+    await instance.window.evaluate('window.hronautSettings.setMcpAuthentication(true)')
+    expect(await health()).toBe(401)
     expect(await health('wrong')).toBe(401)
     expect(await health(token)).toBe(200)
     const client = new Client({ name: 'lan-regression', version: '1' })
@@ -47,10 +54,10 @@ test('opts into authenticated LAN MCP after restart and returns to localhost aft
       }))
       expect((await client.listTools()).tools.some(tool => tool.name === 'browser_snapshot')).toBe(true)
     } finally { await client.close() }
-    await expect(instance.window.evaluate('window.hronautSettings.setMcpAuthentication(false)')).rejects.toThrow(/restart Hronaut/)
+    await instance.window.evaluate('window.hronautSettings.setMcpAuthentication(false)')
+    expect(await health()).toBe(200)
     await instance.window.evaluate('window.hronautSettings.setMcpRemoteAccess(false)')
-    await expect(instance.window.evaluate('window.hronautSettings.setMcpAuthentication(false)')).rejects.toThrow(/restart Hronaut/)
-    expect(await health()).toBe(401)
+    expect(await health()).toBe(200)
     await closeHronaut(instance.app)
     instance = await launchHronaut(profileDirectory, mcpPort)
     expect(await health(token)).toBe(0)

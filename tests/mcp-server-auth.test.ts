@@ -47,18 +47,17 @@ describe('MCP HTTP authentication middleware order', () => {
     server = undefined
   })
 
-  it('refuses an unauthenticated network listener and keeps authentication when reconfigured', async () => {
+  it('allows network listeners with optional authentication and changes it at runtime', async () => {
     server = new McpHttpServer({} as never, {
       host: '0.0.0.0', port: 0, version: 'test',
       bookmarks: {} as never, history: {} as never, siteData: {} as never,
       showWindowInactive: () => undefined, getUserAttention: () => null,
       requestUserAttention: async request => ({ ...request, id: 'request', requestedAt: new Date().toISOString() })
     })
-    await expect(server.start()).rejects.toThrow('requires authentication')
-    server.setAuthenticationToken(TOKEN)
     const endpoint = await server.start()
     expect(endpoint).toContain('127.0.0.1')
-    expect(() => server!.setAuthenticationToken(undefined)).toThrow('requires authentication')
+    expect((await fetch(endpoint.replace('/mcp', '/healthz'))).status).toBe(200)
+    server.setAuthenticationToken(TOKEN)
     expect((await fetch(endpoint.replace('/mcp', '/healthz'))).status).toBe(401)
     expect((await fetch(endpoint.replace('/mcp', '/healthz'), {
       headers: { authorization: `Bearer ${TOKEN}` }
@@ -66,6 +65,8 @@ describe('MCP HTTP authentication middleware order', () => {
     expect((await fetch(endpoint, {
       headers: { authorization: `Bearer ${TOKEN}`, origin: 'http://untrusted.example' }
     })).status).toBe(403)
+    server.setAuthenticationToken(undefined)
+    expect((await fetch(endpoint.replace('/mcp', '/healthz'))).status).toBe(200)
   })
 
   it.each([

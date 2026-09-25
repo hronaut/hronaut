@@ -55,7 +55,7 @@ function renderPanel(initialCapabilityProfiles: McpCapabilityProfileSummary[] = 
     settings,
     endpoint,
     listenerFailed: ref(false),
-    setRemoteAccess: async (enabled: boolean) => (settings.value = { ...settings.value, mcpRemoteAccess: enabled, mcpAuthentication: enabled || settings.value.mcpAuthentication }),
+    setRemoteAccess: async (enabled: boolean) => (settings.value = { ...settings.value, mcpRemoteAccess: enabled }),
     setAuthentication,
     setToolSet,
     setPort,
@@ -177,14 +177,15 @@ describe('McpSettingsPanel', () => {
     controller.dispose()
   })
 
-  it('enables remote access with authentication and explains restart and LAN setup', async () => {
+  it('enables remote access independently of authentication and explains LAN setup', async () => {
     const { controller, settings } = renderPanel()
     const user = userEvent.setup()
     const remote = screen.getByRole('checkbox', { name: /^Allow connections from other computers/ })
     expect(remote).not.toBeChecked()
     await user.click(remote)
     expect(settings.value.mcpRemoteAccess).toBe(true)
-    expect(screen.getByRole('checkbox', { name: /^Require MCP authentication/ })).toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: /^Require MCP authentication/ })).toBeEnabled()
+    expect(settings.value.mcpAuthentication).toBe(false)
     expect(screen.getByText(/Restart Hronaut after changing remote access/)).toBeVisible()
     expect(screen.getByText(/this-computer-LAN-IP/)).toBeVisible()
     controller.dispose()

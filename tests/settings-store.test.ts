@@ -30,11 +30,11 @@ describe('SettingsStore', () => {
     expect((await store.load()).mcpRemoteAccess).toBe(false)
   })
 
-  it('requires authentication when restoring a remote-access profile', async () => {
+  it('preserves optional authentication when restoring a remote-access profile', async () => {
     const { path, store } = await createStore()
     await mkdir(join(path, '..'), { recursive: true })
     await writeFile(path, JSON.stringify({ mcpRemoteAccess: true, mcpAuthentication: false }))
-    expect(await store.load()).toMatchObject({ mcpRemoteAccess: true, mcpAuthentication: true })
+    expect(await store.load()).toMatchObject({ mcpRemoteAccess: true, mcpAuthentication: false })
   })
 
   it('atomically persists and restores settings', async () => {

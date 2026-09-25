@@ -88,10 +88,10 @@ export class SettingsStore {
             ? value.followAgentActivity
             : DEFAULT_SETTINGS.followAgentActivity,
         mcpRemoteAccess: value.mcpRemoteAccess === true,
-        mcpAuthentication: value.mcpRemoteAccess === true || (
+        mcpAuthentication:
           typeof value.mcpAuthentication === 'boolean'
             ? value.mcpAuthentication
-            : DEFAULT_SETTINGS.mcpAuthentication),
+            : DEFAULT_SETTINGS.mcpAuthentication,
         mcpPort: isValidMcpPort(value.mcpPort) ? value.mcpPort : DEFAULT_SETTINGS.mcpPort,
         mcpToolSet: isMcpToolSet(value.mcpToolSet)
           ? value.mcpToolSet

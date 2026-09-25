@@ -178,16 +178,18 @@ Development uses a separate persistent `hronaut-dev` profile. Installed builds u
 
 To connect from another computer on your LAN, open **Settings → MCP security**,
 turn on **Allow connections from other computers**, then fully quit and restart
-Hronaut. This enables token authentication and listens on all IPv4 interfaces.
+Hronaut. This listens on all IPv4 interfaces. Token authentication is optional and
+controlled separately by **Require MCP authentication**.
 Use `http://YOUR-HRONAUT-COMPUTER-LAN-IP:47812/mcp` on the remote computer (replace
-the address and use your configured MCP port). Create a credential under
+the address and use your configured MCP port). If authentication is enabled, create a credential under
 **Capability profiles** in the same settings panel and configure your remote
 client to send `Authorization: Bearer YOUR-CREDENTIAL`. Allow the configured port
 through the host firewall. Local clients still use their existing loopback URL.
 Use direct HTTP only on trusted networks; it does not encrypt credentials or
 browser traffic. For untrusted networks, use an encrypted tunnel or TLS proxy.
-Turning remote access off also requires a restart; authentication remains
-required while the network listener is active. Browser Origin restrictions
+Turning remote access off also requires a restart. Authentication changes apply
+immediately. Without authentication, anyone who can reach the listener can control
+the browser profile and attach local files. Browser Origin restrictions
 remain in place; this option is for MCP clients, not arbitrary browser pages.
 
 
@@ -211,7 +213,7 @@ Local MCPB 0.3 hosts can use the adapter bundle attached to each matching deskto
 
 Compatible clients also receive concise server instructions during MCP initialization: create a fresh isolated workspace first, prefer semantic snapshots and refs, and request human attention only for a genuinely manual step. These instructions improve tool selection but do not replace Hronaut's enforced workspace and interaction boundaries.
 
-Hronaut Home includes a copy-safe readiness report that distinguishes the local listener, MCP initialization, the catalog Hronaut advertises, tools actually visible in the active client, and a successful `browser_status` or `browser_snapshot` probe in a task-owned workspace. A healthy endpoint or valid configuration alone does not prove that a custom-agent host exposed the tools to the current task. Tool-list comparison runs locally, and copied diagnostics omit tokens, client/session identifiers, raw errors, arguments, URLs, and page content. Hronaut defaults to loopback; authenticated LAN access is an explicit Settings opt-in.
+Hronaut Home includes a copy-safe readiness report that distinguishes the local listener, MCP initialization, the catalog Hronaut advertises, tools actually visible in the active client, and a successful `browser_status` or `browser_snapshot` probe in a task-owned workspace. A healthy endpoint or valid configuration alone does not prove that a custom-agent host exposed the tools to the current task. Tool-list comparison runs locally, and copied diagnostics omit tokens, client/session identifiers, raw errors, arguments, URLs, and page content. Hronaut defaults to loopback; LAN access is an explicit Settings opt-in.
 
 ### Install the Hronaut Agent Skill
 

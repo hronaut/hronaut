@@ -434,12 +434,6 @@ function updateSettings(
     const previous = settings
     const next = { ...settings, ...updates }
     const nextPersisted = { ...persistedSettings, ...updates }
-    // Enforce this inside the mutation queue so concurrent settings requests
-    // cannot turn authentication off after remote access has been enabled.
-    if (next.mcpRemoteAccess || !isLoopbackHost(MCP_HOST)) {
-      next.mcpAuthentication = true
-      nextPersisted.mcpAuthentication = true
-    }
     if (applyRuntime) {
       await commitRuntimeSetting({
         previous,
@@ -3198,7 +3192,7 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')
-    const next = await updateSettings({ mcpRemoteAccess: enabled, ...(enabled ? { mcpAuthentication: true } : {}) })
+    const next = await updateSettings({ mcpRemoteAccess: enabled })
     mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
@@ -3207,16 +3201,13 @@ function registerIpc(): void {
   ipcMain.handle('settings:set-mcp-authentication', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('MCP authentication must be a boolean')
-    if (!enabled && (settings.mcpRemoteAccess || !isLoopbackHost(MCP_HOST))) {
-      throw new Error('Disable remote connections and restart Hronaut before turning off authentication.')
-    }
     const next = await updateSettings({ mcpAuthentication: enabled })
     mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
     console.warn(enabled
       ? '[mcp] Authentication enabled.'
-      : '[mcp] Authentication disabled in Settings. Any local process can control this profile.')
+      : '[mcp] Authentication disabled in Settings. Anyone who can reach the listener can control this profile.')
     return { ...settings }
   })
   ipcMain.handle('settings:set-mcp-port', async (event, port: unknown) => {
@@ -3480,7 +3471,7 @@ async function loadAuthoritativeSettings(): Promise<void> {
     if (!isValidMcpPort(overriddenPort)) throw new Error('HRONAUT_MCP_PORT must be an integer from 1024 through 65535')
     settings = { ...settings, mcpPort: overriddenPort }
   }
-  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false, mcpRemoteAccess: false }
+  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
   if (settings.mcpRemoteAccess) MCP_HOST = '0.0.0.0'
   mcpPort = settings.mcpPort
   mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${mcpPort}/mcp`
@@ -4099,7 +4090,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
     await updateSettings({
       mcpRemoteAccess: false,
-      mcpAuthentication: !isLoopbackHost(MCP_HOST),
+      mcpAuthentication: false,
       mcpPort: DEFAULT_MCP_PORT,
       mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
@@ -4128,7 +4119,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   try {
     await updateSettings({
       mcpRemoteAccess: false,
-      mcpAuthentication: !isLoopbackHost(MCP_HOST),
+      mcpAuthentication: false,
       mcpPort: DEFAULT_MCP_PORT,
       mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
@@ -4229,7 +4220,7 @@ app.whenReady().then(async () => {
   })
   await createWindow(startMinimized)
   if (!settings.mcpAuthentication) {
-    console.warn('[mcp] Authentication is disabled. Any local process can control this browser profile.')
+    console.warn('[mcp] Authentication is disabled. Anyone who can reach the listener can control this browser profile.')
   }
   if (!createTray() && startMinimized) showWindow()
   mcpServer = createRuntimeMcpServer(mcpPort)

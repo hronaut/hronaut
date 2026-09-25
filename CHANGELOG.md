@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
-- Opt into authenticated MCP connections from other computers under Settings → MCP security. Remote access defaults off, applies after restart, and keeps local client setup working.
+- Opt into MCP connections from other computers under Settings → MCP security. Remote access defaults off, applies after restart, and keeps local client setup working. Token authentication is optional and can be changed independently.
 
 ## [2.5.27] - 2026-09-25
 

@@ -23,7 +23,7 @@ function createController() {
     return settings.value
   })
   const setRemoteAccess = vi.fn(async (enabled: boolean) => (
-    settings.value = { ...settings.value, mcpRemoteAccess: enabled, mcpAuthentication: enabled || settings.value.mcpAuthentication }
+    settings.value = { ...settings.value, mcpRemoteAccess: enabled }
   ))
   const setPort = vi.fn(async (port: number) => {
     settings.value = { ...settings.value, mcpPort: port }
