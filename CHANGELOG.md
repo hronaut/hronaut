@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve usernames through two-step logins within one page, so saved passwords for different accounts on the same website remain distinguishable. Recognize sectioned username fields and observe subsequent logins without requiring a reload.
+
 ## [2.5.28] - 2026-09-25
 
 ### Added

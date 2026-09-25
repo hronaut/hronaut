@@ -1,3 +1,4 @@
+import { credentialCapturePageScript } from './credential-capture-page.js'
 import { recordNetworkDebuggerMessage, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
 import { DEFAULT_RENDERING_DEBUG } from '../../shared/browser-environment.js'
@@ -8305,35 +8306,12 @@ export class BrowserTabsManager {
 
   private watchCredentialSubmission(tab: BrowserTab): void {
     if (!this.options.onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
-    const script = `(() => new Promise((resolve) => {
-      if (window.__hronautCredentialWatcherActive) { resolve(null); return; }
-      window.__hronautCredentialWatcherActive = true;
-      const finish = (value) => {
-        document.removeEventListener('submit', onSubmit, true);
-        window.__hronautCredentialWatcherActive = false;
-        resolve(value);
-      };
-      const onSubmit = (event) => {
-        const form = event.target instanceof HTMLFormElement ? event.target : null;
-        if (!form) return;
-        const passwords = [...form.querySelectorAll('input[type="password"]')].filter((input) => !input.disabled && !input.readOnly && input.value);
-        if (new Set(passwords.map((input) => input.value)).size > 1) return;
-        const passwordField = passwords.find((input) => input.autocomplete === 'current-password') || passwords[0];
-        if (!passwordField || passwordField.value.length > 16384) return;
-        const fields = [...form.querySelectorAll('input:not([type="password"]):not([type="hidden"])')].filter((input) => !input.disabled && !input.readOnly);
-        const usernameField = fields.find((input) => input.autocomplete === 'username')
-          || fields.find((input) => input.type === 'email')
-          || fields.find((input) => input.name && /user|email|login/i.test(input.name));
-        const username = usernameField?.value || '';
-        if (username.length > 512) return;
-        finish({ origin: location.origin, username, password: passwordField.value });
-      };
-      document.addEventListener('submit', onSubmit, true);
-      window.addEventListener('pagehide', () => finish(null), { once: true });
-    }))()`
+    const script = credentialCapturePageScript()
     void tab.webContents.executeJavaScript(script, true)
       .then((candidate: BrowserCredentialCandidate | null) => {
-        if (!candidate || Date.now() - tab.lastHumanInteractionAt > 15_000) return
+        if (!candidate) return
+        this.watchCredentialSubmission(tab)
+        if (Date.now() - tab.lastHumanInteractionAt > 15_000) return
         let currentOrigin: string | null = null
         try {
           currentOrigin = new URL(candidate.origin).origin

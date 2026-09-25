@@ -23,6 +23,22 @@ async function createStore(credentialEncryption: CredentialEncryption = encrypti
 }
 
 describe('CredentialStore', () => {
+  it('keeps multiple accounts for one origin and updates only the matching username', async () => {
+    const { path, store } = await createStore()
+    const alice = await store.save('https://x.example/login', 'alice', 'alice-original')
+    const bob = await store.save('https://x.example/login', 'bob', 'bob-original')
+    const updated = await store.save('https://x.example/another-route', 'alice', 'alice-updated')
+    expect(updated.id).toBe(alice.id)
+    expect(bob.id).not.toBe(alice.id)
+    const reloaded = new CredentialStore(path, encryption)
+    expect(await reloaded.load()).toEqual([
+      expect.objectContaining({ id: alice.id, username: 'alice' }),
+      expect.objectContaining({ id: bob.id, username: 'bob' })
+    ])
+    expect(await reloaded.password(alice.id)).toBe('alice-updated')
+    expect(await reloaded.password(bob.id)).toBe('bob-original')
+  })
+
   it('lets shutdown wait for an already-queued encrypted credential write', async () => {
     let releaseEncryption: () => void = () => undefined
     const encryptionGate = new Promise<void>((resolve) => { releaseEncryption = resolve })
