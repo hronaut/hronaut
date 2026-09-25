@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   attentionSound: true,
   attentionSoundCue: 'warning',
   followAgentActivity: false,
+  mcpRemoteAccess: false,
   mcpAuthentication: false,
   mcpPort: DEFAULT_MCP_PORT,
   mcpToolSet: DEFAULT_MCP_TOOL_SET,
@@ -86,10 +87,11 @@ export class SettingsStore {
           typeof value.followAgentActivity === 'boolean'
             ? value.followAgentActivity
             : DEFAULT_SETTINGS.followAgentActivity,
-        mcpAuthentication:
+        mcpRemoteAccess: value.mcpRemoteAccess === true,
+        mcpAuthentication: value.mcpRemoteAccess === true || (
           typeof value.mcpAuthentication === 'boolean'
             ? value.mcpAuthentication
-            : DEFAULT_SETTINGS.mcpAuthentication,
+            : DEFAULT_SETTINGS.mcpAuthentication),
         mcpPort: isValidMcpPort(value.mcpPort) ? value.mcpPort : DEFAULT_SETTINGS.mcpPort,
         mcpToolSet: isMcpToolSet(value.mcpToolSet)
           ? value.mcpToolSet

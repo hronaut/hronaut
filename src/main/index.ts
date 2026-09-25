@@ -1,3 +1,4 @@
+import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
 import { registerWalletIpc } from './wallet/ipc.js'
@@ -181,7 +182,7 @@ import type {
 } from '../shared/address-suggestions.js'
 import { translate, type MessageKey, type MessageParameters } from '../shared/i18n.js'
 
-const MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
+let MCP_HOST = process.env.HRONAUT_MCP_HOST || '127.0.0.1'
 const MCP_AUTH_DISABLED = process.env.HRONAUT_DISABLE_MCP_AUTH === '1'
 const COMMERCIAL_LICENSE_API_BASE = process.env.HRONAUT_LICENSE_API_BASE || COMMERCIAL_LICENSE_API_BASE_URL
 const PARTITION = 'persist:hronaut'
@@ -244,7 +245,7 @@ let walletService: WalletService | null = null
 let walletBroker: WalletBroker | null = null
 let walletUnavailableStatus = walletStartupFailureStatus(undefined)
 let mcpPort = DEFAULT_MCP_PORT
-let mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
+let mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${mcpPort}/mcp`
 let homePresentationRevision = 0
 const mcpPauseState = new McpPauseState()
 const mcpActionTracker = new McpActionTracker(() => {
@@ -433,6 +434,12 @@ function updateSettings(
     const previous = settings
     const next = { ...settings, ...updates }
     const nextPersisted = { ...persistedSettings, ...updates }
+    // Enforce this inside the mutation queue so concurrent settings requests
+    // cannot turn authentication off after remote access has been enabled.
+    if (next.mcpRemoteAccess || !isLoopbackHost(MCP_HOST)) {
+      next.mcpAuthentication = true
+      nextPersisted.mcpAuthentication = true
+    }
     if (applyRuntime) {
       await commitRuntimeSetting({
         previous,
@@ -471,10 +478,6 @@ async function applyDownloadSettings(updates: Partial<AppSettings>): Promise<App
   return { ...settings }
 }
 const activeMcpActivities = new Set<string>()
-
-function isLoopbackHost(host: string): boolean {
-  return host === '127.0.0.1' || host === 'localhost' || host === '::1' || host === '[::1]'
-}
 
 if (!isLoopbackHost(MCP_HOST)) {
   throw new Error('HRONAUT_MCP_HOST must be a loopback host. Use an authenticated TLS proxy for remote access.')
@@ -3192,11 +3195,23 @@ function registerIpc(): void {
     publishSettings()
     return { ...settings }
   })
+  ipcMain.handle('settings:set-mcp-remote-access', async (event, enabled: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof enabled !== 'boolean') throw new TypeError('Remote MCP access must be a boolean')
+    const next = await updateSettings({ mcpRemoteAccess: enabled, ...(enabled ? { mcpAuthentication: true } : {}) })
+    mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
+    publishSettings()
+    refreshHomeAfterCommittedChange('mcp')
+    return next
+  })
   ipcMain.handle('settings:set-mcp-authentication', async (event, enabled: unknown) => {
     assertTrustedShellSender(event)
     if (typeof enabled !== 'boolean') throw new TypeError('MCP authentication must be a boolean')
-    await updateSettings({ mcpAuthentication: enabled })
-    mcpServer?.setAuthenticationToken(enabled ? mcpTokenConfiguration?.token : undefined)
+    if (!enabled && (settings.mcpRemoteAccess || !isLoopbackHost(MCP_HOST))) {
+      throw new Error('Disable remote connections and restart Hronaut before turning off authentication.')
+    }
+    const next = await updateSettings({ mcpAuthentication: enabled })
+    mcpServer?.setAuthenticationToken(next.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
     console.warn(enabled
@@ -3465,9 +3480,10 @@ async function loadAuthoritativeSettings(): Promise<void> {
     if (!isValidMcpPort(overriddenPort)) throw new Error('HRONAUT_MCP_PORT must be an integer from 1024 through 65535')
     settings = { ...settings, mcpPort: overriddenPort }
   }
+  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false, mcpRemoteAccess: false }
+  if (settings.mcpRemoteAccess) MCP_HOST = '0.0.0.0'
   mcpPort = settings.mcpPort
-  mcpUrl = `http://${MCP_HOST}:${mcpPort}/mcp`
-  if (MCP_AUTH_DISABLED) settings = { ...settings, mcpAuthentication: false }
+  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${mcpPort}/mcp`
 }
 
 async function reconcileStartupSetting(): Promise<void> {
@@ -4068,7 +4084,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
   const previous = mcpServer
   mcpServer = candidate
   mcpPort = port
-  mcpUrl = `http://${MCP_HOST}:${port}/mcp`
+  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${port}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
   tabsManager?.setMcpUrl(mcpUrl)
@@ -4082,15 +4098,16 @@ async function setMcpPort(port: number): Promise<AppSettings> {
 async function resetMcpSettings(): Promise<AppSettings> {
   if (mcpPort === DEFAULT_MCP_PORT && mcpRuntimeStatus === 'ready') {
     await updateSettings({
-      mcpAuthentication: false,
+      mcpRemoteAccess: false,
+      mcpAuthentication: !isLoopbackHost(MCP_HOST),
       mcpPort: DEFAULT_MCP_PORT,
       mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
-    mcpServer?.setAuthenticationToken(undefined)
+    mcpServer?.setAuthenticationToken(settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined)
     mcpServer?.setToolSet(DEFAULT_MCP_TOOL_SET)
     publishSettings()
     refreshHomeAfterCommittedChange('mcp')
-    console.warn('[mcp] Authentication disabled in Settings. Any local process can control this profile.')
+    console.info('[mcp] Settings reset; remote-access changes apply after restart.')
     return { ...settings }
   }
 
@@ -4110,7 +4127,8 @@ async function resetMcpSettings(): Promise<AppSettings> {
 
   try {
     await updateSettings({
-      mcpAuthentication: false,
+      mcpRemoteAccess: false,
+      mcpAuthentication: !isLoopbackHost(MCP_HOST),
       mcpPort: DEFAULT_MCP_PORT,
       mcpToolSet: DEFAULT_MCP_TOOL_SET
     })
@@ -4127,7 +4145,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   candidate.setToolSet(DEFAULT_MCP_TOOL_SET)
   mcpServer = candidate
   mcpPort = DEFAULT_MCP_PORT
-  mcpUrl = `http://${MCP_HOST}:${DEFAULT_MCP_PORT}/mcp`
+  mcpUrl = `http://${mcpLocalHost(MCP_HOST)}:${DEFAULT_MCP_PORT}/mcp`
   mcpRuntimeStatus = 'ready'
   mcpStartupError = undefined
   tabsManager?.setMcpUrl(mcpUrl)
@@ -4135,7 +4153,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
   publishMcpControlState()
   await previous?.stop().catch((error) => console.error('[mcp] Failed to stop previous listener:', error))
   console.info(`[mcp] Reset listener to ${mcpUrl}`)
-  console.warn('[mcp] Authentication disabled in Settings. Any local process can control this profile.')
+  console.info('[mcp] Settings reset; remote-access changes apply after restart.')
   return { ...settings }
 }
 

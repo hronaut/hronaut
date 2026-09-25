@@ -51,11 +51,13 @@ function createHarness(updateState: Promise<AppUpdateState> = Promise.resolve({
       resetAppearance: vi.fn(async () => rendererState()),
       setFollowAgentActivity: vi.fn(async (followAgentActivity: boolean) => applySettings({ ...settings.value, followAgentActivity })),
       setSearchEngine: vi.fn(async (searchEngine: SearchEngineName) => applySettings({ ...settings.value, searchEngine })),
-      setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
+      setMcpRemoteAccess: vi.fn(),
+    setMcpAuthentication: vi.fn(async (mcpAuthentication: boolean) => applySettings({ ...settings.value, mcpAuthentication })),
       setMcpPort: vi.fn(async (mcpPort: number) => applySettings({ ...settings.value, mcpPort })),
       setMcpToolSet: vi.fn(async (mcpToolSet: AppSettings['mcpToolSet']) => applySettings({ ...settings.value, mcpToolSet })),
       resetMcp: vi.fn(async () => applySettings({
         ...settings.value,
+        mcpRemoteAccess: false,
         mcpAuthentication: false,
         mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort
       })),

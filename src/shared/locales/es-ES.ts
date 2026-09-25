@@ -344,6 +344,7 @@ export const esES = {
       "help": "Las pestañas visibles, fijadas, cargando, con audio, descargas, formularios modificados, DevTools o MCP activo permanecen despiertas."
     },
     "mcp": {
+      remote: enUS.settings.mcp.remote,
       "heading": "Seguridad MCP",
       "description": "Controla qué aplicaciones locales pueden conectarse a este perfil.",
       "require": "Requerir autenticación MCP",

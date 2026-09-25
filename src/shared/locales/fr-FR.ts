@@ -344,6 +344,7 @@ export const frFR = {
       "help": "Les onglets visibles, épinglés, en chargement, audio, téléchargement, formulaire modifié, DevTools et MCP actif restent éveillés."
     },
     "mcp": {
+      remote: enUS.settings.mcp.remote,
       "heading": "Sécurité MCP",
       "description": "Contrôlez quelles applications locales peuvent se connecter à ce profil.",
       "require": "Exiger l’authentification MCP",

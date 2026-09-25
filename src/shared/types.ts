@@ -551,6 +551,7 @@ export interface AppSettings {
   attentionSound: boolean
   attentionSoundCue: AttentionSoundCue
   followAgentActivity: boolean
+  mcpRemoteAccess: boolean
   mcpAuthentication: boolean
   mcpPort: number
   mcpToolSet: import('./mcp-tool-sets.js').McpToolSet
@@ -2572,6 +2573,7 @@ export interface HronautSettingsApi {
   setAttentionSound(enabled: boolean): Promise<AppSettings>
   setAttentionSoundCue(cue: AttentionSoundCue): Promise<AppSettings>
   setFollowAgentActivity(enabled: boolean): Promise<AppSettings>
+  setMcpRemoteAccess(enabled: boolean): Promise<AppSettings>
   setMcpAuthentication(enabled: boolean): Promise<AppSettings>
   setMcpPort(port: number): Promise<AppSettings>
   setMcpToolSet(toolSet: import('./mcp-tool-sets.js').McpToolSet): Promise<AppSettings>

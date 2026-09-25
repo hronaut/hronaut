@@ -1,3 +1,4 @@
+import { isLoopbackHost, mcpLocalHost } from '../../shared/mcp-network.js'
 import {
   BROWSER_SERVER_INSTRUCTIONS,
   BROWSER_TOOL_CATALOG,
@@ -4480,6 +4481,7 @@ export class McpHttpServer {
   }
 
   setAuthenticationToken(token: string | undefined): void {
+    if (!isLoopbackHost(this.options.host) && !token) throw new Error('Remote MCP access requires authentication')
     if (this.token === token) return
     this.token = token
     this.fullAccessAuthorityGeneration = randomUUID()
@@ -4524,7 +4526,7 @@ export class McpHttpServer {
     return {
       name: 'hronaut',
       version: this.options.version,
-      endpoint: `http://${this.options.host}:${this.options.port}/mcp`,
+      endpoint: `http://${mcpLocalHost(this.options.host)}:${this.options.port}/mcp`,
       startedAt: this.startedAt,
       activeRequests: this.activeRequests,
       totalRequests: this.totalRequests,
@@ -4544,6 +4546,7 @@ export class McpHttpServer {
   }
 
   async start(): Promise<string> {
+    if (!isLoopbackHost(this.options.host) && !this.token) throw new Error('Remote MCP access requires authentication')
     const app = express()
     app.disable('x-powered-by')
     app.use(rateLimit({
@@ -4726,7 +4729,7 @@ export class McpHttpServer {
     })
     const address = this.httpServer.address() as AddressInfo
     this.startedAt = new Date().toISOString()
-    return `http://${address.address}:${address.port}/mcp`
+    return `http://${mcpLocalHost(address.address)}:${address.port}/mcp`
   }
 
   async stop(): Promise<void> {

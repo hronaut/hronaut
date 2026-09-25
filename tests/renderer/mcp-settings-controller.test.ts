@@ -22,6 +22,9 @@ function createController() {
     settings.value = { ...settings.value, mcpAuthentication: enabled }
     return settings.value
   })
+  const setRemoteAccess = vi.fn(async (enabled: boolean) => (
+    settings.value = { ...settings.value, mcpRemoteAccess: enabled, mcpAuthentication: enabled || settings.value.mcpAuthentication }
+  ))
   const setPort = vi.fn(async (port: number) => {
     settings.value = { ...settings.value, mcpPort: port }
     return settings.value
@@ -33,6 +36,7 @@ function createController() {
   const resetSettings = vi.fn(async () => {
     settings.value = {
       ...settings.value,
+      mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: DEFAULT_RENDERER_SETTINGS.mcpPort,
       mcpToolSet: DEFAULT_RENDERER_SETTINGS.mcpToolSet
@@ -49,6 +53,7 @@ function createController() {
     settings,
     endpoint,
     listenerFailed,
+    setRemoteAccess,
     setAuthentication,
     setPort,
     setToolSet,
@@ -71,6 +76,7 @@ function createController() {
     listCapabilityProfiles,
     rotateCapabilityProfile,
     revokeCapabilityProfile,
+    setRemoteAccess,
     setAuthentication,
     setPort,
     setToolSet,
@@ -80,6 +86,21 @@ function createController() {
 }
 
 describe('MCP settings controller', () => {
+  it('keeps remote-access failures visible and serializes the pending setting change', async () => {
+    const { controller, setRemoteAccess, setPort, onAuthenticationError } = createController()
+    const pending = deferred<AppSettings>()
+    setRemoteAccess.mockReturnValueOnce(pending.promise)
+    const operation = controller.setRemoteAccess(true)
+    controller.editPort('49000')
+    await expect(controller.applyPort()).resolves.toBe(false)
+    expect(setPort).not.toHaveBeenCalled()
+    pending.reject(new Error('Settings could not be saved'))
+    await expect(operation).resolves.toBe(false)
+    expect(onAuthenticationError).toHaveBeenCalledWith(expect.objectContaining({ message: 'Settings could not be saved' }))
+    expect(controller.busy.value).toBe(false)
+    controller.dispose()
+  })
+
   it('marks every cached descendant inactive when a parent credential rotates', async () => {
     const { controller, listCapabilityProfiles, rotateCapabilityProfile } = createController()
     const parent: McpCapabilityProfileSummary = {
@@ -246,6 +267,7 @@ describe('MCP settings controller', () => {
     const { controller, resetSettings, setAuthentication, setPort, settings } = createController()
     settings.value = {
       ...settings.value,
+      mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 49_000
     }
@@ -254,6 +276,7 @@ describe('MCP settings controller', () => {
     await expect(controller.reset()).resolves.toBe(false)
 
     expect(settings.value).toMatchObject({
+      mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 49_000
     })

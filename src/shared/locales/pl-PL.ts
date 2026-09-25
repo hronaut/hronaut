@@ -344,6 +344,7 @@ export const plPL = {
       "help": "Widoczne, przypięte, ładowane, odtwarzające dźwięk, pobierające, ze zmienionym formularzem, DevTools i aktywne karty MCP pozostają aktywne."
     },
     "mcp": {
+      remote: enUS.settings.mcp.remote,
       "heading": "Bezpieczeństwo MCP",
       "description": "Kontroluj, które lokalne aplikacje mogą łączyć się z tym profilem.",
       "require": "Wymagaj uwierzytelniania MCP",

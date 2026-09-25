@@ -50,6 +50,7 @@ function settingsState(locale: 'en-US' | 'uk-UA' = 'en-US'): RendererSettingsSta
       attentionSound: true,
       attentionSoundCue: 'warning',
       followAgentActivity: false,
+      mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
       mcpToolSet: 'essentials',

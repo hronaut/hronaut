@@ -23,6 +23,20 @@ async function createStore(): Promise<{ path: string; store: SettingsStore }> {
 }
 
 describe('SettingsStore', () => {
+  it.each([undefined, false, 'true', 1, null])('does not enable network access from an invalid or absent opt-in (%s)', async mcpRemoteAccess => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ mcpRemoteAccess }))
+    expect((await store.load()).mcpRemoteAccess).toBe(false)
+  })
+
+  it('requires authentication when restoring a remote-access profile', async () => {
+    const { path, store } = await createStore()
+    await mkdir(join(path, '..'), { recursive: true })
+    await writeFile(path, JSON.stringify({ mcpRemoteAccess: true, mcpAuthentication: false }))
+    expect(await store.load()).toMatchObject({ mcpRemoteAccess: true, mcpAuthentication: true })
+  })
+
   it('atomically persists and restores settings', async () => {
     const { path, store } = await createStore()
     await store.save({
@@ -37,6 +51,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       followAgentActivity: true,
+      mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
       mcpToolSet: 'qa',
@@ -59,6 +74,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       followAgentActivity: true,
+      mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
       mcpToolSet: 'qa',
@@ -81,6 +97,7 @@ describe('SettingsStore', () => {
       attentionSound: false,
       attentionSoundCue: 'bell',
       followAgentActivity: true,
+      mcpRemoteAccess: false,
       mcpAuthentication: true,
       mcpPort: 48_123,
       mcpToolSet: 'qa',
@@ -143,6 +160,7 @@ describe('SettingsStore', () => {
       attentionSound: true,
       attentionSoundCue: 'warning',
       followAgentActivity: false,
+      mcpRemoteAccess: false,
       mcpAuthentication: false,
       mcpPort: 47_812,
       mcpToolSet: 'essentials',

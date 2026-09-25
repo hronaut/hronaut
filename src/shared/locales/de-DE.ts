@@ -344,6 +344,7 @@ export const deDE = {
       "help": "Sichtbare, angeheftete, ladende, Audio- und Download-Tabs, geänderte Formulare, DevTools und aktive MCP-Tabs bleiben aktiv."
     },
     "mcp": {
+      remote: enUS.settings.mcp.remote,
       "heading": "MCP-Sicherheit",
       "description": "Lege fest, welche lokalen Anwendungen auf dieses Browserprofil zugreifen dürfen.",
       "require": "MCP-Authentifizierung verlangen",

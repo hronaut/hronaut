@@ -14,12 +14,13 @@ import {
 } from '../../../shared/mcp-port.js'
 
 type McpPortState = 'idle' | 'saving' | 'saved' | 'error'
-type McpOperation = 'idle' | 'authentication' | 'tool-set' | 'port' | 'reset'
+type McpOperation = 'idle' | 'remote-access' | 'authentication' | 'tool-set' | 'port' | 'reset'
 
 export interface McpSettingsControllerOptions {
   settings: Readonly<Ref<AppSettings>>
   endpoint: Readonly<Ref<string>>
   listenerFailed: Readonly<Ref<boolean>>
+  setRemoteAccess: (enabled: boolean) => Promise<AppSettings>
   setAuthentication: (enabled: boolean) => Promise<AppSettings>
   setToolSet: (toolSet: McpToolSet) => Promise<AppSettings>
   setPort: (port: number) => Promise<AppSettings>
@@ -105,6 +106,21 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       portState.value = 'error'
       portMessage.value = options.formatPortError(error)
       return false
+    }
+  }
+
+  async function setRemoteAccess(enabled: boolean): Promise<boolean> {
+    if (busy.value) return false
+    const operationGeneration = generation
+    operation.value = 'remote-access'
+    try {
+      await options.setRemoteAccess(enabled)
+      return operationGeneration === generation
+    } catch (error) {
+      if (operationGeneration === generation) options.onAuthenticationError(error)
+      return false
+    } finally {
+      if (operationGeneration === generation) operation.value = 'idle'
     }
   }
 
@@ -314,6 +330,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     busy,
     canApplyPort,
     editPort,
+    setRemoteAccess,
     setAuthentication,
     setToolSet,
     applyPort,

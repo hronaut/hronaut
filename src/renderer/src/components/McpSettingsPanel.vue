@@ -24,6 +24,7 @@ const {
   busy,
   canApplyPort,
   editPort,
+  setRemoteAccess,
   setAuthentication,
   setToolSet,
   applyPort,
@@ -46,6 +47,11 @@ const profileOrigins = ref('')
 const profileArguments = ref('')
 const profileExpiry = ref('1440')
 const profileSingleUse = ref(false)
+
+async function changeRemoteAccess(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  if (!(await setRemoteAccess(input.checked))) input.checked = settings.value.mcpRemoteAccess
+}
 
 function lines(value: string): string[] | undefined {
   const entries = value.split(/[\n,]/u).map(entry => entry.trim()).filter(Boolean)
@@ -124,6 +130,18 @@ function handlePortKeydown(event: KeyboardEvent): void {
       <p>{{ t('settings.mcp.description') }}</p>
     </div>
     <div class="settings-rows">
+      <label class="settings-row" for="setting-mcp-remote-access">
+        <span>
+          <strong>{{ t('settings.mcp.remote.label') }}</strong>
+          <small>{{ t('settings.mcp.remote.description') }}</small>
+        </span>
+        <UiCheckbox bare id="setting-mcp-remote-access" :checked="settings.mcpRemoteAccess"
+          :disabled="busy" @change="changeRemoteAccess" />
+      </label>
+      <p class="settings-info">{{ t('settings.mcp.remote.restart') }}</p>
+      <p v-if="settings.mcpRemoteAccess" class="settings-info">
+        {{ t('settings.mcp.remote.connection', { port: settings.mcpPort }) }}
+      </p>
       <label class="settings-row" for="setting-mcp-authentication">
         <span>
           <strong>{{ t('settings.mcp.require') }}</strong>
@@ -133,7 +151,7 @@ function handlePortKeydown(event: KeyboardEvent): void {
           bare
           id="setting-mcp-authentication"
           :checked="settings.mcpAuthentication"
-          :disabled="busy"
+          :disabled="busy || settings.mcpRemoteAccess"
           @change="changeAuthentication"
         />
       </label>

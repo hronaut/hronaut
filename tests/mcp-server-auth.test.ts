@@ -47,6 +47,27 @@ describe('MCP HTTP authentication middleware order', () => {
     server = undefined
   })
 
+  it('refuses an unauthenticated network listener and keeps authentication when reconfigured', async () => {
+    server = new McpHttpServer({} as never, {
+      host: '0.0.0.0', port: 0, version: 'test',
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      showWindowInactive: () => undefined, getUserAttention: () => null,
+      requestUserAttention: async request => ({ ...request, id: 'request', requestedAt: new Date().toISOString() })
+    })
+    await expect(server.start()).rejects.toThrow('requires authentication')
+    server.setAuthenticationToken(TOKEN)
+    const endpoint = await server.start()
+    expect(endpoint).toContain('127.0.0.1')
+    expect(() => server!.setAuthenticationToken(undefined)).toThrow('requires authentication')
+    expect((await fetch(endpoint.replace('/mcp', '/healthz'))).status).toBe(401)
+    expect((await fetch(endpoint.replace('/mcp', '/healthz'), {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    })).status).toBe(200)
+    expect((await fetch(endpoint, {
+      headers: { authorization: `Bearer ${TOKEN}`, origin: 'http://untrusted.example' }
+    })).status).toBe(403)
+  })
+
   it.each([
     ['malformed', '{not json'],
     ['oversized', JSON.stringify({ value: 'x'.repeat(2 * 1024 * 1024) })]
