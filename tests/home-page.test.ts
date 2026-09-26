@@ -13,9 +13,9 @@ interface RenderedGuide {
 }
 
 function renderedGuides(html: string): RenderedGuide[] {
-  const source = html.match(/const guides = (.+);\n {4}const messages =/)?.[1]
+  const source = html.match(/<script id="home-bootstrap" type="application\/json">([^<]+)<\/script>/)?.[1]
   if (!source) throw new Error('Hronaut Home did not serialize its MCP client guides')
-  return JSON.parse(source) as RenderedGuide[]
+  return (JSON.parse(source) as { guides: RenderedGuide[] }).guides
 }
 
 const dashboard: McpDashboardState = {
@@ -43,8 +43,8 @@ describe('Hronaut Home localization', () => {
     const html = renderHomePage({ endpoint: dashboard.endpoint, initialState: dashboard, locale: 'en-US' })
 
     expect(html).toContain('data-agent-guide')
-    expect(html).toContain('window.hronautHome.openAgentGuide(requestedGuide)')
-    expect(html).toContain("interpolate(messages.connect.openGuide, { name: guide.name })")
+    expect(html).toContain('<script type="module" src="/home.js"></script>')
+    expect(html).not.toContain('<script>')
     expect(html).not.toContain('guide.guideUrl')
   })
 
@@ -292,7 +292,7 @@ api_key_format = "Bearer {token}"`)
         outcomeTotals: { 'outcome-unknown': 1 }
       }
     })
-    expect(html).toContain("'outcome-unknown': messages.activity.unknown")
+    expect(html).toContain('"outcome":"outcome-unknown"')
     expect(html).toContain('Outcome unknown')
   })
 
@@ -314,14 +314,10 @@ api_key_format = "Bearer {token}"`)
     expect(html).toContain('id="support-kicker"')
     expect(html).toContain('id="support-troubleshoot"')
     expect(html).toContain('id="support-feedback"')
-    expect(html).toContain('const successful = Math.max(0, completed - failures)')
-    expect(html).toContain('supportTroubleshoot.hidden = successful > 0')
-    expect(html).toContain('supportRecommend.hidden = successful === 0')
-    expect(html).toContain('supportFeedback.textContent = successful > 0')
-    expect(html).toContain("supportKicker.textContent = successful > 0 ? messages.support.activeKicker : messages.support.kicker")
+    expect(html).toContain('data-copy-target="support-recommend-message" hidden')
     expect(html).toContain('Share what worked to help other users, or recommend Hronaut to another team.')
-    expect(html).toContain('window.hronautHome.openSetupHelp()')
-    expect(html).toContain("window.hronautHome.openSetupFeedback()")
+    expect(html).toContain('aria-describedby="support-help-status"')
+    expect(html).toContain('aria-describedby="support-feedback-status"')
   })
 
   it('localizes the authentication warning without exposing a token value', () => {

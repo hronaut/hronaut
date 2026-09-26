@@ -110,7 +110,7 @@ import {
   sanitizePerformanceReport
 } from '../../shared/performance-audit.js'
 import { designOverviewPageScript } from '../../shared/design-overview.js'
-import { pageMetadataScript } from '../../shared/page-metadata.js'
+import { PageMetadataController } from './diagnostics/page-metadata-controller.js'
 import { buildBrowserQualityAudit } from '../../shared/quality-audit.js'
 import { indexedDbPageScript, normalizeBrowserIndexedDbOptions } from '../../shared/indexeddb.js'
 import {
@@ -400,7 +400,6 @@ const ABORTED_LOAD_ERROR = -3
 const ACCESSIBILITY_AUDIT_WORLD_ID = 1001
 const PERFORMANCE_AUDIT_WORLD_ID = 1002
 const DESIGN_OVERVIEW_WORLD_ID = 1003
-const PAGE_METADATA_WORLD_ID = 1004
 const ELEMENT_INSPECTION_WORLD_ID = 1006
 const INDEXED_DB_WORLD_ID = 1007
 const PWA_INSPECTOR_WORLD_ID = 1008
@@ -411,6 +410,7 @@ const POSTCONDITION_WORLD_ID = 1012
 const AGENT_POINTER_WORLD_ID = 1013
 const RECONCILIATION_WORLD_ID = 1014
 const OBSERVATION_QUALITY_WORLD_ID = 1015
+const CREDENTIAL_CAPTURE_WORLD_ID = 1016
 const MEMORY_SAVER_SWEEP_MS = 30_000
 const SLEEPING_PAGE_URL = 'data:text/html;charset=utf-8,%3C!doctype%20html%3E%3Cmeta%20charset%3D%22utf-8%22%3E%3Ctitle%3ESleeping%20tab%3C%2Ftitle%3E'
 const require = createRequire(import.meta.url)
@@ -634,30 +634,7 @@ interface TabOverviewPreviewCaptureRequest {
   mode: TabOverviewPreviewCaptureMode
 }
 
-interface BrowserTabGroup {
-  hiddenFromSidebar?: boolean
-  deletionProtected?: boolean
-  agentAccess?: boolean
-  contextClass: BrowserWorkspaceContextClass
-  id: string
-  name: string
-  description: string
-  color: BrowserTabGroupColor
-  createdAt: string
-  lastUsedAt: string
-  activeTabId: string | null
-  storageId: string
-  origins: string[]
-  navigationPolicy: BrowserWorkspaceNavigationPolicy
-  navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
-}
-
-interface BrowserSavedTabGroupInternal extends BrowserSavedTabGroupState {
-  contextClass: BrowserWorkspaceContextClass
-  storageId: string
-  origins: string[]
-  navigationAudit: BrowserWorkspaceNavigationAuditEntry[]
-}
+import { WorkspaceRegistry, type ActiveWorkspace as BrowserTabGroup } from './workspace-registry.js'
 
 interface BrowserWorkspaceOperation {
   action: string
@@ -833,6 +810,10 @@ export interface TabsManagerOptions {
 }
 
 export class BrowserTabsManager {
+  private readonly metadata = new PageMetadataController<BrowserTab>({
+    getTab: (tabId) => this.getTab(tabId),
+    findTab: (tabId) => this.tabs.get(tabId)
+  })
   private readonly profiling = new BrowserProfilingController<BrowserTab>({
     getTab: (tabId) => this.getTab(tabId),
     findTab: (tabId) => this.tabs.get(tabId),
@@ -1063,8 +1044,25 @@ export class BrowserTabsManager {
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
   private readonly webMcpDescriptorCache = new Map<string, string>()
-  private readonly mcpTabGroups = new Map<string, BrowserTabGroup>()
-  private readonly savedTabGroups = new Map<string, BrowserSavedTabGroupInternal>()
+  private readonly workspaceRegistry = new WorkspaceRegistry({
+    maxTabs: MAX_TABS,
+    maxArchived: MAX_SAVED_TAB_GROUPS,
+    tabs: () => this.orderedTabs(),
+    requireActive: id => this.requireMcpTabGroup(id),
+    assertRestoreCapacity: (name, id) => {
+      this.assertWorkspaceNameAvailable(name, undefined, id, true)
+      this.assertActiveWorkspaceCapacity()
+    },
+    withActiveOperation: (id, action, run) => this.withWorkspaceOperation(id, action, run),
+    withArchivedOperation: (id, action, run) => this.withSavedWorkspaceOperation(id, action, run),
+    closeActive: (id, preserve) => this.closeMcpTabGroupInternal(id, preserve),
+    createTab: tab => this.createTab(tab),
+    selectTab: id => this.selectTab(id),
+    remapDownloads: (from, to) => this.remapDownloadWorkspaceOwnership(from, to),
+    changed: () => this.changed()
+  })
+  private readonly mcpTabGroups = this.workspaceRegistry.active
+  private readonly savedTabGroups = this.workspaceRegistry.archived
   private readonly workspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly savedWorkspaceOperations = new Map<string, BrowserWorkspaceOperation>()
   private readonly pendingWorkspaceOperationPromises = new Set<Promise<unknown>>()
@@ -1523,25 +1521,7 @@ export class BrowserTabsManager {
   }
 
   listSavedTabGroups(): BrowserSavedTabGroupState[] {
-    return [...this.savedTabGroups.values()]
-      .sort((first, second) => second.savedAt.localeCompare(first.savedAt))
-      .map((group) => ({
-        id: group.id,
-        name: group.name,
-        description: group.description,
-        color: group.color,
-        savedAt: group.savedAt,
-        hiddenFromSidebar: group.hiddenFromSidebar === true,
-        deletionProtected: group.deletionProtected === true,
-        agentAccess: group.agentAccess !== false,
-        contextClass: group.contextClass,
-        storageOriginCount: group.origins.length,
-        navigationPolicy: {
-          mode: group.navigationPolicy.mode,
-          rules: [...group.navigationPolicy.rules]
-        },
-        tabs: group.tabs.map((tab) => ({ ...tab }))
-      }))
+    return this.workspaceRegistry.listArchived()
   }
 
   listWorkspaceForkSources(): Array<{ id: string; name: string; description: string; color: BrowserTabGroupColor; archived: boolean; agentAccess: boolean }> {
@@ -2126,132 +2106,11 @@ export class BrowserTabsManager {
   }
 
   async saveAndCloseTabGroup(groupId: string): Promise<BrowserSavedTabGroupState> {
-    return this.withWorkspaceOperation(groupId, 'archiving the workspace', async () => {
-      const group = this.requireMcpTabGroup(groupId)
-      const tabs = this.orderedTabs().filter((tab) => tab.mcpGroupId === groupId)
-      if (!tabs.length) throw new Error(`Workspace "${group.name}" has no tabs to archive.`)
-      if (this.savedTabGroups.size >= MAX_SAVED_TAB_GROUPS) throw new Error(`Hronaut can keep up to ${MAX_SAVED_TAB_GROUPS} archived workspaces.`)
-      const internalGroup = this.mcpTabGroups.get(groupId)!
-      const saved: BrowserSavedTabGroupInternal = {
-        id: group.id,
-        name: group.name,
-        description: internalGroup.description,
-        color: group.color,
-        savedAt: new Date().toISOString(),
-        hiddenFromSidebar: internalGroup.hiddenFromSidebar === true,
-        deletionProtected: internalGroup.deletionProtected === true,
-        agentAccess: internalGroup.agentAccess !== false,
-        contextClass: internalGroup.contextClass,
-        storageOriginCount: internalGroup.origins.length,
-        navigationPolicy: {
-          mode: internalGroup.navigationPolicy.mode,
-          rules: [...internalGroup.navigationPolicy.rules]
-        },
-        storageId: internalGroup.storageId,
-        origins: [...internalGroup.origins],
-        navigationAudit: [...internalGroup.navigationAudit],
-        tabs: tabs.map((tab) => ({ title: tab.title, url: tab.url, pinned: tab.pinned }))
-      }
-      await this.closeMcpTabGroupInternal(groupId, true)
-      this.savedTabGroups.set(saved.id, saved)
-      this.remapDownloadWorkspaceOwnership(groupId, saved.id)
-      this.changed()
-      return {
-        id: saved.id,
-        name: saved.name,
-        description: saved.description,
-        color: saved.color,
-        savedAt: saved.savedAt,
-        hiddenFromSidebar: saved.hiddenFromSidebar === true,
-        deletionProtected: saved.deletionProtected === true,
-        agentAccess: saved.agentAccess !== false,
-        contextClass: saved.contextClass,
-        storageOriginCount: saved.origins.length,
-        navigationPolicy: {
-          mode: saved.navigationPolicy.mode,
-          rules: [...saved.navigationPolicy.rules]
-        },
-        tabs: saved.tabs.map((tab) => ({ ...tab }))
-      }
-    })
+    return this.workspaceRegistry.archive(groupId)
   }
 
   async restoreSavedTabGroup(savedGroupId: string): Promise<BrowserTabGroupState> {
-    return this.withSavedWorkspaceOperation(savedGroupId, 'restoring the archived workspace', () => (
-      this.restoreSavedTabGroupInternal(savedGroupId)
-    ))
-  }
-
-  private async restoreSavedTabGroupInternal(savedGroupId: string): Promise<BrowserTabGroupState> {
-    const saved = this.savedTabGroups.get(savedGroupId)
-    if (!saved) throw new Error(`Unknown archived workspace: ${savedGroupId}.`)
-    this.assertWorkspaceNameAvailable(saved.name, undefined, savedGroupId, true)
-    this.assertActiveWorkspaceCapacity()
-    if (this.tabs.size + saved.tabs.length > MAX_TABS) {
-      throw new Error(`Restoring "${saved.name}" would exceed the ${MAX_TABS}-tab limit.`)
-    }
-    const now = new Date().toISOString()
-    const restoredGroup: BrowserTabGroup = {
-      id: saved.id,
-      name: saved.name,
-      description: saved.description,
-      color: saved.color,
-      createdAt: now,
-      lastUsedAt: now,
-      activeTabId: null,
-      hiddenFromSidebar: saved.hiddenFromSidebar === true,
-      deletionProtected: saved.deletionProtected === true,
-      agentAccess: saved.agentAccess !== false,
-      contextClass: saved.contextClass,
-      storageId: saved.storageId,
-      origins: [...saved.origins],
-      navigationPolicy: {
-        mode: saved.navigationPolicy.mode,
-        rules: [...saved.navigationPolicy.rules]
-      },
-      navigationAudit: [...saved.navigationAudit]
-    }
-    this.savedTabGroups.delete(savedGroupId)
-    this.mcpTabGroups.set(restoredGroup.id, restoredGroup)
-    const restored = this.requireMcpTabGroup(restoredGroup.id)
-    return this.withWorkspaceOperation(restored.id, 'restoring the archived workspace', async () => {
-      try {
-        for (const savedTab of saved.tabs) {
-          await this.createTab({
-            title: savedTab.title,
-            url: savedTab.url,
-            pinned: savedTab.pinned,
-            mcpGroupId: restored.id,
-            allowBusyWorkspace: true,
-            active: false
-          })
-        }
-        const tabs = [...this.tabs.values()].filter((tab) => tab.mcpGroupId === restored.id)
-        if (tabs.length) this.selectTab(tabs[tabs.length - 1]!.id)
-        const result = this.requireMcpTabGroup(restored.id)
-        this.changed()
-        this.remapDownloadWorkspaceOwnership(savedGroupId, restored.id)
-        return result
-      } catch (error) {
-        // Restoring an archive must not destroy its durable workspace storage if
-        // one of the tabs fails to reopen. Re-add the archive only after the
-        // temporary active owner is completely removed; otherwise the active
-        // workspace and archive would both claim the same persistent partition.
-        try {
-          await this.closeMcpTabGroupInternal(restored.id, true)
-        } catch (rollbackError) {
-          this.remapDownloadWorkspaceOwnership(savedGroupId, restored.id)
-          this.changed()
-          throw new AggregateError(
-            [error, rollbackError],
-            `Archived workspace "${saved.name}" could not be restored or rolled back. Its recoverable active workspace remains open; close or archive it before retrying.`
-          )
-        }
-        this.savedTabGroups.set(savedGroupId, saved)
-        this.changed()
-        throw error
-      }
-    })
+    return this.workspaceRegistry.restore(savedGroupId)
   }
 
   updateArchivedWorkspacePreferences(workspaceId: string, updates: { hiddenFromSidebar?: boolean; deletionProtected?: boolean }): void {
@@ -5000,43 +4859,8 @@ export class BrowserTabsManager {
     return { ...result, tabId: tab.id, url: redactNetworkUrl(result.url) }
   }
 
-  async pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
-    const tab = this.getTab(tabId)
-    if (isHronautHomeUrl(tab.url)) throw new Error('Open a website tab before inspecting page metadata')
-    const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
-      PAGE_METADATA_WORLD_ID,
-      [{ code: pageMetadataScript() }],
-      false
-    ) as Omit<BrowserPageMetadataReport, 'tabId'>
-    const safeUrl = (value: string | null): string | null => {
-      if (!value) return null
-      try {
-        return redactNetworkUrl(new URL(value, result.url).href)
-      } catch {
-        return '[invalid URL]'
-      }
-    }
-    return {
-      ...result,
-      tabId: tab.id,
-      url: redactNetworkUrl(result.url),
-      document: {
-        ...result.document,
-        manifestUrl: safeUrl(result.document.manifestUrl),
-        canonicalUrls: result.document.canonicalUrls.map((url) => safeUrl(url) ?? url)
-      },
-      openGraph: {
-        ...result.openGraph,
-        url: safeUrl(result.openGraph.url),
-        images: result.openGraph.images.map((image) => ({ ...image, url: safeUrl(image.url) ?? image.url }))
-      },
-      twitter: {
-        ...result.twitter,
-        images: result.twitter.images.map((image) => ({ ...image, url: safeUrl(image.url) ?? image.url }))
-      },
-      alternateLinks: result.alternateLinks.map((link) => ({ ...link, url: safeUrl(link.url) ?? link.url })),
-      icons: result.icons.map((icon) => ({ ...icon, url: safeUrl(icon.url) ?? icon.url }))
-    }
+  pageMetadata(tabId?: string): Promise<BrowserPageMetadataReport> {
+    return this.metadata.inspect(tabId)
   }
 
   securityReport(tabId?: string): BrowserSecurityReport {
@@ -7187,6 +7011,7 @@ export class BrowserTabsManager {
       }
     }
     this.tabs.clear()
+    this.workspaceRegistry.dispose()
     this.mcpActivitiesByTab.clear()
     this.webContentsToTab.clear()
     this.authorizedAgentMouseInput.clear()
@@ -8307,7 +8132,7 @@ export class BrowserTabsManager {
   private watchCredentialSubmission(tab: BrowserTab): void {
     if (!this.options.onCredentialSubmitted || isHronautHomeUrl(tab.url) || tab.webContents.isDestroyed()) return
     const script = credentialCapturePageScript()
-    void tab.webContents.executeJavaScript(script, true)
+    void tab.webContents.executeJavaScriptInIsolatedWorld(CREDENTIAL_CAPTURE_WORLD_ID, [{ code: script }], false)
       .then((candidate: BrowserCredentialCandidate | null) => {
         if (!candidate) return
         this.watchCredentialSubmission(tab)

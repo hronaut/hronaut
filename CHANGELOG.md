@@ -4,6 +4,23 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.5.30] - 2026-09-26
+
+### Fixed
+
+- Discard page-metadata results after closing the panel, switching tabs, or reloading the document, including late responses in detached panels.
+- Preserve Home setup input, focus, and copy feedback as the MCP listener finishes starting.
+- Keep credential observation in an isolated JavaScript world so website hooks cannot intercept browser-owned account checks.
+- Preserve account usernames through multi-step password capture, including two-step logins within one page.
+
+### Changed
+
+- Give page-metadata inspection its own runtime service and renderer feature, with a shared docked/detached panel and explicit request cleanup.
+- Run Home interactions in a typed, isolated renderer with shared theme tokens, stable workspace controls during polling, and an inline first-connection journey.
+- Open connection evidence from the MCP status control, with a separate Copy URL action and explicit Pause agents and page-input controls.
+- Clarify that workspaces with direct agent access disabled still allow sign-in copying into a new workspace.
+- Separate workspace archive/restore ownership and the Home protocol from the browser runtime and startup composition. Publish versioned public setup and tool metadata with tagged releases.
+
 ## [2.5.29] - 2026-09-25
 
 ### Fixed

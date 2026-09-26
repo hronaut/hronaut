@@ -34,7 +34,7 @@ export default defineConfig({
           pool: 'vmThreads',
           maxWorkers: rendererMaxWorkers,
           vmMemoryLimit: '384MB',
-          include: ['tests/renderer/**/*.test.ts'],
+          include: ['tests/renderer/**/*.test.ts', 'src/renderer/src/features/**/*.test.ts'],
           setupFiles: ['./tests/renderer/setup.ts']
         }
       }

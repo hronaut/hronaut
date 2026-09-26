@@ -1166,6 +1166,9 @@ test('restores workspace identity and tabs after an application restart', async 
     await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
     return group.id;
   })()`) as string
+  // Navigation completion and Chromium's title notification are separate IPC
+  // events. Establish the state this restart test intends to persist first.
+  await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.mcpGroupId === ${JSON.stringify(defaultGroupId)})?.title)`)).toBe('Persistent human tab')
   await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
   const groupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
   await expect(groupControl).toHaveAttribute('aria-expanded', 'true')

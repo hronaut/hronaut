@@ -576,7 +576,10 @@ test('offers troubleshooting until an agent action succeeds, then enables referr
   const state = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
-    return home.executeJavaScript(`(() => {
+    return home.executeJavaScript(`(async () => {
+      const { homeController } = await import(document.querySelector('script[type="module"]').src);
+      let dashboard = await fetch('hronaut://home/api/status').then(response => response.json());
+      const renderDashboard = () => homeController.update(dashboard);
       const before = {
         troubleshootHidden: document.getElementById('support-troubleshoot')?.hidden,
         feedbackHidden: document.getElementById('support-feedback')?.hidden,
@@ -839,9 +842,11 @@ test('copies Home setup natively, reports failures in shell chrome, and withhold
 test('keeps the newest Home dashboard refresh when status responses resolve out of order', async ({
   electronApp
 }) => {
-  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
-    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
-  )).toBe(true)
+  // Inject controlled responses after the live listener state is rendered.
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    return home?.executeJavaScript('Boolean(document.querySelector("#server-state .dot.ready"))').catch(() => false)
+  })).toBe(true)
 
   const renderedVersion = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
@@ -849,6 +854,9 @@ test('keeps the newest Home dashboard refresh when status responses resolve out 
     return home.executeJavaScript(`(async () => {
       const pending = [];
       const originalFetch = window.fetch;
+      const { homeController } = await import(document.querySelector('script[type="module"]').src);
+      const dashboard = await originalFetch('hronaut://home/api/status').then(response => response.json());
+      const refreshDashboard = () => homeController.refresh();
       window.fetch = () => new Promise((resolve) => pending.push(resolve));
       try {
         const olderRefresh = refreshDashboard();
@@ -875,43 +883,28 @@ test('keeps the newest Home dashboard refresh when status responses resolve out 
 test('does not overlap Home dashboard polling while a status response is pending', async ({
   electronApp
 }) => {
-  await expect.poll(() => electronApp.evaluate(({ webContents }) =>
-    webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
-  )).toBe(true)
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    return home?.executeJavaScript('Boolean(document.querySelector("#server-state .dot.ready"))').catch(() => false)
+  })).toBe(true)
 
   const concurrentRequests = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(async () => {
       const pending = [];
-      const scheduledPolls = [];
       const originalFetch = window.fetch;
       const originalSetTimeout = window.setTimeout;
-      for (let attempt = 0; dashboardPollTimer === undefined && attempt < 100; attempt += 1) {
-        await new Promise((resolve) => originalSetTimeout(resolve, 10));
-      }
-      if (dashboardPollTimer === undefined) throw new Error('Initial dashboard poll did not settle');
-      clearTimeout(dashboardPollTimer);
+      await import(document.querySelector('script[type="module"]').src);
+      const dashboard = await originalFetch('hronaut://home/api/status').then(response => response.json());
       window.fetch = () => new Promise((resolve) => pending.push(resolve));
-      window.setTimeout = (callback, delay, ...args) => {
-        if (delay !== 2000) return originalSetTimeout(callback, delay, ...args);
-        scheduledPolls.push(() => callback(...args));
-        return 100000 + scheduledPolls.length;
-      };
       try {
-        const firstPoll = pollDashboard();
-        if (pending.length !== 1) throw new Error('First dashboard poll did not start one request');
-        const whilePending = { requests: pending.length, scheduled: scheduledPolls.length };
+        await new Promise(resolve => originalSetTimeout(resolve, 4500));
+        const whilePending = pending.length;
         const response = { ok: true, json: async () => dashboard };
         pending.shift()(response);
-        await firstPoll;
-        const afterResolution = { requests: pending.length, scheduled: scheduledPolls.length };
-        const secondPoll = scheduledPolls.shift()();
-        if (pending.length !== 1) throw new Error('Scheduled dashboard poll did not start one request');
-        const afterNextPoll = { requests: pending.length, scheduled: scheduledPolls.length };
-        pending.shift()(response);
-        await secondPoll;
-        return { whilePending, afterResolution, afterNextPoll };
+        await new Promise(resolve => originalSetTimeout(resolve, 2200));
+        return { whilePending, afterNextPoll: pending.length };
       } finally {
         const response = { ok: true, json: async () => dashboard };
         pending.splice(0).forEach((resolve) => resolve(response));
@@ -921,11 +914,7 @@ test('does not overlap Home dashboard polling while a status response is pending
     })()`)
   })
 
-  expect(concurrentRequests).toEqual({
-    whilePending: { requests: 1, scheduled: 0 },
-    afterResolution: { requests: 0, scheduled: 1 },
-    afterNextPoll: { requests: 1, scheduled: 0 }
-  })
+  expect(concurrentRequests).toEqual({ whilePending: 1, afterNextPoll: 1 })
 })
 
 test('restarts Home copy feedback after repeated setup copies', async ({ electronApp }) => {
@@ -958,7 +947,7 @@ test('restarts Home copy feedback after repeated setup copies', async ({ electro
       try {
         const button = document.querySelector('[data-copy-target="guide-code"]');
         button.click();
-        await waitFor(() => callbacks.length === 1 && button.textContent === messages.copy.copied);
+        await waitFor(() => callbacks.length === 1 && button.textContent === 'Copied');
         button.click();
         await waitFor(() => callbacks.length === 2);
         callbacks[0]();
@@ -979,6 +968,7 @@ test('does not show stale Home copy success after switching setup guides', async
   await expect.poll(() => electronApp.evaluate(({ webContents }) =>
     webContents.getAllWebContents().some((contents) => contents.getURL().startsWith('hronaut://home'))
   )).toBe(true)
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!.executeJavaScript('Boolean(document.querySelector("#server-state .dot.ready"))').catch(() => false))).toBe(true)
 
   const feedback = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
@@ -9313,6 +9303,7 @@ test('shows typed agent setup, connection activity, and the live tool catalog on
     )
     .toBe('Hronaut Home')
 
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!.executeJavaScript('Boolean(document.querySelector("#server-state .dot.ready"))').catch(() => false))).toBe(true)
   const homeContent = await electronApp.evaluate(async ({ webContents }) => {
     const home = webContents.getAllWebContents().find((contents) => contents.getURL().startsWith('hronaut://home'))
     if (!home) throw new Error('Hronaut Home web contents was not found')

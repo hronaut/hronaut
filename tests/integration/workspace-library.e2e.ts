@@ -26,7 +26,7 @@ test('Home manages workspaces across themes and narrow windows', async ({ appWin
   const home = await homePage(electronApp)
   const library = home.locator('#home-workspaces')
   await expect(library.getByRole('article')).toHaveCount(3)
-  await expect(library.getByText('Direct agent access off', { exact: true })).toBeVisible()
+  await expect(library.getByText('Direct agent access off · Sign-in copying allowed', { exact: true })).toBeVisible()
   const search = library.getByRole('searchbox', { name: 'Search workspaces or tabs' })
   await search.fill('personal')
   await expect(library.getByRole('article')).toHaveCount(1)

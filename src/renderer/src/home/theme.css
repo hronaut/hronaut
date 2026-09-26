@@ -1,0 +1,12 @@
+/* Home and the shell share semantic tokens; content remains in its own partition. */
+:root { --bg: var(--shell-bottom); --panel: var(--surface); --soft: var(--surface-muted); --accent-2: var(--accent-text); }
+body { color: var(--text); background: var(--bg); }
+.onboarding { margin-bottom: 24px; padding: 24px; }
+:root:not([data-home-selected-view=workspaces]) .onboarding { display: none; }
+button[data-open-view=workspaces] { background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 10px 14px; border-radius: 8px; }
+.onboarding h2 { margin: 0; }
+.onboarding p { color: var(--muted); }
+.onboarding ol { display: flex; flex-wrap: wrap; gap: 12px 36px; padding-left: 20px; }
+.onboarding [data-complete=true] { color: var(--success); }
+.onboarding button { border: 0; border-radius: 8px; padding: 12px 18px; }
+#copy-status { min-height: 1.5em; color: var(--danger); }

@@ -9,8 +9,10 @@ export interface McpStatusControllerOptions {
 }
 
 export function useMcpStatusController(options: McpStatusControllerOptions) {
+  const summaryOpen = ref(false)
   const state = ref<McpControlState>({ status: 'starting', paused: false })
   const copied = ref(false)
+  const refreshFailed = ref(false)
   const pauseBusy = ref(false)
   let generation = 0
   let listenerGeneration = 0
@@ -26,6 +28,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   ))
 
   function accept(next: McpControlState): void {
+    refreshFailed.value = false
     revision += 1
     state.value = next
   }
@@ -101,6 +104,21 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     return true
   }
 
+  async function refresh(): Promise<void> {
+    const expectedGeneration = generation
+    const expectedRevision = revision
+    try {
+      const next = await options.api.getState()
+      if (generation === expectedGeneration && revision === expectedRevision) accept(next)
+    } catch {
+      if (generation === expectedGeneration && revision === expectedRevision) {
+        // A failed refresh must not display cached client evidence as current.
+        accept({ ...state.value, readiness: undefined })
+        refreshFailed.value = true
+      }
+    }
+  }
+
   async function togglePaused(): Promise<boolean> {
     if (!canTogglePaused.value) return false
     const operationGeneration = generation
@@ -121,6 +139,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   }
 
   function dispose(): void {
+    summaryOpen.value = false
     generation += 1
     listenerGeneration += 1
     copySequence += 1
@@ -136,9 +155,12 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
     endpoint: options.endpoint,
     state,
     copied,
+    refreshFailed,
     pauseBusy,
     canTogglePaused,
     initialize,
+    refresh,
+    summaryOpen,
     accept,
     copyEndpoint,
     togglePaused,

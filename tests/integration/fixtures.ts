@@ -70,7 +70,8 @@ export async function launchHronaut(
   profileDirectory: string,
   mcpPort?: number,
   interfaceScale = 1,
-  appArguments: string[] = []
+  appArguments: string[] = [],
+  electronArguments: string[] = []
 ): Promise<HronautInstance> {
   const settingsPath = join(profileDirectory, 'settings.json')
   try {
@@ -87,6 +88,7 @@ export async function launchHronaut(
   const app = await electron.launch({
     executablePath: process.env.HRONAUT_TEST_EXECUTABLE,
     args: [
+      ...electronArguments,
       ...(process.env.HRONAUT_TEST_EXECUTABLE ? [] : ['.']),
       ...appArguments,
       ...(process.env.HRONAUT_TEST_WAYLAND === '1' ? ['--ozone-platform=wayland'] : [])

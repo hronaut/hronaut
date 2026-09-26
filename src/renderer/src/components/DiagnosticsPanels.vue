@@ -35,7 +35,6 @@ import type {
   BrowserAccessibilityImpact,
   BrowserDebugReport,
   BrowserDomChangeEntry,
-  BrowserPageMetadataReport,
   BrowserPerformanceComparisonMetric,
   BrowserPerformanceComparisonMetricName,
   BrowserPerformanceMetric,
@@ -48,6 +47,7 @@ import type {
 import type { DiagnosticsController } from '../composables/useDiagnosticsController'
 import PanelDockPicker from './PanelDockPicker.vue'
 import ReproTimeline from './ReproTimeline.vue'
+import PageMetadataPanel from '../features/diagnostics/page-metadata/PageMetadataPanel.vue'
 
 const props = defineProps<{
   activeTab?: BrowserTabState
@@ -77,10 +77,6 @@ const {
   designOverviewReport,
   designOverviewState,
   designOverviewError,
-  pageMetadataPanelOpen,
-  pageMetadataReport,
-  pageMetadataState,
-  pageMetadataError,
   securityPanelOpen,
   securityReport,
   securityReportState,
@@ -126,7 +122,6 @@ const {
   inspectorIssuesCopied,
   runPerformanceReport,
   runDesignOverview,
-  runPageMetadata,
   runSecurityReport,
   manageCodeCoverage,
   manageCpuProfile,
@@ -226,43 +221,6 @@ function performanceContributorSource(contributor: BrowserPerformanceScriptContr
   } catch {
     return contributor.sourceUrl
   }
-}
-
-const pageMetadataIssueKeys = {
-  'missing-title': 'missingTitle',
-  'multiple-titles': 'multipleTitles',
-  'missing-description': 'missingDescription',
-  'multiple-descriptions': 'multipleDescriptions',
-  'missing-canonical': 'missingCanonical',
-  'multiple-canonicals': 'multipleCanonicals',
-  'missing-language': 'missingLanguage',
-  'missing-viewport': 'missingViewport',
-  'robots-noindex': 'robotsNoindex',
-  'missing-h1': 'missingH1',
-  'multiple-h1': 'multipleH1',
-  'incomplete-open-graph': 'incompleteOpenGraph',
-  'missing-og-image-alt': 'missingOgImageAlt',
-  'missing-twitter-card': 'missingTwitterCard',
-  'invalid-json-ld': 'invalidJsonLd'
-} as const
-
-function pageMetadataIssueLabel(issue: BrowserPageMetadataReport['issues'][number]): string {
-  const key = pageMetadataIssueKeys[issue.code as keyof typeof pageMetadataIssueKeys]
-  return key ? t(`pageMetadata.issues.${key}.label`) : issue.code.replaceAll('-', ' ')
-}
-
-function pageMetadataIssueMessage(issue: BrowserPageMetadataReport['issues'][number]): string {
-  const key = pageMetadataIssueKeys[issue.code as keyof typeof pageMetadataIssueKeys]
-  if (!key) return issue.message
-  if (key === 'incompleteOpenGraph') {
-    const field = issue.message.match(/missing ([^.]+)\./)?.[1] ?? 'metadata'
-    return t('pageMetadata.issues.incompleteOpenGraph.message', { field })
-  }
-  if (key === 'invalidJsonLd') {
-    const count = pageMetadataReport.value?.structuredData.invalidBlockCount ?? 0
-    return t('pageMetadata.issues.invalidJsonLd.message', { count }, count)
-  }
-  return t(`pageMetadata.issues.${key}.message`)
 }
 
 function formatSignedBytes(bytes: number): string {
@@ -775,134 +733,7 @@ function domChangeDescription(entry: BrowserDomChangeEntry): string {
         </footer>
       </template>
     </section>
-    <section
-      v-if="pageMetadataPanelOpen"
-      class="accessibility-panel page-metadata-panel"
-      data-shell-docked-panel
-      role="dialog"
-      aria-modal="false"
-      aria-labelledby="page-metadata-panel-title"
-      :aria-busy="pageMetadataState === 'loading'"
-    >
-      <header>
-        <div>
-          <span class="eyebrow">{{ t('pageMetadata.kicker') }}</span>
-          <h2 id="page-metadata-panel-title">{{ t('pageMetadata.heading') }}</h2>
-        </div>
-        <div class="panel-header-actions">
-          <PanelDockPicker v-model="dock" :label="t('panels.dockNamed', { panel: t('pageMetadata.heading') })" />
-          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('pageMetadata.close')" @click="pageMetadataPanelOpen = false"><IconClose aria-hidden="true" /></UiButton>
-        </div>
-      </header>
-      <div v-if="pageMetadataState === 'loading'" class="accessibility-audit-loading" role="status">
-        <IconProgress class="state-spinner" aria-hidden="true" />
-        <strong>{{ t('pageMetadata.loading') }}</strong>
-        <span>{{ t('pageMetadata.privacy') }}</span>
-      </div>
-      <div v-else-if="pageMetadataState === 'error'" class="accessibility-audit-error" role="alert">
-        <IconError aria-hidden="true" />
-        <strong>{{ t('pageMetadata.failed') }}</strong>
-        <span>{{ pageMetadataError }}</span>
-        <UiButton appearance="application" type="button" @click="runPageMetadata">{{ t('pageMetadata.tryAgain') }}</UiButton>
-      </div>
-      <template v-else-if="pageMetadataReport">
-        <div class="page-metadata-summary">
-          <article><span>{{ t('pageMetadata.actionableFindings') }}</span><strong>{{ localNumber(pageMetadataReport.issues.filter((issue) => issue.severity !== 'info').length) }}</strong></article>
-          <article><span>{{ t('pageMetadata.h1Headings') }}</span><strong>{{ localNumber(pageMetadataReport.document.headingCounts.h1) }}</strong></article>
-          <article><span>{{ t('pageMetadata.openGraphFields') }}</span><strong>{{ localNumber(pageMetadataReport.openGraph.propertyCount) }}</strong></article>
-          <article :class="{ warning: pageMetadataReport.structuredData.invalidBlockCount }"><span>{{ t('pageMetadata.structuredTypes') }}</span><strong>{{ localNumber(pageMetadataReport.structuredData.types.length) }}</strong></article>
-        </div>
-        <div class="page-metadata-details">
-          <section v-if="pageMetadataReport.issues.length">
-            <h3>{{ t('pageMetadata.findings') }}</h3>
-            <div class="page-metadata-issues" role="list">
-              <article v-for="issue in pageMetadataReport.issues" :key="`${issue.code}-${issue.message}`" :class="issue.severity" role="listitem">
-                <IconError v-if="issue.severity === 'error'" aria-hidden="true" />
-                <IconWarning v-else-if="issue.severity === 'warning'" aria-hidden="true" />
-                <IconInfo v-else aria-hidden="true" />
-                <div><strong>{{ pageMetadataIssueLabel(issue) }}</strong><span>{{ pageMetadataIssueMessage(issue) }}</span></div>
-              </article>
-            </div>
-          </section>
-          <section>
-            <h3>{{ t('pageMetadata.searchInputs') }}</h3>
-            <article class="search-preview" :aria-label="t('pageMetadata.preview')">
-              <small>{{ pageMetadataReport.document.canonicalUrls[0] || pageMetadataReport.url }}</small>
-              <strong>{{ pageMetadataReport.title || t('pageMetadata.untitled') }}</strong>
-              <p>{{ pageMetadataReport.document.description || t('pageMetadata.noDescription') }}</p>
-            </article>
-            <dl class="page-metadata-grid">
-              <div class="wide"><dt>{{ t('pageMetadata.canonical') }}</dt><dd>{{ pageMetadataReport.document.canonicalUrls[0] || t('pageMetadata.notDeclared') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.language') }}</dt><dd>{{ pageMetadataReport.document.language || t('pageMetadata.notDeclared') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.charset') }}</dt><dd>{{ pageMetadataReport.document.charset || t('pageMetadata.unavailable') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.robots') }}</dt><dd>{{ pageMetadataReport.document.robots || t('pageMetadata.defaultIndexing') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.viewport') }}</dt><dd>{{ pageMetadataReport.document.viewport || t('pageMetadata.notDeclared') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.themeColor') }}</dt><dd>{{ pageMetadataReport.document.themeColor || t('pageMetadata.notDeclared') }}</dd></div>
-              <div><dt>{{ t('pageMetadata.manifest') }}</dt><dd>{{ pageMetadataReport.document.manifestUrl || t('pageMetadata.notLinked') }}</dd></div>
-              <div class="wide"><dt>{{ t('pageMetadata.headingCounts') }}</dt><dd>{{ t('pageMetadata.headingCountsValue', { h1: localNumber(pageMetadataReport.document.headingCounts.h1), h2: localNumber(pageMetadataReport.document.headingCounts.h2), h3: localNumber(pageMetadataReport.document.headingCounts.h3), h4to6: localNumber(pageMetadataReport.document.headingCounts.h4 + pageMetadataReport.document.headingCounts.h5 + pageMetadataReport.document.headingCounts.h6) }) }}</dd></div>
-            </dl>
-          </section>
-          <section>
-            <h3>{{ t('pageMetadata.socialCards') }}</h3>
-            <div class="social-metadata-cards">
-              <article>
-                <header><strong>{{ t('pageMetadata.openGraph') }}</strong><small>{{ t('pageMetadata.propertyCount', { count: localNumber(pageMetadataReport.openGraph.propertyCount) }, pageMetadataReport.openGraph.propertyCount) }}</small></header>
-                <dl>
-                  <div><dt>{{ t('pageMetadata.title') }}</dt><dd>{{ pageMetadataReport.openGraph.title || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.type') }}</dt><dd>{{ pageMetadataReport.openGraph.type || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.url') }}</dt><dd>{{ pageMetadataReport.openGraph.url || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.description') }}</dt><dd>{{ pageMetadataReport.openGraph.description || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.image') }}</dt><dd>{{ pageMetadataReport.openGraph.images[0]?.url || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.imageAlt') }}</dt><dd>{{ pageMetadataReport.openGraph.images[0]?.alt || t('pageMetadata.notDeclared') }}</dd></div>
-                </dl>
-              </article>
-              <article>
-                <header><strong>{{ t('pageMetadata.twitterCard') }}</strong><small>{{ t('pageMetadata.propertyCount', { count: localNumber(pageMetadataReport.twitter.propertyCount) }, pageMetadataReport.twitter.propertyCount) }}</small></header>
-                <dl>
-                  <div><dt>{{ t('pageMetadata.card') }}</dt><dd>{{ pageMetadataReport.twitter.card || t('pageMetadata.notDeclared') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.title') }}</dt><dd>{{ pageMetadataReport.twitter.title || t('pageMetadata.fallbackTitle') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.description') }}</dt><dd>{{ pageMetadataReport.twitter.description || t('pageMetadata.fallbackDescription') }}</dd></div>
-                  <div><dt>{{ t('pageMetadata.image') }}</dt><dd>{{ pageMetadataReport.twitter.images[0]?.url || t('pageMetadata.notDeclared') }}</dd></div>
-                </dl>
-              </article>
-            </div>
-          </section>
-          <section>
-            <h3>{{ t('pageMetadata.structuredData') }}</h3>
-            <div v-if="pageMetadataReport.structuredData.types.length" class="metadata-type-list" :aria-label="t('pageMetadata.structuredTypes')">
-              <span v-for="type in pageMetadataReport.structuredData.types" :key="type">{{ type }}</span>
-            </div>
-            <p v-else>{{ t('pageMetadata.noStructuredTypes') }}</p>
-            <div v-if="pageMetadataReport.structuredData.blocks.some((block) => !block.valid)" class="metadata-json-errors">
-              <div v-for="block in pageMetadataReport.structuredData.blocks.filter((item) => !item.valid)" :key="block.index"><strong>{{ t('pageMetadata.block', { number: localNumber(block.index + 1) }) }}</strong><span>{{ t('pageMetadata.issues.invalidJsonLd.label') }}</span></div>
-            </div>
-          </section>
-          <section v-if="pageMetadataReport.alternateLinks.length || pageMetadataReport.icons.length">
-            <h3>{{ t('pageMetadata.linkedMetadata') }}</h3>
-            <details v-if="pageMetadataReport.alternateLinks.length">
-              <summary>{{ t('pageMetadata.alternateCount', { count: localNumber(pageMetadataReport.alternateLinks.length) }, pageMetadataReport.alternateLinks.length) }}</summary>
-              <ul><li v-for="alternate in pageMetadataReport.alternateLinks" :key="`${alternate.language}-${alternate.url}`"><strong>{{ alternate.language }}</strong><code>{{ alternate.url }}</code></li></ul>
-            </details>
-            <details v-if="pageMetadataReport.icons.length">
-              <summary>{{ t('pageMetadata.iconCount', { count: localNumber(pageMetadataReport.icons.length) }, pageMetadataReport.icons.length) }}</summary>
-              <ul><li v-for="icon in pageMetadataReport.icons" :key="`${icon.rel}-${icon.url}`"><strong>{{ icon.sizes || icon.type || icon.rel }}</strong><code>{{ icon.url }}</code></li></ul>
-            </details>
-          </section>
-          <details>
-            <summary>{{ t('pageMetadata.scope') }}</summary>
-            <ul>
-              <li>{{ t('pageMetadata.caveats.rendered') }}</li>
-              <li>{{ t('pageMetadata.caveats.outcomes') }}</li>
-              <li>{{ t('pageMetadata.caveats.allowlist') }}</li>
-            </ul>
-          </details>
-        </div>
-        <footer>
-          <span>{{ t('pageMetadata.renderedDom') }} · {{ debugTimestamp(pageMetadataReport.capturedAt) }}</span>
-          <UiButton appearance="application" type="button" @click="runPageMetadata"><IconRefresh aria-hidden="true" /> {{ t('pageMetadata.inspectAgain') }}</UiButton>
-        </footer>
-      </template>
-    </section>
+    <PageMetadataPanel v-model:dock="dock" :controller="controller.metadata" :locale="locale" />
     <section
       v-if="securityPanelOpen"
       class="accessibility-panel security-panel"

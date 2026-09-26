@@ -32,11 +32,14 @@ export default defineConfig({
     },
     plugins: [tailwindcss(), vue(), Icons({ compiler: 'vue3' })],
     build: {
+      manifest: true,
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
+          home: resolve('src/renderer/src/home.ts'),
           addressOverlay: resolve('src/renderer/address-overlay.html')
-        }
+        },
+        preserveEntrySignatures: 'exports-only'
       }
     }
   }

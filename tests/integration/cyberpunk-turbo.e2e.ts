@@ -76,7 +76,7 @@ test('selects Cyberpunk Turbo and applies it to chrome, Home and address suggest
   })).toEqual({ theme: 'cyberpunk-turbo', scheme: 'dark', accent: '#ff4de3' })
   await appWindow.keyboard.press('Escape')
   await appWindow.evaluate("window.hronautSettings.setTheme('light')")
-  await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!.executeJavaScript('document.documentElement.dataset.theme'))).toBe('')
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!.executeJavaScript('document.documentElement.dataset.theme'))).toBe('light')
 })
 
 test('restores the Cyberpunk Turbo preference after restarting the application', async ({ profileDirectory, mcpPort }) => {

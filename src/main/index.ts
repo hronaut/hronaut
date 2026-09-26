@@ -67,7 +67,7 @@ import { CommercialLicenseOperationCoordinator } from './commercial-license-oper
 import { CommercialLicenseStore } from './commercial-license-store.js'
 import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
-import { renderHomePage } from './home-page.js'
+import { createHomeProtocolHandler } from './platform/home-protocol.js'
 import { openVsCodeMcpInstall } from './vscode-mcp-install.js'
 import { commitRuntimeSetting } from './runtime-setting-commit.js'
 import {
@@ -556,10 +556,19 @@ function publishVisitHistory(): BrowserHistoryEntry[] {
 
 function currentMcpControlState(): McpControlState {
   const paused = mcpPauseState.paused
+  const dashboard = mcpServer?.getDashboardState()
+  const initialized = dashboard?.clients.filter(client => client.initializedAt)
+    .sort((a, b) => (b.initializedAt ?? '').localeCompare(a.initializedAt ?? '')) ?? []
+  const probe = initialized[0]?.readinessProbe
   return {
     status: mcpRuntimeStatus === 'ready' && paused ? 'paused' : mcpRuntimeStatus,
     paused,
     activeCommands: mcpActionTracker.activeCount,
+    readiness: {
+      initializedClientCount: initialized.length,
+      probe: probe ? (probe.outcome === 'verified' ? 'probe_verified' : 'probe_failed')
+        : initialized.length ? 'unknown' : 'blocked'
+    },
     ...(mcpStartupError ? { error: mcpStartupError } : {})
   }
 }
@@ -571,10 +580,10 @@ function refreshHomeAfterCommittedChange(scope: 'mcp' | 'settings'): void {
   })
 }
 
-function publishMcpControlState(): McpControlState {
+function publishMcpControlState({ refreshHome = true }: { refreshHome?: boolean } = {}): McpControlState {
   const state = currentMcpControlState()
   sendToShellWindows('mcp:changed', state)
-  refreshHomeAfterCommittedChange('mcp')
+  if (refreshHome) refreshHomeAfterCommittedChange('mcp')
   return state
 }
 
@@ -1216,17 +1225,10 @@ function registerHomeProtocol(): void {
   if (!persistentSession) throw new Error('Persistent session must be configured before registering Hronaut Home')
   const homeSession = session.fromPartition(workspacePartition(PARTITION, 'home'), { cache: true })
   configureBrowserSession(homeSession)
-  homeSession.protocol.handle('hronaut', (request) => {
-    const url = new URL(request.url)
-    if (url.hostname !== 'home') return new Response('Not found', { status: 404 })
-    if (url.pathname === '/api/status') {
-      return new Response(JSON.stringify(homeDashboardState()), {
-        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
-      })
-    }
-    if (url.pathname !== '/' && url.pathname !== '') return new Response('Not found', { status: 404 })
-    return new Response(
-      renderHomePage({
+  homeSession.protocol.handle('hronaut', createHomeProtocolHandler({
+    rendererDirectory: join(__dirname, '../renderer'),
+    developmentOrigin: process.env.ELECTRON_RENDERER_URL,
+    state: () => ({
         endpoint: mcpUrl,
         tokenPath: mcpTokenConfiguration?.tokenPath,
         authenticationDisabled: !settings.mcpAuthentication,
@@ -1234,16 +1236,8 @@ function registerHomeProtocol(): void {
         workspaces: tabsManager ? homeWorkspaceState(tabsManager) : undefined,
         locale: resolvedLocale,
         platform: process.platform
-      }),
-      {
-        headers: {
-          'content-type': 'text/html; charset=utf-8',
-          'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src hronaut://home; img-src data:",
-          'cache-control': 'no-store'
-        }
-      }
-    )
-  })
+    })
+  }))
 }
 
 function currentWindowState(): import('./window-state.js').SavedWindowState | null {
@@ -4229,12 +4223,14 @@ app.whenReady().then(async () => {
     const url = await mcpServer.start()
     mcpRuntimeStatus = 'ready'
     mcpStartupError = undefined
-    publishMcpControlState()
+    // Listener status is polled by Home; startup changes no bootstrap settings.
+    // Reloading here races module initialization and discards early setup input.
+    publishMcpControlState({ refreshHome: false })
     console.log(`[mcp] Hronaut listening at ${url}`)
   } catch (error) {
     mcpRuntimeStatus = 'error'
     mcpStartupError = error instanceof Error ? error.message : String(error)
-    publishMcpControlState()
+    publishMcpControlState({ refreshHome: false })
     console.error('[mcp] Failed to start:', error)
     await showMessageBox({
       type: 'error',

@@ -86,13 +86,18 @@ describe('McpStatusControls', () => {
     controller.dispose()
   })
 
-  it('reports successful endpoint copying in the pill', async () => {
+  it('opens readiness without copying and exposes Copy URL as an explicit secondary action', async () => {
     const { controller, copyText } = renderControls()
 
     await userEvent.setup().click(screen.getByRole('button', { name: /MCP ready/ }))
-
+    expect(copyText).not.toHaveBeenCalled()
+    expect(screen.getByText('Client initialization')).toBeVisible()
+    expect(screen.getByText('Read-only probe')).toBeVisible()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Copy URL' }))
     expect(copyText).toHaveBeenCalledWith('http://127.0.0.1:47812/mcp')
-    expect(screen.getByRole('button', { name: /MCP URL copied/ })).toBeVisible()
+    expect(screen.getAllByRole('button', { name: /MCP URL copied/ })).toHaveLength(1)
+    await userEvent.setup().keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: /MCP ready/ })).toHaveFocus()
     controller.dispose()
   })
 })

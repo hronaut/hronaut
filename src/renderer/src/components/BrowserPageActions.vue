@@ -82,7 +82,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     >
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
-      <span>{{ t('shell.split.tab') }}</span>
+      <span>{{ t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button page-lifecycle-button"

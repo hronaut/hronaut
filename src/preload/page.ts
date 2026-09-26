@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { HomeWorkspaceAction } from '../shared/home-workspaces.js'
+import type { HronautHomeApi } from '../shared/home.js'
 import type { AgentGuideId } from '../shared/agent-guides.js'
 import type { WalletProviderEvent, WalletProviderRequest } from '../shared/wallet.js'
 import { installHronautWalletProviders } from './wallet-provider-bootstrap.js'
@@ -42,7 +43,7 @@ if (pageLocation?.protocol === 'hronaut:' && pageLocation.hostname === 'home') {
     openVsCodeInstall: () => ipcRenderer.invoke('hronaut-home:open-vscode-install'),
     openSetupHelp: () => ipcRenderer.invoke('hronaut-home:open-setup-help'),
     openSetupFeedback: () => ipcRenderer.invoke('hronaut-home:open-setup-feedback')
-  })
+  } satisfies HronautHomeApi)
 } else if (pageLocation?.protocol === 'http:' || pageLocation?.protocol === 'https:') {
   const walletListeners = new Set<(event: WalletProviderEvent) => void>()
   ipcRenderer.on('wallet-provider:event', (_event, message: WalletProviderEvent) => {

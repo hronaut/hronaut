@@ -74,7 +74,7 @@ test('Home keeps search focus and selected client while filtering and polling', 
   })()`)
   expect(await homeScript(electronApp, `document.getElementById('agent-empty').hidden`)).toBe(false)
   expect(await homeScript(electronApp, `document.getElementById('guide-name').textContent`)).toBe('OpenCode')
-  await homeScript(electronApp, `refreshDashboard()`)
+  await homeScript(electronApp, `import(document.querySelector('script[type="module"]').src).then(module => module.homeController.refresh())`)
   expect(await homeScript(electronApp, `document.activeElement.id`)).toBe('agent-search')
   await electronApp.evaluate(({ webContents }) => {
     const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))!
@@ -99,7 +99,7 @@ test('Home stays usable in light and dark English and Ukrainian at narrow and wi
       // Playwright defaults every page to emulated light; let the real app theme apply.
       await homePage.emulateMedia({ colorScheme: null })
       await expect.poll(() => homeScript(electronApp, `matchMedia('(prefers-color-scheme: dark)').matches`)).toBe(theme === 'dark')
-      await expect.poll(() => homeScript(electronApp, `getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()`)).toBe(theme === 'dark' ? '#19191c' : '#f7f7f8')
+      await expect.poll(() => homeScript(electronApp, `getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()`)).toBe(theme === 'dark' ? '#1c1c1f' : '#f7f7f8')
       for (const width of [1200, 760]) {
         await electronApp.evaluate(({ BrowserWindow }, width) => {
           const window = BrowserWindow.getAllWindows()[0]!

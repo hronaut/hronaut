@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "active": { "valid": true, "status": "active", "productId": "prod_monthly", "instanceId": "inst_abcdefgh1234", "activations": 1, "activationLimit": 3, "expiresAt": null },
+  "pending": { "valid": false, "reason": "entitlement_pending" },
+  "inactive": { "valid": false, "reason": "commercial_inactive" }
+}

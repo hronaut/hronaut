@@ -101,6 +101,14 @@ The dedicated **Home** application button sits outside the browser tab list and 
 - A privacy-safe activity dashboard with recent tab actions, duration, bounded outcome and reason categories, dispatch/effect certainty, and per-launch and per-tool totals. Legacy `finished`/`failed` fields remain available to dashboard consumers. It records no URLs, selectors, typed text, screenshots, or page content.
 - The local MCP endpoint and authentication guidance.
 
+An unused profile also shows an inline connection journey above its workspace
+hub. Choose a client, copy the local profile's configuration, connect, and ask
+the client for the read-only first page check. Listener readiness, initialized
+clients, and verified read-only probe evidence are separate. The journey retires
+after a verified probe; existing workspace profiles keep workspace-first access.
+The MCP status control opens the same compact evidence summary. **Copy URL** is
+an explicit action inside it, and Escape closes it and restores keyboard focus.
+
 Regular websites, including `https://google.com`, can be opened from the address bar, a new-tab request with a URL, or `browser_navigate`.
 
 The MCP tool set selected in **Settings → MCP security** applies to new connections. Each live connection keeps the names, schemas, annotations, descriptions, and server instructions it received when it connected. Reconnect an MCP client to adopt an intentional catalog change; Hronaut never rewrites that model-facing metadata within an established transport session.
@@ -853,6 +861,16 @@ The CI workflow runs lint, unit tests, the production build, the Playwright Elec
 ## Product website
 
 The canonical English commercial storefront is authored in the sibling `hronaut-page` repository and deployed to `hronaut.dev` through Cloudflare Pages. Public and non-indexed staging deployments use separate Pages projects, D1 databases, Creem environments, and explicit serialized deploy commands. The `website/` directory in this desktop repository is a lightweight static reference and is not the deployed storefront.
+
+Tagged releases export `hronaut-public-contract.json` with client templates, tool
+metadata, package targets, and license API compatibility fixtures. The release
+checksum and attestation cover this artifact. The storefront consumes a reviewed,
+version-pinned snapshot; its independent latest-release download resolver remains
+authoritative for downloads. In-app setup substitutes the current profile's
+endpoint and authentication, while exported templates contain placeholders.
+
+See [runtime ownership](docs/RUNTIME_BOUNDARIES.md) for the staged diagnostic,
+workspace, and isolated Home boundaries and their verification scope.
 
 Build the desktop repository's static reference locally:
 

@@ -18,7 +18,7 @@ export const deDE = {
     "search": "Arbeitsbereiche oder Tabs suchen",
     "views": "Arbeitsbereichsansichten",
     "current": "Aktuell",
-    "personal": "Direkter Agentenzugriff aus",
+    "personal": "Direkter Agentenzugriff aus · Kopieren von Anmeldungen erlaubt",
     "agentAccess": "Agentenzugriff an",
     "restricted": "Nur ausgewählte Websites",
     "noTabs": "Noch keine offenen Seiten",

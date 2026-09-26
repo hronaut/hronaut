@@ -35,6 +35,8 @@ async function captureHome(app: ElectronApplication): Promise<Buffer> {
 test('Home keeps its content width and position when switching between short and scrollable tabs', async ({ electronApp }) => {
   await readyHome(electronApp)
   await expect.poll(() => homeScript(electronApp, 'Boolean(document.getElementById("home-tab-workspaces")?.offsetParent)')).toBe(true)
+  // Exercise the returning-profile short view as well as long diagnostics.
+  await homeScript(electronApp, `localStorage.setItem('hronaut.home.onboarded', 'true'); import(document.querySelector('script[type="module"]').src).then(module => module.homeController.refresh())`)
   for (const width of [1200, 760]) {
     await electronApp.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900), width)
     await expect.poll(() => homeScript(electronApp, 'innerWidth')).toBe(width)

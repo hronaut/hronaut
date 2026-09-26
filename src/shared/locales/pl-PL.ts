@@ -18,7 +18,7 @@ export const plPL = {
     "search": "Szukaj obszarów lub kart",
     "views": "Widoki obszarów roboczych",
     "current": "Bieżący",
-    "personal": "Bezpośredni dostęp agentów wyłączony",
+    "personal": "Bezpośredni dostęp agentów wyłączony · Kopiowanie logowania dozwolone",
     "agentAccess": "Dostęp agentów włączony",
     "restricted": "Tylko wybrane witryny",
     "noTabs": "Brak otwartych stron",

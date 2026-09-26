@@ -1,0 +1,24 @@
+.mcp-readiness-summary {
+  display: grid;
+  gap: 12px;
+  width: min(320px, 80vw);
+  padding: 14px;
+  color: var(--text);
+  font-size: 13px;
+  white-space: normal;
+}
+.mcp-readiness-summary dl { display: grid; gap: 8px; margin: 0; }
+.mcp-readiness-summary strong { font-weight: 600; }
+.mcp-readiness-summary dl > div { display: flex; justify-content: space-between; gap: 12px; }
+.mcp-readiness-summary dd { margin: 0; }
+.mcp-readiness-summary p { color: var(--muted); margin: 0; }
+.mcp-readiness-summary code { overflow-wrap: anywhere; }
+.mcp-summary .ui-popover__trigger { gap: 6px; white-space: nowrap; }
+.mcp-controls { overflow: visible; }
+.shell:not(.vertical-tabs-shell) .topbar:has(.mcp-summary [aria-expanded="true"]) { z-index: 3; }
+.mcp-summary { height: 100%; flex: 1; min-width: 0; }
+.mcp-summary .mcp-pill { width: 100%; border-radius: 999px 0 0 999px; }
+.mcp-pause-button { display: flex; align-items: center; gap: 4px; border-radius: 0 999px 999px 0; }
+.vertical-tabs-shell .mcp-summary .ui-popover__panel { top: auto; bottom: calc(100% + 8px); left: 0; right: auto; }
+.mcp-pause-label { font-size: 11px; }
+@media (max-width: 1200px) { .mcp-pause-label { display: none; } }

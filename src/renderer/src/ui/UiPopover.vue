@@ -4,6 +4,8 @@ import UiButton from './UiButton.vue'
 
 const props = withDefaults(defineProps<{
   label: string
+  title?: string
+  triggerClass?: string
   placement?: 'bottom-start' | 'bottom-end' | 'top-start' | 'top-end'
   disabled?: boolean
 }>(), {
@@ -56,9 +58,11 @@ defineExpose({ close, focus: () => trigger.value?.focus() })
     <UiButton
       ref="trigger"
       class="ui-popover__trigger"
+      :class="triggerClass"
       variant="ghost"
       :disabled="disabled"
       :aria-label="label"
+      :title="title"
       :aria-expanded="open"
       :aria-controls="panelId"
       @click="toggle"

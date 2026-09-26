@@ -18,7 +18,7 @@ export const esES = {
     "search": "Buscar espacios o pestañas",
     "views": "Vistas de espacios de trabajo",
     "current": "Actual",
-    "personal": "Acceso directo de agentes desactivado",
+    "personal": "Acceso directo de agentes desactivado · Copia de sesiones permitida",
     "agentAccess": "Acceso de agentes activado",
     "restricted": "Solo sitios seleccionados",
     "noTabs": "Aún no hay páginas abiertas",

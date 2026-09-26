@@ -621,6 +621,7 @@ const {
     walletApproval: walletApprovalOpen
   },
   overlays: {
+    mcpReadiness: mcpStatusController.summaryOpen,
     updateNotice: updateNoticeOpen,
     find: findOpen,
     zoom: zoomOpen,

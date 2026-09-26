@@ -1,6 +1,7 @@
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { ref, watch, type Ref } from 'vue'
 import { formatReproAsPlaywright } from '../../../shared/repro-export.js'
+import { usePageMetadata } from '../features/diagnostics/page-metadata/usePageMetadata.js'
 import type {
   BrowserAccessibilityAudit,
   BrowserAccessibilityAuditAction,
@@ -12,7 +13,6 @@ import type {
   BrowserDomChangesAction,
   BrowserInspectorIssuesReport,
   BrowserMemoryReport,
-  BrowserPageMetadataReport,
   BrowserPerformanceAction,
   BrowserPerformanceReport,
   BrowserQualityAudit,
@@ -49,7 +49,6 @@ type Domain =
   | 'quality'
   | 'performance'
   | 'design'
-  | 'metadata'
   | 'security'
   | 'coverage'
   | 'cpu'
@@ -88,10 +87,9 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const designOverviewReport = ref<BrowserDesignOverviewReport | null>(null)
   const designOverviewState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const designOverviewError = ref('')
-  const pageMetadataPanelOpen = ref(false)
-  const pageMetadataReport = ref<BrowserPageMetadataReport | null>(null)
-  const pageMetadataState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
-  const pageMetadataError = ref('')
+  const metadata = usePageMetadata(options)
+  const { pageMetadataPanelOpen, pageMetadataReport, pageMetadataState, pageMetadataError,
+    runPageMetadata, togglePageMetadata } = metadata
   const securityPanelOpen = ref(false)
   const securityReport = ref<BrowserSecurityReport | null>(null)
   const securityReportState = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
@@ -142,7 +140,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     quality: 0,
     performance: 0,
     design: 0,
-    metadata: 0,
     security: 0,
     coverage: 0,
     cpu: 0,
@@ -265,30 +262,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   function toggleDesignOverview(): void {
     if (designOverviewPanelOpen.value) designOverviewPanelOpen.value = false
     else void runDesignOverview()
-  }
-
-  async function runPageMetadata(): Promise<void> {
-    const request = begin('metadata')
-    if (!request) return
-    options.closeTransientPanels()
-    pageMetadataPanelOpen.value = true
-    pageMetadataState.value = 'loading'
-    pageMetadataError.value = ''
-    try {
-      const report = await options.browser.inspectPageMetadata(request.tab.id)
-      if (!current('metadata', request)) return
-      pageMetadataReport.value = report
-      pageMetadataState.value = 'ready'
-    } catch (cause) {
-      if (!current('metadata', request)) return
-      pageMetadataState.value = 'error'
-      pageMetadataError.value = cause instanceof Error ? cause.message : String(cause)
-    }
-  }
-
-  function togglePageMetadata(): void {
-    if (pageMetadataPanelOpen.value) pageMetadataPanelOpen.value = false
-    else void runPageMetadata()
   }
 
   async function runSecurityReport(): Promise<void> {
@@ -716,6 +689,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   function resetForContext(): void {
+    metadata.resetForContext()
     generation += 1
     for (const domain of Object.keys(sequences) as Domain[]) sequences[domain] += 1
     resetCopyFeedback()
@@ -727,7 +701,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     closeForContextChange(qualityAuditPanelOpen)
     closeForContextChange(performancePanelOpen)
     closeForContextChange(designOverviewPanelOpen)
-    closeForContextChange(pageMetadataPanelOpen)
     closeForContextChange(securityPanelOpen)
     closeForContextChange(coveragePanelOpen)
     closeForContextChange(cpuProfilePanelOpen)
@@ -749,9 +722,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     designOverviewReport.value = null
     designOverviewState.value = 'idle'
     designOverviewError.value = ''
-    pageMetadataReport.value = null
-    pageMetadataState.value = 'idle'
-    pageMetadataError.value = ''
     securityReport.value = null
     securityReportState.value = 'idle'
     securityReportError.value = ''
@@ -831,6 +801,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }, { immediate: true })
 
   function dispose(): void {
+    metadata.dispose()
     generation += 1
     stopTabWatcher()
     stopReproWatcher()
@@ -844,6 +815,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   }
 
   return {
+    metadata,
     accessibilityAuditState,
     accessibilityAudit,
     accessibilityAuditError,

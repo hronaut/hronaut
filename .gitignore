@@ -245,6 +245,7 @@ docs/*
 !docs/PUBLISHING_CHECKLIST.md
 !docs/DIRECTORY_LISTINGS.md
 !docs/SUPPORT_RECOVERY.md
+!docs/RUNTIME_BOUNDARIES.md
 playwright-report/
 storybook-static/
 test-results/

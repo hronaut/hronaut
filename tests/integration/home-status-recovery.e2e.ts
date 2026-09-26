@@ -1,5 +1,12 @@
 import { expect, test } from './fixtures.js'
 
+test.beforeEach(async ({ electronApp }) => {
+  await expect.poll(() => electronApp.evaluate(async ({ webContents }) => {
+    const home = webContents.getAllWebContents().find(contents => contents.getURL().startsWith('hronaut://home'))
+    return home?.executeJavaScript('Boolean(document.querySelector("#server-state .dot.ready"))').catch(() => false)
+  })).toBe(true)
+})
+
 for (const failure of ['http', 'network', 'json', 'null', 'invalid-object'] as const) {
   test(`shows unavailable Home status after a ${failure} failure and recovers on the next successful refresh`, async ({ electronApp }) => {
     await expect.poll(() => electronApp.evaluate(({ webContents }) => (
@@ -11,6 +18,10 @@ for (const failure of ['http', 'network', 'json', 'null', 'invalid-object'] as c
       if (!home) throw new Error('Hronaut Home web contents was not found')
       return home.executeJavaScript(`(async () => {
         const originalFetch = window.fetch;
+        const { homeController } = await import(document.querySelector('script[type="module"]').src);
+        let dashboard = await originalFetch('hronaut://home/api/status').then(response => response.json());
+        const refreshDashboard = () => homeController.refresh();
+        const renderDashboard = () => homeController.update(dashboard);
         const originalDashboard = dashboard;
         const readStatus = () => ({
           label: document.getElementById('server-state').textContent.trim(),
@@ -38,7 +49,7 @@ for (const failure of ['http', 'network', 'json', 'null', 'invalid-object'] as c
           };
           await refreshDashboard();
           const unavailable = readStatus();
-          const retainedDashboard = dashboard === ready;
+           const retainedDashboard = document.getElementById('server-version').textContent === 'Hronaut ' + ready.version;
           window.fetch = async () => ({ ok: true, json: async () => ({ ...ready, activeRequests: 0, totalRequests: 4 }) });
           await refreshDashboard();
           return { before, unavailable, retainedDashboard, recovered: readStatus() };
@@ -73,6 +84,10 @@ test('keeps recovered Home status when an older failed refresh arrives afterward
     if (!home) throw new Error('Hronaut Home web contents was not found')
     return home.executeJavaScript(`(async () => {
       const originalFetch = window.fetch;
+      const { homeController } = await import(document.querySelector('script[type="module"]').src);
+      let dashboard = await originalFetch('hronaut://home/api/status').then(response => response.json());
+      const refreshDashboard = () => homeController.refresh();
+      const renderDashboard = () => homeController.update(dashboard);
       const originalDashboard = dashboard;
       try {
         let failOlder;

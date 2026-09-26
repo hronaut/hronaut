@@ -18,7 +18,7 @@ export const frFR = {
     "search": "Rechercher des espaces ou onglets",
     "views": "Vues des espaces de travail",
     "current": "Actuel",
-    "personal": "Accès direct des agents désactivé",
+    "personal": "Accès direct des agents désactivé · Copie des connexions autorisée",
     "agentAccess": "Accès des agents activé",
     "restricted": "Sites sélectionnés uniquement",
     "noTabs": "Aucune page ouverte",

@@ -9,7 +9,7 @@ export const enUS = {
     protectionDescription: "Prevent permanent deletion by people and agents. Archiving is still available.",
 
     title: 'Workspaces', heading: 'A place for every project', description: 'Keep projects and sign-ins in separate browser spaces. Pick up where you left off.',
-    open: 'Open', archived: 'Archived', search: 'Search workspaces or tabs', views: 'Workspace views', current: 'Current', personal: 'Direct agent access off', agentAccess: 'Agent access on', restricted: 'Selected sites only',
+    open: 'Open', archived: 'Archived', search: 'Search workspaces or tabs', views: 'Workspace views', current: 'Current', personal: 'Direct agent access off · Sign-in copying allowed', agentAccess: 'Agent access on', restricted: 'Selected sites only',
     noTabs: 'No open pages yet', openWorkspace: 'Open workspace', restore: 'Restore workspace', archive: 'Archive', clear: 'Clear…', delete: 'Delete…', undo: 'Undo archive',
     archiveHelp: 'Archived workspaces keep their tabs and sign-ins. Restore one whenever you need it.', openHelp: 'Archive finished work to keep this list tidy. Your tabs and sign-ins are kept.',
     empty: 'Your first workspace starts here', emptyHelp: 'Create a space for a project, account, or agent task. Each workspace has its own website data.',

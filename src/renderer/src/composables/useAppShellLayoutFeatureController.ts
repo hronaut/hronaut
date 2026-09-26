@@ -30,6 +30,7 @@ export interface AppShellLayoutFeatureControllerOptions {
     walletApproval: BooleanState
   }
   overlays: {
+    mcpReadiness?: Ref<boolean>
     updateNotice: BooleanState
     find: BooleanState
     zoom: BooleanState
@@ -75,7 +76,8 @@ export function useAppShellLayoutFeatureController(
     || modals.workspaceEditor.value
     || modals.credentialPicker.value
     || modals.walletApproval.value
-    || overlays.tabSearch.value)
+    || overlays.tabSearch.value
+    || overlays.mcpReadiness?.value === true)
   const panelDockLayout = usePanelDockLayout({
     ...layout,
     fullModalOpen
@@ -84,6 +86,7 @@ export function useAppShellLayoutFeatureController(
     activePanel: overlays.activePanel,
     splitMenu: overlays.splitMenu,
     layoutSources: [
+      ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : []),
       modals.settings,
       overlays.updateNotice,
       overlays.find,
@@ -102,6 +105,7 @@ export function useAppShellLayoutFeatureController(
       modals.walletApproval
     ],
     competingOverlayStates: [
+      ...(overlays.mcpReadiness ? [overlays.mcpReadiness] : []),
       modals.settings,
       modals.commandPalette,
       modals.helpDialog,

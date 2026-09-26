@@ -501,6 +501,11 @@ export interface McpActivityResult {
 export type McpServerStatus = 'starting' | 'ready' | 'paused' | 'error'
 
 export interface McpControlState {
+  /** Bounded current-listener evidence; never names, credentials or page data. */
+  readiness?: {
+    initializedClientCount: number
+    probe: 'probe_verified' | 'probe_failed' | 'unknown' | 'blocked'
+  }
   status: McpServerStatus
   paused: boolean
   /** Actual tool callbacks still settling, independent of HTTP connections. */

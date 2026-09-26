@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHomePage } from '../src/main/home-page.js'
+import { mountHome } from '../src/renderer/src/home/controller.js'
+import type { HomeBootstrap, HronautHomeApi } from '../src/shared/home.js'
 import type { McpDashboardState } from '../src/main/mcp/server.js'
 import { buildMcpReadinessDiagnostic } from '../src/main/mcp/readiness.js'
 
@@ -15,13 +17,16 @@ const state: McpDashboardState = {
   })
 }
 
+let mounted: ReturnType<typeof mountHome> | undefined
 function mount(bridge: Record<string, unknown> = {}) {
+  mounted?.dispose()
   const html = renderHomePage({ endpoint: state.endpoint, initialState: state, locale: 'en-US' })
   document.documentElement.innerHTML = html
   Object.defineProperty(window, 'hronautHome', { configurable: true, value: bridge })
-  const script = document.querySelector('script')!.textContent!
+  const data = JSON.parse(document.querySelector('#home-bootstrap')!.textContent!) as HomeBootstrap
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => state })
-  return new Function('window', 'document', 'fetch', 'setTimeout', script + '\nreturn { update(next) { dashboard = next; renderDashboard(); } };')(window, document, fetch, setTimeout) as { update(next: McpDashboardState): void }
+  mounted = mountHome(data, bridge as unknown as HronautHomeApi, fetch)
+  return mounted
 }
 
 const button = (selector: string) => document.querySelector<HTMLButtonElement>(selector)!
@@ -42,6 +47,7 @@ beforeEach(() => {
   Object.defineProperty(window, 'localStorage', { configurable: true, value: storage })
 })
 afterEach(() => {
+  mounted?.dispose()
   vi.restoreAllMocks()
   vi.useRealTimers()
   document.documentElement.innerHTML = ''
@@ -50,6 +56,18 @@ afterEach(() => {
 })
 
 describe('Home action recovery', () => {
+  it('restores workspace actions after filtering during a pending action', async () => {
+    let finish!: (value: HomeBootstrap['workspaces']) => void
+    mount({ workspaceAction: () => new Promise(resolve => { finish = resolve }) })
+    const create = button('[data-workspace-action="create"]')
+    create.click()
+    expect(create.disabled).toBe(true)
+    const search = document.querySelector<HTMLInputElement>('#workspace-search')!
+    search.value = 'new workspace'; search.dispatchEvent(new Event('input'))
+    finish({ mcpTabGroups: [], savedTabGroups: [], tabs: [], activeTabId: null, allHumanInteractionLocked: false })
+    await settle()
+    expect(create.disabled).toBe(false)
+  })
   for (const [selector, method, status] of [
     ['[data-agent-guide]', 'openAgentGuide', '#guide-open-status'],
     ['[data-setup-help]', 'openSetupHelp', '#support-help-status'],
@@ -96,12 +114,12 @@ describe('Home setup journey', () => {
     const page = mount()
     const guide = button('[data-guide="opencode"]')
     guide.focus()
-    const themedState = { ...state, theme: 'cyberpunk-turbo' }
+    const themedState = { ...state, theme: 'cyberpunk-turbo' as const }
     page.update(themedState)
     expect(document.documentElement.dataset.theme).toBe('cyberpunk-turbo')
     expect(document.activeElement).toBe(guide)
     page.update(state)
-    expect(document.documentElement.dataset.theme).toBe('')
+    expect(document.documentElement.dataset.theme).toBe('light')
     expect(document.activeElement).toBe(guide)
   })
 
