@@ -97,6 +97,15 @@ describe('workspace data transfer', () => {
     await expect(transferWorkspaceStorage({ ...options, mode: 'move' })).rejects.toThrow(/verif/i)
     expect([...source.jar.values()]).toEqual([cookie()])
   })
+  it('copies the latest writable cookie when Chromium reports duplicate identities', async () => {
+    source.cookies.get.mockResolvedValue([cookie('older'), cookie('newer')])
+
+    const result = await transferWorkspaceStorage({ ...options, origins: [], copyAllCookies: true, copyLocalStorage: false })
+
+    expect(result.cookieCount).toBe(1)
+    expect(target.jar.get(identity(cookie()))?.value).toBe('newer')
+    expect(target.cookies.set).toHaveBeenCalledTimes(1)
+  })
   it('rejects a localStorage read-back mismatch before touching either source category', async () => {
     source.storage.set(origin, new Map([['shared', 'source']]))
     target.flushStorageData.mockImplementation(async () => { target.storage.get(origin)?.set('shared', 'different') })

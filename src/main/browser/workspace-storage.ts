@@ -126,9 +126,17 @@ async function cookiesForTransfer(
   copyAllCookies: boolean
 ): Promise<{ cookies: Cookie[]; omittedPartitionedCookieCount: number }> {
   const available = await source.cookies.get({})
-  if (copyAllCookies) return {
-    cookies: available.filter((cookie) => !isPartitionedCookie(cookie)),
-    omittedPartitionedCookieCount: available.filter(isPartitionedCookie).length
+  if (copyAllCookies) {
+    // Chromium can return more than one row for the same writable cookie
+    // identity. A destination cannot hold both; copy the last row, as the
+    // origin-filtered path below already does, and verify that exact copy.
+    const cookies = new Map<string, Cookie>()
+    let omittedPartitionedCookieCount = 0
+    for (const cookie of available) {
+      if (isPartitionedCookie(cookie)) omittedPartitionedCookieCount += 1
+      else cookies.set(cookieIdentity(cookie), cookie)
+    }
+    return { cookies: [...cookies.values()], omittedPartitionedCookieCount }
   }
   const selectedOrigins = origins.map((origin) => new URL(origin))
   const cookies = new Map<string, Cookie>()
@@ -210,6 +218,7 @@ class LocalStorageSurface {
     // Network-domain commands need an initialized renderer. Bootstrap a safe
     // opaque page before applying bypass, without contacting a website.
     await storageDeadline(this.webContents.loadURL('about:blank'), 'renderer initialization')
+    await storageDeadline(this.webContents.debugger.sendCommand('Network.enable'), 'network setup')
     // Storage probes must not wake a site's service worker or run its fetch handler.
     await storageDeadline(this.webContents.debugger.sendCommand('Network.setBypassServiceWorker', { bypass: true }), 'worker bypass')
     await storageDeadline(this.webContents.debugger.sendCommand('Fetch.enable', {
