@@ -145,7 +145,7 @@ Paused MCP requests receive HTTP 503 with a `handoff` snapshot: `state` is `PAUS
 
 ## Saved passwords
 
-When you manually submit a website password form, Hronaut can ask whether to save or update that login. Passwords are encrypted asynchronously by the operating system through macOS Keychain, Windows DPAPI, or a supported Linux secret store. Hronaut refuses to enable password saving when Linux would fall back to Electron's unprotected `basic_text` backend.
+When you manually sign in to a website, Hronaut can ask whether to save or update that login. It observes native form submissions and common scripted login buttons, including buttons inside forms. Passwords are encrypted asynchronously by the operating system through macOS Keychain, Windows DPAPI, or a supported Linux secret store. Hronaut refuses to enable password saving when Linux would fall back to Electron's unprotected `basic_text` backend.
 
 Saved-account metadata can be reviewed or removed under **Settings → Passwords**. Hronaut never exposes stored passwords through its preload API, Settings, Home dashboard, or MCP tools. Use the password button in the toolbar to fill an account for the active website. Hronaut pauses new MCP commands before decrypting and filling, waits for active requests to finish, and remains paused until you explicitly resume agents.
 

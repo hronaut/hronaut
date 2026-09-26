@@ -66,10 +66,11 @@ export function credentialCapturePageScript(): string {
       const form = button.form || button.closest('form');
       const fields = fieldsFor(form);
       if (!fields.some((input) => input.type === 'password')) { remember(usernameField(fields)); return; }
-      // Native forms are handled by submit (after constraint validation).
-      if (form) return;
+      // Native submit buttons are handled by submit (after constraint validation).
+      if (form && ((button instanceof HTMLButtonElement || button instanceof HTMLInputElement)
+        && button.type === 'submit')) return;
       const label = (button.getAttribute('aria-label') || button.textContent || button.value || '').trim();
-      if (/^(log\\s*in|sign\\s*in|continue|next)$/i.test(label)) capture(null);
+      if (/^(log\\s*in|sign\\s*in|continue|next)$/i.test(label)) capture(form);
     };
     const onKeydown = (event) => {
       if (event.key === 'Enter' && !event.isComposing && event.target instanceof HTMLInputElement

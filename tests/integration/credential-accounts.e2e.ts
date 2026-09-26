@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { credentialCapturePageScript } from '../../src/main/browser/credential-capture-page.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-test('captures distinct accounts through two-step website logins in Chromium', async ({ electronApp }) => {
+test('captures distinct accounts through two-step and scripted-form logins in Chromium', async ({ electronApp }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html' })
     response.end('<!doctype html><title>Multiple accounts</title><main></main>')
@@ -36,6 +36,14 @@ test('captures distinct accounts through two-step website logins in Chromium', a
       }, { id: contentsId, username, script: credentialCapturePageScript() })
       expect(result).toEqual({ origin, username, passwordMatches: true })
     }
+    const scriptedForm = await electronApp.evaluate(async ({ webContents }, { id, script }) => {
+      const contents = webContents.fromId(id)!
+      await contents.executeJavaScript(`document.querySelector('main').innerHTML = '<form><input autocomplete="username" value="carol"><input type="password" value="synthetic-password"><button type="button">Log in</button></form>'`)
+      await contents.executeJavaScript(`void (window.__capture = ${script})`)
+      await contents.executeJavaScript(`document.querySelector('button').click()`)
+      return contents.executeJavaScript('window.__capture.then(({ origin, username, password }) => ({ origin, username, passwordMatches: password === "synthetic-password" }))')
+    }, { id: contentsId, script: credentialCapturePageScript() })
+    expect(scriptedForm).toEqual({ origin, username: 'carol', passwordMatches: true })
   } finally {
     if (contentsId !== undefined) await electronApp.evaluate(({ BrowserWindow, webContents }, id) => {
       const contents = webContents.fromId(id)

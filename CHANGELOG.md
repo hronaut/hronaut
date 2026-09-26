@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix password observation for JavaScript-driven login buttons that live inside a form, so common SPA login patterns with `<button type="button">` are captured instead of relying on native form submission alone.
+
 ## [2.5.30] - 2026-09-26
 
 ### Fixed

@@ -68,3 +68,34 @@ it('can observe another account after completing a capture in the same document'
     await expect(candidate).resolves.toMatchObject({ username })
   }
 })
+
+it('captures a JavaScript-driven login button inside a form', async () => {
+  document.body.innerHTML =
+    '<form>' +
+      '<input autocomplete="username" value="alex">' +
+      '<input type="password" autocomplete="current-password" value="spassword">' +
+      '<button type="button" id="login">Log in</button>' +
+    '</form>'
+  const candidate = window.eval(credentialCapturePageScript()) as Promise<unknown>
+  document.getElementById('login')!.click()
+  await expect(candidate).resolves.toMatchObject({ username: 'alex', password: 'spassword' })
+})
+
+it('captures a custom button inside a form', async () => {
+  document.body.innerHTML =
+    '<form><input autocomplete="username" value="alex"><input type="password" value="secret">' +
+    '<div role="button" tabindex="0">Sign in</div></form>'
+  const candidate = window.eval(credentialCapturePageScript()) as Promise<unknown>
+  document.querySelector<HTMLElement>('[role="button"]')!.click()
+  await expect(candidate).resolves.toMatchObject({ username: 'alex', password: 'secret' })
+})
+
+it('waits for validation before capturing a native form submit button', async () => {
+  document.body.innerHTML =
+    '<form><input type="email" required value="invalid"><input type="password" value="secret">' +
+    '<button>Log in</button></form>'
+  const candidate = window.eval(credentialCapturePageScript()) as Promise<unknown>
+  document.querySelector('button')!.click()
+  window.dispatchEvent(new Event('pagehide'))
+  await expect(candidate).resolves.toBeNull()
+})
