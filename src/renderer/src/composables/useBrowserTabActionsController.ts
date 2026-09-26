@@ -122,12 +122,14 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   async function toggleTabHumanInteraction(): Promise<void> {
     if (disposed) return
     const tab = options.activeTab.value
-    if (!tab || options.isHome() || options.state.value.allHumanInteractionLocked) return
+    if (!tab || options.isHome()) return
     await enqueueToggle(`interaction:${tab.id}`, async () => {
       if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
-      if (!currentTab || options.state.value.allHumanInteractionLocked) return
-      await options.syncState(options.browser.setTabHumanInteractionLocked(tab.id, !currentTab.humanInteractionLocked))
+      if (!currentTab) return
+      const locked = currentTab.humanInteractionInputLocked
+        ?? (options.state.value.allHumanInteractionLocked || currentTab.humanInteractionLocked)
+      await options.syncState(options.browser.setTabHumanInteractionLocked(tab.id, !locked))
     })
   }
 

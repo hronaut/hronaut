@@ -433,6 +433,7 @@ test('cancels durable agent wallet approvals before application shutdown complet
     }) as CallToolResult
     expect(opened.isError, toolText(opened)).not.toBe(true)
     const tabId = (JSON.parse(toolText(opened)) as { activeTabId: string }).activeTabId
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate(
       'window.hronaut.getState().then((value) => value.tabs.find((entry) => entry.active)?.title)'
     )).toBe('Wallet shutdown fixture')

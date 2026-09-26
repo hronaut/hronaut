@@ -94,6 +94,7 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId, text: 'Offline app ready' } })
 
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
     let usageReport: {
       usage: number

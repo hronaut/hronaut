@@ -68,6 +68,7 @@ test('compares a volatile accessibility baseline without carrying it to another 
       expect.objectContaining({ ruleId: 'button-name', targets: expect.arrayContaining(['#save']) })
     ]))
 
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     await appWindow.getByRole('dialog', { name: 'Page tools' }).getByRole('button', { name: /Run accessibility audit/ }).click()
     const accessibilityPanel = appWindow.getByRole('dialog', { name: 'Accessibility' })

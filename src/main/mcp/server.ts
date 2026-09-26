@@ -2661,11 +2661,14 @@ function createBrowserMcpServer(
     'browser_new_tab',
     {
       description: toolDescription('browser_new_tab'),
-      inputSchema: { url: z.string().optional(), active: z.boolean().optional() }
+      inputSchema: {
+        url: z.string().optional(),
+        active: z.boolean().optional().describe('Select the new tab within the agent workspace; show it only while Follow agents is enabled.')
+      }
     },
     tool(async ({ workspaceId, url, active }: { workspaceId?: string; url?: string; active?: boolean }) => {
       const existingTabIds = new Set(manager.getState().tabs.map((tab) => tab.id))
-      const next = await manager.newTab({ url, active, mcpGroupId: workspaceId!, focus: false })
+      const next = await manager.newAgentTab({ url, active, mcpGroupId: workspaceId!, focus: false })
       const createdTab = next.tabs.find((tab) => !existingTabIds.has(tab.id))
       if (createdTab) {
         const activityId = randomUUID()
@@ -2680,7 +2683,7 @@ function createBrowserMcpServer(
     { description: toolDescription('browser_select_tab'), inputSchema: { tabId: tabIdSchema } },
     tabTool(
       'browser_select_tab',
-      async ({ tabId }: { tabId: string }) => textResult(await manager.selectTabAndWait(tabId, { focus: false })),
+      async ({ tabId }: { tabId: string }) => textResult(await manager.selectAgentTabAndWait(tabId)),
       'handler-owned'
     )
   )
@@ -2734,7 +2737,7 @@ function createBrowserMcpServer(
         return textResult(visibleBookmarks(profile, await bookmarks.rename(id, title)))
       }
       if (action === 'remove') return textResult(visibleBookmarks(profile, await bookmarks.remove(id)))
-      return textResult(await manager.newTab({ url: bookmark.url, active, mcpGroupId: workspaceId! }))
+      return textResult(await manager.newAgentTab({ url: bookmark.url, active, mcpGroupId: workspaceId! }))
     })
   )
   registerWorkspaceTool(
@@ -2782,7 +2785,7 @@ function createBrowserMcpServer(
       if (!entry) throw new Error(`History entry not found: ${id}`)
       const profile = requireActiveCapabilityDispatch('browser_visit_history', { ...input, url: entry.url })
       if (action === 'remove') return textResult(visibleHistory(profile, await history.remove(id)))
-      return textResult(await manager.newTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
+      return textResult(await manager.newAgentTab({ url: entry.url, active, mcpGroupId: workspaceId! }))
     })
   )
   registerWorkspaceTool(

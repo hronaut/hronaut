@@ -48,6 +48,7 @@ test('contains rejected and obsolete delayed Repro page captures', async ({
       arguments: { url: `http://127.0.0.1:${address.port}/`, active: true }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Repro rejection fixture')
 
     const started = await client.callTool({

@@ -91,6 +91,7 @@ test('replays retained XHRs for people and agents with explicit side-effect conf
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
     await client.callTool({ name: 'browser_wait', arguments: { workspaceId, tabId } })
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     const armedNetwork = await client.callTool({
       name: 'browser_network',
       arguments: { workspaceId, tabId }

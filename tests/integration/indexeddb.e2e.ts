@@ -111,6 +111,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       expect.objectContaining({ name: 'settings', entryCount: 3, indexes: [expect.objectContaining({ name: 'by-category' })] })
     ]))
 
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
     const recordsResult = await client.callTool({
       name: 'browser_indexeddb',

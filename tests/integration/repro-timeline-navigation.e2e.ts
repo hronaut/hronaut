@@ -50,6 +50,7 @@ test('reviews reproduction steps with keyboard navigation and resets selection f
     }))
     const state = decode<BrowserState>(await call('browser_new_tab', { workspaceId: workspace.id, url: origin }))
     const tabId = state.activeTabId!
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.title)'))
       .toBe('Repro timeline fixture')
 

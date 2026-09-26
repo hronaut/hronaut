@@ -125,6 +125,7 @@ test('isolates emulation between tabs and preserves it across reload', async ({ 
   expect(isolatedTabId).toBeTruthy()
   await client.callTool({ name: 'browser_wait', arguments: { tabId: isolatedTabId } })
   await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
   const emulated = await applyDiagnosticEmulation(client, tabId)
   expect(emulated.isError, text(emulated)).not.toBe(true)
   expect(JSON.parse(text(emulated))).toEqual({

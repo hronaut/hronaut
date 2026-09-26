@@ -10,6 +10,7 @@ function text(result: CallToolResult): string {
 }
 
 test('uses bounded canvas coordinates and keeps horizontal scrolling horizontal', async ({
+  appWindow,
   mcpToken,
   mcpPort
 }) => {
@@ -67,6 +68,7 @@ test('uses bounded canvas coordinates and keeps horizontal scrolling horizontal'
     }) as CallToolResult
     expect(created.isError, text(created)).not.toBe(true)
     const tabId = JSON.parse(text(created)).activeTabId as string
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await client.callTool({
       name: 'browser_wait',
       arguments: { tabId, text: 'Canvas target ready' }

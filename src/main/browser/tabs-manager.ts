@@ -1089,6 +1089,7 @@ export class BrowserTabsManager {
   })
   private allTabsMuted = false
   private allHumanInteractionLocked = false
+  private readonly globallyUnlockedTabIds = new Set<string>()
   private readonly agentInputWebContents = new Map<number, number>()
   private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
   private readonly authorizedAgentKeyboardInput = new Map<number, AuthorizedAgentKeyboardInput>()
@@ -2847,7 +2848,11 @@ export class BrowserTabsManager {
     return recordTrustedCredentialFill(outcome, tab, Date.now(), this.options.onUserInteraction)
   }
 
-  async newTab(options: NewTabOptions = {}): Promise<BrowserState> {
+  async newAgentTab(options: NewTabOptions): Promise<BrowserState> {
+    return this.newTab(options, this.followAgentActivity)
+  }
+
+  async newTab(options: NewTabOptions = {}, selectVisible = true): Promise<BrowserState> {
     const url = normalizeAddress(options.url ?? 'about:blank', this.options.getSearchEngine?.())
     if (isHronautHomeUrl(url)) {
       if (options.mcpGroupId) throw new Error('Hronaut Home is a human application page and cannot be added to an agent workspace.')
@@ -2860,10 +2865,11 @@ export class BrowserTabsManager {
     this.assertWorkspaceNavigationAllowed(groupId, url, 'direct')
     try {
       await this.createTab({
-      url,
-      active: options.active ?? true,
-      mcpGroupId: groupId,
-      focus: options.focus
+        url,
+        active: options.active ?? true,
+        selectVisible,
+        mcpGroupId: groupId,
+        focus: options.focus
       })
     } catch (error) {
       if (createsWorkspace) {
@@ -3619,6 +3625,16 @@ export class BrowserTabsManager {
     return this.selectTab(next.id, options)
   }
 
+  async selectAgentTabAndWait(tabId: string): Promise<BrowserState> {
+    if (this.followAgentActivity) return this.selectTabAndWait(tabId, { focus: false })
+    const tab = this.getTab(tabId)
+    await this.wakeTab(tabId)
+    if (this.tabs.get(tabId) !== tab) return this.getState()
+    this.markTabActiveInGroup(tab)
+    this.changed()
+    return this.getState()
+  }
+
   selectTab(tabId: string, options: BrowserTabSelectionOptions = {}): BrowserState {
     const next = this.getTab(tabId)
     if (next.webContents.isDestroyed()) {
@@ -4170,6 +4186,7 @@ export class BrowserTabsManager {
     ))
     this.deleteSnapshotBaselineForTab(tab.id)
     this.tabs.delete(tab.id)
+    this.globallyUnlockedTabIds.delete(tab.id)
     if (browserSession && ![...this.tabs.values()].some((candidate) => (
       !candidate.webContents.isDestroyed() && candidate.webContents.session === browserSession
     ))) {
@@ -4412,7 +4429,13 @@ export class BrowserTabsManager {
       throw new Error('Page input remains locked in a read-only public observer workspace.')
     }
     const previousLocked = tab.humanInteractionLocked
-    tab.humanInteractionLocked = locked
+    const wasGloballyUnlocked = this.globallyUnlockedTabIds.has(tabId)
+    if (this.allHumanInteractionLocked) {
+      if (locked) this.globallyUnlockedTabIds.delete(tabId)
+      else this.globallyUnlockedTabIds.add(tabId)
+    } else {
+      tab.humanInteractionLocked = locked
+    }
     if (this.isHumanInteractionLocked(tab)) {
       if (tab.webContents.isDevToolsOpened()) tab.webContents.closeDevTools()
     }
@@ -4420,6 +4443,8 @@ export class BrowserTabsManager {
       await this.syncHumanInteractionInputGuard(tab)
     } catch (error) {
       tab.humanInteractionLocked = previousLocked
+      if (wasGloballyUnlocked) this.globallyUnlockedTabIds.add(tabId)
+      else this.globallyUnlockedTabIds.delete(tabId)
       try {
         await this.syncHumanInteractionInputGuard(tab)
       } catch (rollbackError) {
@@ -4438,7 +4463,9 @@ export class BrowserTabsManager {
 
   async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
     const previousLocked = this.allHumanInteractionLocked
+    const previousGloballyUnlockedTabIds = new Set(this.globallyUnlockedTabIds)
     this.allHumanInteractionLocked = locked
+    this.globallyUnlockedTabIds.clear()
     this.layout()
     if (locked) {
       for (const tab of this.tabs.values()) {
@@ -4453,6 +4480,7 @@ export class BrowserTabsManager {
       .map((result) => result.reason)
     if (errors.length) {
       this.allHumanInteractionLocked = previousLocked
+      for (const tabId of previousGloballyUnlockedTabIds) this.globallyUnlockedTabIds.add(tabId)
       this.layout()
       const rollbackResults = await Promise.allSettled(
         [...this.tabs.values()].map((tab) => this.syncHumanInteractionInputGuard(tab))
@@ -7047,6 +7075,7 @@ export class BrowserTabsManager {
     navigationHistory?: { entries: NavigationEntry[]; index: number }
     loadOptions?: LoadURLOptions
     active: boolean
+    selectVisible?: boolean
     mcpGroupId?: string
     allowBusyWorkspace?: boolean
   }): Promise<BrowserTab> {
@@ -7144,7 +7173,7 @@ export class BrowserTabsManager {
     this.options.configureSession?.(view.webContents.session)
     this.installSessionHooks(view.webContents.session)
     this.attachTabEvents(tab)
-    if (options.active || !this.activeTabId) this.selectTab(id, { focus: options.focus })
+    if ((options.active && options.selectVisible !== false) || !this.activeTabId) this.selectTab(id, { focus: options.focus })
     const loading = options.navigationHistory
       ? view.webContents.navigationHistory.restore(options.navigationHistory)
       : view.webContents.loadURL(url, options.loadOptions)
@@ -7859,6 +7888,7 @@ export class BrowserTabsManager {
       void this.createTab({
         url,
         active: disposition !== 'background-tab',
+        selectVisible: !this.agentInputWebContents.has(webContents.id) || this.followAgentActivity,
         mcpGroupId: tab.mcpGroupId,
         loadOptions
       })
@@ -8329,6 +8359,7 @@ export class BrowserTabsManager {
       sleeping: tab.sleeping,
       pageLifecycleState: tab.pageLifecycleState,
       humanInteractionLocked: tab.humanInteractionLocked,
+      humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
       preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
       ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
@@ -8558,6 +8589,7 @@ export class BrowserTabsManager {
     // Hronaut Home is application chrome, not a website tab. The global lock
     // protects page input while leaving Home controls usable for the human.
     return !isHronautHomeUrl(tab.url)
+      && !this.globallyUnlockedTabIds.has(tab.id)
       && (this.allHumanInteractionLocked || tab.humanInteractionLocked)
   }
 

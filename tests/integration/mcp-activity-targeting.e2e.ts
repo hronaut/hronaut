@@ -65,6 +65,48 @@ test('preserves rapid follow-agent toggle intent through the real settings bound
   await expect(followButton).toHaveAttribute('aria-pressed', 'false')
 })
 
+test('keeps the human tab visible when an unfollowed agent opens and selects tabs', async ({
+  appWindow,
+  mcpPort,
+  mcpToken
+}) => {
+  const fixture = await startPageServer('Agent popup', '<a id="open" href="/child" target="_blank">Open child</a>')
+  const client = await connectMcpClient(mcpPort, mcpToken, 'hronaut-unfollowed-tab-test')
+  try {
+    const workspaceId = await createWorkspace(client, 'Unfollowed agent')
+    const humanTabId = await appWindow.evaluate(`window.hronaut.newTab({
+      url: 'data:text/html,<title>Human work</title>', active: true
+    }).then((state) => state.activeTabId)`) as string
+    expect(await appWindow.evaluate('window.hronautSettings.get().then((value) => value.followAgentActivity)')).toBe(false)
+
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url: fixture.url }
+    }) as CallToolResult
+    expect(opened.isError, text(opened)).not.toBe(true)
+    const agentTabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    expect(agentTabId).not.toBe(humanTabId)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
+
+    const selected = await client.callTool({
+      name: 'browser_select_tab', arguments: { workspaceId, tabId: agentTabId }
+    }) as CallToolResult
+    expect(selected.isError, text(selected)).not.toBe(true)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
+
+    const clicked = await client.callTool({
+      name: 'browser_click', arguments: { workspaceId, tabId: agentTabId, selector: '#open' }
+    }) as CallToolResult
+    expect(clicked.isError, text(clicked)).not.toBe(true)
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.length)'))
+      .toBeGreaterThan(2)
+    expect(await appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(humanTabId)
+  } finally {
+    await client.close().catch(() => undefined)
+    await closeFixtureServer(fixture.server)
+  }
+})
+
 test('follows MCP activity only when enabled without changing input lock or native focus', async ({
   appWindow,
   electronApp,

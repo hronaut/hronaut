@@ -211,6 +211,8 @@ export interface BrowserTabState {
    * ended ambiguously; Hronaut does not replay that command automatically. */
   pageLifecycleState?: BrowserPageLifecycleState
   humanInteractionLocked: boolean
+  /** Effective native page-input lock, including a temporary global-lock exception. */
+  humanInteractionInputLocked?: boolean
   preserveDiagnosticLogs: boolean
   zoomPercent: number
   faviconDataUrl?: string

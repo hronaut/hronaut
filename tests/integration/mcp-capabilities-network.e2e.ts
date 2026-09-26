@@ -655,6 +655,7 @@ test('inspects network waits, streams, redirects and redacted diagnostic exports
   expect(diagnosticsIsolationTabResult.isError, text(diagnosticsIsolationTabResult)).not.toBe(true)
   const diagnosticsIsolationTabId = JSON.parse(text(diagnosticsIsolationTabResult)).activeTabId as string
   await client.callTool({ name: 'browser_wait', arguments: { tabId: diagnosticsIsolationTabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(diagnosticsIsolationTabId)})`)
   await expect(isolatedConsolePanel).toBeHidden()
   await openPageTool('Open Console')
   await expect(isolatedConsolePanel).not.toContainText('first-tab-console-only')

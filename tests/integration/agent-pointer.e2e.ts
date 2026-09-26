@@ -10,7 +10,7 @@ function text(result: CallToolResult): string {
   return content?.type === 'text' ? content.text : ''
 }
 
-test('shows agent clicks and hovers without intercepting page input', async ({ electronApp, mcpPort, mcpToken }) => {
+test('shows agent clicks and hovers without intercepting page input', async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
   const server = createServer((_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
     response.end(`<!doctype html><title>Agent pointer fixture</title>
@@ -61,6 +61,7 @@ test('shows agent clicks and hovers without intercepting page input', async ({ e
       arguments: { url, active: true }
     }) as CallToolResult
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
 
     const click = await client.callTool({
       name: 'browser_click',

@@ -77,7 +77,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
       :title="tabInteractionLockLabel"
       :aria-label="tabInteractionLockLabel"
       :aria-pressed="tabHumanInteractionLocked"
-      :disabled="activeTabIsInternal || state.allHumanInteractionLocked"
+      :disabled="activeTabIsInternal"
       @click="emit('toggleTabInteraction')"
     >
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />

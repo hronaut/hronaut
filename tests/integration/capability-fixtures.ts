@@ -474,6 +474,7 @@ export const test = base.extend<{ capabilities: CapabilityFixture }>({
       expect(opened.isError, text(opened)).not.toBe(true)
       const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
       await client.callTool({ name: 'browser_wait', arguments: { tabId } })
+      await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
       await use({
         client, tabId, address, fixtureUrl, fixtureOrigin, redactedFixtureUrl, counters,
         openPageTool: (name) => openPageTool(appWindow, name)

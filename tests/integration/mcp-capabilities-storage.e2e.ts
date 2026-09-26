@@ -96,6 +96,7 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   expect(storageIsolationTabResult.isError, text(storageIsolationTabResult)).not.toBe(true)
   const storageIsolationTabId = JSON.parse(text(storageIsolationTabResult)).activeTabId as string
   await client.callTool({ name: 'browser_wait', arguments: { tabId: storageIsolationTabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(storageIsolationTabId)})`)
   await expect(storagePanel).toBeHidden()
   await openPageTool('Site storage for 127.0.0.1')
   await storagePanel.getByRole('button', { name: 'Session', exact: true }).click()

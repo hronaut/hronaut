@@ -53,6 +53,7 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
   }) as CallToolResult
   expect(pdfIsolationTabResult.isError, text(pdfIsolationTabResult)).not.toBe(true)
   const pdfIsolationTabId = JSON.parse(text(pdfIsolationTabResult)).activeTabId as string
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(pdfIsolationTabId)})`)
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const isolatedPdfPageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
   await expect(isolatedPdfPageTools.getByRole('button', { name: 'Save page as PDF', exact: true })).toBeVisible()
@@ -60,6 +61,7 @@ test('exports bounded screenshots and PDFs and records downloads and activity', 
   await isolatedPdfPageTools.getByRole('button', { name: 'Close page tools' }).click()
   await client.callTool({ name: 'browser_close_tab', arguments: { tabId: pdfIsolationTabId } })
   await client.callTool({ name: 'browser_select_tab', arguments: { tabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
 
   const screenshot = await client.callTool({
     name: 'browser_screenshot',

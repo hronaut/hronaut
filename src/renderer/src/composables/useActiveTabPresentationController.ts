@@ -82,13 +82,13 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     if (options.downloads.value.length) return options.translate('runtime.downloads.recent')
     return options.translate('runtime.downloads.heading')
   })
-  const tabHumanInteractionLocked = computed(() => options.activeTab.value?.humanInteractionLocked === true)
+  const tabHumanInteractionLocked = computed(() => options.activeTab.value?.humanInteractionInputLocked
+    ?? (options.state.value.allHumanInteractionLocked || options.activeTab.value?.humanInteractionLocked === true))
   const effectiveHumanInteractionLocked = computed(() => (
-    options.state.value.allHumanInteractionLocked || tabHumanInteractionLocked.value
+    tabHumanInteractionLocked.value
   ))
   const tabInteractionLockLabel = computed(() => {
     if (activeIsHome.value) return options.translate('runtime.locks.websiteOnly')
-    if (options.state.value.allHumanInteractionLocked) return options.translate('runtime.locks.allLocked')
     return options.translate(tabHumanInteractionLocked.value ? 'runtime.locks.unlockTab' : 'runtime.locks.lockTab')
   })
   const allInteractionLockLabel = computed(() => (
@@ -106,7 +106,8 @@ export function useActiveTabPresentationController(options: ActiveTabPresentatio
     const audio = tab.muted
       ? options.translate('runtimeDetails.tab.muted')
       : tab.audible ? options.translate('runtimeDetails.tab.audio') : ''
-    const locked = options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked
+    const locked = (tab.humanInteractionInputLocked
+      ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked))
       ? options.translate('runtimeDetails.tab.locked')
       : ''
     const problem = tab.pageProblem

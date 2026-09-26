@@ -351,6 +351,7 @@ test('preserves zoomed document corners within bounded MCP full-page screenshots
     const opened = await client.callTool({ name: 'browser_new_tab', arguments: { url: `${fixture.url}/wide`, active: true } }) as CallToolResult
     expect(opened.isError, text(opened)).not.toBe(true)
     const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe('Wide project board')
     for (const scenario of [{ name: '125-percent-zoom', zoom: 125, pixelRatio: 1.25, viewport: null }, { name: 'dpr2', zoom: 100, pixelRatio: 2, viewport: { width: 900, height: 640, deviceScaleFactor: 2, mobile: false, touch: false, orientation: 'landscape' } }]) {
       await appWindow.evaluate(`window.hronaut.setTabViewport(${JSON.stringify(tabId)}, ${JSON.stringify(scenario.viewport)})`)
@@ -406,6 +407,7 @@ async function openMcpScreenshotFixture(client: Client, page: Page, url: string,
   const content = opened.content.find(item => item.type === 'text')
   if (content?.type !== 'text') throw new Error('New tab returned no state')
   const tabId = (JSON.parse(content.text) as { activeTabId: string }).activeTabId
+  await page.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
   await expect.poll(() => page.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.title)`)).toBe(title)
   await expect.poll(() => page.evaluate(`window.hronaut.getTabOverviewPreviews([${JSON.stringify(tabId)}]).then(previews => previews.length)`)).toBe(1)
   return tabId

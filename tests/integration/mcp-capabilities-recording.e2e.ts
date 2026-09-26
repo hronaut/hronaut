@@ -209,6 +209,7 @@ test('records repro steps, DOM changes, visual differences and browser issues', 
   }) as CallToolResult
   const issueTabId = JSON.parse(text(openedIssuesTab)).activeTabId as string
   await client.callTool({ name: 'browser_wait', arguments: { tabId: issueTabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(issueTabId)})`)
   const inspectorIssuesResult = await client.callTool({
     name: 'browser_issues',
     arguments: { tabId: issueTabId, action: 'list' }

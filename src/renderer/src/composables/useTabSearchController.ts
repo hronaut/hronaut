@@ -460,7 +460,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
     if (tab.mcpGroupName) status.push(options.translate('tabSearch.meta.group', { name: tab.mcpGroupName }))
     if (tab.pinned) status.push(options.translate('tabSearch.meta.pinned'))
     if (tab.active) status.push(options.translate('tabSearch.meta.current'))
-    if (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked) status.push(options.translate('tabSearch.meta.locked'))
+    if (tab.humanInteractionInputLocked ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked)) status.push(options.translate('tabSearch.meta.locked'))
     if (tab.muted) status.push(options.translate('tabSearch.meta.muted'))
     else if (tab.audible) status.push(options.translate('tabSearch.meta.audio'))
     if (options.mcpActivityByTab.value[tab.id]) status.push(options.translate('tabSearch.meta.agent'))

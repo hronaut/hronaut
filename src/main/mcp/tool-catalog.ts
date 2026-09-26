@@ -206,8 +206,8 @@ const BROWSER_TOOL_BASE_CATALOG: Array<Omit<AdvertisedBrowserToolDefinition, 'ti
     description: 'Alert a person to a manual browser step with a tray pulse, system notification, and a visible marker on the requested tab. Supply a short, secret-free notificationMessage for the system notification.'
   },
   { name: 'browser_tabs', category: 'Session', description: 'List tabs and navigation state in the selected agent workspace.' },
-  { name: 'browser_new_tab', category: 'Session', description: 'Open a visible tab inside the selected agent workspace.' },
-  { name: 'browser_select_tab', category: 'Session', description: 'Select the visible active tab.' },
+  { name: 'browser_new_tab', category: 'Session', description: 'Open a tab inside the selected agent workspace; show it when Follow agents is enabled.' },
+  { name: 'browser_select_tab', category: 'Session', description: 'Select the active tab in the agent workspace. It becomes visible when Follow agents is enabled.' },
   { name: 'browser_close_tab', category: 'Session', description: 'Close a tab and keep the browser session alive.' },
   { name: 'browser_bookmarks', category: 'Session', description: 'List, save, rename, remove, or open local browser bookmarks.' },
   { name: 'browser_visit_history', category: 'Session', description: 'Search, remove, clear, or reopen locally recorded web visits.' },

@@ -157,6 +157,8 @@ Browser CSV exports contain readable passwords. Delete the export after confirmi
 
 Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
 
+While the Hronaut-wide input lock is on, use the current tab's lock button to temporarily allow human page input in that one tab. Other tabs remain locked. Turning the Hronaut-wide lock off and on again clears every temporary unlock. This exception is not saved across restarts and is unavailable in read-only public observer workspaces.
+
 ## Right-click webpage actions
 
 Right-click an unlocked website to use a native context menu. Links can open in a background tab, be copied, or downloaded; images can be copied, opened, or saved; text fields expose spelling suggestions and standard editing commands; selections can be copied; and every page includes Back, Forward, Reload, Reload Without Cache, Copy Page Address, and Inspect. The native View menu and `Ctrl/Cmd+R` now reload the active website rather than Hronaut's application shell; use `Ctrl/Cmd+Shift+R` when debugging requires a fresh network load. Download actions use Hronaut's configured collision-safe download directory. Context menus remain completely suppressed while the tab or all of Hronaut is human-interaction locked.

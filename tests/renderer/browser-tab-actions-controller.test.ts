@@ -176,12 +176,12 @@ describe('browser tab actions controller', () => {
     await harness.controller.closeTab('active')
     await harness.controller.toggleTabHumanInteraction()
     expect(harness.browser.closeTab).toHaveBeenCalledWith('active')
-    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', false)
 
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: false }
     harness.home.value = true
     await harness.controller.toggleTabHumanInteraction()
-    expect(harness.browser.setTabHumanInteractionLocked).not.toHaveBeenCalled()
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledTimes(1)
   })
 
   it('delegates workspace, ordering, mute, and interaction mutations with inverted state', async () => {

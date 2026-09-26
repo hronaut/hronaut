@@ -279,6 +279,7 @@ test('coordinates coverage, CPU and memory profiling across tabs and DevTools', 
   expect(sameUrlTabResult.isError, text(sameUrlTabResult)).not.toBe(true)
   const sameUrlTabId = JSON.parse(text(sameUrlTabResult)).activeTabId as string
   await client.callTool({ name: 'browser_wait', arguments: { tabId: sameUrlTabId } })
+  await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(sameUrlTabId)})`)
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const sameUrlPageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
   await expect(sameUrlPageTools).toBeVisible()

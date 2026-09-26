@@ -110,7 +110,7 @@ Use a task-owned headless browser or automation library when the browser should 
 - Optional trusted [workspace site-access allowlists](docs/WORKSPACE_SITE_ACCESS.md) covering direct navigation, redirects, page actions, popups, and history without granting policy changes to agents.
 - Runtime [action-authority fences](docs/UNTRUSTED_PAGE_CONTENT.md) that treat page content as untrusted and reject consequential actions when their origin, navigation, workspace, policy, or target context changes before dispatch.
 - Human-interaction locks, instant MCP pause, explicit permissions, and optional bearer-token authentication.
-- Independent **Follow agents** mode that keeps the active agent tab visible without taking keyboard or mouse focus.
+- Independent **Follow agents** mode that keeps the active agent tab visible without taking keyboard or mouse focus. With it off, agent-created tabs, workspace tab selections, and agent-triggered popups leave the tab you are viewing in place.
 - Built-in history, bookmarks, downloads, password vault, site controls, responsive preview, visual comparison, and Chromium diagnostics.
 - Automatic update checks against public GitHub releases; downloads and installation always require user action.
 - English, Ukrainian, Russian, German, French, Spanish, and Polish interface languages.

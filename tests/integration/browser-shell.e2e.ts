@@ -7577,6 +7577,7 @@ test('keeps human input blocked while an agent acts in a locked tab', async ({
     const tabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
     const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
     await electronApp.evaluate(({ webContents }, { requestedUrl, signalUrl }) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
@@ -8178,6 +8179,7 @@ test('preserves the human focus owner after agent input in a locked tab', async 
     const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
 
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.getByRole('button', { name: 'Lock page input in this tab' }).click()
     const pageId = await electronApp.evaluate(({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
@@ -8314,6 +8316,7 @@ test('preserves human focus across agent presentation, input, and active tab cha
     const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId } }) as CallToolResult
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
 
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     const addressInput = appWindow.getByRole('combobox', { name: 'Address' })
     await addressInput.click()
     await expect(addressInput).toBeFocused()
@@ -8672,6 +8675,7 @@ test('picks a page element and copies safe agent-ready DOM context from an MCP-c
     const mcpTabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
     const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId: mcpTabId } }) as CallToolResult
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(mcpTabId)})`)
     await expect
       .poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.url)'))
       .toContain('/picker?mode=test&created=mcp&token=snapshot-url-secret#fragment')
@@ -9233,6 +9237,7 @@ test('drags a page area and copies the screenshot image for agent chat', async (
     const mcpTabId = (JSON.parse(mcpResultText(opened)) as { activeTabId: string }).activeTabId
     const ready = await client.callTool({ name: 'browser_wait', arguments: { tabId: mcpTabId } }) as CallToolResult
     expect(ready.isError, mcpResultText(ready)).not.toBe(true)
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(mcpTabId)})`)
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.activeTabId)')).toBe(mcpTabId)
     await appWindow.evaluate(`window.hronaut.setTabHumanInteractionLocked(${JSON.stringify(mcpTabId)}, true)`)
     await electronApp.evaluate(async ({ webContents }) => {

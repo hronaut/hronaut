@@ -599,7 +599,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             dragging: draggedTabId === tab.id,
             'drop-before': tabDropTargetId === tab.id && tabDropPlacement === 'before',
             'drop-after': tabDropTargetId === tab.id && tabDropPlacement === 'after',
-            locked: state.allHumanInteractionLocked || tab.humanInteractionLocked,
+            locked: tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked),
             'split-visible': state.splitView?.firstTabId === tab.id || state.splitView?.secondTabId === tab.id,
             'mcp-active': Boolean(mcpActivityByTab[tab.id]),
             'needs-attention': userAttention?.tabId === tab.id
@@ -650,7 +650,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           />
           <IconSpeed v-if="tab.emulation" class="tab-emulation-mark" :aria-label="t('runtime.emulation.reset', { description: describeEmulation(tab) })" />
           <IconRoute v-if="tab.networkRouteCount" class="tab-network-route-mark" :aria-label="t('runtime.tabs.routes', { count: formatNumber(tab.networkRouteCount) }, tab.networkRouteCount)" />
-          <IconLock v-if="state.allHumanInteractionLocked || tab.humanInteractionLocked" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
+          <IconLock v-if="tab.humanInteractionInputLocked ?? (state.allHumanInteractionLocked || tab.humanInteractionLocked)" class="tab-lock-mark" :aria-label="t('shell.tabs.inputLocked')" />
           <span
             v-if="tab.audible || tab.muted"
             class="tab-audio"

@@ -6,7 +6,12 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep the human's selected tab visible when Follow agents is off, including agent tab creation, tab selection, and agent-triggered popups.
 - Fix password observation for JavaScript-driven login buttons that live inside a form, so common SPA login patterns with `<button type="button">` are captured instead of relying on native form submission alone.
+
+### Added
+
+- Allow a temporary per-tab page-input unlock while the global input lock is on; the next global lock cycle restores the lock on every tab.
 
 ## [2.5.30] - 2026-09-26
 

@@ -31,7 +31,7 @@ it.each([
     listMcpTabGroups: () => [{ id: workspaceId, isDefault: false }],
     listSavedTabGroups: () => [],
     mcpWorkspaceResumeKey: () => resumeKey,
-    selectTabAndWait: async () => {
+    selectAgentTabAndWait: async () => {
       entered()
       await pending
       operationFinished = true

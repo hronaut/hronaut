@@ -172,6 +172,7 @@ test('compares bounded browser storage changes for people and grouped agents', a
       name: 'browser_storage_changes',
       arguments: { workspaceId, tabId, action: 'clear' }
     })
+    await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
     await pageTools.getByRole('button', { name: 'Site storage for 127.0.0.1' }).click()
