@@ -52,6 +52,7 @@ export async function writeImportedCookies(target: Session, cookies: Cookie[], o
       catch { /* Readback determines whether an ambiguous write actually applied. */ }
     }
   }
+  if (!attempted.size) return result
   try { await target.cookies.flushStore() } catch { result.recoveryRequired = true }
   let verified: Cookie[] = []
   try {
