@@ -2,10 +2,11 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import BrowserImportPanel from '../../src/renderer/src/components/BrowserImportPanel.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
+import type { BrowserImportApi } from '../../src/shared/browser-import.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 const state = { tabs: [], mcpTabGroups: [], savedTabGroups: [{ id: 'chosen', name: 'Chosen workspace' }] } as unknown as BrowserState
 function setup(current = state) {
-  const browserImport = { list: vi.fn(async () => ({ ok: true, value: [{ id: 'source', browser: 'Chrome', name: 'Work' }] })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
+  const browserImport = { list: vi.fn(async () => ({ ok: true, value: [{ id: 'source', browser: 'Chrome', name: 'Work' }] })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn<BrowserImportApi['commit']>(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
   const archive = vi.fn(async () => current)
   const browser = { browserImport, getState: vi.fn(async () => current), saveAndCloseTabGroup: archive, restoreSavedTabGroup: vi.fn(async () => current) } as unknown as HronautApi
   const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state: current, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
@@ -62,4 +63,29 @@ describe('browser import picker', () => {
     expect(browserImport.cancel).toHaveBeenCalled(); expect(browserImport.commit).not.toHaveBeenCalled()
     expect(wrapper.text()).not.toContain('Choose sites'); wrapper.unmount()
   })
+  it.each(['response', 'transport'] as const)('requires a fresh preview after a commit %s failure', async failure => {
+    const { wrapper, browserImport, button } = setup()
+    try {
+      await flushPromises(); await button('Continue').trigger('click'); await flushPromises()
+      await button('Select all').trigger('click')
+      if (failure === 'response') browserImport.commit.mockResolvedValueOnce({ ok: false, error: 'workspaceBusy' })
+      else browserImport.commit.mockRejectedValueOnce(new Error('Connection lost'))
+      await button('Import into “Chosen workspace”').trigger('click'); await flushPromises()
+      expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+      expect(button('Import into “Chosen workspace”').attributes('disabled')).toBeDefined()
+      await button('Import into “Chosen workspace”').trigger('click')
+      expect(browserImport.commit).toHaveBeenCalledTimes(1)
+      await button('Back').trigger('click'); await flushPromises()
+      expect(browserImport.list).toHaveBeenCalledTimes(2)
+      browserImport.preview.mockResolvedValueOnce({ ok: true, value: { id: 'fresh-preview', expiresAt: Date.now() + 10000, skipped: 0, sites: [{ domain: 'first.test', count: 1, includesSubdomains: false }] } })
+      await button('Continue').trigger('click'); await flushPromises()
+      expect(browserImport.preview).toHaveBeenCalledTimes(2)
+      await button('Select all').trigger('click')
+      expect(button('Import into “Chosen workspace”').attributes('disabled')).toBeUndefined()
+      await button('Import into “Chosen workspace”').trigger('click'); await flushPromises()
+      expect(browserImport.commit).toHaveBeenLastCalledWith('fresh-preview', ['first.test'])
+      expect(wrapper.text()).toContain('Cookies imported: 3')
+    } finally { wrapper.unmount() }
+  })
+
 })

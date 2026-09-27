@@ -16,6 +16,7 @@ const selected = ref<string[]>([])
 const filter = ref('')
 const busy = ref(false)
 const writing = ref(false)
+const previewConsumed = ref(false)
 const error = ref('')
 let generation = 0
 const workspace = computed(() => props.state.mcpTabGroups.find(g => g.id === props.workspaceId) ?? props.state.savedTabGroups.find(g => g.id === props.workspaceId))
@@ -35,7 +36,7 @@ async function run(action: () => Promise<void>): Promise<void> {
 }
 async function start(): Promise<void> {
   const current = ++generation
-  preview.value = null; result.value = null; selected.value = []; filter.value = ''; profileId.value = ''; profiles.value = []
+  preview.value = null; previewConsumed.value = false; result.value = null; selected.value = []; filter.value = ''; profileId.value = ''; profiles.value = []
   await run(async () => {
     const next = unwrap(await props.browser.browserImport.list(props.workspaceId))
     if (current !== generation) return
@@ -48,15 +49,18 @@ async function read(): Promise<void> {
   await run(async () => {
     const next = unwrap(await props.browser.browserImport.preview(props.workspaceId, source))
     if (current !== generation || profileId.value !== source) return
-    preview.value = next; selected.value = []
+    preview.value = next; previewConsumed.value = false; selected.value = []
   })
 }
 function selectAll(): void { selected.value = [...new Set([...selected.value, ...sites.value.map(s => s.domain)])] }
 async function commit(): Promise<void> {
-  if (!preview.value || !selected.value.length) return
+  if (busy.value || previewConsumed.value || !preview.value || !selected.value.length) return
   const id = preview.value.id; const domains = [...selected.value]
   writing.value = true
   await run(async () => {
+    // Treat dispatched previews as consumed, including ambiguous transport failures.
+    // Keep Back available, but require a fresh preview before another write.
+    previewConsumed.value = true
     result.value = unwrap(await props.browser.browserImport.commit(id, domains))
     preview.value = null
     await props.syncState(props.browser.getState())
@@ -124,7 +128,7 @@ onBeforeUnmount(() => { generation++; void props.browser.browserImport.cancel().
     <div class="browser-import-footer">
       <div v-if="preview" class="browser-import-actions">
         <UiButton :disabled="busy" @click="start">{{ t('browserImport.back') }}</UiButton>
-        <UiButton variant="primary" :disabled="busy || !selected.length || !workspace" @click="commit">{{ t('browserImport.commit', { name: workspace?.name ?? '' }) }}</UiButton>
+        <UiButton variant="primary" :disabled="busy || previewConsumed || !selected.length || !workspace" @click="commit">{{ t('browserImport.commit', { name: workspace?.name ?? '' }) }}</UiButton>
       </div>
       <UiButton :disabled="writing" @click="cancel">{{ t(result ? 'common.close' : 'browserImport.cancel') }}</UiButton>
     </div>
