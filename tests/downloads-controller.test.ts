@@ -33,7 +33,7 @@ async function fixture(askWhereToSaveDownloads = false) {
   })
   cleanups.push(() => controller.destroy())
   controller.attachSession(session as Session)
-  function download(tabId = 1, failSetup = false) {
+  function download(tabId = 1, failSetup = false, url = 'https://download.example/file.txt') {
     const item = new EventEmitter()
     let state: 'progressing' | 'interrupted' | 'completed' | 'cancelled' = 'progressing'
     let savePath = ''
@@ -45,7 +45,7 @@ async function fixture(askWhereToSaveDownloads = false) {
       item.emit('done', {}, state)
     })
     Object.assign(item, {
-      getURL: () => 'https://download.example/file.txt',
+      getURL: () => url,
       getFilename: () => 'file.txt',
       getState: () => state,
       getReceivedBytes: () => 1,
@@ -73,6 +73,16 @@ async function fixture(askWhereToSaveDownloads = false) {
   }
   return { controller, session, generations, download }
 }
+
+it('redacts URL credentials and token parameters before exposing download history', async () => {
+  const { controller, download } = await fixture()
+  const transfer = download(1, false, 'https://person:password@download.example/file.txt?token=secret&view=compact#private')
+  expect(controller.listDownloads()[0]?.url).toBe(
+    'https://%5BREDACTED%5D:%5BREDACTED%5D@download.example/file.txt?view=compact&token=%5BREDACTED%5D'
+  )
+  transfer.complete()
+  expect(controller.manageWorkspaceDownloads('first', 'list')[0]?.url).not.toContain('secret')
+})
 
 it('preserves workspace ownership and excludes a live download from a new observation generation', async () => {
   const { controller, session, generations, download } = await fixture()

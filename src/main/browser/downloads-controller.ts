@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { basename, extname, join } from 'node:path'
 import { shell, type DownloadItem, type Event, type Session, type WebContents } from 'electron'
 import { isActiveDownload } from '../../shared/download-state.js'
+import { redactNetworkUrl } from '../../shared/network-details.js'
 import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
 import type { BrowserDownloadAction, BrowserDownloadState } from '../../shared/types.js'
 
@@ -169,7 +170,7 @@ export class BrowserDownloadsController {
           id,
           observationGeneration,
           tabId,
-          url: downloadUrl,
+          url: redactNetworkUrl(downloadUrl),
           filename: basename(filename) || 'download',
           savePath: '',
           state: 'progressing',
