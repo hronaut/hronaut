@@ -96,9 +96,11 @@ port mappings without revisiting this setup and its networking regression tests.
 Its dependency stage normalizes only the
 root application version, so release-only version bumps can reuse installed
 dependencies. Dependency contents and install constraints still invalidate that
-cache; the final integration stage copies the original checkout and version. Local runs use four isolated Xvfb shards
-after one application build; hosted CI gives each of five shards an isolated
-runner to avoid CPU contention. Set
+cache; the final integration stage copies the original checkout and version. Local runs use four workers with separate Xvfb displays
+and one shared test queue after one application build, so a worker that finishes
+a short test can take the next pending case. Hosted CI gives each of five shards
+an isolated runner to avoid CPU contention. The existing
+`HRONAUT_INTEGRATION_SHARDS` setting controls the local worker count. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.
 Run it for changes to the main/preload
 boundary, browser lifecycle, persistence, MCP, native integration, or before a

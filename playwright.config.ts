@@ -5,8 +5,8 @@ const artifactShard = process.env.HRONAUT_TEST_SHARD?.replace(/[^a-zA-Z0-9_-]/g,
 export default defineConfig({
   testDir: './tests/integration',
   testMatch: '**/*.e2e.ts',
-  // Each Docker shard still owns one worker, but individual-test sharding keeps
-  // large suites such as browser-shell from dominating a single shard.
+  // The local Docker runner overrides workers and gives each its own Xvfb.
+  // Hosted shards and focused runs retain the single-worker default.
   fullyParallel: true,
   workers: 1,
   retries: process.env.CI ? 1 : 0,

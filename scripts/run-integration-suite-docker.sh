@@ -69,25 +69,18 @@ if [[ -n "$single_shard" ]]; then
     status=1
   fi
 else
-  declare -a shard_pids=()
-  for ((shard = 1; shard <= shard_count; shard += 1)); do
-    run_shard "${shard}/${shard_count}" "$shard" "$shard" &
-    shard_pids+=("$!")
-  done
-
-  terminate_shards() {
-    for pid in "${shard_pids[@]}"; do
-      kill "$pid" >/dev/null 2>&1 || true
-    done
-  }
-  trap terminate_shards INT TERM
-
-  for pid in "${shard_pids[@]}"; do
-    if ! wait "$pid"; then
-      status=1
-    fi
-  done
+  # A shared queue keeps every worker busy even when test durations differ.
+  # Each worker fixture owns an Xvfb server so native focus and input stay isolated.
+  started_at="$SECONDS"
+  HRONAUT_TEST_ISOLATED_DISPLAYS=1 \
+    npm run test:integration:run -- "--workers=${shard_count}" &
+  suite_pid="$!"
+  trap 'kill "$suite_pid" >/dev/null 2>&1 || true' INT TERM
+  if ! wait "$suite_pid"; then
+    status=1
+  fi
   trap - INT TERM
+  echo "Electron suite (${shard_count} isolated workers) finished in $((SECONDS - started_at))s with status ${status}."
 fi
 
 if ((status != 0)); then

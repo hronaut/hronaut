@@ -13,6 +13,7 @@ import {
 import { removeTestDirectory } from '../helpers/remove-test-directory.js'
 import { integrationMcpPort } from './port-allocation.js'
 import { ElectronTraceRecorder } from './electron-tracing.js'
+import { startWorkerDisplay } from './worker-display.js'
 
 const repositoryRoot = fileURLToPath(new URL('../..', import.meta.url))
 const testTraces = new WeakMap<TestInfo, ElectronTraceRecorder>()
@@ -193,7 +194,26 @@ async function waitForExit(
   })
 }
 
-export const test = base.extend<HronautFixtures>({
+export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
+  workerDisplay: [async ({}, use) => {
+    if (process.env.HRONAUT_TEST_ISOLATED_DISPLAYS !== '1') {
+      await use()
+      return
+    }
+    const desktop = await startWorkerDisplay()
+    const previousDisplay = process.env.DISPLAY
+    const previousAuthority = process.env.XAUTHORITY
+    process.env.DISPLAY = desktop.display
+    delete process.env.XAUTHORITY
+    try { await use() } finally {
+      if (previousDisplay === undefined) delete process.env.DISPLAY
+      else process.env.DISPLAY = previousDisplay
+      if (previousAuthority === undefined) delete process.env.XAUTHORITY
+      else process.env.XAUTHORITY = previousAuthority
+      await desktop.close()
+    }
+  }, { scope: 'worker', auto: true }],
+
   electronTraces: [async ({ trace }, use, testInfo) => {
     const traces = new ElectronTraceRecorder(testInfo, trace)
     testTraces.set(testInfo, traces)

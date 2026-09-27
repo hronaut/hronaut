@@ -4,7 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { expect, test } from '@playwright/test'
+import { expect, test } from './fixtures.js'
 import { integrationMcpPort } from './port-allocation.js'
 
 interface PageLifecycleClockProbe {
@@ -25,7 +25,7 @@ test('recovers an idle presented native view and preserves an explicit page hold
   const profile = await mkdtemp(join(tmpdir(), 'hronaut-presentation-'))
   const root = fileURLToPath(new URL('../..', import.meta.url))
   const executable = process.env.HRONAUT_TEST_EXECUTABLE ?? join(root, 'node_modules/electron/dist/electron')
-  const mcpPort = integrationMcpPort(process.env.HRONAUT_TEST_SHARD, testInfo.workerIndex)
+  const mcpPort = integrationMcpPort(process.env.HRONAUT_TEST_SHARD_INDEX, testInfo.workerIndex)
   const child = spawn(executable, [
     ...(process.env.HRONAUT_TEST_EXECUTABLE ? [] : ['.']), '--inspect=0',
     ...(process.env.CI ? ['--no-sandbox'] : [])

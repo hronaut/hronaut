@@ -94,18 +94,19 @@ Always run the complete `test:integration:docker` gate before submitting or
 delivering the change; unlike the fast preflight, it proves an immutable source
 image.
 
-The complete Docker gate distributes individual test cases across four isolated
-Electron shards by default, which keeps a six-CPU Docker VM saturated without
-slowing renderer startup through excess contention. On
-a memory-constrained machine, reduce concurrency without changing the suite:
+The complete Docker gate uses a shared Playwright queue with four workers by
+default. Every worker has its own Xvfb display, keeping native focus, clipboard,
+and pointer input isolated. Workers take the next pending test when free instead
+of waiting for a fixed shard's longest batch. The existing
+`HRONAUT_INTEGRATION_SHARDS` setting controls the worker count; on a
+memory-constrained machine, reduce concurrency without changing the suite:
 
 ```bash
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Hosted pull-request CI assigns its three shards to separate runners. Release CI
-runs one shard on its single runner so parallel Electron processes cannot turn
-cold renderer startup into unrelated flakes. An explicit
+Hosted pull-request and release CI assign five shards to separate runners, each
+with one Electron worker. An explicit
 `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
 validation job runs the complete TypeScript graph. The standalone Docker command
