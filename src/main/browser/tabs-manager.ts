@@ -1,4 +1,5 @@
 import { BrowserVideoRecorder } from './video-recorder.js'
+import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
@@ -5722,11 +5723,14 @@ export class BrowserTabsManager {
     const capture = async () => {
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
       if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.id !== this.activeTabId || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep the recording tab visible at its original origin')
-      const generation = tab.navigationGeneration
-      const image = await tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })
+      const image = await captureStableVideoImage(
+        () => tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true }),
+        () => tab.navigationGeneration,
+        () => tab.webContents.isLoadingMainFrame()
+      )
       if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
       if (new URL(tab.url).origin !== origin || tab.id !== this.activeTabId || this.browserContentOccluded) throw new Error('The tab changed during capture')
-      if (generation !== tab.navigationGeneration) return null
+      if (!image) return null
       const size = image.getSize()
       if (initialSize && (size.width !== initialSize.width || size.height !== initialSize.height)) throw new Error('Restore the original viewport size before resuming')
       initialSize = size
