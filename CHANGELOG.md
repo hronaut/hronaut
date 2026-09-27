@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Restore Home tool-catalog order after clearing search or refreshing the catalog, preserving expanded cards and keyboard focus.
 - Keep password CSV import reads bounded when files grow and reject named pipes without waiting for a writer.
 - Prevent retrying a consumed browser-import preview after a failed write; use Back to choose a fresh preview.
 - Enforce browser import byte limits for multibyte text and embedded NUL characters before loading cookie rows.

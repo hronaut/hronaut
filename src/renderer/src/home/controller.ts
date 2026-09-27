@@ -149,16 +149,27 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     if (JSON.stringify(tools) === renderedCatalog) return
     renderedCatalog = JSON.stringify(tools)
     const grid = element('tool-grid')
-    for (const child of Array.from(grid.children) as HTMLElement[]) if (!tools.some(tool => tool.name === child.dataset.tool)) child.remove()
-    for (const tool of tools) {
-      let details = Array.from(grid.children).find(child => (child as HTMLElement).dataset.tool === tool.name) as HTMLDetailsElement | undefined
+    const focused = grid.contains(document.activeElement) ? document.activeElement as HTMLElement : null
+    const existing = new Map(Array.from(grid.children, child => [(child as HTMLElement).dataset.tool, child as HTMLDetailsElement]))
+    const names = new Set(tools.map(tool => tool.name))
+    for (const [name, child] of existing) if (!names.has(name ?? '')) child.remove()
+    tools.forEach((tool, index) => {
+      let details = existing.get(tool.name)
       if (!details) {
         details = document.createElement('details'); details.className = 'tool'; details.dataset.tool = tool.name
-        details.innerHTML = `<summary><span class="tool-top"><code>${h(tool.name)}</code><span class="category">${h(tool.category)}</span></span></summary><p></p>`
-        grid.append(details)
+        const summary = document.createElement('summary')
+        const heading = document.createElement('span'); heading.className = 'tool-top'
+        const name = document.createElement('code')
+        const category = document.createElement('span'); category.className = 'category'
+        heading.append(name, category); summary.append(heading)
+        details.append(summary, document.createElement('p'))
       }
+      details.querySelector('code')!.textContent = tool.name
+      details.querySelector('.category')!.textContent = tool.category
       details.querySelector('p')!.textContent = tool.description
-    }
+      if (grid.children[index] !== details) grid.insertBefore(details, grid.children[index] ?? null)
+    })
+    if (focused?.isConnected && document.activeElement !== focused) focused.focus()
   }
   const relativeTime = (value: string): string => {
     const elapsed = Date.now() - new Date(value).getTime()

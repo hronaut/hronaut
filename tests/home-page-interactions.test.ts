@@ -233,6 +233,46 @@ describe('Home setup journey', () => {
     expect(search.value).toBe('navigate')
   })
 
+  it('restores catalog order after clearing search without replacing retained cards', () => {
+    const home = mount()
+    const tools: McpDashboardState['tools'] = [
+      { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
+      { name: 'browser_click', category: 'Interaction', description: 'Click an element' }
+    ]
+    home.update({ ...state, tools })
+    const retained = document.querySelector<HTMLDetailsElement>('[data-tool="browser_click"]')!
+    retained.open = true
+    const search = document.querySelector<HTMLInputElement>('#tool-search')!
+    search.focus(); search.value = 'click'; search.dispatchEvent(new Event('input'))
+    search.value = ''; search.dispatchEvent(new Event('input'))
+    expect(Array.from(document.querySelectorAll<HTMLElement>('#tool-grid .tool'), node => node.dataset.tool))
+      .toEqual(tools.map(tool => tool.name))
+    expect(document.querySelector('[data-tool="browser_click"]')).toBe(retained)
+    expect(retained.open).toBe(true)
+    expect(document.activeElement).toBe(search)
+  })
+
+  it('reorders refreshed tools and updates labels while retaining expanded focus and literal text', () => {
+    const home = mount()
+    const tools: McpDashboardState['tools'] = [
+      { name: 'browser_navigate', category: 'Navigation', description: 'Open a page' },
+      { name: 'browser_click<img src=x>', category: 'Interaction', description: '<b>Literal description</b>' }
+    ]
+    home.update({ ...state, tools })
+    const retained = document.querySelectorAll<HTMLDetailsElement>('#tool-grid details')[1]!
+    retained.open = true
+    const summary = retained.querySelector('summary')!
+    summary.focus()
+    home.update({ ...state, tools: [{ ...tools[1]!, category: 'Navigation' }, tools[0]!] })
+    expect(document.querySelector('#tool-grid details')).toBe(retained)
+    expect(retained.open).toBe(true)
+    expect(document.activeElement).toBe(summary)
+    expect(retained.querySelector('code')!.textContent).toBe(tools[1]!.name)
+    expect(retained.querySelector('.category')!.textContent).toBe('Navigation')
+    expect(retained.querySelector('p')!.textContent).toBe('<b>Literal description</b>')
+    expect(retained.querySelector('img, b')).toBeNull()
+  })
+
   it('preserves an expanded tool and keyboard focus while activity updates', () => {
     const home = mount()
     const next: McpDashboardState = { ...state, tools: [{ name: 'browser_navigate', category: 'Navigation', description: 'Open a page' }] }
