@@ -132,7 +132,6 @@ test('clears an open workspace from Home while website input is locked', async (
   const state = await appWindow.evaluate(async () => {
     const browser = (window as unknown as { hronaut: HronautApi }).hronaut
     const created = await browser.createWorkspace({ name: 'Stuck workspace', storage: 'scratch' })
-    await browser.setAllHumanInteractionLocked(true)
     await browser.openHome()
     return created
   })
@@ -140,6 +139,8 @@ test('clears an open workspace from Home while website input is locked', async (
   const home = await homePage(electronApp)
   const card = home.getByRole('article', { name: 'Stuck workspace', exact: true })
 
+  await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeEnabled()
+  await appWindow.evaluate(() => (window as unknown as { hronaut: HronautApi }).hronaut.setAllHumanInteractionLocked(true))
   await expect(card.getByRole('button', { name: 'Archive', exact: true })).toBeDisabled()
   await expect(card.getByRole('button', { name: 'Clear…', exact: true })).toBeEnabled()
   home.once('dialog', dialog => dialog.accept())

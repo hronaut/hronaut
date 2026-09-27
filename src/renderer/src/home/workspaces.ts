@@ -44,7 +44,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     for (const [id, card] of cards) if (!visible.some(group => group.id === id)) { card.node.remove(); cards.delete(id) }
     grid.querySelector('.workspace-empty')?.remove()
     visible.forEach((group, index) => {
-      const signature = JSON.stringify(group)
+      const signature = JSON.stringify([group, state.allHumanInteractionLocked])
       let card = cards.get(group.id)
       if (!card) { card = { node: document.createElement('article'), signature: '' }; cards.set(group.id, card) }
       if (card.signature !== signature) {

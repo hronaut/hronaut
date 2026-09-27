@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Home workspace archive controls in sync when the global page-input lock changes.
 - Let agents fork workspaces with stored service workers and duplicate cookie identities, including after a human renames the source workspace.
 - Keep the human's selected tab visible when Follow agents is off, including agent tab creation, tab selection, and agent-triggered popups.
 - Fix password observation for JavaScript-driven login buttons that live inside a form, so common SPA login patterns with `<button type="button">` are captured instead of relying on native form submission alone.
