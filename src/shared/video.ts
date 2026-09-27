@@ -3,19 +3,37 @@ import { z } from 'zod'
 export const VIDEO_LIMITS = { durationMs: 120_000, framesPerSecond: 12, width: 1280, height: 720, bytes: 64 * 1024 * 1024, recordings: 3, annotations: 100, clips: 30 } as const
 const time = z.number().finite().min(0).max(VIDEO_LIMITS.durationMs)
 const point = z.number().finite().min(0).max(1)
+export const VIDEO_ANNOTATION_KINDS = ['text', 'callout', 'arrow', 'highlight', 'spotlight', 'click'] as const
+export const VIDEO_TEXT_PRESETS = ['caption', 'title', 'label'] as const
+export const VIDEO_PLACEMENTS = ['auto', 'custom', 'top-left', 'top-center', 'top-right', 'center-left', 'center-right', 'bottom-left', 'bottom-center', 'bottom-right'] as const
+const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 export const videoAnnotationSchema = z.object({
-  kind: z.enum(['text', 'arrow', 'highlight', 'click']),
+  kind: z.enum(VIDEO_ANNOTATION_KINDS),
   startMs: time,
   endMs: time,
-  x: point,
-  y: point,
+  x: point.optional().describe('Normalized left position. Omit for automatic text/callout placement.'),
+  y: point.optional().describe('Normalized top position. Omit for automatic text/callout placement.'),
   endX: point.optional(),
   endY: point.optional(),
   text: z.string().trim().min(1).max(240).optional(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).default('#ffcc33')
+  color: hex.default('#7c3aed').describe('Accent color for borders, pointers and step badges. Text uses a contrasting neutral color.'),
+  textColor: hex.optional(),
+  preset: z.enum(VIDEO_TEXT_PRESETS).optional().describe('Text treatment: caption, larger title, or compact label.'),
+  placement: z.enum(VIDEO_PLACEMENTS).optional().describe('Safe-margin text/card anchor. Auto places a callout opposite its target; custom uses x/y.'),
+  width: z.number().finite().min(0.15).max(0.9).optional().describe('Maximum card width as a fraction of the video; text wraps at words.'),
+  size: z.enum(['small', 'medium', 'large']).optional(),
+  theme: z.enum(['dark', 'light']).optional(),
+  align: z.enum(['left', 'center', 'right']).optional().describe('Alignment of lines inside the card, independently of the card placement.'),
+  title: z.string().trim().min(1).max(80).optional().describe('Optional heading above callout text.'),
+  step: z.number().int().min(1).max(99).optional().describe('Optional numbered step badge on a callout.'),
+  animation: z.enum(['none', 'fade', 'draw']).optional().describe('Default fade uses short entrances/exits; draw also reveals arrows and pulses click markers.'),
+  curvature: z.number().finite().min(-1).max(1).optional().describe('Arrow bend; zero makes a straight arrow.')
 }).strict().refine(a => a.endMs > a.startMs, 'Annotation end must follow its start')
-  .refine(a => a.kind !== 'text' || !!a.text, 'Text annotations require text')
-  .refine(a => !['arrow', 'highlight'].includes(a.kind) || (a.endX !== undefined && a.endY !== undefined), 'Arrows and highlights require an end point')
+  .refine(a => !['text', 'callout'].includes(a.kind) || !!a.text, 'Text and callout annotations require text')
+  .refine(a => !['arrow', 'highlight', 'spotlight', 'click'].includes(a.kind) || (a.x !== undefined && a.y !== undefined), 'This annotation requires x/y coordinates')
+  .refine(a => !['arrow', 'highlight', 'spotlight', 'callout'].includes(a.kind) || (a.endX !== undefined && a.endY !== undefined), 'Arrows, regions and callouts require an end point')
+  .refine(a => !['highlight', 'spotlight'].includes(a.kind) || (a.x !== a.endX && a.y !== a.endY), 'Regions must have a non-zero width and height')
+  .refine(a => a.placement !== 'custom' || (a.x !== undefined && a.y !== undefined), 'Custom placement requires x/y coordinates')
 export const videoClipSchema = z.object({ startMs: time, endMs: time }).strict()
   .refine(c => c.endMs > c.startMs, 'Clip end must follow its start')
 export const videoOptionsShape = {

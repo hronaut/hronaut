@@ -921,9 +921,12 @@ recorder or encoder bridge.
   again requires clearing the old recording first. `get` returns bounded metadata.
 - `edit`: after stopping, replace `annotations` and/or `clips`. Omitted arrays are
   preserved; `annotations: []` removes overlays. Annotation kinds are `text`,
-  `arrow`, `highlight`, and `click`. Each uses source `startMs`/`endMs`, normalized
-  viewport `x`/`y` (0–1), and optional hex `color`. Text requires `text` (240
-  characters maximum); arrows and highlights also require `endX`/`endY`.
+  `callout`, `arrow`, `highlight`, `spotlight`, and `click`. Each uses source
+  `startMs`/`endMs` and an optional hex accent `color`. Text and callouts require
+  `text` (240 characters maximum). Arrows, highlights, spotlights and click markers
+  require normalized viewport `x`/`y` (0–1). Arrows, regions and callouts also
+  require `endX`/`endY`: the pointer target for a callout, or the opposite corner
+  for a highlight/spotlight. Regions must have non-zero width and height.
 - `render`: prepare a local preview without writing a file.
 - `export`: render if necessary and save a silent `.webm` file. Returns its path,
   filename, bytes, codec, MIME type and edited duration. This action requires the
@@ -937,6 +940,38 @@ track moving elements. Agents can use snapshots/screenshots to choose positions.
 Edit layers remain separate from the captured pixels until rendering, allowing
 wording and timing changes without repeating the demonstration.
 
+Text cards use readable neutral text, rounded surfaces, padding and a separate
+accent, with word wrapping and safe margins. Agents can control their placement:
+
+- `placement`: `top-left`, `top-center`, `top-right`, `center-left`, `center-right`,
+  `bottom-left`, `bottom-center`, or `bottom-right`. No coordinates are needed.
+- `placement: "custom"` with `x`/`y` puts the card's top-left corner at that
+  normalized position. The whole card is clamped inside the safe margins.
+  Existing text annotations with `x`/`y` and no placement keep custom positioning.
+- `placement: "auto"` (or omitted coordinates) puts text at bottom-center and
+  callouts on the opposite side from their target. This is geometric placement;
+  inspect the page to avoid covering important controls.
+- `width` limits the card to 0.15–0.9 of the viewport width. Defaults are 0.56 for
+  captions, 0.7 for titles, 0.34 for labels and 0.3 for callouts. Short text cards
+  shrink to their content. Long copy wraps, with ellipsis if the frame cannot fit
+  it; keep each instruction brief.
+- `preset`: `caption`, `title`, or `label`; `size`: `small`, `medium`, or `large`;
+  `theme`: `dark` or `light`; `align`: `left`, `center`, or `right` within the card,
+  independently of its position. `textColor` optionally
+  overrides the contrasting default; `color` styles accents and pointers.
+- Callouts support an optional `title` (80 characters) and `step` (1–99).
+  A spotlight dims the page outside a rounded rectangle; annotations remain above
+  the dimmed layer, regardless of array order.
+- `animation`: `fade` (default), `none`, or `draw`. Entrances/exits are short;
+  `draw` additionally reveals arrows and pulses click markers. `curvature` from
+  -1 to 1 controls arrow bending; zero is straight. Animations use source time,
+  so trimming does not shift their relationship to the recording.
+
+Use one main instruction per step. Put captions in empty space using anchors or
+custom coordinates, and use a callout or spotlight to show the target. Point to
+the edge of a control to keep its label readable. The Page tools editor includes
+style and positioning controls.
+
 Example `edit` arguments after recording at least three seconds:
 
 ```json
@@ -946,8 +981,9 @@ Example `edit` arguments after recording at least three seconds:
   "action": "edit",
   "clips": [{ "startMs": 0, "endMs": 3000 }],
   "annotations": [
-    { "kind": "text", "text": "Create your first campaign", "startMs": 0, "endMs": 3000, "x": 0.1, "y": 0.8 },
-    { "kind": "arrow", "startMs": 1000, "endMs": 3000, "x": 0.5, "y": 0.5, "endX": 0.8, "endY": 0.3 }
+    { "kind": "text", "preset": "caption", "text": "Your project is ready for the next step.", "placement": "bottom-center", "width": 0.55, "startMs": 0, "endMs": 3000 },
+    { "kind": "callout", "title": "Invite your team", "step": 2, "text": "Choose Send invite to add a teammate.", "placement": "center-left", "width": 0.3, "endX": 0.75, "endY": 0.6, "startMs": 500, "endMs": 3000 },
+    { "kind": "spotlight", "x": 0.65, "y": 0.5, "endX": 0.9, "endY": 0.7, "startMs": 500, "endMs": 3000 }
   ]
 }
 ```
