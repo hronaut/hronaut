@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Cookie } from 'electron'
 import { BrowserImportService, type ImportDestination } from '../src/main/browser-import/service.js'
+// The orchestration protocol must work without loading native source adapters.
+vi.mock('../src/main/browser-import/source.js', () => { throw new Error('Source adapter is unavailable') })
+
 function setup() {
   const destination = { id: 'workspace', name: 'Work', fingerprint: 'one' }
   const profile = { id: 'source', name: 'Personal', browser: 'Chrome', kind: 'chromium' as const, file: '/private/profile', keyApplication: 'chrome' }
@@ -68,6 +71,26 @@ describe('human-only import protocol', () => {
     await expect(pending).rejects.toMatchObject({ code: 'expired' })
     expect(snapshot.cookies[0]!.value).toBe('')
     expect(ports.write).not.toHaveBeenCalled()
+  })
+
+  it('keeps a canceled in-flight write exclusive and clears secrets after it settles', async () => {
+    const { service, ports } = setup()
+    await service.list('workspace')
+    const preview = await service.preview('workspace', 'source')
+    let finish!: (value: Awaited<ReturnType<typeof ports.write>>) => void
+    ports.write.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const pending = service.commit(preview!.id, ['example.test'])
+    const written = ports.write.mock.calls[0]![1]
+    service.cancel()
+    expect(written[0]!.value).toBe('never-send-to-renderer')
+    await expect(service.list('workspace')).rejects.toMatchObject({ code: 'busy' })
+    await expect(service.commit(preview!.id, ['example.test'])).rejects.toMatchObject({ code: 'busy' })
+    finish({ imported: 1, skipped: 0, failed: 0, recoveryRequired: false })
+    await expect(pending).resolves.toMatchObject({ imported: 1 })
+    expect(written[0]!.value).toBe('')
+    expect(ports.write).toHaveBeenCalledTimes(1)
+    await service.list('workspace')
+    service.cancel()
   })
 
 })

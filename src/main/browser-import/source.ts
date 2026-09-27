@@ -5,13 +5,8 @@ import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import type { Cookie } from 'electron'
-import type { BrowserImportErrorCode, BrowserImportProfile } from '../../shared/browser-import.js'
+import { BrowserImportError, type CookieSnapshot, type ImportProfile } from './contracts.js'
 
-export class BrowserImportError extends Error {
-  constructor(readonly code: BrowserImportErrorCode) { super(code) }
-}
-export interface ImportProfile extends BrowserImportProfile { file: string; kind: 'chromium' | 'firefox'; keyApplication: string }
-export interface CookieSnapshot { cookies: Cookie[]; skipped: number }
 const MAX_ROWS = 20_000
 const MAX_BYTES = 128 * 1024 * 1024
 const MAX_VALUES = 16 * 1024 * 1024

@@ -291,7 +291,7 @@ import type {
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
-import { BrowserImportError } from '../browser-import/source.js'
+import { BrowserImportError } from '../browser-import/contracts.js'
 import type { ImportDestination } from '../browser-import/service.js'
 import { writeImportedCookies } from '../browser-import/write.js'
 import type { Cookie } from 'electron'

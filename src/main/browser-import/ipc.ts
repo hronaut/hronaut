@@ -1,7 +1,8 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 import type { BrowserImportResponse } from '../../shared/browser-import.js'
 import { BrowserImportService, type ImportDestination } from './service.js'
-import { BrowserImportError, discoverImportProfiles, readImportCookies } from './source.js'
+import { BrowserImportError } from './contracts.js'
+import { discoverImportProfiles, readImportCookies } from './source.js'
 import type { BrowserImportProfile, BrowserImportResult } from '../../shared/browser-import.js'
 import type { Cookie } from 'electron'
 

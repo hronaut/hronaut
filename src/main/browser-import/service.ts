@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Cookie } from 'electron'
 import type { BrowserImportPreview, BrowserImportProfile, BrowserImportResult } from '../../shared/browser-import.js'
-import { BrowserImportError, type CookieSnapshot, type ImportProfile } from './source.js'
+import { BrowserImportError, type CookieSnapshot, type ImportProfile } from './contracts.js'
 
 export interface ImportDestination { id: string; name: string; fingerprint: string }
 interface ImportPorts {

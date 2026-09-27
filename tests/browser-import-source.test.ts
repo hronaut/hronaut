@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { decryptLinuxCookie, discoverImportProfiles, readImportCookies, type ImportProfile } from '../src/main/browser-import/source.js'
+import type { ImportProfile } from '../src/main/browser-import/contracts.js'
+import { decryptLinuxCookie, discoverImportProfiles, readImportCookies } from '../src/main/browser-import/source.js'
 const roots: string[] = []
 async function directory() { const root = await mkdtemp(join(tmpdir(), 'hronaut-import-source-')); roots.push(root); return root }
 afterEach(async () => { for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true }) })
