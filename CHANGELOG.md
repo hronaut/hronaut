@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Import usable Chromium cookies without requiring an OS key for partitioned encrypted cookies that are excluded from import.
+
 ## [2.7.3] - 2026-09-27
 
 ### Fixed

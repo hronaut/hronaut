@@ -143,7 +143,8 @@ export async function readImportCookies(profile: ImportProfile, readKey = readLi
       : `host, name, value, path, expiry, isSecure, isHttpOnly, originAttributes, sameSite${version < 15 ? ', rawSameSite' : ''}${version >= 13 ? ', isPartitionedAttributeSet' : ''}`
     const rows = database.prepare(`SELECT ${columns} FROM ${table} LIMIT ${MAX_ROWS + 1}`).all()
     database.exec('ROLLBACK'); database.close(); database = undefined
-    if (rows.some(r => r.encrypted_value instanceof Uint8Array && Buffer.from(r.encrypted_value).subarray(0, 3).toString() === 'v11')) key = await readKey(profile.keyApplication)
+    if (rows.some(r => r.top_frame_site_key === '' && r.value === ''
+      && r.encrypted_value instanceof Uint8Array && Buffer.from(r.encrypted_value).subarray(0, 3).toString() === 'v11')) key = await readKey(profile.keyApplication)
     const cookies: Cookie[] = []
     let skipped = 0
     const identities = new Set<string>()

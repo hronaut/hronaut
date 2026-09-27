@@ -51,6 +51,15 @@ describe('external cookie sources', () => {
     expect(readKey).toHaveBeenCalledExactlyOnceWith('chrome')
     expect(() => decryptLinuxCookie(encrypted('secret', 'original.test'), 'wrong.test', 24)).toThrow()
   })
+  it('does not require a browser key for partitioned v11 cookies that cannot be imported', async () => {
+    const file = join(await directory(), 'Cookies'); const db = chromiumDatabase(file)
+    addChrome(db, 'example.test', encrypted('usable', 'example.test'))
+    addChrome(db, 'embedded.test', encrypted('partition-secret', 'embedded.test', 'v11', 'fixture-key'), 'https://top.test')
+    db.close()
+    const readKey = vi.fn(async () => { throw new Error('keyring unavailable') })
+    expect(await readImportCookies(profile(file), readKey)).toMatchObject({ skipped: 1, cookies: [{ value: 'usable' }] })
+    expect(readKey).not.toHaveBeenCalled()
+  })
   it('maps Firefox cookies and excludes container or partition identities', async () => {
     const file = join(await directory(), 'cookies.sqlite'); const db = new DatabaseSync(file)
     db.exec('PRAGMA user_version=16; CREATE TABLE moz_cookies(host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, originAttributes TEXT, sameSite INTEGER, isPartitionedAttributeSet INTEGER)')
