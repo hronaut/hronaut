@@ -4,9 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-09-27
+
 ### Added
 
 - Import selected browser cookies into a specific workspace from the human-only workspace menu or Browser data controls. Linux Chrome/Chromium and Firefox profiles have a native read-consent prompt, searchable site selection, and verified writes into archived workspaces. Existing site data is preserved, agents stay paused, and browser profiles and cookie values are never exposed through the import API to MCP.
+- Import encrypted Linux Chromium cookies through Secret Service with `libsecret-tools`. KWallet, macOS, and Windows browser import are not supported in this release.
 
 ### Fixed
 
