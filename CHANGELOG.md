@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Escape Home text directly, including apostrophes in quoted attributes, so rendered status and labels remain inert.
+
 ## [2.6.0] - 2026-09-27
 
 ### Fixed
