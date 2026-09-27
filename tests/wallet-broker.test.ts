@@ -1303,7 +1303,7 @@ describe('WalletBroker', () => {
 
   it('cleans up an expired website request when expiry audit persistence fails during approval', async () => {
     const { service, wallet } = await setup()
-    let now = new Date('2026-08-28T12:00:00.000Z')
+    let now = new Date()
     const broker = new WalletBroker(service, { adapters: { evm: adapter() }, now: () => now })
     await connect(broker)
     const result = settle(broker.providerRequest(context(), {
@@ -1315,7 +1315,7 @@ describe('WalletBroker', () => {
     const requestId = broker.listPending().find((request) => (
       request.operation === 'sign-message' && request.status === 'awaiting-human'
     ))!.id
-    now = new Date('2026-08-28T12:06:00.000Z')
+    now = new Date(now.getTime() + 6 * 60_000)
     const append = service.audit.append.bind(service.audit)
     vi.spyOn(service.audit, 'append').mockImplementation(async (type, payload, timestamp) => {
       if (type === 'request-expired') throw new Error('expiry audit persistence failed')

@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Import selected browser cookies into a specific workspace from the human-only workspace menu or Browser data controls. Linux Chrome/Chromium and Firefox profiles have a native read-consent prompt, searchable site selection, and verified writes into archived workspaces. Existing site data is preserved, agents stay paused, and browser profiles and cookie values are never exposed through the import API to MCP.
+
 ### Fixed
 
 - Continue video recording across same-origin navigation when Chromium temporarily cannot capture the loading page.

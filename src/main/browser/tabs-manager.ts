@@ -291,6 +291,10 @@ import type {
   McpTabActivity,
   NewTabOptions
 } from '../../shared/types.js'
+import { BrowserImportError } from '../browser-import/source.js'
+import type { ImportDestination } from '../browser-import/service.js'
+import { writeImportedCookies } from '../browser-import/write.js'
+import type { Cookie } from 'electron'
 import { runBackgroundAction } from './background-action.js'
 import type { SearchEngineName } from '../../shared/search-engine.js'
 import {
@@ -1869,6 +1873,31 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
+  browserImportDestination(id: string): ImportDestination {
+    const group = this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id)
+    if (!group) throw new BrowserImportError('expired')
+    return { id, name: group.name, fingerprint: JSON.stringify([group.storageId, group.navigationPolicy]) }
+  }
+
+  async importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
+    if (!this.savedTabGroups.has(destination.id)) throw new BrowserImportError('archiveFirst')
+    const id = destination.id
+    return this.withGlobalWorkspaceStorageOperation('importing browser cookies', () =>
+      this.withSavedWorkspaceOperation(id, 'importing browser cookies', async () => {
+        if (this.browserImportDestination(id).fingerprint !== destination.fingerprint) throw new BrowserImportError('expired')
+        const group = this.savedTabGroups.get(id)!
+        const target = session.fromPartition(workspacePartition(this.options.partition, group.storageId))
+        this.options.configureSession?.(target)
+        const { origins, ...result } = await withWorkspaceMoveGuard(target, () => writeImportedCookies(target, cookies, group.origins,
+          cookie => evaluateWorkspaceNavigation(group.navigationPolicy, `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}/`).allowed))
+        if (result.imported || result.recoveryRequired) {
+          group.origins = normalizeWorkspaceStorageOrigins([...group.origins, ...origins])
+          this.changed()
+        }
+        return result
+      }))
+  }
+
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
     const workspace = this.mcpTabGroups.get(workspaceId) ?? this.savedTabGroups.get(workspaceId)
     if (!workspace) throw new Error(`Unknown workspace: ${workspaceId}.`)
@@ -3347,6 +3376,11 @@ export class BrowserTabsManager {
         ))
       },
       { type: 'separator' },
+      {
+        id: 'import-browser-cookies',
+        label: this.text('browserImport.action'),
+        click: () => this.window.webContents.send('browser:home-workspace-editor', { view: 'import', workspaceId: group.id })
+      },
       {
         id: 'edit-workspace',
         label: this.text('native.context.editWorkspace'),

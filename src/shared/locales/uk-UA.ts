@@ -1,6 +1,8 @@
+import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ukUA = {
+  browserImport: browserImportMessages['uk-UA'],
   video: enUS.video,
   workspaceLibrary: {
     hidden: "Приховано з бічної панелі",

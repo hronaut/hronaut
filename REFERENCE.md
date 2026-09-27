@@ -149,9 +149,53 @@ When you manually sign in to a website, Hronaut can ask whether to save or updat
 
 Saved-account metadata can be reviewed or removed under **Settings → Passwords**. Hronaut never exposes stored passwords through its preload API, Settings, Home dashboard, or MCP tools. Use the password button in the toolbar to fill an account for the active website. Hronaut pauses new MCP commands before decrypting and filling, waits for active requests to finish, and remains paused until you explicitly resume agents.
 
+### Import browser sign-ins into one workspace
+
+On Linux, choose **Import from browser…** from a workspace's context menu, or
+open **Manage workspace → Browser data** and choose the destination. Archived
+workspaces are available through Home's Browser data transfer controls; select
+that workspace as the import destination. Choose a Chrome/Chromium or Firefox
+profile, approve the native permission to read cookies, then select sites using
+search, individual checkboxes, or Select all. Nothing is imported by the read
+permission alone. Site selections remain selected when hidden by a filter.
+
+Archive the destination with the dialog's **Archive workspace** action, then
+choose **Import into “Workspace name”**. Archiving preserves its tabs and stops
+pages from racing the import. Restore the workspace from the result screen.
+Profiles with stored service workers are currently rejected by the idle-storage
+check; use a fresh workspace for them. Imports are one-time local copies and
+never change the source browser. Source profiles and import operations have no
+MCP tools. Imported sign-ins can subsequently be used according to the existing
+workspace and fork permissions. Agents remain paused until the human resumes them.
+
+The importer copies supported cookies, preserving their scope and attributes.
+It skips entire selected cookie domains that overlap existing destination
+cookies or known site storage, or are outside the destination's site rules.
+It does not overwrite an existing account. Passwords, local storage, IndexedDB,
+cache, and service-worker data are not imported. Partitioned cookies and Firefox
+container records are excluded. Expired, invalid, unsupported, and unreadable
+records are counted as skipped. Cookies present only in the source browser's
+memory may not be available; a copied cookie does not guarantee a valid login.
+Firefox persistent-cookie schemas 10–17 and Chromium cookie schemas 23–24 are
+supported. Unknown schemas fail closed until validated.
+
+Chrome/Chromium uses its existing Linux Secret Service key through
+`/usr/bin/secret-tool` (`libsecret-tools`), with any OS keyring prompt occurring
+after native read consent. Basic-storage v10 cookies are also supported. KWallet,
+Windows, macOS, and Safari import are not supported in this version. Hronaut does
+not change source-browser encryption settings or create keyring entries.
+
+Reads use a bounded read-only SQLite transaction, including committed WAL data;
+no plaintext export or temporary profile copy is created. Cookie values and
+short-lived previews stay in the main process. Previews expire after five minutes
+and are invalidated by cancellation, profile changes, shell navigation, or a
+changed destination storage identity/policy. Commit verifies cookie attributes,
+flushes the destination, and rolls back failures. If recovery is incomplete, the
+result asks the human to keep the workspace archived and clear affected site data.
+
 To migrate accounts from an installed browser, export its passwords as CSV, then choose **Settings → Passwords → Choose browser CSV…**. Chrome, Edge, Firefox, and compatible password managers use or can produce the required `url`, `username`, and `password` columns. Hronaut opens the file through a native picker, parses at most 3,000 rows and 10 MB in the main process, shows counts before changing the vault, and imports only after explicit confirmation. Valid HTTP(S) accounts are re-encrypted atomically with Hronaut's operating-system-backed vault; later duplicate rows win, existing origin-and-username matches are updated, and invalid rows are reported as skipped. Password values and the selected file path never cross the preload boundary or reach MCP.
 
-Browser CSV exports contain readable passwords. Delete the export after confirming the import. Hronaut deliberately does not read or decrypt another browser's live profile database: those stores are protected by browser- and OS-specific credential systems, may require a primary password or biometric approval, and increasingly bind secrets to the source application. The browser's authenticated export flow is the supported consent boundary.
+Browser CSV exports contain readable passwords. Delete the export after confirming the import. For password migration, Hronaut does not read or decrypt another browser's password database: those stores are protected by browser- and OS-specific credential systems, may require a primary password or biometric approval, and increasingly bind secrets to the source application. The browser's authenticated CSV export is the supported password-import boundary; cookie import has the separate human-consent flow above.
 
 ## Prevent accidental human interaction
 

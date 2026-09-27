@@ -4547,6 +4547,7 @@ test('pins tabs from the native menu and tab search while preserving closed-tab 
       .map(({ id, label }) => ({ id, label })) ?? []
   })).toEqual([
     { id: 'new-tab-in-workspace', label: 'New Tab in Workspace' },
+    { id: 'import-browser-cookies', label: 'Import from browser…' },
     { id: 'edit-workspace', label: 'Edit Workspace…' },
     { id: 'sleep-workspace-tabs', label: 'Sleep Eligible Tabs' },
     { id: 'archive-workspace', label: 'Archive Workspace' }
@@ -6229,7 +6230,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect.poll(() => electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     return menu?.items.filter((item) => item.type !== 'separator').map(({ id }) => id) ?? []
-  })).toEqual(['new-tab-in-workspace', 'edit-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
+  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
   await electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     const item = menu?.getMenuItemById('edit-workspace')
@@ -6249,7 +6250,7 @@ test('creates, renames, and permanently closes an isolated human workspace', asy
   await expect.poll(() => electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     return menu?.items.filter((item) => item.type !== 'separator').map(({ id }) => id) ?? []
-  })).toEqual(['new-tab-in-workspace', 'edit-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
+  })).toEqual(['new-tab-in-workspace', 'import-browser-cookies', 'edit-workspace', 'sleep-workspace-tabs', 'archive-workspace'])
   await electronApp.evaluate(() => {
     const menu = (globalThis as typeof globalThis & { __hronautTabMenu?: Electron.Menu }).__hronautTabMenu
     const item = menu?.getMenuItemById('new-tab-in-workspace')

@@ -1,6 +1,8 @@
+import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  browserImport: browserImportMessages['pl-PL'],
   video: enUS.video,
   workspaceLibrary: {
     hidden: "Ukryty na pasku bocznym",

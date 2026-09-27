@@ -1,3 +1,4 @@
+import { registerBrowserImportIpc } from './browser-import/ipc.js'
 import { isLoopbackHost, mcpLocalHost } from '../shared/mcp-network.js'
 import { registerDiagnosticsIpc } from './diagnostics-ipc.js'
 import { parseNetworkRouteInput } from './browser/network-route-input.js'
@@ -2537,6 +2538,27 @@ function registerIpc(): void {
       ...(navigationPolicy ? { navigationPolicy } : {})
     } satisfies BrowserWorkspaceCreateOptions)
   })
+  const cancelBrowserImport = registerBrowserImportIpc({
+    assertSender: assertMainShellSender,
+    destination: id => tabsManager!.browserImportDestination(id),
+    consent: async (profile, destination) => {
+      const { response } = await showMessageBox({
+        type: 'question', title: text('browserImport.title', { name: destination.name }),
+        message: text('browserImport.readConsent', { browser: profile.browser, profile: profile.name }),
+        detail: text('browserImport.readDetail', { name: destination.name }),
+        buttons: [text('browserImport.cancel'), text('browserImport.continue')], defaultId: 0, cancelId: 0, noLink: true
+      })
+      return response === 1
+    },
+    write: (destination, cookies) => fillCredentialWhileMcpPaused({
+      pausePersistently: () => { setMcpPaused(true) },
+      acquireTemporaryPause: acquireTemporaryMcpPause,
+      getActiveRequestCount: () => mcpServer?.getActiveRequestCount() ?? mcpActionTracker.activeCount,
+      fill: () => tabsManager!.importBrowserCookies(destination, cookies)
+    })
+  })
+  mainWindow?.webContents.on('did-start-navigation', (_event, _url, _inPlace, isMainFrame) => { if (isMainFrame) cancelBrowserImport() })
+  mainWindow?.webContents.once('destroyed', cancelBrowserImport)
   ipcMain.handle('browser:list-workspace-storage-origins', (event, workspaceId: unknown) => {
     assertTrustedShellSender(event)
     if (typeof workspaceId !== 'string') throw new TypeError('Invalid workspace ID')

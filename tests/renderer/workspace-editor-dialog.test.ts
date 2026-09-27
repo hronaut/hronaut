@@ -157,3 +157,29 @@ it('keeps Home templates open when an older workspace editor read finishes', asy
     expect(wrapper.text()).toContain('Template content')
   } finally { wrapper.unmount() }
 })
+
+it('keeps a busy template operation open when the native menu requests browser import', async () => {
+  const state = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [], mcpTabGroups: [] } as BrowserState
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {} })
+  const wrapper = mount(WorkspaceEditor, {
+    global: { plugins: [createHronautI18n('en-US')], stubs: {
+      WorkspaceTemplatePanel: { name: 'WorkspaceTemplatePanel', template: '<div>Pending template</div>' },
+      BrowserImportPanel: { template: '<div>Browser import</div>' }
+    } },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    const editor = wrapper.vm as unknown as { openTemplates: () => void; openImport: (id: string) => void }
+    editor.openTemplates()
+    await flushPromises()
+    const template = wrapper.findComponent({ name: 'WorkspaceTemplatePanel' }).vm as unknown as { $emit(event: 'busy', value: boolean): void }
+    template.$emit('busy', true)
+    editor.openImport('destination')
+    await flushPromises()
+    expect(wrapper.get('#tab-group-editor-title').text()).toBe('Portable workspace templates')
+    expect(wrapper.text()).toContain('Pending template')
+    expect(wrapper.text()).not.toContain('Browser import')
+  } finally { wrapper.unmount() }
+})

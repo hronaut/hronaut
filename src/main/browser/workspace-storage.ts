@@ -83,11 +83,11 @@ export function normalizeWorkspaceStorageOrigins(values: string[]): string[] {
   return [...origins].sort()
 }
 
-function cookieIdentity(cookie: Cookie): string {
+export function cookieIdentity(cookie: Cookie): string {
   return `${cookie.domain ?? ''}\u0000${cookie.path ?? '/'}\u0000${cookie.name}\u0000${cookiePartitionKey(cookie)}`
 }
 
-function sameCookie(first: Cookie | undefined, second: Cookie): boolean {
+export function sameCookie(first: Cookie | undefined, second: Cookie): boolean {
   return first !== undefined && cookieIdentity(first) === cookieIdentity(second)
     && first.value === second.value && !!first.hostOnly === !!second.hostOnly
     && !!first.secure === !!second.secure && !!first.httpOnly === !!second.httpOnly
@@ -106,7 +106,7 @@ function cookieUrl(cookie: Cookie): string {
   return `${cookie.secure ? 'https' : 'http'}://${hostname}${cookie.path || '/'}`
 }
 
-function cookieDetails(cookie: Cookie): CookiesSetDetails {
+export function cookieDetails(cookie: Cookie): CookiesSetDetails {
   return {
     url: cookieUrl(cookie),
     name: cookie.name,

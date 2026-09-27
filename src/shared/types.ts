@@ -1,3 +1,4 @@
+import type { BrowserImportApi } from './browser-import.js'
 import type { BrowserVideoOptions, BrowserVideoState } from './video.js'
 import type { SearchEngineName } from './search-engine.js'
 import type { BrowserTabGroupColor } from './tab-groups.js'
@@ -2376,6 +2377,7 @@ export interface BrowserStorageChangesReport {
 }
 
 export interface HronautApi {
+  browserImport: BrowserImportApi
   getState(): Promise<BrowserState>
   getUserAttention(): Promise<UserAttentionRequest | null>
   onUserAttentionChanged(listener: (request: UserAttentionRequest | null) => void): () => void

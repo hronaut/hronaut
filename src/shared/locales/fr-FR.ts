@@ -1,6 +1,8 @@
+import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
+  browserImport: browserImportMessages['fr-FR'],
   video: enUS.video,
   workspaceLibrary: {
     hidden: "Masqué dans la barre latérale",

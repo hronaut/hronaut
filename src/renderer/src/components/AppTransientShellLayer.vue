@@ -78,6 +78,7 @@ interface ZoomSurface {
 }
 
 interface WorkspaceEditorSurface {
+  openImport: (workspaceId: string) => void
   openTemplates: () => void
   openTransfer: (sourceWorkspaceId?: string) => Promise<void>
   openExisting: (groupId: string) => Promise<void>
@@ -104,6 +105,7 @@ onMounted(() => {
     if (!editor) return
     const operation = request.view === 'create' ? editor.openNew()
       : request.view === 'templates' ? editor.openTemplates()
+      : request.view === 'import' ? editor.openImport(request.workspaceId)
       : request.view === 'edit' ? editor.openExisting(request.workspaceId)
       : editor.openTransfer(request.workspaceId)
     void Promise.resolve(operation).catch(error => props.showError('Workspaces', String(error)))

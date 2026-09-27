@@ -1,6 +1,8 @@
+import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  browserImport: browserImportMessages['de-DE'],
   video: enUS.video,
   workspaceLibrary: {
     hidden: "In der Seitenleiste ausgeblendet",

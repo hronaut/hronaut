@@ -1,4 +1,6 @@
+import { browserImportMessages } from './browser-import.js'
 export const enUS = {
+  browserImport: browserImportMessages['en-US'],
   video: {
     title: 'Video recorder', description: 'Record tutorials with captions and arrows',
     privacy: 'Starting records visible page content, including personal data. Use a demo account and review before sharing.',

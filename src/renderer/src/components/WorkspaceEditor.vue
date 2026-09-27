@@ -3,6 +3,7 @@ import IconArrowBack from '~icons/material-symbols/arrow-back-rounded'
 import WorkspaceContinuityPanel from './WorkspaceContinuityPanel.vue'
 import HumanWaitingPanel from './HumanWaitingPanel.vue'
 import WorkspaceTemplatePanel from './WorkspaceTemplatePanel.vue'
+import BrowserImportPanel from './BrowserImportPanel.vue'
 import UiButton from "../ui/UiButton.vue"
 import UiField from '../ui/UiField.vue'
 import UiInput from '../ui/UiInput.vue'
@@ -38,11 +39,14 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n({ useScope: 'global' })
 const panel = ref<HTMLElement | null>(null)
+const importTarget = ref<string | null>(null)
+const importDestination = ref('')
+const importBusy = ref(false)
 const templateView = ref(false)
 const templateBusy = ref(false)
 const templateBrowser = window.hronaut
-watch(open, (value) => { if (!value) { templateView.value = false } })
-function close(): void { if (!templateBusy.value) closeEditor() }
+watch(open, (value) => { if (!value) { templateView.value = false; importTarget.value = null } })
+function close(): void { if (!templateBusy.value && !importBusy.value) closeEditor() }
 const {
   mode,
   workspaceId,
@@ -133,48 +137,63 @@ function auditSourceLabel(source: BrowserWorkspaceNavigationAuditSource): string
 }
 
 async function openExisting(id: string): Promise<void> {
-  if (templateBusy.value || dismissBlocked.value) return
+  if (importBusy.value || templateBusy.value || dismissBlocked.value) return
+  importTarget.value = null
   templateView.value = false
   await openExistingEditor(id)
+  importDestination.value = id
 }
 async function openNew(): Promise<void> {
-  if (templateBusy.value || dismissBlocked.value) return
+  if (importBusy.value || templateBusy.value || dismissBlocked.value) return
+  importTarget.value = null
   templateView.value = false
   await openNewEditor()
+  importDestination.value = ''
 }
 async function openTransfer(sourceWorkspaceId?: string): Promise<void> {
-  if (templateBusy.value || dismissBlocked.value) return
+  if (importBusy.value || templateBusy.value || dismissBlocked.value) return
+  importTarget.value = null
   templateView.value = false
   await openTransferEditor(sourceWorkspaceId)
+  importDestination.value = sourceWorkspaceId ?? availableWorkspaces.value[0]?.id ?? ''
 }
 
 async function openLibrary(): Promise<void> {
-  if (templateBusy.value || dismissBlocked.value || !props.canPresent) return
+  if (importBusy.value || templateBusy.value || dismissBlocked.value || !props.canPresent) return
   closeEditor()
   await props.syncState(window.hronaut.openHome())
 }
-function openTemplates(): void {
-  if (templateBusy.value || dismissBlocked.value || !props.canPresent) return
+function openImport(id: string): void {
+  if (importBusy.value || templateBusy.value || dismissBlocked.value || !props.canPresent) return
   closeEditor()
+  templateView.value = false
+  importTarget.value = id
+  open.value = true
+}
+function openTemplates(): void {
+  if (importBusy.value || templateBusy.value || dismissBlocked.value || !props.canPresent) return
+  closeEditor()
+  importTarget.value = null
   templateView.value = true
   open.value = true
 }
-defineExpose({ openExisting, openNew, openTransfer, openLibrary, openTemplates, close })
+defineExpose({ openImport, openExisting, openNew, openTransfer, openLibrary, openTemplates, close })
 onBeforeUnmount(dispose)
 </script>
 
 <template>
   <div v-if="open" class="tab-group-editor-overlay">
-    <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy" @submit.prevent="!templateView && (mode === 'transfer' ? transferStorage() : save())">
+    <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
       <header>
-        <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
+        <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
         <div class="workspace-editor-header-actions">
           <span v-if="pendingMessage" class="workspace-editor-pending" role="status"><IconProgress class="state-spinner" aria-hidden="true" />{{ pendingMessage }}</span>
-          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked || templateBusy" @click="close"><IconClose aria-hidden="true" /></UiButton>
+          <UiButton appearance="application" class="panel-close" type="button" :aria-label="t('workspaceEditor.close')" :disabled="dismissBlocked || templateBusy || importBusy" @click="close"><IconClose aria-hidden="true" /></UiButton>
         </div>
       </header>
-      <div class="workspace-editor-breadcrumb"><UiButton variant="ghost" size="small" :disabled="dismissBlocked || templateBusy" @click="openLibrary"><IconArrowBack aria-hidden="true" />{{ t('workspaceLibrary.back') }}</UiButton><UiButton v-if="!templateView && mode !== 'transfer'" size="small" variant="ghost" :disabled="dismissBlocked" @click="openTemplates">{{ t('workspaceTemplates.title') }}</UiButton></div>
-      <WorkspaceTemplatePanel v-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
+      <div class="workspace-editor-breadcrumb"><UiButton variant="ghost" size="small" :disabled="dismissBlocked || templateBusy || importBusy" @click="openLibrary"><IconArrowBack aria-hidden="true" />{{ t('workspaceLibrary.back') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" size="small" variant="ghost" :disabled="dismissBlocked" @click="openTemplates">{{ t('workspaceTemplates.title') }}</UiButton></div>
+      <BrowserImportPanel v-if="importTarget" :key="importTarget" :workspace-id="importTarget" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="importBusy = $event" @close="close" />
+      <WorkspaceTemplatePanel v-else-if="templateView" :state="state" :browser="templateBrowser" :sync-state="syncState" @busy="templateBusy = $event" />
       <div v-else class="workspace-editor-body">
         <p v-if="mode !== 'transfer'" class="workspace-editor-intro">{{ t(mode === 'create' ? 'workspaceLibrary.createHelp' : 'workspaceLibrary.basicsHelp') }}</p>
         <template v-if="mode !== 'transfer'">
@@ -277,6 +296,14 @@ onBeforeUnmount(dispose)
         <details v-if="mode !== 'create'" class="workspace-editor-section workspace-data-disclosure" :open="mode === 'transfer'">
           <summary><IconDatabase aria-hidden="true" /><span><strong>{{ t('workspaceLibrary.dataSummary') }}</strong><small>{{ t('workspaceLibrary.dataHelp') }}</small></span></summary>
         <section class="workspace-storage-section">
+          <div class="workspace-transfer-fields">
+            <label for="browser-import-destination">{{ t('browserImport.destination') }}</label>
+            <select id="browser-import-destination" v-model="importDestination" :disabled="dismissBlocked">
+              <option value="" disabled>{{ t('workspaceEditor.chooseWorkspace') }}</option>
+              <option v-for="group in availableWorkspaces" :key="group.id" :value="group.id">{{ group.name }}</option>
+            </select>
+            <UiButton :disabled="dismissBlocked || !importDestination" @click="openImport(importDestination)">{{ t('browserImport.action') }}</UiButton>
+          </div>
           <div class="workspace-storage-heading"><IconDatabase aria-hidden="true" /><div><strong>{{ t('workspaceEditor.browserData') }}</strong><span>{{ t('workspaceEditor.browserDataDescription') }}</span></div></div>
           <div class="workspace-transfer-fields">
             <label for="workspace-transfer-source">{{ t('workspaceEditor.sourceWorkspace') }}</label>
@@ -311,7 +338,7 @@ onBeforeUnmount(dispose)
           <div v-if="mode === 'edit'" class="workspace-danger-zone"><div><strong>{{ t('workspaceEditor.closePermanently') }}</strong><span>{{ t('workspaceEditor.closeDescription') }}</span></div><UiButton variant="danger" type="button" :disabled="dismissBlocked || deletionBlocked || state.allHumanInteractionLocked" :title="state.allHumanInteractionLocked ? t('workspaceEditor.unlockTitle') : undefined" data-lock-protected-tab-close @click="closeWorkspace">{{ t('workspaceEditor.closeWorkspace') }}</UiButton></div>
         <output v-if="error" class="workspace-editor-error" role="alert">{{ error }}</output>
       </div>
-      <footer><UiButton type="button" :disabled="dismissBlocked || templateBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
+      <footer v-if="!importTarget"><UiButton type="button" :disabled="dismissBlocked || templateBusy || importBusy" @click="close">{{ templateView || mode === 'transfer' ? t('common.close') : t('workspaceEditor.cancel') }}</UiButton><UiButton v-if="!importTarget && !templateView && mode !== 'transfer'" variant="primary" class="primary" type="submit" :disabled="saveDisabled"><IconProgress v-if="actionPending" class="state-spinner" aria-hidden="true" />{{ mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.save') }}</UiButton></footer>
     </form>
   </div>
 </template>

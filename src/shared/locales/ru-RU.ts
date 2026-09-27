@@ -1,6 +1,8 @@
+import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ruRU = {
+  browserImport: browserImportMessages['ru-RU'],
   video: enUS.video,
   workspaceLibrary: {
     hidden: "Скрыто из боковой панели",

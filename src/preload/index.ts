@@ -122,6 +122,12 @@ const api: HronautApi = {
   reconcileWorkspaceContinuity: (id, reviewId, acknowledge) => ipcRenderer.invoke('browser:reconcile-workspace-continuity', id, reviewId, acknowledge),
   updateWorkspaceNavigationPolicy: (groupId, policy) => ipcRenderer.invoke('browser:update-workspace-navigation-policy', groupId, policy),
   listWorkspaceNavigationAudit: (groupId) => ipcRenderer.invoke('browser:list-workspace-navigation-audit', groupId),
+  browserImport: {
+    list: (id: string) => ipcRenderer.invoke('browser-import:list', id),
+    preview: (id: string, profile: string) => ipcRenderer.invoke('browser-import:preview', id, profile),
+    commit: (id: string, domains: string[]) => ipcRenderer.invoke('browser-import:commit', id, domains),
+    cancel: () => ipcRenderer.invoke('browser-import:cancel')
+  },
   listWorkspaceStorageOrigins: (workspaceId: string) => ipcRenderer.invoke('browser:list-workspace-storage-origins', workspaceId),
   transferWorkspaceStorage: (options: BrowserWorkspaceStorageTransferOptions) => ipcRenderer.invoke('browser:transfer-workspace-storage', options),
   closeWorkspace: (workspaceId: string) => ipcRenderer.invoke('browser:close-workspace', workspaceId),
