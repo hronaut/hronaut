@@ -355,6 +355,36 @@ describe('Home workspace hub', () => {
     expect(document.querySelector('.workspace-empty')?.textContent).toContain('No matching workspaces')
   })
 
+  it.each([false, true])('preserves card content and action contracts for archived=%s', async archived => {
+    const id = 'project" data-unexpected="true'
+    const name = '<img src=x onerror="alert(1)">'
+    const title = '<button>Page title</button>'
+    const group = { ...workspace, id, name, hiddenFromSidebar: true, deletionProtected: true,
+      agentAccess: false, savedAt: workspace.lastUsedAt,
+      tabs: [{ title, url: 'https://example.com/' }] }
+    const next = { ...inventory, mcpTabGroups: archived ? [] : [group],
+      savedTabGroups: archived ? [group] : [], tabs: [{ id: 'tab', mcpGroupId: id, title, url: 'https://example.com/' }] }
+    const action = vi.fn().mockResolvedValue(next)
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(next), workspaceAction: action })
+    await settle()
+    if (archived) button('#workspaces-archived').click()
+    const card = document.querySelector<HTMLElement>('.home-workspace-card')!
+    expect(card.getAttribute('aria-label')).toBe(name)
+    expect(card.querySelector('h2')?.textContent).toBe(name)
+    expect(card.querySelector('.home-workspace-preview')?.textContent).toBe(title)
+    expect(card.querySelectorAll('img,[data-unexpected]')).toHaveLength(0)
+    expect(Array.from(card.querySelectorAll<HTMLButtonElement>('footer button'), control => control.dataset.workspaceAction))
+      .toEqual(archived ? ['open', 'transfer', 'delete'] : ['open', 'edit', 'archive', 'clear'])
+    expect(button(`[data-workspace-action="${archived ? 'delete' : 'clear'}"]`).disabled).toBe(true)
+    for (const input of card.querySelectorAll<HTMLInputElement>('input')) {
+      expect(input.checked).toBe(true)
+      expect(input.dataset.workspaceId).toBe(id)
+    }
+    button('[data-workspace-action="open"]').click()
+    await settle()
+    expect(action).toHaveBeenCalledWith({ view: 'open', workspaceId: id })
+  })
+
   it.each([
     '[data-workspace-action="edit"]',
     '[data-workspace-preference="deletionProtected"]',

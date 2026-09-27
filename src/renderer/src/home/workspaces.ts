@@ -1,7 +1,7 @@
 import type { HomeBootstrap, HronautHomeApi } from '../../../shared/home.js'
 import type { HomeWorkspaceAction } from '../../../shared/home-workspaces.js'
-import { BROWSER_TAB_GROUP_COLOR_HEX } from '../../../shared/tab-groups.js'
-import { element, escapeText as h, interpolate } from './dom.js'
+import { element, interpolate } from './dom.js'
+import { renderWorkspaceCard, renderWorkspaceEmpty } from './workspace-card.js'
 
 export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal) {
   let state = data.workspaces
@@ -24,7 +24,6 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     const index = forms.length === 2 ? (value === 1 ? 0 : 1) : category === 'one' ? 0 : category === 'few' ? 1 : forms.length - 1
     return interpolate(forms[index] || forms[0]!, { count: new Intl.NumberFormat(data.locale).format(value) })
   }
-  const button = (action: string, label: string, id: string, disabled = false, primary = false): string => `<button type="button" data-workspace-action="${action}" data-workspace-id="${h(id)}"${disabled ? ' disabled' : ''}${primary ? ' class="workspace-primary"' : ''}>${h(label)}</button>`
   function render(): void {
     const groups = [
       ...state.mcpTabGroups.map(group => ({ ...group, archived: false, timestamp: group.lastUsedAt, tabs: state.tabs.filter(tab => tab.mcpGroupId === group.id) })),
@@ -51,11 +50,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
       let focusTarget = focused
       if (card.signature !== signature) {
-        const expanded = card.node.querySelector('details')?.open
-        const badges = [messages[group.agentAccess === false ? 'personal' : 'agentAccess'], ...(group.hiddenFromSidebar ? [messages.hidden] : []), ...(group.deletionProtected ? [messages.protected] : []), ...(group.navigationPolicy.mode === 'restricted' ? [messages.restricted] : [])]
-        card.node.className = 'home-workspace-card'
-        card.node.setAttribute('aria-label', group.name)
-        card.node.innerHTML = `<header><span class="workspace-symbol" style="--workspace-color:${BROWSER_TAB_GROUP_COLOR_HEX[group.color]}" aria-hidden="true">${group.archived ? '▤' : '▱'}</span><div><h2>${h(group.name)}</h2><span>${h(count(labels.workspaceTabs, group.tabs.length))} · ${h(count(labels.workspaceSites, group.storageOriginCount || 0))}</span></div></header><div class="home-workspace-badges">${badges.map(label => `<span>${h(label)}</span>`).join('')}</div>${group.description ? `<p class="home-workspace-description">${h(group.description)}</p>` : ''}<p class="home-workspace-preview">${h(group.tabs.slice(0, 2).map(tab => tab.title || tab.url).join(' · ') || messages.noTabs)}</p><footer>${button('open', group.archived ? messages.restore : messages.openWorkspace, group.id, false, true)}${button(group.archived ? 'transfer' : 'edit', group.archived ? labels.transferData : labels.manageWorkspace, group.id)}${button(group.archived ? 'delete' : 'archive', group.archived ? messages.delete : messages.archive, group.id, (state.allHumanInteractionLocked && (group.archived || group.tabs.length > 0)) || (group.archived && group.deletionProtected))}${group.archived ? '' : button('clear', messages.clear, group.id, group.deletionProtected)}</footer><details class="workspace-quick-settings"${expanded ? ' open' : ''}><summary>${h(messages.preferences)}</summary>${(['hiddenFromSidebar', 'deletionProtected'] as const).map(preference => `<label><input type="checkbox" data-workspace-preference="${preference}" data-workspace-id="${h(group.id)}"${group[preference] ? ' checked' : ''}>${h(messages[preference === 'hiddenFromSidebar' ? 'hideFromSidebar' : 'protectDeletion'])}</label>`).join('')}</details>`
+        renderWorkspaceCard(card.node, group, { messages, labels, count, allHumanInteractionLocked: state.allHumanInteractionLocked })
         card.signature = signature
         focusTarget = focusKey
           ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)
@@ -66,7 +61,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       // Moving an existing card can blur its controls; restore only after ordering.
       if (focusTarget?.isConnected && document.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true })
     })
-    if (!visible.length) grid.innerHTML = `<div class="workspace-empty"><h2>${h(messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'])}</h2><p>${h(messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])}</p></div>`
+    if (!visible.length) renderWorkspaceEmpty(grid, messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'], messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])
     root.setAttribute('aria-busy', String(pending))
     root.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button[data-workspace-action],input[data-workspace-preference]').forEach(control => {
       if (pending) { control.dataset.wasDisabled ??= String(control.disabled); control.disabled = true }
