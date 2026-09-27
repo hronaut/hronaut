@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep password CSV import reads bounded when files grow and reject named pipes without waiting for a writer.
 - Prevent retrying a consumed browser-import preview after a failed write; use Back to choose a fresh preview.
 - Enforce browser import byte limits for multibyte text and embedded NUL characters before loading cookie rows.
 - Import usable Chromium cookies without requiring an OS key for partitioned, expired, or invalid encrypted cookies that are excluded from import.

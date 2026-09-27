@@ -10,7 +10,7 @@ import { discardObsoleteBrowserData } from './obsolete-profile-data.js'
 import { readWorkspaceTemplateFile, writeWorkspaceTemplateFile } from './workspace-template-file.js'
 import { parseWorkspaceTemplate } from '../shared/workspace-template.js'
 import { bindTrayActivation } from './tray-activation.js'
-import { mkdir, open, readFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { pathToFileURL } from 'node:url'
@@ -58,6 +58,7 @@ import { BookmarkStore } from './bookmark-store.js'
 import { HistoryStore } from './history-store.js'
 import { CredentialStore } from './credential-store.js'
 import { CredentialImportError, parseCredentialImportCsv } from './credential-import.js'
+import { readCredentialImportFile } from './credential-import-file.js'
 import { fillCredentialWhileMcpPaused } from './credential-fill-pause.js'
 import { CommercialLicenseClient, CommercialLicenseError } from './commercial-license-client.js'
 import {
@@ -734,8 +735,6 @@ async function handleCredentialCandidate(candidate: BrowserCredentialCandidate):
   publishCredentials()
 }
 
-const MAX_CREDENTIAL_IMPORT_BYTES = 10 * 1024 * 1024
-
 function credentialImportErrorMessage(error: unknown): string {
   if (!(error instanceof CredentialImportError)) return text('native.errors.passwordImportInvalid')
   const keys = {
@@ -764,17 +763,7 @@ async function importCredentialsFromCsv(): Promise<CredentialImportResult> {
 
   let source: string
   try {
-    const handle = await open(path, 'r')
-    try {
-      const file = await handle.stat()
-      if (!file.isFile()) throw new Error('not-file')
-      if (file.size > MAX_CREDENTIAL_IMPORT_BYTES) throw new Error('too-large')
-      const contents = await handle.readFile()
-      if (contents.byteLength > MAX_CREDENTIAL_IMPORT_BYTES) throw new Error('too-large')
-      source = new TextDecoder('utf-8', { fatal: true }).decode(contents)
-    } finally {
-      await handle.close()
-    }
+    source = await readCredentialImportFile(path)
   } catch (error) {
     if (error instanceof Error && error.message === 'too-large') {
       throw new Error(text('native.errors.passwordImportTooLarge'))
