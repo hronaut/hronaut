@@ -12,22 +12,44 @@ test('temporarily unlocks one page under the global input lock and resets on the
   const otherTabId = await appWindow.evaluate(`window.hronaut.newTab({
     url: ${JSON.stringify(otherUrl)}, active: false
   }).then((state) => state.tabs.find((tab) => tab.url === ${JSON.stringify(otherUrl)})?.id)`) as string
-  const clicks = (): Promise<number> => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+  const click = (): Promise<boolean> => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
     const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
     if (!page) throw new Error('Interaction fixture page missing')
     const point = await page.executeJavaScript(`(() => {
       const bounds = document.querySelector('#action').getBoundingClientRect()
       return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
     })()`)
-    page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
-    page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    // Observe the native guard's decision, then let the caller independently
+    // await the renderer click. A main-process tick does not flush page input.
+    let observed!: (blocked: boolean) => void
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const dispatched = new Promise<boolean>((resolve, reject) => {
+      observed = resolve
+      timeout = setTimeout(() => reject(new Error('Native mouse input was not observed')), 5000)
+    })
+    const onMouse = (event: Electron.Event, mouse: Electron.MouseInputEvent): void => {
+      if (mouse.type === 'mouseUp') observed(event.defaultPrevented)
+    }
+    page.on('before-mouse-event', onMouse)
+    try {
+      page.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point })
+      page.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point })
+      return await dispatched
+    } finally {
+      clearTimeout(timeout)
+      page.removeListener('before-mouse-event', onMouse)
+    }
+  }, url)
+  const clicks = (): Promise<number> => electronApp.evaluate(async ({ webContents }, requestedUrl) => {
+    const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
+    if (!page) throw new Error('Interaction fixture page missing')
     return Number(await page.executeJavaScript('window.clicks'))
   }, url)
   try {
     await appWindow.getByRole('button', { name: /Block human page input/ }).click()
     const unlockTab = appWindow.getByRole('button', { name: 'Unlock page input in this tab' })
     await expect(unlockTab).toBeEnabled()
+    expect(await click()).toBe(true)
     expect(await clicks()).toBe(0)
 
     await unlockTab.click()
@@ -35,12 +57,14 @@ test('temporarily unlocks one page under the global input lock and resets on the
       state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.humanInteractionInputLocked)`)).toBe(false)
     expect(await appWindow.evaluate(`window.hronaut.getState().then((state) =>
       state.tabs.find((tab) => tab.id === ${JSON.stringify(otherTabId)})?.humanInteractionInputLocked)`)).toBe(true)
-    expect(await clicks()).toBe(1)
+    expect(await click()).toBe(false)
+    await expect.poll(clicks).toBe(1)
 
     await appWindow.getByRole('button', { name: /Allow human page input/ }).click()
     await appWindow.getByRole('button', { name: /Block human page input/ }).click()
     await expect.poll(() => appWindow.evaluate(`window.hronaut.getState().then((state) =>
       state.tabs.find((tab) => tab.id === ${JSON.stringify(tabId)})?.humanInteractionInputLocked)`)).toBe(true)
+    expect(await click()).toBe(true)
     expect(await clicks()).toBe(1)
   } finally {
     await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(false)').catch(() => undefined)

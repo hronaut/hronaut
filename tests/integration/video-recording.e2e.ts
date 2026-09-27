@@ -175,6 +175,7 @@ test('exports positioned captions, step cards and a spotlight with readable comp
     const image = context.getImageData(0, 0, canvas.width, canvas.height)
     const lines: Array<{ left: number; right: number }> = []
     let current: { left: number; right: number } | undefined
+    let lastInkRow = -Infinity
     for (let y = Math.round(canvas.height * 0.82); y < canvas.height * 0.96; y += 1) {
       let left = canvas.width, right = -1
       for (let x = Math.round(canvas.width * 0.15); x < canvas.width * 0.85; x += 1) {
@@ -182,9 +183,12 @@ test('exports positioned captions, step cards and a spotlight with readable comp
         if (image.data[offset]! > 210 && image.data[offset + 1]! > 210 && image.data[offset + 2]! > 210) { left = Math.min(left, x); right = x }
       }
       if (right >= left) {
-        if (!current) { current = { left, right }; lines.push(current) }
+        // Decoded text can have one or two blank raster rows before descenders.
+        // Keep those in their line without merging the larger inter-line gap.
+        if (!current || y - lastInkRow > 3) { current = { left, right }; lines.push(current) }
         else { current.left = Math.min(current.left, left); current.right = Math.max(current.right, right) }
-      } else current = undefined
+        lastInkRow = y
+      }
     }
     return { outside: sample(0.95, 0.5), inside: sample(0.86, 0.3), customLabel: sample(0.065, 0.175), brightTextPixels, captionCenters: lines.map(line => (line.left + line.right) / 2) }
   })
