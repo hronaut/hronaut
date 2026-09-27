@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Improved
+
+- Style tutorial videos with readable caption/title/label presets, positioned text cards, numbered callouts, spotlights, curved arrows, and optional animation. Captions wrap at words, align consistently on the left, center or right, and support safe-margin anchors or exact normalized coordinates through both Page tools and `browser_video`.
+
 ## [2.6.0] - 2026-09-27
 
 ### Fixed
