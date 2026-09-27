@@ -157,8 +157,11 @@ export async function readImportCookies(profile: ImportProfile, readKey = readLi
       version = Number(database.prepare('PRAGMA user_version').get()?.user_version)
       if (!Number.isInteger(version) || version < 10 || version > 17) throw new BrowserImportError('readFailed')
     }
-    const lengthFields = profile.kind === 'chromium' ? 'length(host_key) + length(encrypted_value)' : 'length(host)'
-    const count = database.prepare(`SELECT count(*) AS n, sum(length(value) + length(name) + length(path) + ${lengthFields}) AS bytes FROM ${table}`).get()!
+    const byteFields = profile.kind === 'chromium'
+      ? ['host_key', 'name', 'value', 'encrypted_value', 'path', 'top_frame_site_key']
+      : ['host', 'name', 'value', 'path', 'originAttributes']
+    const rowBytes = byteFields.map(field => `coalesce(length(${field}), 0)`).join(' + ')
+    const count = database.prepare(`SELECT count(*) AS n, sum(${rowBytes}) AS bytes FROM ${table}`).get()!
     if (Number(count.n) > MAX_ROWS || Number(count.bytes) > MAX_VALUES) throw new BrowserImportError('tooLarge')
     const columns = profile.kind === 'chromium'
       ? 'host_key, name, value, encrypted_value, path, is_secure, is_httponly, CAST(expires_utc AS TEXT) AS expires_utc, is_persistent, has_expires, samesite, top_frame_site_key'

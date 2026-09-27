@@ -86,4 +86,16 @@ describe('external cookie sources', () => {
     await expect(readImportCookies(profile(file))).rejects.toMatchObject({ code: 'readFailed', message: 'readFailed' })
     await expect(discoverImportProfiles(root, 'win32')).rejects.toMatchObject({ code: 'unsupported' })
   })
+  it('rejects oversized cookie data even when another field is null', async () => {
+    const file = join(await directory(), 'Cookies'); const db = chromiumDatabase(file)
+    db.exec("INSERT INTO cookies(host_key, name, value, encrypted_value, path) VALUES('oversize.test', 'session', NULL, zeroblob(16777217), '/')")
+    db.close()
+    await expect(readImportCookies(profile(file))).rejects.toMatchObject({ code: 'tooLarge', message: 'tooLarge' })
+  })
+  it('includes excluded partition metadata in the cookie byte budget', async () => {
+    const file = join(await directory(), 'Cookies'); const db = chromiumDatabase(file)
+    db.exec("INSERT INTO cookies(host_key, name, value, encrypted_value, path, top_frame_site_key) VALUES('oversize.test', 'session', '', zeroblob(0), '/', zeroblob(16777217))")
+    db.close()
+    await expect(readImportCookies(profile(file))).rejects.toMatchObject({ code: 'tooLarge' })
+  })
 })
