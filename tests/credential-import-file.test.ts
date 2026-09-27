@@ -7,7 +7,7 @@ import { MAX_CREDENTIAL_IMPORT_BYTES, readCredentialImportFile } from '../src/ma
 function file(contents: Buffer, size = contents.length, chunkSize = contents.length || 1) {
   const buffers: Buffer[] = []
   const handle = {
-    stat: vi.fn(async () => ({ size, isFile: () => true })),
+    stat: vi.fn(async () => ({ size, isFile: (): boolean => true })),
     read: vi.fn(async (buffer: Buffer, offset: number, length: number, position: number) => {
       buffers.push(buffer)
       const bytesRead = Math.max(0, Math.min(length, chunkSize, contents.length - position))
