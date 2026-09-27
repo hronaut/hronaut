@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-09-27
+
 ### Fixed
 
 - Redact credentials and sensitive query values from download history before it reaches the UI or agent download tools.
