@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Enforce browser import byte limits for multibyte text and embedded NUL characters before loading cookie rows.
+
 - Import usable Chromium cookies without requiring an OS key for partitioned, expired, or invalid encrypted cookies that are excluded from import.
 - Enforce the browser import byte limit before reading malformed cookie rows with missing fields or oversized partition metadata.
 - Avoid a false recovery warning when a destination cookie read fails before import writes anything.

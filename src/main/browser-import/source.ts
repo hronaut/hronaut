@@ -155,7 +155,9 @@ export async function readImportCookies(profile: ImportProfile, readKey = readLi
     const byteFields = profile.kind === 'chromium'
       ? ['host_key', 'name', 'value', 'encrypted_value', 'path', 'top_frame_site_key']
       : ['host', 'name', 'value', 'path', 'originAttributes']
-    const rowBytes = byteFields.map(field => `coalesce(length(${field}), 0)`).join(' + ')
+    // TEXT length counts characters and stops at NUL; bound the actual bytes
+    // before materializing even malformed or excluded rows in JavaScript.
+    const rowBytes = byteFields.map(field => `coalesce(length(CAST(${field} AS BLOB)), 0)`).join(' + ')
     const count = database.prepare(`SELECT count(*) AS n, sum(${rowBytes}) AS bytes FROM ${table}`).get()!
     if (Number(count.n) > MAX_ROWS || Number(count.bytes) > MAX_VALUES) throw new BrowserImportError('tooLarge')
     const columns = profile.kind === 'chromium'

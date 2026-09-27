@@ -99,4 +99,29 @@ describe('external cookie sources', () => {
     db.close()
     await expect(readImportCookies(profile(file))).rejects.toMatchObject({ code: 'tooLarge' })
   })
+  describe.each(['chromium', 'firefox'] as const)('%s text byte budget', kind => {
+    it.each(['multibyte', 'embedded NUL'] as const)('rejects oversized %s values before reading browser keys', async encoding => {
+      const file = join(await directory(), 'Cookies')
+      const db = kind === 'chromium' ? chromiumDatabase(file) : new DatabaseSync(file)
+      try {
+        if (kind === 'firefox') db.exec('PRAGMA user_version=16; CREATE TABLE moz_cookies(host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, originAttributes TEXT, sameSite INTEGER, isPartitionedAttributeSet INTEGER)')
+        const value = encoding === 'multibyte' ? 'é'.repeat(9 * 1024 * 1024) : '\0' + 'x'.repeat(16 * 1024 * 1024)
+        // Prove the fixture bypasses the old character-count budget while its
+        // bytes exceed the import limit (well below the database file limit).
+        const size = db.prepare('SELECT length(?) AS characters, length(CAST(? AS BLOB)) AS bytes').get(value, value)!
+        expect(Number(size.characters)).toBeLessThan(16 * 1024 * 1024)
+        expect(Number(size.bytes)).toBeGreaterThan(16 * 1024 * 1024)
+        if (kind === 'chromium') {
+          addChrome(db, 'oversize.test', Buffer.alloc(0))
+          db.prepare('UPDATE cookies SET value = ?').run(value)
+        } else {
+          db.prepare('INSERT INTO moz_cookies VALUES(?,?,?,?,?,?,?,?,?,?)').run('oversize.test', 'session', value, '/', Date.now() + 3600000, 1, 1, '', 1, 0)
+        }
+      } finally { db.close() }
+      const readKey = vi.fn()
+      await expect(readImportCookies(profile(file, kind), readKey)).rejects.toMatchObject({ code: 'tooLarge', message: 'tooLarge' })
+      expect(readKey).not.toHaveBeenCalled()
+    })
+  })
+
 })
