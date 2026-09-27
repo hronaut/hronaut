@@ -99,8 +99,8 @@ dependencies. Dependency contents and install constraints still invalidate that
 cache; the final integration stage copies the original checkout and version.
 Local runs use four workers with separate Xvfb displays
 and one shared test queue after one application build, so a worker that finishes
-a short test can take the next pending case. Hosted CI gives each of five shards
-an isolated runner with two independently displayed workers. Use
+a short test can take the next pending case. Hosted CI gives each of eight shards
+an isolated runner with one worker to limit native focus and capture contention. Use
 `HRONAUT_INTEGRATION_SHARD_WORKERS` to tune a selected hosted shard. The existing
 `HRONAUT_INTEGRATION_SHARDS` setting controls the local worker count. Set
 `HRONAUT_INTEGRATION_SHARDS=1` when diagnosing order or resource-sensitive behavior.

@@ -105,9 +105,11 @@ memory-constrained machine, reduce concurrency without changing the suite:
 HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
-Hosted pull-request and release CI assign five shards to separate runners, each
-with two Electron workers on independent Xvfb displays. Set
-`HRONAUT_INTEGRATION_SHARD_WORKERS=1` to diagnose a selected hosted shard serially.
+Hosted pull-request and release CI assign eight shards to separate runners, each
+with one Electron worker. This shortens each batch while keeping native focus and
+capture checks away from per-runner Electron contention. The selected-shard
+worker count can be tuned through `HRONAUT_INTEGRATION_SHARD_WORKERS` when
+benchmarking a dedicated machine.
 An explicit
 `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
