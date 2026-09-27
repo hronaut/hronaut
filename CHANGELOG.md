@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Hide Home onboarding immediately when the first workspace is created or discovered by background refresh.
 - Preserve keyboard focus on Home workspace controls and Preferences when background updates reorder cards.
 - Restore Home tool-catalog order after clearing search or refreshing the catalog, preserving expanded cards and keyboard focus.
 - Keep password CSV import reads bounded when files grow and reject named pipes without waiting for a writer.

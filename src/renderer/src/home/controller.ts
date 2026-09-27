@@ -6,6 +6,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
   const { guides, locale } = data
   const messages = data.messages.home
   const library = data.messages.workspaceLibrary
+  let hasWorkspaces = data.workspaces.mcpTabGroups.length > 0 || data.workspaces.savedTabGroups.length > 0
   let dashboard = data.dashboard
   const revision = dashboard.presentationRevision
   const lifetime = new AbortController()
@@ -212,14 +213,20 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const verified = dashboard.readiness.checks.probe.state === 'probe_verified'
     text('connection-probe', messages.readiness.nextAction[dashboard.readiness.checks.probe.nextAction])
     if (verified) remember('hronaut.home.onboarded', 'true')
-    element('home-onboarding').hidden = verified || remember('hronaut.home.onboarded') === 'true' || data.workspaces.mcpTabGroups.length > 0 || data.workspaces.savedTabGroups.length > 0
+    renderOnboarding()
     element('onboarding-client').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-connection').dataset.complete = String(dashboard.readiness.checks.initialization.state === 'client_initialized')
     element('onboarding-probe').dataset.complete = String(verified)
     element('connections').innerHTML = dashboard.clients.length ? dashboard.clients.map(client => `<div class="connection"><span class="client-icon">${h(client.name.trim().charAt(0))}</span><div><div class="client-name">${h(client.name)}</div><div class="client-meta">${h(client.version ?? messages.connections.versionUnknown)} · ${h(relativeTime(client.lastSeenAt))} · ${h(interpolate(messages.counts.requests, { count: client.requestCount }))}</div></div><span class="connection-state ${client.activeRequests ? 'active' : ''}">${h(client.activeRequests ? messages.connections.active : messages.connections.recent)}</span></div>`).join('') : `<div class="empty"><div><strong>${h(messages.connections.emptyHeading)}</strong><span>${h(messages.connections.emptyDescription)}</span></div></div>`
     renderTools()
   }
-  const workspaces = mountWorkspaces(data, api, signal)
+  function renderOnboarding(): void {
+    element('home-onboarding').hidden = dashboard.readiness.checks.probe.state === 'probe_verified' || remember('hronaut.home.onboarded') === 'true' || hasWorkspaces
+  }
+  const workspaces = mountWorkspaces(data, api, signal, state => {
+    hasWorkspaces = state.mcpTabGroups.length > 0 || state.savedTabGroups.length > 0
+    renderOnboarding()
+  })
   const views = ['workspaces', 'connect', 'overview', 'tools'] as const
   type View = typeof views[number]
   const isView = (value: unknown): value is View => views.includes(value as View)

@@ -1,9 +1,9 @@
 import type { HomeBootstrap, HronautHomeApi } from '../../../shared/home.js'
-import type { HomeWorkspaceAction } from '../../../shared/home-workspaces.js'
+import type { HomeWorkspaceAction, HomeWorkspaceState } from '../../../shared/home-workspaces.js'
 import { element, interpolate } from './dom.js'
 import { renderWorkspaceCard, renderWorkspaceEmpty } from './workspace-card.js'
 
-export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal) {
+export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal: AbortSignal, onStateChange?: (state: HomeWorkspaceState) => void) {
   let state = data.workspaces
   let view: 'open' | 'archived' = 'open'
   let pending = false
@@ -82,6 +82,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       const next = await api.workspaceAction(request)
       if (generation !== revision || signal.aborted) return
       state = next
+      onStateChange?.(state)
       if (request.view === 'archive') { undoId = request.workspaceId; notice.textContent = interpolate(messages.archiveNotice, { name: group?.name ?? '' }) }
       if (request.view === 'restore' || request.view === 'delete' || request.view === 'clear') {
         undoId = null
@@ -97,7 +98,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     try {
       const next = await api.getWorkspaces()
       if (generation !== revision || signal.aborted) return
-      state = next; render()
+      state = next; onStateChange?.(state); render()
     } catch { /* Actions surface errors; polling retains the last usable view. */ }
   }
   root.addEventListener('click', event => {

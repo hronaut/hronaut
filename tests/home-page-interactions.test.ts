@@ -331,6 +331,25 @@ describe('Home workspace hub', () => {
   }
   const inventory = { activeTabId: 'home', allHumanInteractionLocked: false, mcpTabGroups: [workspace], savedTabGroups: [], tabs: [] }
 
+  it.each(['poll', 'create'] as const)('updates onboarding when %s provides the first workspace', async source => {
+    const empty = { ...inventory, mcpTabGroups: [] }
+    const getWorkspaces = vi.fn().mockResolvedValue(empty)
+    const home = mount({ getWorkspaces, workspaceAction: vi.fn().mockResolvedValue(inventory) })
+    await settle()
+    const onboarding = document.querySelector<HTMLElement>('#home-onboarding')!
+    expect(onboarding.hidden).toBe(false)
+    if (source === 'poll') {
+      getWorkspaces.mockResolvedValue(inventory)
+      await vi.advanceTimersByTimeAsync(2000)
+    } else {
+      button('[data-workspace-action="create"]').click()
+      await settle()
+    }
+    expect(onboarding.hidden).toBe(true)
+    home.update(state)
+    expect(onboarding.hidden).toBe(true)
+  })
+
   it('defaults to workspaces, searches labels safely, and keeps focus through polling', async () => {
     mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory) })
     await settle()
