@@ -4,6 +4,11 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Continue video recording across same-origin navigation when Chromium temporarily cannot capture the loading page.
+- Escape Home text directly, including apostrophes in quoted attributes, so rendered status and labels remain inert.
+
 ### Improved
 
 - Style tutorial videos with readable caption/title/label presets, positioned text cards, numbered callouts, spotlights, curved arrows, and optional animation. Captions wrap at words, align consistently on the left, center or right, and support safe-margin anchors or exact normalized coordinates through both Page tools and `browser_video`.

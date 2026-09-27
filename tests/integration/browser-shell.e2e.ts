@@ -8623,9 +8623,9 @@ test('preserves human focus across agent presentation, input, and active tab cha
     await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id))
       .toBe(humanWindowId)
   } finally {
-    if (humanWindowId !== undefined) {
-      await electronApp.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.destroy(), humanWindowId)
-    }
+    // The app fixture stops tracing and closes every window during shutdown.
+    // Force-destroying the focused helper here can disconnect Electron before
+    // Playwright receives the evaluate response, after all assertions passed.
     await client.close().catch(() => undefined)
     await closeFixtureServer(server)
   }

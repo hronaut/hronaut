@@ -4,9 +4,12 @@ export function element<T extends HTMLElement = HTMLElement>(id: string): T {
   return node as T
 }
 export function escapeText(value: unknown): string {
-  const node = document.createElement('span')
-  node.textContent = String(value ?? '')
-  return node.innerHTML.replaceAll('"', '&quot;')
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 export function interpolate(message: string, values: Record<string, string | number> = {}): string {
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), message)
