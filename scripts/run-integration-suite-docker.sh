@@ -11,6 +11,15 @@ case "$shard_count" in
     ;;
 esac
 
+shard_workers="${HRONAUT_INTEGRATION_SHARD_WORKERS:-1}"
+case "$shard_workers" in
+  1|2|3|4|5|6|7|8) ;;
+  *)
+    echo "HRONAUT_INTEGRATION_SHARD_WORKERS must be an integer from 1 through 8." >&2
+    exit 2
+    ;;
+esac
+
 single_shard="${HRONAUT_INTEGRATION_SHARD:-}"
 single_shard_index=""
 if [[ -n "$single_shard" ]]; then
@@ -54,8 +63,8 @@ run_shard() {
     export HRONAUT_TEST_SHARD_INDEX="$shard_index"
     started_at="$SECONDS"
     set +e
-    xvfb-run --auto-servernum --server-args='-screen 0 1920x1080x24' \
-      npm run test:integration:run -- "--shard=${shard_spec}"
+    HRONAUT_TEST_ISOLATED_DISPLAYS=1 \
+      npm run test:integration:run -- "--shard=${shard_spec}" "--workers=${shard_workers}"
     shard_status="$?"
     set -e
     echo "Electron shard ${shard_spec} finished in $((SECONDS - started_at))s with status ${shard_status}."

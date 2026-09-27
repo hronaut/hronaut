@@ -33,13 +33,18 @@ if (args.includes('test:integration:run')) process.exit(Number(process.env.TEST_
         PATH: `${join(root, 'bin')}:${process.env.PATH}`,
         HRONAUT_INTEGRATION_SHARDS: '4',
         HRONAUT_INTEGRATION_SHARD: '',
+        HRONAUT_INTEGRATION_SHARD_WORKERS: '1',
         HRONAUT_INTEGRATION_RUN_DIALOGS: 'true',
         HRONAUT_INTEGRATION_SKIP_TYPECHECK: 'false',
         ...environment
       }
     })
     if (result.error) throw result.error
-    const calls = (await readFile(join(root, 'calls.jsonl'), 'utf8')).trim().split('\n')
+    const source = await readFile(join(root, 'calls.jsonl'), 'utf8').catch(error => {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''
+      throw error
+    })
+    const calls = source.trim().split('\n').filter(Boolean)
       .map(line => JSON.parse(line) as Invocation)
     return { status: result.status, calls }
   } finally {
@@ -68,8 +73,27 @@ describe.skipIf(process.platform === 'win32')('Docker Electron scheduling', () =
     expect(status).toBe(0)
     expect(calls.map(call => call.args)).toEqual([
       ['run', 'build:app'],
-      ['run', 'test:integration:run', '--', '--shard=2/5']
+      ['run', 'test:integration:run', '--', '--shard=2/5', '--workers=1']
     ])
+  })
+
+  it('shares a hosted shard between two independently displayed workers', async () => {
+    const { status, calls } = await runSuite({
+      HRONAUT_INTEGRATION_SHARD: '5/5',
+      HRONAUT_INTEGRATION_SHARD_WORKERS: '2'
+    })
+    expect(status).toBe(0)
+    expect(calls[1]).toMatchObject({
+      args: ['run', 'test:integration:run', '--', '--shard=5/5', '--workers=2'],
+      isolatedDisplays: '1'
+    })
+    expect(calls[2]?.args).toEqual(['run', 'test:integration:dialogs:headless'])
+  })
+
+  it.each(['0', '2x', '1.5', '9'])('rejects invalid hosted worker count %s before building', async workers => {
+    const { status, calls } = await runSuite({ HRONAUT_INTEGRATION_SHARD_WORKERS: workers })
+    expect(status).toBe(2)
+    expect(calls).toEqual([])
   })
 
   it('fails the gate and skips dialogs when the worker pool fails', async () => {

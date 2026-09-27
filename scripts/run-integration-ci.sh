@@ -5,9 +5,8 @@ set -u -o pipefail
 container_name="hronaut-integration-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$$"
 artifact_directory="ci-artifacts"
 
-# Hosted runners have fewer sustained CPU resources than typical developer
-# workstations. Keep their Electron processes at the proven two-shard profile;
-# callers can still opt into another value explicitly.
+# Limit standalone CI runs to two workers. Matrix jobs select one shard and
+# configure its concurrency separately through HRONAUT_INTEGRATION_SHARD_WORKERS.
 export HRONAUT_INTEGRATION_SHARDS="${HRONAUT_INTEGRATION_SHARDS:-2}"
 # The parallel validate job already performs the full TypeScript build graph.
 # Keep the standalone Docker command authoritative by changing this only in CI.

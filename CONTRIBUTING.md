@@ -106,7 +106,9 @@ HRONAUT_INTEGRATION_SHARDS=2 npm run test:integration:docker
 ```
 
 Hosted pull-request and release CI assign five shards to separate runners, each
-with one Electron worker. An explicit
+with two Electron workers on independent Xvfb displays. Set
+`HRONAUT_INTEGRATION_SHARD_WORKERS=1` to diagnose a selected hosted shard serially.
+An explicit
 `HRONAUT_INTEGRATION_SHARDS` still wins for single-container runs.
 The hosted integration job skips duplicate type analysis because its parallel
 validation job runs the complete TypeScript graph. The standalone Docker command
@@ -114,6 +116,10 @@ still performs the full typecheck before building and testing. Hosted jobs use
 Docker's native image path because loading the large Playwright image through a
 remote BuildKit cache was slower in measured CI runs than rebuilding its
 lock-keyed dependency layer on the hosted runner.
+
+Each test gets a fresh application process and temporary profile. Sharing a
+running app between arbitrary tests is unsafe: lifecycle tests quit or crash it,
+startup tests seed profiles, and failure tests replace main-process IPC handlers.
 
 Static validation runs lint, unit/component tests, incremental typechecking,
 and the application build concurrently. Set `HRONAUT_VITEST_WORKERS` when a CI

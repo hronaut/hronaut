@@ -75,6 +75,7 @@ jobs:
       - name: Run Electron integration tests in Docker
         env:
           HRONAUT_INTEGRATION_SHARD: "${{ matrix.shard }}/5"
+          HRONAUT_INTEGRATION_SHARD_WORKERS: "2"
           HRONAUT_INTEGRATION_RUN_DIALOGS: "${{ matrix.shard == 1 }}"
         run: bash scripts/run-integration-ci.sh
 
