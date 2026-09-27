@@ -6785,10 +6785,13 @@ test('finds text from a website shortcut and navigates page matches', async ({ a
     const findTabId = await appWindow.evaluate(`window.hronaut.newTab({ url: ${JSON.stringify(url)}, active: true }).then((state) => state.activeTabId)`)
     if (!homeTabId || !findTabId) throw new Error('Find lifecycle tabs were not available')
     await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.title)')).toBe('Find fixture')
+    await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then((state) => state.tabs.find((tab) => tab.active)?.loading)')).toBe(false)
 
     await electronApp.evaluate(async ({ webContents }, requestedUrl) => {
       const page = webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)
       if (!page) throw new Error('Find fixture web contents was not found')
+      // The title can arrive before Chromium has laid out searchable body text.
+      await page.executeJavaScript('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))')
       page.focus()
       const modifiers = process.platform === 'darwin' ? ['meta'] as const : ['control'] as const
       page.sendInputEvent({ type: 'keyDown', keyCode: 'F', modifiers: [...modifiers] })
