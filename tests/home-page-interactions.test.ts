@@ -355,6 +355,27 @@ describe('Home workspace hub', () => {
     expect(document.querySelector('.workspace-empty')?.textContent).toContain('No matching workspaces')
   })
 
+  it.each([
+    '[data-workspace-action="edit"]',
+    '[data-workspace-preference="deletionProtected"]',
+    'summary'
+  ])('preserves focused %s when polling changes and reorders a workspace card', async selector => {
+    const older = { ...workspace, id: 'older', name: 'Older workspace', lastUsedAt: '2026-09-12' }
+    const getWorkspaces = vi.fn().mockResolvedValue({ ...inventory, mcpTabGroups: [workspace, older] })
+    mount({ getWorkspaces })
+    await settle()
+    const card = document.querySelectorAll<HTMLElement>('.home-workspace-card')[1]!
+    card.querySelector<HTMLDetailsElement>('details')!.open = true
+    card.querySelector<HTMLElement>(selector)!.focus()
+    expect(document.activeElement).toBe(card.querySelector(selector))
+    getWorkspaces.mockResolvedValue({ ...inventory, mcpTabGroups: [workspace, { ...older, lastUsedAt: '2026-09-14', description: 'Refreshed description' }] })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(document.querySelector('.home-workspace-card')).toBe(card)
+    expect(card.querySelector('details')!.open).toBe(true)
+    expect(document.activeElement).toBe(card.querySelector(selector))
+    expect(card.textContent).toContain('Refreshed description')
+  })
+
   it('serializes mutations, reports failure, and allows retry without losing the card', async () => {
     let fail!: (error: Error) => void
     const action = vi.fn().mockImplementationOnce(() => new Promise((_, reject) => { fail = reject })).mockResolvedValue(inventory)

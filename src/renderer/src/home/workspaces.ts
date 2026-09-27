@@ -47,19 +47,24 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
       const signature = JSON.stringify([group, state.allHumanInteractionLocked])
       let card = cards.get(group.id)
       if (!card) { card = { node: document.createElement('article'), signature: '' }; cards.set(group.id, card) }
+      const focused = card.node.contains(document.activeElement) ? document.activeElement as HTMLElement : null
+      const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
+      let focusTarget = focused
       if (card.signature !== signature) {
         const expanded = card.node.querySelector('details')?.open
-        const focused = card.node.contains(document.activeElement) ? document.activeElement as HTMLElement : null
-        const focusKey = focused?.dataset.workspaceAction ?? focused?.dataset.workspacePreference
         const badges = [messages[group.agentAccess === false ? 'personal' : 'agentAccess'], ...(group.hiddenFromSidebar ? [messages.hidden] : []), ...(group.deletionProtected ? [messages.protected] : []), ...(group.navigationPolicy.mode === 'restricted' ? [messages.restricted] : [])]
         card.node.className = 'home-workspace-card'
         card.node.setAttribute('aria-label', group.name)
         card.node.innerHTML = `<header><span class="workspace-symbol" style="--workspace-color:${BROWSER_TAB_GROUP_COLOR_HEX[group.color]}" aria-hidden="true">${group.archived ? '▤' : '▱'}</span><div><h2>${h(group.name)}</h2><span>${h(count(labels.workspaceTabs, group.tabs.length))} · ${h(count(labels.workspaceSites, group.storageOriginCount || 0))}</span></div></header><div class="home-workspace-badges">${badges.map(label => `<span>${h(label)}</span>`).join('')}</div>${group.description ? `<p class="home-workspace-description">${h(group.description)}</p>` : ''}<p class="home-workspace-preview">${h(group.tabs.slice(0, 2).map(tab => tab.title || tab.url).join(' · ') || messages.noTabs)}</p><footer>${button('open', group.archived ? messages.restore : messages.openWorkspace, group.id, false, true)}${button(group.archived ? 'transfer' : 'edit', group.archived ? labels.transferData : labels.manageWorkspace, group.id)}${button(group.archived ? 'delete' : 'archive', group.archived ? messages.delete : messages.archive, group.id, (state.allHumanInteractionLocked && (group.archived || group.tabs.length > 0)) || (group.archived && group.deletionProtected))}${group.archived ? '' : button('clear', messages.clear, group.id, group.deletionProtected)}</footer><details class="workspace-quick-settings"${expanded ? ' open' : ''}><summary>${h(messages.preferences)}</summary>${(['hiddenFromSidebar', 'deletionProtected'] as const).map(preference => `<label><input type="checkbox" data-workspace-preference="${preference}" data-workspace-id="${h(group.id)}"${group[preference] ? ' checked' : ''}>${h(messages[preference === 'hiddenFromSidebar' ? 'hideFromSidebar' : 'protectDeletion'])}</label>`).join('')}</details>`
         card.signature = signature
-        if (focusKey) card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)?.focus()
+        focusTarget = focusKey
+          ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)
+          : focused?.tagName === 'SUMMARY' ? card.node.querySelector('summary') : null
       }
       // Retain the same card and controls on polling; move only when ordering changes.
       if (grid.children[index] !== card.node) grid.insertBefore(card.node, grid.children[index] ?? null)
+      // Moving an existing card can blur its controls; restore only after ordering.
+      if (focusTarget?.isConnected && document.activeElement !== focusTarget) focusTarget.focus({ preventScroll: true })
     })
     if (!visible.length) grid.innerHTML = `<div class="workspace-empty"><h2>${h(messages[query ? 'noMatches' : view === 'archived' ? 'noArchived' : 'empty'])}</h2><p>${h(messages[query ? 'searchHelp' : view === 'archived' ? 'archiveHelp' : 'emptyHelp'])}</p></div>`
     root.setAttribute('aria-busy', String(pending))
