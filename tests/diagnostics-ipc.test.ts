@@ -6,13 +6,14 @@ type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'accessibility-audit', 'quality-audit', 'performance', 'design-overview',
   'page-metadata', 'security', 'code-coverage', 'cpu-profile', 'memory',
-  'debug-report', 'set-diagnostic-log-preservation', 'repro-recording',
+  'debug-report', 'set-diagnostic-log-preservation', 'video', 'video-preview', 'repro-recording',
   'dom-changes', 'visual-compare', 'copy-visual-diff', 'inspector-issues'
 ]
 
 function fixture() {
   const listeners = new Map<string, Listener>()
   const tabs = {
+    videoRecording: vi.fn(), videoPreview: vi.fn(),
     accessibilityAudit: vi.fn(), qualityAudit: vi.fn(), performanceReport: vi.fn(),
     designOverview: vi.fn(), pageMetadata: vi.fn(), securityReport: vi.fn(),
     codeCoverage: vi.fn(), cpuProfile: vi.fn(), memoryReport: vi.fn(),
@@ -49,7 +50,8 @@ it.each(channels)('rejects untrusted %s requests before accessing services or im
 
 it.each(channels)('rejects malformed %s arguments before accessing services', async channel => {
   const { host, invoke } = fixture()
-  await expect(invoke(channel, false)).rejects.toThrow(TypeError)
+  if (channel === 'video') await expect(invoke(channel, false)).rejects.toThrow()
+  else await expect(invoke(channel, false)).rejects.toThrow(TypeError)
   expect(host.tabs).not.toHaveBeenCalled()
 })
 
@@ -123,4 +125,16 @@ it.each([
   const { host, invoke } = fixture()
   await expect(invoke(channel as string, options)).rejects.toThrow(TypeError)
   expect(host.tabs).not.toHaveBeenCalled()
+})
+
+
+it('validates video options and keeps preview pixels behind the trusted shell boundary', async () => {
+  const { tabs, invoke } = fixture()
+  await invoke('video', { tabId: 'tab', action: 'start' })
+  expect(tabs.videoRecording).toHaveBeenCalledWith({ tabId: 'tab', action: 'start' })
+  await invoke('video-preview', 'tab')
+  expect(tabs.videoPreview).toHaveBeenCalledWith('tab')
+  tabs.videoRecording.mockClear()
+  await expect(invoke('video', { action: 'edit', annotations: [{ kind: 'text', text: 'caption', startMs: 100, endMs: 0, x: 0, y: 0 }] })).rejects.toThrow()
+  expect(tabs.videoRecording).not.toHaveBeenCalled()
 })

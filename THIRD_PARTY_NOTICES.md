@@ -5,6 +5,7 @@ Hronaut depends on and bundles third-party open-source software. Each dependency
 Notable code and assets compiled into the desktop application include:
 
 - **axe-core 4.13.0**, Copyright Deque Systems, Inc. and contributors, licensed under the Mozilla Public License 2.0. Source: <https://github.com/dequelabs/axe-core/tree/v4.13.0>. The complete license and upstream third-party notices are distributed in `node_modules/axe-core/LICENSE` and `node_modules/axe-core/LICENSE-3RD-PARTY.txt`.
+- **Mediabunny 1.42.0**, licensed under the Mozilla Public License 2.0, used to encode and mux local WebM video exports. Source: <https://github.com/Vanilagy/mediabunny/tree/v1.42.0>. The complete license is distributed in `node_modules/mediabunny/LICENSE`.
 - **Material Symbols**, provided through `@iconify-json/material-symbols`, licensed under the Apache License 2.0. Project information: <https://icon-sets.iconify.design/material-symbols/>.
 - **@noble/ciphers 2.4.0**, licensed under the MIT License. Source: <https://github.com/paulmillr/noble-ciphers>.
 - **@node-rs/argon2 2.1.0**, an MIT-licensed Node-API binding to the RustCrypto Argon2 implementation, used for the Linux vault passphrase fallback. Source: <https://github.com/napi-rs/node-rs>.

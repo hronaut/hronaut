@@ -1,3 +1,4 @@
+import { videoOptionsSchema } from '../shared/video.js'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import type { BrowserTabsManager } from './browser/tabs-manager.js'
 import type {
@@ -31,6 +32,8 @@ interface DiagnosticsIpcHost {
     | 'performanceReport'
     | 'qualityAudit'
     | 'reproRecording'
+    | 'videoRecording'
+    | 'videoPreview'
     | 'securityReport'
     | 'setDiagnosticLogPreservation'
     | 'visualCompare'
@@ -159,6 +162,16 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     if (typeof tabId !== 'string' || typeof preserve !== 'boolean') throw new TypeError('Invalid diagnostic log preservation state')
     host.tabs().setDiagnosticLogPreservation(tabId, preserve)
     return host.tabs().getState()
+  })
+  ipcMain.handle('browser:video', (event, value: unknown) => {
+    host.assertTrustedSender(event)
+    const options = videoOptionsSchema.parse(value)
+    return host.tabs().videoRecording(options)
+  })
+  ipcMain.handle('browser:video-preview', (event, tabId: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string') throw new TypeError('Invalid video tab')
+    return host.tabs().videoPreview(tabId)
   })
   ipcMain.handle('browser:repro-recording', (event, value: unknown) => {
     host.assertTrustedSender(event)

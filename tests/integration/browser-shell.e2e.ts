@@ -1132,7 +1132,7 @@ test('keeps the tab strip but removes website navigation controls on Home', asyn
     ['Inspect & simulate', 6],
     ['Diagnose & reproduce', 8],
     ['Audit & optimize', 8],
-    ['Export & account', 3]
+    ['Export & account', 4]
   ] as const
   expect(await pageTools.getByRole('heading', { level: 3 }).allTextContents()).toEqual(pageToolGroups.map(([name]) => name))
   for (const [name, buttonCount] of pageToolGroups) {

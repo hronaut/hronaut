@@ -1,4 +1,16 @@
 export const enUS = {
+  video: {
+    title: 'Video recorder', description: 'Record tutorials with captions and arrows',
+    privacy: 'Starting records visible page content, including personal data. Use a demo account and review before sharing.',
+    limits: 'Silent WebM / VP9 · up to 2 minutes · 1280 × 720 · up to 12 fps. Keep the tab visible and its size unchanged. Raw recordings disappear when the tab closes.',
+    status: { idle: 'Ready to record', recording: 'Recording video', paused: 'Recording paused', stopped: 'Recording stopped', rendering: 'Rendering video…' },
+    seconds: 'seconds', start: 'Start video recording', pause: 'Pause video', resume: 'Resume video', stop: 'Stop video', clear: 'Discard recording',
+    annotation: 'Add an annotation', kind: 'Annotation type', caption: 'Caption text', kinds: { text: 'Text', arrow: 'Arrow', highlight: 'Highlight', click: 'Click marker' },
+    from: 'From (seconds)', to: 'To (seconds)', x: 'Left (%)', y: 'Top (%)', endX: 'End left (%)', endY: 'End top (%)',
+    addAnnotation: 'Add annotation', removeAnnotation: 'Remove annotation {index}', remove: 'Remove',
+    clips: 'Keep selected clips', clipsHelp: 'Keep the whole recording by default. Add ordered, non-overlapping ranges to remove waiting time. Times refer to the original recording.',
+    addClip: 'Add kept range', wholeRecording: 'Keep whole recording', preview: 'Preview video', export: 'Export WebM', saved: 'Saved to'
+  },
   workspaceLibrary: {
     hidden: "Hidden from sidebar",
     protected: "Deletion protected",

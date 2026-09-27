@@ -1,6 +1,7 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ukUA = {
+  video: enUS.video,
   workspaceLibrary: {
     hidden: "Приховано з бічної панелі",
     protected: "Захищено від видалення",

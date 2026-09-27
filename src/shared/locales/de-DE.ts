@@ -1,6 +1,7 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const deDE = {
+  video: enUS.video,
   workspaceLibrary: {
     hidden: "In der Seitenleiste ausgeblendet",
     protected: "Vor Löschen geschützt",

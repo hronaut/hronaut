@@ -1,6 +1,7 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ruRU = {
+  video: enUS.video,
   workspaceLibrary: {
     hidden: "Скрыто из боковой панели",
     protected: "Защищено от удаления",
