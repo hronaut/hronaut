@@ -51,10 +51,19 @@ describe('trusted Home workspace actions', () => {
   it('respects global interaction lock for destructive lifecycle operations', async () => {
     const h = harness()
     h.state.allHumanInteractionLocked = true
+    h.state.tabs = [{ id: 'page', mcpGroupId: 'active' }] as BrowserState['tabs']
     await expect(h.run({ view: 'archive', workspaceId: 'active' })).rejects.toThrow('Unlock')
     await expect(h.run({ view: 'delete', workspaceId: 'archived' })).rejects.toThrow('Unlock')
     expect(h.manager.saveAndCloseTabGroup).not.toHaveBeenCalled()
     expect(h.manager.deleteSavedTabGroup).not.toHaveBeenCalled()
+  })
+
+  it('archives a tabless workspace while other workspace pages are input-locked', async () => {
+    const h = harness()
+    h.state.allHumanInteractionLocked = true
+    h.state.tabs = [{ id: 'other-page', mcpGroupId: 'other' }] as BrowserState['tabs']
+    await h.run({ view: 'archive', workspaceId: 'active' })
+    expect(h.manager.saveAndCloseTabGroup).toHaveBeenCalledWith('active')
   })
 
   it('clears an active workspace from trusted Home even while website input is locked', async () => {

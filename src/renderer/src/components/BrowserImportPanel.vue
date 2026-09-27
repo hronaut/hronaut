@@ -52,11 +52,8 @@ async function read(): Promise<void> {
   })
 }
 function selectAll(): void { selected.value = [...new Set([...selected.value, ...sites.value.map(s => s.domain)])] }
-async function archive(): Promise<void> {
-  await run(async () => { await props.syncState(props.browser.saveAndCloseTabGroup(props.workspaceId)) })
-}
 async function commit(): Promise<void> {
-  if (!preview.value || !selected.value.length || !archived.value) return
+  if (!preview.value || !selected.value.length) return
   const id = preview.value.id; const domains = [...selected.value]
   writing.value = true
   await run(async () => {
@@ -81,65 +78,70 @@ onBeforeUnmount(() => { generation++; void props.browser.browserImport.cancel().
 
 <template>
   <section class="browser-import-panel" data-testid="browser-import-panel" :aria-busy="busy">
-    <h3>{{ t('browserImport.title', { name: workspace?.name ?? '' }) }}</h3>
-    <p>{{ t('browserImport.description') }}</p>
-    <p class="workspace-transfer-help">{{ t('browserImport.agents') }}</p>
-    <template v-if="result">
-      <output role="status">{{ t('browserImport.result', { ...result }) }}</output>
-      <p>{{ t('browserImport.paused') }}</p>
-      <p v-if="result.recoveryRequired" role="alert">{{ t('browserImport.recovery') }}</p>
-      <UiButton v-if="archived && !result.recoveryRequired" :disabled="busy" @click="restore">{{ t('browserImport.restore') }}</UiButton>
-    </template>
-    <template v-else-if="preview">
-      <h4>{{ t('browserImport.choose') }}</h4>
-      <p>{{ profiles.find(p => p.id === profileId)?.browser }} · {{ profiles.find(p => p.id === profileId)?.name }}</p>
-      <label for="browser-import-filter">{{ t('browserImport.filter') }}</label>
-      <input id="browser-import-filter" v-model="filter" type="search" :disabled="busy" />
-      <div class="browser-import-actions">
-        <UiButton :disabled="busy" @click="selectAll">{{ t(filter.trim() ? 'browserImport.matching' : 'browserImport.all') }}</UiButton>
-        <UiButton :disabled="busy" @click="selected = []">{{ t('browserImport.clear') }}</UiButton>
-      </div>
-      <div class="browser-import-sites">
-        <label v-for="site in sites" :key="site.domain">
-          <input v-model="selected" type="checkbox" :value="site.domain" :disabled="busy" />
-          <span>{{ site.domain }} <small v-if="site.includesSubdomains">{{ t('browserImport.subdomains') }}</small></span>
-          <span>{{ site.count }}</span>
-        </label>
-      </div>
-      <p role="status">{{ t('browserImport.selected', { selected: selected.length, total: preview.sites.length }) }}</p>
-      <p v-if="preview.skipped">{{ t('browserImport.skipped', { count: preview.skipped }) }}</p>
-      <p v-if="!preview.sites.length">{{ t('browserImport.empty') }}</p>
-      <template v-if="!archived">
-        <p>{{ t('browserImport.archiveHelp') }}</p>
-        <UiButton :disabled="busy || state.allHumanInteractionLocked" @click="archive">{{ t('browserImport.archive') }}</UiButton>
+    <div class="browser-import-body">
+      <h3>{{ t('browserImport.title', { name: workspace?.name ?? '' }) }}</h3>
+      <p v-if="!preview && !result">{{ t('browserImport.description') }}</p>
+      <p class="workspace-transfer-help">{{ t('browserImport.agents') }}</p>
+      <template v-if="result">
+        <output role="status">{{ t('browserImport.result', { ...result }) }}</output>
+        <p>{{ t('browserImport.paused') }}</p>
+        <p v-if="!archived">{{ t('browserImport.liveHelp') }}</p>
+        <p v-if="result.recoveryRequired" role="alert">{{ t('browserImport.recovery') }}</p>
+        <UiButton v-if="archived && !result.recoveryRequired" :disabled="busy" @click="restore">{{ t('browserImport.restore') }}</UiButton>
       </template>
-      <div class="browser-import-actions">
+      <template v-else-if="preview">
+        <h4>{{ t('browserImport.choose') }}</h4>
+        <p>{{ profiles.find(p => p.id === profileId)?.browser }} · {{ profiles.find(p => p.id === profileId)?.name }}</p>
+        <label for="browser-import-filter">{{ t('browserImport.filter') }}</label>
+        <input id="browser-import-filter" v-model="filter" type="search" :disabled="busy" />
+        <div class="browser-import-actions">
+          <UiButton :disabled="busy" @click="selectAll">{{ t(filter.trim() ? 'browserImport.matching' : 'browserImport.all') }}</UiButton>
+          <UiButton :disabled="busy" @click="selected = []">{{ t('browserImport.clear') }}</UiButton>
+        </div>
+        <div class="browser-import-sites">
+          <label v-for="site in sites" :key="site.domain">
+            <input v-model="selected" type="checkbox" :value="site.domain" :disabled="busy" />
+            <span>{{ site.domain }} <small v-if="site.includesSubdomains">{{ t('browserImport.subdomains') }}</small></span>
+            <span>{{ site.count }}</span>
+          </label>
+        </div>
+        <p role="status">{{ t('browserImport.selected', { selected: selected.length, total: preview.sites.length }) }}</p>
+        <p v-if="preview.skipped">{{ t('browserImport.skipped', { count: preview.skipped }) }}</p>
+        <p v-if="!preview.sites.length">{{ t('browserImport.empty') }}</p>
+        <p v-if="!archived" class="workspace-transfer-help">{{ t('browserImport.liveHelp') }}</p>
+      </template>
+      <template v-else>
+        <label for="browser-import-profile">{{ t('browserImport.from') }}</label>
+        <select id="browser-import-profile" v-model="profileId" :disabled="busy">
+          <option v-for="profile in profiles" :key="profile.id" :value="profile.id">{{ profile.browser }} · {{ profile.name }}</option>
+        </select>
+        <p v-if="!busy && !profiles.length">{{ t('browserImport.empty') }}</p>
+        <UiButton :disabled="busy || !profileId" @click="read">{{ t('browserImport.continue') }}</UiButton>
+      </template>
+      <p v-if="busy" role="status">{{ t('browserImport.working') }}</p>
+      <p v-if="error" class="workspace-editor-error" role="alert">{{ error }}</p>
+    </div>
+    <div class="browser-import-footer">
+      <div v-if="preview" class="browser-import-actions">
         <UiButton :disabled="busy" @click="start">{{ t('browserImport.back') }}</UiButton>
-        <UiButton variant="primary" :disabled="busy || !selected.length || !archived || !workspace" @click="commit">{{ t('browserImport.commit', { name: workspace?.name ?? '' }) }}</UiButton>
+        <UiButton variant="primary" :disabled="busy || !selected.length || !workspace" @click="commit">{{ t('browserImport.commit', { name: workspace?.name ?? '' }) }}</UiButton>
       </div>
-    </template>
-    <template v-else>
-      <label for="browser-import-profile">{{ t('browserImport.from') }}</label>
-      <select id="browser-import-profile" v-model="profileId" :disabled="busy">
-        <option v-for="profile in profiles" :key="profile.id" :value="profile.id">{{ profile.browser }} · {{ profile.name }}</option>
-      </select>
-      <p v-if="!busy && !profiles.length">{{ t('browserImport.empty') }}</p>
-      <UiButton :disabled="busy || !profileId" @click="read">{{ t('browserImport.continue') }}</UiButton>
-    </template>
-    <p v-if="busy" role="status">{{ t('browserImport.working') }}</p>
-    <p v-if="error" class="workspace-editor-error" role="alert">{{ error }}</p>
-    <UiButton :disabled="writing" @click="cancel">{{ t(result ? 'common.close' : 'browserImport.cancel') }}</UiButton>
+      <UiButton :disabled="writing" @click="cancel">{{ t(result ? 'common.close' : 'browserImport.cancel') }}</UiButton>
+    </div>
   </section>
 </template>
 
 <style scoped>
-.browser-import-panel { display: grid; gap: 12px; min-height: 0; overflow: auto; padding: 18px; }
+.browser-import-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.browser-import-body { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 18px; }
+.browser-import-body > * { flex-shrink: 0; }
+.browser-import-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--border-soft); }
 .browser-import-panel :is(h3, h4, p) { margin: 0; line-height: 1.5; }
 .browser-import-panel h3 { font-size: 16px; font-weight: 650; }
 .browser-import-panel :is(select, input[type=search]) { width: 100%; min-width: 0; box-sizing: border-box; padding: 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .browser-import-panel :is(select, input[type=search]):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .browser-import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.browser-import-sites { max-height: 260px; overflow: auto; display: grid; gap: 4px; }
+.browser-import-sites { height: clamp(240px, 35vh, 360px); overflow: auto; display: grid; align-content: start; gap: 4px; }
 .browser-import-sites label { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 6px; background: var(--surface); }
 .browser-import-sites input { accent-color: var(--accent); }
 .browser-import-sites label span:nth-child(2) { flex: 1; overflow-wrap: anywhere; }

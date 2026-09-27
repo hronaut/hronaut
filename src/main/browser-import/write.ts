@@ -8,33 +8,53 @@ export function domainsOverlap(first: string, second: string): boolean {
   return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`)
 }
 
-/** Caller holds the archived workspace offline with no page/worker writers. */
+/** Additive import supports live pages. Never remove cookies for rollback:
+ * a page or worker may have updated them while the import was running. */
 export async function writeImportedCookies(target: Session, cookies: Cookie[], origins: string[], allowed: (cookie: Cookie) => boolean): Promise<BrowserImportResult & { origins: string[] }> {
-  const existing = await target.cookies.get({})
-  const knownDomains = [...existing.map(c => c.domain ?? ''), ...origins.map(o => new URL(o).hostname)]
-  const blocked = new Set(cookies.filter(c => !allowed(c) || knownDomains.some(d => domainsOverlap(c.domain!, d))).map(c => c.domain!.replace(/^\./, '')))
-  const accepted = cookies.filter(c => !blocked.has(c.domain!.replace(/^\./, '')))
-  const result: BrowserImportResult & { origins: string[] } = { imported: 0, skipped: cookies.length - accepted.length, failed: 0, recoveryRequired: false, origins: [] }
-  const attempted: Cookie[] = []
-  try {
-    for (const cookie of accepted) { attempted.push(cookie); await target.cookies.set(cookieDetails(cookie)) }
-    await target.cookies.flushStore()
-    const actual = new Map((await target.cookies.get({})).map(c => [cookieIdentity(c), c]))
-    if (accepted.some(c => !sameCookie(actual.get(cookieIdentity(c)), c))) throw new Error('verification')
-    result.imported = accepted.length
-  } catch {
-    // All accepted sites were absent before the import. Expire exact identities,
-    // including the attempted write that may have failed after applying.
-    for (const cookie of attempted) {
-      try { await target.cookies.set({ ...cookieDetails(cookie), expirationDate: 1 }) } catch { result.recoveryRequired = true }
-    }
-    try {
-      await target.cookies.flushStore()
-      const remaining = new Set((await target.cookies.get({})).map(cookieIdentity))
-      if (attempted.some(c => remaining.has(cookieIdentity(c)))) result.recoveryRequired = true
-    } catch { result.recoveryRequired = true }
-    result.failed = accepted.length
+  const storedDomains = origins.map(origin => new URL(origin).hostname)
+  const sites = new Map<string, Cookie[]>()
+  for (const cookie of cookies) {
+    const domain = cookie.domain!.replace(/^\./, '')
+    const site = sites.get(domain) ?? []
+    site.push(cookie); sites.set(domain, site)
   }
-  if (result.imported || result.recoveryRequired) result.origins = [...new Set(accepted.map(c => `${c.secure ? 'https' : 'http'}://${c.domain!.replace(/^\./, '')}`))]
+  const result: BrowserImportResult & { origins: string[] } = { imported: 0, skipped: 0, failed: 0, recoveryRequired: false, origins: [] }
+  const attempted = new Map<string, Cookie>()
+  for (const [domain, site] of sites) {
+    if (site.some(cookie => !allowed(cookie)) || storedDomains.some(known => domainsOverlap(domain, known))) {
+      result.skipped += site.length
+      continue
+    }
+    let existing: Cookie[]
+    try { existing = await target.cookies.get({}) }
+    catch {
+      result.recoveryRequired = true
+      break
+    }
+    // Recheck before each site. Exclude only our own unchanged writes so a
+    // newly signed-in page wins, including parent/subdomain cookie overlap.
+    if (existing.some(cookie => {
+      const ownWrite = attempted.get(cookieIdentity(cookie))
+      return (!ownWrite || !sameCookie(cookie, ownWrite)) && domainsOverlap(domain, cookie.domain ?? '')
+    })) {
+      result.skipped += site.length
+      continue
+    }
+    for (const cookie of site) {
+      attempted.set(cookieIdentity(cookie), cookie)
+      try { await target.cookies.set(cookieDetails(cookie)) }
+      catch { /* Readback determines whether an ambiguous write actually applied. */ }
+    }
+  }
+  try { await target.cookies.flushStore() } catch { result.recoveryRequired = true }
+  let verified: Cookie[] = []
+  try {
+    const actual = new Map((await target.cookies.get({})).map(cookie => [cookieIdentity(cookie), cookie]))
+    verified = [...attempted.values()].filter(cookie => sameCookie(actual.get(cookieIdentity(cookie)), cookie))
+    if (!result.recoveryRequired) result.imported = verified.length
+  } catch { result.recoveryRequired = true }
+  result.failed = cookies.length - result.skipped - result.imported
+  const retained = result.recoveryRequired ? [...attempted.values()] : verified
+  result.origins = [...new Set(retained.map(cookie => `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}`))]
   return result
 }

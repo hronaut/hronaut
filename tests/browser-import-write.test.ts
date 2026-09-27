@@ -25,13 +25,40 @@ describe('workspace cookie writes', () => {
     expect([...cookies.keys()]).toEqual(['.existing.test', 'fresh.test'])
     expect(cookies.get('.existing.test')?.value).toBe('keep')
   })
-  it('rolls back all attempted writes on partial failure while preserving unrelated sites', async () => {
+  it('continues past an unreadable write without deleting successful or existing cookies', async () => {
     const { cookies, target, session } = jar([cookie('unrelated.test', 'keep')])
     const normal = target.cookies.set.getMockImplementation()!
-    target.cookies.set.mockImplementation(async details => { await normal(details); if (details.domain === '.second.test' && details.expirationDate !== 1) throw new Error('private value must not escape') })
+    target.cookies.set.mockImplementation(async details => { if (details.domain === '.second.test') throw new Error('private value must not escape'); await normal(details) })
+    const result = await writeImportedCookies(session, [cookie('.first.test'), cookie('.second.test'), cookie('.third.test')], [], () => true)
+    expect(result).toMatchObject({ imported: 2, skipped: 0, failed: 1, recoveryRequired: false })
+    expect([...cookies.keys()]).toEqual(['unrelated.test', '.first.test', '.third.test'])
+    expect(target.cookies.set.mock.calls.every(([details]) => details.expirationDate !== 1)).toBe(true)
+  })
+  it('preserves a cookie changed by an open page while another write fails', async () => {
+    const { cookies, target, session } = jar()
+    const normal = target.cookies.set.getMockImplementation()!
+    target.cookies.set.mockImplementation(async details => {
+      if (details.domain === '.second.test') {
+        cookies.set('.first.test', cookie('.first.test', 'live-page-value'))
+        throw new Error('write failed')
+      }
+      await normal(details)
+    })
     const result = await writeImportedCookies(session, [cookie('.first.test'), cookie('.second.test')], [], () => true)
-    expect(result).toEqual({ imported: 0, skipped: 0, failed: 2, recoveryRequired: false, origins: [] })
-    expect([...cookies.keys()]).toEqual(['unrelated.test'])
+    expect(cookies.get('.first.test')?.value).toBe('live-page-value')
+    expect(result).toMatchObject({ imported: 0, failed: 2 })
+    expect(target.cookies.set.mock.calls.every(([details]) => details.expirationDate !== 1)).toBe(true)
+  })
+  it('skips a domain that acquires site data while earlier domains are being imported', async () => {
+    const { cookies, target, session } = jar()
+    const normal = target.cookies.set.getMockImplementation()!
+    target.cookies.set.mockImplementation(async details => {
+      await normal(details)
+      if (details.domain === '.first.test') cookies.set('.second.test', cookie('.second.test', 'live-page-value'))
+    })
+    const result = await writeImportedCookies(session, [cookie('.first.test'), cookie('.second.test')], [], () => true)
+    expect(result).toMatchObject({ imported: 1, skipped: 1, failed: 0 })
+    expect(cookies.get('.second.test')?.value).toBe('live-page-value')
   })
   it('verifies attributes, detects a silently dropped write and reports failed recovery', async () => {
     const { target, session } = jar()

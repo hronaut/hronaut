@@ -13,7 +13,7 @@ export interface BrowserImportResult {
   failed: number
   recoveryRequired: boolean
 }
-export type BrowserImportErrorCode = 'unsupported' | 'readFailed' | 'keyUnavailable' | 'tooLarge' | 'expired' | 'busy' | 'archiveFirst' | 'restricted' | 'failed'
+export type BrowserImportErrorCode = 'unsupported' | 'readFailed' | 'keyUnavailable' | 'tooLarge' | 'expired' | 'busy' | 'workspaceBusy' | 'restricted' | 'failed'
 export type BrowserImportResponse<T> = { ok: true; value: T } | { ok: false; error: BrowserImportErrorCode }
 export interface BrowserImportApi {
   list(workspaceId: string): Promise<BrowserImportResponse<BrowserImportProfile[]>>

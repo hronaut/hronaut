@@ -1,3 +1,4 @@
+.workspace-editor.workspace-editor--import { width: min(780px, calc(100vw - 48px)); max-height: min(900px, calc(100vh - 48px)); }
 .workspace-editor > :is(header, footer, .workspace-editor-breadcrumb) { flex: none; }
 .workspace-editor-breadcrumb { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 16px 0; }
 .workspace-editor-body { min-width: 0; min-height: 0; }

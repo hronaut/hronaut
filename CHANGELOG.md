@@ -4,6 +4,15 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.7.3] - 2026-09-27
+
+### Fixed
+
+- Import browser sign-ins directly into active workspaces while keeping tabs and unsaved forms open. Workspaces with stored service workers no longer fail the archive-only import check, and a failed cookie no longer discards other successful imports.
+- Keep bulk cookie imports responsive by batching workspace UI updates.
+- Give the browser import site picker a larger, scrollable list and keep import controls visible on small windows and enlarged interface scales.
+- Allow empty workspaces to be archived while preserving their browser data, including when page input is locked.
+
 ## [2.7.2] - 2026-09-27
 
 ### Added

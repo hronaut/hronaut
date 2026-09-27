@@ -183,7 +183,7 @@ onBeforeUnmount(dispose)
 
 <template>
   <div v-if="open" class="tab-group-editor-overlay">
-    <form ref="panel" class="tab-group-editor workspace-editor" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
+    <form ref="panel" class="tab-group-editor workspace-editor" :class="{ 'workspace-editor--import': importTarget }" role="dialog" aria-modal="true" aria-labelledby="tab-group-editor-title" :aria-busy="dismissBlocked || templateBusy || importBusy" @submit.prevent="!templateView && !importTarget && (mode === 'transfer' ? transferStorage() : save())">
       <header>
         <div><span class="eyebrow">{{ t('workspaceEditor.kicker') }}</span><h2 id="tab-group-editor-title">{{ importTarget ? t('browserImport.action') : templateView ? t('workspaceTemplates.title') : mode === 'transfer' ? t('workspaceEditor.transferData') : mode === 'create' ? t('workspaceEditor.create') : t('workspaceEditor.edit') }}</h2></div>
         <div class="workspace-editor-header-actions">

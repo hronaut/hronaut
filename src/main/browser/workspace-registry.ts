@@ -61,9 +61,8 @@ export class WorkspaceRegistry {
   archive(id: string): Promise<BrowserSavedTabGroupState> {
     const host = this.runtime
     return host.withActiveOperation(id, 'archiving the workspace', async () => {
-      const group = host.requireActive(id)
+      host.requireActive(id)
       const tabs = host.tabs().filter(tab => tab.mcpGroupId === id)
-      if (!tabs.length) throw new Error(`Workspace "${group.name}" has no tabs to archive.`)
       if (this.archived.size >= host.maxArchived) throw new Error(`Hronaut can keep up to ${host.maxArchived} archived workspaces.`)
       const internal = this.active.get(id)!
       const saved: ArchivedWorkspace = { ...this.publicFields(internal), savedAt: new Date().toISOString(),

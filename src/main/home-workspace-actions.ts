@@ -46,7 +46,7 @@ export async function runHomeWorkspaceAction(
       if (request.view === 'restore') await manager.openHome()
       break
     case 'archive':
-      if (state.allHumanInteractionLocked) throw new Error('Unlock the browser before archiving a workspace.')
+      if (state.allHumanInteractionLocked && state.tabs.some(tab => tab.mcpGroupId === request.workspaceId)) throw new Error('Unlock the browser before archiving a workspace.')
       await manager.saveAndCloseTabGroup(request.workspaceId)
       break
     case 'clear':

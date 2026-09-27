@@ -1164,6 +1164,7 @@ export class BrowserTabsManager {
   })
   private readonly networkHookSessions = new WeakSet<Session>()
   private readonly browserSessionAuthorityHooks = new Map<Session, () => void>()
+  private readonly browserCookieImportSessions = new Set<Session>()
   private readonly webContentsToTab = new Map<number, string>()
   private readonly debuggerQueue = new BrowserDebuggerQueue()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
@@ -1880,22 +1881,34 @@ export class BrowserTabsManager {
   }
 
   async importBrowserCookies(destination: ImportDestination, cookies: Cookie[]) {
-    if (!this.savedTabGroups.has(destination.id)) throw new BrowserImportError('archiveFirst')
     const id = destination.id
-    return this.withGlobalWorkspaceStorageOperation('importing browser cookies', () =>
-      this.withSavedWorkspaceOperation(id, 'importing browser cookies', async () => {
+    if (!this.mcpTabGroups.has(id) && !this.savedTabGroups.has(id)) throw new BrowserImportError('expired')
+    if (this.workspaceStorageOperation || this.workspaceOperations.has(id) || this.savedWorkspaceOperations.has(id)) throw new BrowserImportError('workspaceBusy')
+    const action = 'importing browser cookies'
+    return this.withGlobalWorkspaceStorageOperation(action, () => {
+      const write = async () => {
         if (this.browserImportDestination(id).fingerprint !== destination.fingerprint) throw new BrowserImportError('expired')
-        const group = this.savedTabGroups.get(id)!
+        const group = (this.mcpTabGroups.get(id) ?? this.savedTabGroups.get(id))!
         const target = session.fromPartition(workspacePartition(this.options.partition, group.storageId))
         this.options.configureSession?.(target)
-        const { origins, ...result } = await withWorkspaceMoveGuard(target, () => writeImportedCookies(target, cookies, group.origins,
-          cookie => evaluateWorkspaceNavigation(group.navigationPolicy, `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}/`).allowed))
-        if (result.imported || result.recoveryRequired) {
-          group.origins = normalizeWorkspaceStorageOrigins([...group.origins, ...origins])
-          this.changed()
+        this.browserCookieImportSessions.add(target)
+        try {
+          const { origins, ...result } = await writeImportedCookies(target, cookies, group.origins,
+            cookie => evaluateWorkspaceNavigation(group.navigationPolicy, `${cookie.secure ? 'https' : 'http'}://${cookie.domain!.replace(/^\./, '')}/`).allowed)
+          if (result.imported || result.recoveryRequired) {
+            group.origins = normalizeWorkspaceStorageOrigins([...group.origins, ...origins])
+            this.changed()
+          }
+          return result
+        } finally {
+          this.browserCookieImportSessions.delete(target)
+          this.changed(false)
         }
-        return result
-      }))
+      }
+      return this.mcpTabGroups.has(id)
+        ? this.withWorkspaceOperation(id, action, write)
+        : this.withSavedWorkspaceOperation(id, action, write)
+    })
   }
 
   listWorkspaceStorageOrigins(workspaceId: string): string[] {
@@ -3402,7 +3415,7 @@ export class BrowserTabsManager {
       {
         id: 'archive-workspace',
         label: this.text('native.context.archiveWorkspace'),
-        enabled: !this.allHumanInteractionLocked,
+        enabled: !this.allHumanInteractionLocked || ![...this.tabs.values()].some(tab => tab.mcpGroupId === group.id),
         click: () => runAction('archive the workspace', () => this.saveAndCloseTabGroup(group.id))
       }
     ]
@@ -9870,7 +9883,9 @@ export class BrowserTabsManager {
             : tab.browserSessionGeneration + 1
           changed = true
         }
-        if (changed) this.changed(false)
+        // Authority generations still advance immediately, but a bulk import
+        // publishes its final state once instead of rerendering per cookie.
+        if (changed && !this.browserCookieImportSessions.has(browserSession)) this.changed(false)
       }
       browserSession.cookies.on('changed', onCookieChanged)
       this.browserSessionAuthorityHooks.set(browserSession, onCookieChanged)

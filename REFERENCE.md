@@ -159,11 +159,12 @@ profile, approve the native permission to read cookies, then select sites using
 search, individual checkboxes, or Select all. Nothing is imported by the read
 permission alone. Site selections remain selected when hidden by a filter.
 
-Archive the destination with the dialog's **Archive workspace** action, then
-choose **Import into “Workspace name”**. Archiving preserves its tabs and stops
-pages from racing the import. Restore the workspace from the result screen.
-Profiles with stored service workers are currently rejected by the idle-storage
-check; use a fresh workspace for them. Imports are one-time local copies and
+Choose **Import into “Workspace name”**. Active and archived workspaces are
+supported, including workspaces with service workers. Open tabs stay open and
+unsaved forms are retained; reload a site when ready to use its imported sign-in.
+An archived workspace can be restored from the result screen. Workspaces can
+also be archived when they have no tabs; their browser data remains available.
+Imports are one-time local copies and
 never change the source browser. Source profiles and import operations have no
 MCP tools. Imported sign-ins can subsequently be used according to the existing
 workspace and fork permissions. Agents remain paused until the human resumes them.
@@ -171,7 +172,9 @@ workspace and fork permissions. Agents remain paused until the human resumes the
 The importer copies supported cookies, preserving their scope and attributes.
 It skips entire selected cookie domains that overlap existing destination
 cookies or known site storage, or are outside the destination's site rules.
-It does not overwrite an existing account. Passwords, local storage, IndexedDB,
+Existing cookies are rechecked before each site's import. Live pages and workers
+can still change cookies while an import runs, so this is a best-effort additive
+copy, not an atomic snapshot. Passwords, local storage, IndexedDB,
 cache, and service-worker data are not imported. Partitioned cookies and Firefox
 container records are excluded. Expired, invalid, unsupported, and unreadable
 records are counted as skipped. Cookies present only in the source browser's
@@ -189,9 +192,11 @@ Reads use a bounded read-only SQLite transaction, including committed WAL data;
 no plaintext export or temporary profile copy is created. Cookie values and
 short-lived previews stay in the main process. Previews expire after five minutes
 and are invalidated by cancellation, profile changes, shell navigation, or a
-changed destination storage identity/policy. Commit verifies cookie attributes,
-flushes the destination, and rolls back failures. If recovery is incomplete, the
-result asks the human to keep the workspace archived and clear affected site data.
+changed destination storage identity/policy. Commit verifies cookie attributes
+and flushes the destination. A failed cookie does not discard other successful
+imports. The importer never removes cookies to roll back a failure, preserving
+changes made by live pages. The result reports imported, skipped, and failed
+cookies; if verification or saving fails, review sign-ins before resuming agents.
 
 To migrate accounts from an installed browser, export its passwords as CSV, then choose **Settings → Passwords → Choose browser CSV…**. Chrome, Edge, Firefox, and compatible password managers use or can produce the required `url`, `username`, and `password` columns. Hronaut opens the file through a native picker, parses at most 3,000 rows and 10 MB in the main process, shows counts before changing the vault, and imports only after explicit confirmation. Valid HTTP(S) accounts are re-encrypted atomically with Hronaut's operating-system-backed vault; later duplicate rows win, existing origin-and-username matches are updated, and invalid rows are reported as skipped. Password values and the selected file path never cross the preload boundary or reach MCP.
 

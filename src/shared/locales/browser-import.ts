@@ -19,11 +19,10 @@ export const browserImportMessages = {
     "subdomains": "Includes subdomains",
     "empty": "No supported browser profiles or eligible sites found.",
     "skipped": "{count} cookies skipped: expired, invalid, unsupported, or unreadable.",
-    "archive": "Archive workspace",
-    "archiveHelp": "Archive this workspace before importing so open pages cannot change its sign-ins. Tabs are saved; restore the workspace after importing.",
+    "liveHelp": "Open tabs stay open. Reload a site to use its imported sign-in.",
     "commit": "Import into “{name}”",
     "result": "Cookies imported: {imported}. Skipped: {skipped}. Failed: {failed}. Sites with existing data or outside workspace restrictions are skipped.",
-    "recovery": "Some changes could not be rolled back. Keep this workspace archived and clear its affected site data before retrying.",
+    "recovery": "Some cookie changes could not be verified or saved. Review the imported sign-ins before resuming agents. Existing cookies were not removed.",
     "agents": "Agents with access to this workspace or its forks can use imported sign-ins.",
     "paused": "Agents remain paused after import. Resume them when ready.",
     "restore": "Restore workspace",
@@ -36,9 +35,9 @@ export const browserImportMessages = {
       "tooLarge": "This profile exceeds the import size limit.",
       "expired": "This preview expired or its workspace changed. Choose the profile again.",
       "busy": "An import is already running.",
-      "archiveFirst": "Archive the destination workspace before importing.",
+      "workspaceBusy": "This workspace is busy changing browser data. Wait for that operation to finish, then choose the browser profile again.",
       "restricted": "These sites are outside the workspace site restrictions.",
-      "failed": "Import could not finish. Keep the workspace archived and try again."
+      "failed": "Import could not finish. Choose the browser profile again and retry. Your open tabs stay open."
     }
   },
   "uk-UA": {
@@ -61,11 +60,10 @@ export const browserImportMessages = {
     "subdomains": "Включає піддомени",
     "empty": "Підтримуваних профілів браузера або придатних сайтів не знайдено.",
     "skipped": "Пропущено cookie: {count}. Вони прострочені, некоректні, непідтримувані або недоступні.",
-    "archive": "Архівувати робочий простір",
-    "archiveHelp": "Перед імпортом архівуйте простір, щоб відкриті сторінки не змінювали входи. Вкладки збережуться; після імпорту відновіть простір.",
+    "liveHelp": "Відкриті вкладки залишаться відкритими. Оновіть сайт, щоб скористатися імпортованим входом.",
     "commit": "Імпортувати в «{name}»",
     "result": "Імпортовано cookie: {imported}. Пропущено: {skipped}. Помилки: {failed}. Сайти з наявними даними або за межами дозволів пропускаються.",
-    "recovery": "Деякі зміни не вдалося скасувати. Залиште простір в архіві й очистьте дані відповідних сайтів перед повторною спробою.",
+    "recovery": "Деякі зміни cookie не вдалося перевірити або зберегти. Перевірте імпортовані входи перед відновленням агентів. Наявні cookie не видалялися.",
     "agents": "Агенти з доступом до простору чи його копій можуть використовувати імпортовані входи.",
     "paused": "Після імпорту агенти залишаються на паузі. Відновіть їх, коли будете готові.",
     "restore": "Відновити робочий простір",
@@ -78,9 +76,9 @@ export const browserImportMessages = {
       "tooLarge": "Профіль перевищує обмеження розміру імпорту.",
       "expired": "Перегляд прострочено або простір змінився. Виберіть профіль знову.",
       "busy": "Імпорт уже виконується.",
-      "archiveFirst": "Перед імпортом архівуйте цільовий простір.",
+      "workspaceBusy": "У просторі вже змінюються дані браузера. Дочекайтеся завершення операції та знову виберіть профіль браузера.",
       "restricted": "Ці сайти не дозволені правилами простору.",
-      "failed": "Імпорт не завершено. Залиште простір в архіві та спробуйте знову."
+      "failed": "Імпорт не завершено. Знову виберіть профіль браузера та повторіть спробу. Відкриті вкладки залишаться відкритими."
     }
   },
   "ru-RU": {
@@ -103,11 +101,10 @@ export const browserImportMessages = {
     "subdomains": "Включает поддомены",
     "empty": "Поддерживаемых профилей браузера или подходящих сайтов не найдено.",
     "skipped": "Пропущено cookie: {count}. Они просрочены, некорректны, не поддерживаются или недоступны.",
-    "archive": "Архивировать пространство",
-    "archiveHelp": "Перед импортом архивируйте пространство, чтобы открытые страницы не меняли входы. Вкладки сохранятся; после импорта восстановите пространство.",
+    "liveHelp": "Открытые вкладки останутся открытыми. Обновите сайт, чтобы использовать импортированный вход.",
     "commit": "Импортировать в «{name}»",
     "result": "Импортировано cookie: {imported}. Пропущено: {skipped}. Ошибки: {failed}. Сайты с существующими данными или вне разрешений пропускаются.",
-    "recovery": "Некоторые изменения не удалось отменить. Оставьте пространство в архиве и очистите данные затронутых сайтов перед повторной попыткой.",
+    "recovery": "Некоторые изменения cookie не удалось проверить или сохранить. Проверьте импортированные входы перед возобновлением агентов. Существующие cookie не удалялись.",
     "agents": "Агенты с доступом к пространству или его копиям могут использовать импортированные входы.",
     "paused": "После импорта агенты остаются на паузе. Возобновите их, когда будете готовы.",
     "restore": "Восстановить пространство",
@@ -120,9 +117,9 @@ export const browserImportMessages = {
       "tooLarge": "Профиль превышает ограничение размера импорта.",
       "expired": "Предпросмотр истёк или пространство изменилось. Выберите профиль заново.",
       "busy": "Импорт уже выполняется.",
-      "archiveFirst": "Перед импортом архивируйте целевое пространство.",
+      "workspaceBusy": "В пространстве уже изменяются данные браузера. Дождитесь завершения операции и снова выберите профиль браузера.",
       "restricted": "Эти сайты не разрешены правилами пространства.",
-      "failed": "Импорт не завершён. Оставьте пространство в архиве и повторите попытку."
+      "failed": "Импорт не завершён. Снова выберите профиль браузера и повторите попытку. Открытые вкладки останутся открытыми."
     }
   },
   "de-DE": {
@@ -145,11 +142,10 @@ export const browserImportMessages = {
     "subdomains": "Einschließlich Subdomains",
     "empty": "Keine unterstützten Browserprofile oder geeigneten Websites gefunden.",
     "skipped": "{count} Cookies übersprungen: abgelaufen, ungültig, nicht unterstützt oder nicht lesbar.",
-    "archive": "Arbeitsbereich archivieren",
-    "archiveHelp": "Archivieren Sie den Arbeitsbereich vor dem Import, damit offene Seiten keine Anmeldungen ändern. Tabs bleiben gespeichert; stellen Sie den Arbeitsbereich danach wieder her.",
+    "liveHelp": "Offene Tabs bleiben geöffnet. Laden Sie eine Website neu, um die importierte Anmeldung zu verwenden.",
     "commit": "In „{name}“ importieren",
     "result": "Cookies importiert: {imported}. Übersprungen: {skipped}. Fehlgeschlagen: {failed}. Websites mit vorhandenen Daten oder außerhalb der Zugriffsregeln werden übersprungen.",
-    "recovery": "Einige Änderungen konnten nicht rückgängig gemacht werden. Lassen Sie den Arbeitsbereich archiviert und löschen Sie die betroffenen Websitedaten vor einem erneuten Versuch.",
+    "recovery": "Einige Cookie-Änderungen konnten nicht geprüft oder gespeichert werden. Prüfen Sie die importierten Anmeldungen, bevor Sie Agenten fortsetzen. Vorhandene Cookies wurden nicht entfernt.",
     "agents": "Agenten mit Zugriff auf diesen Arbeitsbereich oder seine Kopien können importierte Anmeldungen nutzen.",
     "paused": "Agenten bleiben nach dem Import pausiert. Setzen Sie sie fort, wenn Sie bereit sind.",
     "restore": "Arbeitsbereich wiederherstellen",
@@ -162,9 +158,9 @@ export const browserImportMessages = {
       "tooLarge": "Dieses Profil überschreitet die Importgrößenbegrenzung.",
       "expired": "Die Vorschau ist abgelaufen oder der Arbeitsbereich wurde geändert. Wählen Sie das Profil erneut.",
       "busy": "Ein Import läuft bereits.",
-      "archiveFirst": "Archivieren Sie den Zielarbeitsbereich vor dem Import.",
+      "workspaceBusy": "In diesem Arbeitsbereich werden gerade Browserdaten geändert. Warten Sie, bis der Vorgang abgeschlossen ist, und wählen Sie das Browserprofil erneut.",
       "restricted": "Diese Websites liegen außerhalb der Zugriffsregeln.",
-      "failed": "Der Import konnte nicht abgeschlossen werden. Lassen Sie den Arbeitsbereich archiviert und versuchen Sie es erneut."
+      "failed": "Der Import konnte nicht abgeschlossen werden. Wählen Sie das Browserprofil erneut und versuchen Sie es noch einmal. Ihre Tabs bleiben geöffnet."
     }
   },
   "fr-FR": {
@@ -187,11 +183,10 @@ export const browserImportMessages = {
     "subdomains": "Inclut les sous-domaines",
     "empty": "Aucun profil de navigateur pris en charge ou site admissible trouvé.",
     "skipped": "{count} cookies ignorés : expirés, invalides, non pris en charge ou illisibles.",
-    "archive": "Archiver l’espace",
-    "archiveHelp": "Archivez cet espace avant l’import pour empêcher les pages ouvertes de modifier les connexions. Les onglets sont conservés ; restaurez ensuite l’espace.",
+    "liveHelp": "Les onglets ouverts restent ouverts. Rechargez un site pour utiliser la connexion importée.",
     "commit": "Importer dans « {name} »",
     "result": "Cookies importés : {imported}. Ignorés : {skipped}. Échecs : {failed}. Les sites avec des données existantes ou hors des autorisations sont ignorés.",
-    "recovery": "Certaines modifications n’ont pas pu être annulées. Gardez cet espace archivé et effacez les données des sites concernés avant de réessayer.",
+    "recovery": "Certaines modifications de cookies n’ont pas pu être vérifiées ou enregistrées. Vérifiez les connexions importées avant de réactiver les agents. Les cookies existants n’ont pas été supprimés.",
     "agents": "Les agents ayant accès à cet espace ou à ses copies peuvent utiliser les connexions importées.",
     "paused": "Les agents restent en pause après l’import. Relancez-les quand vous êtes prêt.",
     "restore": "Restaurer l’espace",
@@ -204,9 +199,9 @@ export const browserImportMessages = {
       "tooLarge": "Ce profil dépasse la taille maximale d’import.",
       "expired": "Cet aperçu a expiré ou l’espace a changé. Choisissez à nouveau le profil.",
       "busy": "Un import est déjà en cours.",
-      "archiveFirst": "Archivez l’espace de destination avant l’import.",
+      "workspaceBusy": "Les données du navigateur de cet espace sont en cours de modification. Attendez la fin de l’opération, puis sélectionnez à nouveau le profil.",
       "restricted": "Ces sites ne sont pas autorisés dans cet espace.",
-      "failed": "L’import n’a pas abouti. Gardez cet espace archivé et réessayez."
+      "failed": "L’importation n’a pas abouti. Sélectionnez à nouveau le profil et réessayez. Vos onglets restent ouverts."
     }
   },
   "es-ES": {
@@ -229,11 +224,10 @@ export const browserImportMessages = {
     "subdomains": "Incluye subdominios",
     "empty": "No se encontraron perfiles compatibles ni sitios aptos.",
     "skipped": "{count} cookies omitidas: caducadas, inválidas, no compatibles o ilegibles.",
-    "archive": "Archivar espacio",
-    "archiveHelp": "Archiva este espacio antes de importar para evitar que las páginas abiertas cambien las sesiones. Las pestañas se guardan; restaura el espacio después.",
+    "liveHelp": "Las pestañas abiertas permanecen abiertas. Recarga un sitio para usar la sesión importada.",
     "commit": "Importar a «{name}»",
     "result": "Cookies importadas: {imported}. Omitidas: {skipped}. Fallidas: {failed}. Se omiten sitios con datos existentes o fuera de los permisos del espacio.",
-    "recovery": "No se pudieron revertir algunos cambios. Mantén el espacio archivado y borra los datos de los sitios afectados antes de reintentar.",
+    "recovery": "No se pudieron verificar o guardar algunos cambios en las cookies. Revisa las sesiones importadas antes de reanudar los agentes. Las cookies existentes no se eliminaron.",
     "agents": "Los agentes con acceso a este espacio o sus copias pueden utilizar las sesiones importadas.",
     "paused": "Los agentes siguen en pausa después de importar. Reanúdalos cuando estés listo.",
     "restore": "Restaurar espacio",
@@ -246,9 +240,9 @@ export const browserImportMessages = {
       "tooLarge": "Este perfil supera el límite de tamaño de importación.",
       "expired": "La vista previa caducó o el espacio cambió. Elige el perfil de nuevo.",
       "busy": "Ya hay una importación en curso.",
-      "archiveFirst": "Archiva el espacio de destino antes de importar.",
+      "workspaceBusy": "Se están modificando los datos del navegador de este espacio. Espera a que termine la operación y vuelve a elegir el perfil.",
       "restricted": "Estos sitios están fuera de los permisos del espacio.",
-      "failed": "La importación no terminó. Mantén el espacio archivado e inténtalo de nuevo."
+      "failed": "No se pudo completar la importación. Vuelve a elegir el perfil e inténtalo de nuevo. Tus pestañas permanecen abiertas."
     }
   },
   "pl-PL": {
@@ -271,11 +265,10 @@ export const browserImportMessages = {
     "subdomains": "Obejmuje subdomeny",
     "empty": "Nie znaleziono obsługiwanych profili przeglądarki ani odpowiednich witryn.",
     "skipped": "Pominięto {count} cookie: wygasłe, nieprawidłowe, nieobsługiwane lub nieczytelne.",
-    "archive": "Archiwizuj przestrzeń",
-    "archiveHelp": "Przed importem zarchiwizuj przestrzeń, aby otwarte strony nie zmieniały logowań. Karty zostaną zapisane; potem przywróć przestrzeń.",
+    "liveHelp": "Otwarte karty pozostaną otwarte. Odśwież witrynę, aby użyć zaimportowanej sesji.",
     "commit": "Importuj do „{name}”",
     "result": "Zaimportowano cookie: {imported}. Pominięto: {skipped}. Błędy: {failed}. Witryny z istniejącymi danymi lub poza uprawnieniami przestrzeni są pomijane.",
-    "recovery": "Nie udało się cofnąć niektórych zmian. Pozostaw przestrzeń w archiwum i usuń dane odpowiednich witryn przed ponowną próbą.",
+    "recovery": "Nie udało się zweryfikować lub zapisać niektórych zmian plików cookie. Sprawdź zaimportowane sesje przed wznowieniem agentów. Istniejące pliki cookie nie zostały usunięte.",
     "agents": "Agenci z dostępem do tej przestrzeni lub jej kopii mogą korzystać z importowanych logowań.",
     "paused": "Po imporcie agenci pozostają wstrzymani. Wznów ich, gdy będziesz gotowy.",
     "restore": "Przywróć przestrzeń",
@@ -288,9 +281,9 @@ export const browserImportMessages = {
       "tooLarge": "Profil przekracza limit rozmiaru importu.",
       "expired": "Podgląd wygasł lub przestrzeń się zmieniła. Wybierz profil ponownie.",
       "busy": "Import już trwa.",
-      "archiveFirst": "Przed importem zarchiwizuj przestrzeń docelową.",
+      "workspaceBusy": "Dane przeglądarki w tej przestrzeni są właśnie zmieniane. Poczekaj na zakończenie operacji i ponownie wybierz profil.",
       "restricted": "Te witryny nie są dozwolone w tej przestrzeni.",
-      "failed": "Import nie został ukończony. Pozostaw przestrzeń w archiwum i spróbuj ponownie."
+      "failed": "Nie udało się ukończyć importu. Ponownie wybierz profil i spróbuj jeszcze raz. Twoje karty pozostaną otwarte."
     }
   }
 }

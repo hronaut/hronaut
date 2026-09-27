@@ -4,12 +4,13 @@ import BrowserImportPanel from '../../src/renderer/src/components/BrowserImportP
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserState, HronautApi } from '../../src/shared/types.js'
 const state = { tabs: [], mcpTabGroups: [], savedTabGroups: [{ id: 'chosen', name: 'Chosen workspace' }] } as unknown as BrowserState
-function setup() {
+function setup(current = state) {
   const browserImport = { list: vi.fn(async () => ({ ok: true, value: [{ id: 'source', browser: 'Chrome', name: 'Work' }] })), preview: vi.fn(async () => ({ ok: true, value: { id: 'preview', expiresAt: Date.now() + 10000, skipped: 3, sites: [{ domain: 'first.test', count: 2, includesSubdomains: true }, { domain: 'second.test', count: 1, includesSubdomains: false }] } })), cancel: vi.fn(async () => {}), commit: vi.fn(async () => ({ ok: true, value: { imported: 3, skipped: 0, failed: 0, recoveryRequired: false } })) }
-  const browser = { browserImport, getState: vi.fn(async () => state), saveAndCloseTabGroup: vi.fn(async () => state), restoreSavedTabGroup: vi.fn(async () => state) } as unknown as HronautApi
-  const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
+  const archive = vi.fn(async () => current)
+  const browser = { browserImport, getState: vi.fn(async () => current), saveAndCloseTabGroup: archive, restoreSavedTabGroup: vi.fn(async () => current) } as unknown as HronautApi
+  const wrapper = mount(BrowserImportPanel, { props: { workspaceId: 'chosen', state: current, browser, syncState: async value => { await value } }, global: { plugins: [createHronautI18n('en-US')] } })
   const button = (text: string) => wrapper.findAll('button').find(b => b.text() === text)!
-  return { wrapper, browserImport, button, browser }
+  return { wrapper, browserImport, button, archive }
 }
 describe('browser import picker', () => {
   it('keeps the destination visible and does not read cookies until Continue', async () => {
@@ -35,6 +36,19 @@ describe('browser import picker', () => {
       await button('Import into “Chosen workspace”').trigger('click'); await flushPromises()
       expect(browserImport.commit).toHaveBeenCalledWith('preview', ['first.test', 'second.test'])
       expect(wrapper.text()).toContain('Cookies imported: 3')
+    } finally { wrapper.unmount() }
+  })
+  it('imports into an active workspace without archiving or closing its tabs', async () => {
+    const active = { ...state, mcpTabGroups: state.savedTabGroups, savedTabGroups: [], tabs: [{ id: 'live-tab', mcpGroupId: 'chosen' }] } as unknown as BrowserState
+    const { wrapper, browserImport, button, archive } = setup(active)
+    try {
+      await flushPromises(); await button('Continue').trigger('click'); await flushPromises()
+      await button('Select all').trigger('click')
+      expect(button('Import into “Chosen workspace”').attributes('disabled')).toBeUndefined()
+      await button('Import into “Chosen workspace”').trigger('click'); await flushPromises()
+      expect(browserImport.commit).toHaveBeenCalledWith('preview', ['first.test', 'second.test'])
+      expect(archive).not.toHaveBeenCalled()
+      expect(wrapper.text()).toContain('Open tabs stay open')
     } finally { wrapper.unmount() }
   })
   it('cancels without writing and discards a late preview', async () => {

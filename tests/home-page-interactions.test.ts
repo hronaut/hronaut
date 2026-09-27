@@ -333,6 +333,16 @@ describe('Home workspace hub', () => {
     expect(action).toHaveBeenCalledTimes(2)
   })
 
+  it('keeps Archive enabled for a workspace without tabs while page input is locked', async () => {
+    const action = vi.fn().mockResolvedValue(inventory)
+    mount({ getWorkspaces: vi.fn().mockResolvedValue({ ...inventory, allHumanInteractionLocked: true }), workspaceAction: action })
+    await settle()
+    expect(button('[data-workspace-action="archive"]').disabled).toBe(false)
+    button('[data-workspace-action="archive"]').click()
+    await settle()
+    expect(action).toHaveBeenCalledWith({ view: 'archive', workspaceId: 'project' })
+  })
+
   it('confirms and clears an open workspace beside Archive even while website input is locked', async () => {
     const locked = { ...inventory, allHumanInteractionLocked: true }
     const cleared = { ...locked, mcpTabGroups: [] }
