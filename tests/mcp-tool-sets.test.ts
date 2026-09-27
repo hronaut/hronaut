@@ -55,7 +55,7 @@ describe('MCP tool sets', () => {
     const qa = mcpToolCatalogForSet('qa').map(({ name }) => name)
     const all = mcpToolCatalogForSet('complete').map(({ name }) => name)
 
-    expect(browse).toHaveLength(33)
+    expect(browse).toHaveLength(34)
     expect(browse).toEqual([
       'browser_workspaces',
       'browser_saved_workspaces',
@@ -83,6 +83,7 @@ describe('MCP tool sets', () => {
       'browser_file_upload',
       'browser_wait',
       'browser_screenshot',
+      'browser_video',
       'browser_downloads',
       'wallet_list',
       'wallet_balance',
@@ -108,7 +109,7 @@ describe('MCP tool sets', () => {
   })
 
   it('publishes complete, conservative display and safety metadata for every tool', () => {
-    expect(BROWSER_TOOL_CATALOG).toHaveLength(80)
+    expect(BROWSER_TOOL_CATALOG).toHaveLength(81)
     for (const tool of BROWSER_TOOL_CATALOG) {
       expect(tool.title, tool.name).toMatch(/\S/)
       expect(tool.annotations, tool.name).toEqual({
@@ -176,6 +177,9 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityAction('browser_console', { clear: true })).toBe('clear')
     expect(mcpCapabilityAction('browser_downloads', {})).toBe('list')
     expect(mcpCapabilityAction('browser_downloads', { action: 'cancel' })).toBe('cancel')
+    expect(mcpCapabilityOperationClass('browser_video', { action: 'get' })).toBe('read')
+    expect(mcpCapabilityOperationClass('browser_video', { action: 'start' })).toBe('browser-state')
+    expect(mcpCapabilityOperationClass('browser_video', { action: 'export' })).toBe('external-request')
     expect(mcpCapabilityOperationClass('browser_console', {})).toBe('read')
     expect(mcpCapabilityOperationClass('browser_console', { clear: true })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_network', {})).toBe('read')

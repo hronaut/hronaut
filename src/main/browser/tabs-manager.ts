@@ -1,3 +1,6 @@
+import { BrowserVideoRecorder } from './video-recorder.js'
+import { renderBrowserVideo } from './video-export.js'
+import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
 import { recordNetworkDebuggerMessage, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
 import { performanceEnvironmentFingerprint } from './performance-environment.js'
@@ -1040,6 +1043,15 @@ export class BrowserTabsManager {
     isCurrent: tab => this.tabs.get(tab.id) === tab,
     isAgentInput: webContents => this.agentInputWebContents.has(webContents.id),
     changed: () => this.changed(false)
+  })
+  private readonly videoRecorder = new BrowserVideoRecorder({
+    changed: () => this.changed(false),
+    render: renderBrowserVideo,
+    save: async (data, validate) => {
+      validate()
+      const path = await this.writeUniqueDownload(`hronaut-video-${Date.now()}.webm`, Buffer.from(data), validate)
+      return { filename: basename(path), path }
+    }
   })
   private readonly snapshotBaselines = new Map<string, BrowserSnapshotBaselineRecord>()
   private readonly snapshotBaselineIdsByTab = new Map<string, string>()
@@ -4069,6 +4081,7 @@ export class BrowserTabsManager {
     const wasActive = tab.id === this.activeTabId
     this.networkWaitController.reject(tab.id, 'The tab closed while waiting for network activity.')
     this.reproRecorder.clearReproRecording(tab)
+    this.videoRecorder.clear(tab.id)
     this.cancelNativeSelectionSessions(tab)
     const { splitPartnerId, nextId } = this.closeTabTransition(tab)
     this.rememberClosedTab(tab)
@@ -5697,6 +5710,41 @@ export class BrowserTabsManager {
     return this.diagnosticLogState(tab.id)
   }
 
+  async videoRecording(options: BrowserVideoOptions, validateAuthority: () => void = () => undefined): Promise<BrowserVideoState> {
+    const tab = this.getTab(options.tabId)
+    const origin = new URL(tab.url).origin
+    const workspaceId = tab.mcpGroupId
+    const valid = (): void => {
+      validateAuthority()
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
+    }
+    let initialSize: { width: number; height: number } | undefined
+    const capture = async () => {
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
+      if (!/^https?:/.test(tab.url) || new URL(tab.url).origin !== origin || tab.sleeping || tab.id !== this.activeTabId || !this.window.isVisible() || this.window.isMinimized() || this.browserContentOccluded) throw new Error('Keep the recording tab visible at its original origin')
+      const generation = tab.navigationGeneration
+      const image = await tab.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true })
+      if (this.destroyed || this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || tab.webContents.isDestroyed()) throw new Error('Recording tab is unavailable')
+      if (new URL(tab.url).origin !== origin || tab.id !== this.activeTabId || this.browserContentOccluded) throw new Error('The tab changed during capture')
+      if (generation !== tab.navigationGeneration) return null
+      const size = image.getSize()
+      if (initialSize && (size.width !== initialSize.width || size.height !== initialSize.height)) throw new Error('Restore the original viewport size before resuming')
+      initialSize = size
+      const scale = Math.min(1, VIDEO_LIMITS.width / size.width, VIDEO_LIMITS.height / size.height)
+      const width = Math.max(2, Math.floor(size.width * scale / 2) * 2)
+      const height = Math.max(2, Math.floor(size.height * scale / 2) * 2)
+      return { data: image.resize({ width, height }).toJPEG(85), width, height }
+    }
+    const validateSource = (): void => {
+      if (this.tabs.get(tab.id) !== tab || tab.mcpGroupId !== workspaceId || new URL(tab.url).origin !== origin) throw new Error('Return to the recording origin to access this video, or discard it')
+    }
+    return this.videoRecorder.manage(tab.id, options, capture, valid, validateSource)
+  }
+
+  videoPreview(tabId: string): Uint8Array {
+    return this.videoRecorder.preview(this.getTab(tabId).id)
+  }
+
   async reproRecording(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording> {
     return this.reproRecorder.manage(this.getTab(tabId), action)
   }
@@ -7003,6 +7051,7 @@ export class BrowserTabsManager {
   }
 
   destroy(): void {
+    this.videoRecorder.destroy()
     if (this.destroyed) return
     this.splitDivider.cancel()
     this.destroyed = true
@@ -8361,6 +8410,7 @@ export class BrowserTabsManager {
       humanInteractionLocked: tab.humanInteractionLocked,
       humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
       preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
+      videoRecording: this.videoRecorder.state(tab.id).status,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
       ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
       audible: tab.audible,
@@ -9833,7 +9883,7 @@ export class BrowserTabsManager {
     this.downloadController.attachSession(browserSession)
   }
 
-  private async writeUniqueDownload(filename: string, data: Buffer): Promise<string> {
+  private async writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
     await mkdir(this.options.downloadDirectory, { recursive: true })
     const extension = extname(filename)
     const stem = filename.slice(0, filename.length - extension.length)
@@ -9841,6 +9891,7 @@ export class BrowserTabsManager {
       const candidateName = index === 0 ? filename : `${stem} (${index})${extension}`
       const candidate = join(this.options.downloadDirectory, candidateName)
       try {
+        validate()
         await writeFile(candidate, data, { flag: 'wx' })
         return candidate
       } catch (error) {

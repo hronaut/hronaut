@@ -42,6 +42,7 @@ import type {
 } from '../../../shared/types'
 import type { DiagnosticsController } from '../composables/useDiagnosticsController'
 import type { PageToolsLabels } from '../composables/usePageToolsPresentationController'
+import VideoRecorder from './VideoRecorder.vue'
 import PanelDockPicker from './PanelDockPicker.vue'
 
 export interface PageToolsActions {
@@ -125,7 +126,9 @@ const {
 const searchInput = ref<HTMLInputElement | null>(null)
 const content = ref<HTMLElement | null>(null)
 const query = ref('')
+const videoOpen = ref(false)
 const toolSearchEntries = computed(() => [
+  { id: 'video', group: 'exportAccount', text: t('video.title') + ' ' + t('video.description') },
   { id: 'site-storage', group: 'inspect', text: [t('panels.siteStorage'), t('shell.pageTools.storageDescription')].join(' ') },
   { id: 'responsive-preview', group: 'inspect', text: [t('shell.pageTools.responsive'), labels.value.responsive].join(' ') },
   { id: 'environment', group: 'inspect', text: [t('shell.pageTools.environment'), labels.value.environment].join(' ') },
@@ -302,6 +305,10 @@ function closeAndRun(action: () => void | Promise<void>): void {
       </section>
       <section v-if="visibleGroups.has('exportAccount')" aria-labelledby="page-tools-export-title">
         <h3 id="page-tools-export-title">{{ t('shell.pageTools.exportAccount') }}</h3>
+        <div v-if="visibleIds.has('video')" class="page-tools-grid video-tool">
+          <UiButton appearance="application" :aria-expanded="videoOpen" @click="videoOpen = !videoOpen"><IconRecord aria-hidden="true" /><span><strong>{{ t('video.title') }}</strong><small>{{ t('video.description') }}</small></span></UiButton>
+          <VideoRecorder v-if="videoOpen && activeTab" :tab-id="activeTab.id" />
+        </div>
         <div class="page-tools-grid">
           <UiButton v-if="visibleIds.has('copy-snapshot')" appearance="application" :class="{ copied: snapshotState === 'copied', error: snapshotState === 'error', running: snapshotState === 'copying' }" type="button" :aria-label="t('shell.pageTools.copySnapshotAria')" :disabled="snapshotState === 'copying'" @click="actions.copyPageSnapshot">
             <IconProgress v-if="snapshotState === 'copying'" class="state-spinner" aria-hidden="true" /><IconCheck v-else-if="snapshotState === 'copied'" aria-hidden="true" /><IconError v-else-if="snapshotState === 'error'" aria-hidden="true" /><IconAccountTree v-else aria-hidden="true" /><span><strong>{{ t('shell.pageTools.copySnapshot') }}</strong><small>{{ t('shell.pageTools.copySnapshotDescription') }}</small></span>

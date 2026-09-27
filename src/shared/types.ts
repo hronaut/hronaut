@@ -1,3 +1,4 @@
+import type { BrowserVideoOptions, BrowserVideoState } from './video.js'
 import type { SearchEngineName } from './search-engine.js'
 import type { BrowserTabGroupColor } from './tab-groups.js'
 import type { MemorySaverTimeoutMinutes } from './memory-saver.js'
@@ -223,6 +224,7 @@ export interface BrowserTabState {
   emulation?: BrowserEmulationState
   networkRouteCount?: number
   inspectorIssueCount?: number
+  videoRecording?: BrowserVideoState['status']
   reproRecording?: {
     active: boolean
     stepCount: number
@@ -2463,6 +2465,8 @@ export interface HronautApi {
   measureMemory(options?: BrowserMemoryOptions): Promise<BrowserMemoryReport>
   createDebugReport(options?: BrowserDebugReportOptions): Promise<BrowserDebugReport>
   setDiagnosticLogPreservation(tabId: string, preserve: boolean): Promise<BrowserState>
+  manageVideo(options: BrowserVideoOptions): Promise<BrowserVideoState>
+  videoPreview(tabId: string): Promise<Uint8Array>
   manageRepro(action: BrowserReproAction, tabId?: string): Promise<BrowserReproRecording>
   manageDomChanges(action: BrowserDomChangesAction, tabId?: string): Promise<BrowserDomChangesReport>
   visualCompare(options: BrowserVisualCompareOptions): Promise<BrowserVisualCompareView>

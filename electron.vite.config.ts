@@ -36,6 +36,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
+          videoExport: resolve('src/renderer/video-export.html'),
           home: resolve('src/renderer/src/home.ts'),
           addressOverlay: resolve('src/renderer/address-overlay.html')
         },

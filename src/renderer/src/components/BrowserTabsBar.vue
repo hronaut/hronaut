@@ -3,6 +3,7 @@ import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import UiButton from "../ui/UiButton.vue"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import IconRecord from '~icons/material-symbols/fiber-manual-record-rounded'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import IconAddBox from '~icons/material-symbols/add-box-rounded'
 import IconBedtime from '~icons/material-symbols/bedtime-rounded'
@@ -634,6 +635,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
           <img v-else-if="tab.faviconDataUrl" class="favicon-image" :src="tab.faviconDataUrl" alt="" draggable="false" />
           <span v-else-if="tab.url === 'about:blank'" class="favicon-fallback" aria-hidden="true">✦</span>
           <IconLanguage v-else class="favicon-fallback" aria-hidden="true" />
+          <IconRecord v-if="tab.videoRecording === 'recording'" style="color: #e5484d" :aria-label="t('video.status.recording')" />
           <span class="tab-title">{{ tab.title || t('tabSearch.newTabTitle') }}</span>
           <IconBedtime v-if="tab.sleeping" class="tab-sleep-mark" :aria-label="t('shell.tabs.sleeping')" />
           <IconPauseCircle v-else-if="tab.pageLifecycleState === 'frozen'" class="tab-freeze-mark" :aria-label="t('shell.tabs.frozen')" />

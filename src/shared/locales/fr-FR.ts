@@ -1,6 +1,7 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const frFR = {
+  video: enUS.video,
   workspaceLibrary: {
     hidden: "Masqué dans la barre latérale",
     protected: "Suppression protégée",

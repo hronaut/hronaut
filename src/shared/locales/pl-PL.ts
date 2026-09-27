@@ -1,6 +1,7 @@
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const plPL = {
+  video: enUS.video,
   workspaceLibrary: {
     hidden: "Ukryty na pasku bocznym",
     protected: "Chroniony przed usunięciem",

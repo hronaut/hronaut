@@ -12,6 +12,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Added
 
+- Record a visible tab through Page tools or `browser_video`, pause/resume, add timed text, arrows, highlights and click markers, trim kept ranges, preview locally, and export WebM/VP9 tutorials without an external encoder. Recordings are silent, bounded and retained only while the tab remains open.
+
 - Allow a temporary per-tab page-input unlock while the global input lock is on; the next global lock cycle restores the lock on every tab.
 
 ## [2.5.30] - 2026-09-26

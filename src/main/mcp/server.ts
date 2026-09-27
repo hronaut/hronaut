@@ -1,3 +1,4 @@
+import { videoOptionsShape, type BrowserVideoOptions } from '../../shared/video.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import {
   BROWSER_SERVER_INSTRUCTIONS,
@@ -362,6 +363,7 @@ export const READ_ONLY_MULTI_ACTIONS: Readonly<Record<string, ReadonlySet<string
   browser_storage: new Set(['list', 'get']),
   browser_storage_changes: new Set(['get']),
   browser_repro: new Set(['get']),
+  browser_video: new Set(['get']),
   browser_dom_changes: new Set(['get']),
   browser_issues: new Set(['list']),
   browser_console: new Set(['list']),
@@ -413,6 +415,7 @@ const MCP_NON_READ_OPERATION_CLASSES: Readonly<Record<string, McpCapabilityOpera
   browser_cpu_profile: 'browser-state',
   browser_memory: 'browser-state',
   browser_repro: 'browser-state',
+  browser_video: 'browser-state',
   browser_dom_changes: 'browser-state',
   browser_visual_compare: 'browser-state',
   browser_issues: 'browser-state',
@@ -437,6 +440,7 @@ export function mcpCapabilityOperationClass(
   toolName: string,
   input: Record<string, unknown>
 ): McpCapabilityOperationClass {
+  if (toolName === 'browser_video' && input.action === 'export') return 'external-request'
   const action = mcpCapabilityAction(toolName, input)
   if (toolDefinition(toolName).annotations.readOnlyHint
     || (action !== undefined && READ_ONLY_MULTI_ACTIONS[toolName]?.has(action))) return 'read'
@@ -1755,7 +1759,14 @@ function createBrowserMcpServer(
               ? await handler(actionInput as unknown as T)
               : await handler({
                 ...actionInput,
-                tabId: resolvedTabId
+                tabId: resolvedTabId,
+                ...(name === 'browser_video' ? { validateRecording: () => {
+                  requireCurrentControl()
+                  requireActiveCapabilityDispatch(name, actionInput)
+                  requireAgentWorkspace(workspaceId)
+                  if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
+                  if (resolvedTabId && !manager.tabBelongsToMcpGroup(workspaceId, resolvedTabId)) throw workspaceAuthorizationError()
+                } } : {})
               } as unknown as T)
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
@@ -3901,6 +3912,12 @@ function createBrowserMcpServer(
       maxNetworkRequests,
       includeSuccessfulRequests
     })))
+  )
+  registerWorkspaceTool(
+    'browser_video',
+    { description: toolDescription('browser_video'), inputSchema: videoOptionsShape },
+    tabTool('browser_video', async ({ validateRecording, ...input }: BrowserVideoOptions & { validateRecording?: () => void }) =>
+      textResult(await manager.videoRecording({ tabId: input.tabId, action: input.action, annotations: input.annotations, clips: input.clips }, validateRecording)), 'never')
   )
   registerWorkspaceTool(
     'browser_repro',

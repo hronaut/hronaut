@@ -667,7 +667,7 @@ paths, and raw origins.
 - `browser_navigate`, `browser_history`, `browser_wait`
 - `browser_snapshot`, `browser_public_outcome`, `browser_find`, `browser_element_inspect`, `browser_generate_locator`, `browser_click`, `browser_dialog`, `browser_type`, `browser_fill_form`, `browser_press`
 - `browser_select`, `browser_hover`, `browser_drag`, `browser_scroll`, `browser_file_upload`
-- `browser_resize`, `browser_emulate`, `browser_zoom`, `browser_audio`, `browser_screenshot`, `browser_pdf_save`, `browser_accessibility_audit`, `browser_performance`, `browser_design_overview`, `browser_page_metadata`, `browser_security`, `browser_code_coverage`, `browser_cpu_profile`, `browser_memory`, `browser_debug_report`, `browser_repro`, `browser_dom_changes`, `browser_visual_compare`, `browser_issues`, `browser_console`, `browser_diagnostic_logs`, `browser_network`, `browser_network_wait`, `browser_network_search`, `browser_network_request`, `browser_network_replay`, `browser_network_har`, `browser_network_routes`, `browser_downloads`, `browser_webmcp`, `browser_evaluate`
+- `browser_resize`, `browser_emulate`, `browser_zoom`, `browser_audio`, `browser_screenshot`, `browser_video`, `browser_pdf_save`, `browser_accessibility_audit`, `browser_performance`, `browser_design_overview`, `browser_page_metadata`, `browser_security`, `browser_code_coverage`, `browser_cpu_profile`, `browser_memory`, `browser_debug_report`, `browser_repro`, `browser_dom_changes`, `browser_visual_compare`, `browser_issues`, `browser_console`, `browser_diagnostic_logs`, `browser_network`, `browser_network_wait`, `browser_network_search`, `browser_network_request`, `browser_network_replay`, `browser_network_har`, `browser_network_routes`, `browser_downloads`, `browser_webmcp`, `browser_evaluate`
 
 `browser_show` reveals the visible Hronaut window for observation without taking foreground keyboard or mouse focus from another application, whether or not **Block input** is active. Focus protection is automatic and is not controlled by that button. **Block input** only prevents human keyboard, mouse, wheel, context-menu, and tab-closing actions inside website tabs; Hronaut chrome, Home, tab switching, and agent input remain available. The human must focus Hronaut explicitly before interacting with it; agents that need a manual step use `browser_request_user_attention` instead of forcing activation.
 
@@ -890,3 +890,71 @@ The release workflow creates one draft release, builds Linux, macOS, and Windows
 Current releases are unsigned community builds: the binaries are not platform code-signed and macOS packages are not Apple-notarized. macOS Gatekeeper and Windows SmartScreen may therefore warn before first launch. Build jobs never receive release-write credentials; the final job publishes the completed set and generates GitHub artifact attestations. Verify a downloaded asset with `gh attestation verify <asset> -R hronaut/hronaut`, then compare it with `hashes.txt`.
 
 Dependabot checks npm packages and GitHub Actions weekly and groups related Electron, Vue/Vite, MCP, and TypeScript updates. The Cloudflare Pages storefront deploys independently from the desktop release workflow in `hronaut-page`.
+
+
+## Record product walkthroughs
+
+Open **Page tools → Video recorder**, or use `browser_video` in any MCP tool set.
+Recording is explicitly started for one visible HTTP(S) tab. It captures page
+pixels (including any personal data on screen), without browser chrome or audio.
+Use a demo account and review the result before sharing. Nothing is uploaded.
+
+The first version captures up to 12 frames per second, fitting the viewport
+inside 1280 × 720 without upscaling. Each recording is limited to two minutes and
+64 MiB of JPEG frames; at most three recordings are retained, with one actively
+capturing at a time. Raw frames and rendered previews stay in memory and disappear
+on discard, tab closure, workspace closure/archive, or application exit. Explicit
+exports remain in the configured download directory with collision-safe filenames.
+
+Keep the tab selected, visible and at a fixed viewport size while recording.
+Same-origin navigation is supported; a frame spanning a navigation is discarded.
+Switching tabs, resizing, loss of access, or an unavailable renderer pauses capture. Return
+to the original origin and restore the viewport before resuming. Pause time is
+excluded from the timeline. When agent control or its write lease changes, resume
+requires a fresh authorized call. Reading or exporting retained content requires
+the original tab, workspace and origin. Website content has no access to the
+recorder or encoder bridge.
+
+`browser_video` accepts `workspaceId`, `tabId`, and one of:
+
+- `start`, `pause`, `resume`, `stop`, `get`, `clear`: recording controls. Starting
+  again requires clearing the old recording first. `get` returns bounded metadata.
+- `edit`: after stopping, replace `annotations` and/or `clips`. Omitted arrays are
+  preserved; `annotations: []` removes overlays. Annotation kinds are `text`,
+  `arrow`, `highlight`, and `click`. Each uses source `startMs`/`endMs`, normalized
+  viewport `x`/`y` (0–1), and optional hex `color`. Text requires `text` (240
+  characters maximum); arrows and highlights also require `endX`/`endY`.
+- `render`: prepare a local preview without writing a file.
+- `export`: render if necessary and save a silent `.webm` file. Returns its path,
+  filename, bytes, codec, MIME type and edited duration. This action requires the
+  capability's `external-request` operation class as well as workspace write access.
+
+Up to 100 annotations and 30 kept ranges are supported. Clip ranges are ordered,
+non-overlapping source `startMs`/`endMs` pairs. With no clip edits, the whole
+recording is kept. Overlay times refer to original footage, so trimming preserves
+alignment. Coordinates refer to the captured viewport; arrows do not automatically
+track moving elements. Agents can use snapshots/screenshots to choose positions.
+Edit layers remain separate from the captured pixels until rendering, allowing
+wording and timing changes without repeating the demonstration.
+
+Example `edit` arguments after recording at least three seconds:
+
+```json
+{
+  "workspaceId": "<your workspace ID>",
+  "tabId": "<your tab ID>",
+  "action": "edit",
+  "clips": [{ "startMs": 0, "endMs": 3000 }],
+  "annotations": [
+    { "kind": "text", "text": "Create your first campaign", "startMs": 0, "endMs": 3000, "x": 0.1, "y": 0.8 },
+    { "kind": "arrow", "startMs": 1000, "endMs": 3000, "x": 0.5, "y": 0.5, "endX": 0.8, "endY": 0.3 }
+  ]
+}
+```
+
+Exports use WebM with VP9 and an opaque background. This targets current Chrome,
+Edge, Firefox and Safari, including Safari 17.4+ on iOS/iPadOS and Safari 14.1+ on
+macOS ([WebKit compatibility notes](https://webkit.org/blog/15063/webkit-features-in-safari-17-4/)).
+WebM is not a universal native-player/editor format; MP4/H.264 conversion is not
+included. The bundled WebCodecs encoder is checked at export time. Unsupported
+encoding reports an error while preserving the raw recording for review/retry.
