@@ -60,6 +60,18 @@ describe('external cookie sources', () => {
     expect(await readImportCookies(profile(file), readKey)).toMatchObject({ skipped: 1, cookies: [{ value: 'usable' }] })
     expect(readKey).not.toHaveBeenCalled()
   })
+  it('does not require a browser key for expired or invalid v11 cookies', async () => {
+    const file = join(await directory(), 'Cookies'); const db = chromiumDatabase(file)
+    addChrome(db, 'example.test', encrypted('usable', 'example.test'))
+    addChrome(db, 'expired.test', encrypted('old', 'expired.test', 'v11', 'fixture-key'))
+    addChrome(db, 'invalid.test', encrypted('invalid', 'invalid.test', 'v11', 'fixture-key'))
+    db.prepare('UPDATE cookies SET expires_utc = 1 WHERE host_key = ?').run('expired.test')
+    db.prepare('UPDATE cookies SET samesite = 99 WHERE host_key = ?').run('invalid.test')
+    db.close()
+    const readKey = vi.fn(async () => { throw new Error('keyring unavailable') })
+    expect(await readImportCookies(profile(file), readKey)).toMatchObject({ skipped: 2, cookies: [{ value: 'usable' }] })
+    expect(readKey).not.toHaveBeenCalled()
+  })
   it('maps Firefox cookies and excludes container or partition identities', async () => {
     const file = join(await directory(), 'cookies.sqlite'); const db = new DatabaseSync(file)
     db.exec('PRAGMA user_version=16; CREATE TABLE moz_cookies(host TEXT, name TEXT, value TEXT, path TEXT, expiry INTEGER, isSecure INTEGER, isHttpOnly INTEGER, originAttributes TEXT, sameSite INTEGER, isPartitionedAttributeSet INTEGER)')

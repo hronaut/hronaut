@@ -113,6 +113,28 @@ function validCookie(cookie: Cookie): boolean {
     && (cookie.session || (Number.isFinite(cookie.expirationDate) && cookie.expirationDate! > Date.now() / 1000))
 }
 
+function cookieMetadata(row: Record<string, unknown>, kind: ImportProfile['kind'], version: number): Cookie | null {
+  const chrome = kind === 'chromium'
+  if (chrome ? row.top_frame_site_key !== '' : row.originAttributes !== '' || row.isPartitionedAttributeSet === 1) return null
+  if (typeof row.name !== 'string' || typeof row.value !== 'string' || typeof row.path !== 'string'
+    || typeof (chrome ? row.host_key : row.host) !== 'string'
+    || ![0, 1].includes(chrome ? row.is_secure as number : row.isSecure as number)
+    || ![0, 1].includes(chrome ? row.is_httponly as number : row.isHttpOnly as number)) return null
+  if (chrome && row.encrypted_value instanceof Uint8Array && row.encrypted_value.length && row.value !== '') return null
+  const domain = String(chrome ? row.host_key : row.host)
+  const expirationDate = chrome ? Number(row.expires_utc) / 1_000_000 - 11_644_473_600 : Number(row.expiry) / (version >= 16 ? 1000 : 1)
+  const session = chrome ? row.is_persistent === 0 && row.has_expires === 0 : false
+  const sameSiteValue = chrome ? Number(row.samesite)
+    : version >= 15 ? Number(row.sameSite)
+    : row.rawSameSite === 0 && row.sameSite === 1 ? 256 : Number(row.rawSameSite)
+  const sameSite = chrome
+    ? ({ '-1': 'unspecified', '0': 'no_restriction', '1': 'lax', '2': 'strict' } as const)[sameSiteValue as -1 | 0 | 1 | 2]
+    : ({ '0': 'no_restriction', '1': 'lax', '2': 'strict', '256': 'unspecified' } as const)[sameSiteValue as 0 | 1 | 2 | 256]
+  if (!sameSite) return null
+  const cookie: Cookie = { name: row.name, value: '', domain, path: row.path, hostOnly: !domain.startsWith('.'), secure: (chrome ? row.is_secure : row.isSecure) === 1, httpOnly: (chrome ? row.is_httponly : row.isHttpOnly) === 1, session, sameSite, ...(!session ? { expirationDate } : {}) }
+  return validCookie(cookie) && (cookie.sameSite !== 'no_restriction' || cookie.secure) ? cookie : null
+}
+
 export async function readImportCookies(profile: ImportProfile, readKey = readLinuxBrowserKey): Promise<CookieSnapshot> {
   let database: DatabaseSync | undefined
   let key: Buffer | undefined
@@ -143,35 +165,19 @@ export async function readImportCookies(profile: ImportProfile, readKey = readLi
       : `host, name, value, path, expiry, isSecure, isHttpOnly, originAttributes, sameSite${version < 15 ? ', rawSameSite' : ''}${version >= 13 ? ', isPartitionedAttributeSet' : ''}`
     const rows = database.prepare(`SELECT ${columns} FROM ${table} LIMIT ${MAX_ROWS + 1}`).all()
     database.exec('ROLLBACK'); database.close(); database = undefined
-    if (rows.some(r => r.top_frame_site_key === '' && r.value === ''
+    if (rows.some(r => cookieMetadata(r, profile.kind, version)
       && r.encrypted_value instanceof Uint8Array && Buffer.from(r.encrypted_value).subarray(0, 3).toString() === 'v11')) key = await readKey(profile.keyApplication)
     const cookies: Cookie[] = []
     let skipped = 0
     const identities = new Set<string>()
     for (const row of rows) {
       try {
-        const chrome = profile.kind === 'chromium'
-        if (chrome ? row.top_frame_site_key !== '' : row.originAttributes !== '' || row.isPartitionedAttributeSet === 1) { skipped++; continue }
-        if (typeof row.name !== 'string' || typeof row.value !== 'string' || typeof row.path !== 'string'
-          || typeof (chrome ? row.host_key : row.host) !== 'string'
-          || ![0, 1].includes(chrome ? row.is_secure as number : row.isSecure as number)
-          || ![0, 1].includes(chrome ? row.is_httponly as number : row.isHttpOnly as number)) { skipped++; continue }
-        const domain = String(chrome ? row.host_key : row.host)
+        const cookie = cookieMetadata(row, profile.kind, version)
+        if (!cookie) { skipped++; continue }
         const encrypted = row.encrypted_value
-        if (chrome && encrypted instanceof Uint8Array && encrypted.length && row.value !== '') { skipped++; continue }
-        const value = chrome && encrypted instanceof Uint8Array && encrypted.length ? decryptLinuxCookie(encrypted, domain, version, key) : String(row.value)
-        const expirationDate = chrome ? Number(row.expires_utc) / 1_000_000 - 11_644_473_600 : Number(row.expiry) / (version >= 16 ? 1000 : 1)
-        const session = chrome ? row.is_persistent === 0 && row.has_expires === 0 : false
-        const sameSiteValue = chrome ? Number(row.samesite)
-          : version >= 15 ? Number(row.sameSite)
-          : row.rawSameSite === 0 && row.sameSite === 1 ? 256 : Number(row.rawSameSite)
-        const sameSite = chrome
-          ? ({ '-1': 'unspecified', '0': 'no_restriction', '1': 'lax', '2': 'strict' } as const)[sameSiteValue as -1 | 0 | 1 | 2]
-          : ({ '0': 'no_restriction', '1': 'lax', '2': 'strict', '256': 'unspecified' } as const)[sameSiteValue as 0 | 1 | 2 | 256]
-        if (!sameSite) { skipped++; continue }
-        const cookie: Cookie = { name: String(row.name), value, domain, path: String(row.path), hostOnly: !domain.startsWith('.'), secure: (chrome ? row.is_secure : row.isSecure) === 1, httpOnly: (chrome ? row.is_httponly : row.isHttpOnly) === 1, session, sameSite, ...(!session ? { expirationDate } : {}) }
-        const identity = `${domain}\0${cookie.path}\0${cookie.name}`
-        if (!validCookie(cookie) || (cookie.sameSite === 'no_restriction' && !cookie.secure) || identities.has(identity)) { skipped++; continue }
+        cookie.value = profile.kind === 'chromium' && encrypted instanceof Uint8Array && encrypted.length ? decryptLinuxCookie(encrypted, cookie.domain!, version, key) : String(row.value)
+        const identity = `${cookie.domain}\0${cookie.path}\0${cookie.name}`
+        if (!validCookie(cookie) || identities.has(identity)) { skipped++; continue }
         identities.add(identity); cookies.push(cookie)
       } catch { skipped++ }
     }
