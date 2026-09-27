@@ -67,4 +67,17 @@ describe('workspace cookie writes', () => {
     const normal = jar(); normal.target.cookies.flushStore.mockRejectedValue(new Error('disk failure'))
     expect(await writeImportedCookies(normal.session, [cookie('disk.test')], [], () => true)).toMatchObject({ failed: 1, recoveryRequired: true })
   })
+  it('does not demand recovery when the first destination read fails before any write', async () => {
+    const { target, session } = jar()
+    target.cookies.get.mockRejectedValueOnce(new Error('read unavailable'))
+    expect(await writeImportedCookies(session, [cookie('first.test')], [], () => true)).toEqual({ imported: 0, skipped: 0, failed: 1, recoveryRequired: false, origins: [] })
+    expect(target.cookies.set).not.toHaveBeenCalled()
+    expect(target.cookies.flushStore).not.toHaveBeenCalled()
+  })
+  it('keeps recovery required when a destination read fails after a write', async () => {
+    const { target, session } = jar()
+    target.cookies.get.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('read unavailable'))
+    expect(await writeImportedCookies(session, [cookie('first.test'), cookie('second.test')], [], () => true)).toMatchObject({ imported: 0, failed: 2, recoveryRequired: true, origins: ['https://first.test'] })
+    expect(target.cookies.set).toHaveBeenCalledTimes(1)
+  })
 })

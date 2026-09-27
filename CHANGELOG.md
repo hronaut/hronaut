@@ -8,6 +8,7 @@ All notable changes to Hronaut are documented in this file.
 
 - Import usable Chromium cookies without requiring an OS key for partitioned, expired, or invalid encrypted cookies that are excluded from import.
 - Enforce the browser import byte limit before reading malformed cookie rows with missing fields or oversized partition metadata.
+- Avoid a false recovery warning when a destination cookie read fails before import writes anything.
 
 ## [2.7.3] - 2026-09-27
 

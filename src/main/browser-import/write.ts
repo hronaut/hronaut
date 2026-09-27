@@ -28,6 +28,12 @@ export async function writeImportedCookies(target: Session, cookies: Cookie[], o
     let existing: Cookie[]
     try { existing = await target.cookies.get({}) }
     catch {
+      // A failed preflight read cannot leave an import to recover when nothing
+      // has been written. Do not imply an uncertain mutation or flush the store.
+      if (!attempted.size) {
+        result.failed = cookies.length - result.skipped
+        return result
+      }
       result.recoveryRequired = true
       break
     }
