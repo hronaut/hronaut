@@ -1,5 +1,5 @@
 import type { HomeBootstrap, HomeDashboard, HronautHomeApi } from '../../../shared/home.js'
-import { element, escapeText as h, interpolate, remember } from './dom.js'
+import { element, escapeText as h, interpolate, remember, renderStatus } from './dom.js'
 import { mountWorkspaces } from './workspaces.js'
 
 export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof fetch = fetch) {
@@ -172,7 +172,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     document.documentElement.dataset.theme = dashboard.theme ?? 'light'
     const status = dashboard.status
     const statusLabels = { starting: messages.status.starting, ready: messages.status.online, paused: messages.status.paused, error: messages.status.error }
-    element('server-state').innerHTML = `<span class="dot ${status}"></span> ${h(statusLabels[status])}`
+    renderStatus(element('server-state'), status, statusLabels[status])
     element('server-state').title = status === 'error' ? dashboard.error ?? messages.status.unknownError : ''
     text('active-count', status === 'paused' ? messages.status.pausedValue : status === 'error' ? messages.status.unavailable : status === 'starting' ? messages.status.startingValue : count(messages.status.activeOne, messages.status.activeOther, dashboard.activeRequests))
     text('request-count', dashboard.totalRequests ? count(messages.counts.requestsOne, messages.counts.requestsOther, dashboard.totalRequests) : messages.status.waiting)
@@ -269,7 +269,7 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
       update(next)
     } catch {
       if (signal.aborted || sequence !== requestSequence) return
-      element('server-state').innerHTML = `<span class="dot error"></span> ${h(messages.status.unavailable)}`
+      renderStatus(element('server-state'), 'error', messages.status.unavailable)
       element('server-state').title = ''; text('active-count', messages.status.unavailable); text('request-count', messages.status.reconnecting); text('connection-note', messages.journey.unavailable)
       text('connection-probe', messages.journey.unavailable)
     }

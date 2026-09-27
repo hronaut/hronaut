@@ -11,6 +11,11 @@ export function escapeText(value: unknown): string {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
 }
+export function renderStatus(target: HTMLElement, status: string, label: string): void {
+  const dot = document.createElement('span')
+  dot.className = `dot ${status}`
+  target.replaceChildren(dot, document.createTextNode(` ${label}`))
+}
 export function interpolate(message: string, values: Record<string, string | number> = {}): string {
   return Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), message)
 }
