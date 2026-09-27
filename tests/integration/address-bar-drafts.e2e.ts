@@ -165,6 +165,11 @@ test('keeps reopened native suggestions when an earlier button clicks the same b
 test('suggests a previously visited Google hostname in the visible native popup', async ({ appWindow, electronApp }) => {
   await appWindow.evaluate("window.hronautSettings.setTabPosition('left')")
   await appWindow.evaluate(async () => (window as unknown as TestWindow).hronaut.newTab({ active: true }))
+  // Tab creation starts navigation asynchronously. Wait for the blank document
+  // before locating its native session to install the local HTTPS fixture.
+  await expect.poll(() => electronApp.evaluate(({ webContents }) => (
+    webContents.getAllWebContents().some(contents => contents.getURL() === 'about:blank')
+  ))).toBe(true)
   // Serve synthetic content from this disposable workspace's HTTPS handler.
   // Exercise the real hostname/history path without sending requests to Google.
   const webContentsId = await electronApp.evaluate(({ webContents }) => {
