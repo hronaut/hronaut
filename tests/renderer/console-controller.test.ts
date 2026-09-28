@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useConsoleController } from '../../src/renderer/src/composables/useConsoleController.js'
 import type { BrowserConsoleMessage, BrowserTabState } from '../../src/shared/types.js'
@@ -36,8 +36,9 @@ function message(text: string): BrowserConsoleMessage {
 
 function deferred<Value>() {
   let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((next) => (resolve = next))
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<Value>((next, fail) => { resolve = next; reject = fail })
+  return { promise, resolve, reject }
 }
 
 function createController() {
@@ -63,6 +64,57 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
+  it.each(['resolved', 'rejected'] as const)('waits for a slow read to be %s before polling again', async (outcome) => {
+    vi.useFakeTimers()
+    const pending = deferred<BrowserConsoleMessage[]>()
+    const { browser, controller, open } = createController()
+    browser.listConsoleMessages.mockImplementationOnce(() => pending.promise)
+    try {
+      open.value = true
+      await nextTick()
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(1)
+
+      if (outcome === 'resolved') pending.resolve([message('slow response')])
+      else pending.reject(new Error('Read failed'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(controller.state.value).toBe(outcome === 'resolved' ? 'ready' : 'error')
+      if (outcome === 'resolved') expect(controller.messages.value).toEqual([message('slow response')])
+
+      browser.listConsoleMessages.mockResolvedValueOnce([message('next response')])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      expect(controller.messages.value).toEqual([message('next response')])
+      expect(controller.state.value).toBe('ready')
+    } finally { controller.dispose() }
+  })
+
+  it('allows Clear to supersede a pending poll without an older read releasing its guard', async () => {
+    vi.useFakeTimers()
+    const older = deferred<BrowserConsoleMessage[]>()
+    const clearing = deferred<BrowserConsoleMessage[]>()
+    const { browser, controller, open } = createController()
+    browser.listConsoleMessages
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => clearing.promise)
+    try {
+      open.value = true
+      await nextTick()
+      const operation = controller.refresh(true)
+      expect(browser.listConsoleMessages).toHaveBeenLastCalledWith('tab-1', true)
+      older.resolve([message('before clear')])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      expect(controller.messages.value).toEqual([])
+
+      clearing.resolve([])
+      await operation
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(3)
+      expect(controller.state.value).toBe('ready')
+    } finally { controller.dispose() }
+  })
+
   it('invalidates an in-flight refresh when reset on the same tab', async () => {
     const pending = deferred<BrowserConsoleMessage[]>()
     const { browser, controller } = createController()
@@ -76,6 +128,25 @@ describe('console controller', () => {
     expect(controller.messages.value).toEqual([])
     expect(controller.state.value).toBe('idle')
     controller.dispose()
+  })
+
+  it('does not let a pending read block polling after the console context resets', async () => {
+    vi.useFakeTimers()
+    const pending = deferred<BrowserConsoleMessage[]>()
+    const { browser, controller, open } = createController()
+    browser.listConsoleMessages.mockImplementationOnce(() => pending.promise)
+    try {
+      open.value = true
+      await nextTick()
+      controller.reset()
+      browser.listConsoleMessages.mockResolvedValueOnce([message('new context')])
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(browser.listConsoleMessages).toHaveBeenCalledTimes(2)
+      expect(controller.messages.value).toEqual([message('new context')])
+      pending.resolve([message('old context')])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(controller.messages.value).toEqual([message('new context')])
+    } finally { controller.dispose() }
   })
 
   it('ignores a response from the previously active tab', async () => {

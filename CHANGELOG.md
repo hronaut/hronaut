@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Wait for pending Console reads before polling again so slow responses remain visible instead of being repeatedly discarded.
+
 - Resume live tab previews when a timed-out native capture later fails, while preventing overlapping captures.
 
 - Keep wallet name and RPC edits open when Escape is used by an input method to cancel text composition.

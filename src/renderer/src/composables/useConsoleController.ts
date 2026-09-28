@@ -39,6 +39,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const copiedEntryKey = ref<string | null>(null)
   let generation = 0
   let requestSequence = 0
+  let pendingRefresh: { tabId: string; generation: number } | null = null
   let copySequence = 0
   let refreshTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'entry' | 'filtered' | 'all'>()
@@ -68,8 +69,11 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   async function refresh(clear = false, silent = false): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return
+    if (silent && pendingRefresh && isCurrent(pendingRefresh.tabId, pendingRefresh.generation)) return
     const expectedGeneration = generation
     const sequence = ++requestSequence
+    const pending = { tabId: tab.id, generation: expectedGeneration }
+    pendingRefresh = pending
     if (!silent) state.value = 'loading'
     error.value = ''
     if (clear) {
@@ -85,6 +89,8 @@ export function useConsoleController(options: ConsoleControllerOptions) {
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
       state.value = 'error'
       error.value = cause instanceof Error ? cause.message : String(cause)
+    } finally {
+      if (pendingRefresh === pending) pendingRefresh = null
     }
   }
 
