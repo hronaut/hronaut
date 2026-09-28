@@ -889,7 +889,7 @@ export const deDE = {
       "copyFailed": "Kopieren fehlgeschlagen",
       "clipboardFailed": "Die Systemzwischenablage hat den Text nicht angenommen."
     },
-    "locks": {
+    "locks": { lockInput: "Eingabe sperren", unlockInput: "Eingabe entsperren", controls: "Tab-Steuerung",
       "websiteOnly": "Tab-Sperre ist auf Websites verfügbar",
       "allLocked": "Menschliche Seiteneingabe ist blockiert; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter",
       "unlockTab": "Seiteneingabe in diesem Tab entsperren",
@@ -1226,7 +1226,7 @@ export const deDE = {
     "replayed": "{method}-XHR wiederholt. Die neue Anfrage ist zur Prüfung ausgewählt."
   },
   "shell": {
-    "audioControl": {"mute": "Stummschalten", "muted": "Stumm"},
+    "audioControl": {"mute": "Stummschalten", "unmute": "Ton einschalten"},
     "home": {
       "open": "Hronaut-Startseite öffnen",
       "label": "Start"

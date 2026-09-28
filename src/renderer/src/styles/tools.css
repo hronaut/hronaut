@@ -91,13 +91,12 @@
 .site-controls-secondary { @apply [border:1px_solid_var(--border-soft)] text-copy bg-transparent; }
 .site-controls-primary { @apply [border:1px_solid_var(--accent)] text-button-copy bg-accent; }
 .site-controls-panel button:focus-visible, .site-controls-panel select:focus-visible { @apply [outline:2px_solid_var(--accent)] [outline-offset:1px]; }
-.interaction-locks {
-  @apply flex [height:34px] overflow-hidden flex-none [border:1px_solid_var(--border-soft)] [border-radius:9px] bg-surface-muted;
+.tab-controls {
+  @apply flex flex-none items-center [gap:5px];
 }
 .interaction-lock-button {
-  @apply flex [min-width:58px] items-center justify-center [gap:6px] [padding:0_9px] border-0 text-muted bg-transparent [font-size:13px] [font-weight:700] cursor-pointer;
+  @apply flex [min-width:58px] items-center justify-center [gap:6px] [padding:0_9px] [height:34px] [border:1px_solid_var(--border-soft)] [border-radius:8px] text-muted bg-surface-muted [font-size:13px] [font-weight:700] cursor-pointer;
 }
-.interaction-lock-button + .interaction-lock-button { @apply [border-left:1px_solid_var(--border-soft)]; }
 .interaction-lock-button:hover:not(:disabled) { @apply text-copy bg-hover; }
 .interaction-lock-button.locked { @apply [color:#9a5b00] [background:color-mix(in_srgb,_#e49a32_18%,_var(--surface-muted))]; }
 :root:not([data-theme="light"]) .interaction-lock-button.locked { @apply [color:#ffc56e]; }

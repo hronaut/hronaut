@@ -889,7 +889,7 @@ export const plPL = {
       "copyFailed": "Kopiowanie nie powiodło się",
       "clipboardFailed": "Schowek systemowy nie przyjął tekstu."
     },
-    "locks": {
+    "locks": { lockInput: "Zablokuj wprowadzanie", unlockInput: "Odblokuj wprowadzanie", controls: "Sterowanie kartą",
       "websiteOnly": "Blokada karty jest dostępna w witrynach",
       "allLocked": "Wprowadzanie danych przez człowieka na stronach jest zablokowane; zaufane elementy sterujące Hronaut i agenci nadal działają",
       "unlockTab": "Odblokuj wprowadzanie danych na tej karcie",
@@ -1226,7 +1226,7 @@ export const plPL = {
     "replayed": "Powtórzono XHR {method}. Nowe żądanie jest wybrane do sprawdzenia."
   },
   "shell": {
-    "audioControl": {"mute": "Wycisz", "muted": "Wyciszono"},
+    "audioControl": {"mute": "Wycisz", "unmute": "Włącz dźwięk"},
     "home": {
       "open": "Otwórz stronę główną Hronaut",
       "label": "Start"

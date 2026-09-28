@@ -889,7 +889,7 @@ export const frFR = {
       "copyFailed": "Échec de la copie",
       "clipboardFailed": "Le presse-papiers système n’a pas accepté le texte."
     },
-    "locks": {
+    "locks": { lockInput: "Verrouiller la saisie", unlockInput: "Déverrouiller la saisie", controls: "Commandes de l’onglet",
       "websiteOnly": "Le verrouillage des onglets est disponible sur les sites",
       "allLocked": "La saisie humaine dans les pages est bloquée ; les contrôles Hronaut fiables et les agents continuent de fonctionner",
       "unlockTab": "Déverrouiller la saisie dans cet onglet",
@@ -1226,7 +1226,7 @@ export const frFR = {
     "replayed": "Requête XHR {method} rejouée. La nouvelle requête est sélectionnée pour inspection."
   },
   "shell": {
-    "audioControl": {"mute": "Couper le son", "muted": "Son coupé"},
+    "audioControl": {"mute": "Couper le son", "unmute": "Rétablir le son"},
     "home": {
       "open": "Ouvrir l’accueil Hronaut",
       "label": "Accueil"

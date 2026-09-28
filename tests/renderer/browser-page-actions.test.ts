@@ -71,6 +71,25 @@ function renderActions(
 }
 
 describe('BrowserPageActions', () => {
+  it('presents independent tab controls with consistent action labels', async () => {
+    const view = renderActions()
+    const group = screen.getByRole('group', { name: 'Tab controls' })
+    expect(group.querySelectorAll('button')).toHaveLength(4)
+    expect(screen.getByRole('button', { name: 'Pause agents for this tab' })).toHaveTextContent('Pause agents')
+    expect(screen.getByRole('button', { name: 'Lock page input in this tab' })).toHaveTextContent('Lock input')
+    expect(screen.getByRole('button', { name: 'Mute Tab' })).toHaveTextContent('Mute')
+    await view.rerender({
+      activeTab: tab({ agentPaused: true, muted: true }),
+      tabHumanInteractionLocked: true,
+      effectiveHumanInteractionLocked: true,
+      tabInteractionLockLabel: 'Unlock page input in this tab'
+    })
+    expect(screen.getByRole('button', { name: 'Resume agents for this tab' })).toHaveTextContent('Resume agents')
+    expect(screen.getByRole('button', { name: 'Unlock page input in this tab' })).toHaveTextContent('Unlock input')
+    expect(screen.getByRole('button', { name: 'Unmute Tab' })).toHaveTextContent('Unmute')
+    expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toHaveTextContent('Live')
+  })
+
   it('mutes a silent tab and reflects the authoritative state when switching tabs', async () => {
     const activeTab = tab()
     const view = renderActions('idle', activeTab)

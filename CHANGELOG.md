@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Give independent tab controls separate buttons and consistent action labels: Pause/Resume agents, Lock/Unlock input, and Mute/Unmute.
+
 ## [2.8.0] - 2026-09-28
 
 ### Fixed

@@ -67,9 +67,9 @@ function reportSplitError(cause: unknown, fallback: string): void {
 
 <template>
   <div
-    class="interaction-locks"
+    class="tab-controls"
     role="group"
-    :aria-label="t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock')"
+    :aria-label="t('runtime.locks.controls')"
   >
     <UiButton appearance="application"
       class="interaction-lock-button tab-interaction-lock-button"
@@ -83,7 +83,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     >
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
-      <span>{{ t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock') }}</span>
+      <span>{{ t(tabHumanInteractionLocked ? 'runtime.locks.unlockInput' : 'runtime.locks.lockInput') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button tab-agent-control-button"
@@ -97,7 +97,7 @@ function reportSplitError(cause: unknown, fallback: string): void {
     >
       <IconPlayCircle v-if="activeTab?.agentPaused" aria-hidden="true" />
       <IconPauseCircle v-else aria-hidden="true" />
-      <span>{{ t(activeTab?.agentPaused ? 'runtime.agentControl.paused' : 'runtime.agentControl.active') }}</span>
+      <span>{{ t(activeTab?.agentPaused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button page-lifecycle-button"
@@ -114,21 +114,21 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconPauseCircle v-else aria-hidden="true" />
       <span>{{ t(activeTab?.pageLifecycleState === 'frozen' ? 'runtime.pageLifecycle.frozen' : activeTab?.pageLifecycleState === 'unknown' ? 'runtime.pageLifecycle.unknownShort' : 'runtime.pageLifecycle.active') }}</span>
     </UiButton>
+    <UiButton appearance="application"
+      class="interaction-lock-button tab-mute-button"
+      :class="{ muted: activeTab?.muted }"
+      type="button"
+      :title="audioLabel"
+      :aria-label="t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
+      :aria-pressed="Boolean(activeTab?.muted)"
+      :disabled="activeTabIsInternal"
+      @click="activeTab && emit('toggleTabMuted', activeTab)"
+    >
+      <IconVolumeOff v-if="activeTab?.muted" aria-hidden="true" />
+      <IconVolumeUp v-else aria-hidden="true" />
+      <span class="tab-mute-label">{{ t(activeTab?.muted ? 'shell.audioControl.unmute' : 'shell.audioControl.mute') }}</span>
+    </UiButton>
   </div>
-  <UiButton appearance="application"
-    class="interaction-lock-button tab-mute-button"
-    :class="{ muted: activeTab?.muted }"
-    type="button"
-    :title="audioLabel"
-    :aria-label="t(activeTab?.muted ? 'native.context.unmuteTab' : 'native.context.muteTab')"
-    :aria-pressed="Boolean(activeTab?.muted)"
-    :disabled="activeTabIsInternal"
-    @click="activeTab && emit('toggleTabMuted', activeTab)"
-  >
-    <IconVolumeOff v-if="activeTab?.muted" aria-hidden="true" />
-    <IconVolumeUp v-else aria-hidden="true" />
-    <span class="tab-mute-label">{{ t(activeTab?.muted ? 'shell.audioControl.muted' : 'shell.audioControl.mute') }}</span>
-  </UiButton>
   <SplitViewControl
     v-model:open="splitMenuOpen"
     :state="state"
