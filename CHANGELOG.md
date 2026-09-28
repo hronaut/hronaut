@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.1] - 2026-09-28
+
 ### Fixed
 
 - Preserve successful wallet operation results when a follow-up refresh fails, so completed imports are not left awaiting confirmation with an already-consumed token.
