@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Resume live tab previews when a timed-out native capture later fails, while preventing overlapping captures.
+
 - Keep wallet name and RPC edits open when Escape is used by an input method to cancel text composition.
 
 - Preserve approved and in-progress human reviews at waiting-history capacity so their actions can retain outcome receipts.

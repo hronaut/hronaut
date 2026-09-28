@@ -8,7 +8,7 @@ export class NativePreviewCapture {
     contents: object,
     capture: () => Promise<T>,
     onTimeout: () => void,
-    onLateCompletion: () => void
+    onLateSettlement: () => void
   ): Promise<T | undefined> {
     if (this.pending.has(contents)) return undefined
     this.pending.add(contents)
@@ -23,10 +23,11 @@ export class NativePreviewCapture {
     }
     const completion = native.then(value => {
       this.pending.delete(contents)
-      if (timedOut) onLateCompletion()
+      if (timedOut) onLateSettlement()
       return value
     }, (error: unknown) => {
       this.pending.delete(contents)
+      if (timedOut) onLateSettlement()
       throw error
     })
     try {

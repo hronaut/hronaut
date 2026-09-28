@@ -62,7 +62,7 @@ describe('native preview capture ownership', () => {
     await failure
     await vi.advanceTimersByTimeAsync(0)
     expect(await captures.run(page, async () => 'retry', timeout, recovered)).toBe('retry')
-    expect(recovered).not.toHaveBeenCalled()
+    expect(recovered).toHaveBeenCalledTimes(late ? 1 : 0)
     expect(vi.getTimerCount()).toBe(0)
   })
 
