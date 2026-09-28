@@ -171,7 +171,7 @@ const BrowserPageActionsStub = defineComponent({
   emits: [
     'update:splitMenuOpen',
     'toggleTabInteraction',
-    'togglePageLifecycle',
+    'togglePageLifecycle', 'toggleTabAgentPaused',
     'toggleAreaCapture',
     'toggleElementPicker',
     'togglePageTools',
@@ -209,6 +209,7 @@ function createHarness(home = false) {
     forward: vi.fn(async () => browserState),
     reload: vi.fn(async () => browserState),
     stop: vi.fn(async () => browserState),
+    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => browserState),
     setTabPageLifecycle: vi.fn(async () => browserState),
     showTabContextMenu: vi.fn(async () => undefined)
   }
@@ -520,6 +521,21 @@ describe('AppBrowserChromeLayer', () => {
     surface.expandTabGroupForTab(harness.props.state.tabs[0])
     expect(expandTabGroup).toHaveBeenCalledTimes(1)
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
+  })
+
+  it('routes agent pause independently and drops a queued toggle after unmount', async () => {
+    const harness = createHarness()
+    const page = harness.wrapper.getComponent(BrowserPageActionsStub)
+    page.vm.$emit('toggleTabAgentPaused', harness.props.state.tabs[0])
+    await nextTick()
+    await nextTick()
+    expect(harness.browser.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
+    expect(harness.browser.setTabPageLifecycle).not.toHaveBeenCalled()
+    page.vm.$emit('toggleTabAgentPaused', harness.props.state.tabs[0])
+    harness.wrapper.unmount()
+    await nextTick()
+    await nextTick()
+    expect(harness.browser.setTabAgentPaused).toHaveBeenCalledTimes(1)
   })
 
   it('routes explicit page freeze and resume through the authoritative browser state', async () => {

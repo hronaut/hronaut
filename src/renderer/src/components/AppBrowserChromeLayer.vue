@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useI18n } from 'vue-i18n'
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabState,
@@ -182,6 +182,21 @@ function startTabDrag(): void {
   tabSearchOpen.value = false
 }
 
+let agentControlDisposed = false
+onBeforeUnmount(() => { agentControlDisposed = true })
+let agentControlQueue = Promise.resolve()
+function toggleTabAgentPaused(tab: BrowserTabState): void {
+  void props.runAction(() => {
+    const operation = agentControlQueue.then(async () => {
+      const current = props.state.tabs.find(candidate => candidate.id === tab.id)
+      if (agentControlDisposed || !current || props.state.agentControlLocked) return
+      await props.syncState(props.browser.setTabAgentPaused(tab.id, !current.agentPaused))
+    })
+    agentControlQueue = operation.catch(() => undefined)
+    return operation
+  })
+}
+
 function togglePageLifecycle(tab: BrowserTabState): void {
   void props.runAction(() => props.syncState(props.browser.setTabPageLifecycle(
     tab.id,
@@ -346,6 +361,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :page-tools-open="pageToolsOpen"
       @toggle-tab-interaction="runAction(toggleTabHumanInteraction)"
       @toggle-page-lifecycle="togglePageLifecycle"
+      @toggle-tab-agent-paused="toggleTabAgentPaused"
       @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
       @toggle-area-capture="runAction(toggleAreaCapture)"
       @toggle-element-picker="runAction(() => toggleElementPicker('context'))"

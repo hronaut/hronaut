@@ -110,6 +110,15 @@ describe('TabStateStore', () => {
     })
   })
 
+  it('persists a per-tab agent pause preference without inventing a global exception', async () => {
+    const { store } = await createStore()
+    const state = currentState()
+    state.tabs[1]!.tabAgentPaused = true
+    await store.save(state)
+    expect((await store.load())?.tabs[1]).toMatchObject({ tabAgentPaused: true })
+    expect((await store.load())?.tabs[0]).not.toHaveProperty('tabAgentPaused')
+  })
+
   it('loads legacy workspaces without descriptions as empty context', async () => {
     const { path, store } = await createStore()
     const state = currentState()

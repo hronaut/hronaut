@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Changed
 
+- Add a separate per-tab agent pause/resume control with scoped exceptions to global pause; keep Live/Frozen page execution independent.
 - Allow per-tab mute overrides while global mute is enabled; reapplying global mute resets exceptions and disabling it restores each tab’s saved mute preference.
 
 ## [2.7.4] - 2026-09-28

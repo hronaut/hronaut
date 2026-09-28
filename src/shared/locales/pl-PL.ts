@@ -900,6 +900,7 @@ export const plPL = {
       "inputLocked": "Wprowadzanie danych na stronie jest zablokowane",
       "inputLock": "Blokada wprowadzania danych na stronie"
     },
+    agentControl: {"active": "Agenci aktywni", "paused": "Agenci wstrzymani", "pause": "Wstrzymaj agentów dla tej karty", "resume": "Wznów agentów dla tej karty", "protected": "Agenci tymczasowo wstrzymani na czas chronionej operacji"},
     "pageLifecycle": { "active": "Aktywna", "frozen": "Zamrożona", "unknownShort": "Nieznany", "freeze": "Zamroź tę aktywną stronę do deterministycznej kontroli", "resume": "Wznów tę zamrożoną stronę", "unknown": "Wynik zatrzymania strony jest nieznany; przeładuj lub nawiguj, aby ustanowić nowy aktywny dokument" },
     "pdf": {
       "saving": "Zapisywanie strony jako PDF",

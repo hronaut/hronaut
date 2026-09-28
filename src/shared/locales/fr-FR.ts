@@ -900,6 +900,7 @@ export const frFR = {
       "inputLocked": "La saisie dans la page est verrouillée",
       "inputLock": "Verrouillage de la saisie dans la page"
     },
+    agentControl: {"active": "Agents actifs", "paused": "Agents en pause", "pause": "Mettre les agents en pause pour cet onglet", "resume": "Reprendre les agents pour cet onglet", "protected": "Agents temporairement en pause pour une opération protégée"},
     "pageLifecycle": { "active": "Active", "frozen": "Figée", "unknownShort": "Inconnu", "freeze": "Figer cette page active pour une vérification déterministe", "resume": "Reprendre cette page figée", "unknown": "Le résultat du gel de la page est inconnu ; rechargez ou naviguez pour établir un nouveau document actif" },
     "pdf": {
       "saving": "Enregistrement de la page au format PDF",

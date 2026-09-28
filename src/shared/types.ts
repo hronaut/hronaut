@@ -250,6 +250,9 @@ export interface BrowserTabState {
   dialog?: BrowserJavaScriptDialog
   mcpGroupId?: string
   mcpGroupName?: string
+  /** Saved per-tab agent pause preference and current effective state. */
+  tabAgentPaused?: boolean
+  agentPaused?: boolean
 }
 
 export type BrowserPageLifecycleState = 'active' | 'frozen' | 'unknown'
@@ -450,6 +453,7 @@ export interface BrowserState {
   closedTabs: BrowserClosedTabState[]
   activeTabId: string | null
   splitView?: import('./split-view.js').BrowserSplitViewState
+  agentControlLocked?: boolean
   allTabsMuted?: boolean
   allHumanInteractionLocked: boolean
   mcpUrl: string
@@ -2398,6 +2402,7 @@ export interface HronautApi {
   closeSplitView(): Promise<BrowserState>
   setTabPinned(tabId: string, pinned: boolean): Promise<BrowserState>
   setTabSleeping(tabId: string, sleeping: boolean): Promise<BrowserState>
+  setTabAgentPaused(tabId: string, paused: boolean): Promise<BrowserState>
   setTabPageLifecycle(tabId: string, state: 'active' | 'frozen'): Promise<BrowserState>
   sleepInactiveTabs(): Promise<BrowserState>
   reorderTab(tabId: string, targetTabId: string, placement: 'before' | 'after'): Promise<BrowserState>

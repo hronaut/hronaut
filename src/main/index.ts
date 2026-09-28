@@ -589,19 +589,24 @@ function publishMcpControlState({ refreshHome = true }: { refreshHome?: boolean 
   return state
 }
 
+function synchronizeAgentPauseControls(): void {
+  tabsManager?.setAllAgentsPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
+  mcpServer?.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
+}
+
 function setMcpPaused(paused: boolean): McpControlState {
   mcpPauseState.setPersistent(paused)
-  mcpServer?.setPaused(mcpPauseState.paused)
+  synchronizeAgentPauseControls()
   return publishMcpControlState()
 }
 
 function acquireTemporaryMcpPause(): () => void {
   const release = mcpPauseState.acquireTemporary()
-  mcpServer?.setPaused(mcpPauseState.paused)
+  synchronizeAgentPauseControls()
   publishMcpControlState()
   return () => {
     release()
-    mcpServer?.setPaused(mcpPauseState.paused)
+    synchronizeAgentPauseControls()
     publishMcpControlState()
   }
 }
@@ -2343,6 +2348,12 @@ function registerIpc(): void {
     if (typeof tabId !== 'string' || typeof sleeping !== 'boolean') throw new TypeError('Invalid tab sleeping state')
     return tabsManager!.setTabSleeping(tabId, sleeping)
   })
+  ipcMain.handle('browser:set-tab-agent-paused', (event, tabId: unknown, paused: unknown) => {
+    assertTrustedShellSender(event)
+    if (typeof tabId !== 'string' || typeof paused !== 'boolean') throw new TypeError('Invalid tab agent pause state')
+    if (!mcpServer) throw new Error('Agent service is unavailable')
+    return mcpServer.setTabAgentPaused(tabId, paused)
+  })
   ipcMain.handle('browser:set-tab-page-lifecycle', (event, tabId: unknown, state: unknown) => {
     assertTrustedShellSender(event)
     if (typeof tabId !== 'string' || (state !== 'active' && state !== 'frozen')) throw new TypeError('Invalid tab page lifecycle state')
@@ -4075,6 +4086,7 @@ async function setMcpPort(port: number): Promise<AppSettings> {
 
   synchronizeMcpRuntimeCandidate(candidate, () => ({
     paused: mcpPauseState.paused,
+    allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
     authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
   }))
   const previous = mcpServer
@@ -4135,6 +4147,7 @@ async function resetMcpSettings(): Promise<AppSettings> {
 
   synchronizeMcpRuntimeCandidate(candidate, () => ({
     paused: mcpPauseState.paused,
+    allowTabPauseOverrides: !mcpPauseState.temporarilyPaused,
     authenticationToken: settings.mcpAuthentication ? mcpTokenConfiguration?.token : undefined
   }))
   const previous = mcpServer
@@ -4229,7 +4242,7 @@ app.whenReady().then(async () => {
   }
   if (!createTray() && startMinimized) showWindow()
   mcpServer = createRuntimeMcpServer(mcpPort)
-  mcpServer.setPaused(mcpPauseState.paused)
+  mcpServer.setPaused(mcpPauseState.paused, !mcpPauseState.temporarilyPaused)
   try {
     const url = await mcpServer.start()
     mcpRuntimeStatus = 'ready'

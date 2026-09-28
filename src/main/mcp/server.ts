@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { requireTabAgentControl } from './tab-agent-control.js'
 import { videoOptionsShape, type BrowserVideoOptions } from '../../shared/video.js'
 import { mcpLocalHost } from '../../shared/mcp-network.js'
 import {
@@ -937,6 +939,11 @@ function createBrowserMcpServer(
   const toolSetCatalog = mcpToolCatalogForSet(toolSet)
     .filter(({ name }) => !capabilityProfile || capabilityProfile.allowedTools.includes(name))
   const toolSetToolNames = new Set(toolSetCatalog.map(({ name }) => name))
+  const agentControlContext = new AsyncLocalStorage<() => void>()
+  const singleTabControlTools = new Set<string>(['browser_preflight'])
+  const requireAgentControl = (name: string, input: Record<string, unknown>, tabId?: string): void => {
+    requireTabAgentControl(manager, getPaused(), name, input, singleTabControlTools.has(name), tabId)
+  }
   const implementedToolNames: string[] = []
   const registeredToolNames: string[] = []
   const capabilityRequest = (
@@ -996,6 +1003,7 @@ function createBrowserMcpServer(
     input: Record<string, unknown>,
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ): McpCapabilityProfile | undefined => {
+    requireAgentControl(name, input, target?.tabId)
     if (!capability) return undefined
     return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input, target))
   }
@@ -1025,6 +1033,7 @@ function createBrowserMcpServer(
       }
       let finishWorkspaceMutation: (() => void) | undefined
       try {
+        requireAgentControl(name, input)
         await authorizeCapability(name, input, 'admission')
         await authorizeAutomation?.()
         const leaseExemptWorkspaceAction = name === 'browser_workspaces'
@@ -1048,7 +1057,11 @@ function createBrowserMcpServer(
           finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
-        const result = await actionTracker.run(() => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args))
+        requireAgentControl(name, input)
+        const result = await actionTracker.run(() => agentControlContext.run(
+          () => { if (!singleTabControlTools.has(name)) requireAgentControl(name, input) },
+          () => (handler as (...input: unknown[]) => Promise<CallToolResult>)(...args)
+        ))
         try {
           await authorizeCapability(name, input, 'active-dispatch')
         } catch (error) {
@@ -1138,11 +1151,13 @@ function createBrowserMcpServer(
     activeWorkspaceIds.add(workspaceId)
   }
   const requireAgentWorkspace = (workspaceId: string): ReturnType<BrowserTabsManager['requireMcpTabGroup']> => {
+    agentControlContext.getStore()?.()
     if (!activeWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
     const workspace = manager.requireMcpTabGroup(workspaceId)
     return workspace
   }
   const requireSavedWorkspace = (workspaceId: string): void => {
+    agentControlContext.getStore()?.()
     if (!savedWorkspaceIds.has(workspaceId) || !manager.isWorkspaceAgentAccessible(workspaceId)) throw workspaceAuthorizationError()
   }
   const consequentialReviewStepSchema = z.object({
@@ -1505,6 +1520,7 @@ function createBrowserMcpServer(
       reviewRevision: z.uuid().optional().describe('Current approved consequential-review revision. The pair is single-use and bound to this exact normalized call.'),
       ...(config.inputSchema ?? {})
     }
+    if (!toolsWithoutWorkspaceTabTarget.has(name)) singleTabControlTools.add(name)
     workspaceToolInputSchemas.set(name, z.object(inputSchema))
     registerTool(
       name,
@@ -1514,10 +1530,11 @@ function createBrowserMcpServer(
       },
       tool(async (input: Record<string, unknown>, extra) => {
         const controlRevision = actionTracker.controlRevision
-        const requireCurrentControl = (): void => {
-          if (getPaused() || actionTracker.controlRevision !== controlRevision) {
+        const requireCurrentControl = (settled = false): void => {
+          if (actionTracker.controlRevision !== controlRevision) {
             throw new Error('MCP control changed before tool dispatch. Inspect the page and obtain fresh state before continuing; earlier page wake or navigation is not rolled back.')
           }
+          if (!settled || name !== 'browser_close_tab') requireAgentControl(name, input, resolvedTabId)
         }
         const workspaceId = input.workspaceId
         if (typeof workspaceId !== 'string') throw new TypeError('workspaceId is required. Create your own workspace with browser_workspaces first and use only its returned ID.')
@@ -1771,7 +1788,7 @@ function createBrowserMcpServer(
             try {
               await requireHumanDecision(false, reviewAttempt?.id)
               if (writeLease?.generation) workspaceLeases.require(workspaceId, client.id, writeLease.generation)
-              requireCurrentControl()
+              requireCurrentControl(true)
               requireAgentWorkspace(workspaceId)
               if (name !== 'browser_close_tab') requireCurrentHumanInput()
               // Closing a tab intentionally retires its target. Other tools
@@ -2157,7 +2174,7 @@ function createBrowserMcpServer(
           authorized: true,
           tab: selected ? { url: selected.url, loading: selected.loading, sleeping: selected.sleeping } : null,
           policy: workspace.navigationPolicy,
-          expectedOrigin, paused: getPaused(), attentionRequired
+          expectedOrigin, paused: selected ? (manager.isTabAgentPaused?.(selected.id) ?? getPaused()) : getPaused(), attentionRequired
         }))
       }
       return auditReceipts ? auditReceipts.execute(workspaceId, {
@@ -4479,6 +4496,7 @@ export class McpHttpServer {
   private activeRequests = 0
   private totalRequests = 0
   private paused = false
+  private allowTabPauseOverrides = false
   private token: string | undefined
   private fullAccessAuthorityGeneration = randomUUID()
   private toolSet: McpToolSet
@@ -4512,13 +4530,21 @@ export class McpHttpServer {
     this.toolSet = toolSet
   }
 
-  setPaused(paused: boolean): void {
-    if (this.paused !== paused) this.actionTracker.invalidatePendingDispatches()
+  setPaused(paused: boolean, allowTabOverrides = false): void {
+    this.actionTracker.invalidatePendingDispatches()
+    this.allowTabPauseOverrides = allowTabOverrides
     if (paused && !this.paused) {
       for (const workspace of this.manager.listMcpTabGroups()) this.manager.suspendWorkspaceContinuity(workspace.id)
       this.workspaceLeases.clear()
     }
     this.paused = paused
+  }
+
+  setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
+    if (this.paused && !this.allowTabPauseOverrides) throw new Error('Agents are temporarily paused for a protected operation.')
+    const state = this.manager.setTabAgentPaused(tabId, paused)
+    this.actionTracker.invalidatePendingDispatches()
+    return state
   }
 
   isPaused(): boolean {
@@ -4607,7 +4633,7 @@ export class McpHttpServer {
         response.status(405).set('Allow', 'POST, GET, DELETE').json({ error: 'Unsupported MCP transport method' })
         return
       }
-      if (this.paused && request.method !== 'DELETE') {
+      if (this.paused && !(this.allowTabPauseOverrides && this.manager.hasAgentPauseExceptions?.()) && request.method !== 'DELETE') {
         const activeCommands = this.actionTracker.activeCount
         response.status(503).json({
           error: 'Hronaut is paused by the user. Resume agents from the Hronaut window.',

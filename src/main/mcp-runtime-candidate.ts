@@ -1,10 +1,11 @@
 export interface MutableMcpRuntimeCandidate {
-  setPaused(paused: boolean): void
+  setPaused(paused: boolean, allowTabOverrides?: boolean): void
   setAuthenticationToken(token: string | undefined): void
 }
 
 export interface McpRuntimeCutoverState {
   paused: boolean
+  allowTabPauseOverrides?: boolean
   authenticationToken: string | undefined
 }
 
@@ -25,5 +26,6 @@ export function synchronizeMcpRuntimeCandidate(
   // briefly exposing it under the old policy. Apply pause last in case the
   // latest state intentionally resumes the listener at cutover.
   candidate.setAuthenticationToken(state.authenticationToken)
-  candidate.setPaused(state.paused)
+  if (state.allowTabPauseOverrides === undefined) candidate.setPaused(state.paused)
+  else candidate.setPaused(state.paused, state.allowTabPauseOverrides)
 }

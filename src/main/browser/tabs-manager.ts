@@ -583,6 +583,7 @@ interface BrowserTab extends BrowserProfilingState, BrowserNetworkRecordingState
   sleepNavigationHistory?: { entries: NavigationEntry[]; index: number }
   wakePromise?: Promise<void>
   humanInteractionLocked: boolean
+  tabAgentPaused: boolean
   preserveDiagnosticLogs: boolean
   faviconDataUrl?: string
   faviconRequestId: number
@@ -1106,6 +1107,9 @@ export class BrowserTabsManager {
   })
   private allTabsMuted = false
   private allHumanInteractionLocked = false
+  private allAgentsPaused = false
+  private agentPauseOverridesAllowed = true
+  private readonly globallyResumedAgentTabIds = new Set<string>()
   private readonly globallyUnlockedTabIds = new Set<string>()
   private readonly agentInputWebContents = new Map<number, number>()
   private readonly authorizedAgentMouseInput = new Map<number, AuthorizedAgentMouseInput>()
@@ -1275,6 +1279,7 @@ export class BrowserTabsManager {
           pinned: tab.pinned === true && !isHronautHomeUrl(tab.url),
           muted: tab.muted === true,
           humanInteractionLocked: tab.humanInteractionLocked === true,
+          tabAgentPaused: tab.tabAgentPaused === true,
           faviconDataUrl: tab.faviconDataUrl,
           mcpGroupId: isHronautHomeUrl(tab.url)
             ? undefined
@@ -1337,6 +1342,7 @@ export class BrowserTabsManager {
       ...(this.splitView ? { splitView: { ...this.splitView } } : {}),
       allTabsMuted: this.allTabsMuted,
       allHumanInteractionLocked: this.allHumanInteractionLocked,
+      agentControlLocked: this.allAgentsPaused && !this.agentPauseOverridesAllowed,
       mcpUrl: this.mcpUrl,
       profilePath: this.options.profilePath,
       mcpTabGroups: this.listMcpTabGroups(),
@@ -2082,6 +2088,7 @@ export class BrowserTabsManager {
       url: tab.url,
       pinned: tab.pinned,
       humanInteractionLocked: tab.humanInteractionLocked,
+      tabAgentPaused: tab.tabAgentPaused,
       navigationGeneration: tab.navigationGeneration,
       navigationHistory: this.navigationHistorySnapshot(tab)
     }))
@@ -4247,6 +4254,7 @@ export class BrowserTabsManager {
     this.deleteSnapshotBaselineForTab(tab.id)
     this.tabs.delete(tab.id)
     this.globallyUnlockedTabIds.delete(tab.id)
+    this.globallyResumedAgentTabIds.delete(tab.id)
     if (browserSession && ![...this.tabs.values()].some((candidate) => (
       !candidate.webContents.isDestroyed() && candidate.webContents.session === browserSession
     ))) {
@@ -4455,6 +4463,39 @@ export class BrowserTabsManager {
     webContents.setZoomFactor(percent / 100)
     this.changed(false)
     return this.getState()
+  }
+
+  setAllAgentsPaused(paused: boolean, allowTabOverrides = true): void {
+    this.allAgentsPaused = paused
+    this.agentPauseOverridesAllowed = allowTabOverrides
+    this.globallyResumedAgentTabIds.clear()
+    this.changed(false)
+  }
+
+  setTabAgentPaused(tabId: string, paused: boolean): BrowserState {
+    const tab = this.getTab(tabId)
+    if (isHronautHomeUrl(tab.url)) throw new Error('Agent control is only available for page tabs.')
+    if (this.allAgentsPaused && !this.agentPauseOverridesAllowed) throw new Error('Agents are temporarily paused for a protected operation.')
+    if (this.allAgentsPaused) {
+      if (paused) this.globallyResumedAgentTabIds.delete(tab.id)
+      else this.globallyResumedAgentTabIds.add(tab.id)
+    } else {
+      tab.tabAgentPaused = paused
+    }
+    this.changed()
+    return this.getState()
+  }
+
+  isTabAgentPaused(tabId: string): boolean {
+    const tab = this.tabs.get(tabId)
+    if (!tab) return true
+    return this.allAgentsPaused
+      ? !this.agentPauseOverridesAllowed || !this.globallyResumedAgentTabIds.has(tabId)
+      : tab.tabAgentPaused
+  }
+
+  hasAgentPauseExceptions(): boolean {
+    return this.allAgentsPaused && this.agentPauseOverridesAllowed && this.globallyResumedAgentTabIds.size > 0
   }
 
   setTabMuted(tabId: string, muted: boolean): BrowserState {
@@ -7167,6 +7208,7 @@ export class BrowserTabsManager {
     pinned?: boolean
     muted?: boolean
     humanInteractionLocked?: boolean
+    tabAgentPaused?: boolean
     faviconDataUrl?: string
     focus?: boolean
     navigationGeneration?: number
@@ -7231,6 +7273,7 @@ export class BrowserTabsManager {
       sleeping: false,
       pageLifecycleState: 'active',
       lastActiveAt: Date.now(),
+      tabAgentPaused: options.tabAgentPaused === true,
       humanInteractionLocked: options.humanInteractionLocked === true || workspace?.contextClass === 'public-observer',
       preserveDiagnosticLogs: true,
       ...(options.faviconDataUrl ? { faviconDataUrl: options.faviconDataUrl } : {}),
@@ -8458,7 +8501,9 @@ export class BrowserTabsManager {
       sleeping: tab.sleeping,
       pageLifecycleState: tab.pageLifecycleState,
       humanInteractionLocked: tab.humanInteractionLocked,
+      tabAgentPaused: tab.tabAgentPaused,
       humanInteractionInputLocked: this.isHumanInteractionLocked(tab),
+      agentPaused: this.isTabAgentPaused(tab.id),
       preserveDiagnosticLogs: tab.preserveDiagnosticLogs,
       videoRecording: this.videoRecorder.state(tab.id).status,
       zoomPercent: webContentsDestroyed ? 100 : Math.round(tab.webContents.getZoomFactor() * 100),
@@ -10165,6 +10210,7 @@ export class BrowserTabsManager {
         pinned: tab.pinned,
         muted: tab.tabMuted,
         humanInteractionLocked: tab.humanInteractionLocked,
+        tabAgentPaused: tab.tabAgentPaused,
         ...(tab.faviconDataUrl ? { faviconDataUrl: tab.faviconDataUrl } : {}),
         ...(tab.mcpGroupId ? { mcpGroupId: tab.mcpGroupId } : {})
       }))

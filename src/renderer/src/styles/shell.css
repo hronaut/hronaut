@@ -637,10 +637,12 @@
 .interaction-lock-button.tab-mute-button.muted { @apply text-accent-copy border-accent bg-accent-soft; }
 @media (max-width: 1100px) {
   .interaction-lock-button.tab-interaction-lock-button,
+  .interaction-lock-button.tab-agent-control-button,
   .interaction-lock-button.page-lifecycle-button {
     @apply [width:32px] [min-width:32px] justify-center [padding:0];
   }
   .tab-interaction-lock-button > span,
+  .tab-agent-control-button > span,
   .page-lifecycle-button > span { @apply hidden; }
   .interaction-lock-button.tab-mute-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
   .tab-mute-label { @apply hidden; }

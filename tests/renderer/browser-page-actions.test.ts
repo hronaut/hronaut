@@ -102,6 +102,18 @@ describe('BrowserPageActions', () => {
     expect(view.emitted().togglePageTools).toHaveLength(1)
   })
 
+  it('keeps agent pause separate from Live/Frozen and disables protected overrides', async () => {
+    const activeTab = tab({ agentPaused: true, pageLifecycleState: 'active' })
+    const view = renderActions('idle', activeTab)
+    await userEvent.click(screen.getByRole('button', { name: 'Resume agents for this tab' }))
+    expect(view.emitted().toggleTabAgentPaused).toEqual([[activeTab]])
+    expect(view.emitted().togglePageLifecycle).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeEnabled()
+    await view.rerender({ state: { ...state(activeTab), agentControlLocked: true } })
+    expect(screen.getByRole('button', { name: 'Resume agents for this tab' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeEnabled()
+  })
+
   it('exposes the authoritative page lifecycle without silently retrying an unknown hold', async () => {
     const activeTab = tab({ pageLifecycleState: 'active' })
     const view = renderActions('idle', activeTab)

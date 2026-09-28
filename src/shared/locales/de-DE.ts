@@ -900,6 +900,7 @@ export const deDE = {
       "inputLocked": "Seiteneingabe ist gesperrt",
       "inputLock": "Seiteneingabesicherung"
     },
+    agentControl: {"active": "Agenten aktiv", "paused": "Agenten pausiert", "pause": "Agenten für diesen Tab pausieren", "resume": "Agenten für diesen Tab fortsetzen", "protected": "Agenten sind für einen geschützten Vorgang vorübergehend pausiert"},
     "pageLifecycle": { "active": "Live", "frozen": "Eingefroren", "unknownShort": "Unbekannt", "freeze": "Diese Live-Seite für eine deterministische Prüfung einfrieren", "resume": "Diese eingefrorene Seite fortsetzen", "unknown": "Das Ergebnis des Seitenhalts ist unbekannt; neu laden oder navigieren, um ein neues aktives Dokument herzustellen" },
     "pdf": {
       "saving": "Seite wird als PDF gespeichert",

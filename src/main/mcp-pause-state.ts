@@ -2,6 +2,8 @@ export class McpPauseState {
   private persistentPaused = false
   private readonly temporaryLeases = new Set<symbol>()
 
+  get temporarilyPaused(): boolean { return this.temporaryLeases.size > 0 }
+
   get paused(): boolean {
     return this.persistentPaused || this.temporaryLeases.size > 0
   }

@@ -45,6 +45,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleTabInteraction: []
   togglePageLifecycle: [tab: BrowserTabState]
+  toggleTabAgentPaused: [tab: BrowserTabState]
   toggleTabMuted: [tab: BrowserTabState]
   toggleAreaCapture: []
   toggleElementPicker: []
@@ -83,6 +84,20 @@ function reportSplitError(cause: unknown, fallback: string): void {
       <IconLock v-if="tabHumanInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
       <span>{{ t(effectiveHumanInteractionLocked ? 'runtime.locks.inputLocked' : 'runtime.locks.inputLock') }}</span>
+    </UiButton>
+    <UiButton appearance="application"
+      class="interaction-lock-button tab-agent-control-button"
+      :class="{ locked: activeTab?.agentPaused }"
+      type="button"
+      :title="t(state.agentControlLocked ? 'runtime.agentControl.protected' : activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      :aria-label="t(activeTab?.agentPaused ? 'runtime.agentControl.resume' : 'runtime.agentControl.pause')"
+      :aria-pressed="Boolean(activeTab?.agentPaused)"
+      :disabled="activeTabIsInternal || state.agentControlLocked"
+      @click="activeTab && emit('toggleTabAgentPaused', activeTab)"
+    >
+      <IconPlayCircle v-if="activeTab?.agentPaused" aria-hidden="true" />
+      <IconPauseCircle v-else aria-hidden="true" />
+      <span>{{ t(activeTab?.agentPaused ? 'runtime.agentControl.paused' : 'runtime.agentControl.active') }}</span>
     </UiButton>
     <UiButton appearance="application"
       class="interaction-lock-button page-lifecycle-button"

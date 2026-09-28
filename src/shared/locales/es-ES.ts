@@ -900,6 +900,7 @@ export const esES = {
       "inputLocked": "La entrada en la página está bloqueada",
       "inputLock": "Bloqueo de entrada en la página"
     },
+    agentControl: {"active": "Agentes activos", "paused": "Agentes en pausa", "pause": "Pausar agentes en esta pestaña", "resume": "Reanudar agentes en esta pestaña", "protected": "Agentes pausados temporalmente para una operación protegida"},
     "pageLifecycle": { "active": "Activa", "frozen": "Congelada", "unknownShort": "Desconocido", "freeze": "Congelar esta página activa para una revisión determinista", "resume": "Reanudar esta página congelada", "unknown": "El resultado de la pausa de página es desconocido; recarga o navega para establecer un documento activo nuevo" },
     "pdf": {
       "saving": "Guardando la página como PDF",

@@ -5,11 +5,13 @@ describe('McpPauseState', () => {
   it('keeps an effective pause while a temporary lease is active', () => {
     const state = new McpPauseState()
     const release = state.acquireTemporary()
+    expect(state.temporarilyPaused).toBe(true)
 
     state.setPersistent(false)
     expect(state.paused).toBe(true)
 
     release()
+    expect(state.temporarilyPaused).toBe(false)
     expect(state.paused).toBe(false)
   })
 
