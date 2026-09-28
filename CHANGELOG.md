@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Keep an older Home copy failure from replacing shared feedback or selecting stale text after another copy action starts.
+- Keep an older Home copy failure from replacing shared feedback or selecting stale text after another copy action starts, and preserve selected text when status polling leaves its content unchanged.
 
 - Correct the browser-mute documentation to explain temporary per-tab exceptions and when saved mute preferences are restored.
 

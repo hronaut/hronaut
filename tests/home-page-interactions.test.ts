@@ -56,6 +56,22 @@ afterEach(() => {
 })
 
 describe('Home action recovery', () => {
+  it('preserves selected readiness text when a status refresh has unchanged content', async () => {
+    const page = mount()
+    await settle()
+    const target = document.querySelector('#readiness-report')!
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(target)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const selectedText = selection.toString()
+    expect(selectedText).not.toBe('')
+    page.update({ ...state, totalRequests: 1 })
+    expect(selection.toString()).toBe(selectedText)
+    selection.removeAllRanges()
+  })
+
   it('selects the current copy target and reports its failure for manual copying', async () => {
     mount({ copyText: vi.fn().mockRejectedValue(new Error('Clipboard unavailable')) })
     const target = document.querySelector('#guide-code')!

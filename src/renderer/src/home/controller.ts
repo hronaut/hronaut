@@ -16,7 +16,11 @@ export function mountHome(data: HomeBootstrap, api: HronautHomeApi, load: typeof
     const timer = setTimeout(() => { timers.delete(timer); if (!signal.aborted) callback() }, delay)
     timers.add(timer); return timer
   }
-  const text = (id: string, value: string | number): void => { element(id).textContent = String(value) }
+  const text = (id: string, value: string | number): void => {
+    const target = element(id)
+    const next = String(value)
+    if (target.textContent !== next) target.textContent = next
+  }
   const count = (one: string, other: string, value: number): string => interpolate(value === 1 ? one : other, { count: new Intl.NumberFormat(locale).format(value) })
   let selectedGuide = guides.find(guide => guide.id === remember('hronaut.home.guide'))?.id ?? guides[0]!.id
   let guideSequence = 0
