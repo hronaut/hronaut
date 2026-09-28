@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep interrupted downloads cancellable and protected from history clearing until Electron reports completion, even when resuming is temporarily unavailable.
+
 - Prevent pending console clipboard writes from restoring stale copy feedback after Clear.
 
 - Remove stale video previews when polling observes that an agent edited or cleared the recording.

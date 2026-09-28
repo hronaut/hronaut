@@ -220,3 +220,38 @@ it('rejects an exhausted destination without an uncaught exception or losing exi
     vi.mocked(existsSync).mockImplementation((await vi.importActual<typeof import('node:fs')>('node:fs')).existsSync)
   }
 })
+
+
+it('keeps a temporarily non-resumable interrupted transfer active and cancellable until done', async () => {
+  const { controller, download } = await fixture()
+  const transfer = download()
+  Object.assign(transfer.item, { canResume: () => false })
+  transfer.interrupt()
+  const [entry] = controller.listDownloads()
+  expect(entry).toMatchObject({ state: 'interrupted', canResume: false })
+  expect(entry?.completedAt).toBeUndefined()
+  expect(controller.hasActiveDownload('1')).toBe(true)
+  expect(controller.manageDownloads('clear')).toHaveLength(1)
+  expect(controller.manageDownloads('cancel', entry!.id)[0]).toMatchObject({
+    state: 'cancelled', completedAt: expect.any(String)
+  })
+  expect(transfer.cancel).toHaveBeenCalledOnce()
+  expect(controller.hasActiveDownload('1')).toBe(false)
+  expect(controller.manageDownloads('clear')).toEqual([])
+})
+
+it('does not reassign a non-resumable interrupted transfer to a new observation generation before done', async () => {
+  const { controller, download, generations } = await fixture()
+  const transfer = download()
+  Object.assign(transfer.item, { canResume: () => false })
+  transfer.interrupt()
+  controller.listDownloads()
+  generations.set('first', 1)
+  controller.advanceWorkspaceObservationGeneration('first', 1)
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([])
+  transfer.complete()
+  controller.advanceWorkspaceObservationGeneration('first', 1)
+  expect(controller.manageWorkspaceDownloads('first', 'list')).toEqual([
+    expect.objectContaining({ state: 'completed', observationGeneration: 1 })
+  ])
+})

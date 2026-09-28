@@ -73,7 +73,9 @@ export class BrowserDownloadsController {
       this.syncDownloadPath(download, item)
       download.paused = item.isPaused()
       download.canResume = download.paused || (download.state === 'interrupted' && item.canResume())
-      if (download.state !== 'progressing' && !item.canResume()) {
+      // canResume describes user action availability, not whether an interrupted
+      // transfer is done. Its done listener owns terminal interruption cleanup.
+      if (download.state === 'completed' || download.state === 'cancelled') {
         download.paused = false
         download.canResume = false
         download.completedAt ??= new Date().toISOString()
