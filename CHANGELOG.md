@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Cancel pending capture-mode transitions when switching tabs or closing their controller, preventing capture from starting on an unintended page after native picker cancellation.
+
 - Discard delayed recording export feedback after starting, stopping, or clearing the recorder, while preserving it during read-only refreshes.
 
 - Discard pending Network details and copy feedback when the selected request is cleared or leaves the retained history.

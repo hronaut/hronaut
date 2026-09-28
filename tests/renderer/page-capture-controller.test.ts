@@ -162,6 +162,79 @@ describe('page capture controller', () => {
     controller.dispose()
   })
 
+  it('starts the replacement capture after cancellation on the same tab', async () => {
+    const pendingPicker = deferred<BrowserElementSelection>()
+    const pendingCancel = deferred<boolean>()
+    const { browser, controller } = createController()
+    browser.pickElement.mockImplementationOnce(() => pendingPicker.promise)
+    browser.cancelElementPicker.mockImplementationOnce(() => pendingCancel.promise)
+    const picking = controller.toggleElementPicker()
+    const switching = controller.toggleAreaCapture()
+    expect(browser.captureArea).not.toHaveBeenCalled()
+    pendingCancel.resolve(true)
+    await switching
+    expect(browser.captureArea).toHaveBeenCalledWith('tab-1')
+    expect(controller.captureState.value).toBe('copied')
+    pendingPicker.resolve({ canceled: true, copied: false })
+    await picking
+    controller.dispose()
+  })
+
+  it.each(['tab-change', 'dispose'] as const)(
+    'does not restart capture after pending element cancellation and %s',
+    async (change) => {
+      for (const replacement of ['element', 'area', 'page'] as const) {
+        const pendingPicker = deferred<BrowserElementSelection>()
+        const pendingCancel = deferred<boolean>()
+        const { activeTab, browser, controller } = createController()
+        browser.pickElement.mockImplementationOnce(() => pendingPicker.promise)
+        browser.cancelElementPicker.mockImplementationOnce(() => pendingCancel.promise)
+        const picking = controller.toggleElementPicker()
+        const switching = replacement === 'element'
+          ? controller.toggleElementPicker('screenshot')
+          : replacement === 'area'
+            ? controller.toggleAreaCapture()
+            : controller.capturePage('viewport')
+
+        if (change === 'dispose') controller.dispose()
+        else activeTab.value = tab('https://other.test/', 'tab-2')
+        pendingCancel.resolve(true)
+        await switching
+        expect(browser.captureElement).not.toHaveBeenCalled()
+        expect(browser.captureArea).not.toHaveBeenCalled()
+        expect(browser.capturePage).not.toHaveBeenCalled()
+        expect(controller.elementState.value).toBe('idle')
+        expect(controller.captureState.value).toBe('idle')
+        pendingPicker.resolve({ canceled: true, copied: false })
+        await picking
+        controller.dispose()
+      }
+    }
+  )
+
+  it.each(['element', 'page'] as const)(
+    'does not start %s capture on another tab after pending area cancellation',
+    async (replacement) => {
+      const pendingPicker = deferred<BrowserAreaCaptureResult>()
+      const pendingCancel = deferred<boolean>()
+      const { activeTab, browser, controller } = createController()
+      browser.captureArea.mockImplementationOnce(() => pendingPicker.promise)
+      browser.cancelAreaCapture.mockImplementationOnce(() => pendingCancel.promise)
+      const picking = controller.toggleAreaCapture()
+      const switching = replacement === 'element'
+        ? controller.toggleElementPicker()
+        : controller.capturePage('full-page')
+      activeTab.value = tab('https://other.test/', 'tab-2')
+      pendingCancel.resolve(true)
+      await switching
+      expect(browser.pickElement).not.toHaveBeenCalled()
+      expect(browser.capturePage).not.toHaveBeenCalled()
+      pendingPicker.resolve({ canceled: true, copied: false })
+      await picking
+      controller.dispose()
+    }
+  )
+
   it('cancels a native area picker during disposal', async () => {
     const pending = deferred<BrowserAreaCaptureResult>()
     const { browser, controller } = createController()

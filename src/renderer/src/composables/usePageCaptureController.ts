@@ -32,6 +32,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   const captureState = ref<ScreenshotCaptureState>('idle')
   const captureMode = ref<ScreenshotCaptureMode>('area')
   const captureError = ref('')
+  let contextGeneration = 0
   let elementGeneration = 0
   let captureGeneration = 0
   let elementTabId: string | undefined
@@ -128,13 +129,18 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function toggleElementPicker(mode: ElementPickerMode = 'context'): Promise<void> {
+    const context = contextGeneration
     if (captureState.value === 'capturing') return
     if (elementState.value === 'picking') {
       const restartInAnotherMode = elementMode.value !== mode
       await cancelElementPicker()
+      if (context !== contextGeneration) return
       if (!restartInAnotherMode) return
     }
-    if (captureState.value === 'picking') await cancelAreaCapture()
+    if (captureState.value === 'picking') {
+      await cancelAreaCapture()
+      if (context !== contextGeneration) return
+    }
     const request = beginElement()
     if (!request) return
     elementTabId = request.tabId
@@ -163,12 +169,16 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function toggleAreaCapture(): Promise<void> {
+    const context = contextGeneration
     if (captureState.value === 'picking') {
       await cancelAreaCapture()
       return
     }
     if (captureState.value === 'capturing') return
-    if (elementState.value === 'picking') await cancelElementPicker()
+    if (elementState.value === 'picking') {
+      await cancelElementPicker()
+      if (context !== contextGeneration) return
+    }
     const request = beginCapture()
     if (!request) return
     captureTabId = request.tabId
@@ -196,8 +206,15 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function capturePage(mode: Exclude<ScreenshotCaptureMode, 'area'>): Promise<void> {
-    if (elementState.value === 'picking') await cancelElementPicker()
-    if (captureState.value === 'picking') await cancelAreaCapture()
+    const context = contextGeneration
+    if (elementState.value === 'picking') {
+      await cancelElementPicker()
+      if (context !== contextGeneration) return
+    }
+    if (captureState.value === 'picking') {
+      await cancelAreaCapture()
+      if (context !== contextGeneration) return
+    }
     if (captureState.value === 'capturing') return
     const request = beginCapture()
     if (!request) return
@@ -224,6 +241,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   function invalidateContext(): void {
+    contextGeneration += 1
     const elementToCancel = elementState.value === 'picking' ? elementTabId : undefined
     const areaToCancel = captureState.value === 'picking' ? captureTabId : undefined
     elementGeneration += 1
@@ -244,7 +262,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
       if (tabId === previousTabId) return
       invalidateContext()
     },
-    { immediate: true }
+    { immediate: true, flush: 'sync' }
   )
 
   function dispose(): void {
