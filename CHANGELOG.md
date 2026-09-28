@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Allow address suggestions to retry after native popup setup fails, closing the failed popup instead of retaining an unusable cached load.
+
 - Close workspace storage probes after setup failures and continue restoring cookies when a local-storage rollback probe cannot be created.
 
 - Discard delayed reproduction scroll captures after navigation so input from the previous document cannot create a scroll step on the new page.

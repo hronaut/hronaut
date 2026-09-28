@@ -55,3 +55,56 @@ for (const hidden of [false, true]) {
     }
   })
 }
+
+test('retries suggestions after native popup setup fails without leaking the failed view', async ({ profileDirectory, mcpPort }) => {
+  await writeFile(join(profileDirectory, 'history.json'), JSON.stringify({ version: 1, entries: [{
+    id: 'google-setup-recovery', url: 'https://www.google.com/', title: 'Google',
+    visitedAt: new Date().toISOString(), visitCount: 1
+  }] }))
+  const { app, window } = await launchHronaut(profileDirectory, mcpPort)
+  try {
+    await window.evaluate("window.hronaut.newTab({ url: 'data:text/html,<title>Setup recovery</title>', active: true })")
+    const address = window.getByRole('combobox', { name: 'Address', exact: true })
+    const popupVisible = () => app.evaluate(({ BrowserWindow, webContents }) => {
+      const contents = webContents.getAllWebContents().find(candidate => candidate.getURL().includes('address-overlay.html'))
+      const view = BrowserWindow.getAllWindows()[0]!.contentView.children.find(child => (
+        child as unknown as { webContents?: { id: number } }
+      ).webContents?.id === contents?.id)
+      return view?.getVisible() ?? false
+    })
+    // Finish and dispose any popup created by initial address focus first.
+    await address.fill('google')
+    await expect.poll(popupVisible).toBe(true)
+    await app.evaluate(({ webContents }) => {
+      for (const contents of webContents.getAllWebContents()) {
+        if (contents.getURL().includes('address-overlay.html')) contents.close()
+      }
+    })
+    await expect(address).toHaveAttribute('aria-expanded', 'false')
+    await app.evaluate(({ WebContentsView }) => {
+      const original = WebContentsView.prototype.setBackgroundColor
+      WebContentsView.prototype.setBackgroundColor = function (color) {
+        if (color !== '#00000000') return original.call(this, color)
+        WebContentsView.prototype.setBackgroundColor = original
+        const state = globalThis as unknown as { failedSuggestionViewId: number }
+        state.failedSuggestionViewId = this.webContents.id
+        throw new Error('Simulated suggestion popup setup failure')
+      }
+    })
+    await address.fill('goog')
+    await expect.poll(() => app.evaluate(() => (
+      globalThis as unknown as { failedSuggestionViewId?: number }
+    ).failedSuggestionViewId)).toBeGreaterThan(0)
+    await expect.poll(() => app.evaluate(({ webContents }) => {
+      const id = (globalThis as unknown as { failedSuggestionViewId: number }).failedSuggestionViewId
+      return webContents.fromId(id) === null
+    })).toBe(true)
+    await address.press('Escape')
+    await address.fill('google')
+    await expect.poll(popupVisible).toBe(true)
+    await expect(address).toHaveAttribute('aria-expanded', 'true')
+    await expect(address).toBeFocused()
+  } finally {
+    await closeHronaut(app)
+  }
+})

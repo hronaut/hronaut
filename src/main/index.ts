@@ -1755,7 +1755,7 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
     addressSuggestionSurface.sessionId = sessionId
     return addressSuggestionSurface
   }
-  addressSuggestionSurfaceLoad = (async () => {
+  const opening = (async () => {
     const expectedUrl = trustedAddressOverlayUrl()
     const view = new WebContentsView({
       webPreferences: {
@@ -1773,28 +1773,28 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
     const webContents = view.webContents
     const surface: AddressSuggestionSurface = { view, webContents, sessionId }
     addressSuggestionSurface = surface
-    view.setBackgroundColor('#00000000')
-    view.setVisible(false)
-    webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-    webContents.on('will-navigate', (event, url) => {
-      if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
-    })
-    webContents.on('destroyed', () => {
-      if (addressSuggestionSurface !== surface) return
-      addressSuggestionOverlayGeneration += 1
-      addressSuggestionOverlayDismissalPending = true
-      hideAddressSuggestionOverlay()
-      addressSuggestionSurface = null
-      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
-        mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
-      }
-    })
-    webContents.on('render-process-gone', () => {
-      // A crashed renderer leaves its WebContents alive. Destroy that cached
-      // surface so the existing dismissal path allows fresh input to recreate it.
-      if (!webContents.isDestroyed()) webContents.close()
-    })
     try {
+      view.setBackgroundColor('#00000000')
+      view.setVisible(false)
+      webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+      webContents.on('will-navigate', (event, url) => {
+        if (!trustedUrlMatches(url, expectedUrl)) event.preventDefault()
+      })
+      webContents.on('destroyed', () => {
+        if (addressSuggestionSurface !== surface) return
+        addressSuggestionOverlayGeneration += 1
+        addressSuggestionOverlayDismissalPending = true
+        hideAddressSuggestionOverlay()
+        addressSuggestionSurface = null
+        if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+          mainWindow.webContents.send('address-overlay:dismissed', surface.sessionId)
+        }
+      })
+      webContents.on('render-process-gone', () => {
+        // A crashed renderer leaves its WebContents alive. Destroy that cached
+        // surface so the existing dismissal path allows fresh input to recreate it.
+        if (!webContents.isDestroyed()) webContents.close()
+      })
       await webContents.loadURL(expectedUrl)
       // Initial navigation resets the view's zoom. Apply the latest shell
       // scale after loading, before sending state or measuring the popup.
@@ -1804,11 +1804,14 @@ async function ensureAddressSuggestionView(sessionId: number): Promise<AddressSu
       if (!webContents.isDestroyed()) webContents.close()
       if (addressSuggestionSurface === surface) addressSuggestionSurface = null
       throw error
-    } finally {
-      addressSuggestionSurfaceLoad = null
     }
   })()
-  return addressSuggestionSurfaceLoad
+  addressSuggestionSurfaceLoad = opening
+  try {
+    return await opening
+  } finally {
+    if (addressSuggestionSurfaceLoad === opening) addressSuggestionSurfaceLoad = null
+  }
 }
 
 function isDetachablePanelId(value: unknown): value is DetachablePanelId {
