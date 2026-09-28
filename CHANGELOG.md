@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Discard delayed reproduction scroll captures after navigation so input from the previous document cannot create a scroll step on the new page.
+
 - Keep the MCP port field and confirmation aligned with newer settings events when an older port-change or reset response finishes.
 
 - Preserve newer settings events when a delayed download-folder or download-preference response arrives, preventing stale responses from reverting other preferences.
