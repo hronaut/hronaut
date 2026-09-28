@@ -49,6 +49,38 @@ function fixture() {
 }
 
 describe('browser profiling controller', () => {
+  it.each(['clear', 'navigation', 'closed', 'replaced', 'destroyed'] as const)('rejects a stopped allocation report invalidated by %s during its final measurement', async (change) => {
+    const f = fixture()
+    await f.controller.memoryReport({ action: 'start-allocation-sampling' })
+    const original = f.sendCommand.getMockImplementation()!
+    const entered = deferred<void>()
+    const pending = deferred<void>()
+    f.sendCommand.mockImplementation(async (method) => {
+      if (method === 'HeapProfiler.stopSampling') {
+        return { profile: { head: { id: 1, callFrame: {}, selfSize: 0 } } }
+      }
+      if (method === 'Runtime.getHeapUsage') {
+        entered.resolve()
+        await pending.promise
+      }
+      return original(method)
+    })
+    const stopping = f.controller.memoryReport({ action: 'stop-allocation-sampling' })
+    await entered.promise
+    expect(f.tab.memoryAllocation?.report).toBeDefined()
+    if (change === 'clear') await f.controller.memoryReport({ action: 'clear-allocation-sampling' })
+    if (change === 'navigation') f.tab.navigationGeneration += 1
+    if (change === 'closed') f.tabs.delete(f.tab.id)
+    if (change === 'replaced') f.tabs.set(f.tab.id, { ...f.tab })
+    if (change === 'destroyed') f.isDestroyed.mockReturnValue(true)
+    pending.resolve()
+    await expect(stopping).rejects.toThrow(change === 'clear'
+      ? 'Memory allocation sampling changed while stopping'
+      : 'The page changed during the memory measurement')
+    expect(f.tab.memoryAllocation).toBeUndefined()
+    f.sendCommand.mockImplementation(original)
+  })
+
   it.each(['cpu', 'coverage', 'allocation'] as const)('does not start allocation sampling over a %s recording started during measurement', async (kind) => {
     const f = fixture()
     const pending = deferred<void>()

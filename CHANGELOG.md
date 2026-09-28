@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject allocation Stop results invalidated by tab changes or Clear while the final memory measurement is pending.
+
 - Recheck tab context and profiler exclusivity after allocation sampling measurements, preventing stale or overlapping recording starts.
 
 - Stop partially started coverage, CPU, and allocation instrumentation when setup fails, preserving rendering overlays and allowing a clean retry.

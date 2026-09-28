@@ -536,6 +536,7 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     if (action === 'stop-allocation-sampling') {
       const recording = tab.memoryAllocation?.recording
       if (!recording) throw new Error('Start memory allocation sampling before stopping it')
+      let completed: BrowserMemoryAllocationInternal | undefined
       try {
         const response = await this.host.withDebugger(tab.webContents, async () => {
           try {
@@ -544,8 +545,12 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
             await tab.webContents.debugger.sendCommand('HeapProfiler.disable').catch(() => undefined)
           }
         })
+        this.assertMemoryMeasurementContext(tab, navigationGeneration)
+        if (tab.memoryAllocation?.recording !== recording) {
+          throw new Error('Memory allocation sampling changed while stopping. Run the requested action again.')
+        }
         const summary = summarizeAllocationProfile(response.profile, redactNetworkUrl)
-        tab.memoryAllocation = {
+        completed = {
           report: {
             startedAt: recording.startedAt,
             stoppedAt: new Date().toISOString(),
@@ -559,11 +564,18 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
             ]
           }
         }
+        tab.memoryAllocation = completed
         const current = await this.captureMemoryMeasurement(tab, false)
+        this.assertMemoryMeasurementContext(tab, navigationGeneration)
+        if (tab.memoryAllocation !== completed) {
+          throw new Error('Memory allocation sampling changed while stopping. Run the requested action again.')
+        }
         this.host.changed()
         return this.memoryReportResult(tab, action, false, false, current)
       } catch (error) {
-        tab.memoryAllocation = undefined
+        if (tab.memoryAllocation?.recording === recording || (completed && tab.memoryAllocation === completed)) {
+          tab.memoryAllocation = undefined
+        }
         this.host.changed()
         throw error
       }
