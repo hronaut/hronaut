@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve wallet request outcomes when late approval or signing attempts arrive after expiry instead of overwriting them as expired.
+
 - Enforce managed-vault and watch-only wallet storage limits before saving, so adding wallets cannot create a file that fails to reopen.
 
 - Reject allocation Stop results invalidated by tab changes or Clear while the final memory measurement is pending.

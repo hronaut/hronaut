@@ -36,6 +36,34 @@ function request(overrides: Partial<WalletOperationRequest> = {}): WalletOperati
 }
 
 describe('WalletApprovalStore', () => {
+  it.each(['signing', 'submitted', 'confirmed', 'rejected', 'expired', 'cancelled', 'failed'] as const)(
+    'preserves %s requests when approval or signing is attempted after expiry', async (status) => {
+      const path = await temporaryPath('requests.json')
+      const store = new WalletApprovalStore(path)
+      const now = new Date('2026-08-28T12:00:00.000Z')
+      const created = await store.create(request(), `late-${status}`, now)
+      if (status === 'signing' || status === 'submitted' || status === 'confirmed') {
+        await store.transition(created.id, 'validated', now)
+        await store.transition(created.id, 'simulated', now)
+        await store.transition(created.id, 'policy-decision', now)
+        await store.approve(created.id, created.request, now)
+        await store.markSigning(created.id, created.request, now)
+        if (status !== 'signing') await store.markSubmitted(created.id, '0xsubmitted', now)
+        if (status === 'confirmed') await store.transition(created.id, 'confirmed', now)
+      } else {
+        await store.transition(created.id, status, now)
+      }
+      const before = store.get(created.id)
+      const saved = await readFile(path, 'utf8')
+      const late = new Date('2026-08-28T14:00:00.000Z')
+      await expect(store.approve(created.id, created.request, late)).rejects.toThrow('cannot transition')
+      expect(store.get(created.id)).toEqual(before)
+      await expect(store.markSigning(created.id, created.request, late)).rejects.toThrow('not approved')
+      expect(store.get(created.id)).toEqual(before)
+      expect(await readFile(path, 'utf8')).toBe(saved)
+    }
+  )
+
   it('rolls back a request that cannot be persisted instead of retaining a ghost idempotency entry', async () => {
     const path = await temporaryPath('requests.json')
     const store = new WalletApprovalStore(path)
@@ -121,6 +149,23 @@ describe('WalletApprovalStore', () => {
     await store.markSigning(first.id, request(), new Date('2026-08-28T12:01:00.000Z'))
     await store.markSubmitted(first.id, '0xabc')
     await expect(store.markSubmitted(first.id, '0xdef')).rejects.toThrow('Wallet request cannot transition from submitted to submitted')
+  })
+
+  it('still expires an approved request before signing after its deadline', async () => {
+    const path = await temporaryPath('requests.json')
+    const store = new WalletApprovalStore(path)
+    const now = new Date('2026-08-28T12:00:00.000Z')
+    const created = await store.create(request(), 'expire-before-signing', now)
+    await store.transition(created.id, 'validated', now)
+    await store.transition(created.id, 'simulated', now)
+    await store.transition(created.id, 'policy-decision', now)
+    await store.approve(created.id, created.request, now)
+    const late = new Date('2026-08-28T14:00:00.000Z')
+    await expect(store.markSigning(created.id, created.request, late)).rejects.toThrow('expired before signing')
+    expect(store.get(created.id)?.status).toBe('expired')
+    const restored = new WalletApprovalStore(path)
+    await restored.load(late)
+    expect(restored.get(created.id)?.status).toBe('expired')
   })
 
   it('rejects human approval after the exact request expiry', async () => {

@@ -204,14 +204,14 @@ export class WalletApprovalStore {
     return this.queueMutation(async () => {
       const record = this.require(id)
       this.assertRequestHash(record, exactRequest)
+      if (record.status !== 'awaiting-human' && record.status !== 'policy-decision') {
+        throw new Error(`Wallet request cannot transition from ${record.status} to approved`)
+      }
       if (Date.parse(record.request.expiresAt) <= now.getTime()) {
         const expired = { ...record, status: 'expired' as const, updatedAt: now.toISOString() }
         this.requests.set(id, expired)
         await this.persistWithRollback(() => this.requests.set(id, record))
         throw new Error('Wallet request expired before approval')
-      }
-      if (record.status !== 'awaiting-human' && record.status !== 'policy-decision') {
-        throw new Error(`Wallet request cannot transition from ${record.status} to approved`)
       }
       const approvalHash = walletApprovalHash(exactRequest)
       const updated = { ...record, status: 'approved' as const, approvalHash, updatedAt: now.toISOString() }
@@ -233,13 +233,13 @@ export class WalletApprovalStore {
   markSigning(id: string, exactRequest: WalletOperationRequest, now = new Date()): Promise<WalletApprovalRecord> {
     return this.queueMutation(async () => {
       const record = this.require(id)
+      if (record.status !== 'approved' || !record.approvalHash) throw new Error('Wallet request is not approved')
       if (Date.parse(record.request.expiresAt) <= now.getTime()) {
         const expired = { ...record, status: 'expired' as const, updatedAt: now.toISOString() }
         this.requests.set(id, expired)
         await this.persistWithRollback(() => this.requests.set(id, record))
         throw new Error('Wallet request expired before signing')
       }
-      if (record.status !== 'approved' || !record.approvalHash) throw new Error('Wallet request is not approved')
       this.assertRequestHash(record, exactRequest)
       if (!hashesEqual(record.approvalHash, walletApprovalHash(exactRequest))) {
         throw new Error('Approved wallet request has changed')
