@@ -86,7 +86,7 @@ describe('console controller', () => {
       await copy()
       if (scope === 'entry') expect(controller.copiedEntryKey.value).toContain('after clear')
       else expect(controller.copied.value).toBe(scope)
-      expect(JSON.parse(copyText.mock.calls.at(-1)![0]).messages[0].message).toBe('after clear')
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0])).toMatchObject({ messages: [{ message: 'after clear' }] })
     } finally { controller.dispose() }
   })
 
