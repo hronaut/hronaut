@@ -97,7 +97,7 @@ test('retries suggestions after native popup setup fails without leaking the fai
     ).failedSuggestionViewId)).toBeGreaterThan(0)
     await expect.poll(() => app.evaluate(({ webContents }) => {
       const id = (globalThis as unknown as { failedSuggestionViewId: number }).failedSuggestionViewId
-      return webContents.fromId(id) === null
+      return webContents.fromId(id) === undefined
     })).toBe(true)
     await address.press('Escape')
     await address.fill('google')
