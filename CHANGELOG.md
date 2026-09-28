@@ -6,8 +6,6 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Respect the system reduced-motion preference when showing and dismissing notifications.
-
 - Keep notifications visible after keyboard focus enters them, including message replacements, until explicitly dismissed so their focused control does not disappear.
 
 - Wait for committed input-method text before searching a page, avoiding repeated searches for an outdated query during composition.

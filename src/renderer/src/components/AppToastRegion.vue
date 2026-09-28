@@ -114,13 +114,6 @@ const { t } = useI18n({ useScope: 'global' })
 .app-toast-enter-from,
 .app-toast-leave-to { opacity: 0; transform: translateY(-6px); }
 
-@media (prefers-reduced-motion: reduce) {
-  .app-toast-enter-active,
-  .app-toast-leave-active { transition: none; }
-  .app-toast-enter-from,
-  .app-toast-leave-to { transform: none; }
-}
-
 @media (max-width: 760px) {
   .app-toast-region { width: calc(100vw - 16px); }
 }
