@@ -37,7 +37,10 @@ async function refresh(): Promise<void> {
   try {
     if (!busy.value) {
       const result = await window.hronaut.manageVideo({ tabId, action: 'get' })
-      if (!disposed && expected === revision && tabId === props.tabId && !busy.value) state.value = result
+      if (!disposed && expected === revision && tabId === props.tabId && !busy.value) {
+        state.value = result
+        if (!result.previewReady) clearPreview()
+      }
     }
   } catch { /* Explicit operations report errors; polling never replaces an in-flight result. */ }
   finally { if (!disposed && expected === revision) poll = setTimeout(() => { void refresh() }, 1000) }

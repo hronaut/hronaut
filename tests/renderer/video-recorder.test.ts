@@ -6,7 +6,7 @@ import { createHronautI18n } from '../../src/renderer/src/i18n.js'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../src/shared/video.js'
 
 const state = (tabId: string, status: BrowserVideoState['status'] = 'stopped'): BrowserVideoState => ({ tabId, status, durationMs: 2000, width: 640, height: 360, frameCount: 12, bytes: 500, annotations: [], clips: [], previewReady: false })
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers() })
 it('ignores a stale render result after switching tabs and does not fetch the old preview', async () => {
   let finish!: (result: BrowserVideoState) => void
   const manageVideo = vi.fn(({ tabId, action }: { tabId: string; action: string }) => action === 'render' ? new Promise<BrowserVideoState>(resolve => { finish = resolve }) : Promise.resolve(state(tabId)))
@@ -82,4 +82,38 @@ it('exposes caption anchors and callout styling through the same cloneable agent
   await flushPromises()
   expect(manageVideo).toHaveBeenLastCalledWith({ tabId: 'tab', action: 'get' })
   expect(manageVideo.mock.calls.filter(([options]) => options.action === 'edit').at(-1)?.[0].annotations?.[0]).toMatchObject({ kind: 'callout', placement: 'auto', title: 'Invite a teammate', step: 2, endX: 0.5, endY: 0.5 })
+})
+
+
+it.each(['edit', 'clear'] as const)('removes an invalidated preview after an agent %s is observed by polling', async action => {
+  vi.useFakeTimers()
+  const createObjectURL = vi.fn(() => 'blob:recording-preview')
+  const revokeObjectURL = vi.fn()
+  vi.stubGlobal('URL', class extends URL {
+    static createObjectURL = createObjectURL
+    static revokeObjectURL = revokeObjectURL
+  })
+  let current = state('tab')
+  const manageVideo = vi.fn(async (options: BrowserVideoOptions) => {
+    if (options.action === 'render') current = { ...current, previewReady: true }
+    return structuredClone(current)
+  })
+  const videoPreview = vi.fn(async () => new Uint8Array([1, 2, 3]))
+  Object.assign(window, { hronaut: { manageVideo, videoPreview } })
+  const view = render(VideoRecorder, { props: { tabId: 'tab' }, global: { plugins: [createHronautI18n('en-US')] } })
+  await flushPromises()
+  await fireEvent.click(screen.getByRole('button', { name: 'Preview video' }))
+  await flushPromises()
+  expect(view.container.querySelector('video')).toHaveAttribute('src', 'blob:recording-preview')
+
+  // A read-only refresh keeps a valid preview; an external mutation invalidates it.
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(view.container.querySelector('video')).not.toBeNull()
+  expect(revokeObjectURL).not.toHaveBeenCalled()
+  current = state('tab', action === 'clear' ? 'idle' : 'stopped')
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(view.container.querySelector('video')).toBeNull()
+  expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:recording-preview')
+  expect(videoPreview).toHaveBeenCalledOnce()
+  expect(screen.getByRole('button', { name: action === 'clear' ? 'Start video recording' : 'Preview video' })).toBeEnabled()
 })

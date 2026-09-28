@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove stale video previews when polling observes that an agent edited or cleared the recording.
+
 - Report workspace-opening failures from Settings through the standard error notification, and consistently wait for Settings to close before opening an editor.
 
 - Keep one-time MCP credentials cleared when a pending create or rotate operation finishes after the credential panel closes or dismisses the secret.
