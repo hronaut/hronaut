@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Recheck queued Developer Tools against completed input-lock changes and preserve shell panels when the tab is closed or locked.
+
 ### Changed
 
 - Give independent tab controls separate buttons and consistent action labels: Pause/Resume agents, Lock/Unlock input, and Mute/Unmute.

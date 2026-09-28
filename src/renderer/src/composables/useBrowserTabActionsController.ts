@@ -164,11 +164,13 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     if (disposed) return
     const tab = options.activeTab.value
     if (!tab || options.isHome()) return
-    const locked = tab.humanInteractionInputLocked
-      ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked)
-    if (locked) return
-    options.beforeToggleDeveloperTools()
-    await enqueueToggle(`devtools:${tab.id}`, async () => {
+    await enqueueToggle('interaction', async () => {
+      const current = options.state.value.tabs.find(candidate => candidate.id === tab.id)
+      if (!current) return
+      const locked = current.humanInteractionInputLocked
+        ?? (options.state.value.allHumanInteractionLocked || current.humanInteractionLocked)
+      if (locked) return
+      options.beforeToggleDeveloperTools()
       await options.browser.toggleDevTools(tab.id)
     })
   }

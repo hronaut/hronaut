@@ -410,11 +410,13 @@ describe('browser tab actions controller', () => {
     await harness.controller.toggleDeveloperTools()
     harness.home.value = false
     harness.activeTab.value = tab({ humanInteractionLocked: true })
+    harness.state.value.tabs = [harness.activeTab.value]
     await harness.controller.toggleDeveloperTools()
     expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
     expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
 
     harness.activeTab.value = tab()
+    harness.state.value.tabs = [harness.activeTab.value]
     await harness.controller.toggleDeveloperTools()
     expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
@@ -424,6 +426,7 @@ describe('browser tab actions controller', () => {
     const harness = createHarness()
     harness.state.value.allHumanInteractionLocked = true
     harness.activeTab.value = tab({ humanInteractionLocked: true, humanInteractionInputLocked: false })
+    harness.state.value.tabs = [harness.activeTab.value]
     await harness.controller.toggleDeveloperTools()
     expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
@@ -432,9 +435,53 @@ describe('browser tab actions controller', () => {
   it('blocks Developer Tools when effective input is locked despite unlocked preferences', async () => {
     const harness = createHarness()
     harness.activeTab.value = tab({ humanInteractionInputLocked: true })
+    harness.state.value.tabs = [harness.activeTab.value]
     await harness.controller.toggleDeveloperTools()
     expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
     expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+  })
+
+  it('preserves panels when an earlier input lock blocks queued Developer Tools', async () => {
+    const harness = createHarness()
+    harness.browser.setAllHumanInteractionLocked.mockImplementation(async locked => ({
+      ...harness.state.value,
+      allHumanInteractionLocked: locked,
+      tabs: harness.state.value.tabs.map(candidate => ({ ...candidate, humanInteractionInputLocked: locked }))
+    }))
+    await Promise.all([
+      harness.controller.toggleAllHumanInteraction(),
+      harness.controller.toggleDeveloperTools()
+    ])
+    expect(harness.state.value.allHumanInteractionLocked).toBe(true)
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+  })
+
+  it('allows queued Developer Tools after an earlier input unlock commits', async () => {
+    const harness = createHarness()
+    harness.state.value.allHumanInteractionLocked = true
+    harness.browser.setAllHumanInteractionLocked.mockImplementation(async locked => ({
+      ...harness.state.value,
+      allHumanInteractionLocked: locked
+    }))
+    await Promise.all([
+      harness.controller.toggleAllHumanInteraction(),
+      harness.controller.toggleDeveloperTools()
+    ])
+    expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
+    expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
+  })
+
+  it('does not close panels for queued Developer Tools after tab closure or disposal', async () => {
+    for (const removed of ['tab', 'controller']) {
+      const harness = createHarness()
+      const operation = harness.controller.toggleDeveloperTools()
+      if (removed === 'tab') harness.state.value.tabs = []
+      else harness.controller.dispose()
+      await operation
+      expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+      expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+    }
   })
 
   it('preserves shell panels when global interaction lock blocks Developer Tools', async () => {
