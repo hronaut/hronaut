@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Discard delayed recording export feedback after starting, stopping, or clearing the recorder, while preserving it during read-only refreshes.
+
 - Discard pending Network details and copy feedback when the selected request is cleared or leaves the retained history.
 
 - Wait for pending Console reads before polling again so slow responses remain visible instead of being repeatedly discarded.

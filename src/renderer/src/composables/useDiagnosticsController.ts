@@ -134,6 +134,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const inspectorIssuesError = ref('')
   const inspectorIssuesCopied = ref(false)
 
+  let reproCopyGeneration = 0
   let generation = 0
   const sequences: Record<Domain, number> = {
     accessibility: 0,
@@ -211,7 +212,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
 
   async function copyWithFeedback(key: CopyFeedback, payload: string, copied: Ref<boolean>): Promise<void> {
     const expectedGeneration = generation
+    const expectedReproCopyGeneration = reproCopyGeneration
     if (!await options.copyText(payload) || expectedGeneration !== generation) return
+    if ((key === 'repro' || key === 'repro-playwright')
+      && expectedReproCopyGeneration !== reproCopyGeneration) return
     copied.value = true
     scheduleFeedbackReset(key, () => (copied.value = false))
   }
@@ -457,6 +461,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     reproState.value = 'loading'
     reproError.value = ''
     if (action !== 'get') {
+      reproCopyGeneration += 1
       reproCopied.value = false
       reproPlaywrightCopied.value = false
     }

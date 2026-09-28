@@ -405,6 +405,28 @@ describe('diagnostics controller', () => {
     controller.dispose()
   })
 
+  it.each(['start', 'stop', 'clear', 'get'] as const)(
+    'invalidates pending recording exports only for mutations: %s',
+    async (action) => {
+      const copying = deferred<boolean>()
+      const { browser, controller, copyText } = createController()
+      const recording = reproRecording()
+      controller.reproRecording.value = recording
+      browser.manageRepro.mockResolvedValueOnce(recording)
+      copyText.mockImplementation(() => copying.promise)
+
+      const jsonCopy = controller.copyReproRecording()
+      const playwrightCopy = controller.copyReproPlaywright()
+      await controller.manageRepro(action)
+      copying.resolve(true)
+      await Promise.all([jsonCopy, playwrightCopy])
+
+      expect(controller.reproCopied.value).toBe(action === 'get')
+      expect(controller.reproPlaywrightCopied.value).toBe(action === 'get')
+      controller.dispose()
+    }
+  )
+
   it('keeps repro copy feedback during a read-only recording refresh', async () => {
     vi.useFakeTimers()
     const { browser, controller } = createController()
