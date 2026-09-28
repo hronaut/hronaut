@@ -137,6 +137,50 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
+  it.each(['create', 'rotate', 'revoke'] as const)(
+    'keeps a completed credential %s authoritative over an older profile list',
+    async (action) => {
+      const { controller, listCapabilityProfiles, createCapabilityProfile, rotateCapabilityProfile, revokeCapabilityProfile } = createController()
+      const profile: McpCapabilityProfileSummary = {
+        id: '01912345-6788-7abc-8def-0123456789ab', name: 'Agent', revision: 1,
+        credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+        operationClasses: ['read'], useCount: 0, lineageActive: true,
+        createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+      }
+      const before = action === 'create' ? [] : [profile]
+      controller.capabilityProfiles.value = before
+      const pending = deferred<McpCapabilityProfileSummary[]>()
+      listCapabilityProfiles.mockReturnValueOnce(pending.promise)
+      const loading = controller.loadCapabilityProfiles()
+      const changed = { ...profile, revision: 2, lineageActive: action !== 'revoke' }
+      createCapabilityProfile.mockResolvedValue({ profile: changed, credential: 'test-credential' })
+      rotateCapabilityProfile.mockResolvedValue({ profile: changed, credential: 'test-credential' })
+      revokeCapabilityProfile.mockResolvedValue(changed)
+      if (action === 'create') await controller.createCapabilityProfile({ name: 'Agent', preset: 'read-only' })
+      else if (action === 'rotate') await controller.rotateCapabilityProfile(profile.id)
+      else await controller.revokeCapabilityProfile(profile.id)
+
+      pending.resolve(before)
+      await expect(loading).resolves.toBe(false)
+      expect(controller.capabilityProfiles.value).toEqual([changed])
+      controller.dispose()
+    }
+  )
+
+  it.each(['resolve', 'reject'] as const)('ignores an older profile refresh that will %s after a newer refresh', async (outcome) => {
+    const { controller, listCapabilityProfiles } = createController()
+    const pending = deferred<McpCapabilityProfileSummary[]>()
+    listCapabilityProfiles.mockReturnValueOnce(pending.promise)
+    const older = controller.loadCapabilityProfiles()
+    listCapabilityProfiles.mockRejectedValueOnce(new Error('Current refresh failed'))
+    await controller.loadCapabilityProfiles()
+    if (outcome === 'resolve') pending.resolve([])
+    else pending.reject(new Error('Stale refresh failed'))
+    await expect(older).resolves.toBe(false)
+    expect(controller.capabilityError.value).toBe('Current refresh failed')
+    controller.dispose()
+  })
+
   it('preserves a newer draft when the listener move for an older draft completes', async () => {
     const saving = deferred<AppSettings>()
     const { controller, setPort, settings } = createController()

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep completed MCP credential changes and newer profile refreshes authoritative over delayed profile-list responses.
+
 - Verify the published Windows executable in release-triggered Scoop installation checks instead of rebuilding a different artifact.
 
 - Prevent delayed clipboard writes from marking refreshed debug reports, quality audits, or inspector issues as copied.

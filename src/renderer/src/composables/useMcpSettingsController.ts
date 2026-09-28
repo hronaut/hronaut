@@ -47,6 +47,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   let dirtyPortDraft = false
   let draftRevision = 0
   let generation = 0
+  let capabilityListSequence = 0
 
   const parsedPort = computed(() => Number(portDraft.value))
   const portValid = computed(() => isValidMcpPort(parsedPort.value))
@@ -207,14 +208,15 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
 
   async function loadCapabilityProfiles(): Promise<boolean> {
     const operationGeneration = generation
+    const listSequence = ++capabilityListSequence
     capabilityError.value = ''
     try {
       const profiles = await options.listCapabilityProfiles()
-      if (operationGeneration !== generation) return false
+      if (operationGeneration !== generation || listSequence !== capabilityListSequence) return false
       capabilityProfiles.value = reconcileCapabilityLineage(profiles)
       return true
     } catch (error) {
-      if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
+      if (operationGeneration === generation && listSequence === capabilityListSequence) capabilityError.value = options.formatPortError(error)
       return false
     }
   }
@@ -227,6 +229,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const created = await options.createCapabilityProfile(input)
       if (operationGeneration !== generation) return false
+      capabilityListSequence += 1
       capabilityProfiles.value = reconcileCapabilityLineage([...capabilityProfiles.value, created.profile])
       capabilityCredential.value = created.credential
       return true
@@ -246,6 +249,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const rotated = await options.rotateCapabilityProfile(id)
       if (operationGeneration !== generation) return false
+      capabilityListSequence += 1
       capabilityProfiles.value = reconcileCapabilityLineage(
         capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
       )
@@ -267,6 +271,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
     try {
       const revoked = await options.revokeCapabilityProfile(id)
       if (operationGeneration !== generation) return false
+      capabilityListSequence += 1
       capabilityProfiles.value = reconcileCapabilityLineage(
         capabilityProfiles.value.map(profile => profile.id === id ? revoked : profile)
       )
