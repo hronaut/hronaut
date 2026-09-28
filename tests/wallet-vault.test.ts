@@ -7,9 +7,10 @@ import {
   SafeStorageWalletKeyWrapper,
   type WalletSafeStorage
 } from '../src/main/wallet/key-provider.js'
+import { encryptWalletAuthorityState, generateWalletDataEncryptionKey } from '../src/main/wallet/crypto.js'
 import { WalletVault } from '../src/main/wallet/vault.js'
 import { WalletWatchOnlyStore } from '../src/main/wallet/watch-only-store.js'
-import type { WalletDescriptor } from '../src/shared/wallet.js'
+import { WalletDescriptorSchema, type WalletDescriptor } from '../src/shared/wallet.js'
 
 const temporaryDirectories: string[] = []
 
@@ -55,6 +56,56 @@ function fakeSafeStorage(): WalletSafeStorage {
 }
 
 describe('WalletVault', () => {
+  it('keeps the authenticated vault readable when concurrent additions reach capacity', async () => {
+    const path = await vaultPath()
+    const wrapper = new SafeStorageWalletKeyWrapper(fakeSafeStorage())
+    const key = generateWalletDataEncryptionKey()
+    const wallets = Array.from({ length: 9_999 }, (_, index) => WalletDescriptorSchema.parse(descriptor({
+      id: `watch-${index}`, kind: 'watch-only', capabilities: ['read']
+    }))).sort((left, right) => left.id.localeCompare(right.id))
+    try {
+      const keyProtection = await wrapper.wrap(key)
+      const records: never[] = []
+      const metadata = Buffer.from(JSON.stringify({ schemaVersion: 2, keyProtection, wallets, records }))
+      const authority = encryptWalletAuthorityState(key, Buffer.from('{}'), metadata)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, JSON.stringify({ version: 2, keyProtection, wallets, records, authority }))
+    } finally {
+      key.fill(0)
+    }
+    const vault = new WalletVault(path, wrapper)
+    await expect(vault.load()).resolves.toHaveLength(9_999)
+    const last = descriptor({ id: 'last-managed' })
+    const overflow = descriptor({ id: 'overflow-managed' })
+    const material = Buffer.from('capacity-test-signing-material')
+    const secret = { format: 'private-key' as const, material }
+    const restored = new WalletVault(path, wrapper)
+    try {
+      const results = await Promise.allSettled([vault.add(last, secret), vault.add(overflow, secret)])
+      expect(results[0]).toMatchObject({ status: 'fulfilled', value: last })
+      expect(results[1]).toMatchObject({ status: 'rejected', reason: new Error('Wallet vault limit reached (10000)') })
+      const saved = await readFile(path, 'utf8')
+      await expect(vault.add(overflow, secret)).rejects.toThrow('Wallet vault limit reached')
+      expect(await readFile(path, 'utf8')).toBe(saved)
+      expect(vault.list()).toHaveLength(10_000)
+      expect(vault.list().some(wallet => wallet.id === overflow.id)).toBe(false)
+      await expect(restored.load()).resolves.toHaveLength(10_000)
+      const recovered = await restored.secret(last.id)
+      try {
+        expect(recovered.material).toEqual(material)
+      } finally {
+        recovered.material.fill(0)
+      }
+      await restored.remove(last.id)
+      await expect(restored.add(overflow, secret)).resolves.toEqual(overflow)
+      await expect(restored.load()).resolves.toHaveLength(10_000)
+    } finally {
+      material.fill(0)
+      vault.lock()
+      restored.lock()
+    }
+  })
+
   it('does not populate decrypted state when initialization is cancelled by a newer lock', async () => {
     const path = await vaultPath()
     const safeStorage = fakeSafeStorage()

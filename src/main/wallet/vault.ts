@@ -56,13 +56,15 @@ const KeyProtectionSchema = z.discriminatedUnion('mode', [
   }).strict()
 ])
 
+const MAX_VAULT_WALLETS = 10_000
+
 const PersistedVaultBodySchema = z.object({
   keyProtection: KeyProtectionSchema,
-  wallets: z.array(WalletDescriptorSchema).max(10_000),
+  wallets: z.array(WalletDescriptorSchema).max(MAX_VAULT_WALLETS),
   records: z.array(z.object({
     walletId: z.string().min(1).max(128),
     encrypted: EncryptedSecretSchema
-  }).strict()).max(10_000)
+  }).strict()).max(MAX_VAULT_WALLETS)
 }).strict()
 
 const PersistedVaultSchema = PersistedVaultBodySchema.extend({
@@ -243,6 +245,7 @@ export class WalletVault {
       if (!this.keyProtection) throw new Error('Wallet vault is not initialized')
       const validated = WalletDescriptorSchema.parse(descriptor)
       if (this.wallets.has(validated.id)) throw new Error('Wallet already exists')
+      if (this.wallets.size >= MAX_VAULT_WALLETS) throw new Error(`Wallet vault limit reached (${MAX_VAULT_WALLETS})`)
       if (validated.kind === 'watch-only' && secret) throw new Error('Watch-only wallets must not contain signing material')
       if (validated.kind !== 'watch-only' && !secret) throw new Error('Managed wallets require signing material')
       const nextWallets = new Map(this.wallets)
