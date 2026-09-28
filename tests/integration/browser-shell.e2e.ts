@@ -9058,6 +9058,23 @@ test('drags a page area and copies the screenshot image for agent chat', async (
       }
     })
     expect(captureFeedbackPlacement).toEqual({ insideAddress: false, toolbarOverflow: 0, topWindowOverlay: true })
+    // Inspect both transition phases on the real rendered toast. Keeping the
+    // classes explicit avoids racing Vue's one-frame enter/leave lifecycle.
+    await captureToast.getByRole('button', { name: 'Dismiss Area screenshot copied' }).focus()
+    await appWindow.emulateMedia({ reducedMotion: 'reduce' })
+    for (const phase of ['enter', 'leave']) {
+      const motion = await captureToast.evaluate((toast, transitionPhase) => {
+        const classes = [`app-toast-${transitionPhase}-active`,
+          transitionPhase === 'enter' ? 'app-toast-enter-from' : 'app-toast-leave-to']
+        toast.classList.add(...classes)
+        const style = getComputedStyle(toast)
+        const result = { duration: style.transitionDuration, transform: style.transform }
+        toast.classList.remove(...classes)
+        return result
+      }, phase)
+      expect(motion).toEqual({ duration: '0s', transform: 'none' })
+    }
+    await appWindow.emulateMedia({ reducedMotion: 'no-preference' })
     const clipboardImage = await electronApp.evaluate(async ({ clipboard, nativeImage }) => {
       const items = await clipboard.read()
       const png = items.find((item) => item.types.includes('image/png'))
