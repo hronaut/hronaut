@@ -18,6 +18,7 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   let listenerGeneration = 0
   let revision = 0
   let copySequence = 0
+  let refreshSequence = 0
   let initializePromise: Promise<void> | null = null
   let unsubscribe: (() => void) | null = null
   let copiedTimer: number | undefined
@@ -105,13 +106,14 @@ export function useMcpStatusController(options: McpStatusControllerOptions) {
   }
 
   async function refresh(): Promise<void> {
+    const sequence = ++refreshSequence
     const expectedGeneration = generation
     const expectedRevision = revision
     try {
       const next = await options.api.getState()
-      if (generation === expectedGeneration && revision === expectedRevision) accept(next)
+      if (sequence === refreshSequence && generation === expectedGeneration && revision === expectedRevision) accept(next)
     } catch {
-      if (generation === expectedGeneration && revision === expectedRevision) {
+      if (sequence === refreshSequence && generation === expectedGeneration && revision === expectedRevision) {
         // A failed refresh must not display cached client evidence as current.
         accept({ ...state.value, readiness: undefined })
         refreshFailed.value = true

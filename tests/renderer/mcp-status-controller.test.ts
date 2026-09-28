@@ -99,6 +99,52 @@ describe('MCP status controller', () => {
     controller.dispose()
   })
 
+  it.each(['success', 'failure'].flatMap((older) => (
+    ['success', 'failure'].map((newer) => ({ older, newer }))
+  )))('keeps the latest refresh authoritative: $older then $newer', async ({ older, newer }) => {
+    const previous = deferred<McpControlState>()
+    const latest = deferred<McpControlState>()
+    const getState = vi.fn()
+      .mockResolvedValueOnce(control())
+      .mockReturnValueOnce(previous.promise)
+      .mockReturnValueOnce(latest.promise)
+    const { controller } = createController(getState)
+    await controller.initialize()
+    const first = controller.refresh()
+    const second = controller.refresh()
+
+    if (older === 'success') previous.resolve(control({ activeCommands: 1 }))
+    else previous.reject(new Error('old refresh failed'))
+    await first
+    expect(controller.state.value).toEqual(control())
+    expect(controller.refreshFailed.value).toBe(false)
+
+    if (newer === 'success') latest.resolve(control({ activeCommands: 2 }))
+    else latest.reject(new Error('latest refresh failed'))
+    await second
+    expect(controller.refreshFailed.value).toBe(newer === 'failure')
+    expect(controller.state.value).toEqual(newer === 'success'
+      ? control({ activeCommands: 2 })
+      : control({ readiness: undefined }))
+    controller.dispose()
+  })
+
+  it.each(['success', 'failure'] as const)('preserves live events over a refresh %s', async (outcome) => {
+    const pending = deferred<McpControlState>()
+    const getState = vi.fn().mockResolvedValueOnce(control()).mockReturnValueOnce(pending.promise)
+    const { controller, emit } = createController(getState)
+    await controller.initialize()
+    const refreshing = controller.refresh()
+    const live = control({ status: 'paused', paused: true })
+    emit(live)
+    if (outcome === 'success') pending.resolve(control())
+    else pending.reject(new Error('refresh failed'))
+    await refreshing
+    expect(controller.state.value).toEqual(live)
+    expect(controller.refreshFailed.value).toBe(false)
+    controller.dispose()
+  })
+
   it('blocks duplicate pause toggles until the first response settles', async () => {
     const pausing = deferred<McpControlState>()
     const { controller, setPaused } = createController()
