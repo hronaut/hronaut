@@ -4,12 +4,12 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-28
+
 ### Fixed
 
 - Allow Developer Tools commands for a tab temporarily unlocked during global input lock, while respecting effective locks on protected pages.
-
 - Keep rapid global and per-tab input-lock clicks ordered so a tab exception reflects the completed global lock.
-
 - Preserve rapid Live/Frozen toggles by waiting for authoritative tab state between clicks; share tab-action queuing and cleanup with the separate agent control.
 
 ### Changed
