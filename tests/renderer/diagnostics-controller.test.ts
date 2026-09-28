@@ -427,6 +427,28 @@ describe('diagnostics controller', () => {
     }
   )
 
+  it.each(['start', 'stop', 'clear', 'get'] as const)(
+    'invalidates pending DOM recording exports only for mutations: %s',
+    async (action) => {
+      const copying = deferred<boolean>()
+      const { browser, controller, copyText } = createController()
+      controller.domChangesReport.value = domReport()
+      browser.manageDomChanges.mockResolvedValueOnce(domReport(action === 'start'))
+      copyText.mockImplementationOnce(() => copying.promise)
+
+      const operation = controller.copyDomChanges()
+      await controller.manageDomChanges(action)
+      copying.resolve(true)
+      await operation
+
+      expect(controller.domChangesCopied.value).toBe(action === 'get')
+      // The new recording remains exportable after a mutation.
+      await controller.copyDomChanges()
+      expect(controller.domChangesCopied.value).toBe(true)
+      controller.dispose()
+    }
+  )
+
   it('keeps repro copy feedback during a read-only recording refresh', async () => {
     vi.useFakeTimers()
     const { browser, controller } = createController()

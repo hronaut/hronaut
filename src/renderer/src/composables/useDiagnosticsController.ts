@@ -134,7 +134,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
   const inspectorIssuesError = ref('')
   const inspectorIssuesCopied = ref(false)
 
-  let reproCopyGeneration = 0
+  const recorderCopyGenerations = { repro: 0, dom: 0 }
   let generation = 0
   const sequences: Record<Domain, number> = {
     accessibility: 0,
@@ -180,7 +180,10 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     const mutation = recorderMutations[domain]
     if (action === 'get' && mutation && current(domain, mutation)) return null
     const request = begin(domain)
-    if (request && action !== 'get') recorderMutations[domain] = request
+    if (request && action !== 'get') {
+      recorderMutations[domain] = request
+      recorderCopyGenerations[domain] += 1
+    }
     return request
   }
 
@@ -212,10 +215,11 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
 
   async function copyWithFeedback(key: CopyFeedback, payload: string, copied: Ref<boolean>): Promise<void> {
     const expectedGeneration = generation
-    const expectedReproCopyGeneration = reproCopyGeneration
+    const recorder = key === 'dom' ? 'dom'
+      : key === 'repro' || key === 'repro-playwright' ? 'repro' : undefined
+    const expectedRecorderGeneration = recorder ? recorderCopyGenerations[recorder] : undefined
     if (!await options.copyText(payload) || expectedGeneration !== generation) return
-    if ((key === 'repro' || key === 'repro-playwright')
-      && expectedReproCopyGeneration !== reproCopyGeneration) return
+    if (recorder && expectedRecorderGeneration !== recorderCopyGenerations[recorder]) return
     copied.value = true
     scheduleFeedbackReset(key, () => (copied.value = false))
   }
@@ -461,7 +465,6 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
     reproState.value = 'loading'
     reproError.value = ''
     if (action !== 'get') {
-      reproCopyGeneration += 1
       reproCopied.value = false
       reproPlaywrightCopied.value = false
     }

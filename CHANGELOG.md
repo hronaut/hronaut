@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Discard delayed DOM recording export feedback after starting, stopping, or clearing its recording, using the same mutation guard as interaction recordings.
+
 - Keep storage report copy feedback tied to the current report, discarding stale clipboard completions after refresh and disabling copy while reports reload.
 
 - Keep notifications visible after keyboard focus enters them, including message replacements, until explicitly dismissed so their focused control does not disappear.
