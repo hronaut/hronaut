@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Verify the published Windows executable in release-triggered Scoop installation checks instead of rebuilding a different artifact.
+
 - Prevent delayed clipboard writes from marking refreshed debug reports, quality audits, or inspector issues as copied.
 
 ## [2.8.1] - 2026-09-28

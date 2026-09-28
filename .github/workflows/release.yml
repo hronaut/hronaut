@@ -619,8 +619,9 @@ jobs:
         if: steps.push.outputs.pushed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
           # Manifest tests ran before push. Full CI would cancel a running
           # application check even though this commit changes no app source.
-          gh workflow run scoop-smoke.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run scoop-smoke.yml --repo "$GITHUB_REPOSITORY" --ref main -f "release-tag=v$VERSION"

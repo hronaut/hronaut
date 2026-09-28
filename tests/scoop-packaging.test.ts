@@ -40,7 +40,7 @@ describe('Scoop package QA', () => {
     expect(manifest.notes).toMatch(/not code-signed/i)
   })
 
-  it('runs the Windows smoke without consuming a public release download', async () => {
+  it('retains local-build smoke coverage for development runs', async () => {
     const [workflow, smoke, profile, packageManifest] = await Promise.all([
       read('.github/workflows/scoop-smoke.yml'),
       read('scripts/scoop-portable-smoke.ps1'),
@@ -50,6 +50,7 @@ describe('Scoop package QA', () => {
 
     expect(workflow).toContain('runs-on: windows-latest')
     expect(workflow).not.toContain('distribution-scoop-smoke')
+    expect(workflow).toContain("if: inputs.release-tag == ''")
     expect(workflow).toContain('npx electron-builder --win portable --x64 --publish never')
     expect(workflow).toContain('./scripts/scoop-portable-smoke.ps1')
     expect(smoke).toContain('http://127.0.0.1:$assetPort/$expectedFilename')
@@ -75,6 +76,24 @@ describe('Scoop package QA', () => {
     expect(profile).toContain("typedPhase === 'prepare'")
     expect(profile).toContain("join(tmpdir(), `hronaut-profile-smoke-${endpoint.port}.json`)")
     expect(JSON.parse(packageManifest).scripts['smoke:profile:prepare']).toBe('node scripts/profile-smoke.ts prepare')
+  })
+
+  it('checks the published executable before the release-triggered Scoop exercise', async () => {
+    const [workflow, downloader, release] = await Promise.all([
+      read('.github/workflows/scoop-smoke.yml'),
+      read('scripts/download-scoop-release.ps1'),
+      read('.github/workflows/release.yml')
+    ])
+    expect(release).toContain('-f "release-tag=v$VERSION"')
+    expect(workflow).toContain("if: inputs.release-tag != ''")
+    expect(workflow).toContain('RELEASE_TAG: ${{ inputs.release-tag }}')
+    expect(workflow.indexOf('./scripts/download-scoop-release.ps1')).toBeLessThan(workflow.indexOf('./scripts/scoop-portable-smoke.ps1'))
+    expect(downloader).toContain('$manifest.version -cne $package.version')
+    expect(downloader).toContain('$release.isDraft -or $release.isPrerelease')
+    expect(downloader).toContain('gh release download $Tag --repo hronaut/hronaut --pattern $filename')
+    expect(downloader).toContain("$actualHash -cne $manifest.architecture.'64bit'.hash")
+    expect(downloader).toContain('gh attestation verify $artifact --repo hronaut/hronaut --signer-workflow hronaut/hronaut/.github/workflows/release.yml')
+    expect(downloader).not.toContain('--clobber')
   })
 
   it('publishes the verified Scoop hash and dispatches its dedicated package gate', async () => {
