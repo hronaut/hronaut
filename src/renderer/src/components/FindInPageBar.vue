@@ -57,6 +57,11 @@ async function search(forward: boolean, newSearch: boolean): Promise<void> {
   }
 }
 
+function handleSearchInput(event: Event): void {
+  if ((event as InputEvent).isComposing) return
+  void search(true, true)
+}
+
 function handleSearchKeydown(event: KeyboardEvent): void {
   if (isImeCompositionEvent(event) || event.key !== 'Enter') return
   event.preventDefault()
@@ -134,7 +139,7 @@ defineExpose({ close, openForTab })
         autocomplete="off"
         spellcheck="false"
         :placeholder="t('find.placeholder')"
-        @input="search(true, true)"
+        @input="handleSearchInput"
         @keydown="handleSearchKeydown"
       />
     </div>

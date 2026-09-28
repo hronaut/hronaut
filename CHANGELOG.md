@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Wait for committed input-method text before searching a page, avoiding repeated searches for an outdated query during composition.
+
 - Preserve newer capture and cancel choices when an older capture-mode switch is still waiting for native picker cancellation.
 
 - Keep pending HAR exports busy during Network refreshes, preventing duplicate save operations until the current export finishes.

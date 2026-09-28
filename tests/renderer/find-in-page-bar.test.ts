@@ -100,6 +100,26 @@ describe('FindInPageBar', () => {
     })
   })
 
+  it.each(['', 'previous'])('waits for committed IME input with initial query %j', async (initialQuery) => {
+    const { browser } = renderBar()
+    const search = screen.getByRole('searchbox', { name: 'Find text' })
+    await vi.waitFor(() => expect(search).toHaveFocus())
+    if (initialQuery) await fireEvent.update(search, initialQuery)
+    browser.findInPage.mockClear()
+    browser.stopFindInPage.mockClear()
+
+    await fireEvent.compositionStart(search)
+    await fireEvent.input(search, { target: { value: '日' }, isComposing: true })
+    await fireEvent.input(search, { target: { value: '日本' }, isComposing: true })
+    expect(browser.findInPage).not.toHaveBeenCalled()
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+
+    await fireEvent.compositionEnd(search)
+    expect(browser.findInPage).toHaveBeenCalledOnce()
+    expect(browser.findInPage).toHaveBeenCalledWith(expect.objectContaining({ query: '日本', findNext: true }))
+    expect(browser.stopFindInPage).not.toHaveBeenCalled()
+  })
+
   it('does not advance matches when Enter confirms an IME composition', async () => {
     const { browser } = renderBar()
     const search = screen.getByRole('searchbox', { name: 'Find text' })
