@@ -56,6 +56,8 @@ function fakeSafeStorage(): WalletSafeStorage {
 }
 
 describe('WalletVault', () => {
+  // Real 10,000-record encryption and disk round trips can exceed the default
+  // five-second unit timeout on shared CI runners.
   it('keeps the authenticated vault readable when concurrent additions reach capacity', async () => {
     const path = await vaultPath()
     const wrapper = new SafeStorageWalletKeyWrapper(fakeSafeStorage())
@@ -104,7 +106,7 @@ describe('WalletVault', () => {
       vault.lock()
       restored.lock()
     }
-  })
+  }, 15_000)
 
   it('does not populate decrypted state when initialization is cancelled by a newer lock', async () => {
     const path = await vaultPath()
