@@ -15,23 +15,26 @@ for (const theme of ['light', 'dark']) {
         if (view === 'home') await appWindow.getByRole('button', { name: 'Open Hronaut Home', exact: true }).click()
         const right = appWindow.locator(view === 'page' ? '.toolbar' : '.shell-title-bar-surface.surface-home')
         await expect(right).toBeVisible()
-        const geometry = await right.evaluate(element => {
-          const rail = document.querySelector('.shell-title-bar-surface.surface-rail')!
-          const shell = document.querySelector('.shell')!
-          const leftStyle = getComputedStyle(rail)
-          const rightStyle = getComputedStyle(element)
-          return {
-            leftBottom: rail.getBoundingClientRect().bottom,
-            rightBottom: shell.getBoundingClientRect().bottom,
-            leftBorder: leftStyle.borderBottomWidth,
-            rightBorder: rightStyle.borderBottomWidth,
-            leftColor: leftStyle.borderBottomColor,
-            rightColor: rightStyle.borderBottomColor
-          }
-        })
-        expect.soft(geometry.leftBottom, 'Both dividers must end on the same horizontal edge').toBe(geometry.rightBottom)
-        expect.soft(geometry.leftBorder, 'Both sides must paint the same border thickness').toBe(geometry.rightBorder)
-        expect.soft(geometry.leftColor, 'The divider must use one continuous color').toBe(geometry.rightColor)
+        // Visibility can precede layout settling after scale and view changes.
+        await expect(async () => {
+          const geometry = await right.evaluate(element => {
+            const rail = document.querySelector('.shell-title-bar-surface.surface-rail')!
+            const shell = document.querySelector('.shell')!
+            const leftStyle = getComputedStyle(rail)
+            const rightStyle = getComputedStyle(element)
+            return {
+              leftBottom: rail.getBoundingClientRect().bottom,
+              rightBottom: shell.getBoundingClientRect().bottom,
+              leftBorder: leftStyle.borderBottomWidth,
+              rightBorder: rightStyle.borderBottomWidth,
+              leftColor: leftStyle.borderBottomColor,
+              rightColor: rightStyle.borderBottomColor
+            }
+          })
+          expect(geometry.leftBottom, 'Both dividers must end on the same horizontal edge').toBe(geometry.rightBottom)
+          expect(geometry.leftBorder, 'Both sides must paint the same border thickness').toBe(geometry.rightBorder)
+          expect(geometry.leftColor, 'The divider must use one continuous color').toBe(geometry.rightColor)
+        }).toPass({ timeout: 8_000 })
         await appWindow.screenshot({ path: testInfo.outputPath(`${view}-${theme}-${scale}.png`) })
       }
     })
