@@ -138,6 +138,46 @@ describe('human waiting lifecycle', () => {
     expect(store.create(input).state).toBe('WAITING_FOR_HUMAN')
   })
 
+  it.each(['approved', 'attempted'] as const)('retains an %s review at capacity until its outcome is recorded', phase => {
+    const store = new HumanWaitingStore({ capacity: 1, monotonicNow: () => 0, wallNow: () => 1000 })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    const approved = store.resolve(proposed.id, proposed.revision)
+    const attempt = phase === 'attempted'
+      ? store.beginReviewAttempt(approved.id, approved.revision, review)
+      : undefined
+    const other = { ...input, workspaceId: '0198dc5b-4192-7000-8000-000000000003' }
+
+    expect(() => store.create(other)).toThrow(/capacity/i)
+    expect(store.list(input.workspaceId)[0]?.id).toBe(proposed.id)
+    const dispatched = attempt ?? store.beginReviewAttempt(approved.id, approved.revision, review)
+    expect(store.finishReviewAttempt(dispatched.record.id, dispatched.record.revision, 'verified').state).toBe('VERIFIED')
+    expect(store.create(other).state).toBe('WAITING_FOR_HUMAN')
+    expect(store.list(input.workspaceId)).toEqual([])
+  })
+
+  it('evicts a finished record instead of an older approved review', () => {
+    const store = new HumanWaitingStore({ capacity: 2, monotonicNow: () => 0, wallNow: () => 1000 })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    const approved = store.resolve(proposed.id, proposed.revision)
+    const ordinary = store.create(input)
+    store.cancel(ordinary.id, ordinary.revision)
+
+    const replacement = store.create(input)
+    expect(store.approvedReview(approved.id, approved.revision).id).toBe(approved.id)
+    expect(store.list(input.workspaceId).map(record => record.id)).toEqual([approved.id, replacement.id])
+  })
+
+  it('allows an expired approval to free waiting capacity', () => {
+    let now = 0
+    const store = new HumanWaitingStore({ capacity: 1, monotonicNow: () => now, wallNow: () => 1000 })
+    const proposed = store.create({ ...input, decision: 'approve-action', review })
+    store.resolve(proposed.id, proposed.revision)
+    now = input.timeoutMs
+
+    const replacement = store.create(input)
+    expect(store.list(input.workspaceId).map(record => record.id)).toEqual([replacement.id])
+  })
+
   it('does not extend waiting when the clock rolls back after an intermediate read', () => {
     let now = 100
     const store = new HumanWaitingStore({ monotonicNow: () => now })

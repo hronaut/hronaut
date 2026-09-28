@@ -73,6 +73,8 @@ const inputSchema = z.object({
 }).strict()
 interface Entry { record: WaitingRecord; createdMonotonic: number; deadlineMonotonic: number }
 const terminal = (state: WaitingState): boolean => !['WAITING_FOR_HUMAN', 'ACKNOWLEDGED'].includes(state)
+const activeReview = (record: WaitingRecord): boolean => Boolean(record.review
+  && ['PROPOSED', 'REVIEWED', 'APPROVED', 'ATTEMPTED'].includes(record.review.status))
 const recordSchema = inputSchema.omit({ timeoutMs: true }).extend({
   id: z.uuid(), revision: z.uuid(),
   state: z.enum(['WAITING_FOR_HUMAN', 'ACKNOWLEDGED', 'RESOLVED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'ATTEMPTED', 'VERIFIED', 'UNKNOWN']),
@@ -199,11 +201,11 @@ export class HumanWaitingStore {
     const createdAt = this.checkedWall()
     if (!Number.isFinite(now) || !Number.isSafeInteger(createdAt) || !Number.isSafeInteger(createdAt + parsed.timeoutMs)) throw new Error('Waiting clock unavailable')
     if (parsed.review && [...this.records.values()].some(({ record }) => record.workspaceId === parsed.workspaceId
-      && record.review && ['PROPOSED', 'REVIEWED', 'APPROVED', 'ATTEMPTED'].includes(record.review.status))) {
+      && activeReview(record))) {
       throw new Error('A consequential review is already active in this workspace')
     }
     if (this.records.size >= this.capacity) {
-      const retired = [...this.records].find(([, entry]) => terminal(entry.record.state))
+      const retired = [...this.records].find(([, entry]) => terminal(entry.record.state) && !activeReview(entry.record))
       if (!retired) throw new Error('Human waiting capacity reached')
       this.records.delete(retired[0])
     }

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve approved and in-progress human reviews at waiting-history capacity so their actions can retain outcome receipts.
+
 - Prevent delayed release-history requests from replacing refreshed data or restoring invalidated older pages; use the latest valid cache for offline fallback.
 
 - Preserve the highlighted address suggestion when live history updates reorder results, and clear it when its destination disappears or changes.
