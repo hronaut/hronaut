@@ -135,16 +135,21 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
       tab.codeCoverage = { recording }
       try {
         await this.host.withDebugger(tab.webContents, async () => {
-          await tab.webContents.debugger.sendCommand('DOM.enable')
-          await tab.webContents.debugger.sendCommand('CSS.enable')
-          await tab.webContents.debugger.sendCommand('Debugger.enable')
-          await tab.webContents.debugger.sendCommand('Profiler.enable')
-          await tab.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
-            callCount: false,
-            detailed: mode === 'block',
-            allowTriggeredUpdates: false
-          })
-          await tab.webContents.debugger.sendCommand('CSS.startRuleUsageTracking')
+          try {
+            await tab.webContents.debugger.sendCommand('DOM.enable')
+            await tab.webContents.debugger.sendCommand('CSS.enable')
+            await tab.webContents.debugger.sendCommand('Debugger.enable')
+            await tab.webContents.debugger.sendCommand('Profiler.enable')
+            await tab.webContents.debugger.sendCommand('Profiler.startPreciseCoverage', {
+              callCount: false,
+              detailed: mode === 'block',
+              allowTriggeredUpdates: false
+            })
+            await tab.webContents.debugger.sendCommand('CSS.startRuleUsageTracking')
+          } catch (error) {
+            await this.stopCodeCoverageInstrumentation(tab)
+            throw error
+          }
         })
       } catch (error) {
         tab.codeCoverage = undefined
@@ -333,18 +338,20 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     })
   }
 
+  private async stopCodeCoverageInstrumentation(tab: Tab): Promise<void> {
+    const webDebugger = tab.webContents.debugger
+    await webDebugger.sendCommand('Profiler.stopPreciseCoverage').catch(() => undefined)
+    await webDebugger.sendCommand('Profiler.disable').catch(() => undefined)
+    await webDebugger.sendCommand('CSS.stopRuleUsageTracking').catch(() => undefined)
+    await webDebugger.sendCommand('CSS.disable').catch(() => undefined)
+    if (!tab.emulation.renderingDebug || !Object.values(tab.emulation.renderingDebug).some(Boolean)) {
+      await webDebugger.sendCommand('DOM.disable').catch(() => undefined)
+    }
+    await webDebugger.sendCommand('Debugger.disable').catch(() => undefined)
+  }
+
   private async discardCodeCoverageRecording(tab: Tab): Promise<void> {
-    await this.host.withDebugger(tab.webContents, async () => {
-      const webDebugger = tab.webContents.debugger
-      await webDebugger.sendCommand('Profiler.stopPreciseCoverage').catch(() => undefined)
-      await webDebugger.sendCommand('Profiler.disable').catch(() => undefined)
-      await webDebugger.sendCommand('CSS.stopRuleUsageTracking').catch(() => undefined)
-      await webDebugger.sendCommand('CSS.disable').catch(() => undefined)
-      if (!tab.emulation.renderingDebug || !Object.values(tab.emulation.renderingDebug).some(Boolean)) {
-        await webDebugger.sendCommand('DOM.disable').catch(() => undefined)
-      }
-      await webDebugger.sendCommand('Debugger.disable').catch(() => undefined)
-    }).catch(() => undefined)
+    await this.host.withDebugger(tab.webContents, () => this.stopCodeCoverageInstrumentation(tab)).catch(() => undefined)
   }
 
   async cpuProfile(options: BrowserCpuProfileOptions = {}): Promise<BrowserCpuProfileResult> {

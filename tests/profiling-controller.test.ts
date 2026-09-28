@@ -49,6 +49,29 @@ function fixture() {
 }
 
 describe('browser profiling controller', () => {
+  it.each([false, true])('cleans up a partial coverage start with rendering overlays %s', async (overlays) => {
+    const f = fixture()
+    if (overlays) f.tab.emulation.renderingDebug = { paintFlashing: true, layoutShiftRegions: false, layerBorders: false, fpsCounter: false, scrollBottlenecks: false }
+    const failure = new Error('CSS tracking failed')
+    f.sendCommand.mockImplementation(async (method) => {
+      if (method === 'CSS.startRuleUsageTracking') throw failure
+      if (method === 'CSS.stopRuleUsageTracking') throw new Error('CSS was not started')
+      return {}
+    })
+    await expect(f.controller.codeCoverage({ action: 'start' })).rejects.toBe(failure)
+    expect(f.withDebugger).toHaveBeenCalledOnce()
+    expect(f.sendCommand).toHaveBeenCalledWith('Profiler.stopPreciseCoverage')
+    expect(f.sendCommand).toHaveBeenCalledWith('Profiler.disable')
+    expect(f.sendCommand).toHaveBeenCalledWith('CSS.disable')
+    expect(f.sendCommand).toHaveBeenCalledWith('Debugger.disable')
+    if (overlays) expect(f.sendCommand).not.toHaveBeenCalledWith('DOM.disable')
+    else expect(f.sendCommand).toHaveBeenCalledWith('DOM.disable')
+    expect(f.tab.codeCoverage).toBeUndefined()
+    expect(f.reloadIgnoringCache).not.toHaveBeenCalled()
+    f.sendCommand.mockResolvedValue({})
+    expect(await f.controller.codeCoverage({ action: 'start', reload: false })).toMatchObject({ status: 'recording' })
+  })
+
   it('uses authoritative tab lookup and the existing debugger lease before preparing a coverage reload', async () => {
     const f = fixture()
     const result = await f.controller.codeCoverage({ tabId: f.tab.id, action: 'start', mode: 'block' })

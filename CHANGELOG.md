@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Stop partially started code-coverage instrumentation when setup fails, preserving rendering overlays and allowing a clean retry.
+
 - Clear filtered-console copy feedback when the search or level filter changes, including delayed clipboard completions.
 
 - Keep interrupted downloads cancellable and protected from history clearing until Electron reports completion, even when resuming is temporarily unavailable.
