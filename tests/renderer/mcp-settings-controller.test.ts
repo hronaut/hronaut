@@ -351,6 +351,39 @@ describe('MCP settings controller', () => {
     controller.dispose()
   })
 
+  it.each(['create', 'rotate'] as const)(
+    'does not restore a dismissed credential after a pending %s completes',
+    async (action) => {
+      const { controller, createCapabilityProfile, rotateCapabilityProfile } = createController()
+      const profile: McpCapabilityProfileSummary = {
+        id: '01912345-6788-7abc-8def-0123456789ab', name: 'Agent', revision: 1,
+        credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+        operationClasses: ['read'], useCount: 0, lineageActive: true,
+        createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+      }
+      if (action === 'rotate') controller.capabilityProfiles.value = [profile]
+      const pending = deferred<McpCapabilityCredentialResult>()
+      createCapabilityProfile.mockReturnValueOnce(pending.promise)
+      rotateCapabilityProfile.mockReturnValueOnce(pending.promise)
+      const operation = action === 'create'
+        ? controller.createCapabilityProfile({ name: 'Agent', preset: 'read-only' })
+        : controller.rotateCapabilityProfile(profile.id)
+      // The panel invokes this on unmount as well as explicit dismissal.
+      controller.clearCapabilityCredential()
+      const updated = { ...profile, revision: 2 }
+      pending.resolve({ profile: updated, credential: 'dismissed-credential' })
+      await expect(operation).resolves.toBe(true)
+
+      expect(controller.capabilityCredential.value).toBe('')
+      expect(controller.capabilityProfiles.value).toEqual([updated])
+      expect(controller.capabilityBusy.value).toBe(false)
+      rotateCapabilityProfile.mockReset().mockResolvedValueOnce({ profile: updated, credential: 'fresh-credential' })
+      await controller.rotateCapabilityProfile(profile.id)
+      expect(controller.capabilityCredential.value).toBe('fresh-credential')
+      controller.dispose()
+    }
+  )
+
   it('discards a credential returned after the settings controller is disposed', async () => {
     const created = deferred<McpCapabilityCredentialResult>()
     const { controller, createCapabilityProfile } = createController()

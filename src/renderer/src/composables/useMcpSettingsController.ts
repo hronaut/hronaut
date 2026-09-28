@@ -48,6 +48,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   let draftRevision = 0
   let generation = 0
   let capabilityListSequence = 0
+  let credentialDisplayGeneration = 0
 
   const parsedPort = computed(() => Number(portDraft.value))
   const portValid = computed(() => isValidMcpPort(parsedPort.value))
@@ -224,6 +225,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   async function createCapabilityProfile(input: McpCapabilityProfileCreateInput): Promise<boolean> {
     if (capabilityBusy.value) return false
     const operationGeneration = generation
+    const displayGeneration = credentialDisplayGeneration
     capabilityBusy.value = true
     capabilityError.value = ''
     try {
@@ -234,7 +236,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
         ...capabilityProfiles.value.filter(profile => profile.id !== created.profile.id),
         created.profile
       ])
-      capabilityCredential.value = created.credential
+      if (displayGeneration === credentialDisplayGeneration) capabilityCredential.value = created.credential
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -247,6 +249,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   async function rotateCapabilityProfile(id: string): Promise<boolean> {
     if (capabilityBusy.value) return false
     const operationGeneration = generation
+    const displayGeneration = credentialDisplayGeneration
     capabilityBusy.value = true
     capabilityError.value = ''
     try {
@@ -256,7 +259,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       capabilityProfiles.value = reconcileCapabilityLineage(
         capabilityProfiles.value.map(profile => profile.id === id ? rotated.profile : profile)
       )
-      capabilityCredential.value = rotated.credential
+      if (displayGeneration === credentialDisplayGeneration) capabilityCredential.value = rotated.credential
       return true
     } catch (error) {
       if (operationGeneration === generation) capabilityError.value = options.formatPortError(error)
@@ -288,6 +291,7 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
   }
 
   function clearCapabilityCredential(): void {
+    credentialDisplayGeneration += 1
     capabilityCredential.value = ''
   }
 
