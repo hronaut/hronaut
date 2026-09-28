@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.7.4] - 2026-09-28
+
 ### Fixed
 
 - Keep modified keyboard shortcuts and IME composition from switching Home workspace collections.
