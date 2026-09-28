@@ -51,7 +51,7 @@ function timestamp(value: string): string {
       <div class="pwa-summary">
         <IconOffline aria-hidden="true" />
         <div><strong>{{ report.controlled ? t('siteStorage.pwa.controlled') : t('siteStorage.pwa.uncontrolled') }}</strong><span>{{ t('siteStorage.pwa.registrations', { count: localNumber(report.registrations.length) }, report.registrations.length) }} · {{ t('siteStorage.pwa.caches', { count: localNumber(report.caches.length) }, report.caches.length) }}</span></div>
-        <UiButton appearance="application" type="button" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</UiButton>
+        <UiButton appearance="application" type="button" :disabled="state === 'loading'" @click="emit('copy')"><IconCheck v-if="copied" aria-hidden="true" /><IconCopy v-else aria-hidden="true" /> {{ copied ? t('siteStorage.copied') : t('siteStorage.copyReport') }}</UiButton>
       </div>
       <div v-if="report.manifestInspectionError" class="pwa-cache-warning" role="status"><IconWarning aria-hidden="true" /><span>{{ t('siteStorage.pwa.manifestUnavailable', { error: report.manifestInspectionError }) }}</span></div>
       <article v-if="report.manifest" class="pwa-manifest">

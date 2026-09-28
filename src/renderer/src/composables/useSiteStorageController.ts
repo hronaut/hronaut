@@ -143,6 +143,12 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     }[key]
   }
 
+  function resetCopyFeedback(key: StorageFeedback, target: Ref<boolean>): void {
+    copySequences[key] += 1
+    feedbackTimers.clear(key)
+    target.value = false
+  }
+
   async function copyReport(key: StorageFeedback, payload: string, target: Ref<boolean>): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || !feedbackViewOpen(key)) return
@@ -241,7 +247,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const sequence = ++changesSequence
     changesState.value = 'loading'
     changesError.value = ''
-    changesCopied.value = false
+    resetCopyFeedback('changes', changesCopied)
     try {
       const report = await options.browser.storageChanges({ tabId: tab.id, action })
       if (sequence !== changesSequence || !isCurrent(tab.id, expectedGeneration)) return
@@ -282,7 +288,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const sequence = ++usageSequence
     usageState.value = 'loading'
     usageError.value = ''
-    usageCopied.value = false
+    resetCopyFeedback('usage', usageCopied)
     try {
       const report = await options.browser.inspectStorageUsage(tab.id)
       if (sequence !== usageSequence || !isCurrent(tab.id, expectedGeneration)) return null
@@ -307,11 +313,13 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function copyUsage(): Promise<void> {
+    if (usageState.value === 'loading') return
     if (!usageReport.value) return
     await copyReport('usage', JSON.stringify(usageReport.value, null, 2), usageCopied)
   }
 
   async function copyChanges(): Promise<void> {
+    if (changesState.value === 'loading') return
     if (changesReport.value?.status !== 'compared') return
     await copyReport('changes', JSON.stringify(changesReport.value, null, 2), changesCopied)
   }
@@ -327,7 +335,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const sequence = ++indexedDbSequence
     indexedDbState.value = 'loading'
     indexedDbError.value = ''
-    indexedDbCopied.value = false
+    resetCopyFeedback('indexed-db', indexedDbCopied)
     try {
       const report = await options.browser.inspectIndexedDb({
         tabId: tab.id,
@@ -398,6 +406,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function copyIndexedDb(): Promise<void> {
+    if (indexedDbState.value === 'loading') return
     const report = indexedDbReport.value
     if (!report) return
     await copyReport(
@@ -417,7 +426,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     const sequence = ++pwaSequence
     pwaState.value = 'loading'
     pwaError.value = ''
-    pwaCopied.value = false
+    resetCopyFeedback('pwa', pwaCopied)
     try {
       const report = await options.browser.inspectPwa({
         tabId: tab.id,
@@ -470,6 +479,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   async function copyPwa(): Promise<void> {
+    if (pwaState.value === 'loading') return
     if (!pwaReport.value) return
     await copyReport('pwa', JSON.stringify(pwaReport.value, null, 2), pwaCopied)
   }

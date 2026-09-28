@@ -206,4 +206,46 @@ describe('site-storage controller', () => {
     expect(controller.usageCopied.value).toBe(false)
     controller.dispose()
   })
+  it.each(['usage', 'changes', 'indexedDb', 'pwa'] as const)(
+    'invalidates pending %s clipboard feedback when refreshing the report', async (view) => {
+      const copying = deferred<boolean>()
+      const loading = deferred<void>()
+      const { controller, browser, copyText } = createController()
+      const reports = {
+        usage: usageReport(),
+        changes: { status: 'compared' } as BrowserStorageChangesReport,
+        indexedDb: { entries: [], offset: 0 } as unknown as BrowserIndexedDbReport,
+        pwa: { caches: [] } as unknown as BrowserPwaReport
+      }
+      controller.usageReport.value = reports.usage
+      controller.changesReport.value = reports.changes
+      controller.indexedDbReport.value = reports.indexedDb
+      controller.pwaReport.value = reports.pwa
+      controller[`${view}Open`].value = true
+      const copy = {
+        usage: controller.copyUsage, changes: controller.copyChanges,
+        indexedDb: controller.copyIndexedDb, pwa: controller.copyPwa
+      }[view]
+      browser.inspectStorageUsage.mockImplementation(async () => { await loading.promise; return reports.usage })
+      browser.storageChanges.mockImplementation(async () => { await loading.promise; return reports.changes })
+      browser.inspectIndexedDb.mockImplementation(async () => { await loading.promise; return reports.indexedDb })
+      browser.inspectPwa.mockImplementation(async () => { await loading.promise; return reports.pwa })
+      copyText.mockImplementationOnce(() => copying.promise)
+
+      const operation = copy()
+      const refresh = controller.refreshActiveView()
+      await copy()
+      expect(copyText).toHaveBeenCalledOnce()
+      // Finish the old clipboard write after the refreshed report arrives.
+      loading.resolve()
+      await refresh
+      copying.resolve(true)
+      await operation
+      expect(controller[`${view}Copied`].value).toBe(false)
+      await copy()
+      expect(controller[`${view}Copied`].value).toBe(true)
+      controller.dispose()
+    }
+  )
+
 })

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep storage report copy feedback tied to the current report, discarding stale clipboard completions after refresh and disabling copy while reports reload.
+
 - Keep notifications visible after keyboard focus enters them, including message replacements, until explicitly dismissed so their focused control does not disappear.
 
 - Wait for committed input-method text before searching a page, avoiding repeated searches for an outdated query during composition.
