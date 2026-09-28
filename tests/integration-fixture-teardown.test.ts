@@ -1,9 +1,34 @@
 import { createServer, get } from 'node:http'
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { _electron as electron, type ElectronApplication } from '@playwright/test'
 import { describe, expect, it, vi } from 'vitest'
-import { closeFixtureServer, closeHronaut } from './integration/fixtures.js'
+import { closeFixtureServer, closeHronaut, launchHronaut } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
+  it.each(['monitor', 'window', 'renderer'] as const)('closes a launched app when %s initialization fails', async (stage) => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-failed-launch-'))
+    const failure = new Error(`simulated ${stage} startup failure`)
+    const evaluate = vi.fn(async () => undefined)
+    const firstWindow = vi.fn(async () => ({
+      on: vi.fn(),
+      waitForLoadState: vi.fn(async () => { throw failure })
+    }))
+    if (stage === 'monitor') evaluate.mockRejectedValueOnce(failure)
+    if (stage === 'window') firstWindow.mockRejectedValueOnce(failure)
+    const close = vi.fn(async () => undefined)
+    const app = { evaluate, firstWindow, close, process: () => ({ exitCode: 0 }) } as unknown as ElectronApplication
+    const launch = vi.spyOn(electron, 'launch').mockResolvedValue(app)
+    try {
+      await expect(launchHronaut(directory)).rejects.toBe(failure)
+      expect(close).toHaveBeenCalledOnce()
+    } finally {
+      launch.mockRestore()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it('routes every HTTP fixture shutdown through the connection-draining helper', async () => {
     const integrationDirectory = 'tests/integration'
     const files = (await readdir(integrationDirectory))

@@ -102,40 +102,47 @@ export async function launchHronaut(
       HRONAUT_DOWNLOAD_DIR: profileDirectory
     }
   })
-  await app.evaluate(({ app }) => {
-    const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
-    const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
-      let type = 'destroyed'
-      let surface = 'unknown'
-      try {
-        type = contents.getType()
-        const url = contents.getURL()
-        surface = url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : 'page'
-      } catch { /* Renderer may already be destroyed. */ }
-      // Classify the surface without attaching page URLs or profile paths.
-      exits.push({ reason: details.reason, exitCode: details.exitCode, webContentsId: contents.id, type, surface, occurredAt: Date.now() })
-      if (exits.length > 16) exits.shift()
+  try {
+    await app.evaluate(({ app }) => {
+      const exits: { reason: string; exitCode: number; webContentsId: number; type: string; surface: string; occurredAt: number }[] = []
+      const listener: (event: Electron.Event, contents: Electron.WebContents, details: Electron.RenderProcessGoneDetails) => void = (_event, contents, details) => {
+        let type = 'destroyed'
+        let surface = 'unknown'
+        try {
+          type = contents.getType()
+          const url = contents.getURL()
+          surface = url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : 'page'
+        } catch { /* Renderer may already be destroyed. */ }
+        // Classify the surface without attaching page URLs or profile paths.
+        exits.push({ reason: details.reason, exitCode: details.exitCode, webContentsId: contents.id, type, surface, occurredAt: Date.now() })
+        if (exits.length > 16) exits.shift()
+      }
+      app.on('render-process-gone', listener)
+      ;(globalThis as typeof globalThis & {
+        __hronautQaRendererExits?: { exits: typeof exits; listener: typeof listener }
+      }).__hronautQaRendererExits = { exits, listener }
+    })
+    const window = await app.firstWindow()
+    window.on('pageerror', (error) => console.error(`[renderer] ${error.message}`))
+    window.on('console', (message) => {
+      if (message.type() === 'error') console.error(`[renderer] ${message.text()}`)
+    })
+    await window.waitForLoadState('domcontentloaded')
+    // Electron exposes its context before the first Page is fully initialized.
+    // Starting earlier can miss installing Playwright's DOM snapshot streamer
+    // in that page for its entire lifetime, despite recording screenshots.
+    const traces = testTraces.get(base.info())
+    if (traces) {
+      applicationTraces.set(app, traces)
+      await traces.start(app)
     }
-    app.on('render-process-gone', listener)
-    ;(globalThis as typeof globalThis & {
-      __hronautQaRendererExits?: { exits: typeof exits; listener: typeof listener }
-    }).__hronautQaRendererExits = { exits, listener }
-  })
-  const window = await app.firstWindow()
-  window.on('pageerror', (error) => console.error(`[renderer] ${error.message}`))
-  window.on('console', (message) => {
-    if (message.type() === 'error') console.error(`[renderer] ${message.text()}`)
-  })
-  await window.waitForLoadState('domcontentloaded')
-  // Electron exposes its context before the first Page is fully initialized.
-  // Starting earlier can miss installing Playwright's DOM snapshot streamer
-  // in that page for its entire lifetime, despite recording screenshots.
-  const traces = testTraces.get(base.info())
-  if (traces) {
-    applicationTraces.set(app, traces)
-    await traces.start(app)
+    return { app, window }
+  } catch (error) {
+    // Ownership has not reached the caller yet, so its teardown cannot close
+    // an application whose first window or renderer initialization failed.
+    await closeHronaut(app).catch(() => undefined)
+    throw error
   }
-  return { app, window }
 }
 
 export async function closeHronaut(app: ElectronApplication): Promise<void> {
