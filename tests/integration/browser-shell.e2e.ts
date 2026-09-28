@@ -1526,7 +1526,11 @@ test('switches detached panels exclusively without resurrecting the previous sur
   appWindow,
   electronApp
 }) => {
+  // Electron reports website views as pages too. Consume the new-tab event
+  // before waiting for the detached BrowserWindow.
+  const newTabPagePromise = electronApp.waitForEvent('window')
   await appWindow.getByRole('button', { name: 'New tab' }).click()
+  await newTabPagePromise
   await appWindow.getByRole('button', { name: 'Page tools' }).click()
   const detachedPagePromise = electronApp.waitForEvent('window')
   await appWindow.getByRole('dialog', { name: 'Page tools' })
@@ -1534,6 +1538,7 @@ test('switches detached panels exclusively without resurrecting the previous sur
     .selectOption('window')
   const detachedPage = await detachedPagePromise
   await detachedPage.waitForLoadState('domcontentloaded')
+  await expect(detachedPage).toHaveURL(/hronautPanel=page-tools/)
   await expect(detachedPage.getByRole('dialog', { name: 'Page tools' })).toBeVisible()
 
   await detachedPage.getByRole('button', { name: 'Open Console' }).click()
