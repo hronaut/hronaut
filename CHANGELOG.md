@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep the MCP port field and confirmation aligned with newer settings events when an older port-change or reset response finishes.
+
 - Preserve newer settings events when a delayed download-folder or download-preference response arrives, preventing stale responses from reverting other preferences.
 
 - Update the rate limiter's transitive IP address dependency to 10.5.1, incorporating upstream IPv6 classification security fixes.

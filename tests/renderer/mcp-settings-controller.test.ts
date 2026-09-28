@@ -86,6 +86,24 @@ function createController() {
 }
 
 describe('MCP settings controller', () => {
+  it.each(['move', 'reset'] as const)('keeps newer authoritative port events after a delayed %s response', async action => {
+    const { controller, settings, setPort, resetSettings } = createController()
+    const pending = deferred<AppSettings>()
+    setPort.mockImplementationOnce(() => pending.promise)
+    resetSettings.mockImplementationOnce(() => pending.promise)
+    controller.editPort('49000')
+    const operation = action === 'move' ? controller.applyPort() : controller.reset()
+    settings.value = { ...settings.value, mcpPort: 49002 }
+    await nextTick()
+    pending.resolve({ ...DEFAULT_RENDERER_SETTINGS, mcpPort: action === 'move' ? 49000 : DEFAULT_RENDERER_SETTINGS.mcpPort })
+
+    await expect(operation).resolves.toBe(true)
+    expect(controller.portDraft.value).toBe('49002')
+    expect(controller.portMessage.value).toBe('runtimeActions.mcp.active:{"port":49002}')
+    expect(controller.canApplyPort.value).toBe(false)
+    controller.dispose()
+  })
+
   it('keeps remote-access failures visible and serializes the pending setting change', async () => {
     const { controller, setRemoteAccess, setPort, onAuthenticationError } = createController()
     const pending = deferred<AppSettings>()
