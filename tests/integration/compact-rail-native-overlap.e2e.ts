@@ -92,7 +92,16 @@ for (const scale of [1, 1.25]) {
       return page.executeJavaScript('document.body.dataset.clicked')
     })).toBe('yes')
     await expect(appWindow.locator('.topbar')).toHaveCSS('width', '56px')
-    await expect(appWindow.locator('.toolbar')).toHaveCSS('height', '60px')
+    // The additional per-tab controls may need a second row even with the rail
+    // collapsed. Every action must remain inside the toolbar's native boundary.
+    await expect.poll(() => appWindow.locator('.toolbar').evaluate(toolbar => {
+      const bounds = toolbar.getBoundingClientRect()
+      return [...toolbar.querySelectorAll('button')].every(button => {
+        const rect = button.getBoundingClientRect()
+        return rect.width === 0 || (rect.left >= bounds.left && rect.right <= bounds.right + 1
+          && rect.top >= bounds.top && rect.bottom <= bounds.bottom + 1)
+      })
+    })).toBe(true)
   })
 
   test(`keeps address suggestions anchored while the compact toolbar reflows at ${scale} scale`, async ({ appWindow, electronApp }) => {
