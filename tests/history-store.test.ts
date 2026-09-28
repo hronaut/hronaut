@@ -18,6 +18,21 @@ async function storeAt(now = Date.UTC(2026, 7, 13)): Promise<{ path: string; sto
 }
 
 describe('HistoryStore', () => {
+  it('keeps blank-title visits on long hostnames reloadable after recording and title updates', async () => {
+    const now = Date.UTC(2026, 7, 13)
+    const { path, store } = await storeAt(now)
+    const hostname = `${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(40)}.test`
+    const url = `https://${hostname}/`
+    const saved = await store.record({ url, title: '   ' })
+    expect(saved!.title).toBe(hostname.slice(0, 200))
+    await expect(new HistoryStore(path, () => now).load()).resolves.toEqual([saved])
+
+    await store.updateTitle({ url, title: 'Explicit title' })
+    const updated = await store.updateTitle({ url, title: '' })
+    expect(updated!.title).toBe(hostname.slice(0, 200))
+    await expect(new HistoryStore(path, () => now).load()).resolves.toEqual([updated])
+  })
+
   it('keeps complete Unicode characters when recording and updating bounded titles', async () => {
     const { path, store } = await storeAt()
     const url = 'https://unicode.example/'

@@ -35,5 +35,5 @@ export function normalizeCollectionTitle(
   if (isUrlFallback || truncatedUrlAuthority) safeValue = policy.normalizeUrl(sourceUrl) ?? value
   else if (hasEmbeddedHttpCredentials(value)) safeValue = policy.normalizeUrl(value) ?? url
   const title = truncateText(safeValue.replace(/\s+/g, ' ').trim(), policy.maxLength)
-  return title || new URL(url).hostname
+  return title || truncateText(new URL(url).hostname, policy.maxLength)
 }

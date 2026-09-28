@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bound hostname title fallbacks so blank-title bookmarks and history entries on long hostnames survive restart.
+
 - Allow address suggestions to retry after native popup setup fails, closing the failed popup instead of retaining an unusable cached load.
 
 - Close workspace storage probes after setup failures and continue restoring cookies when a local-storage rollback probe cannot be created.
