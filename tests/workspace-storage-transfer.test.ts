@@ -12,18 +12,19 @@ interface MockContents {
   isDestroyed(): boolean
   close(): void
 }
-const state = vi.hoisted(() => ({ profiles: new Map<string, ReturnType<typeof profile>>(), run: null as StorageScript | null }))
+const state = vi.hoisted(() => ({ profiles: new Map<string, ReturnType<typeof profile>>(), run: null as StorageScript | null, attach: vi.fn(), close: vi.fn(), create: vi.fn() }))
 vi.mock('electron', () => ({
   session: { fromPartition: (partition: string) => state.profiles.get(partition) },
   WebContentsView: class {
     webContents: MockContents
     constructor({ webPreferences }: { webPreferences: { partition: string } }) {
+      state.create()
       const profile = state.profiles.get(webPreferences.partition)!
       let origin = ''
       let initialized = false
       let listener: DebuggerListener
       this.webContents = {
-        debugger: { attach() {}, on(_name: string, callback: DebuggerListener) { listener = callback }, async sendCommand(method: string) {
+        debugger: { attach() { state.attach() }, on(_name: string, callback: DebuggerListener) { listener = callback }, async sendCommand(method: string) {
           if (method === 'Network.setBypassServiceWorker' && !initialized) throw new Error('Network command requires an initialized renderer')
         } },
         async loadURL(url: string) { initialized = true; origin = new URL(url).origin; listener({}, 'Fetch.requestPaused', { requestId: 'request' }) },
@@ -33,7 +34,7 @@ vi.mock('electron', () => ({
           return state.run!(script, entries)
         },
         isDestroyed: () => false,
-        close() {}
+        close() { state.close() }
       }
     }
   }
@@ -72,6 +73,7 @@ let source: ReturnType<typeof profile>
 let target: ReturnType<typeof profile>
 const options = { sourcePartition: 'source', targetPartition: 'target', origins: [origin], copyAllCookies: false, copyLocalStorage: true, allowCookieCleanup: true, allowLocalStorageCleanup: true }
 beforeEach(() => {
+  state.attach.mockReset(); state.close.mockReset(); state.create.mockReset()
   source = profile([cookie()]); target = profile()
   state.profiles = new Map([['source', source], ['target', target]])
   state.run = (script: string, entries: Map<string, string>) => runInNewContext(script, { localStorage: {
@@ -82,6 +84,33 @@ beforeEach(() => {
 })
 
 describe('workspace data transfer', () => {
+  it('closes both probes and restores cookies when debugger setup fails', async () => {
+    state.attach.mockImplementationOnce(() => { throw new Error('Debugger unavailable') })
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('Debugger unavailable')
+    expect(state.close).toHaveBeenCalledTimes(2)
+    expect(target.jar.size).toBe(0)
+    expect(source.jar.get(identity(cookie()))?.value).toBe('source')
+  })
+
+  it('closes the source probe when destination probe creation fails', async () => {
+    state.create.mockImplementationOnce(() => {}).mockImplementationOnce(() => { throw new Error('Probe unavailable') })
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('Probe unavailable')
+    expect(state.close).toHaveBeenCalledTimes(1)
+    expect(target.jar.size).toBe(0)
+  })
+
+  it('still restores cookies when the local-storage rollback probe cannot be created', async () => {
+    source.storage.set(origin, new Map([['shared', 'source']]))
+    target.jar.set(identity(cookie()), cookie('target'))
+    target.flushStorageData.mockRejectedValueOnce(new Error('flush failed'))
+    state.create.mockImplementationOnce(() => {}).mockImplementationOnce(() => {})
+      .mockImplementationOnce(() => { throw new Error('Rollback probe unavailable') })
+    await expect(transferWorkspaceStorage(options)).rejects.toThrow('destination could not be fully restored')
+    expect(target.jar.get(identity(cookie()))?.value).toBe('target')
+    expect(source.jar.get(identity(cookie()))?.value).toBe('source')
+    expect(state.close).toHaveBeenCalledTimes(2)
+  })
+
   it('verifies a destination before removing source data on Move and preserves unrelated keys', async () => {
     source.storage.set(origin, new Map([['shared', 'source']]))
     target.storage.set(origin, new Map([['shared', 'old'], ['unrelated', 'keep']]))

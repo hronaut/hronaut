@@ -186,7 +186,6 @@ class LocalStorageSurface {
       }
     })
     this.webContents = this.view.webContents
-    this.webContents.debugger.attach('1.3')
     this.webContents.debugger.on('message', (_event, method, params) => {
       if (method !== 'Fetch.requestPaused') return
       const request = params as { requestId?: string }
@@ -215,6 +214,7 @@ class LocalStorageSurface {
   }
 
   async initialize(): Promise<void> {
+    this.webContents.debugger.attach('1.3')
     // Network-domain commands need an initialized renderer. Bootstrap a safe
     // opaque page before applying bypass, without contacting a website.
     await storageDeadline(this.webContents.loadURL('about:blank'), 'renderer initialization')
@@ -324,8 +324,9 @@ export async function transferWorkspaceStorage(
 
     if (options.copyLocalStorage && origins.length) {
       const sourceSurface = new LocalStorageSurface(options.sourcePartition)
-      const targetSurface = new LocalStorageSurface(options.targetPartition)
+      let targetSurface: LocalStorageSurface | undefined
       try {
+        targetSurface = new LocalStorageSurface(options.targetPartition)
         await Promise.all([sourceSurface.initialize(), targetSurface.initialize()])
         for (const origin of origins) {
           await Promise.all([sourceSurface.loadOrigin(origin), targetSurface.loadOrigin(origin)])
@@ -345,7 +346,7 @@ export async function transferWorkspaceStorage(
         }
       } finally {
         sourceSurface.close()
-        targetSurface.close()
+        targetSurface?.close()
       }
     }
     await flushBrowserSessionStorage(target)
@@ -369,8 +370,9 @@ export async function transferWorkspaceStorage(
   } catch (transferError) {
     const rollbackErrors: unknown[] = []
     if (localStorageRollback.length) {
-      const targetSurface = new LocalStorageSurface(options.targetPartition)
+      let targetSurface: LocalStorageSurface | undefined
       try {
+        targetSurface = new LocalStorageSurface(options.targetPartition)
         await targetSurface.initialize()
         for (const entry of [...localStorageRollback].reverse()) {
           try {
@@ -383,7 +385,7 @@ export async function transferWorkspaceStorage(
       } catch (error) {
         rollbackErrors.push(error)
       } finally {
-        targetSurface.close()
+        targetSurface?.close()
       }
     }
     for (const cookie of cookies) {
