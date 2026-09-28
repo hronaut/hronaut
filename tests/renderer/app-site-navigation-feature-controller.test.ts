@@ -68,6 +68,8 @@ function createHarness() {
     setAllTabsMuted: vi.fn(async () => browserState.value),
     setAllHumanInteractionLocked: vi.fn(async () => browserState.value),
     setTabHumanInteractionLocked: vi.fn(async () => browserState.value),
+    setTabAgentPaused: vi.fn(async () => browserState.value),
+    setTabPageLifecycle: vi.fn(async () => browserState.value),
     setTabMuted: vi.fn(async () => browserState.value),
     showWorkspaceContextMenu: vi.fn(async () => undefined),
     toggleDevTools: vi.fn(async () => true)

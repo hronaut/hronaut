@@ -60,6 +60,8 @@ function createHarness() {
     setAllTabsMuted: vi.fn(async (_muted: boolean) => state.value),
     setAllHumanInteractionLocked: vi.fn(async (_locked: boolean) => state.value),
     setTabHumanInteractionLocked: vi.fn(async (_tabId: string, _locked: boolean) => state.value),
+    setTabAgentPaused: vi.fn(async (_tabId: string, _paused: boolean) => state.value),
+    setTabPageLifecycle: vi.fn(async (_tabId: string, _lifecycle: 'active' | 'frozen') => state.value),
     setTabMuted: vi.fn(async (_tabId: string, _muted: boolean) => state.value),
     showWorkspaceContextMenu: vi.fn(async (_groupId: string) => undefined),
     toggleDevTools: vi.fn(async (_tabId?: string) => true)
@@ -267,6 +269,51 @@ describe('browser tab actions controller', () => {
 
     expect(harness.browser.setTabMuted.mock.calls.map(([, muted]) => muted)).toEqual([true, false])
     expect(harness.state.value.tabs[0]?.muted).toBe(false)
+  })
+
+  it('serializes rapid Live/Frozen clicks using the completed operation state', async () => {
+    const harness = createHarness()
+    harness.browser.setTabPageLifecycle.mockImplementation(async (id, pageLifecycleState) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map(candidate => candidate.id === id ? { ...candidate, pageLifecycleState } : candidate)
+    }))
+    const stale = tab()
+    await Promise.all([
+      harness.controller.togglePageLifecycle(stale),
+      harness.controller.togglePageLifecycle(stale)
+    ])
+    expect(harness.browser.setTabPageLifecycle.mock.calls).toEqual([['active', 'frozen'], ['active', 'active']])
+    expect(harness.state.value.tabs[0]?.pageLifecycleState).toBe('active')
+    expect(harness.browser.setTabAgentPaused).not.toHaveBeenCalled()
+  })
+
+  it('serializes agent toggles independently from page execution', async () => {
+    const harness = createHarness()
+    harness.browser.setTabAgentPaused.mockImplementation(async (id, agentPaused) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map(candidate => candidate.id === id ? { ...candidate, agentPaused } : candidate)
+    }))
+    await Promise.all([
+      harness.controller.toggleTabAgentPaused(tab()),
+      harness.controller.toggleTabAgentPaused(tab())
+    ])
+    expect(harness.browser.setTabAgentPaused.mock.calls).toEqual([['active', true], ['active', false]])
+    expect(harness.browser.setTabPageLifecycle).not.toHaveBeenCalled()
+    harness.state.value.agentControlLocked = true
+    await harness.controller.toggleTabAgentPaused(tab())
+    expect(harness.browser.setTabAgentPaused).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops queued page and agent toggles after disposal or tab closure', async () => {
+    for (const removed of ['controller', 'tab']) {
+      const harness = createHarness()
+      const operations = [harness.controller.togglePageLifecycle(tab()), harness.controller.toggleTabAgentPaused(tab())]
+      if (removed === 'controller') harness.controller.dispose()
+      else harness.state.value.tabs = []
+      await Promise.all(operations)
+      expect(harness.browser.setTabPageLifecycle).not.toHaveBeenCalled()
+      expect(harness.browser.setTabAgentPaused).not.toHaveBeenCalled()
+    }
   })
 
   it('keeps a toggle queue usable after an earlier mutation is rejected', async () => {

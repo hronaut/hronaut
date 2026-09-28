@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve rapid Live/Frozen toggles by waiting for authoritative tab state between clicks; share tab-action queuing and cleanup with the separate agent control.
+
 ### Changed
 
 - Add a separate per-tab agent pause/resume control with scoped exceptions to global pause; keep Live/Frozen page execution independent.

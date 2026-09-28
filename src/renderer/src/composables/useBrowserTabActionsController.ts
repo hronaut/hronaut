@@ -16,6 +16,8 @@ type BrowserTabActionsApi = Pick<
   | 'setAllHumanInteractionLocked'
   | 'setTabHumanInteractionLocked'
   | 'setTabMuted'
+  | 'setTabAgentPaused'
+  | 'setTabPageLifecycle'
   | 'showWorkspaceContextMenu'
   | 'toggleDevTools'
 >
@@ -112,6 +114,24 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     })
   }
 
+  async function toggleTabAgentPaused(tab: BrowserTabState): Promise<void> {
+    await enqueueToggle(`agents:${tab.id}`, async () => {
+      const current = options.state.value.tabs.find(candidate => candidate.id === tab.id)
+      if (!current || options.state.value.agentControlLocked) return
+      await options.syncState(options.browser.setTabAgentPaused(tab.id, !current.agentPaused))
+    })
+  }
+
+  async function togglePageLifecycle(tab: BrowserTabState): Promise<void> {
+    await enqueueToggle(`lifecycle:${tab.id}`, async () => {
+      const current = options.state.value.tabs.find(candidate => candidate.id === tab.id)
+      if (!current) return
+      await options.syncState(options.browser.setTabPageLifecycle(
+        tab.id, current.pageLifecycleState === 'frozen' ? 'active' : 'frozen'
+      ))
+    })
+  }
+
   async function toggleAllTabsMuted(): Promise<void> {
     await enqueueToggle('audio', async () => {
       if (disposed) return
@@ -165,6 +185,8 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     showWorkspaceContextMenu,
     closeTab,
     toggleTabMuted,
+    toggleTabAgentPaused,
+    togglePageLifecycle,
     toggleAllTabsMuted,
     toggleTabHumanInteraction,
     toggleAllHumanInteraction,

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import { useI18n } from 'vue-i18n'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabState,
@@ -156,6 +156,8 @@ const {
   showWorkspaceContextMenu,
   closeTab,
   toggleTabMuted,
+  toggleTabAgentPaused,
+  togglePageLifecycle,
   toggleAllTabsMuted,
   toggleTabHumanInteraction,
   toggleAllHumanInteraction
@@ -180,28 +182,6 @@ function selectTab(tabId: string): void {
 
 function startTabDrag(): void {
   tabSearchOpen.value = false
-}
-
-let agentControlDisposed = false
-onBeforeUnmount(() => { agentControlDisposed = true })
-let agentControlQueue = Promise.resolve()
-function toggleTabAgentPaused(tab: BrowserTabState): void {
-  void props.runAction(() => {
-    const operation = agentControlQueue.then(async () => {
-      const current = props.state.tabs.find(candidate => candidate.id === tab.id)
-      if (agentControlDisposed || !current || props.state.agentControlLocked) return
-      await props.syncState(props.browser.setTabAgentPaused(tab.id, !current.agentPaused))
-    })
-    agentControlQueue = operation.catch(() => undefined)
-    return operation
-  })
-}
-
-function togglePageLifecycle(tab: BrowserTabState): void {
-  void props.runAction(() => props.syncState(props.browser.setTabPageLifecycle(
-    tab.id,
-    tab.pageLifecycleState === 'frozen' ? 'active' : 'frozen'
-  )))
 }
 
 defineExpose({ expandTabGroup, expandTabGroupForTab })
@@ -360,8 +340,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :element-picker-label="elementPickerLabel"
       :page-tools-open="pageToolsOpen"
       @toggle-tab-interaction="runAction(toggleTabHumanInteraction)"
-      @toggle-page-lifecycle="togglePageLifecycle"
-      @toggle-tab-agent-paused="toggleTabAgentPaused"
+      @toggle-page-lifecycle="runAction(() => togglePageLifecycle($event))"
+      @toggle-tab-agent-paused="runAction(() => toggleTabAgentPaused($event))"
       @toggle-tab-muted="runAction(() => toggleTabMuted($event))"
       @toggle-area-capture="runAction(toggleAreaCapture)"
       @toggle-element-picker="runAction(() => toggleElementPicker('context'))"

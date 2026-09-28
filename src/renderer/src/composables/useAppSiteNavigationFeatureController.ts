@@ -30,6 +30,8 @@ type SiteNavigationBrowserApi = Pick<
   | 'setAllHumanInteractionLocked'
   | 'setTabHumanInteractionLocked'
   | 'setTabMuted'
+  | 'setTabAgentPaused'
+  | 'setTabPageLifecycle'
   | 'showWorkspaceContextMenu'
   | 'toggleDevTools'
 >

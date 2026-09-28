@@ -261,6 +261,8 @@ function createHarness(home = false) {
     showWorkspaceContextMenu: vi.fn(),
     closeTab: vi.fn(),
     toggleTabMuted: vi.fn(),
+    toggleTabAgentPaused: vi.fn(),
+    togglePageLifecycle: vi.fn(),
     toggleAllTabsMuted: vi.fn(),
     toggleTabHumanInteraction: vi.fn(),
     toggleAllHumanInteraction: vi.fn()
@@ -523,33 +525,18 @@ describe('AppBrowserChromeLayer', () => {
     expect(expandTabGroupForTab).toHaveBeenCalledTimes(1)
   })
 
-  it('routes agent pause independently and drops a queued toggle after unmount', async () => {
+  it('routes independent agent and lifecycle actions through the tab controller', async () => {
     const harness = createHarness()
     const page = harness.wrapper.getComponent(BrowserPageActionsStub)
-    page.vm.$emit('toggleTabAgentPaused', harness.props.state.tabs[0])
+    const tab = harness.props.state.tabs[0]
+    page.vm.$emit('toggleTabAgentPaused', tab)
     await nextTick()
+    expect(harness.tabActions.toggleTabAgentPaused).toHaveBeenCalledWith(tab)
+    expect(harness.tabActions.togglePageLifecycle).not.toHaveBeenCalled()
+    page.vm.$emit('togglePageLifecycle', tab)
     await nextTick()
-    expect(harness.browser.setTabAgentPaused).toHaveBeenCalledWith('tab-1', true)
-    expect(harness.browser.setTabPageLifecycle).not.toHaveBeenCalled()
-    page.vm.$emit('toggleTabAgentPaused', harness.props.state.tabs[0])
-    harness.wrapper.unmount()
-    await nextTick()
-    await nextTick()
-    expect(harness.browser.setTabAgentPaused).toHaveBeenCalledTimes(1)
-  })
-
-  it('routes explicit page freeze and resume through the authoritative browser state', async () => {
-    const harness = createHarness()
-    const page = harness.wrapper.getComponent(BrowserPageActionsStub)
-
-    page.vm.$emit('togglePageLifecycle', harness.props.state.tabs[0])
-    await nextTick()
-    expect(harness.browser.setTabPageLifecycle).toHaveBeenCalledWith('tab-1', 'frozen')
-    expect(harness.syncState).toHaveBeenCalled()
-
-    page.vm.$emit('togglePageLifecycle', { ...harness.props.state.tabs[0], pageLifecycleState: 'frozen' })
-    await nextTick()
-    expect(harness.browser.setTabPageLifecycle).toHaveBeenLastCalledWith('tab-1', 'active')
+    expect(harness.tabActions.togglePageLifecycle).toHaveBeenCalledWith(tab)
+    expect(harness.runAction).toHaveBeenCalledTimes(2)
   })
 
   it('forwards every child event through the existing action boundary and closes tab search on select or drag', async () => {
