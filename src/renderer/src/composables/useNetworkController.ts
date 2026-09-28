@@ -223,6 +223,16 @@ export function useNetworkController(options: NetworkControllerOptions) {
     resetRouteDraft()
   }
 
+  function clearRequestSelection(): void {
+    requestDetailsSequence += 1
+    detailsCopySequence += 1
+    feedbackTimers.clear('details')
+    selectedRequestId.value = null
+    requestDetails.value = null
+    requestDetailsLoading.value = false
+    detailsCopied.value = null
+  }
+
   async function refresh(clear = false): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return
@@ -235,11 +245,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     harExport.value = null
     if (clear) {
       contentSearchSequence += 1
-      requestDetailsSequence += 1
-      requestDetails.value = null
-      requestDetailsLoading.value = false
-      selectedRequestId.value = null
-      detailsCopied.value = null
+      clearRequestSelection()
       resetReplayFeedback()
       contentSearchResult.value = null
       contentSearchState.value = 'idle'
@@ -251,8 +257,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
       requests.value = nextRequests
       monitorState.value = 'ready'
       if (selectedRequestId.value && !nextRequests.some((request) => request.id === selectedRequestId.value)) {
-        selectedRequestId.value = null
-        requestDetails.value = null
+        clearRequestSelection()
       }
     } catch (cause) {
       if (sequence !== monitorRequestSequence || !isCurrent(tab.id, expectedGeneration)) return

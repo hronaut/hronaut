@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Discard pending Network details and copy feedback when the selected request is cleared or leaves the retained history.
+
 - Wait for pending Console reads before polling again so slow responses remain visible instead of being repeatedly discarded.
 
 - Resume live tab previews when a timed-out native capture later fails, while preventing overlapping captures.

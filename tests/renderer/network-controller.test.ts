@@ -273,14 +273,14 @@ describe('network controller', () => {
     expect(controller.requestDetailsLoading.value).toBe(false)
   })
 
-  it.each(['success', 'failure'] as const)('discards pending request details %s and loading state when clearing the log', async (outcome) => {
+  it.each([true, false].flatMap((clear) => ['success', 'failure'].map((outcome) => ({ clear, outcome }))))('discards pending request details $outcome when the selection disappears (clear=$clear)', async ({ clear, outcome }) => {
     const { browser, controller } = createController()
     const pending = deferred<BrowserNetworkRequestDetails>()
     browser.getNetworkRequestDetails.mockImplementationOnce(() => pending.promise)
 
     const selecting = controller.selectRequest(request('original'))
     expect(controller.requestDetailsLoading.value).toBe(true)
-    await controller.refresh(true)
+    await controller.refresh(clear)
     expect.soft(controller.requestDetailsLoading.value).toBe(false)
     if (outcome === 'success') pending.resolve(details('original'))
     else pending.reject(new Error('Details from the old log failed'))
@@ -444,6 +444,24 @@ describe('network controller', () => {
     await operation
 
     expect(controller.detailsCopied.value).toBeNull()
+    controller.dispose()
+  })
+
+  it.each([true, false].flatMap((clear) => ['success', 'failure'].map((outcome) => ({ clear, outcome }))))('discards pending copy $outcome when the selection disappears (clear=$clear)', async ({ clear, outcome }) => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    await controller.selectRequest(request('removed'))
+    copyText.mockImplementationOnce(() => pending.promise)
+
+    const copying = controller.copyDetails()
+    await controller.refresh(clear)
+    if (outcome === 'success') pending.resolve(true)
+    else pending.reject(new Error('Old clipboard operation failed'))
+    await copying
+
+    expect(controller.selectedRequestId.value).toBeNull()
+    expect(controller.detailsCopied.value).toBeNull()
+    expect(controller.monitorError.value).toBe('')
     controller.dispose()
   })
 
