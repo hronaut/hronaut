@@ -36,7 +36,7 @@ describe('reproduction recorder data contracts', () => {
       await f.recorder.manage(f.tab, 'start')
       f.executeJavaScript.mockClear()
       f.executeJavaScript.mockResolvedValue({ x: 0, y: 300 })
-      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10, deltaY: 100 })
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10 })
       f.tab.navigationGeneration += 1
       f.tab.url = 'https://example.test/next'
       f.recorder.navigated(f.tab, f.tab.url, false)
@@ -45,7 +45,7 @@ describe('reproduction recorder data contracts', () => {
       expect(f.executeJavaScript).not.toHaveBeenCalled()
       expect((await f.recorder.manage(f.tab, 'get')).steps.map(step => step.kind)).toEqual(['navigate', 'navigate'])
 
-      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10, deltaY: 100 })
+      f.recorder.observeReproMouse(f.tab, { type: 'mouseWheel', x: 10, y: 10 })
       await vi.advanceTimersByTimeAsync(250)
       await f.tab.reproRecording!.queue
       expect((await f.recorder.manage(f.tab, 'get')).steps.at(-1)).toMatchObject({ kind: 'scroll', scroll: { x: 0, y: 300 } })
