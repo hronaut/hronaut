@@ -26,7 +26,7 @@ test('resumes only a selected tab during global pause and keeps Live/Frozen inde
   const snapshot = await client.callTool({ name: 'browser_snapshot', arguments: { tabId } }) as CallToolResult
   expect(snapshot.isError, text(snapshot)).not.toBe(true)
   await pause.click()
-  await expect(client.callTool({ name: 'browser_snapshot', arguments: { tabId } })).rejects.toThrow(/503/)
+  await expect(client.callTool({ name: 'browser_snapshot', arguments: { tabId } })).rejects.toThrow(/paused by the user/)
   await appWindow.getByRole('button', { name: 'Resume agents for this tab', exact: true }).click()
   const userCreated = await appWindow.evaluate(`window.hronaut.newTab({mcpGroupId:${JSON.stringify(workspaceId)},active:false})`) as BrowserState
   expect(userCreated.tabs.find(tab => !state.tabs.some(previous => previous.id === tab.id))?.agentPaused).toBe(true)
@@ -45,7 +45,8 @@ test('resumes only a selected tab during global pause and keeps Live/Frozen inde
   await expect(appWindow.getByRole('button', { name: 'Freeze this live page for deterministic review' })).toBeVisible()
   await appWindow.evaluate('window.hronautMcp.setPaused(true)')
   await expect(appWindow.getByRole('button', { name: 'Resume agents for this tab', exact: true })).toBeVisible()
-  await expect(client.callTool({ name: 'browser_snapshot', arguments: { tabId } })).rejects.toThrow(/503/)
+  await expect(client.callTool({ name: 'browser_snapshot', arguments: { tabId } })).rejects.toThrow(/paused by the user/)
+  expect((await fetch(`http://127.0.0.1:${mcpPort}/mcp`, { headers: { authorization: `Bearer ${mcpToken}` } })).status).toBe(503)
   await appWindow.evaluate('window.hronautMcp.setPaused(false)')
   // The saved per-tab pause from before the global override is restored.
   await expect(appWindow.getByRole('button', { name: 'Resume agents for this tab', exact: true })).toBeVisible()

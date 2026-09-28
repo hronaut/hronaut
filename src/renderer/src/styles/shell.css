@@ -222,7 +222,7 @@
   .shell:not(.vertical-tabs-shell) :is(.update-status-label, .update-status-chevron) { @apply hidden; }
 }
 @media (max-width: 720px) {
-  .shell .toolbar { @apply [gap:2px]; }
+  .shell .toolbar { @apply [gap:4px_2px]; }
   .shell:not(.vertical-tabs-shell) .toolbar { @apply [padding-inline:8px]; }
   .shell .address-form { @apply [min-width:100px] [margin-inline:2px]; }
 }
@@ -491,7 +491,7 @@
 @keyframes mcp-status-pulse { 50% { opacity: .45; } }
 
 .toolbar {
-  @apply relative [z-index:1] flex items-center [gap:5px] [height:60px] [padding:8px_12px_11px] [background:var(--toolbar)];
+  @apply relative [z-index:1] flex flex-wrap items-center [gap:4px_5px] [height:auto] [min-height:60px] [padding:8px_12px_11px] [background:var(--toolbar)];
 }
 .vertical-tabs-shell .toolbar {
   @apply [width:calc(100%_-_var(--tab-rail-width))] [margin-left:var(--tab-rail-width)];
