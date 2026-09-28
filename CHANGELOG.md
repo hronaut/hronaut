@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve newer settings events when a delayed download-folder or download-preference response arrives, preventing stale responses from reverting other preferences.
+
 - Update the rate limiter's transitive IP address dependency to 10.5.1, incorporating upstream IPv6 classification security fixes.
 
 - Bound MCP JSON-RPC batches to 100 messages with the SDK 1.30.1 patch, preventing one HTTP request from dispatching an oversized batch.

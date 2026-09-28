@@ -46,6 +46,7 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
   async function chooseDirectory(): Promise<boolean> {
     const operation = begin(options.translate('runtime.downloadSettings.openingPicker'))
     if (operation === null) return false
+    const startingSettings = options.settings.value
     try {
       const result = await options.api.chooseDownloadDirectory()
       if (operation !== generation) return false
@@ -54,7 +55,7 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
         message.value = ''
         return false
       }
-      options.applySettings(result.settings)
+      if (options.settings.value === startingSettings) options.applySettings(result.settings)
       state.value = 'saved'
       message.value = options.translate('runtime.downloadSettings.folderSelected')
       return true
@@ -66,10 +67,11 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
   async function setAskWhereToSave(enabled: boolean): Promise<boolean> {
     const operation = begin(options.translate('runtime.downloadSettings.saving'))
     if (operation === null) return false
+    const startingSettings = options.settings.value
     try {
       const next = await options.api.setAskWhereToSaveDownloads(enabled)
       if (operation !== generation) return false
-      options.applySettings(next)
+      if (options.settings.value === startingSettings) options.applySettings(next)
       state.value = 'saved'
       message.value = options.translate(enabled
         ? 'runtime.downloadSettings.ask'
@@ -97,10 +99,11 @@ export function useDownloadSettingsController(options: DownloadSettingsControlle
   async function reset(): Promise<boolean> {
     const operation = begin(options.translate('runtime.downloadSettings.restoring'))
     if (operation === null) return false
+    const startingSettings = options.settings.value
     try {
       const next = await options.api.resetDownloads()
       if (operation !== generation) return false
-      options.applySettings(next)
+      if (options.settings.value === startingSettings) options.applySettings(next)
       state.value = 'saved'
       message.value = options.translate('runtime.downloadSettings.restored')
       return true
