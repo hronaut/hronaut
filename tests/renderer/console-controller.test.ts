@@ -47,7 +47,7 @@ function createController() {
   const browser = {
     listConsoleMessages: vi.fn(async () => [] as BrowserConsoleMessage[])
   }
-  const copyText = vi.fn(async () => true)
+  const copyText = vi.fn(async (_text: string) => true)
   const controller = useConsoleController({
     activeTab,
     open,
@@ -64,6 +64,50 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
+  it.each(['entry', 'filtered', 'all'] as const)('invalidates a pending %s copy when the console is cleared', async (scope) => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    const oldMessage = message('before clear')
+    controller.messages.value = [oldMessage]
+    copyText.mockReturnValueOnce(pending.promise)
+    const copy = () => scope === 'entry'
+      ? controller.copyEntry(controller.messages.value[0])
+      : scope === 'filtered' ? controller.copyFiltered() : controller.copyAll()
+    try {
+      const operation = copy()
+      await controller.refresh(true)
+      expect(controller.messages.value).toEqual([])
+      pending.resolve(true)
+      await operation
+      expect(controller.copied.value).toBeNull()
+      expect(controller.copiedEntryKey.value).toBeNull()
+
+      controller.messages.value = [message('after clear')]
+      await copy()
+      if (scope === 'entry') expect(controller.copiedEntryKey.value).toContain('after clear')
+      else expect(controller.copied.value).toBe(scope)
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0]).messages[0].message).toBe('after clear')
+    } finally { controller.dispose() }
+  })
+
+  it('invalidates a copy started while Clear is pending', async () => {
+    const clearing = deferred<BrowserConsoleMessage[]>()
+    const copying = deferred<boolean>()
+    const { controller, browser, copyText } = createController()
+    controller.messages.value = [message('old messages')]
+    browser.listConsoleMessages.mockReturnValueOnce(clearing.promise)
+    copyText.mockReturnValueOnce(copying.promise)
+    try {
+      const clear = controller.refresh(true)
+      const copy = controller.copyAll()
+      clearing.resolve([])
+      await clear
+      copying.resolve(true)
+      await copy
+      expect(controller.copied.value).toBeNull()
+    } finally { controller.dispose() }
+  })
+
   it.each(['resolved', 'rejected'] as const)('waits for a slow read to be %s before polling again', async (outcome) => {
     vi.useFakeTimers()
     const pending = deferred<BrowserConsoleMessage[]>()

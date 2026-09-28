@@ -66,6 +66,13 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     copiedEntryKey.value = null
   }
 
+  function clearCopyFeedback(): void {
+    copySequence += 1
+    feedbackTimers.clearAll()
+    copied.value = null
+    copiedEntryKey.value = null
+  }
+
   async function refresh(clear = false, silent = false): Promise<void> {
     const tab = options.activeTab.value
     if (!tab || isHronautHomeUrl(tab.url)) return
@@ -76,13 +83,11 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     pendingRefresh = pending
     if (!silent) state.value = 'loading'
     error.value = ''
-    if (clear) {
-      copied.value = null
-      copiedEntryKey.value = null
-    }
+    if (clear) clearCopyFeedback()
     try {
       const nextMessages = await options.browser.listConsoleMessages(tab.id, clear)
       if (sequence !== requestSequence || !isCurrent(tab.id, expectedGeneration)) return
+      if (clear) clearCopyFeedback()
       messages.value = nextMessages
       state.value = 'ready'
     } catch (cause) {

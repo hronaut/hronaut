@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent pending console clipboard writes from restoring stale copy feedback after Clear.
+
 - Remove stale video previews when polling observes that an agent edited or cleared the recording.
 
 - Report workspace-opening failures from Settings through the standard error notification, and consistently wait for Settings to close before opening an editor.
