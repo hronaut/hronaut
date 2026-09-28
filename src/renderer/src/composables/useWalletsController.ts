@@ -149,8 +149,9 @@ export function useWalletsController(options: WalletsControllerOptions) {
     if (busy.value) return undefined
     busy.value = true
     errorMessage.value = ''
+    let result: T | undefined
     try {
-      const result = await operation()
+      result = await operation()
       if (refresh && !disposed) {
         const startingStatusRevision = statusRevision
         const nextStatus = await options.api.status()
@@ -165,7 +166,9 @@ export function useWalletsController(options: WalletsControllerOptions) {
       return result
     } catch (error) {
       if (!disposed) setError(error)
-      return undefined
+      // A failed follow-up read must not turn a committed mutation into a
+      // retryable failure (import confirmation tokens are already consumed).
+      return result
     } finally {
       if (!disposed) busy.value = false
     }

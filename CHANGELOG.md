@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve successful wallet operation results when a follow-up refresh fails, so completed imports are not left awaiting confirmation with an already-consumed token.
+
 - Preserve Settings search text and the selected section when an input method uses legacy composition key events.
 
 - Discard delayed DOM recording export feedback after starting, stopping, or clearing its recording, using the same mutation guard as interaction recordings.

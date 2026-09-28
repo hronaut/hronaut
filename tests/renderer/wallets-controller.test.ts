@@ -344,4 +344,36 @@ describe('wallets controller', () => {
     await locking
     controller.dispose()
   })
+  it.each(['status', 'list', 'details'] as const)(
+    'preserves a confirmed import when its %s refresh fails', async (stage) => {
+      const { api, controller, status, list, listPolicies } = createController()
+      const imported = wallet('imported-wallet')
+      api.confirmImport = vi.fn().mockResolvedValue(imported)
+      const failure = new Error('Refresh unavailable')
+      const refresh = { status, list, details: listPolicies }[stage]
+      refresh.mockRejectedValueOnce(failure)
+
+      await expect(controller.confirmImport('consumed-token', {
+        name: imported.name, network: imported.network, workspaceIds: imported.workspaceIds
+      })).resolves.toEqual(imported)
+      expect(api.confirmImport).toHaveBeenCalledOnce()
+      expect(controller.errorMessage.value).toBe(String(failure))
+      expect(controller.busy.value).toBe(false)
+      controller.dispose()
+    }
+  )
+
+  it('still reports a rejected import as unsuccessful without refreshing', async () => {
+    const { api, controller, status } = createController()
+    api.confirmImport = vi.fn().mockRejectedValue(new Error('Import expired'))
+    const imported = wallet('unused')
+    await expect(controller.confirmImport('expired-token', {
+      name: imported.name, network: imported.network, workspaceIds: imported.workspaceIds
+    })).resolves.toBeUndefined()
+    expect(status).not.toHaveBeenCalled()
+    expect(controller.errorMessage.value).toBe('Error: Import expired')
+    expect(controller.busy.value).toBe(false)
+    controller.dispose()
+  })
+
 })
