@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Correct the browser-mute documentation to explain temporary per-tab exceptions and when saved mute preferences are restored.
+
 - Bound hostname title fallbacks so blank-title bookmarks and history entries on long hostnames survive restart.
 
 - Allow address suggestions to retry after native popup setup fails, closing the failed popup instead of retaining an unusable cached load.

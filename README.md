@@ -65,7 +65,7 @@ Move reviewed setup between machines with [portable workspace templates](REFEREN
 
 Open **Home** to find a project, switch to its tabs, or create a new space. The **Open** and **Archived** views keep ongoing and saved work easy to find. Search by workspace name or page title. Each workspace card shows direct agent access and any site restrictions; choose **Manage** to edit them. **Workspace options** can hide a workspace from the left sidebar or protect it from permanent deletion. Hidden workspaces stay accessible from Home, and protected workspaces can still be archived.
 
-The browser mute button works from Home before any website tabs exist. It silences existing and future tabs, survives restart, and restores individual tab mute choices when turned off.
+The browser mute button works from Home before any website tabs exist. It silences existing and future tabs and survives restart. A tab’s Mute / Unmute control can temporarily override browser mute for that tab. Turning browser mute on again clears these exceptions; turning it off restores each tab’s saved mute preference.
 
 Choose **Archive** when you finish a task. Tabs and sign-ins remain saved, and **Undo archive** restores an accidental archive immediately. Use **Restore workspace** in the Archived view to pick up where you left off. Permanent deletion asks for confirmation and removes the workspace’s website data.
 

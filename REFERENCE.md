@@ -121,7 +121,7 @@ Disconnect, explicit release, MCP pause, authentication rotation, server stop, o
 
 **Hide from left sidebar** hides a workspace and its tabs from the left navigation while keeping the workspace active and accessible from Home. It does not change agent access. **Protect from deletion** blocks permanent removal by people and agents at the browser lifecycle boundary; archiving and restoring preserve both preferences. Only a person can change deletion protection. Archived cards expose this preference under Workspace options.
 
-Browser mute is independent of the number of open tabs. It persists across restart and applies to newly opened and restored tabs. Individual mute controls cannot override browser mute; disabling browser mute restores each tab’s own mute setting.
+Browser mute is independent of the number of open tabs. It persists across restart and applies to newly opened and restored tabs. Use a tab’s **Mute / Unmute** control to change that tab while browser mute remains on. These exceptions are temporary: turning browser mute on again clears them, and turning it off restores each tab’s saved mute preference.
 
 The workspace editor offers **Allow direct agent access**. Disabling it blocks direct agent actions and resume access to that original workspace. The normal agent workspace list still shows a metadata-only entry marked `forkOnly`, with a `forkWith` action containing the source ID, and the fork-source catalog also lists it. Agents can copy its cookies and local storage into an independent fork. This setting does not prevent cloning. Forks inherit site restrictions and start with one blank tab; they do not copy open tabs.
 
