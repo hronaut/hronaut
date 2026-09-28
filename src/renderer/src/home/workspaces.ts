@@ -120,6 +120,7 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
     const tab = element<HTMLButtonElement>(`workspaces-${collection}`)
     tab.addEventListener('click', () => { view = collection; render() }, { signal })
     tab.addEventListener('keydown', event => {
+      if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
       event.preventDefault()
       view = event.key === 'Home' ? 'open' : event.key === 'End' ? 'archived' : view === 'open' ? 'archived' : 'open'

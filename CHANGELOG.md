@@ -6,6 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep modified keyboard shortcuts and IME composition from switching Home workspace collections.
 - Hide Home onboarding immediately when the first workspace is created or discovered by background refresh.
 - Preserve keyboard focus on Home workspace controls and Preferences when background updates reorder cards.
 - Restore Home tool-catalog order after clearing search or refreshing the catalog, preserving expanded cards and keyboard focus.

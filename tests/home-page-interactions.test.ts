@@ -350,6 +350,23 @@ describe('Home workspace hub', () => {
     expect(onboarding.hidden).toBe(true)
   })
 
+  it.each(['altKey', 'ctrlKey', 'metaKey', 'isComposing'])('leaves workspace navigation shortcuts alone with %s', async modifier => {
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory) })
+    await settle()
+    const open = button('#workspaces-open')
+    open.focus()
+    const modified = new KeyboardEvent('keydown', { key: 'ArrowLeft', [modifier]: true, bubbles: true, cancelable: true })
+    open.dispatchEvent(modified)
+    expect(modified.defaultPrevented).toBe(false)
+    expect(open.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(open)
+    const plain = new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })
+    open.dispatchEvent(plain)
+    expect(plain.defaultPrevented).toBe(true)
+    expect(button('#workspaces-archived').getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(button('#workspaces-archived'))
+  })
+
   it('defaults to workspaces, searches labels safely, and keeps focus through polling', async () => {
     mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory) })
     await settle()
