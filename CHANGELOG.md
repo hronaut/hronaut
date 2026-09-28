@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep wallet name and RPC edits open when Escape is used by an input method to cancel text composition.
+
 - Preserve approved and in-progress human reviews at waiting-history capacity so their actions can retain outcome receipts.
 
 - Prevent delayed release-history requests from replacing refreshed data or restoring invalidated older pages; use the latest valid cache for offline fallback.

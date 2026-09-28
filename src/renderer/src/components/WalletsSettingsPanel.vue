@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from '../ui/UiButton.vue'
 import UiTabs from '../ui/UiTabs.vue'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 import IconWallet from '~icons/material-symbols/account-balance-wallet-outline-rounded'
 import IconAdd from '~icons/material-symbols/add-rounded'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -402,6 +403,12 @@ async function saveWalletName(): Promise<void> {
   if (await props.controller.update(wallet.id, { name: next })) renamingWallet.value = false
 }
 
+function handleEditorKeydown(event: KeyboardEvent, cancel: () => void): void {
+  if (isImeCompositionEvent(event) || event.key !== 'Escape') return
+  event.preventDefault()
+  cancel()
+}
+
 function cancelWalletRename(): void {
   renamingWallet.value = false
   renameDraft.value = selectedWallet.value?.name ?? ''
@@ -511,8 +518,8 @@ async function addPolicy(): Promise<void> {
         <section v-if="selectedWallet" class="wallet-details" :aria-label="selectedWallet.name">
           <h5 ref="walletDetailsHeading" tabindex="-1">{{ selectedWallet.name }}</h5>
           <dl class="wallet-descriptor"><div><dt>{{ t('wallets.address') }}</dt><dd><code>{{ selectedWallet.publicAddress }}</code></dd></div><div><dt>{{ t('wallets.network') }}</dt><dd>{{ t('wallets.networkValue', { name: selectedWallet.network.name, environment: selectedWallet.network.environment }) }}</dd></div><div><dt>{{ t('wallets.rpcEndpoint') }}</dt><dd><code>{{ selectedWallet.network.rpcUrl }}</code></dd></div><div><dt>{{ t('wallets.capabilities') }}</dt><dd>{{ selectedWallet.capabilities.join(', ') }}</dd></div><div><dt>{{ t('wallets.recovery') }}</dt><dd>{{ selectedWallet.recoveryConfirmed ? t('wallets.recoveryConfirmed') : t('wallets.recoveryRequired') }}</dd></div></dl>
-          <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown.esc="cancelWalletRename"></label><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</UiButton></div></form>
-          <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown.esc="cancelWalletRpcEdit"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</UiButton></div></form>
+          <form v-if="renamingWallet" class="wallet-rename-form" @submit.prevent="saveWalletName"><label>{{ t('wallets.walletName') }} <input v-model="renameDraft" maxlength="128" required :disabled="controller.busy.value" @keydown="handleEditorKeydown($event, cancelWalletRename)"></label><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !renameDraft.trim()">{{ t('wallets.saveName') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRename">{{ t('wallets.cancel') }}</UiButton></div></form>
+          <form v-if="editingRpc" class="wallet-rpc-form" @submit.prevent="saveWalletRpc"><label>{{ configuredRpcLabel }} <input v-model="rpcDraft" type="url" required :disabled="controller.busy.value" :aria-invalid="configuredRpcValid ? undefined : 'true'" @keydown="handleEditorKeydown($event, cancelWalletRpcEdit)"></label><p>{{ t('wallets.rpcChangeWarning') }}</p><div class="wallet-actions"><UiButton variant="primary" class="primary-button" type="submit" :disabled="controller.busy.value || !configuredRpcValid || rpcDraft.trim() === selectedWallet.network.rpcUrl">{{ t('wallets.saveRpc') }}</UiButton><UiButton class="secondary-button" type="button" :disabled="controller.busy.value" @click="cancelWalletRpcEdit">{{ t('wallets.cancel') }}</UiButton></div></form>
           <div class="wallet-actions"><UiButton v-if="!renamingWallet" class="secondary-button" type="button" :disabled="controller.busy.value" @click="renameWallet">{{ t('wallets.rename') }}</UiButton><UiButton v-if="!editingRpc" class="secondary-button" type="button" :disabled="controller.busy.value" @click="editWalletRpc">{{ t('wallets.changeRpc') }}</UiButton><UiButton variant="danger" type="button" :disabled="controller.busy.value" @click="removeWallet">{{ t('wallets.remove') }}</UiButton></div>
           <section class="wallet-wallet-access" :aria-label="t('wallets.accessTab')">
             <div class="wallet-section-heading"><h5>{{ t('wallets.accessTab') }}</h5><p>{{ t('wallets.accessDescription') }}</p></div>

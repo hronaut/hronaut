@@ -666,6 +666,31 @@ describe('WalletsSettingsPanel', () => {
     expect(screen.queryByLabelText('Wallet name')).not.toBeInTheDocument()
   })
 
+  it.each([
+    ['Rename', 'Wallet name', 'Composed wallet name'],
+    ['Change RPC endpoint', 'JSON-RPC URL', 'https://rpc.example/']
+  ])('preserves the %s draft when IME composition owns Escape', async (button, label, draft) => {
+    const update = vi.fn()
+    const wallets = controller({ wallets: ref([wallet('a', 'Editable wallet', [])]), update })
+    render(WalletsSettingsPanel, { props: { controller: wallets, workspaces: [] }, global })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: button }))
+    const input = screen.getAllByLabelText(label).at(-1)!
+    await fireEvent.update(input, draft)
+
+    await fireEvent.keyDown(input, { key: 'Escape', isComposing: true })
+    expect(input).toBeVisible()
+    expect(input).toHaveValue(draft)
+    await fireEvent.keyDown(input, { key: 'Escape', keyCode: 229 })
+    expect(input).toBeVisible()
+    expect(input).toHaveValue(draft)
+    expect(update).not.toHaveBeenCalled()
+
+    await fireEvent.keyDown(input, { key: 'Escape' })
+    expect(input).not.toBeInTheDocument()
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it('keeps a wallet-name draft open when persistence fails', async () => {
     const wallets = controller({
       wallets: ref([wallet('a', 'Old wallet name', [])]),
