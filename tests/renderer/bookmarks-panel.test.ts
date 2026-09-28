@@ -53,7 +53,7 @@ describe('BookmarksPanel', () => {
     renderPanel({ bookmarks: [bookmark('alpha', 'Alpha docs')], renameBookmark })
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
-    if (key === 'Save') await user.click(screen.getByRole('button', { name: 'Save Alpha docs' }))
+    if (key === 'Save') await user.click(screen.getByRole('button', { name: 'Save name for Alpha docs' }))
     else await user.keyboard(key)
 
     expect(screen.queryByRole('textbox', { name: 'Rename Alpha docs' })).not.toBeInTheDocument()
