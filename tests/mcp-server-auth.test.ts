@@ -47,6 +47,38 @@ describe('MCP HTTP authentication middleware order', () => {
     server = undefined
   })
 
+  it('bounds authenticated JSON-RPC batches and keeps the session usable after rejection', async () => {
+    server = new McpHttpServer({} as never, {
+      host: '127.0.0.1', port: 0, version: 'test', token: TOKEN,
+      bookmarks: {} as never, history: {} as never, siteData: {} as never,
+      showWindowInactive: () => undefined, getUserAttention: () => null,
+      requestUserAttention: async request => ({ ...request, id: 'request', requestedAt: new Date().toISOString() })
+    })
+    const endpoint = await server.start()
+    const transport = new StreamableHTTPClientTransport(new URL(endpoint), {
+      requestInit: { headers: { authorization: `Bearer ${TOKEN}` } }
+    })
+    client = new Client({ name: 'batch-boundary-test', version: '1.0.0' })
+    await client.connect(transport)
+    const postBatch = (count: number) => fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${TOKEN}`,
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        'mcp-session-id': transport.sessionId!
+      },
+      body: JSON.stringify(Array.from({ length: count }, (_, id) => ({ jsonrpc: '2.0', id, method: 'ping' })))
+    })
+    const rejected = await postBatch(101)
+    expect(rejected.status).toBe(400)
+    await expect(rejected.json()).resolves.toMatchObject({ error: { code: -32600, message: 'Invalid Request: Batch must not exceed 100 messages' } })
+    const accepted = await postBatch(100)
+    expect(accepted.status).toBe(200)
+    await expect(accepted.json()).resolves.toHaveLength(100)
+    await expect(client.ping()).resolves.toEqual({})
+  })
+
   it('allows network listeners with optional authentication and changes it at runtime', async () => {
     server = new McpHttpServer({} as never, {
       host: '0.0.0.0', port: 0, version: 'test',
