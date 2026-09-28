@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Enforce the watch-only wallet storage limit before saving, so adding wallets cannot create a file that fails to reopen.
+
 - Reject allocation Stop results invalidated by tab changes or Clear while the final memory measurement is pending.
 
 - Recheck tab context and profiler exclusivity after allocation sampling measurements, preventing stale or overlapping recording starts.

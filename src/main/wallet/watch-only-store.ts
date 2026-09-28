@@ -3,9 +3,11 @@ import { z } from 'zod'
 import { WalletDescriptorSchema, type WalletDescriptor } from '../../shared/wallet.js'
 import { writeTextFileAtomically } from '../atomic-file.js'
 
+const MAX_WATCH_ONLY_WALLETS = 10_000
+
 const WatchOnlyDocumentSchema = z.object({
   version: z.literal(1),
-  wallets: z.array(WalletDescriptorSchema).max(10_000)
+  wallets: z.array(WalletDescriptorSchema).max(MAX_WATCH_ONLY_WALLETS)
 }).strict().superRefine((document, context) => {
   const ids = new Set<string>()
   for (const [index, wallet] of document.wallets.entries()) {
@@ -41,6 +43,7 @@ export class WalletWatchOnlyStore {
       const wallet = WalletDescriptorSchema.parse(descriptor)
       if (wallet.kind !== 'watch-only') throw new Error('Only watch-only wallets may use this store')
       if (this.wallets.has(wallet.id)) throw new Error('Wallet already exists')
+      if (this.wallets.size >= MAX_WATCH_ONLY_WALLETS) throw new Error(`Watch-only wallet limit reached (${MAX_WATCH_ONLY_WALLETS})`)
       const next = new Map(this.wallets)
       next.set(wallet.id, structuredClone(wallet))
       await this.persist(next)

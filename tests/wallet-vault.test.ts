@@ -1,6 +1,6 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   PassphraseWalletKeyWrapper,
@@ -327,6 +327,34 @@ describe('WalletVault', () => {
 })
 
 describe('WalletWatchOnlyStore', () => {
+  it('keeps the persisted store loadable when concurrent additions reach its capacity', async () => {
+    const path = await vaultPath()
+    const wallets = Array.from({ length: 9_999 }, (_, index) => descriptor({
+      id: `watch-${index}`, kind: 'watch-only', capabilities: ['read']
+    }))
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, JSON.stringify({ version: 1, wallets }))
+    const store = new WalletWatchOnlyStore(path)
+    await store.load()
+    const last = descriptor({ id: 'last', kind: 'watch-only', capabilities: ['read'] })
+    const overflow = descriptor({ ...last, id: 'overflow' })
+    const results = await Promise.allSettled([store.add(last), store.add(overflow)])
+    expect(results[0]).toMatchObject({ status: 'fulfilled', value: last })
+    expect(results[1]).toMatchObject({ status: 'rejected', reason: new Error('Watch-only wallet limit reached (10000)') })
+    expect(store.list()).toHaveLength(10_000)
+    expect(store.list().some(wallet => wallet.id === overflow.id)).toBe(false)
+    const saved = await readFile(path, 'utf8')
+    await expect(store.add(overflow)).rejects.toThrow('Watch-only wallet limit reached')
+    expect(await readFile(path, 'utf8')).toBe(saved)
+    const restored = new WalletWatchOnlyStore(path)
+    await expect(restored.load()).resolves.toHaveLength(10_000)
+    await restored.remove(last.id)
+    await expect(restored.add(overflow)).resolves.toEqual(overflow)
+    const reloaded = new WalletWatchOnlyStore(path)
+    await expect(reloaded.load()).resolves.toHaveLength(10_000)
+    expect(reloaded.list().some(wallet => wallet.id === overflow.id)).toBe(true)
+  })
+
   it('preserves public read-only wallets without requiring a managed vault backend', async () => {
     const path = await vaultPath()
     const store = new WalletWatchOnlyStore(path)
