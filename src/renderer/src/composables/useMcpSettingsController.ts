@@ -230,7 +230,10 @@ export function useMcpSettingsController(options: McpSettingsControllerOptions) 
       const created = await options.createCapabilityProfile(input)
       if (operationGeneration !== generation) return false
       capabilityListSequence += 1
-      capabilityProfiles.value = reconcileCapabilityLineage([...capabilityProfiles.value, created.profile])
+      capabilityProfiles.value = reconcileCapabilityLineage([
+        ...capabilityProfiles.value.filter(profile => profile.id !== created.profile.id),
+        created.profile
+      ])
       capabilityCredential.value = created.credential
       return true
     } catch (error) {

@@ -167,6 +167,28 @@ describe('MCP settings controller', () => {
     }
   )
 
+  it('keeps one profile when a refresh observes creation before the create response arrives', async () => {
+    const { controller, listCapabilityProfiles, createCapabilityProfile } = createController()
+    const profile: McpCapabilityProfileSummary = {
+      id: '01912345-6788-7abc-8def-0123456789ab', name: 'Agent', revision: 1,
+      credentialId: '11111111-1111-4111-8111-111111111111', allowedTools: ['browser_snapshot'],
+      operationClasses: ['read'], useCount: 0, lineageActive: true,
+      createdAt: '2026-09-11T12:00:00.000Z', updatedAt: '2026-09-11T12:00:00.000Z'
+    }
+    const existing = { ...profile, id: '01912345-6789-7abc-8def-0123456789ab', name: 'Existing' }
+    const pending = deferred<McpCapabilityCredentialResult>()
+    createCapabilityProfile.mockReturnValueOnce(pending.promise)
+    const creating = controller.createCapabilityProfile({ name: 'Agent', preset: 'read-only' })
+    listCapabilityProfiles.mockResolvedValueOnce([existing, profile])
+    await controller.loadCapabilityProfiles()
+    pending.resolve({ profile, credential: 'test-credential' })
+    await expect(creating).resolves.toBe(true)
+
+    expect(controller.capabilityProfiles.value).toEqual([existing, profile])
+    expect(controller.capabilityCredential.value).toBe('test-credential')
+    controller.dispose()
+  })
+
   it.each(['resolve', 'reject'] as const)('ignores an older profile refresh that will %s after a newer refresh', async (outcome) => {
     const { controller, listCapabilityProfiles } = createController()
     const pending = deferred<McpCapabilityProfileSummary[]>()
