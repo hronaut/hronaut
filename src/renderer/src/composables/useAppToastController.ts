@@ -21,6 +21,7 @@ export function friendlyUiError(error: unknown, fallback: string): string {
 export function useAppToastController() {
   const toasts = ref<AppToast[]>([])
   const timers = new Map<number, { handle: number; generation: number }>()
+  const retainedIds = new Set<number>()
   let nextId = 1
   let nextTimerGeneration = 1
   let disposed = false
@@ -29,7 +30,16 @@ export function useAppToastController() {
     const timer = timers.get(id)
     if (timer !== undefined) window.clearTimeout(timer.handle)
     timers.delete(id)
+    retainedIds.delete(id)
     toasts.value = toasts.value.filter((toast) => toast.id !== id)
+  }
+
+  function retain(id: number): void {
+    if (!toasts.value.some((toast) => toast.id === id)) return
+    retainedIds.add(id)
+    const timer = timers.get(id)
+    if (timer !== undefined) window.clearTimeout(timer.handle)
+    timers.delete(id)
   }
 
   function show(tone: AppToastTone, title: string, message: string): void {
@@ -37,12 +47,17 @@ export function useAppToastController() {
     const boundedTitle = title.trim().slice(0, 120)
     const boundedMessage = message.trim().slice(0, 1_000)
     const replacementId = toasts.value[0]?.id
+    const retained = replacementId !== undefined && retainedIds.has(replacementId)
     for (const toast of [...toasts.value]) dismiss(toast.id)
     // Preserve the rendered key when replacing the single toast slot. A new
     // key makes TransitionGroup keep the old alert in its leave animation
     // while mounting the replacement, briefly exposing duplicate live alerts.
     const id = replacementId ?? nextId++
     toasts.value = [{ id, tone, title: boundedTitle, message: boundedMessage }]
+    if (retained) {
+      retainedIds.add(id)
+      return
+    }
     const duration = tone === 'error' ? 8_000 : 3_600
     const generation = nextTimerGeneration++
     const handle = window.setTimeout(() => {
@@ -57,10 +72,11 @@ export function useAppToastController() {
     disposed = true
     for (const timer of timers.values()) window.clearTimeout(timer.handle)
     timers.clear()
+    retainedIds.clear()
     toasts.value = []
   }
 
-  return { toasts, show, dismiss, dispose }
+  return { toasts, show, dismiss, retain, dispose }
 }
 
 export type AppToastController = ReturnType<typeof useAppToastController>

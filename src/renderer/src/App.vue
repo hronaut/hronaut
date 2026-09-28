@@ -68,6 +68,7 @@ const {
   toasts: appToasts,
   show: showAppToast,
   dismiss: dismissAppToast,
+  retain: retainAppToast,
   dispose: disposeAppToastController
 } = appToastController
 const {
@@ -945,5 +946,5 @@ useAppLifecycleController({
       @reset="resetPanelDockSize"
     />
   </header>
-  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" />
+  <AppToastRegion :toasts="appToasts" :home="activeIsHome" @dismiss="dismissAppToast" @retain="retainAppToast" />
 </template>

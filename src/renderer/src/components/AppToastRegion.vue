@@ -14,6 +14,7 @@ defineProps<{
 
 defineEmits<{
   dismiss: [id: number]
+  retain: [id: number]
 }>()
 
 const { t } = useI18n({ useScope: 'global' })
@@ -35,6 +36,7 @@ const { t } = useI18n({ useScope: 'global' })
       :role="toast.tone === 'error' ? 'alert' : 'status'"
       :aria-label="toast.title"
       :title="`${toast.title}: ${toast.message}`"
+      @focusin="$emit('retain', toast.id)"
     >
       <span class="app-toast-mark" aria-hidden="true">
         <IconError v-if="toast.tone === 'error'" />

@@ -87,6 +87,41 @@ describe('app toast controller', () => {
     expect(controller.toasts.value).toEqual([])
   })
 
+  it('keeps focused notifications and their replacements until explicit dismissal', async () => {
+    vi.useFakeTimers()
+    const controller = useAppToastController()
+    controller.show('info', 'Notice', 'Read this')
+    const id = controller.toasts.value[0].id
+    controller.retain(id)
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(controller.toasts.value[0]?.title).toBe('Notice')
+    controller.show('error', 'Updated notice', 'Read this too')
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(controller.toasts.value[0]?.title).toBe('Updated notice')
+    expect(vi.getTimerCount()).toBe(0)
+    controller.dismiss(id)
+    expect(controller.toasts.value).toEqual([])
+    controller.show('info', 'Next notice', 'Expires normally')
+    await vi.advanceTimersByTimeAsync(3_600)
+    expect(controller.toasts.value).toEqual([])
+    controller.dispose()
+  })
+
+  it('ignores an already-queued expiry after a notification receives focus', () => {
+    let expire!: () => void
+    vi.spyOn(window, 'setTimeout').mockImplementation(((callback: TimerHandler) => {
+      expire = callback as () => void
+      return 1
+    }) as typeof window.setTimeout)
+    vi.spyOn(window, 'clearTimeout').mockImplementation(() => undefined)
+    const controller = useAppToastController()
+    controller.show('info', 'Notice', 'Message')
+    controller.retain(controller.toasts.value[0].id)
+    expire()
+    expect(controller.toasts.value[0]?.title).toBe('Notice')
+    controller.dispose()
+  })
+
   it('ignores notifications that arrive after disposal', async () => {
     vi.useFakeTimers()
     const controller = useAppToastController()

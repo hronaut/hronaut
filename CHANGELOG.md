@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep notifications visible after keyboard focus enters them, including message replacements, until explicitly dismissed so their focused control does not disappear.
+
 - Wait for committed input-method text before searching a page, avoiding repeated searches for an outdated query during composition.
 
 - Preserve newer capture and cancel choices when an older capture-mode switch is still waiting for native picker cancellation.

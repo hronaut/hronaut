@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/vue'
+import { fireEvent, render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import AppToastRegion from '../../src/renderer/src/components/AppToastRegion.vue'
@@ -17,6 +17,9 @@ describe('AppToastRegion', () => {
     expect(view.container.querySelector('.app-toast-region')).toHaveClass('home')
     expect(view.container.querySelector('.app-toast-region')).toHaveAttribute('aria-label', 'Application notifications')
     expect(screen.getByRole('alert', { name: 'Reload failed' })).toHaveTextContent('Renderer unavailable')
+    const dismiss = screen.getByRole('button', { name: 'Dismiss Reload failed' })
+    await fireEvent.focusIn(dismiss)
+    expect(view.emitted().retain).toEqual([[4]])
     await userEvent.setup().click(screen.getByRole('button', { name: 'Dismiss Reload failed' }))
 
     expect(view.emitted().dismiss).toEqual([[4]])
