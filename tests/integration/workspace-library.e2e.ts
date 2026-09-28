@@ -180,7 +180,7 @@ test('persists deletion protection and browser mute without requiring a website 
     const tab = state.tabs.find(tab => tab.mcpGroupId === id)!
     expect(tab.muted).toBe(true)
     await instance.window.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabMuted(id, false), tab.id)
-    expect(await instance.window.evaluate('window.hronaut.getState().then(s => s.tabs.find(t => t.active).muted)')).toBe(true)
+    expect(await instance.window.evaluate('window.hronaut.getState().then(s => s.tabs.find(t => t.active).muted)')).toBe(false)
     await instance.window.locator('.all-tabs-audio-button').click()
     await instance.window.evaluate(id => (window as unknown as { hronaut: HronautApi }).hronaut.setTabMuted(id, true), tab.id)
     await instance.window.locator('.all-tabs-audio-button').click()

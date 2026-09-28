@@ -6757,7 +6757,7 @@ test('renders a sanitized page favicon and exposes per-tab audio controls', asyn
     await expect.poll(() => electronApp.evaluate(({ webContents }, urls) => urls.map((requestedUrl) => (
       webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
     )), [url, secondUrl])).toEqual([true, true])
-    await tabControl.locator('.tab-audio').click()
+    await appWindow.locator(`[data-tab-id="${firstTabId}"] .tab-audio`).click()
     await expect.poll(() => electronApp.evaluate(({ webContents }, requestedUrl) => (
       webContents.getAllWebContents().find((contents) => contents.getURL() === requestedUrl)?.isAudioMuted()
     ), url)).toBe(false)
