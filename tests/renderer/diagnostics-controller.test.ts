@@ -5,6 +5,8 @@ import type {
   BrowserDebugReport,
   BrowserDomChangesReport,
   BrowserPerformanceReport,
+  BrowserQualityAudit,
+  BrowserInspectorIssuesReport,
   BrowserReproRecording,
   BrowserTabState
 } from '../../src/shared/types.js'
@@ -343,6 +345,38 @@ describe('diagnostics controller', () => {
     expect(controller.debugReportCopied.value).toBe(false)
     controller.dispose()
   })
+
+  it.each(['debug', 'quality', 'issues'] as const)(
+    'does not mark a refreshed %s report copied when an older clipboard write finishes',
+    async (kind) => {
+      const copying = deferred<boolean>()
+      const { browser, controller, copyText } = createController()
+      const report = { tabId: 'tab-1', url: 'https://example.test/app' }
+      controller.debugReport.value = report as BrowserDebugReport
+      controller.qualityAuditReport.value = report as BrowserQualityAudit
+      controller.inspectorIssuesReport.value = report as BrowserInspectorIssuesReport
+      browser.createDebugReport.mockResolvedValue({ ...report, title: 'Refreshed' })
+      browser.runQualityAudit.mockResolvedValue({ ...report, title: 'Refreshed' })
+      browser.listInspectorIssues.mockResolvedValue({ ...report, title: 'Refreshed' })
+      const actions = {
+        debug: { copy: controller.copyDebugReport, refresh: controller.runDebugReport, copied: controller.debugReportCopied },
+        quality: { copy: controller.copyQualityAudit, refresh: controller.runQualityAudit, copied: controller.qualityAuditCopied },
+        issues: { copy: controller.copyInspectorIssues, refresh: controller.refreshInspectorIssues, copied: controller.inspectorIssuesCopied }
+      }[kind]
+      copyText.mockImplementationOnce(() => copying.promise)
+
+      const operation = actions.copy()
+      await actions.refresh()
+      copying.resolve(true)
+      await operation
+
+      expect(actions.copied.value).toBe(false)
+      await actions.copy()
+      expect(actions.copied.value).toBe(true)
+      expect(copyText).toHaveBeenLastCalledWith(JSON.stringify({ ...report, title: 'Refreshed' }, null, 2))
+      controller.dispose()
+    }
+  )
 
   it('keeps a recorder stop authoritative while tab updates request a refresh', async () => {
     const pending = deferred<BrowserReproRecording>()

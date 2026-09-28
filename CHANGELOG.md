@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Prevent delayed clipboard writes from marking refreshed debug reports, quality audits, or inspector issues as copied.
+
 ## [2.8.1] - 2026-09-28
 
 ### Fixed

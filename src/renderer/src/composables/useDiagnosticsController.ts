@@ -215,10 +215,13 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
 
   async function copyWithFeedback(key: CopyFeedback, payload: string, copied: Ref<boolean>): Promise<void> {
     const expectedGeneration = generation
+    const reportDomain = key === 'debug' || key === 'quality' || key === 'issues' ? key : undefined
+    const expectedReportSequence = reportDomain ? sequences[reportDomain] : undefined
     const recorder = key === 'dom' ? 'dom'
       : key === 'repro' || key === 'repro-playwright' ? 'repro' : undefined
     const expectedRecorderGeneration = recorder ? recorderCopyGenerations[recorder] : undefined
     if (!await options.copyText(payload) || expectedGeneration !== generation) return
+    if (reportDomain && expectedReportSequence !== sequences[reportDomain]) return
     if (recorder && expectedRecorderGeneration !== recorderCopyGenerations[recorder]) return
     copied.value = true
     scheduleFeedbackReset(key, () => (copied.value = false))
