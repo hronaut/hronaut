@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep tab-overview preview captures paused during background navigation and hidden startup; refresh when the window becomes visible and focused again.
+
 - Restore keyboard focus to the bookmark Rename button after saving or cancelling an edit, without interrupting focus moved elsewhere during a save.
 
 - Recheck queued Developer Tools against completed input-lock changes and preserve shell panels when the tab is closed or locked.

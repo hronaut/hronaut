@@ -65,9 +65,9 @@ function browserState(tabs: BrowserTabState[] = [tab('alpha'), tab('beta', true)
   }
 }
 
-function createController(initialState = browserState()) {
+function createController(initialState = browserState(), initiallyOpen = false) {
   const state: Ref<BrowserState> = ref(initialState)
-  const open = ref(false)
+  const open = ref(initiallyOpen)
   const selectTab = vi.fn(async () => undefined)
   const expandTabGroup = vi.fn()
   const browser = {
@@ -343,6 +343,54 @@ describe('tab search controller', () => {
       controller.dispose()
     } finally {
       vi.useRealTimers()
+    }
+  })
+
+  it.each(['blurred', 'hidden'] as const)('defers navigation-triggered captures while the overview is %s', async mode => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+    const { controller, browser, state } = createController()
+    try {
+      await controller.openPanel()
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1)
+      if (mode === 'hidden') {
+        visibility.mockReturnValue('hidden')
+        document.dispatchEvent(new Event('visibilitychange'))
+      } else window.dispatchEvent(new Event('blur'))
+      expect(controller.previewRefreshPaused.value).toBe(true)
+
+      state.value.tabs[0].navigationGeneration = 2
+      await nextTick()
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(1)
+      expect(controller.previewLoading.value).toBe(false)
+
+      visibility.mockReturnValue('visible')
+      if (mode === 'hidden') document.dispatchEvent(new Event('visibilitychange'))
+      else window.dispatchEvent(new Event('focus'))
+      await nextTick()
+      expect(controller.previewRefreshPaused.value).toBe(false)
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledTimes(2)
+      expect(browser.getTabOverviewPreviews).toHaveBeenLastCalledWith(['alpha', 'beta'])
+    } finally {
+      controller.dispose()
+      visibility.mockRestore()
+    }
+  })
+
+  it('defers initial preview hydration when the overview starts hidden', async () => {
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+    const { controller, browser } = createController(browserState(), true)
+    try {
+      await nextTick()
+      expect(browser.getTabOverviewPreviews).not.toHaveBeenCalled()
+      expect(controller.previewLoading.value).toBe(false)
+
+      visibility.mockReturnValue('visible')
+      document.dispatchEvent(new Event('visibilitychange'))
+      await nextTick()
+      expect(browser.getTabOverviewPreviews).toHaveBeenCalledOnce()
+    } finally {
+      controller.dispose()
+      visibility.mockRestore()
     }
   })
 

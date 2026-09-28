@@ -179,6 +179,7 @@ export function useTabSearchController(options: TabSearchControllerOptions) {
   }
 
   async function loadPreviews(presentation = presentationGeneration): Promise<void> {
+    if (!canRefreshPreviews()) return
     if (previewRequestInFlight) {
       previewReloadPending = true
       return
