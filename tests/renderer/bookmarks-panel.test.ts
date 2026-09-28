@@ -48,6 +48,34 @@ describe('BookmarksPanel', () => {
     expect(screen.queryByTitle('https://example.test/alpha')).not.toBeInTheDocument()
   })
 
+  it.each(['{Escape}', '{Enter}', 'Save'])('returns keyboard focus to Rename after %s', async key => {
+    const renameBookmark = vi.fn(async () => [bookmark('alpha', 'Alpha docs')])
+    renderPanel({ bookmarks: [bookmark('alpha', 'Alpha docs')], renameBookmark })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    if (key === 'Save') await user.click(screen.getByRole('button', { name: 'Save Alpha docs' }))
+    else await user.keyboard(key)
+
+    expect(screen.queryByRole('textbox', { name: 'Rename Alpha docs' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Rename Alpha docs' })).toHaveFocus()
+    expect(renameBookmark).toHaveBeenCalledTimes(key === '{Escape}' ? 0 : 1)
+  })
+
+  it('preserves focus moved elsewhere while a rename is saving', async () => {
+    let finish!: (bookmarks: BrowserBookmark[]) => void
+    const renameBookmark = vi.fn(() => new Promise<BrowserBookmark[]>(resolve => { finish = resolve }))
+    renderPanel({ bookmarks: [bookmark('alpha', 'Alpha docs')], renameBookmark })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Rename Alpha docs' }))
+    await user.keyboard('{Enter}')
+    const search = screen.getByRole('searchbox')
+    await user.click(search)
+    finish([bookmark('alpha', 'Alpha docs')])
+
+    await screen.findByRole('button', { name: 'Rename Alpha docs' })
+    expect(search).toHaveFocus()
+  })
+
   it('keeps a failed rename editable and allows retrying the same draft', async () => {
     const renameBookmark = vi.fn()
       .mockRejectedValueOnce(new Error('Could not rename bookmark'))

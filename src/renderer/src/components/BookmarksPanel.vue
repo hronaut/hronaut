@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from "../ui/UiButton.vue"
-import { onBeforeUnmount, toRef } from 'vue'
+import { nextTick, onBeforeUnmount, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconClose from '~icons/material-symbols/close-rounded'
@@ -37,14 +37,14 @@ const {
   editingBookmarkTitle,
   setEditingInput,
   filteredBookmarks,
-  cancelRename,
+  cancelRename: cancelRenameDraft,
   toggle,
   toggleCurrent,
   openEntry,
   beginRename,
-  commitRename,
+  commitRename: saveRenameDraft,
   remove,
-  handleEscape,
+  handleEscape: handlePanelEscape,
   dispose
 } = useBookmarksPanelController({
   open,
@@ -61,6 +61,32 @@ const {
 
 defineExpose({ toggle, toggleCurrent, handleEscape })
 onBeforeUnmount(dispose)
+
+async function finishRename(operation: () => void | Promise<void>): Promise<void> {
+  const focused = document.activeElement
+  const row = focused instanceof HTMLElement
+    && (focused.closest('.bookmark-editor') || focused.closest('.bookmark-action.confirm'))
+    ? focused.closest('.bookmark-item')
+    : null
+  await operation()
+  await nextTick()
+  if (!open.value || editingBookmarkId.value || !row?.isConnected) return
+  if (document.activeElement !== document.body && document.activeElement !== focused) return
+  row.querySelector<HTMLButtonElement>('.bookmark-action:not(.danger)')?.focus()
+}
+
+function cancelRename(): void {
+  void finishRename(cancelRenameDraft)
+}
+
+function commitRename(bookmarkId: string): Promise<void> {
+  return finishRename(() => saveRenameDraft(bookmarkId))
+}
+
+function handleEscape(): void {
+  if (editingBookmarkId.value) cancelRename()
+  else handlePanelEscape()
+}
 
 function handleRenameKeydown(event: KeyboardEvent, bookmarkId: string): void {
   if (isImeCompositionEvent(event)) return
