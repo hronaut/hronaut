@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep an older Home copy failure from replacing shared feedback or selecting stale text after another copy action starts.
+
 - Correct the browser-mute documentation to explain temporary per-tab exceptions and when saved mute preferences are restored.
 
 - Bound hostname title fallbacks so blank-title bookmarks and history entries on long hostnames survive restart.

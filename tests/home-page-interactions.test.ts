@@ -56,6 +56,46 @@ afterEach(() => {
 })
 
 describe('Home action recovery', () => {
+  it('selects the current copy target and reports its failure for manual copying', async () => {
+    mount({ copyText: vi.fn().mockRejectedValue(new Error('Clipboard unavailable')) })
+    const target = document.querySelector('#guide-code')!
+    button('[data-copy-target="guide-code"]').click()
+    await settle()
+    expect(document.querySelector('#copy-status')!.textContent).toMatch(/failed/i)
+    expect(window.getSelection()!.toString()).toBe(target.textContent)
+    window.getSelection()!.removeAllRanges()
+  })
+
+  it('does not let an older copy failure replace the selection or status of a newer copy', async () => {
+    let rejectFirst!: (error: Error) => void
+    let finishSecond!: () => void
+    const copyText = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((_, reject) => { rejectFirst = reject }))
+      .mockImplementationOnce(() => new Promise<void>(resolve => { finishSecond = resolve }))
+    mount({ copyText })
+    const selection = window.getSelection()!
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector('#readiness-report')!)
+    selection.removeAllRanges()
+    selection.addRange(range)
+    const selectedText = selection.toString()
+    expect(selectedText).not.toBe('')
+
+    button('[data-copy-target="guide-code"]').click()
+    button('[data-copy-target="readiness-report"]').click()
+    rejectFirst(new Error('Older copy rejected'))
+    await settle()
+
+    expect(button('[data-copy-target="guide-code"]').title).toBe('Older copy rejected')
+    expect(document.querySelector('#copy-status')!.textContent).toBe('')
+    expect(selection.toString()).toBe(selectedText)
+    finishSecond()
+    await settle()
+    expect(button('[data-copy-target="readiness-report"]').textContent).toMatch(/copied/i)
+    expect(document.querySelector('#copy-status')!.textContent).toBe('')
+    selection.removeAllRanges()
+  })
+
   it('restores workspace actions after filtering during a pending action', async () => {
     let finish!: (value: HomeBootstrap['workspaces']) => void
     mount({ workspaceAction: () => new Promise(resolve => { finish = resolve }) })
