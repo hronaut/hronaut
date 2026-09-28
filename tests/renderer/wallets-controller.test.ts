@@ -348,7 +348,8 @@ describe('wallets controller', () => {
     'preserves a confirmed import when its %s refresh fails', async (stage) => {
       const { api, controller, status, list, listPolicies } = createController()
       const imported = wallet('imported-wallet')
-      api.confirmImport = vi.fn().mockResolvedValue(imported)
+      const confirmImport = vi.fn().mockResolvedValue(imported)
+      api.confirmImport = confirmImport
       const failure = new Error('Refresh unavailable')
       const refresh = { status, list, details: listPolicies }[stage]
       refresh.mockRejectedValueOnce(failure)
@@ -356,7 +357,7 @@ describe('wallets controller', () => {
       await expect(controller.confirmImport('consumed-token', {
         name: imported.name, network: imported.network, workspaceIds: imported.workspaceIds
       })).resolves.toEqual(imported)
-      expect(api.confirmImport).toHaveBeenCalledOnce()
+      expect(confirmImport).toHaveBeenCalledOnce()
       expect(controller.errorMessage.value).toBe(String(failure))
       expect(controller.busy.value).toBe(false)
       controller.dispose()
