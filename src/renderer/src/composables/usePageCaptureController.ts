@@ -32,7 +32,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   const captureState = ref<ScreenshotCaptureState>('idle')
   const captureMode = ref<ScreenshotCaptureMode>('area')
   const captureError = ref('')
-  let contextGeneration = 0
+  let transitionGeneration = 0
   let elementGeneration = 0
   let captureGeneration = 0
   let elementTabId: string | undefined
@@ -110,7 +110,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
     }, 2_400)
   }
 
-  async function cancelElementPicker(): Promise<void> {
+  async function stopElementPicker(): Promise<void> {
     const tabId = elementTabId
     elementGeneration += 1
     elementTabId = undefined
@@ -119,7 +119,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
     if (tabId) await options.browser.cancelElementPicker(tabId).catch(() => false)
   }
 
-  async function cancelAreaCapture(): Promise<void> {
+  async function stopAreaCapture(): Promise<void> {
     const tabId = captureTabId
     captureGeneration += 1
     captureTabId = undefined
@@ -128,18 +128,29 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
     if (tabId) await options.browser.cancelAreaCapture(tabId).catch(() => false)
   }
 
+  // Explicit cancellation supersedes pending transitions; internal cleanup does not.
+  function cancelElementPicker(): Promise<void> {
+    transitionGeneration += 1
+    return stopElementPicker()
+  }
+
+  function cancelAreaCapture(): Promise<void> {
+    transitionGeneration += 1
+    return stopAreaCapture()
+  }
+
   async function toggleElementPicker(mode: ElementPickerMode = 'context'): Promise<void> {
-    const context = contextGeneration
+    const transition = ++transitionGeneration
     if (captureState.value === 'capturing') return
     if (elementState.value === 'picking') {
       const restartInAnotherMode = elementMode.value !== mode
-      await cancelElementPicker()
-      if (context !== contextGeneration) return
+      await stopElementPicker()
+      if (transition !== transitionGeneration) return
       if (!restartInAnotherMode) return
     }
     if (captureState.value === 'picking') {
-      await cancelAreaCapture()
-      if (context !== contextGeneration) return
+      await stopAreaCapture()
+      if (transition !== transitionGeneration) return
     }
     const request = beginElement()
     if (!request) return
@@ -169,15 +180,15 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function toggleAreaCapture(): Promise<void> {
-    const context = contextGeneration
+    const transition = ++transitionGeneration
     if (captureState.value === 'picking') {
-      await cancelAreaCapture()
+      await stopAreaCapture()
       return
     }
     if (captureState.value === 'capturing') return
     if (elementState.value === 'picking') {
-      await cancelElementPicker()
-      if (context !== contextGeneration) return
+      await stopElementPicker()
+      if (transition !== transitionGeneration) return
     }
     const request = beginCapture()
     if (!request) return
@@ -206,14 +217,14 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   async function capturePage(mode: Exclude<ScreenshotCaptureMode, 'area'>): Promise<void> {
-    const context = contextGeneration
+    const transition = ++transitionGeneration
     if (elementState.value === 'picking') {
-      await cancelElementPicker()
-      if (context !== contextGeneration) return
+      await stopElementPicker()
+      if (transition !== transitionGeneration) return
     }
     if (captureState.value === 'picking') {
-      await cancelAreaCapture()
-      if (context !== contextGeneration) return
+      await stopAreaCapture()
+      if (transition !== transitionGeneration) return
     }
     if (captureState.value === 'capturing') return
     const request = beginCapture()
@@ -241,7 +252,7 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
   }
 
   function invalidateContext(): void {
-    contextGeneration += 1
+    transitionGeneration += 1
     const elementToCancel = elementState.value === 'picking' ? elementTabId : undefined
     const areaToCancel = captureState.value === 'picking' ? captureTabId : undefined
     elementGeneration += 1
