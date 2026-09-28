@@ -353,6 +353,10 @@ test('can disable hiding in the tray so closing the window quits Hronaut', async
     }
   }).toBe(false)
 
+  // The file becomes visible before the settings transaction updates runtime
+  // state. Closing in that interval still follows the old hide-in-tray policy.
+  await expect.poll(() => appWindow.evaluate('window.hronautSettings.get().then(settings => settings.hideInTray)')).toBe(false)
+
   const child = electronApp.process()
   const exited = new Promise<number | null>((resolve) => child.once('exit', resolve))
   await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close())
