@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve Settings search text and the selected section when an input method uses legacy composition key events.
+
 - Discard delayed DOM recording export feedback after starting, stopping, or clearing its recording, using the same mutation guard as interaction recordings.
 
 - Keep storage report copy feedback tied to the current report, discarding stale clipboard completions after refresh and disabling copy while reports reload.

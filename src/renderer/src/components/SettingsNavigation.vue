@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import IconSearch from '~icons/material-symbols/search-rounded'
 import type { SettingsSection } from '../composables/useSettingsDialogController.js'
 import UiButton from '../ui/UiButton.vue'
+import { isImeCompositionEvent } from '../keyboard-composition.js'
 
 const props = defineProps<{
   items: Array<{ section: SettingsSection; label: string; description: string; icon: Component }>
@@ -19,7 +20,7 @@ const matches = computed(() => {
 })
 
 function searchKeydown(event: KeyboardEvent): void {
-  if (event.isComposing) return
+  if (isImeCompositionEvent(event)) return
   if (event.key === 'Escape' && query.value) {
     event.stopPropagation()
     query.value = ''

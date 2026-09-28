@@ -63,9 +63,20 @@ describe('settings section search', () => {
     }
   })
 
-  it('does not select a section while an IME is composing', async () => {
-    const { input, change } = navigation()
-    await fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
-    expect(change).not.toHaveBeenCalled()
-  })
+  it.each([{ isComposing: true }, { keyCode: 229 }])(
+    'preserves the query and section during IME key events: %j', async (composition) => {
+      const { input, change } = navigation()
+      await userEvent.type(input, 'security')
+      await fireEvent.keyDown(input, { key: 'Enter', ...composition })
+      expect(change).not.toHaveBeenCalled()
+      await fireEvent.keyDown(input, { key: 'Escape', ...composition })
+      expect(input).toHaveValue('security')
+      expect(screen.getAllByRole('button')).toHaveLength(1)
+
+      await fireEvent.keyDown(input, { key: 'Enter' })
+      expect(change).toHaveBeenCalledWith('mcp')
+      await fireEvent.keyDown(input, { key: 'Escape' })
+      expect(input).toHaveValue('')
+    }
+  )
 })
