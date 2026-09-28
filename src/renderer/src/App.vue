@@ -37,6 +37,7 @@ import { useAppShellLayoutFeatureController } from './composables/useAppShellLay
 import { useAppTabRuntimeFeatureController } from './composables/useAppTabRuntimeFeatureController'
 import { useAppActiveTabFeatureController } from './composables/useAppActiveTabFeatureController'
 import { useAppTransientShellLayerController } from './composables/useAppTransientShellLayerController'
+import { useSettingsWorkspaceActionsController } from './composables/useSettingsWorkspaceActionsController'
 import { useAppBrowserChromeFeatureController } from './composables/useAppBrowserChromeFeatureController'
 import type { TransientPanelsCloseOptions } from './composables/useTransientPanelsController'
 
@@ -271,22 +272,17 @@ const dataWorkspaces = computed(() => [
   }))
 ])
 
-async function openWorkspaceFromSettings(workspaceId: string): Promise<void> {
-  closeSettings()
-  await openTabGroupEditor(workspaceId)
-}
-
-async function createWorkspaceFromSettings(): Promise<void> {
-  closeSettings()
-  // Let the editor receive the updated Settings visibility before its presentation guard runs.
-  await nextTick()
-  await openNewWorkspaceEditor()
-}
-
-async function transferWorkspaceDataFromSettings(workspaceId?: string): Promise<void> {
-  closeSettings()
-  await appTransientShellLayerController.openWorkspaceTransfer(workspaceId)
-}
+const {
+  manage: openWorkspaceFromSettings,
+  create: createWorkspaceFromSettings,
+  transfer: transferWorkspaceDataFromSettings
+} = useSettingsWorkspaceActionsController({
+  closeSettings,
+  openExisting: openTabGroupEditor,
+  openNew: openNewWorkspaceEditor,
+  openTransfer: appTransientShellLayerController.openWorkspaceTransfer,
+  onError: reportShellActionError
+})
 const browserCollectionsFeatureController = useAppBrowserCollectionsFeatureController({
   browser,
   downloadsApi: window.hronautDownloads,

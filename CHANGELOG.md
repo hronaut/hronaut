@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Report workspace-opening failures from Settings through the standard error notification, and consistently wait for Settings to close before opening an editor.
+
 - Keep one-time MCP credentials cleared when a pending create or rotate operation finishes after the credential panel closes or dismisses the secret.
 
 - Keep completed MCP credential changes and newer profile refreshes authoritative over delayed profile-list responses, without duplicating newly created profiles already observed by a refresh.
