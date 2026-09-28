@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Clear filtered-console copy feedback when the search or level filter changes, including delayed clipboard completions.
+
 - Keep interrupted downloads cancellable and protected from history clearing until Electron reports completion, even when resuming is temporarily unavailable.
 
 - Prevent pending console clipboard writes from restoring stale copy feedback after Clear.

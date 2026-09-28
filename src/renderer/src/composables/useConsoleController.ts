@@ -41,6 +41,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   let requestSequence = 0
   let pendingRefresh: { tabId: string; generation: number } | null = null
   let copySequence = 0
+  let filterRevision = 0
   let refreshTimer: number | undefined
   const feedbackTimers = createFeedbackTimerRegistry<'entry' | 'filtered' | 'all'>()
 
@@ -112,6 +113,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     if (!tab || !nextMessages.length) return
     const expectedGeneration = generation
     const sequence = ++copySequence
+    const copiedFilterRevision = filterRevision
     const payload = {
       generatedAt: new Date().toISOString(),
       tabId: tab.id,
@@ -125,6 +127,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
     if (!await options.copyText(JSON.stringify(payload, null, 2))) return
     if (
       sequence !== copySequence
+      || (scope === 'filtered' && copiedFilterRevision !== filterRevision)
       || !isCurrent(tab.id, expectedGeneration)
       || options.activeTab.value?.url !== tab.url
     ) return
@@ -148,6 +151,12 @@ export function useConsoleController(options: ConsoleControllerOptions) {
   const copyAll = (): Promise<void> => copyMessages(messages.value.slice().reverse(), 'all')
   const copyFiltered = (): Promise<void> => copyMessages(filteredMessages.value, 'filtered')
 
+  const stopFilterWatcher = watch([search, level], () => {
+    filterRevision += 1
+    if (copied.value === 'filtered') copied.value = null
+    feedbackTimers.clear('filtered')
+  }, { flush: 'sync' })
+
   const stopOpenWatcher = watch(options.open, (open) => {
     if (refreshTimer !== undefined) {
       window.clearInterval(refreshTimer)
@@ -162,6 +171,7 @@ export function useConsoleController(options: ConsoleControllerOptions) {
 
   function dispose(): void {
     stopOpenWatcher()
+    stopFilterWatcher()
     generation += 1
     requestSequence += 1
     copySequence += 1

@@ -64,6 +64,41 @@ afterEach(() => {
 })
 
 describe('console controller', () => {
+  it.each(['search', 'level'] as const)('clears filtered copy feedback when %s changes, including a late clipboard result', async (filter) => {
+    const pending = deferred<boolean>()
+    const { controller, copyText } = createController()
+    controller.messages.value = [message('first'), { ...message('second'), level: 'warning' }]
+    const changeFilter = () => {
+      if (filter === 'search') controller.search.value = 'first'
+      else controller.level.value = 'error'
+    }
+    const resetFilter = () => {
+      if (filter === 'search') controller.search.value = ''
+      else controller.level.value = 'all'
+    }
+    try {
+      await controller.copyFiltered()
+      expect(controller.copied.value).toBe('filtered')
+      changeFilter()
+      expect(controller.copied.value).toBeNull()
+      resetFilter()
+      copyText.mockReturnValueOnce(pending.promise)
+      const copying = controller.copyFiltered()
+      changeFilter()
+      resetFilter()
+      pending.resolve(true)
+      await copying
+      expect(controller.copied.value).toBeNull()
+      changeFilter()
+      await controller.copyFiltered()
+      expect(controller.copied.value).toBe('filtered')
+      expect(JSON.parse(copyText.mock.calls.at(-1)![0])).toMatchObject({ messages: [{ message: 'first' }] })
+      await controller.copyAll()
+      resetFilter()
+      expect(controller.copied.value).toBe('all')
+    } finally { controller.dispose() }
+  })
+
   it.each(['entry', 'filtered', 'all'] as const)('invalidates a pending %s copy when the console is cleared', async (scope) => {
     const pending = deferred<boolean>()
     const { controller, copyText } = createController()
