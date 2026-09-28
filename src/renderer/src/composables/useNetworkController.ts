@@ -241,7 +241,7 @@ export function useNetworkController(options: NetworkControllerOptions) {
     monitorState.value = 'loading'
     monitorError.value = ''
     harCopied.value = false
-    harSaveState.value = 'idle'
+    if (harSaveState.value !== 'saving') harSaveState.value = 'idle'
     harExport.value = null
     if (clear) {
       contentSearchSequence += 1

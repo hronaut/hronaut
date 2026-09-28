@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useNetworkController } from '../../src/renderer/src/composables/useNetworkController.js'
 import type {
+  BrowserNetworkHarExport,
   BrowserNetworkRequest,
   BrowserNetworkRequestDetails,
   BrowserNetworkRouteSummary,
@@ -186,6 +187,34 @@ afterEach(() => {
 })
 
 describe('network controller', () => {
+  it.each([false, true].flatMap((clear) => (
+    ['success', 'failure'].map((outcome) => ({ clear, outcome }))
+  )))('keeps pending HAR saves exclusive across refresh (clear=$clear, $outcome)', async ({ clear, outcome }) => {
+    const pending = deferred<BrowserNetworkHarExport>()
+    const { browser, controller } = createController()
+    browser.saveNetworkHar.mockImplementationOnce(() => pending.promise)
+    browser.listNetworkRequests.mockResolvedValue([request('retained')])
+    const saving = controller.saveHar()
+    await controller.refresh(clear)
+    expect(controller.harSaveState.value).toBe('saving')
+    await controller.saveHar()
+    expect(browser.saveNetworkHar).toHaveBeenCalledOnce()
+
+    const exported: BrowserNetworkHarExport = {
+      filename: 'network.har', path: '/tmp/network.har', bytes: 1,
+      requestCount: 1, sanitized: true, includesBodies: false
+    }
+    if (outcome === 'success') pending.resolve(exported)
+    else pending.reject(new Error('Export failed'))
+    await saving
+    expect(controller.harSaveState.value).toBe(outcome === 'success' ? 'saved' : 'idle')
+    expect(controller.harExport.value).toEqual(outcome === 'success' ? exported : null)
+    expect(controller.monitorError.value).toBe(outcome === 'success' ? '' : 'Export failed')
+    await controller.saveHar()
+    expect(browser.saveNetworkHar).toHaveBeenCalledTimes(2)
+    controller.dispose()
+  })
+
   it('saturates extreme response-byte totals instead of rendering them as zero bytes', async () => {
     const { browser, controller } = createController()
     browser.listNetworkRequests.mockResolvedValue([

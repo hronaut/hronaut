@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep pending HAR exports busy during Network refreshes, preventing duplicate save operations until the current export finishes.
+
 - Keep the latest agent-status refresh authoritative when reopening its summary, so older responses or failures cannot suppress current connection evidence.
 
 - Cancel pending capture-mode transitions when switching tabs or closing their controller, preventing capture from starting on an unintended page after native picker cancellation.
