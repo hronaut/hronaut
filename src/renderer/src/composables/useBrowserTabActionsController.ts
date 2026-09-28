@@ -163,7 +163,10 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   async function toggleDeveloperTools(): Promise<void> {
     if (disposed) return
     const tab = options.activeTab.value
-    if (!tab || options.isHome() || options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked) return
+    if (!tab || options.isHome()) return
+    const locked = tab.humanInteractionInputLocked
+      ?? (options.state.value.allHumanInteractionLocked || tab.humanInteractionLocked)
+    if (locked) return
     options.beforeToggleDeveloperTools()
     await enqueueToggle(`devtools:${tab.id}`, async () => {
       await options.browser.toggleDevTools(tab.id)

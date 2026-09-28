@@ -420,6 +420,23 @@ describe('browser tab actions controller', () => {
     expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
   })
 
+  it('allows Developer Tools for an effective per-tab global-lock exception', async () => {
+    const harness = createHarness()
+    harness.state.value.allHumanInteractionLocked = true
+    harness.activeTab.value = tab({ humanInteractionLocked: true, humanInteractionInputLocked: false })
+    await harness.controller.toggleDeveloperTools()
+    expect(harness.beforeToggleDeveloperTools).toHaveBeenCalledOnce()
+    expect(harness.browser.toggleDevTools).toHaveBeenCalledWith('active')
+  })
+
+  it('blocks Developer Tools when effective input is locked despite unlocked preferences', async () => {
+    const harness = createHarness()
+    harness.activeTab.value = tab({ humanInteractionInputLocked: true })
+    await harness.controller.toggleDeveloperTools()
+    expect(harness.beforeToggleDeveloperTools).not.toHaveBeenCalled()
+    expect(harness.browser.toggleDevTools).not.toHaveBeenCalled()
+  })
+
   it('preserves shell panels when global interaction lock blocks Developer Tools', async () => {
     const harness = createHarness()
     harness.state.value = { ...harness.state.value, allHumanInteractionLocked: true }

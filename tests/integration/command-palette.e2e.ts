@@ -134,3 +134,20 @@ test('preserves a selected global command when live tab state removes website co
   await palette.getByRole('combobox', { name: 'Search commands' }).press('Enter')
   await expect(appWindow.getByRole('dialog', { name: 'Settings' })).toBeVisible()
 })
+
+
+test('opens Developer Tools from the palette for a tab unlocked during global input lock', async ({ appWindow }) => {
+  await appWindow.evaluate(`(async () => {
+    const state = await window.hronaut.newTab({ url: 'data:text/html,<title>Unlocked inspection</title>', active: true })
+    await window.hronaut.setAllHumanInteractionLocked(true)
+    await window.hronaut.setTabHumanInteractionLocked(state.activeTabId, false)
+  })()`)
+  await appWindow.getByRole('button', { name: 'Open command palette' }).click()
+  const palette = appWindow.getByRole('dialog', { name: 'Commands' })
+  await palette.getByRole('combobox', { name: 'Search commands' }).fill('Developer Tools')
+  await palette.getByRole('option', { name: /Toggle Developer Tools/ }).click()
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.devToolsOpen)')).toBe(true)
+  // Reapplying global lock removes the exception and closes native DevTools.
+  await appWindow.evaluate('window.hronaut.setAllHumanInteractionLocked(true)')
+  await expect.poll(() => appWindow.evaluate('window.hronaut.getState().then(state => state.tabs.find(tab => tab.active)?.devToolsOpen)')).toBe(false)
+})
