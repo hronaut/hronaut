@@ -490,10 +490,15 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
 
     if (action === 'start-allocation-sampling') {
-      if (tab.memoryAllocation?.recording) throw new Error('Memory allocation sampling is already recording for this tab')
-      if (tab.codeCoverage?.recording) throw new Error('Stop code coverage before recording memory allocations')
-      if (tab.cpuProfile?.recording) throw new Error('Stop the JavaScript CPU profile before recording memory allocations')
+      const assertAvailable = (): void => {
+        if (tab.memoryAllocation?.recording) throw new Error('Memory allocation sampling is already recording for this tab')
+        if (tab.codeCoverage?.recording) throw new Error('Stop code coverage before recording memory allocations')
+        if (tab.cpuProfile?.recording) throw new Error('Stop the JavaScript CPU profile before recording memory allocations')
+      }
+      assertAvailable()
       const current = await this.captureMemoryMeasurement(tab, options.collectGarbage === true)
+      this.assertMemoryMeasurementContext(tab, navigationGeneration)
+      assertAvailable()
       const recording: NonNullable<BrowserMemoryAllocationInternal['recording']> = {
         startedAt: new Date().toISOString(),
         startedUrl: tab.url
@@ -565,15 +570,7 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
 
     const current = await this.captureMemoryMeasurement(tab, options.collectGarbage === true)
-    const currentTab = this.host.findTab(tab.id)
-    if (
-      !currentTab
-      || currentTab !== tab
-      || currentTab.webContents.isDestroyed()
-      || currentTab.navigationGeneration !== navigationGeneration
-    ) {
-      throw new Error('The page changed during the memory measurement. Run a fresh measurement.')
-    }
+    this.assertMemoryMeasurementContext(tab, navigationGeneration)
     if (
       baselineGeneration !== undefined
       && tab.memoryBaselineGeneration !== baselineGeneration
@@ -585,6 +582,18 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
       return this.memoryReportResult(tab, action, options.collectGarbage === true, false, current)
     }
     return this.memoryReportResult(tab, action, options.collectGarbage === true, false, current)
+  }
+
+  private assertMemoryMeasurementContext(tab: Tab, navigationGeneration: number): void {
+    const currentTab = this.host.findTab(tab.id)
+    if (
+      !currentTab
+      || currentTab !== tab
+      || currentTab.webContents.isDestroyed()
+      || currentTab.navigationGeneration !== navigationGeneration
+    ) {
+      throw new Error('The page changed during the memory measurement. Run a fresh measurement.')
+    }
   }
 
   private memoryReportResult(

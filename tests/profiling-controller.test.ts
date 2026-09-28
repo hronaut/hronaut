@@ -49,6 +49,36 @@ function fixture() {
 }
 
 describe('browser profiling controller', () => {
+  it.each(['cpu', 'coverage', 'allocation'] as const)('does not start allocation sampling over a %s recording started during measurement', async (kind) => {
+    const f = fixture()
+    const pending = deferred<void>()
+    f.withDebugger.mockReturnValueOnce(pending.promise)
+    const older = f.controller.memoryReport({ action: 'start-allocation-sampling' })
+    if (kind === 'cpu') await f.controller.cpuProfile({ action: 'start' })
+    else if (kind === 'coverage') await f.controller.codeCoverage({ action: 'start', reload: false })
+    else await f.controller.memoryReport({ action: 'start-allocation-sampling' })
+    const recording = f.tab.memoryAllocation?.recording
+    pending.resolve()
+    await expect(older).rejects.toThrow(/already recording|Stop code coverage|Stop the JavaScript CPU profile/)
+    expect(f.tab.memoryAllocation?.recording).toBe(recording)
+    expect(f.sendCommand.mock.calls.filter(([method]) => method === 'HeapProfiler.startSampling')).toHaveLength(kind === 'allocation' ? 1 : 0)
+  })
+
+  it.each(['navigation', 'closed', 'replaced', 'destroyed'] as const)('does not start allocation sampling after the measured tab is %s', async (change) => {
+    const f = fixture()
+    const pending = deferred<void>()
+    f.withDebugger.mockReturnValueOnce(pending.promise)
+    const operation = f.controller.memoryReport({ action: 'start-allocation-sampling' })
+    if (change === 'navigation') f.tab.navigationGeneration += 1
+    if (change === 'closed') f.tabs.delete(f.tab.id)
+    if (change === 'replaced') f.tabs.set(f.tab.id, { ...f.tab })
+    if (change === 'destroyed') f.isDestroyed.mockReturnValue(true)
+    pending.resolve()
+    await expect(operation).rejects.toThrow('The page changed during the memory measurement')
+    expect(f.tab.memoryAllocation).toBeUndefined()
+    expect(f.sendCommand).not.toHaveBeenCalledWith('HeapProfiler.enable')
+  })
+
   it.each(['cpu', 'allocation'] as const)('cleans up a partial %s profiler start and preserves its original error', async (kind) => {
     const f = fixture()
     const original = f.sendCommand.getMockImplementation()!

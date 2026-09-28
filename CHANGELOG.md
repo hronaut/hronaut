@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Recheck tab context and profiler exclusivity after allocation sampling measurements, preventing stale or overlapping recording starts.
+
 - Stop partially started coverage, CPU, and allocation instrumentation when setup fails, preserving rendering overlays and allowing a clean retry.
 
 - Clear filtered-console copy feedback when the search or level filter changes, including delayed clipboard completions.
