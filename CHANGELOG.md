@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent delayed release-history requests from replacing refreshed data or restoring invalidated older pages; use the latest valid cache for offline fallback.
+
 - Preserve the highlighted address suggestion when live history updates reorder results, and clear it when its destination disappears or changes.
 
 - Keep tab-overview preview captures paused during background navigation and hidden startup; refresh when the window becomes visible and focused again.

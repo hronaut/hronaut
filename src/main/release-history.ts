@@ -97,6 +97,8 @@ export class ReleaseHistoryService {
   readonly #now: () => number
   readonly #cacheTtlMs: number
   readonly #cache = new Map<number, CachedReleaseHistoryPage>()
+  readonly #requests = new Map<number, symbol>()
+  #cacheGeneration = 0
 
   constructor(options: ReleaseHistoryServiceOptions = {}) {
     this.#fetch = options.fetch ?? globalThis.fetch
@@ -111,6 +113,9 @@ export class ReleaseHistoryService {
     const cached = this.#cache.get(page)
     if (!bypassCache && cached && cached.expiresAt > this.#now()) return clonePage(cached.value)
 
+    const request = Symbol()
+    this.#requests.set(page, request)
+    const generation = this.#cacheGeneration
     try {
       const response = await this.#fetch(
         `https://api.github.com/repos/hronaut/hronaut/releases?per_page=${RELEASES_PER_PAGE}&page=${page}`,
@@ -129,15 +134,19 @@ export class ReleaseHistoryService {
         throw new Error('GitHub returned an oversized release history response.')
       }
       const value = parseReleaseHistoryPage(page, await readBoundedReleaseHistoryText(response), response.headers.get('link'))
-      if (bypassCache && page === 1) {
-        for (const cachedPage of this.#cache.keys()) {
-          if (cachedPage > page) this.#cache.delete(cachedPage)
+      if (this.#requests.get(page) === request && generation === this.#cacheGeneration) {
+        if (bypassCache && page === 1) {
+          this.#cacheGeneration += 1
+          for (const cachedPage of this.#cache.keys()) {
+            if (cachedPage > page) this.#cache.delete(cachedPage)
+          }
         }
+        this.#cache.set(page, { expiresAt: this.#now() + this.#cacheTtlMs, value })
       }
-      this.#cache.set(page, { expiresAt: this.#now() + this.#cacheTtlMs, value })
       return clonePage(value)
     } catch (error) {
-      if (cached) return clonePage(cached.value)
+      const fallback = this.#cache.get(page)
+      if (fallback) return clonePage(fallback.value)
       throw new Error('Could not load release history from GitHub.', { cause: error })
     }
   }

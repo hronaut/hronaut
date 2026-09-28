@@ -125,6 +125,61 @@ describe('ReleaseHistoryService', () => {
     expect(fetch).toHaveBeenCalledTimes(4)
   })
 
+  it('does not let an older first-page response overwrite an explicit refresh', async () => {
+    let settle!: (response: Response) => void
+    const fetch = vi.fn()
+      .mockReturnValueOnce(new Promise<Response>(resolve => { settle = resolve }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([release({ tag_name: 'v1.11.5' })])))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+    const older = service.getPage(1)
+    await service.getPage(1, true)
+    settle(new Response(JSON.stringify([release()])))
+    await older
+
+    expect((await service.getPage(1)).releases[0]?.version).toBe('1.11.5')
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['resolve', 'reject'] as const)('does not restore invalidated later pages when an old request settles with %s', async outcome => {
+    let settle!: (response: Response) => void
+    let fail!: (cause: Error) => void
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([release({ tag_name: 'v1.11.3' })])))
+      .mockReturnValueOnce(new Promise<Response>((resolve, reject) => { settle = resolve; fail = reject }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([release({ tag_name: 'v1.11.5' })])))
+      .mockResolvedValueOnce(new Response(JSON.stringify([release()])))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+    await service.getPage(2)
+    const older = service.getPage(2, true)
+    await service.getPage(1, true)
+    if (outcome === 'resolve') {
+      settle(new Response(JSON.stringify([release({ tag_name: 'v1.11.3' })])))
+      await older
+    } else {
+      fail(new Error('offline'))
+      await expect(older).rejects.toThrow('Could not load release history')
+    }
+
+    expect((await service.getPage(2)).releases[0]?.version).toBe('1.11.4')
+    expect(fetch).toHaveBeenCalledTimes(4)
+  })
+
+  it('uses the newest cached page when an overlapping request fails', async () => {
+    let fail!: (cause: Error) => void
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify([release()])))
+      .mockReturnValueOnce(new Promise<Response>((_resolve, reject) => { fail = reject }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([release({ tag_name: 'v1.11.5' })])))
+    const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
+    await service.getPage(1)
+    const older = service.getPage(1, true)
+    await service.getPage(1, true)
+    fail(new Error('offline'))
+
+    expect((await older).releases[0]?.version).toBe('1.11.5')
+    expect((await service.getPage(1)).releases[0]?.version).toBe('1.11.5')
+  })
+
   it('fails closed for invalid pages and untrusted response shapes', async () => {
     const fetch = vi.fn(async () => new Response('{"message":"rate limited"}', { status: 200 }))
     const service = new ReleaseHistoryService({ fetch: fetch as typeof globalThis.fetch })
