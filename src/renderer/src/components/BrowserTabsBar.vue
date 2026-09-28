@@ -659,7 +659,7 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
             :class="{ muted: tab.muted }"
             :title="t(tab.muted ? 'runtime.tabs.unmute' : 'runtime.tabs.mute', { title: tab.title || t('runtime.tabs.unnamed') })"
             aria-hidden="true"
-            @click.stop="!state.allTabsMuted && emit('toggleTabMuted', tab)"
+            @click.stop="emit('toggleTabMuted', tab)"
           >
             <IconVolumeOff v-if="tab.muted" aria-hidden="true" />
             <IconVolumeUp v-else aria-hidden="true" />

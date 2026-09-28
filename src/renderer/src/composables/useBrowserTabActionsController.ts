@@ -107,7 +107,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     await enqueueToggle('audio', async () => {
       if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
-      if (!currentTab || options.state.value.allTabsMuted) return
+      if (!currentTab) return
       await options.syncState(options.browser.setTabMuted(tab.id, !currentTab.muted))
     })
   }

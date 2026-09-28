@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Allow per-tab mute overrides while global mute is enabled; reapplying global mute resets exceptions and disabling it restores each tab’s saved mute preference.
+
 ## [2.7.4] - 2026-09-28
 
 ### Fixed

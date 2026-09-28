@@ -3547,7 +3547,6 @@ export class BrowserTabsManager {
       {
         id: tab.muted ? 'unmute-tab' : 'mute-tab',
         label: this.text(tab.muted ? 'native.context.unmuteTab' : 'native.context.muteTab'),
-        enabled: !this.allTabsMuted,
         click: () => runAction(tab.muted ? 'unmute the tab' : 'mute the tab', () => this.setTabMuted(tab.id, !tab.muted))
       },
       { type: 'separator' },
@@ -4460,9 +4459,9 @@ export class BrowserTabsManager {
 
   setTabMuted(tabId: string, muted: boolean): BrowserState {
     const tab = this.getTab(tabId)
-    if (this.allTabsMuted) return this.getState()
-    tab.tabMuted = muted
     tab.webContents.setAudioMuted(muted)
+    // A global-mute exception is transient; preserve the saved per-tab preference.
+    if (!this.allTabsMuted) tab.tabMuted = muted
     tab.muted = muted
     this.changed()
     return this.getState()

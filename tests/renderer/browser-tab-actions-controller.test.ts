@@ -246,9 +246,9 @@ describe('browser tab actions controller', () => {
     ])
 
     expect(harness.browser.setAllTabsMuted).toHaveBeenCalledWith(true)
-    expect(harness.browser.setTabMuted).not.toHaveBeenCalled()
+    expect(harness.browser.setTabMuted).toHaveBeenCalledWith('first', false)
     expect(harness.state.value.tabs).toEqual([
-      expect.objectContaining({ id: 'first', muted: true }),
+      expect.objectContaining({ id: 'first', muted: false }),
       expect.objectContaining({ id: 'second', muted: true })
     ])
   })
