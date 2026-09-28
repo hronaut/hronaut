@@ -143,7 +143,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     if (disposed) return
     const tab = options.activeTab.value
     if (!tab || options.isHome()) return
-    await enqueueToggle(`interaction:${tab.id}`, async () => {
+    await enqueueToggle('interaction', async () => {
       if (disposed) return
       const currentTab = options.state.value.tabs.find((candidate) => candidate.id === tab.id)
       if (!currentTab) return
@@ -154,7 +154,7 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
   }
 
   async function toggleAllHumanInteraction(): Promise<void> {
-    await enqueueToggle('interaction:all', async () => {
+    await enqueueToggle('interaction', async () => {
       if (disposed) return
       await options.syncState(options.browser.setAllHumanInteractionLocked(!options.state.value.allHumanInteractionLocked))
     })

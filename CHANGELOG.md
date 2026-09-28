@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep rapid global and per-tab input-lock clicks ordered so a tab exception reflects the completed global lock.
+
 - Preserve rapid Live/Frozen toggles by waiting for authoritative tab state between clicks; share tab-action queuing and cleanup with the separate agent control.
 
 ### Changed

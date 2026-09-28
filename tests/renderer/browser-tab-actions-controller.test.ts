@@ -363,6 +363,46 @@ describe('browser tab actions controller', () => {
     expect(harness.state.value.allHumanInteractionLocked).toBe(false)
   })
 
+  it('applies a tab unlock after a simultaneous global lock commits', async () => {
+    const harness = createHarness()
+    harness.state.value.tabs.push(tab({ id: 'other', active: false }))
+    harness.browser.setAllHumanInteractionLocked.mockImplementation(async locked => ({
+      ...harness.state.value,
+      allHumanInteractionLocked: locked,
+      tabs: harness.state.value.tabs.map(candidate => ({ ...candidate, humanInteractionInputLocked: locked }))
+    }))
+    harness.browser.setTabHumanInteractionLocked.mockImplementation(async (id, locked) => ({
+      ...harness.state.value,
+      tabs: harness.state.value.tabs.map(candidate => candidate.id === id
+        ? { ...candidate, humanInteractionInputLocked: locked } : candidate)
+    }))
+
+    await Promise.all([
+      harness.controller.toggleAllHumanInteraction(),
+      harness.controller.toggleTabHumanInteraction()
+    ])
+
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledWith('active', false)
+    expect(harness.state.value.allHumanInteractionLocked).toBe(true)
+    expect(harness.state.value.tabs.map(candidate => candidate.humanInteractionInputLocked)).toEqual([false, true])
+  })
+
+  it('waits for a pending tab lock before dispatching the later global lock', async () => {
+    const harness = createHarness()
+    let finish!: (value: BrowserState) => void
+    harness.browser.setTabHumanInteractionLocked.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    const first = harness.controller.toggleTabHumanInteraction()
+    const second = harness.controller.toggleAllHumanInteraction()
+    // Advance queue admission while the native per-tab operation is unresolved.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(harness.browser.setTabHumanInteractionLocked).toHaveBeenCalledOnce()
+    expect(harness.browser.setAllHumanInteractionLocked).not.toHaveBeenCalled()
+    finish(harness.state.value)
+    await Promise.all([first, second])
+    expect(harness.browser.setAllHumanInteractionLocked).toHaveBeenCalledWith(true)
+  })
+
   it('owns guarded Developer Tools toggles and shell cleanup outside App.vue', async () => {
     const harness = createHarness()
 
