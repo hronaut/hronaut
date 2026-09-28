@@ -273,12 +273,15 @@ export function useAddressBarController(options: AddressBarControllerOptions) {
   const registrations: Array<() => () => void> = [
     // A compact rail can reflow the address row without resizing the window.
     () => useResizeObserver(form, syncOverlay).stop,
-    () => watch(() => suggestions.value.length, async (length) => {
+    () => watch(suggestions, async (next, previous) => {
       if (disposed) return
-      if (selection.value >= length) selection.value = -1
+      const selectedSuggestion = previous[selection.value]
+      selection.value = selectedSuggestion
+        ? next.findIndex((suggestion) => suggestion.id === selectedSuggestion.id && suggestion.url === selectedSuggestion.url)
+        : -1
       await nextTick()
       if (!disposed) revealSelected()
-    }),
+    }, { flush: 'sync' }),
     () => watch(
       [visible, suggestions, selection, options.theme, options.locale],
       async () => {

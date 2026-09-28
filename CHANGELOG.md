@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve the highlighted address suggestion when live history updates reorder results, and clear it when its destination disappears or changes.
+
 - Keep tab-overview preview captures paused during background navigation and hidden startup; refresh when the window becomes visible and focused again.
 
 - Restore keyboard focus to the bookmark Rename button after saving or cancelling an edit, without interrupting focus moved elsewhere during a save.

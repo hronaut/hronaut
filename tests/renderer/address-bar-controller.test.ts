@@ -92,6 +92,7 @@ function createHarness(options: {
     view,
     controller,
     activeTab,
+    history,
     overlay,
     onOpen,
     onNavigate,
@@ -106,6 +107,42 @@ function createHarness(options: {
 afterEach(() => vi.useRealTimers())
 
 describe('address bar controller', () => {
+  it('keeps the selected destination when live history reorders suggestions', async () => {
+    const first: BrowserHistoryEntry = { id: 'first', title: 'First page', url: 'https://first.example/', visitedAt: '2026-09-28T00:00:00.000Z', visitCount: 1 }
+    const second: BrowserHistoryEntry = { ...first, id: 'second', title: 'Second page', url: 'https://second.example/' }
+    const rendered = createHarness({ history: [first, second] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, '')
+    await fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(rendered.controller.selected.value?.id).toBe('history:first')
+
+    rendered.history.value = [second, first]
+    // Enter can arrive before the next render; selection must already be current.
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+    await nextTick()
+    expect(rendered.onNavigate).toHaveBeenCalledWith(first.url)
+  })
+
+  it('clears selection when a live update removes or retargets the selected suggestion', async () => {
+    const entry: BrowserHistoryEntry = { id: 'first', title: 'First page', url: 'https://first.example/', visitedAt: '2026-09-28T00:00:00.000Z', visitCount: 1 }
+    const rendered = createHarness({ history: [entry] })
+    const input = screen.getByRole('textbox', { name: 'Address' })
+    await fireEvent.focus(input)
+    await fireEvent.update(input, '')
+    await fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    rendered.history.value = [{ ...entry, url: 'https://replacement.example/' }]
+    expect(rendered.controller.selection.value).toBe(-1)
+    rendered.controller.handleKeydown(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }))
+    expect(rendered.onNavigate).not.toHaveBeenCalled()
+
+    await fireEvent.keyDown(input, { key: 'ArrowDown' })
+    rendered.history.value = [{ ...entry, id: 'replacement' }]
+    expect(rendered.controller.selection.value).toBe(-1)
+    expect(rendered.controller.selected.value).toBeUndefined()
+  })
+
   it('keeps a submitted address visible until the current tab commits navigation', async () => {
     vi.useFakeTimers()
     let finishNavigation!: () => void
