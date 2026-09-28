@@ -134,11 +134,6 @@ export function usePageCaptureController(options: PageCaptureControllerOptions) 
     return stopElementPicker()
   }
 
-  function cancelAreaCapture(): Promise<void> {
-    transitionGeneration += 1
-    return stopAreaCapture()
-  }
-
   async function toggleElementPicker(mode: ElementPickerMode = 'context'): Promise<void> {
     const transition = ++transitionGeneration
     if (captureState.value === 'capturing') return
