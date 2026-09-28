@@ -373,9 +373,14 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
       }
       try {
         await this.host.withDebugger(tab.webContents, async () => {
-          await tab.webContents.debugger.sendCommand('Profiler.enable')
-          await tab.webContents.debugger.sendCommand('Profiler.setSamplingInterval', { interval: 1_000 })
-          await tab.webContents.debugger.sendCommand('Profiler.start')
+          try {
+            await tab.webContents.debugger.sendCommand('Profiler.enable')
+            await tab.webContents.debugger.sendCommand('Profiler.setSamplingInterval', { interval: 1_000 })
+            await tab.webContents.debugger.sendCommand('Profiler.start')
+          } catch (error) {
+            await this.stopCpuProfileInstrumentation(tab)
+            throw error
+          }
         })
       } catch (error) {
         tab.cpuProfile = undefined
@@ -450,12 +455,14 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
   }
 
+  private async stopCpuProfileInstrumentation(tab: Tab): Promise<void> {
+    const webDebugger = tab.webContents.debugger
+    await webDebugger.sendCommand('Profiler.stop').catch(() => undefined)
+    await webDebugger.sendCommand('Profiler.disable').catch(() => undefined)
+  }
+
   private async discardCpuProfileRecording(tab: Tab): Promise<void> {
-    await this.host.withDebugger(tab.webContents, async () => {
-      const webDebugger = tab.webContents.debugger
-      await webDebugger.sendCommand('Profiler.stop').catch(() => undefined)
-      await webDebugger.sendCommand('Profiler.disable').catch(() => undefined)
-    }).catch(() => undefined)
+    await this.host.withDebugger(tab.webContents, () => this.stopCpuProfileInstrumentation(tab)).catch(() => undefined)
   }
 
   async memoryReport(options: BrowserMemoryOptions = {}): Promise<BrowserMemoryReport> {
@@ -494,11 +501,16 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
       tab.memoryAllocation = { recording }
       try {
         await this.host.withDebugger(tab.webContents, async () => {
-          await tab.webContents.debugger.sendCommand('HeapProfiler.enable')
-          await tab.webContents.debugger.sendCommand('HeapProfiler.startSampling', {
-            samplingInterval: 32_768,
-            stackDepth: 64
-          })
+          try {
+            await tab.webContents.debugger.sendCommand('HeapProfiler.enable')
+            await tab.webContents.debugger.sendCommand('HeapProfiler.startSampling', {
+              samplingInterval: 32_768,
+              stackDepth: 64
+            })
+          } catch (error) {
+            await this.stopMemoryAllocationInstrumentation(tab)
+            throw error
+          }
         })
       } catch (error) {
         tab.memoryAllocation = undefined
@@ -611,12 +623,14 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
     }
   }
 
+  private async stopMemoryAllocationInstrumentation(tab: Tab): Promise<void> {
+    const webDebugger = tab.webContents.debugger
+    await webDebugger.sendCommand('HeapProfiler.stopSampling').catch(() => undefined)
+    await webDebugger.sendCommand('HeapProfiler.disable').catch(() => undefined)
+  }
+
   private async discardMemoryAllocationRecording(tab: Tab): Promise<void> {
-    await this.host.withDebugger(tab.webContents, async () => {
-      const webDebugger = tab.webContents.debugger
-      await webDebugger.sendCommand('HeapProfiler.stopSampling').catch(() => undefined)
-      await webDebugger.sendCommand('HeapProfiler.disable').catch(() => undefined)
-    }).catch(() => undefined)
+    await this.host.withDebugger(tab.webContents, () => this.stopMemoryAllocationInstrumentation(tab)).catch(() => undefined)
   }
 
   private async captureMemoryMeasurement(tab: Tab, collectGarbage: boolean): Promise<BrowserMemoryMeasurement> {

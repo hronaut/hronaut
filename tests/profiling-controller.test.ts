@@ -49,6 +49,32 @@ function fixture() {
 }
 
 describe('browser profiling controller', () => {
+  it.each(['cpu', 'allocation'] as const)('cleans up a partial %s profiler start and preserves its original error', async (kind) => {
+    const f = fixture()
+    const original = f.sendCommand.getMockImplementation()!
+    const failure = new Error('Sampling setup failed')
+    const stop = kind === 'cpu' ? 'Profiler.stop' : 'HeapProfiler.stopSampling'
+    const disable = kind === 'cpu' ? 'Profiler.disable' : 'HeapProfiler.disable'
+    const failedCommand = kind === 'cpu' ? 'Profiler.setSamplingInterval' : 'HeapProfiler.startSampling'
+    f.sendCommand.mockImplementation(async (method) => {
+      if (method === failedCommand) throw failure
+      if (method === stop) throw new Error('Sampling was not started')
+      return original(method)
+    })
+    const start = () => kind === 'cpu'
+      ? f.controller.cpuProfile({ action: 'start' })
+      : f.controller.memoryReport({ action: 'start-allocation-sampling' })
+    await expect(start()).rejects.toBe(failure)
+    expect(f.withDebugger).toHaveBeenCalledTimes(kind === 'cpu' ? 1 : 2)
+    expect(f.sendCommand).toHaveBeenCalledWith(stop)
+    expect(f.sendCommand).toHaveBeenCalledWith(disable)
+    expect(f.tab.cpuProfile).toBeUndefined()
+    expect(f.tab.memoryAllocation).toBeUndefined()
+    f.sendCommand.mockImplementation(original)
+    await start()
+    expect(kind === 'cpu' ? f.tab.cpuProfile?.recording : f.tab.memoryAllocation?.recording).toBeDefined()
+  })
+
   it.each([false, true])('cleans up a partial coverage start with rendering overlays %s', async (overlays) => {
     const f = fixture()
     if (overlays) f.tab.emulation.renderingDebug = { paintFlashing: true, layoutShiftRegions: false, layerBorders: false, fpsCounter: false, scrollBottlenecks: false }
