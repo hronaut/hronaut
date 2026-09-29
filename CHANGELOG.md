@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Identify omitted repeated references in IndexedDB previews without incorrectly calling shared objects circular, and mark these previews as truncated.
+
 - Limit IndexedDB Map and Set preview iteration to the displayed entries, avoiding a full temporary copy of large collections.
 
 - Preserve prototype-named fields in IndexedDB record previews instead of silently omitting them.

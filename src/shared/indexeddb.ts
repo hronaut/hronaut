@@ -81,7 +81,10 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
         state.truncated = true;
         return '[' + valueType(value) + ']';
       }
-      if (seen.has(value)) return '[Circular]';
+      if (seen.has(value)) {
+        state.truncated = true;
+        return '[Repeated reference]';
+      }
       seen.add(value);
       if (value instanceof Date) return Number.isNaN(value.getTime()) ? '[Invalid Date]' : value.toISOString();
       if (value instanceof Blob) return { type: valueType(value), size: value.size, mimeType: boundedName(value.type) };

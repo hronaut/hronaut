@@ -60,6 +60,10 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
           events.add({ values: new BigInt64Array([1n, -2n]) });
           events.add(new BigUint64Array(60).fill(18446744073709551615n));
           events.add(JSON.parse('{"name":"record","__proto__":{"retained":"yes"},"nested":{"__proto__":"nested value"},"constructor":"ordinary field"}'));
+          const shared = { name: 'shared' };
+          const cycle = { name: 'cycle' };
+          cycle.self = cycle;
+          events.add({ first: shared, second: shared, cycle });
           transaction.oncomplete = () => {
             document.querySelector('h1').textContent = 'IndexedDB ready';
             database.close();
@@ -110,7 +114,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       selectedDatabase: { objectStores: Array<{ name: string; entryCount: number; indexes: Array<{ name: string }> }> }
     }
     expect(schema.selectedDatabase.objectStores).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'events', entryCount: 5 }),
+      expect.objectContaining({ name: 'events', entryCount: 6 }),
       expect.objectContaining({ name: 'settings', entryCount: 3, indexes: [expect.objectContaining({ name: 'by-category' })] })
     ]))
 
@@ -161,7 +165,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
 
     const namedFieldsResult = await client.callTool({
       name: 'browser_indexeddb',
-      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 4, includeValues: true }
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 4, limit: 1, includeValues: true }
     }) as CallToolResult
     expect(namedFieldsResult.isError, text(namedFieldsResult)).not.toBe(true)
     const namedFields = JSON.parse(text(namedFieldsResult)) as {
@@ -172,6 +176,22 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       '{"name":"record","__proto__":{"retained":"yes"},"nested":{"__proto__":"nested value"},"constructor":"ordinary field"}'
     ))
     expect(namedFields.entries[0]!.valueTruncated).not.toBe(true)
+
+    const referencesResult = await client.callTool({
+      name: 'browser_indexeddb',
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 5, includeValues: true }
+    }) as CallToolResult
+    expect(referencesResult.isError, text(referencesResult)).not.toBe(true)
+    const references = JSON.parse(text(referencesResult)) as {
+      entries: Array<{ valuePreview: string; valueTruncated?: boolean }>
+    }
+    expect(references.entries).toHaveLength(1)
+    expect(JSON.parse(references.entries[0]!.valuePreview)).toEqual({
+      first: { name: 'shared' },
+      second: '[Repeated reference]',
+      cycle: { name: 'cycle', self: '[Repeated reference]' }
+    })
+    expect(references.entries[0]!.valueTruncated).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })
