@@ -2788,12 +2788,14 @@ export class BrowserTabsManager {
     value: string | undefined,
     includeValues: boolean
   ): Promise<BrowserStorageResult> {
-    const cookies = await tab.webContents.session.cookies.get({ url: tab.url })
+    const cookieStore = tab.webContents.session.cookies
+    const url = pageUrl.href
+    const cookies = await cookieStore.get({ url })
     let changed: boolean | undefined
     if (action === 'set') {
       const protectedMatch = cookies.some((cookie) => cookie.name === key && cookie.httpOnly)
       if (protectedMatch) throw new Error('HttpOnly cookies are protected and cannot be replaced by the storage manager.')
-      await tab.webContents.session.cookies.set({
+      await cookieStore.set({
         url: pageUrl.origin,
         name: key!,
         value: value!,
@@ -2806,14 +2808,14 @@ export class BrowserTabsManager {
       const matches = cookies.filter((cookie) => cookie.name === key)
       const editable = matches.filter((cookie) => !cookie.httpOnly)
       if (matches.length && !editable.length) throw new Error('HttpOnly cookies are protected and cannot be deleted by the storage manager.')
-      for (const cookie of editable) await tab.webContents.session.cookies.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
       changed = editable.length > 0
     } else if (action === 'clear') {
       const editable = cookies.filter((cookie) => !cookie.httpOnly)
-      for (const cookie of editable) await tab.webContents.session.cookies.remove(this.cookieRemovalUrl(cookie), cookie.name)
+      for (const cookie of editable) await cookieStore.remove(this.cookieRemovalUrl(cookie), cookie.name)
       changed = editable.length > 0
     }
-    const next = await tab.webContents.session.cookies.get({ url: tab.url })
+    const next = await cookieStore.get({ url })
     const selected = action === 'get' ? next.filter((cookie) => cookie.name === key) : next
     const rawItems: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>]> = selected.map((cookie) => [
       cookie.name,
@@ -2830,7 +2832,7 @@ export class BrowserTabsManager {
     const bounded = this.boundStorageItems(rawItems, includeValues || action === 'get', true)
     return {
       tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
+      url: redactNetworkUrl(url),
       origin: pageUrl.origin,
       kind: 'cookies',
       action,
