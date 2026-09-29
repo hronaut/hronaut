@@ -155,7 +155,8 @@ test('inspects service workers and Cache Storage for people and grouped agents',
       expect.objectContaining({ scope: `http://127.0.0.1:${address.port}/` })
     ]))
     expect(overview.caches).toContainEqual({ name: 'offline-v1' })
-    expect(overview.caches).toContainEqual({ name: 'z'.repeat(512) })
+    expect(overview.caches).toHaveLength(2)
+    expect(overview.caches).toContainEqual({ name: 'z'.repeat(256) })
     expect(overview.cachesTruncated).toBeUndefined()
 
     const oversizedCache = await client.callTool({
