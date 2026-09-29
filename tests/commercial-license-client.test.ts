@@ -36,6 +36,36 @@ describe('CommercialLicenseClient', () => {
     })
   })
 
+  it.each([
+    'not json', 'null', '[]', 'true', '{}',
+    '{"valid":false}',
+    '{"valid":"false","status":"inactive","productId":"prod_hronaut"}',
+    '{"valid":false,"status":"","productId":"prod_hronaut"}',
+    '{"valid":false,"status":"inactive","productId":""}'
+  ])('rejects malformed successful validation without manufacturing an inactive result: %s', async body => {
+    const request = vi.fn(async () => new Response(body, { status: 200 }))
+    const client = new CommercialLicenseClient('https://hronaut.example/api/creem-license', request)
+    await expect(client.validate('test-key', 'test-instance')).rejects.toMatchObject({
+      name: 'CommercialLicenseError', reason: 'service_unavailable', status: 200
+    })
+  })
+
+  it('preserves an explicit inactive validation result', async () => {
+    const request = vi.fn(async () => Response.json({ valid: false, status: 'inactive', productId: 'prod_hronaut' }))
+    const client = new CommercialLicenseClient('https://hronaut.example/api/creem-license', request)
+    await expect(client.validate('test-key', 'test-instance')).resolves.toMatchObject({
+      valid: false, status: 'inactive', productId: 'prod_hronaut'
+    })
+  })
+
+  it('maps a null error response to a service failure', async () => {
+    const request = vi.fn(async () => Response.json(null, { status: 503 }))
+    const client = new CommercialLicenseClient('https://hronaut.example/api/creem-license', request)
+    await expect(client.validate('test-key', 'test-instance')).rejects.toMatchObject({
+      name: 'CommercialLicenseError', reason: 'service_unavailable', status: 503
+    })
+  })
+
   it('allows plain HTTP only for local development', () => {
     expect(() => new CommercialLicenseClient('http://127.0.0.1:8788/api/creem-license')).not.toThrow()
     expect(() => new CommercialLicenseClient('http://hronaut.example/api/creem-license')).toThrow('must use HTTPS')
