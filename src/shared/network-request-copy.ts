@@ -86,7 +86,8 @@ function copyPayload(details: BrowserNetworkRequestDetails): CopyPayload {
 
   const requestBody = details.request.body
   const requestBodyText = requestBody?.text
-  const bodyIsOmittedPlaceholder = requestBodyText?.startsWith('[multipart body omitted]')
+  const bodyIsOmittedPlaceholder = requestBodyText?.startsWith('[JSON body omitted:')
+    || requestBodyText?.startsWith('[multipart body omitted]')
     || requestBodyText?.startsWith('[non-text body omitted]')
     || requestBodyText?.startsWith('[binary body omitted]')
   const body = requestBody

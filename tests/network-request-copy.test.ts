@@ -136,6 +136,16 @@ describe('formatNetworkRequestCopy', () => {
     expect(binary).not.toContain('--data-raw')
   })
 
+  it('does not replay a JSON redaction failure placeholder as request data', () => {
+    const details = requestDetails({ request: {
+      headers: { 'Content-Type': 'application/json' },
+      body: { text: '[JSON body omitted: could not safely redact]', originalChars: 24_000, truncated: false, redacted: true }
+    } })
+    expect(formatNetworkRequestCopy(details, 'curl')).not.toContain('--data-raw')
+    expect(formatNetworkRequestCopy(details, 'fetch')).not.toContain('body:')
+    expect(formatNetworkRequestCopy(details, 'curl')).toContain('request body was omitted')
+  })
+
   it('omits oversized headers and bodies instead of creating partial replay data', () => {
     const result = formatNetworkRequestCopy(requestDetails({
       request: {

@@ -1,4 +1,5 @@
 const REDACTED_VALUE = '[REDACTED]'
+const MAX_JSON_REDACTION_DEPTH = 100
 
 const SENSITIVE_NAME = /(api[-_]?key|authorization|auth[-_]?token|cookie|credential|csrf|password|passwd|passcode|secret|session|token)/i
 const JSON_CONTENT_TYPE = /(?:^|[+/])json(?:;|$)/i
@@ -17,11 +18,14 @@ function isSensitiveName(name: string): boolean {
   return SENSITIVE_NAME.test(name)
 }
 
-function redactJsonValue(value: unknown): { value: unknown; redacted: boolean } {
+function redactJsonValue(value: unknown, depth = 0): { value: unknown; redacted: boolean } {
+  if (value && typeof value === 'object' && depth > MAX_JSON_REDACTION_DEPTH) {
+    throw new Error('JSON nesting exceeds the safe redaction limit')
+  }
   if (Array.isArray(value)) {
     let redacted = false
     const next = value.map((item) => {
-      const result = redactJsonValue(item)
+      const result = redactJsonValue(item, depth + 1)
       redacted ||= result.redacted
       return result.value
     })
@@ -36,7 +40,7 @@ function redactJsonValue(value: unknown): { value: unknown; redacted: boolean } 
       redacted = true
       continue
     }
-    const result = redactJsonValue(item)
+    const result = redactJsonValue(item, depth + 1)
     next[key] = result.value
     redacted ||= result.redacted
   }
@@ -101,8 +105,14 @@ export function sanitizeNetworkBody(
   }
   if (JSON_CONTENT_TYPE.test(normalizedType) || /^[\s\r\n]*[\[{]/.test(body)) {
     try {
-      const result = redactJsonValue(JSON.parse(body))
-      return boundBody(JSON.stringify(result.value, null, 2), originalChars, maxChars, result.redacted)
+      const parsed: unknown = JSON.parse(body)
+      try {
+        const result = redactJsonValue(parsed)
+        return boundBody(JSON.stringify(result.value, null, 2), originalChars, maxChars, result.redacted)
+      } catch {
+        // Valid JSON must never fall back to raw text if secret redaction fails.
+        return boundBody('[JSON body omitted: could not safely redact]', originalChars, maxChars, true)
+      }
     } catch {
       // A mislabeled or incomplete JSON response is still useful as bounded text.
     }

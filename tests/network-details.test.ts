@@ -39,6 +39,22 @@ describe('network detail redaction', () => {
     expect(result).toMatchObject({ truncated: false, redacted: true })
   })
 
+  it.each(['text/plain', 'application/json', undefined])('omits deeply nested JSON instead of exposing secrets (%s)', (contentType) => {
+    for (const [open, close] of [['[', ']'], ['{"child":', '}']]) {
+      const body = '{"password":"fixture-secret","nested":'
+        + open!.repeat(12_000) + '0' + close!.repeat(12_000) + '}'
+      const result = sanitizeNetworkBody(body, contentType, 1_000)
+
+      expect(result.text).toBe('[JSON body omitted: could not safely redact]')
+      expect(result.text).not.toContain('fixture-secret')
+      expect(result).toMatchObject({ originalChars: body.length, redacted: true, truncated: false })
+    }
+  })
+
+  it('retains incomplete plain-text JSON as bounded text', () => {
+    expect(sanitizeNetworkBody('{"status":', 'text/plain', 1_000).text).toBe('{"status":')
+  })
+
   it('redacts form fields and omits binary or multipart bodies', () => {
     expect(sanitizeNetworkBody('name=Ada&password=private', 'application/x-www-form-urlencoded', 1_000).text)
       .toBe('name=Ada&password=%5BREDACTED%5D')
