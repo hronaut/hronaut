@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Avoid starting a stale memory measurement when allocation clearing finishes after switching tabs, reloading, or starting a newer diagnostic action.
+
 - Keep CPU-profile and code-coverage Stop results and errors visible when a background recording-state refresh arrives before the action completes.
 
 - Report offline-app diagnostic truncation accurately at the service-worker registration limit and when installability error arguments are omitted.

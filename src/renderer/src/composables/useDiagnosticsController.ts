@@ -416,6 +416,7 @@ export function useDiagnosticsController(options: DiagnosticsControllerOptions) 
         ? 'start-allocation-sampling'
         : action === 'stop' ? 'stop-allocation-sampling' : 'clear-allocation-sampling'
       let report = await options.browser.measureMemory({ tabId: request.tab.id, action: memoryAction })
+      if (!current('memory', request)) return
       if (action === 'clear') report = await options.browser.measureMemory({ tabId: request.tab.id, action: 'measure' })
       if (!current('memory', request)) return
       memoryReport.value = report
