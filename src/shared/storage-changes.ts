@@ -126,7 +126,14 @@ export function compareBrowserStorageSnapshots(
     }
 
     const addValue = (position: 'before' | 'after', snapshot: BrowserStorageSnapshotEntry | undefined): void => {
-      if (!includeValues || !snapshot || snapshot.protected || snapshot.valuePreview === undefined) return
+      if (!includeValues || !snapshot || snapshot.protected) return
+      if (snapshot.valuePreview === undefined) {
+        if (snapshot.valuePreviewTruncated) {
+          if (position === 'before') result.beforeValueTruncated = true
+          else result.afterValueTruncated = true
+        }
+        return
+      }
       if (remainingValueBytes <= 0) {
         if (position === 'before') result.beforeValueTruncated = true
         else result.afterValueTruncated = true

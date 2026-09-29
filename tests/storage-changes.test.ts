@@ -24,6 +24,36 @@ function snapshot(
 }
 
 describe('storage change comparison', () => {
+  it.each(['added', 'updated', 'removed'] as const)('marks omitted snapshot previews as truncated for %s values', type => {
+    const entry = (fingerprint: string) => ({
+      kind: 'local-storage' as const, key: 'beyond-preview-budget', fingerprint,
+      valueBytes: 100, valuePreviewTruncated: true
+    })
+    const baseline = snapshot(type === 'added' ? [] : [entry('before')])
+    const current = snapshot(type === 'removed' ? [] : [entry('after')])
+    const change = compareBrowserStorageSnapshots(baseline, current, true).changes[0]!
+    expect(change.type).toBe(type)
+    expect(change.beforeValue).toBeUndefined()
+    expect(change.afterValue).toBeUndefined()
+    expect(change.beforeValueTruncated).toBe(type === 'added' ? undefined : true)
+    expect(change.afterValueTruncated).toBe(type === 'removed' ? undefined : true)
+    const withoutValues = compareBrowserStorageSnapshots(baseline, current).changes[0]!
+    expect(withoutValues.beforeValueTruncated).toBeUndefined()
+    expect(withoutValues.afterValueTruncated).toBeUndefined()
+  })
+
+  it('does not expose preview completeness markers for protected cookies', () => {
+    const entry = (fingerprint: string) => ({
+      kind: 'cookies' as const, key: 'session', fingerprint, valueBytes: 100,
+      protected: true, valuePreviewTruncated: true
+    })
+    const change = compareBrowserStorageSnapshots(snapshot([entry('before')]), snapshot([entry('after')]), true).changes[0]!
+    expect(change.beforeValueTruncated).toBeUndefined()
+    expect(change.afterValueTruncated).toBeUndefined()
+    expect(change.beforeValue).toBeUndefined()
+    expect(change.afterValue).toBeUndefined()
+  })
+
   it('preserves Unicode prefixes in both sides of an updated value', () => {
     const entry = (value: string) => ({
       kind: 'local-storage' as const, key: 'unicode', fingerprint: value,

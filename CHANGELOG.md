@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve storage-change truncation markers when the snapshot preview budget omits a value completely.
+
 ## [2.8.4] - 2026-09-29
 
 ### Fixed
