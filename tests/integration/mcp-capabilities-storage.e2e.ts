@@ -56,6 +56,19 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   expect(JSON.parse(text(localStorageValue)).items).toEqual([
     expect.objectContaining({ key: 'hronaut-mcp-site-data', value: 'stored' })
   ])
+  const unicodeValue = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'set', key: 'unicode-preview', value: '€'.repeat(6_000), includeValues: true }
+  }) as CallToolResult
+  expect(unicodeValue.isError, text(unicodeValue)).not.toBe(true)
+  expect(JSON.parse(text(unicodeValue)).items).toContainEqual(expect.objectContaining({
+    key: 'unicode-preview', value: '€'.repeat(5_461), valueBytes: 18_000, valueTruncated: true
+  }))
+  const removeUnicode = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'delete', key: 'unicode-preview' }
+  }) as CallToolResult
+  expect(removeUnicode.isError, text(removeUnicode)).not.toBe(true)
   const storedDebugValue = await client.callTool({
     name: 'browser_storage',
     arguments: { tabId, kind: 'session-storage', action: 'set', key: 'debug-session', value: 'step-one' }

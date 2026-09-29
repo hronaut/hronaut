@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve complete Unicode characters in bounded storage previews and keep multilingual values within per-value and total byte limits.
+
 - Keep cookie operations and their results scoped to the original page and browser session when the tab navigates during a storage request.
 
 - Reject IndexedDB and storage-usage reports collected across page changes, including the StorageManager fallback, using a shared inspection guard.

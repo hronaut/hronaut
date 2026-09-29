@@ -1,3 +1,4 @@
+import { boundStorageItems, MAX_STORAGE_ITEMS } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
@@ -399,11 +400,8 @@ const MAX_TAB_OVERVIEW_PAGE_PIXELS = 12_000_000
 const MAX_TAB_OVERVIEW_PAGE_BYTES = 4 * 1024 * 1024
 const TAB_OVERVIEW_PAGE_TIMEOUT_MS = 5_000
 const MAX_TAB_OVERVIEW_PAGE_CAPTURES = 2
-const MAX_STORAGE_ITEMS = 200
 const MAX_STORAGE_KEY_CHARS = 512
 const MAX_STORAGE_INPUT_VALUE_BYTES = 256 * 1024
-const MAX_STORAGE_OUTPUT_VALUE_BYTES = 16 * 1024
-const MAX_STORAGE_OUTPUT_TOTAL_BYTES = 128 * 1024
 const MIN_SHELL_HEIGHT = 44
 const PAGE_ZOOM_STEPS = [50, 60, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300] as const
 const ABORTED_LOAD_ERROR = -3
@@ -2254,7 +2252,7 @@ export class BrowserTabsManager {
       items.sort((left, right) => left[0].localeCompare(right[0]));
       return { changed, itemCount: storage.length, items };
     })()`, true) as { changed: boolean; itemCount: number; items: Array<[string, string]> }
-    const bounded = this.boundStorageItems(raw.items, options.includeValues === true || action === 'get')
+    const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
     return {
       tabId: tab.id,
       url: redactNetworkUrl(tab.url),
@@ -2829,7 +2827,7 @@ export class BrowserTabsManager {
         sameSite: cookie.sameSite
       }
     ])
-    const bounded = this.boundStorageItems(rawItems, includeValues || action === 'get', true)
+    const bounded = boundStorageItems(rawItems, includeValues || action === 'get', true)
     return {
       tabId: tab.id,
       url: redactNetworkUrl(url),
@@ -2842,39 +2840,6 @@ export class BrowserTabsManager {
       truncated: next.length > MAX_STORAGE_ITEMS || bounded.truncated || undefined,
       note: 'HttpOnly cookie values are protected. Non-HttpOnly cookies and local storage are shared by origin only inside this workspace.'
     }
-  }
-
-  private boundStorageItems(
-    items: Array<[string, string, Omit<BrowserStorageItem, 'key' | 'value' | 'valueBytes'>?]>,
-    includeValues: boolean,
-    protectValues = false
-  ): { items: BrowserStorageItem[]; truncated: boolean } {
-    let remainingBytes = MAX_STORAGE_OUTPUT_TOTAL_BYTES
-    let truncated = items.length > MAX_STORAGE_ITEMS
-    const bounded = items.slice(0, MAX_STORAGE_ITEMS).map(([key, value, metadata]) => {
-      const valueBytes = Buffer.byteLength(value, 'utf8')
-      const protectedValue = protectValues && metadata?.protected === true
-      let returnedValue: string | undefined
-      let valueTruncated = false
-      if (includeValues && !protectedValue && remainingBytes > 0) {
-        const maxBytes = Math.min(MAX_STORAGE_OUTPUT_VALUE_BYTES, remainingBytes)
-        const buffer = Buffer.from(value, 'utf8')
-        returnedValue = buffer.subarray(0, maxBytes).toString('utf8')
-        valueTruncated = buffer.length > maxBytes
-        remainingBytes -= Buffer.byteLength(returnedValue, 'utf8')
-      } else if (includeValues && !protectedValue && valueBytes > 0) {
-        valueTruncated = true
-      }
-      if (valueTruncated) truncated = true
-      return {
-        key,
-        value: returnedValue,
-        valueBytes,
-        valueTruncated: valueTruncated || undefined,
-        ...metadata
-      }
-    })
-    return { items: bounded, truncated }
   }
 
   private cookieRemovalUrl(cookie: { domain?: string; path?: string; secure?: boolean }): string {
