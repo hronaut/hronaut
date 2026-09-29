@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Support arrow, Home, and End keys in the workspace color picker, with a single Tab stop and focus following the selected color.
+
 - Make the search-engine radio group navigable with arrow, Home, and End keys, with one Tab stop and stable focus while saving.
 
 - Release unused response streams when release-history requests fail, including rate limits that fall back to cached history.

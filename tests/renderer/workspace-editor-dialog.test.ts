@@ -183,3 +183,45 @@ it('keeps a busy template operation open when the native menu requests browser i
     expect(wrapper.text()).not.toContain('Browser import')
   } finally { wrapper.unmount() }
 })
+
+
+it.each([
+  ['ArrowRight', 'gray', 'blue'],
+  ['ArrowDown', 'purple', 'gray'],
+  ['ArrowLeft', 'gray', 'purple'],
+  ['ArrowUp', 'blue', 'gray'],
+  ['Home', 'purple', 'gray'],
+  ['End', 'gray', 'purple']
+])('selects and saves workspace colors with %s from %s to %s', async (key, start, target) => {
+  const state = { tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [], mcpTabGroups: [] } as BrowserState
+  const createWorkspace = vi.fn(async () => state)
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn(async () => state), createWorkspace,
+    listWorkspaceStorageOrigins: vi.fn(async () => []),
+    listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    attachTo: document.body,
+    global: { plugins: [createHronautI18n('en-US')] },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async next => { await next },
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    await (wrapper.vm as unknown as { openNew: () => Promise<void> }).openNew()
+    await flushPromises()
+    await wrapper.get('#tab-group-name').setValue('Keyboard colors')
+    const initial = wrapper.get<HTMLButtonElement>(`[data-color="${start}"]`)
+    await initial.trigger('click')
+    initial.element.focus()
+    await initial.trigger('keydown', { key })
+    const selected = wrapper.get(`[data-color="${target}"]`)
+    expect(selected.attributes('aria-checked')).toBe('true')
+    expect(document.activeElement).toBe(selected.element)
+    expect(wrapper.findAll('[data-color][tabindex="0"]')).toHaveLength(1)
+    expect(selected.attributes('tabindex')).toBe('0')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(createWorkspace).toHaveBeenCalledWith(expect.objectContaining({ color: target }))
+  } finally { wrapper.unmount() }
+})
