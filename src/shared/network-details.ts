@@ -70,17 +70,35 @@ export function redactNetworkHeaders(
   return safe
 }
 
+function redactParameters(parameters: URLSearchParams): URLSearchParams | undefined {
+  const visible: Array<[string, string]> = []
+  const sensitive = new Map<string, number>()
+  for (const [name, value] of parameters) {
+    if (!isSensitiveName(name)) {
+      visible.push([name, value])
+      continue
+    }
+    const count = (sensitive.get(name) ?? 0) + 1
+    // Preserve the previous output order: each sensitive group moves to the
+    // end at its last occurrence, without repeatedly rewriting all its values.
+    sensitive.delete(name)
+    sensitive.set(name, count)
+  }
+  if (!sensitive.size) return undefined
+  const redacted = new URLSearchParams(visible)
+  for (const [name, count] of sensitive) {
+    for (let index = 0; index < count; index += 1) redacted.append(name, REDACTED_VALUE)
+  }
+  return redacted
+}
+
 export function redactNetworkUrl(input: string): string {
   try {
     const url = new URL(input)
     if (url.username) url.username = REDACTED_VALUE
     if (url.password) url.password = REDACTED_VALUE
-    for (const key of [...url.searchParams.keys()]) {
-      if (!isSensitiveName(key)) continue
-      const values = url.searchParams.getAll(key)
-      url.searchParams.delete(key)
-      for (let index = 0; index < values.length; index += 1) url.searchParams.append(key, REDACTED_VALUE)
-    }
+    const redacted = redactParameters(url.searchParams)
+    if (redacted) url.search = redacted.toString()
     url.hash = ''
     return url.href
   } catch {
@@ -119,15 +137,8 @@ export function sanitizeNetworkBody(
   }
   if (FORM_CONTENT_TYPE.test(normalizedType)) {
     const form = new URLSearchParams(body)
-    let redacted = false
-    for (const key of [...form.keys()]) {
-      if (!isSensitiveName(key)) continue
-      const values = form.getAll(key)
-      form.delete(key)
-      for (let index = 0; index < values.length; index += 1) form.append(key, REDACTED_VALUE)
-      redacted = true
-    }
-    return boundBody(form.toString(), originalChars, maxChars, redacted)
+    const redacted = redactParameters(form)
+    return boundBody((redacted ?? form).toString(), originalChars, maxChars, Boolean(redacted))
   }
   if (normalizedType && !TEXT_CONTENT_TYPE.test(normalizedType)) {
     return boundBody('[non-text body omitted]', originalChars, maxChars, true)

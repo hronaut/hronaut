@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../src/shared/network-details.js'
 
 describe('network detail redaction', () => {
@@ -84,6 +84,26 @@ describe('network detail redaction', () => {
       .toBe('[binary body omitted]')
     expect(sanitizeNetworkBody('multipart-data', 'multipart/form-data; boundary=test', 1_000).text)
       .toBe('[multipart body omitted]')
+  })
+
+  it.each(['url', 'form'])('redacts repeated %s parameters without quadratic rewrites', (kind) => {
+    const input = Array(200).fill('token=fixture-secret').join('&') + '&view=full&password=p&token=last'
+    const append = vi.spyOn(URLSearchParams.prototype, 'append')
+    try {
+      const text = kind === 'url'
+        ? new URL(redactNetworkUrl(`https://example.test/?${input}`)).search.slice(1)
+        : sanitizeNetworkBody(input, 'application/x-www-form-urlencoded', 100_000).text
+      const result = new URLSearchParams(text)
+      expect(result.get('view')).toBe('full')
+      expect(result.get('password')).toBe('[REDACTED]')
+      expect(result.getAll('token')).toEqual(Array(201).fill('[REDACTED]'))
+      expect([...result.keys()].slice(0, 3)).toEqual(['view', 'password', 'token'])
+      expect(text).not.toContain('fixture-secret')
+      // Count work instead of relying on machine-dependent elapsed-time limits.
+      expect(append.mock.calls.length).toBeLessThanOrEqual(203)
+    } finally {
+      append.mockRestore()
+    }
   })
 
   it('marks long text responses as truncated', () => {
