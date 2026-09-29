@@ -54,7 +54,8 @@ export function pwaRegistrationsPageScript(): string {
       scriptUrl: String(value.scriptURL || '').slice(0, 4096),
       state: String(value.state || 'parsed')
     } : undefined;
-    const registrations = (await navigator.serviceWorker.getRegistrations())
+    const allRegistrations = await navigator.serviceWorker.getRegistrations();
+    const registrations = allRegistrations
       .slice(0, maxRegistrations)
       .map((registration) => ({
         scope: String(registration.scope || '').slice(0, 4096),
@@ -69,7 +70,7 @@ export function pwaRegistrationsPageScript(): string {
       controller: worker(navigator.serviceWorker.controller),
       registrations,
       supported: true,
-      truncated: registrations.length >= maxRegistrations,
+      truncated: allRegistrations.length > maxRegistrations,
       maxNameChars
     };
   })()`
@@ -181,6 +182,7 @@ export function sanitizePwaManifest(
       || shortcuts.length > PWA_INSPECTION_LIMITS.maxManifestShortcuts
       || (result.errors?.length ?? 0) > PWA_INSPECTION_LIMITS.maxManifestErrors
       || installabilityErrors.length > PWA_INSPECTION_LIMITS.maxManifestErrors
+      || installabilityErrors.some(error => (error.errorArguments?.length ?? 0) > PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
       || undefined
   }
 }

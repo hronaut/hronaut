@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import {
   PWA_INSPECTION_LIMITS,
@@ -36,6 +37,28 @@ describe('offline app inspection options', () => {
     expect(script).toContain('navigator.serviceWorker.controller')
     expect(script).not.toContain('.unregister(')
     expect(script).not.toContain('.update(')
+  })
+
+  it.each([49, 50, 51])('reports registration truncation accurately for %i registrations', async (count) => {
+    const registrations = Array.from({ length: count }, (_, index) => ({
+      scope: `https://example.test/app-${index}/`
+    }))
+    const report = await runInNewContext(pwaRegistrationsPageScript(), {
+      navigator: { serviceWorker: { getRegistrations: async () => registrations } }
+    }) as { registrations: Array<{ scope: string }>; truncated: boolean }
+    expect(report.registrations.map(registration => registration.scope)).toEqual(
+      registrations.slice(0, PWA_INSPECTION_LIMITS.maxRegistrations).map(registration => registration.scope)
+    )
+    expect(report.truncated).toBe(count > PWA_INSPECTION_LIMITS.maxRegistrations)
+  })
+
+  it.each([19, 20, 21])('reports omitted installability arguments accurately for %i arguments', (count) => {
+    const errorArguments = Array.from({ length: count }, (_, index) => ({ name: `field-${index}`, value: 'value' }))
+    const manifest = sanitizePwaManifest({}, [{ errorId: 'installability-error', errorArguments }])
+    expect(manifest?.installabilityErrors[0]?.arguments).toEqual(
+      errorArguments.slice(0, PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
+    )
+    expect(manifest?.truncated ?? false).toBe(count > PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
   })
 
   it('returns bounded manifest and installability diagnostics without raw source', () => {
