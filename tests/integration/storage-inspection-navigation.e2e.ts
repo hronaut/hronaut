@@ -94,3 +94,64 @@ for (const stage of ['IndexedDB', 'quota', 'quota fallback'] as const) {
     }
   })
 }
+
+for (const kind of ['local-storage', 'session-storage'] as const) {
+  for (const stage of ['before execution', 'after execution'] as const) {
+    test(`keeps ${kind} operations scoped to their page when navigating ${stage}`, async ({ electronApp, mcpPort, mcpToken }) => {
+      const server = createServer((_request, response) => {
+        response.writeHead(200, { 'content-type': 'text/html' })
+        response.end('<!doctype html><title>Web storage navigation fixture</title><main>Ready</main>')
+      })
+      await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+      const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+      const client = await connectClient(mcpPort, mcpToken)
+      const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+      try {
+        const workspace = await call('browser_workspaces', { action: 'create', name: 'Web storage navigation', storage: 'scratch' })
+        expect(workspace.isError, text(workspace)).not.toBe(true)
+        const workspaceId = (JSON.parse(text(workspace)) as { id: string }).id
+        const opened = await call('browser_new_tab', { workspaceId, url: `${origin}/before` })
+        expect(opened.isError, text(opened)).not.toBe(true)
+        const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+        await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents()
+          .some(page => page.getURL() === `${origin}/before` && !page.isLoading()), origin)).toBe(true)
+        await electronApp.evaluate(({ webContents }, { origin, stage }) => {
+          const page = webContents.getAllWebContents().find(page => page.getURL() === `${origin}/before`)!
+          const original = page.executeJavaScript
+          const state = globalThis as typeof globalThis & { __storageRestore?: () => void }
+          state.__storageRestore = () => { page.executeJavaScript = original }
+          page.executeJavaScript = async function (...args) {
+            if (!args[0].includes('const storage = window[')) return original.apply(this, args)
+            state.__storageRestore?.()
+            if (stage === 'before execution') await page.loadURL(`${origin}/after`)
+            const result = await original.apply(this, args)
+            if (stage === 'after execution') await page.loadURL(`${origin}/after`)
+            return result
+          }
+        }, { origin, stage })
+        const result = await call('browser_storage', { workspaceId, tabId, kind, action: 'set', key: 'navigation-marker', value: 'complete-value', includeValues: true })
+        if (stage === 'before execution') {
+          expect(result.isError, text(result)).toBe(true)
+          expect(text(result)).toContain('The page changed before the storage operation')
+        } else {
+          expect(result.isError, text(result)).not.toBe(true)
+          expect(JSON.parse(text(result))).toMatchObject({ url: `${origin}/before`, origin, changed: true, items: [{ key: 'navigation-marker', value: 'complete-value' }] })
+        }
+        const fresh = await call('browser_storage', { workspaceId, tabId, kind, action: 'get', key: 'navigation-marker' })
+        expect(fresh.isError, text(fresh)).not.toBe(true)
+        expect(JSON.parse(text(fresh))).toMatchObject({
+          url: `${origin}/after`, origin,
+          items: stage === 'before execution' ? [] : [{ key: 'navigation-marker', value: 'complete-value' }]
+        })
+      } finally {
+        await electronApp.evaluate(() => {
+          const state = globalThis as typeof globalThis & { __storageRestore?: () => void }
+          state.__storageRestore?.()
+          delete state.__storageRestore
+        })
+        await client.close()
+        await closeFixtureServer(server)
+      }
+    })
+  }
+}

@@ -2238,6 +2238,9 @@ export class BrowserTabsManager {
 
     const storageName = options.kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
     const raw = await tab.webContents.executeJavaScript(`(() => {
+      if (window.location.href !== ${JSON.stringify(pageUrl.href)}) {
+        return { pageChanged: true };
+      }
       const storage = window[${JSON.stringify(storageName)}];
       const action = ${JSON.stringify(action)};
       const key = ${JSON.stringify(key)};
@@ -2253,11 +2256,12 @@ export class BrowserTabsManager {
       }
       items.sort((left, right) => left[0].localeCompare(right[0]));
       return { changed, itemCount: storage.length, items };
-    })()`, true) as { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    })()`, true) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
+    if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')
     const bounded = boundStorageItems(raw.items, options.includeValues === true || action === 'get')
     return {
       tabId: tab.id,
-      url: redactNetworkUrl(tab.url),
+      url: redactNetworkUrl(pageUrl.href),
       origin: pageUrl.origin,
       kind: options.kind,
       action,
