@@ -1149,6 +1149,7 @@ export class BrowserTabsManager {
   private readonly browserCookieImportSessions = new Set<Session>()
   private readonly webContentsToTab = new Map<number, string>()
   private readonly debuggerQueue = new BrowserDebuggerQueue()
+  private interactionLockTail: Promise<void> = Promise.resolve()
   private readonly networkRouteQueues = new Map<number, Promise<void>>()
   private readonly networkWaitController = new BrowserNetworkWaitController<BrowserTab>({
     matchingRequest: (tab, options, minCaptureSequence) => {
@@ -4498,7 +4499,21 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
+  private enqueueInteractionLockMutation(operation: () => Promise<BrowserState>): Promise<BrowserState> {
+    const result = this.interactionLockTail.then(() => {
+      if (this.destroyed) throw new Error('Browser tabs manager has been destroyed')
+      return operation()
+    })
+    // Keep each mutation and any rollback together across tab and global requests.
+    this.interactionLockTail = result.then(() => undefined, () => undefined)
+    return result
+  }
+
+  setTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
+    return this.enqueueInteractionLockMutation(() => this.applyTabHumanInteractionLocked(tabId, locked))
+  }
+
+  private async applyTabHumanInteractionLocked(tabId: string, locked: boolean): Promise<BrowserState> {
     const tab = this.getTab(tabId)
     if (!locked && tab.mcpGroupId && this.mcpTabGroups.get(tab.mcpGroupId)?.contextClass === 'public-observer') {
       throw new Error('Page input remains locked in a read-only public observer workspace.')
@@ -4536,7 +4551,11 @@ export class BrowserTabsManager {
     return this.getState()
   }
 
-  async setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+  setAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
+    return this.enqueueInteractionLockMutation(() => this.applyAllHumanInteractionLocked(locked))
+  }
+
+  private async applyAllHumanInteractionLocked(locked: boolean): Promise<BrowserState> {
     const previousLocked = this.allHumanInteractionLocked
     const previousGloballyUnlockedTabIds = new Set(this.globallyUnlockedTabIds)
     this.allHumanInteractionLocked = locked

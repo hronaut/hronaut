@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Serialize native tab and global input-lock changes through rollback so a failed request cannot undo a newer successful lock.
+
 - Preserve regular-expression patterns and flags in IndexedDB previews, marking oversized patterns as truncated instead of displaying empty objects.
 
 - Keep keyboard focus moving between available modal controls when a fieldset or explicitly focusable button is disabled.
