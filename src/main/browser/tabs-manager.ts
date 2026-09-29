@@ -9664,7 +9664,9 @@ export class BrowserTabsManager {
     if (response.exceptionDetails) {
       throw new Error(response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Page script failed')
     }
-    return response.result?.value ?? response.result?.unserializableValue
+    return response.result && Object.hasOwn(response.result, 'value')
+      ? response.result.value
+      : response.result?.unserializableValue
   }
 
   private async mainWorldContextId(webContents: BrowserTab['view']['webContents']): Promise<number> {

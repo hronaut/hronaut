@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve explicit null results from background and dialog-handled JavaScript evaluation instead of changing them to undefined.
+
 - Preserve thrown primitive values in console exception diagnostics instead of reporting only “Uncaught”, while retaining redaction and message limits.
 
 - Serialize native tab and global input-lock changes through rollback so a failed request cannot undo a newer successful lock.
