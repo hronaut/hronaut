@@ -7,6 +7,19 @@ import {
 } from '../src/main/browser/storage-items.js'
 
 describe('bounded storage previews', () => {
+  it('preserves empty values after exhausting the preview byte budget', () => {
+    const input: Array<[string, string]> = Array.from(
+      { length: MAX_STORAGE_OUTPUT_TOTAL_BYTES / MAX_STORAGE_OUTPUT_VALUE_BYTES },
+      (_, i) => [String(i), 'x'.repeat(MAX_STORAGE_OUTPUT_VALUE_BYTES)]
+    )
+    input.push(['empty', ''])
+    const report = boundStorageItems(input, true)
+    expect(report.truncated).toBe(false)
+    expect(report.items.at(-1)).toMatchObject({ value: '', valueBytes: 0, valueTruncated: undefined })
+    expect(boundStorageItems(input, false).items.at(-1)?.value).toBeUndefined()
+    expect(report.items.reduce((bytes, item) => bytes + Buffer.byteLength(item.value ?? ''), 0)).toBe(MAX_STORAGE_OUTPUT_TOTAL_BYTES)
+  })
+
   it.each(['ї', '€', '😀'])('preserves whole %s characters at the per-value boundary', character => {
     const exact = 'a'.repeat(MAX_STORAGE_OUTPUT_VALUE_BYTES - Buffer.byteLength(character)) + character
     expect(boundStorageItems([['exact', exact]], true)).toMatchObject({

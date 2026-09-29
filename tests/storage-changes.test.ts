@@ -24,6 +24,33 @@ function snapshot(
 }
 
 describe('storage change comparison', () => {
+  it.each(['added', 'updated', 'removed'] as const)('preserves a complete empty %s value after the byte budget is exhausted', type => {
+    const fillers = Array.from(
+      { length: MAX_STORAGE_CHANGE_VALUES_TOTAL_BYTES / MAX_STORAGE_CHANGE_VALUE_BYTES },
+      (_, i) => ({
+        kind: 'local-storage' as const, key: String(i), fingerprint: 'filled',
+        valueBytes: MAX_STORAGE_CHANGE_VALUE_BYTES, valuePreview: 'x'.repeat(MAX_STORAGE_CHANGE_VALUE_BYTES)
+      })
+    )
+    const empty = { kind: 'local-storage' as const, key: 'z-empty', fingerprint: 'empty', valueBytes: 0, valuePreview: '' }
+    const after = type === 'updated' ? { ...empty, fingerprint: 'changed', valueBytes: 1, valuePreview: 'x' } : empty
+    const baseline = snapshot(type === 'added' ? [] : [empty])
+    const current = snapshot([...fillers, ...(type === 'removed' ? [] : [after])])
+    const change = compareBrowserStorageSnapshots(baseline, current, true).changes.at(-1)!
+    expect(change.type).toBe(type)
+    if (type === 'added') {
+      expect(change.afterValue).toBe('')
+      expect(change.afterValueTruncated).toBeUndefined()
+    } else {
+      expect(change.beforeValue).toBe('')
+      expect(change.beforeValueTruncated).toBeUndefined()
+    }
+    if (type === 'updated') {
+      expect(change.afterValue).toBeUndefined()
+      expect(change.afterValueTruncated).toBe(true)
+    }
+  })
+
   it.each(['added', 'updated', 'removed'] as const)('marks omitted snapshot previews as truncated for %s values', type => {
     const entry = (fingerprint: string) => ({
       kind: 'local-storage' as const, key: 'beyond-preview-budget', fingerprint,

@@ -134,7 +134,7 @@ export function compareBrowserStorageSnapshots(
         }
         return
       }
-      if (remainingValueBytes <= 0) {
+      if (remainingValueBytes <= 0 && snapshot.valuePreview.length > 0) {
         if (position === 'before') result.beforeValueTruncated = true
         else result.afterValueTruncated = true
         return

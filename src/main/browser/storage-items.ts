@@ -17,7 +17,7 @@ export function boundStorageItems(
     const protectedValue = protectValues && metadata?.protected === true
     let returnedValue: string | undefined
     let valueTruncated = false
-    if (includeValues && !protectedValue && remainingBytes > 0) {
+    if (includeValues && !protectedValue && (remainingBytes > 0 || valueBytes === 0)) {
       const maxBytes = Math.min(MAX_STORAGE_OUTPUT_VALUE_BYTES, remainingBytes)
       const buffer = Buffer.from(value, 'utf8')
       returnedValue = utf8Prefix(buffer, maxBytes)
