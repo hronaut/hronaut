@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Remove partial PDF, HAR, and video export files after a failed write, allowing retries to reuse the filename without overwriting existing files.
+
 - Close the hidden video export window and release its timeout and abort listener if renderer setup fails.
 
 - Support Up and Down as well as Left and Right in the preview scale selector, moving keyboard focus and selection together without scrolling the page.

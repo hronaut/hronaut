@@ -1,6 +1,7 @@
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
+import { writeUniqueDownloadFile } from './unique-download-file.js'
 import { VIDEO_LIMITS, type BrowserVideoOptions, type BrowserVideoState } from '../../shared/video.js'
 import { credentialCapturePageScript } from './credential-capture-page.js'
 import { recordNetworkDebuggerMessage, trimNetworkRequests, type BrowserNetworkRecordingState, type BrowserNetworkRequestRecord } from './network-recording.js'
@@ -39,9 +40,9 @@ import { decodeWebsiteFavicon } from './favicon.js'
 import { createHash, randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { validateHeaderValue } from 'node:http'
-import { basename, dirname, extname, isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import axe from 'axe-core'
 import {
   app,
@@ -9957,22 +9958,8 @@ export class BrowserTabsManager {
     this.downloadController.attachSession(browserSession)
   }
 
-  private async writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
-    await mkdir(this.options.downloadDirectory, { recursive: true })
-    const extension = extname(filename)
-    const stem = filename.slice(0, filename.length - extension.length)
-    for (let index = 0; index <= 9_999; index += 1) {
-      const candidateName = index === 0 ? filename : `${stem} (${index})${extension}`
-      const candidate = join(this.options.downloadDirectory, candidateName)
-      try {
-        validate()
-        await writeFile(candidate, data, { flag: 'wx' })
-        return candidate
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-      }
-    }
-    throw new Error(`Could not allocate a unique download path for ${filename}`)
+  private writeUniqueDownload(filename: string, data: Buffer, validate: () => void = () => undefined): Promise<string> {
+    return writeUniqueDownloadFile(this.options.downloadDirectory, filename, data, validate)
   }
 
   private changed(persist = true): void {
