@@ -60,17 +60,25 @@ export function pageMetadataScript(): string {
       locale: metaProperty('og:locale'),
       images: []
     };
-    const ogImageUrls = contents('meta[property="og:image" i], meta[property="og:image:url" i]', limits.maxSocialImages);
-    const ogImageAlts = contents('meta[property="og:image:alt" i]', limits.maxSocialImages);
-    const ogImageWidths = contents('meta[property="og:image:width" i]', limits.maxSocialImages);
-    const ogImageHeights = contents('meta[property="og:image:height" i]', limits.maxSocialImages);
-    for (let index = 0; index < ogImageUrls.length; index += 1) {
-      og.images.push({
-        url: bounded(ogImageUrls[index], limits.maxUrlChars),
-        alt: ogImageAlts[index] || null,
-        width: ogImageWidths[index] || null,
-        height: ogImageHeights[index] || null
-      });
+    let currentOgImage = null;
+    for (const element of document.querySelectorAll('meta[property^="og:" i]')) {
+      const property = element.getAttribute('property').toLowerCase();
+      if (property === 'og:image' || property === 'og:image:url') {
+        currentOgImage = null;
+        if (og.images.length >= limits.maxSocialImages) break;
+        const url = bounded(element.getAttribute('content'), limits.maxUrlChars);
+        if (!url) continue;
+        currentOgImage = { url, alt: null, width: null, height: null };
+        og.images.push(currentOgImage);
+      } else if (property.split(':').length === 2) {
+        currentOgImage = null;
+      } else if (currentOgImage) {
+        const field = property.slice('og:image:'.length);
+        if (property.startsWith('og:image:') && ['alt', 'width', 'height'].includes(field)
+          && currentOgImage[field] === null) {
+          currentOgImage[field] = bounded(element.getAttribute('content')) || null;
+        }
+      }
     }
     const openGraphProperties = Array.from(document.querySelectorAll('meta[property^="og:" i]')).length;
     if (openGraphProperties) {

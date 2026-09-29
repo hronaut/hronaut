@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Associate Open Graph image dimensions and alt text with the correct image when pages declare multiple images with optional metadata.
+
 - Avoid repeated full parameter rewrites when redacting duplicate secret fields in network URLs and form bodies.
 
 - Preserve prototype-named JSON fields and headers in network diagnostics as ordinary data keys while retaining secret redaction.
