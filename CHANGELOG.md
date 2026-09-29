@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep superseded address-navigation errors from replacing or suppressing the latest error after an intervening navigation completes.
+
 ## [2.8.2] - 2026-09-29
 
 ### Fixed

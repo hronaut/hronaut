@@ -140,6 +140,34 @@ describe('browser tab actions controller', () => {
     expect(harness.onNavigateError).toHaveBeenCalledWith(newestFailure)
   })
 
+  it.each(['before', 'after'])('preserves the latest failure when an older request settles %s it after an intervening success', async (order) => {
+    const harness = createHarness()
+    const oldest = deferred<BrowserState>()
+    const latest = deferred<BrowserState>()
+    harness.browser.navigate
+      .mockReturnValueOnce(oldest.promise)
+      .mockResolvedValueOnce(harness.state.value)
+      .mockReturnValueOnce(latest.promise)
+
+    const oldNavigation = harness.controller.navigateAddress('https://old.test/')
+    await harness.controller.navigateAddress('https://successful.test/')
+    const latestNavigation = harness.controller.navigateAddress('https://latest.test/')
+    const latestFailure = new Error('latest navigation failed')
+
+    if (order === 'before') {
+      oldest.reject(new Error('superseded navigation failed'))
+      await oldNavigation
+      expect(harness.onNavigateError).not.toHaveBeenCalled()
+    }
+    latest.reject(latestFailure)
+    await latestNavigation
+    if (order === 'after') {
+      oldest.reject(new Error('superseded navigation failed'))
+      await oldNavigation
+    }
+    expect(harness.onNavigateError.mock.calls).toEqual([[latestFailure]])
+  })
+
   it('ignores a delayed navigation failure after disposal', async () => {
     const harness = createHarness()
     const pending = deferred<BrowserState>()
