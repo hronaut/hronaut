@@ -122,7 +122,7 @@ function safetySummary(payload: CopyPayload): string {
 function formatCurl(payload: CopyPayload): string {
   const lines = [
     `# ${safetySummary(payload)}`,
-    `curl --request ${shellQuote(payload.method)} \\`,
+    `curl --request ${shellQuote(payload.method)} --globoff \\`,
     `  --url ${shellQuote(payload.url)}`
   ]
   for (const header of payload.headers) {

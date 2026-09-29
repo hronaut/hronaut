@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve literal bracketed URL paths in copied cURL commands instead of rejecting them or expanding them into multiple requests.
+
 - Prevent repeated wildcards in Network domain filters from freezing the interface or blocking network diagnostics.
 
 - Keep Server-Timing diagnostics faithful to incomplete first parameters and preserve finite durations when rounding very large values.

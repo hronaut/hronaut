@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process'
+import { createServer } from 'node:http'
+import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { canFormatNetworkRequestCopy, formatNetworkRequestCopy } from '../src/shared/network-request-copy.js'
 import type { BrowserNetworkRequestDetails } from '../src/shared/types.js'
@@ -56,6 +59,31 @@ describe('formatNetworkRequestCopy', () => {
     expect(result).not.toContain('password@example.com')
     expect(result).not.toContain('token=secret')
     expect(result).not.toContain('#private')
+  })
+
+  it.skipIf(process.platform === 'win32')('replays bracketed paths literally in one cURL request', async () => {
+    const received: string[] = []
+    const server = createServer((request, response) => {
+      received.push(request.url ?? '')
+      response.end('ok')
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('Missing fixture server address')
+      for (const path of ['/items/[draft]', '/items/[1-3]']) {
+        const command = formatNetworkRequestCopy(requestDetails({
+          url: `http://127.0.0.1:${address.port}${path}`,
+          method: 'GET', request: { headers: {} }
+        }), 'curl')
+        const { stdout } = await promisify(execFile)('sh', ['-c', command], { timeout: 5_000 })
+        expect(stdout).toBe('ok')
+      }
+      expect(received).toEqual(['/items/[draft]', '/items/[1-3]'])
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+    }
   })
 
   it('escapes single quotes without allowing shell command injection', () => {
