@@ -2,10 +2,60 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { PAGE_METADATA_LIMITS, pageMetadataScript } from '../src/shared/page-metadata.js'
+import { OMITTED_METADATA_URL, PAGE_METADATA_LIMITS, pageMetadataScript } from '../src/shared/page-metadata.js'
+import { PageMetadataController } from '../src/main/browser/diagnostics/page-metadata-controller.js'
+
+async function inspectMetadata() {
+  const tab = { id: 'tab-one', url: location.href, navigationGeneration: 0,
+    webContents: { executeJavaScriptInIsolatedWorld: async () => globalThis.eval(pageMetadataScript()), isDestroyed: () => false } }
+  return new PageMetadataController({ getTab: () => tab, findTab: () => tab }).inspect(tab.id)
+}
 
 describe('page metadata', () => {
   afterEach(() => { document.head.innerHTML = '' })
+
+  it('omits oversized metadata URLs before truncation can expose credentials as a hostname', async () => {
+    const url = `https://synthetic-private-${'x'.repeat(2_100)}@example.test/app`
+    document.head.innerHTML = `
+      <link rel="canonical" href="${url}">
+      <link rel="manifest" href="${url}">
+      <link rel="alternate" hreflang="en" href="${url}">
+      <link rel="icon" href="${url}">
+      <meta property="og:url" content="${url}">
+      <meta property="og:image" content="${url}">
+      <meta name="twitter:image" content="${url}">
+    `
+    const report = await inspectMetadata()
+    expect(report.document.canonicalUrls).toEqual([OMITTED_METADATA_URL])
+    expect(report.document.manifestUrl).toBe(OMITTED_METADATA_URL)
+    expect(report.alternateLinks[0]?.url).toBe(OMITTED_METADATA_URL)
+    expect(report.icons[0]?.url).toBe(OMITTED_METADATA_URL)
+    expect(report.openGraph.url).toBe(OMITTED_METADATA_URL)
+    expect(report.openGraph.images[0]?.url).toBe(OMITTED_METADATA_URL)
+    expect(report.twitter.images[0]?.url).toBe(OMITTED_METADATA_URL)
+    expect(JSON.stringify(report)).not.toContain('synthetic-private')
+  })
+
+  it('resolves relative metadata against the original page when its URL exceeds the limit', async () => {
+    const previousUrl = location.href
+    try {
+      history.replaceState(null, '', `/${'x'.repeat(2_100)}`)
+      document.head.innerHTML = '<meta property="og:image" content="/image.png?token=private">'
+      const report = await inspectMetadata()
+      expect(report.url).toBe(OMITTED_METADATA_URL)
+      expect(report.openGraph.images[0]?.url).toBe(`${location.origin}/image.png?token=%5BREDACTED%5D`)
+    } finally {
+      history.replaceState(null, '', previousUrl)
+    }
+  })
+
+  it('preserves metadata URLs at the limit and omits only oversized values', async () => {
+    const prefix = 'https://example.test/'
+    const url = prefix + 'x'.repeat(PAGE_METADATA_LIMITS.maxUrlChars - prefix.length)
+    document.head.innerHTML = `<meta property="og:image" content="${url}"><meta property="og:image" content="${url}x">`
+    const report = await inspectMetadata()
+    expect(report.openGraph.images.map(image => image.url)).toEqual([url, OMITTED_METADATA_URL])
+  })
 
   it('associates sparse image properties with their preceding Open Graph image', () => {
     document.head.innerHTML = `

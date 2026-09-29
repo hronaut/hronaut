@@ -1,3 +1,5 @@
+export const OMITTED_METADATA_URL = '[URL omitted: exceeds diagnostic limit]'
+
 export const PAGE_METADATA_LIMITS = {
   maxTextChars: 1_024,
   maxUrlChars: 2_048,
@@ -14,13 +16,17 @@ export function pageMetadataScript(): string {
   return `(() => {
     const limits = ${JSON.stringify(PAGE_METADATA_LIMITS)};
     const bounded = (value, max = limits.maxTextChars) => String(value || '').trim().slice(0, max);
-    const contents = (selector, maxItems = 10) => Array.from(document.querySelectorAll(selector))
+    const boundedUrl = (value) => {
+      const text = String(value || '').trim();
+      return text.length > limits.maxUrlChars ? ${JSON.stringify(OMITTED_METADATA_URL)} : text;
+    };
+    const contents = (selector, maxItems = 10, normalize = bounded) => Array.from(document.querySelectorAll(selector))
       .slice(0, maxItems)
-      .map((element) => bounded(element.getAttribute('content')))
+      .map((element) => normalize(element.getAttribute('content')))
       .filter(Boolean);
     const links = (selector, maxItems) => Array.from(document.querySelectorAll(selector))
       .slice(0, maxItems)
-      .map((element) => bounded(element.href || element.getAttribute('href'), limits.maxUrlChars))
+      .map((element) => boundedUrl(element.href || element.getAttribute('href')))
       .filter(Boolean);
     const first = (selector) => contents(selector, 1)[0] || null;
     const metaName = (name) => first('meta[name="' + name + '" i]');
@@ -54,7 +60,7 @@ export function pageMetadataScript(): string {
     const og = {
       title: metaProperty('og:title'),
       type: metaProperty('og:type'),
-      url: metaProperty('og:url'),
+      url: contents('meta[property="og:url" i]', 1, boundedUrl)[0] || null,
       description: metaProperty('og:description'),
       siteName: metaProperty('og:site_name'),
       locale: metaProperty('og:locale'),
@@ -66,7 +72,7 @@ export function pageMetadataScript(): string {
       if (property === 'og:image' || property === 'og:image:url') {
         currentOgImage = null;
         if (og.images.length >= limits.maxSocialImages) break;
-        const url = bounded(element.getAttribute('content'), limits.maxUrlChars);
+        const url = boundedUrl(element.getAttribute('content'));
         if (!url) continue;
         currentOgImage = { url, alt: null, width: null, height: null };
         og.images.push(currentOgImage);
@@ -96,10 +102,10 @@ export function pageMetadataScript(): string {
       creator: metaName('twitter:creator'),
       images: []
     };
-    const twitterImageUrls = contents('meta[name="twitter:image" i], meta[name="twitter:image:src" i]', limits.maxSocialImages);
+    const twitterImageUrls = contents('meta[name="twitter:image" i], meta[name="twitter:image:src" i]', limits.maxSocialImages, boundedUrl);
     const twitterImageAlts = contents('meta[name="twitter:image:alt" i]', limits.maxSocialImages);
     for (let index = 0; index < twitterImageUrls.length; index += 1) {
-      twitter.images.push({ url: bounded(twitterImageUrls[index], limits.maxUrlChars), alt: twitterImageAlts[index] || null });
+      twitter.images.push({ url: twitterImageUrls[index], alt: twitterImageAlts[index] || null });
     }
     const twitterProperties = Array.from(document.querySelectorAll('meta[name^="twitter:" i]')).length;
     if (twitterProperties && !twitter.card) issues.push(issue('warning', 'missing-twitter-card', 'Twitter card metadata is present without twitter:card.'));
@@ -108,7 +114,7 @@ export function pageMetadataScript(): string {
       .slice(0, limits.maxAlternateLinks)
       .map((element) => ({
         language: bounded(element.getAttribute('hreflang'), 64),
-        url: bounded(element.href || element.getAttribute('href'), limits.maxUrlChars)
+        url: boundedUrl(element.href || element.getAttribute('href'))
       }))
       .filter((entry) => entry.language && entry.url);
     const icons = Array.from(document.querySelectorAll('link[rel~="icon" i]'))
@@ -117,7 +123,7 @@ export function pageMetadataScript(): string {
         rel: bounded(element.getAttribute('rel'), 64),
         type: bounded(element.getAttribute('type'), 128) || null,
         sizes: bounded(element.getAttribute('sizes'), 128) || null,
-        url: bounded(element.href || element.getAttribute('href'), limits.maxUrlChars)
+        url: boundedUrl(element.href || element.getAttribute('href'))
       }))
       .filter((entry) => entry.url);
 
@@ -167,7 +173,7 @@ export function pageMetadataScript(): string {
     if (invalidStructuredDataCount) issues.push(issue('error', 'invalid-json-ld', invalidStructuredDataCount + ' JSON-LD block(s) could not be parsed.'));
 
     return {
-      url: bounded(location.href, limits.maxUrlChars),
+      url: boundedUrl(location.href),
       title,
       capturedAt: new Date().toISOString(),
       document: {

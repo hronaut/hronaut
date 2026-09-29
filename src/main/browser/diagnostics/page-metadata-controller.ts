@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron'
-import { pageMetadataScript } from '../../../shared/page-metadata.js'
+import { OMITTED_METADATA_URL, PAGE_METADATA_LIMITS, pageMetadataScript } from '../../../shared/page-metadata.js'
 import { redactNetworkUrl } from '../../../shared/network-details.js'
 import { isHronautHomeUrl } from '../../../shared/home-url.js'
 import type { BrowserPageMetadataReport } from '../../../shared/types.js'
@@ -37,13 +37,14 @@ export class PageMetadataController<Tab extends PageMetadataTab> {
     }
     const safeUrl = (value: string | null): string | null => {
       if (!value) return null
-      try { return redactNetworkUrl(new URL(value, result.url).href) }
+      if (value === OMITTED_METADATA_URL) return value
+      try { return redactNetworkUrl(new URL(value, url).href).slice(0, PAGE_METADATA_LIMITS.maxUrlChars) }
       catch { return '[invalid URL]' }
     }
     return {
       ...result,
       tabId: tab.id,
-      url: redactNetworkUrl(result.url),
+      url: result.url === OMITTED_METADATA_URL ? result.url : redactNetworkUrl(result.url),
       document: { ...result.document, manifestUrl: safeUrl(result.document.manifestUrl),
         canonicalUrls: result.document.canonicalUrls.map(value => safeUrl(value) ?? value) },
       openGraph: { ...result.openGraph, url: safeUrl(result.openGraph.url),
