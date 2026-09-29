@@ -99,12 +99,12 @@ function stringValue(value: unknown, maxChars: number = PWA_INSPECTION_LIMITS.ma
 }
 
 function urlValue(value: unknown, baseUrl: string): string | undefined {
-  const text = stringValue(value, PWA_INSPECTION_LIMITS.maxUrlChars)
+  const text = typeof value === 'string' ? value.trim() : undefined
   if (!text) return undefined
   try {
-    return redactNetworkUrl(new URL(text, baseUrl).href).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
+    return redactNetworkUrl(redactDiagnosticText(new URL(text, baseUrl).href)).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
   } catch {
-    return redactNetworkUrl(text).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars)
+    return stringValue(redactNetworkUrl(text), PWA_INSPECTION_LIMITS.maxUrlChars)
   }
 }
 
@@ -128,7 +128,7 @@ export function sanitizePwaManifest(
   const source = sourceManifest(result)
   const value = source.value
   if (!manifestUrl && !value && !(result.errors?.length) && !installabilityErrors.length) return undefined
-  const baseUrl = manifestUrl || 'http://invalid.local/'
+  const baseUrl = result.url || 'http://invalid.local/'
   const field = (camelCase: string, snakeCase = camelCase) => value?.[camelCase] ?? value?.[snakeCase]
   const icons = Array.isArray(value?.icons) ? value.icons : []
   const shortcuts = Array.isArray(value?.shortcuts) ? value.shortcuts : []

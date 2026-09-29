@@ -8,6 +8,27 @@ import {
 } from '../src/shared/pwa.js'
 
 describe('offline app inspection options', () => {
+  it('resolves and redacts long protocol-relative manifest URLs before bounding them', () => {
+    const url = `//synthetic-private-${'x'.repeat(PWA_INSPECTION_LIMITS.maxUrlChars + 100)}@example.test/app?token=private`
+    const safe = 'https://%5BREDACTED%5D@example.test/app?token=%5BREDACTED%5D'
+    const manifest = sanitizePwaManifest({
+      url: 'https://example.test/app.webmanifest',
+      manifest: { id: url, start_url: url, scope: url, icons: [{ src: url }], shortcuts: [{ name: 'App', url }] }
+    })
+    expect(manifest).toMatchObject({
+      id: safe, startUrl: safe, scope: safe, icons: [{ url: safe }], shortcuts: [{ name: 'App', url: safe }]
+    })
+    expect(JSON.stringify(manifest)).not.toContain('synthetic-private')
+  })
+
+  it('resolves relative fields against the complete manifest URL while bounding public URLs', () => {
+    const url = `https://example.test/parent/${'x'.repeat(PWA_INSPECTION_LIMITS.maxUrlChars + 100)}/manifest.json`
+    const manifest = sanitizePwaManifest({ url, manifest: { start_url: '../start', icons: [{ src: 'icon.png' }] } })
+    expect(manifest?.startUrl).toBe('https://example.test/parent/start')
+    expect(manifest?.url).toHaveLength(PWA_INSPECTION_LIMITS.maxUrlChars)
+    expect(manifest?.icons[0]?.url).toBe(new URL('icon.png', url).href.slice(0, PWA_INSPECTION_LIMITS.maxUrlChars))
+  })
+
   it('normalizes paging and keeps headers opt-in', () => {
     expect(normalizeBrowserPwaOptions({ offset: -10, limit: 500 })).toEqual({
       cacheName: undefined,

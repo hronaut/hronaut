@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Resolve offline-app manifest URLs before redaction and truncation, protecting credentials in long protocol-relative URLs and preserving the correct base directory for relative fields.
+
 - Omit oversized page-metadata URLs explicitly instead of truncating credentials into misleading hostnames; keep relative links resolvable when the page URL is omitted.
 
 - Redact credentials in long console and network source URLs before truncating their display, preventing partial credentials from surviving a cut-off URL authority.
