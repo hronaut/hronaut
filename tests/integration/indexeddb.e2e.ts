@@ -57,6 +57,8 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
           const events = transaction.objectStore('events');
           events.add({ type: 'opened', at: 1 });
           events.add({ type: 'clicked', at: 2 });
+          events.add({ values: new BigInt64Array([1n, -2n]) });
+          events.add(new BigUint64Array(60).fill(18446744073709551615n));
           transaction.oncomplete = () => {
             document.querySelector('h1').textContent = 'IndexedDB ready';
             database.close();
@@ -107,7 +109,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       selectedDatabase: { objectStores: Array<{ name: string; entryCount: number; indexes: Array<{ name: string }> }> }
     }
     expect(schema.selectedDatabase.objectStores).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'events', entryCount: 2 }),
+      expect.objectContaining({ name: 'events', entryCount: 4 }),
       expect.objectContaining({ name: 'settings', entryCount: 3, indexes: [expect.objectContaining({ name: 'by-category' })] })
     ]))
 
@@ -137,6 +139,24 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
     expect(values.entries.some((entry) => entry.key.includes('theme') && entry.valuePreview.includes('dark'))).toBe(true)
     expect(text(valuesResult)).toContain('private-token-value')
     expect(values.caveats.join(' ')).toContain('private application data')
+
+    const typedArraysResult = await client.callTool({
+      name: 'browser_indexeddb',
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 2, includeValues: true }
+    }) as CallToolResult
+    expect(typedArraysResult.isError, text(typedArraysResult)).not.toBe(true)
+    const typedArrays = JSON.parse(text(typedArraysResult)) as {
+      entries: Array<{ valuePreview: string; valueTruncated?: boolean }>
+    }
+    expect(typedArrays.entries).toHaveLength(2)
+    expect(JSON.parse(typedArrays.entries[0]!.valuePreview)).toEqual({
+      values: { type: 'BigInt64Array', byteLength: 16, values: ['1n', '-2n'] }
+    })
+    expect(typedArrays.entries[0]!.valueTruncated).not.toBe(true)
+    expect(JSON.parse(typedArrays.entries[1]!.valuePreview)).toEqual({
+      type: 'BigUint64Array', byteLength: 480, values: Array(50).fill('18446744073709551615n')
+    })
+    expect(typedArrays.entries[1]!.valueTruncated).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show IndexedDB BigInt typed-array previews without dropping the enclosing record, and limit array conversion to the previewed elements.
+
 - Preserve literal bracketed URL paths in copied cURL commands instead of rejecting them or expanding them into multiple requests.
 
 - Prevent repeated wildcards in Network domain filters from freezing the interface or blocking network diagnostics.

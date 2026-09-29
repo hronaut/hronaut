@@ -79,7 +79,10 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
       if (value instanceof Blob) return { type: valueType(value), size: value.size, mimeType: boundedName(value.type) };
       if (value instanceof ArrayBuffer) return { type: 'ArrayBuffer', byteLength: value.byteLength };
       if (ArrayBuffer.isView(value)) {
-        const values = Array.from(value).slice(0, limits.maxCollectionItems);
+        const values = value instanceof DataView ? [] : Array.from(
+          value.subarray(0, limits.maxCollectionItems),
+          (item) => normalize(item, depth + 1, seen, state)
+        );
         if (value.length > values.length) state.truncated = true;
         return { type: valueType(value), byteLength: value.byteLength, values };
       }
