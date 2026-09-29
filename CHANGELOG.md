@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Mark Cache Storage listings as incomplete when oversized cache names are omitted, instead of reporting only the remaining caches as a complete list.
+
 - Redact Cache Storage header values using complete header names before display limits, and preserve prototype-named headers as ordinary diagnostic data.
 
 - Resolve offline-app manifest URLs before redaction and truncation, protecting credentials in long protocol-relative URLs and preserving the correct base directory for relative fields.

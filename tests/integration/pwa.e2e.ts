@@ -74,6 +74,7 @@ test('inspects service workers and Cache Storage for people and grouped agents',
           await navigator.serviceWorker.ready;
           const cache = await caches.open('offline-v1');
           await cache.add('/asset.txt?token=secret-value');
+          await caches.open('z'.repeat(512));
           document.querySelector('h1').textContent = 'Offline app ready';
         })().catch((error) => { document.querySelector('h1').textContent = 'Offline failed: ' + error.message; });
       </script>
@@ -138,6 +139,7 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     const overview = JSON.parse(text(overviewResult)) as {
       registrations: Array<{ scope: string; active?: { scriptUrl: string } }>
       caches: Array<{ name: string }>
+      cachesTruncated?: boolean
       cacheInspectionAvailable: boolean
       manifestInspectionAvailable: boolean
       manifest?: { name?: string; startUrl?: string; icons: Array<{ url: string }> }
@@ -153,6 +155,19 @@ test('inspects service workers and Cache Storage for people and grouped agents',
       expect.objectContaining({ scope: `http://127.0.0.1:${address.port}/` })
     ]))
     expect(overview.caches).toContainEqual({ name: 'offline-v1' })
+    expect(overview.caches).toContainEqual({ name: 'z'.repeat(512) })
+    expect(overview.cachesTruncated).toBeUndefined()
+
+    const oversizedCache = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: { workspaceId, tabId, script: "(async () => { await caches.open('z'.repeat(513)); return true; })()" }
+    }) as CallToolResult
+    expect(oversizedCache.isError, text(oversizedCache)).not.toBe(true)
+    const limitedResult = await client.callTool({ name: 'browser_pwa', arguments: { workspaceId, tabId } }) as CallToolResult
+    expect(limitedResult.isError, text(limitedResult)).not.toBe(true)
+    const limited = JSON.parse(text(limitedResult)) as { caches: Array<{ name: string }>; cachesTruncated?: boolean }
+    expect(limited.caches).toEqual(overview.caches)
+    expect(limited.cachesTruncated).toBe(true)
 
     const cacheResult = await client.callTool({
       name: 'browser_pwa',

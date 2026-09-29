@@ -2450,7 +2450,7 @@ export class BrowserTabsManager {
         report.caches = usableCaches.slice(0, PWA_INSPECTION_LIMITS.maxCaches).map((cache) => ({
           name: sanitizeCacheStorageCacheName(cache.cacheName) ?? '(unnamed cache)'
         }))
-        report.cachesTruncated = usableCaches.length > report.caches.length || undefined
+        report.cachesTruncated = (cacheNames.caches?.length ?? 0) > report.caches.length || undefined
         if (!normalized.cacheName) return
         const selected = usableCaches.find((cache) => cache.cacheName === normalized.cacheName)
           ?? usableCaches.find((cache) => sanitizeCacheStorageCacheName(cache.cacheName) === normalized.cacheName)
