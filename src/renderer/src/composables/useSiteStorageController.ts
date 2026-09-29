@@ -516,7 +516,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
     if (
       !tab
       || state.value === 'saving'
-      || (action === 'set' && !key.value.trim())
+      || (action === 'set' && kind.value === 'cookies' && !key.value.trim())
       || (action === 'delete' && (!item || item.protected))
     ) return
     const expectedGeneration = generation

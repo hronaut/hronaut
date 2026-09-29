@@ -156,7 +156,7 @@ onBeforeUnmount(dispose)
         <form class="site-storage-editor" @submit.prevent="saveSiteStorageItem">
           <input v-model="siteStorageKey" type="text" :aria-label="t('siteStorage.key')" :disabled="siteStorageState === 'saving'" maxlength="512" :placeholder="t('siteStorage.keyPlaceholder')" autocomplete="off" spellcheck="false" />
           <textarea v-model="siteStorageValue" :aria-label="t('siteStorage.value')" :disabled="siteStorageState === 'saving'" maxlength="262144" rows="2" :placeholder="t('siteStorage.valuePlaceholder')" spellcheck="false" />
-          <UiButton appearance="application" type="submit" :disabled="!siteStorageKey.trim() || siteStorageState === 'saving'">{{ siteStorageResult?.items.some((item) => item.key === siteStorageKey) ? t('siteStorage.update') : t('siteStorage.add') }}</UiButton>
+          <UiButton appearance="application" type="submit" :disabled="(siteStorageKind === 'cookies' && !siteStorageKey.trim()) || siteStorageState === 'saving'">{{ siteStorageResult?.items.some((item) => item.key === siteStorageKey) ? t('siteStorage.update') : t('siteStorage.add') }}</UiButton>
         </form>
         <div class="site-storage-list" :aria-busy="siteStorageState === 'loading'">
           <div v-if="siteStorageState === 'loading'" class="site-storage-empty"><IconProgress class="state-spinner" aria-hidden="true" /><strong>{{ t('siteStorage.reading') }}</strong></div>

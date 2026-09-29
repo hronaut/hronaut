@@ -97,6 +97,31 @@ afterEach(() => {
 })
 
 describe('site-storage controller', () => {
+  it.each([
+    { kind: 'local-storage' as const, key: '' },
+    { kind: 'local-storage' as const, key: '   ' },
+    { kind: 'session-storage' as const, key: '' },
+    { kind: 'session-storage' as const, key: '   ' }
+  ])('saves the exact $kind key "$key"', async ({ kind, key }) => {
+    const { browser, controller } = createController()
+    controller.kind.value = kind
+    controller.editItem({ key, value: 'before', valueBytes: 6 })
+    controller.value.value = 'after'
+    await controller.saveItem()
+    expect(browser.manageStorage).toHaveBeenCalledWith({
+      tabId: 'tab-1', kind, action: 'set', key, value: 'after', includeValues: true
+    })
+  })
+
+  it('continues to reject blank cookie names in the editor', async () => {
+    const { browser, controller } = createController()
+    controller.kind.value = 'cookies'
+    controller.key.value = '   '
+    controller.value.value = 'value'
+    await controller.saveItem()
+    expect(browser.manageStorage).not.toHaveBeenCalled()
+  })
+
   it('invalidates an in-flight result when the view resets on the same tab', async () => {
     const pending = deferred<BrowserStorageResult>()
     const { controller } = createController(vi.fn(() => pending.promise))

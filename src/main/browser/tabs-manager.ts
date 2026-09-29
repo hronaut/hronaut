@@ -2222,7 +2222,8 @@ export class BrowserTabsManager {
       throw new Error('Site storage is available only for HTTP and HTTPS tabs.')
     }
     const key = options.key
-    if ((action === 'get' || action === 'set' || action === 'delete') && !key?.trim()) {
+    if ((action === 'get' || action === 'set' || action === 'delete')
+      && (key === undefined || (options.kind === 'cookies' && !key.trim()))) {
       throw new TypeError(`key is required to ${action} ${options.kind}`)
     }
     if (key && key.length > MAX_STORAGE_KEY_CHARS) throw new TypeError(`Storage keys are limited to ${MAX_STORAGE_KEY_CHARS} characters.`)

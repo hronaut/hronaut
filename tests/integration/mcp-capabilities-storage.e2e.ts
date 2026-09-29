@@ -69,6 +69,28 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
     arguments: { tabId, kind: 'local-storage', action: 'delete', key: 'unicode-preview' }
   }) as CallToolResult
   expect(removeUnicode.isError, text(removeUnicode)).not.toBe(true)
+  for (const kind of ['local-storage', 'session-storage'] as const) {
+    for (const key of ['', '   ']) {
+      for (const value of ['first', 'updated']) {
+        const set = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'set', key, value } }) as CallToolResult
+        expect(set.isError, text(set)).not.toBe(true)
+        const get = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'get', key } }) as CallToolResult
+        expect(get.isError, text(get)).not.toBe(true)
+        expect(JSON.parse(text(get)).items).toEqual([expect.objectContaining({ key, value })])
+      }
+      const deleted = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'delete', key } }) as CallToolResult
+      expect(deleted.isError, text(deleted)).not.toBe(true)
+      expect(JSON.parse(text(deleted))).toMatchObject({ changed: true })
+      const missing = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, action: 'get', key } }) as CallToolResult
+      expect(missing.isError, text(missing)).not.toBe(true)
+      expect(JSON.parse(text(missing)).items).toEqual([])
+    }
+  }
+  for (const args of [{ kind: 'local-storage' }, { kind: 'cookies', key: '' }]) {
+    const invalid = await client.callTool({ name: 'browser_storage', arguments: { tabId, action: 'get', ...args } }) as CallToolResult
+    expect(invalid.isError).toBe(true)
+    expect(text(invalid)).toContain('key is required')
+  }
   const storedDebugValue = await client.callTool({
     name: 'browser_storage',
     arguments: { tabId, kind: 'session-storage', action: 'set', key: 'debug-session', value: 'step-one' }
