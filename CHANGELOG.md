@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Limit IndexedDB Map and Set preview iteration to the displayed entries, avoiding a full temporary copy of large collections.
+
 - Preserve prototype-named fields in IndexedDB record previews instead of silently omitting them.
 
 - Report JSON-LD types independently for each metadata block, including types already present in other blocks or a full page summary.

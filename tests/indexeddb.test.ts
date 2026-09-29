@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
 import {
   INDEXED_DB_LIMITS,
@@ -35,5 +36,78 @@ describe('IndexedDB inspection options', () => {
     expect(script).toContain(JSON.stringify(database))
     expect(script).toContain('valuesIncluded: options.includeValues')
     expect(script).not.toContain('The inspector is read-only')
+  })
+})
+
+describe('IndexedDB collection preview work', () => {
+  it.each(['Map', 'Set'] as const)('bounds %s iteration before materializing the preview', async (kind) => {
+    let visited = 0
+    const numbers = Array.from({ length: 10_000 }, (_, index) => index)
+    const value = kind === 'Map'
+      ? new Map(numbers.map((item) => [item, item]))
+      : new Set(numbers)
+    if (value instanceof Map) {
+      const entries = value.entries.bind(value)
+      Object.defineProperty(value, 'entries', { value: function* () {
+        for (const entry of entries()) { visited += 1; yield entry }
+      } })
+    } else {
+      const values = value.values.bind(value)
+      Object.defineProperty(value, 'values', { value: function* () {
+        for (const item of values()) { visited += 1; yield item }
+      } })
+    }
+    const request = <T>(result: T) => {
+      const pending = { result, onsuccess: undefined as (() => void) | undefined }
+      queueMicrotask(() => pending.onsuccess?.())
+      return pending
+    }
+    const store = {
+      name: 'records',
+      keyPath: null,
+      autoIncrement: true,
+      indexNames: [],
+      count: () => request(1),
+      openCursor: () => {
+        const pending: {
+          result: { key: number; primaryKey: number; value: typeof value; continue(): void } | null
+          onsuccess?: () => void
+        } = {
+          result: {
+            key: 1,
+            primaryKey: 1,
+            value,
+            continue() {
+              pending.result = null
+              queueMicrotask(() => pending.onsuccess?.())
+            }
+          }
+        }
+        queueMicrotask(() => pending.onsuccess?.())
+        return pending
+      }
+    }
+    let closed = false
+    const database = {
+      name: 'app',
+      version: 1,
+      objectStoreNames: ['records'],
+      transaction: () => ({ objectStore: () => store }),
+      close: () => { closed = true }
+    }
+    const report = await runInNewContext(indexedDbPageScript(normalizeBrowserIndexedDbOptions({
+      database: 'app', objectStore: 'records', includeValues: true
+    })), {
+      indexedDB: { databases: async () => [{ name: 'app', version: 1 }], open: () => request(database) },
+      Map, Set, Blob, TextEncoder, TextDecoder
+    }) as { entries: Array<{ valuePreview: string; valueTruncated?: boolean }> }
+    expect(closed).toBe(true)
+    expect(visited).toBe(INDEXED_DB_LIMITS.maxCollectionItems)
+    expect(report.entries).toHaveLength(1)
+    const expected = numbers.slice(0, INDEXED_DB_LIMITS.maxCollectionItems)
+    expect(JSON.parse(report.entries[0]!.valuePreview)).toEqual(kind === 'Map'
+      ? { type: 'Map', entries: expected.map((item) => [item, item]) }
+      : { type: 'Set', values: expected })
+    expect(report.entries[0]!.valueTruncated).toBe(true)
   })
 })
