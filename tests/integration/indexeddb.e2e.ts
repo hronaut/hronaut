@@ -64,6 +64,10 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
           const cycle = { name: 'cycle' };
           cycle.self = cycle;
           events.add({ first: shared, second: shared, cycle });
+          events.add({ numbers: [NaN, Infinity, -Infinity, null, 1.5], floats: new Float64Array([NaN, Infinity, -Infinity]) });
+          events.add(NaN);
+          events.add(Infinity);
+          events.add(-Infinity);
           transaction.oncomplete = () => {
             document.querySelector('h1').textContent = 'IndexedDB ready';
             database.close();
@@ -114,7 +118,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       selectedDatabase: { objectStores: Array<{ name: string; entryCount: number; indexes: Array<{ name: string }> }> }
     }
     expect(schema.selectedDatabase.objectStores).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'events', entryCount: 6 }),
+      expect.objectContaining({ name: 'events', entryCount: 10 }),
       expect.objectContaining({ name: 'settings', entryCount: 3, indexes: [expect.objectContaining({ name: 'by-category' })] })
     ]))
 
@@ -179,7 +183,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
 
     const referencesResult = await client.callTool({
       name: 'browser_indexeddb',
-      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 5, includeValues: true }
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 5, limit: 1, includeValues: true }
     }) as CallToolResult
     expect(referencesResult.isError, text(referencesResult)).not.toBe(true)
     const references = JSON.parse(text(referencesResult)) as {
@@ -192,6 +196,23 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       cycle: { name: 'cycle', self: '[Repeated reference]' }
     })
     expect(references.entries[0]!.valueTruncated).toBe(true)
+
+    const numbersResult = await client.callTool({
+      name: 'browser_indexeddb',
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 6, limit: 4, includeValues: true }
+    }) as CallToolResult
+    expect(numbersResult.isError, text(numbersResult)).not.toBe(true)
+    const numbers = JSON.parse(text(numbersResult)) as {
+      entries: Array<{ valuePreview: string; valueTruncated?: boolean }>
+    }
+    expect(numbers.entries.map((entry) => JSON.parse(entry.valuePreview))).toEqual([
+      {
+        numbers: ['[NaN]', '[Infinity]', '[-Infinity]', null, 1.5],
+        floats: { type: 'Float64Array', byteLength: 24, values: ['[NaN]', '[Infinity]', '[-Infinity]'] }
+      },
+      '[NaN]', '[Infinity]', '[-Infinity]'
+    ])
+    expect(numbers.entries.every((entry) => !entry.valueTruncated)).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })

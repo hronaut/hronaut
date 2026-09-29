@@ -66,6 +66,7 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
       return items;
     };
     const normalize = (value, depth, seen, state) => {
+      if (typeof value === 'number' && !Number.isFinite(value)) return '[' + String(value) + ']';
       if (value === null || typeof value === 'boolean' || typeof value === 'number' || typeof value === 'string') {
         if (typeof value === 'string' && value.length > 4096) {
           state.truncated = true;
