@@ -1151,38 +1151,39 @@ test('keeps a failed archive restore under one active owner when rollback also f
 
 test('restores workspace identity and tabs after an application restart', async ({ profileDirectory, mcpPort }) => {
   let instance = await launchHronaut(profileDirectory, mcpPort)
-  const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
-  const firstClient = await connectClient('group-restart-before', mcpPort, token)
-  const createdWorkspace = await createWorkspaceAccess(firstClient, 'Persistent investigation', 'green')
-  const workspaceId = createdWorkspace.id
-  const opened = await firstClient.callTool({
-    name: 'browser_new_tab',
-    arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
-  }) as CallToolResult
-  const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
-  const defaultGroupId = await instance.window.evaluate(`(async () => {
-    const state = await window.hronaut.createWorkspace({ name: 'Persistent human workspace', storage: 'scratch' });
-    const group = state.mcpTabGroups.find((workspace) => workspace.name === 'Persistent human workspace');
-    await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
-    return group.id;
-  })()`) as string
-  // Navigation completion and Chromium's title notification are separate IPC
-  // events. Establish the state this restart test intends to persist first.
-  await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.mcpGroupId === ${JSON.stringify(defaultGroupId)})?.title)`)).toBe('Persistent human tab')
-  await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
-  const groupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
-  await expect(groupControl).toHaveAttribute('aria-expanded', 'true')
-  await expect(groupControl).toHaveAccessibleName('Collapse workspace Persistent investigation, 1 tab')
-  await groupControl.click()
-  await expect(groupControl).toHaveAttribute('aria-expanded', 'false')
-  await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeHidden()
-  expect(await instance.window.evaluate('JSON.parse(localStorage.getItem("hronaut:collapsed-tab-groups"))')).toEqual([workspaceId])
-  await firstClient.close()
-  await closeHronaut(instance.app)
-
-  instance = await launchHronaut(profileDirectory, mcpPort)
-  const secondClient = await connectClient('group-restart-after', mcpPort, token)
+  let client: Client | undefined
   try {
+    const token = (await readFile(join(profileDirectory, 'mcp-token'), 'utf8')).trim()
+    client = await connectClient('group-restart-before', mcpPort, token)
+    const createdWorkspace = await createWorkspaceAccess(client, 'Persistent investigation', 'green')
+    const workspaceId = createdWorkspace.id
+    const opened = await client.callTool({
+      name: 'browser_new_tab',
+      arguments: { workspaceId, url: 'data:text/html,<title>Persistent grouped tab</title><h1>Still here</h1>' }
+    }) as CallToolResult
+    const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+    const defaultGroupId = await instance.window.evaluate(`(async () => {
+      const state = await window.hronaut.createWorkspace({ name: 'Persistent human workspace', storage: 'scratch' });
+      const group = state.mcpTabGroups.find((workspace) => workspace.name === 'Persistent human workspace');
+      await window.hronaut.navigate({ tabId: state.activeTabId, url: 'data:text/html,<title>Persistent human tab</title><h1>Mine</h1>' });
+      return group.id;
+    })()`) as string
+    // Navigation completion and Chromium's title notification are separate IPC
+    // events. Establish the state this restart test intends to persist first.
+    await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.mcpGroupId === ${JSON.stringify(defaultGroupId)})?.title)`)).toBe('Persistent human tab')
+    await instance.window.evaluate(`window.hronaut.selectTab(${JSON.stringify(tabId)})`)
+    const groupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
+    await expect(groupControl).toHaveAttribute('aria-expanded', 'true')
+    await expect(groupControl).toHaveAccessibleName('Collapse workspace Persistent investigation, 1 tab')
+    await groupControl.click()
+    await expect(groupControl).toHaveAttribute('aria-expanded', 'false')
+    await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeHidden()
+    expect(await instance.window.evaluate('JSON.parse(localStorage.getItem("hronaut:collapsed-tab-groups"))')).toEqual([workspaceId])
+    await client.close()
+    await closeHronaut(instance.app)
+
+    instance = await launchHronaut(profileDirectory, mcpPort)
+    client = await connectClient('group-restart-after', mcpPort, token)
     const restoredGroupControl = instance.window.locator('.tab-group-label', { hasText: 'Persistent investigation' })
     await expect.poll(() => instance.window.evaluate(`window.hronaut.getState().then((state) => ({
       defaultGroup: state.mcpTabGroups.find((group) => group.id === ${JSON.stringify(defaultGroupId)}),
@@ -1207,18 +1208,18 @@ test('restores workspace identity and tabs after an application restart', async 
     await instance.window.getByRole('dialog', { name: 'Tabs' }).locator('.tab-overview-open', { hasText: 'Persistent grouped tab' }).click()
     await expect(restoredGroupControl).toHaveAttribute('aria-expanded', 'true')
     await expect(instance.window.getByRole('tab', { name: /^Persistent grouped tab/ })).toBeVisible()
-    const listed = await secondClient.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
+    const listed = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(listed))).toEqual([])
-    const statusBeforeResume = await secondClient.callTool({ name: 'browser_status', arguments: { workspaceId } }) as CallToolResult
+    const statusBeforeResume = await client.callTool({ name: 'browser_status', arguments: { workspaceId } }) as CallToolResult
     expect(statusBeforeResume.isError).toBe(true)
     expect(text(statusBeforeResume)).toContain('not authorized for this MCP client')
-    const wrongResume = await secondClient.callTool({
+    const wrongResume = await client.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'resume', workspaceId, resumeKey: `hrw1_${'A'.repeat(43)}` }
     }) as CallToolResult
     expect(wrongResume.isError).toBe(true)
     expect(text(wrongResume)).toContain('not authorized for this MCP client')
-    const resumed = await secondClient.callTool({
+    const resumed = await client.callTool({
       name: 'browser_workspaces',
       arguments: { action: 'resume', workspaceId, resumeKey: createdWorkspace.resumeKey }
     }) as CallToolResult
@@ -1227,7 +1228,7 @@ test('restores workspace identity and tabs after an application restart', async 
       id: workspaceId,
       resumeKey: createdWorkspace.resumeKey
     })
-    const listedAfterResume = await secondClient.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
+    const listedAfterResume = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } }) as CallToolResult
     expect(JSON.parse(text(listedAfterResume))).toContainEqual(expect.objectContaining({
       id: workspaceId,
       name: 'Persistent investigation',
@@ -1235,14 +1236,17 @@ test('restores workspace identity and tabs after an application restart', async 
       tabCount: 1,
       activeTabId: tabId
     }))
-    const status = await secondClient.callTool({ name: 'browser_status', arguments: { workspaceId } }) as CallToolResult
+    const status = await client.callTool({ name: 'browser_status', arguments: { workspaceId } }) as CallToolResult
     expect(JSON.parse(text(status))).toMatchObject({
       activeTabId: tabId,
       tabs: [expect.objectContaining({ id: tabId, workspaceId })]
     })
   } finally {
-    await secondClient.close()
-    await closeHronaut(instance.app)
+    try {
+      await client?.close()
+    } finally {
+      await closeHronaut(instance.app)
+    }
   }
 })
 
