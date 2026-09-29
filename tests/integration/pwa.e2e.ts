@@ -56,8 +56,12 @@ test('inspects service workers and Cache Storage for people and grouped agents',
       response.end("self.addEventListener('fetch', () => {});")
       return
     }
-    if (request.url === '/asset.txt') {
-      response.writeHead(200, { 'content-type': 'text/plain', 'x-cache-fixture': 'visible' })
+    if (request.url?.startsWith('/asset.txt')) {
+      response.writeHead(200, {
+        'content-type': 'text/plain', 'x-cache-fixture': 'visible',
+        [`x-${'a'.repeat(256)}-token`]: 'private-cache-header',
+        ['__proto__']: 'prototype-header'
+      })
       response.end('cached response body must stay private')
       return
     }
@@ -163,6 +167,21 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     expect(report.selectedCache.entries[0]).not.toHaveProperty('requestHeaders')
     expect(text(cacheResult)).not.toContain('cached response body must stay private')
     expect(text(cacheResult)).not.toContain('secret-value')
+
+    const headersResult = await client.callTool({
+      name: 'browser_pwa',
+      arguments: { workspaceId, tabId, cacheName: 'offline-v1', query: 'asset.txt', includeHeaders: true }
+    }) as CallToolResult
+    expect(headersResult.isError, text(headersResult)).not.toBe(true)
+    const headerReport = JSON.parse(text(headersResult)) as {
+      selectedCache: { entries: Array<{ responseHeaders: Record<string, string> }> }
+    }
+    expect(headerReport.selectedCache.entries[0]?.responseHeaders).toMatchObject({
+      ['__proto__']: 'prototype-header',
+      [`x-${'a'.repeat(254)}`]: '[REDACTED]'
+    })
+    expect(text(headersResult)).not.toContain('private-cache-header')
+    expect(text(headersResult)).not.toContain('cached response body must stay private')
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })

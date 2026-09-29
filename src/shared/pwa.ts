@@ -1,7 +1,7 @@
 import type { BrowserPwaOptions } from './types.js'
 import type { BrowserPwaManifest } from './types.js'
 import { redactDiagnosticText } from './debug-report.js'
-import { redactNetworkUrl } from './network-details.js'
+import { redactNetworkHeaders, redactNetworkUrl } from './network-details.js'
 
 export const PWA_INSPECTION_LIMITS = {
   maxCaches: 100,
@@ -185,4 +185,22 @@ export function sanitizePwaManifest(
       || installabilityErrors.some(error => (error.errorArguments?.length ?? 0) > PWA_INSPECTION_LIMITS.maxManifestErrorArguments)
       || undefined
   }
+}
+
+export function sanitizePwaHeaders(values: Array<{ name: string; value: string }> | undefined): Record<string, string | string[]> {
+  const headers = Object.create(null) as Record<string, string | string[]>
+  let remainingChars = PWA_INSPECTION_LIMITS.maxHeaderCharsTotal
+  for (const { name, value } of (values ?? []).slice(0, PWA_INSPECTION_LIMITS.maxHeaders)) {
+    const boundedName = redactDiagnosticText(name).slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)
+    const availableValueChars = remainingChars - boundedName.length
+    if (!boundedName || availableValueChars <= 0) break
+    // Detect sensitive names before shortening them for display.
+    const safeValue = String(redactNetworkHeaders({ [name]: value })[name])
+    const boundedValue = redactDiagnosticText(safeValue).slice(0, Math.min(PWA_INSPECTION_LIMITS.maxHeaderValueChars, availableValueChars))
+    if (!boundedValue) continue
+    remainingChars -= boundedName.length + boundedValue.length
+    const previous = headers[boundedName]
+    headers[boundedName] = previous === undefined ? boundedValue : Array.isArray(previous) ? [...previous, boundedValue] : [previous, boundedValue]
+  }
+  return headers
 }

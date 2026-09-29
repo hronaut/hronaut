@@ -132,6 +132,7 @@ import {
   PWA_INSPECTION_LIMITS,
   pwaRegistrationsPageScript,
   sanitizePwaManifest,
+  sanitizePwaHeaders,
   type CdpAppManifestResult,
   type CdpInstallabilityError
 } from '../../shared/pwa.js'
@@ -2475,32 +2476,17 @@ export class BrowserTabsManager {
           }>
           returnCount?: number
         }
-        const headers = (values: Array<{ name: string; value: string }> | undefined) => {
-          const raw: Record<string, string | string[]> = {}
-          let remainingChars = PWA_INSPECTION_LIMITS.maxHeaderCharsTotal
-          for (const { name, value } of (values ?? []).slice(0, PWA_INSPECTION_LIMITS.maxHeaders)) {
-            const boundedName = redactDiagnosticText(name).slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)
-            const availableValueChars = remainingChars - boundedName.length
-            if (!boundedName || availableValueChars <= 0) break
-            const boundedValue = redactDiagnosticText(value).slice(0, Math.min(PWA_INSPECTION_LIMITS.maxHeaderValueChars, availableValueChars))
-            if (!boundedValue) continue
-            remainingChars -= boundedName.length + boundedValue.length
-            const previous = raw[boundedName]
-            raw[boundedName] = previous === undefined ? boundedValue : Array.isArray(previous) ? [...previous, boundedValue] : [previous, boundedValue]
-          }
-          return redactNetworkHeaders(raw)
-        }
         const entries = (entriesResult.cacheDataEntries ?? []).map((entry) => ({
           requestUrl: redactNetworkUrl(entry.requestURL).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars),
           requestMethod: redactDiagnosticText(entry.requestMethod).slice(0, 32),
-          ...(normalized.includeHeaders ? { requestHeaders: headers(entry.requestHeaders) } : {}),
+          ...(normalized.includeHeaders ? { requestHeaders: sanitizePwaHeaders(entry.requestHeaders) } : {}),
           responseStatus: entry.responseStatus,
           responseStatusText: redactDiagnosticText(entry.responseStatusText).slice(0, 256),
           responseType: redactDiagnosticText(entry.responseType).slice(0, 64),
           ...(entry.responseTime !== undefined && Number.isFinite(entry.responseTime)
             ? { responseTime: new Date(entry.responseTime * 1_000).toISOString() }
             : {}),
-          ...(normalized.includeHeaders ? { responseHeaders: headers(entry.responseHeaders) } : {})
+          ...(normalized.includeHeaders ? { responseHeaders: sanitizePwaHeaders(entry.responseHeaders) } : {})
         }))
         const totalEntries = Math.max(0, Math.floor(entriesResult.returnCount ?? entries.length))
         report.selectedCache = {

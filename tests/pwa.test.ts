@@ -4,10 +4,34 @@ import {
   PWA_INSPECTION_LIMITS,
   normalizeBrowserPwaOptions,
   pwaRegistrationsPageScript,
+  sanitizePwaHeaders,
   sanitizePwaManifest
 } from '../src/shared/pwa.js'
 
 describe('offline app inspection options', () => {
+  it('redacts cache headers using their full names before display truncation', () => {
+    const name = `x-${'a'.repeat(PWA_INSPECTION_LIMITS.maxHeaderNameChars)}-token`
+    expect(sanitizePwaHeaders([{ name, value: 'synthetic-secret' }])).toEqual({
+      [name.slice(0, PWA_INSPECTION_LIMITS.maxHeaderNameChars)]: '[REDACTED]'
+    })
+  })
+
+  it('preserves prototype-named cache headers and repeated values as ordinary data', () => {
+    const headers = sanitizePwaHeaders([
+      { name: '__proto__', value: 'first' }, { name: '__proto__', value: 'second' },
+      { name: 'constructor', value: 'third' }
+    ])
+    expect(Object.getPrototypeOf(headers)).toBeNull()
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ ['__proto__']: ['first', 'second'], constructor: 'third' })
+  })
+
+  it('keeps cache header output within its total character budget', () => {
+    const headers = sanitizePwaHeaders(Array.from({ length: 60 }, (_, i) => ({ name: `x-${i}`, value: 'v'.repeat(2_000) })))
+    const chars = Object.entries(headers).reduce((total, [name, value]) => total + name.length + String(value).length, 0)
+    expect(chars).toBe(PWA_INSPECTION_LIMITS.maxHeaderCharsTotal)
+    expect(Object.values(headers).every(value => value.length <= PWA_INSPECTION_LIMITS.maxHeaderValueChars)).toBe(true)
+  })
+
   it('resolves and redacts long protocol-relative manifest URLs before bounding them', () => {
     const url = `//synthetic-private-${'x'.repeat(PWA_INSPECTION_LIMITS.maxUrlChars + 100)}@example.test/app?token=private`
     const safe = 'https://%5BREDACTED%5D@example.test/app?token=%5BREDACTED%5D'
