@@ -1,12 +1,19 @@
-import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdtemp, open, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { loadMcpToken } from '../src/main/mcp-token-store.js'
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const fs = await importOriginal<typeof import('node:fs/promises')>()
+  return { ...fs, open: vi.fn(fs.open) }
+})
+const actualFs = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
 
 const temporaryDirectories: string[] = []
 
 afterEach(async () => {
+  vi.mocked(open).mockReset().mockImplementation(actualFs.open)
   await Promise.all(temporaryDirectories.splice(0).map((path) => rm(path, { recursive: true, force: true })))
 })
 
@@ -36,6 +43,37 @@ describe('loadMcpToken', () => {
     expect(loaded.every(({ source, tokenPath }) => source === 'profile' && tokenPath === path)).toBe(true)
     expect(loaded[0]!.token).toMatch(/^[A-Za-z0-9_-]{32,}$/)
     expect((await readFile(path, 'utf8')).trim()).toBe(loaded[0]!.token)
+    expect(await readdir(directory)).toEqual(['mcp-token'])
+    if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
+  })
+
+  it.each(['write', 'close'])('cleans up a temporary token after a failed %s and allows startup retry', async (stage) => {
+    const directory = await mkdtemp(join(tmpdir(), 'hronaut-token-write-failure-'))
+    temporaryDirectories.push(directory)
+    const path = join(directory, 'mcp-token')
+    const failure = Object.assign(new Error('token persistence failed'), { code: 'ENOSPC' })
+    vi.mocked(open).mockImplementationOnce(async (file, flags, mode) => {
+      const handle = await actualFs.open(file, flags, mode)
+      if (stage === 'write') {
+        vi.spyOn(handle, 'writeFile').mockImplementationOnce(async () => {
+          await handle.write(Buffer.from('partial-token'))
+          throw failure
+        })
+      } else {
+        const close = handle.close.bind(handle)
+        vi.spyOn(handle, 'close').mockImplementationOnce(async () => {
+          await close()
+          throw failure
+        })
+      }
+      return handle
+    })
+
+    await expect(loadMcpToken(path)).rejects.toBe(failure)
+    expect(await readdir(directory)).toEqual([])
+
+    const loaded = await loadMcpToken(path)
+    expect((await readFile(path, 'utf8')).trim()).toBe(loaded.token)
     expect(await readdir(directory)).toEqual(['mcp-token'])
     if (process.platform !== 'win32') expect((await stat(path)).mode & 0o777).toBe(0o600)
   })

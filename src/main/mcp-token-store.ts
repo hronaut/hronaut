@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { chmod, link, mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
+import { chmod, link, mkdir, open, readFile, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,}$/
@@ -40,10 +40,12 @@ async function loadProfileMcpToken(path: string): Promise<McpTokenConfiguration>
   const token = randomBytes(32).toString('base64url')
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   const temporaryPath = `${path}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`
-  await writeFile(temporaryPath, `${token}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+  const temporaryFile = await open(temporaryPath, 'wx', 0o600)
 
   let createdProfileToken = false
   try {
+    await temporaryFile.writeFile(`${token}\n`, 'utf8')
+    await temporaryFile.close()
     try {
       await link(temporaryPath, path)
       createdProfileToken = true
@@ -51,6 +53,7 @@ async function loadProfileMcpToken(path: string): Promise<McpTokenConfiguration>
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
     }
   } finally {
+    await temporaryFile.close().catch(() => undefined)
     await removeFileIfPresent(temporaryPath)
   }
 
