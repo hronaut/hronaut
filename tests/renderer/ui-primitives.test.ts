@@ -100,18 +100,26 @@ describe('UI primitives', () => {
     expect(screen.getByRole('tab', { name: 'Privacy' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('supports arrow-key selection in segmented controls', async () => {
+  it.each(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'])('supports %s selection, focus, and wrapping in segmented controls', async (key) => {
     render(UiSegmentedControl, {
       props: {
         modelValue: 'comfortable',
         label: 'Density',
-        options: [{ value: 'comfortable', label: 'Comfortable' }, { value: 'compact', label: 'Compact' }]
+        options: [{ value: 'comfortable', label: 'Comfortable' }, { value: 'disabled', label: 'Unavailable', disabled: true }, { value: 'compact', label: 'Compact' }]
       }
     })
     const comfortable = screen.getByRole('radio', { name: 'Comfortable' })
     comfortable.focus()
-    await fireEvent.keyDown(comfortable, { key: 'ArrowRight' })
-    expect(screen.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true')
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true })
+    await fireEvent(comfortable, event)
+    const compact = screen.getByRole('radio', { name: 'Compact' })
+    expect(event.defaultPrevented).toBe(true)
+    expect(compact).toHaveAttribute('aria-checked', 'true')
+    expect(compact).toHaveFocus()
+    expect(screen.getByRole('radio', { name: 'Unavailable' })).toBeDisabled()
+    await fireEvent.keyDown(compact, { key })
+    expect(comfortable).toHaveAttribute('aria-checked', 'true')
+    expect(comfortable).toHaveFocus()
   })
 
   it('opens menus from the keyboard and returns focus after selection', async () => {

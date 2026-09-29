@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Support Up and Down as well as Left and Right in the preview scale selector, moving keyboard focus and selection together without scrolling the page.
+
 - Keep zoom controls usable after switching tabs while an earlier zoom request is pending, and prevent its late result from changing the new tab’s feedback or busy state.
 
 - Keep superseded address-navigation errors from replacing or suppressing the latest error after an intervening navigation completes.
