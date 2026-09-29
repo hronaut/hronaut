@@ -117,14 +117,19 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
         return values;
       }
       const output = Object.create(null);
-      const entries = Object.entries(value).slice(0, limits.maxCollectionItems);
-      if (Object.keys(value).length > entries.length) state.truncated = true;
-      for (const [key, item] of entries) {
+      let inspected = 0;
+      for (const key in value) {
+        if (!Object.hasOwn(value, key)) continue;
+        if (inspected >= limits.maxCollectionItems) {
+          state.truncated = true;
+          break;
+        }
+        inspected += 1;
         if (key.length > limits.maxNameChars) {
           state.truncated = true;
           continue;
         }
-        output[key] = normalize(item, depth + 1, seen, state);
+        output[key] = normalize(value[key], depth + 1, seen, state);
       }
       return output;
     };

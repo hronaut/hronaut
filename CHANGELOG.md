@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Read only the bounded set of object property values needed for IndexedDB previews, avoiding full-record entry allocation for large objects.
+
 - Omit oversized IndexedDB field names with an explicit truncation marker instead of shortening them and overwriting another field in the preview.
 
 - Distinguish NaN and positive/negative infinity from null in IndexedDB record previews, including nested arrays and floating-point typed arrays.
