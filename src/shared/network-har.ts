@@ -102,10 +102,23 @@ function networkFilterSize(value: string): number | undefined {
 }
 
 function wildcardMatch(value: string, pattern: string): boolean {
-  const source = pattern
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-  return new RegExp(`^${source}$`, 'i').test(value)
+  const normalized = value.toLowerCase()
+  const parts = pattern.toLowerCase().split('*')
+  if (parts.length === 1) return normalized === parts[0]
+  const first = parts[0]!
+  const last = parts[parts.length - 1]!
+  if (!normalized.startsWith(first) || !normalized.endsWith(last)) return false
+  let position = first.length
+  const suffixStart = normalized.length - last.length
+  // Search literal chunks once in order. A generated .* expression can take
+  // exponential time on repeated wildcard prefixes and a nonmatching suffix.
+  for (const part of parts.slice(1, -1)) {
+    const found = normalized.indexOf(part, position)
+    if (found < 0) return false
+    position = found + part.length
+    if (position > suffixStart) return false
+  }
+  return position <= suffixStart
 }
 
 function requestMatchesPropertyFilter(request: BrowserNetworkRequest, property: string, expected: string): boolean {

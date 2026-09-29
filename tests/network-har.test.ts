@@ -195,6 +195,25 @@ describe('sanitized network HAR', () => {
     expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: 'larger-than:nope' }))).toEqual([])
   })
 
+  it.each([
+    ['EXAMPLE.TEST', true], ['*', true], ['**example**.test**', true],
+    ['ex*pl*.test', true], ['*example.test*', true],
+    ['example.test*example.test', false], ['example.test*test', false],
+    ['example?test', false], ['example.test.', false], ['example.*.test', false]
+  ])('matches domain wildcard %s with literal anchored chunks', (pattern, matches) => {
+    expect(filterNetworkRequests([details], normalizeNetworkHarOptions({ query: `domain:${pattern}` })))
+      .toEqual(matches ? [details] : [])
+  })
+
+  it('handles repeated wildcard prefixes without exponential regular-expression backtracking', () => {
+    const request = { ...details, url: `https://${'a'.repeat(60)}.test/` }
+    for (const suffix of ['b.test', 'b*.test', 'a.test']) {
+      const query = `domain:${'*a'.repeat(24)}${suffix}`
+      expect(filterNetworkRequests([request], normalizeNetworkHarOptions({ query })))
+        .toEqual(suffix === 'a.test' ? [request] : [])
+    }
+  })
+
   it('exports only a payload-free WebSocket summary', () => {
     const webSocketDetails: BrowserNetworkRequestDetails = {
       ...details,

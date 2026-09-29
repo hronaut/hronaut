@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Prevent repeated wildcards in Network domain filters from freezing the interface or blocking network diagnostics.
+
 - Keep Server-Timing diagnostics faithful to incomplete first parameters and preserve finite durations when rounding very large values.
 
 - Preserve the last successful license validation when the service returns malformed or incomplete data instead of incorrectly marking the license inactive.
