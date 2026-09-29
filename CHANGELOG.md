@@ -4,6 +4,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Release unused response streams when release-history requests fail, including rate limits that fall back to cached history.
+
 ## [2.8.3] - 2026-09-29
 
 ### Fixed

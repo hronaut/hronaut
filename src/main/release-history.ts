@@ -127,7 +127,10 @@ export class ReleaseHistoryService {
           signal: AbortSignal.timeout(10_000)
         }
       )
-      if (!response.ok) throw new Error(`GitHub release history request failed with status ${response.status}.`)
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined)
+        throw new Error(`GitHub release history request failed with status ${response.status}.`)
+      }
       const contentLength = Number(response.headers.get('content-length') ?? '0')
       if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_LENGTH) {
         await response.body?.cancel()
