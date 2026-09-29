@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Read individual local/session storage keys directly instead of enumerating every entry on large sites.
+
 - Keep local/session storage results tied to the page where they ran, and reject operations if navigation changes the URL before execution.
 
 - Report complete single-key storage lookups accurately even when the site has more than 200 entries; retain truncation flags for capped lists and values.

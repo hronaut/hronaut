@@ -2250,11 +2250,16 @@ export class BrowserTabsManager {
       else if (action === 'delete') { changed = storage.getItem(key) !== null; storage.removeItem(key); }
       else if (action === 'clear') { changed = storage.length > 0; storage.clear(); }
       const items = [];
-      for (let index = 0; index < storage.length; index += 1) {
-        const itemKey = storage.key(index);
-        if (itemKey !== null && (action !== 'get' || itemKey === key)) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+      if (action === 'get') {
+        const itemValue = storage.getItem(key);
+        if (itemValue !== null) items.push([key, itemValue]);
+      } else {
+        for (let index = 0; index < storage.length; index += 1) {
+          const itemKey = storage.key(index);
+          if (itemKey !== null) items.push([itemKey, storage.getItem(itemKey) ?? '']);
+        }
+        items.sort((left, right) => left[0].localeCompare(right[0]));
       }
-      items.sort((left, right) => left[0].localeCompare(right[0]));
       return { changed, itemCount: storage.length, items };
     })()`, true) as { pageChanged: true } | { changed: boolean; itemCount: number; items: Array<[string, string]> }
     if ('pageChanged' in raw) throw new Error('The page changed before the storage operation. Run a fresh operation.')

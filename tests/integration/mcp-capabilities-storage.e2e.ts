@@ -264,8 +264,8 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
 })
 
 for (const kind of ['local-storage', 'session-storage'] as const) {
-  test(`reports single-key completeness independently of the ${kind} listing limit`, async ({ capabilities }) => {
-    const { client, tabId } = capabilities
+  test(`reports single-key completeness independently of the ${kind} listing limit`, async ({ capabilities, electronApp }) => {
+    const { client, tabId, fixtureUrl } = capabilities
     const storageName = kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
     const seeded = await client.callTool({
       name: 'browser_evaluate',
@@ -291,16 +291,44 @@ for (const kind of ['local-storage', 'session-storage'] as const) {
     const list = await call({ action: 'list' })
     expect(list).toMatchObject({ itemCount: 202, truncated: true })
     expect(list.items).toHaveLength(200)
-    const single = await call({ action: 'get', key: 'key-200' })
-    expect(single.itemCount).toBe(202)
-    expect(single.items).toEqual([expect.objectContaining({ key: 'key-200', value: 'complete' })])
-    expect(single.truncated).toBeUndefined()
-    const missing = await call({ action: 'get', key: 'missing' })
-    expect(missing.items).toEqual([])
-    expect(missing.truncated).toBeUndefined()
-    const large = await call({ action: 'get', key: 'large' })
-    expect(large.truncated).toBe(true)
-    expect(large.items[0]?.valueTruncated).toBe(true)
-    expect(large.items[0]?.value).toHaveLength(16_384)
+    await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+      const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+      await page.executeJavaScript(`(() => {
+        const original = Storage.prototype.key;
+        window.__storageKeyReads = 0;
+        window.__restoreStorageKey = () => { Storage.prototype.key = original; };
+        Storage.prototype.key = function (...args) {
+          window.__storageKeyReads++;
+          return original.apply(this, args);
+        };
+      })()`)
+    }, fixtureUrl)
+    try {
+      const single = await call({ action: 'get', key: 'key-200' })
+      expect(single.itemCount).toBe(202)
+      expect(single.items).toEqual([expect.objectContaining({ key: 'key-200', value: 'complete' })])
+      expect(single.truncated).toBeUndefined()
+      const missing = await call({ action: 'get', key: 'missing' })
+      expect(missing.items).toEqual([])
+      expect(missing.truncated).toBeUndefined()
+      const large = await call({ action: 'get', key: 'large' })
+      expect(large.truncated).toBe(true)
+      expect(large.items[0]?.valueTruncated).toBe(true)
+      expect(large.items[0]?.value).toHaveLength(16_384)
+      const keyReads = await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+        return page.executeJavaScript('window.__storageKeyReads') as Promise<number>
+      }, fixtureUrl)
+      expect(keyReads).toBe(0)
+    } finally {
+      await electronApp.evaluate(async ({ webContents }, fixtureUrl) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === fixtureUrl)!
+        await page.executeJavaScript(`(() => {
+          window.__restoreStorageKey();
+          delete window.__restoreStorageKey;
+          delete window.__storageKeyReads;
+        })()`)
+      }, fixtureUrl)
+    }
   })
 }
