@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ZoomBar from '../../src/renderer/src/components/ZoomBar.vue'
 import { createHronautI18n } from '../../src/renderer/src/i18n.js'
@@ -42,8 +43,12 @@ function browserState(activeTab: BrowserTabState): BrowserState {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
-  return { promise, resolve }
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 function renderBar(options: {
@@ -99,6 +104,32 @@ describe('ZoomBar', () => {
 
     await vi.waitFor(() => expect(rendered.view.emitted().error).toEqual([[failure]]))
     expect(screen.getByRole('group', { name: 'Page zoom controls' })).toHaveAttribute('aria-busy', 'false')
+  })
+
+  it('keeps zoom available on another tab and ignores completion of the previous tab request', async () => {
+    const first = deferred<BrowserState>()
+    const second = deferred<BrowserState>()
+    const rendered = renderBar({ setZoom: () => first.promise })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }))
+
+    await rendered.view.rerender({ activeTab: tab('second'), open: false })
+    await rendered.view.rerender({ open: true })
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
+    rendered.browser.setZoom.mockReturnValueOnce(second.promise)
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }))
+    expect(rendered.browser.setZoom).toHaveBeenLastCalledWith({ tabId: 'second', action: 'in' })
+
+    first.reject(new Error('previous tab disappeared'))
+    await first.promise.catch(() => undefined)
+    await flushPromises()
+    expect(rendered.view.emitted().error).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
+
+    const currentFailure = new Error('current zoom failed')
+    second.reject(currentFailure)
+    await vi.waitFor(() => expect(rendered.view.emitted().error).toEqual([[currentFailure]]))
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeEnabled()
   })
 
   it('closes stale controls when the active tab changes or becomes Home', async () => {

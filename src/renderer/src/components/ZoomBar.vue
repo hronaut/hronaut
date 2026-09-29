@@ -27,6 +27,7 @@ const { t } = useI18n({ useScope: 'global' })
 const busy = ref(false)
 let targetTabId: string | undefined
 let disposed = false
+let operationSequence = 0
 
 function availableTab(): BrowserTabState | undefined {
   const tab = props.activeTab
@@ -46,18 +47,19 @@ function openForTab(tab: BrowserTabState | undefined = availableTab()): void {
 
 async function setZoom(action: ZoomAction): Promise<void> {
   const tab = availableTab()
-  if (!tab || busy.value) return
+  if (disposed || !tab || busy.value) return
   if (open.value && targetTabId && targetTabId !== tab.id) {
     close()
     return
   }
+  const operation = ++operationSequence
   busy.value = true
   try {
     await props.acceptState(props.browser.setZoom({ tabId: tab.id, action }))
   } catch (error) {
-    if (!disposed) emit('error', error)
+    if (!disposed && operation === operationSequence) emit('error', error)
   } finally {
-    if (!disposed) busy.value = false
+    if (!disposed && operation === operationSequence) busy.value = false
   }
 }
 
@@ -70,6 +72,11 @@ watch(open, (isOpen) => {
   if (!tab) close()
   else if (!targetTabId) targetTabId = tab.id
 }, { immediate: true })
+
+watch(() => props.activeTab?.id, () => {
+  operationSequence += 1
+  busy.value = false
+}, { flush: 'sync' })
 
 watch([() => props.activeTab?.id, () => props.activeTab?.url], ([tabId, url]) => {
   if (open.value && targetTabId && (tabId !== targetTabId || !url || isHronautHomeUrl(url))) close()

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep zoom controls usable after switching tabs while an earlier zoom request is pending, and prevent its late result from changing the new tab’s feedback or busy state.
+
 - Keep superseded address-navigation errors from replacing or suppressing the latest error after an intervening navigation completes.
 
 ## [2.8.2] - 2026-09-29
