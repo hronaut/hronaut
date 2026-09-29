@@ -5,7 +5,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'popup'] as const) {
+for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'popup', 'owner-change'] as const) {
   test(`preserves native focus during agent ${eventKind}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const fixture = createServer((request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -91,9 +91,37 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
         main.showInactive = function () { state.__qaRaiseRequests! += 1; return showInactive.call(this) }
         state.__qaRestoreFocusSpies = () => { prototype.focus = focus; main.showInactive = showInactive }
       }, humanId)
-      const result = eventKind === 'close' ? await call('browser_close_tab', { workspaceId, tabId: targetTabId }) : eventKind === 'popup' ? await call('browser_evaluate', { workspaceId, script: "window.open('/popup'); 'opened'" }) : eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
+      let ownerChangeResult: CallToolResult | undefined
+      if (eventKind === 'owner-change') {
+        const pending = call('browser_evaluate', { workspaceId, script:
+          'new Promise(resolve => { window.__qaFocusPending = true; window.__qaFinishFocus = () => resolve("finished"); })' })
+        // Teardown may reject the request if an earlier assertion fails.
+        void pending.catch(() => undefined)
+        // Observe a pending guarded operation before changing native ownership.
+        await expect.poll(() => electronApp.evaluate(({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(url))
+          return page?.executeJavaScript('window.__qaFocusPending === true')
+        }, origin)).toBe(true)
+        await electronApp.evaluate(({ BrowserWindow }, id) => {
+          const human = BrowserWindow.fromId(id)!
+          const state = globalThis as typeof globalThis & { __qaStaleFocusRequests?: number }
+          state.__qaStaleFocusRequests = 0
+          const focus = human.focus.bind(human)
+          human.focus = () => { state.__qaStaleFocusRequests! += 1; focus() }
+          human.hide()
+        }, humanId)
+        await expect.poll(() => electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBeUndefined()
+        await electronApp.evaluate(({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(url))
+          return page?.executeJavaScript('window.__qaFinishFocus()')
+        }, origin)
+        ownerChangeResult = await pending
+        expect(await electronApp.evaluate(() =>
+          (globalThis as typeof globalThis & { __qaStaleFocusRequests?: number }).__qaStaleFocusRequests)).toBe(0)
+      }
+      const result = ownerChangeResult ?? (eventKind === 'close' ? await call('browser_close_tab', { workspaceId, tabId: targetTabId }) : eventKind === 'popup' ? await call('browser_evaluate', { workspaceId, script: "window.open('/popup'); 'opened'" }) : eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
         ? "setTimeout(() => { window.focus(); document.body.dataset.focusAttempted = 'yes'; }, 250); 'scheduled'"
-        : "setTimeout(() => { location.href = '/landed'; }, 250); 'scheduled'" })
+        : "setTimeout(() => { location.href = '/landed'; }, 250); 'scheduled'" }))
       expect(result.isError, JSON.stringify(result.content.filter(part => part.type === 'text'))).not.toBe(true)
       if (eventKind === 'popup') await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
         webContents.getAllWebContents().some(contents => contents.getURL() === url), `${origin}/popup`)).toBe(true)
@@ -121,8 +149,8 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'pop
         const page = webContents.getAllWebContents().find(contents => contents.getURL().startsWith(expectedOrigin))
         return page?.executeJavaScript('document.body.dataset.focusAttempted')
       }, origin)).toBe('yes')
-      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusLosses?: number }).__qaFocusLosses)).toBe(0)
-      expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBe(humanId)
+      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusLosses?: number }).__qaFocusLosses)).toBe(eventKind === 'owner-change' ? 1 : 0)
+      expect(await electronApp.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBe(eventKind === 'owner-change' ? undefined : humanId)
     } finally {
       await client.close()
       await electronApp.evaluate(({ app }) => {
