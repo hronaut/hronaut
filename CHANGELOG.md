@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Redact credentials in long console and network source URLs before truncating their display, preventing partial credentials from surviving a cut-off URL authority.
+
 - Avoid starting a stale memory measurement when allocation clearing finishes after switching tabs, reloading, or starting a newer diagnostic action.
 
 - Keep CPU-profile and code-coverage Stop results and errors visible when a background recording-state refresh arrives before the action completes.

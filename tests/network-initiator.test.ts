@@ -5,6 +5,16 @@ import {
 } from '../src/shared/network-initiator.js'
 
 describe('network request initiator normalization', () => {
+  it('redacts long URL credentials before bounding source and redirect URLs', () => {
+    const url = `https://user:synthetic-secret-${'x'.repeat(2_100)}@example.test/app.js?token=private`
+    const safe = 'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/app.js?token=%5BREDACTED%5D'
+    const result = normalizeNetworkInitiator({ type: 'script', url, stack: { callFrames: [{ url }] } }, url)
+    expect(result?.url).toBe(safe)
+    expect(result?.redirectedFrom).toBe(safe)
+    expect(result?.stack?.[0]?.url).toBe(safe)
+    expect(normalizeNetworkInitiator({ type: 'parser', url: `https://example.test/${'a'.repeat(3_000)}` })?.url).toHaveLength(2_048)
+  })
+
   it('keeps useful parser source locations while redacting URL credentials', () => {
     expect(normalizeNetworkInitiator({
       type: 'parser',

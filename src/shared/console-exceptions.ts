@@ -71,7 +71,8 @@ function boundedText(value: string | undefined, maxChars: number): string | unde
 }
 
 function safeSourceUrl(value: string | undefined): string | undefined {
-  const normalized = boundedText(value, MAX_CONSOLE_SOURCE_CHARS)
+  // Preserve the complete authority until credentials have been redacted.
+  const normalized = value?.replace(/[\u0000-\u001f\u007f]/g, ' ').trim()
   if (!normalized || /^(?:data|javascript):/i.test(normalized)) return undefined
   return redactNetworkUrl(normalized).slice(0, MAX_CONSOLE_SOURCE_CHARS)
 }

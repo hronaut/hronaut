@@ -9,6 +9,17 @@ import {
 } from '../src/shared/console-exceptions.js'
 
 describe('runtime exception normalization', () => {
+  it.each(['runtime', 'page'] as const)('redacts long %s source credentials before truncation', (source) => {
+    const url = `https://user:synthetic-secret-${'x'.repeat(2_100)}@example.test/app.js?token=private`
+    const safe = 'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/app.js?token=%5BREDACTED%5D'
+    const result = source === 'runtime'
+      ? normalizeRuntimeException({ exceptionDetails: { text: 'Test', url, stackTrace: { callFrames: [{ url }] } } })
+      : normalizePageException({ message: 'Test', sourceId: url, stack: `Error: Test\n    at test (${url}:1:1)` })
+    expect(result?.sourceId).toBe(safe)
+    expect(result?.stack?.[0]?.url).toBe(safe)
+    expect(normalizeRuntimeException({ exceptionDetails: { text: 'Test', url: `https://example.test/${'a'.repeat(3_000)}` } })?.sourceId).toHaveLength(2_048)
+  })
+
   it('returns a sanitized structured call stack with 1-based source positions', () => {
     const result = normalizeRuntimeException({
       timestamp: Date.parse('2026-08-15T12:00:00.000Z'),
