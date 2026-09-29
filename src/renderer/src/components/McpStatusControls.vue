@@ -6,6 +6,7 @@ import '../styles/mcp-readiness.css'
 import { useI18n } from 'vue-i18n'
 import IconPause from '~icons/material-symbols/pause-rounded'
 import IconPlay from '~icons/material-symbols/play-arrow-rounded'
+import IconProgress from '~icons/material-symbols/progress-activity-rounded'
 import type { McpStatusController } from '../composables/useMcpStatusController'
 
 const props = defineProps<{
@@ -17,6 +18,7 @@ const {
   endpoint,
   state,
   copied,
+  pauseBusy,
   canTogglePaused,
   copyEndpoint,
   togglePaused
@@ -37,6 +39,7 @@ const statusTitle = computed(() => {
   return t('runtime.mcp.title', { url: endpoint.value })
 })
 const pauseTitle = computed(() => {
+  if (pauseBusy.value) return t('runtime.locks.waiting')
   if (!canTogglePaused.value) return t('runtime.mcp.unavailable')
   if (!state.value.paused) return t('runtime.mcp.pauseCommands')
   const guidance = t('runtime.mcp.resumeCommands')
@@ -83,12 +86,14 @@ onBeforeUnmount(() => { summaryGeneration++; clearTimeout(summaryTimer) })
       type="button"
       :title="pauseTitle"
       :aria-description="pauseTitle"
-      :aria-label="t(state.paused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents')"
+      :aria-busy="pauseBusy"
+      :aria-label="(pauseBusy ? t('runtime.locks.waiting') + ': ' : '') + t(state.paused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents')"
       :aria-pressed="state.paused"
       :disabled="!canTogglePaused"
       @click="togglePaused"
     >
-      <IconPlay v-if="state.paused" aria-hidden="true" />
+      <IconProgress v-if="pauseBusy" class="state-spinner" aria-hidden="true" />
+      <IconPlay v-else-if="state.paused" aria-hidden="true" />
       <IconPause v-else aria-hidden="true" />
       <span class="mcp-pause-label">{{ t(state.paused ? 'runtime.mcp.resumeAgents' : 'runtime.mcp.pauseAgents') }}</span>
     </UiButton>

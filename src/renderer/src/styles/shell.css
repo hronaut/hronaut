@@ -650,10 +650,12 @@
 
 .interaction-lock-button .state-spinner,
 .all-lock-button .state-spinner,
-.all-tabs-audio-button .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
+.all-tabs-audio-button .state-spinner,
+.mcp-pause-button .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
 
 @media (prefers-reduced-motion: reduce) {
   .interaction-lock-button .state-spinner,
   .all-lock-button .state-spinner,
-  .all-tabs-audio-button .state-spinner { animation: none; }
+  .all-tabs-audio-button .state-spinner,
+.mcp-pause-button .state-spinner { animation: none; }
 }
