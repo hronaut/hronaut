@@ -1,3 +1,4 @@
+import { utf8Prefix } from '../../shared/utf8.js'
 import type { BrowserStorageItem } from '../../shared/types.js'
 
 export const MAX_STORAGE_ITEMS = 200
@@ -19,12 +20,9 @@ export function boundStorageItems(
     if (includeValues && !protectedValue && remainingBytes > 0) {
       const maxBytes = Math.min(MAX_STORAGE_OUTPUT_VALUE_BYTES, remainingBytes)
       const buffer = Buffer.from(value, 'utf8')
-      let end = Math.min(buffer.length, maxBytes)
-      // A cut through a code point would introduce U+FFFD and can exceed the byte budget.
-      while (end > 0 && end < buffer.length && (buffer[end]! & 0xc0) === 0x80) end -= 1
-      returnedValue = buffer.toString('utf8', 0, end)
+      returnedValue = utf8Prefix(buffer, maxBytes)
       valueTruncated = buffer.length > maxBytes
-      remainingBytes -= end
+      remainingBytes -= Buffer.byteLength(returnedValue, 'utf8')
     } else if (includeValues && !protectedValue && valueBytes > 0) {
       valueTruncated = true
     }

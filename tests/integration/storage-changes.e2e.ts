@@ -61,11 +61,13 @@ test('compares bounded browser storage changes for people and grouped agents', a
       <h1>Storage changes fixture</h1>
       <script>
         localStorage.setItem('theme', 'dark');
+        localStorage.setItem('unicode-preview', '€'.repeat(6000));
         localStorage.setItem('remove-me', 'gone soon');
         sessionStorage.setItem('draft', 'first draft');
         document.cookie = 'client-pref=old-value; Path=/';
         window.mutateStorage = async () => {
           localStorage.setItem('theme', 'light');
+          localStorage.setItem('unicode-preview', '界'.repeat(6000));
           localStorage.setItem('feature-enabled', 'true');
           localStorage.removeItem('remove-me');
           sessionStorage.setItem('draft', 'second draft');
@@ -108,7 +110,7 @@ test('compares bounded browser storage changes for people and grouped agents', a
       url: `http://127.0.0.1:${address.port}/?view=changes&access_token=%5BREDACTED%5D`,
       status: 'baseline',
       changeCount: 0,
-      baselineItemCounts: { 'local-storage': 2, 'session-storage': 1, cookies: 2 },
+      baselineItemCounts: { 'local-storage': 3, 'session-storage': 1, cookies: 2 },
       valuesIncluded: false
     })
     expect(text(baseline)).not.toContain('server-secret-old')
@@ -140,7 +142,7 @@ test('compares bounded browser storage changes for people and grouped agents', a
       counts: { added: number; updated: number; removed: number }
       changes: Array<{ kind: string; type: string; key: string; protected?: boolean; beforeValue?: string; afterValue?: string }>
     }
-    expect(report).toMatchObject({ changeCount: 7, counts: { added: 2, updated: 4, removed: 1 } })
+    expect(report).toMatchObject({ changeCount: 8, counts: { added: 2, updated: 5, removed: 1 } })
     expect(report.changes).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'local-storage', type: 'updated', key: 'theme' }),
       expect.objectContaining({ kind: 'local-storage', type: 'added', key: 'feature-enabled' }),
@@ -161,7 +163,11 @@ test('compares bounded browser storage changes for people and grouped agents', a
     const valueReport = JSON.parse(text(values)) as typeof report
     expect(valueReport.changes).toEqual(expect.arrayContaining([
       expect.objectContaining({ key: 'theme', beforeValue: 'dark', afterValue: 'light' }),
-      expect.objectContaining({ key: 'draft', beforeValue: 'first draft', afterValue: 'second draft' })
+      expect.objectContaining({ key: 'draft', beforeValue: 'first draft', afterValue: 'second draft' }),
+      expect.objectContaining({
+        key: 'unicode-preview', beforeValue: '€'.repeat(5461), afterValue: '界'.repeat(5461),
+        beforeValueBytes: 18000, afterValueBytes: 18000, beforeValueTruncated: true, afterValueTruncated: true
+      })
     ]))
     const protectedChange = valueReport.changes.find((change) => change.key === 'server-auth')
     expect(protectedChange).not.toHaveProperty('beforeValue')

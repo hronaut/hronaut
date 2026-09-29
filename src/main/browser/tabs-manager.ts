@@ -1,3 +1,4 @@
+import { utf8Prefix } from '../../shared/utf8.js'
 import { boundStorageItems, MAX_STORAGE_ITEMS } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
@@ -2723,7 +2724,7 @@ export class BrowserTabsManager {
       if (remainingPreviewBytes <= 0) return value ? { valuePreviewTruncated: true } : { valuePreview: '' }
       const buffer = Buffer.from(value, 'utf8')
       const allowed = Math.min(MAX_STORAGE_CHANGE_VALUE_BYTES, remainingPreviewBytes)
-      const preview = buffer.subarray(0, allowed).toString('utf8')
+      const preview = utf8Prefix(buffer, allowed)
       const bytes = Buffer.byteLength(preview, 'utf8')
       remainingPreviewBytes -= bytes
       return {

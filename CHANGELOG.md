@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve complete Unicode characters and byte limits in storage-change baselines and comparison values, sharing the storage preview decoder.
+
 - Preserve complete Unicode characters in bounded storage previews and keep multilingual values within per-value and total byte limits.
 
 - Keep cookie operations and their results scoped to the original page and browser session when the tab navigates during a storage request.

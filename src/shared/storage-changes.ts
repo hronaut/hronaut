@@ -1,3 +1,4 @@
+import { utf8Prefix } from './utf8.js'
 import type {
   BrowserStorageChange,
   BrowserStorageChangeCounts,
@@ -133,7 +134,7 @@ export function compareBrowserStorageSnapshots(
       }
       const buffer = Buffer.from(snapshot.valuePreview, 'utf8')
       const allowed = Math.min(MAX_STORAGE_CHANGE_VALUE_BYTES, remainingValueBytes)
-      const value = buffer.subarray(0, allowed).toString('utf8')
+      const value = utf8Prefix(buffer, allowed)
       const returnedBytes = Buffer.byteLength(value, 'utf8')
       remainingValueBytes -= returnedBytes
       if (position === 'before') {
