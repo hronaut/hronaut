@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject IndexedDB and storage-usage reports collected across page changes, including the StorageManager fallback, using a shared inspection guard.
+
 - Reject offline-app inspections when the tab navigates or closes during collection, preventing reports that mix different pages.
 
 - Mark Cache Storage listings as incomplete when oversized cache names are omitted, instead of reporting only the remaining caches as a complete list.

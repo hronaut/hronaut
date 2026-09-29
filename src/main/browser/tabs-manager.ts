@@ -2271,18 +2271,33 @@ export class BrowserTabsManager {
     }
   }
 
+  private inspectionPageGuard(tab: BrowserTab, inspection: string): () => void {
+    const navigationGeneration = tab.navigationGeneration
+    const contents = tab.webContents
+    return () => {
+      if (this.tabs.get(tab.id) !== tab
+        || tab.webContents !== contents
+        || contents.isDestroyed()
+        || tab.navigationGeneration !== navigationGeneration) {
+        throw new Error(`The page changed during ${inspection}. Run a fresh inspection.`)
+      }
+    }
+  }
+
   async inspectIndexedDb(options: BrowserIndexedDbOptions = {}): Promise<BrowserIndexedDbReport> {
     const tab = this.getTab(options.tabId)
     const pageUrl = new URL(tab.url)
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('IndexedDB inspection is available only for HTTP and HTTPS tabs.')
     }
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'IndexedDB inspection')
     const normalized = normalizeBrowserIndexedDbOptions(options)
     const result = await tab.webContents.executeJavaScriptInIsolatedWorld(
       INDEXED_DB_WORLD_ID,
       [{ code: indexedDbPageScript(normalized) }],
       false
     ) as Omit<BrowserIndexedDbReport, 'tabId' | 'url' | 'origin' | 'caveats'>
+    requireCurrentPage()
     return {
       tabId: tab.id,
       url: redactNetworkUrl(tab.url),
@@ -2308,15 +2323,18 @@ export class BrowserTabsManager {
       throw new Error('Storage usage inspection is available only for HTTP and HTTPS tabs.')
     }
 
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'storage usage inspection')
     try {
-      const raw = await this.withDebugger(tab.webContents, () =>
-        tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
+      const raw = await this.withDebugger(tab.webContents, () => {
+        requireCurrentPage()
+        return tab.webContents.debugger.sendCommand('Storage.getUsageAndQuota', { origin: pageUrl.origin }) as Promise<{
           usage?: number
           quota?: number
           overrideActive?: boolean
           usageBreakdown?: Array<{ storageType?: string; usage?: number }>
         }>
-      )
+      })
+      requireCurrentPage()
       return buildBrowserStorageUsageReport({
         tabId: tab.id,
         url: redactNetworkUrl(tab.url),
@@ -2325,6 +2343,7 @@ export class BrowserTabsManager {
         raw
       })
     } catch (error) {
+      requireCurrentPage()
       const estimate = await tab.webContents.executeJavaScriptInIsolatedWorld(
         STORAGE_USAGE_WORLD_ID,
         [{ code: `(() => navigator.storage?.estimate?.().then((value) => ({
@@ -2334,6 +2353,7 @@ export class BrowserTabsManager {
         })).catch(() => null) ?? Promise.resolve(null))()` }],
         false
       ).catch(() => null) as { usage?: number; quota?: number; usageDetails?: Record<string, number> } | null
+      requireCurrentPage()
       if (!estimate) throw error
       const reason = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)
       return buildBrowserStorageUsageReport({
@@ -2357,14 +2377,7 @@ export class BrowserTabsManager {
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
     }
-    const navigationGeneration = tab.navigationGeneration
-    const requireCurrentPage = (): void => {
-      if (this.tabs.get(tab.id) !== tab
-        || tab.webContents.isDestroyed()
-        || tab.navigationGeneration !== navigationGeneration) {
-        throw new Error('The page changed during offline app inspection. Run a fresh inspection.')
-      }
-    }
+    const requireCurrentPage = this.inspectionPageGuard(tab, 'offline app inspection')
     const normalized = normalizeBrowserPwaOptions(options)
     const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
       PWA_INSPECTOR_WORLD_ID,
