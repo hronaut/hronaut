@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.3] - 2026-09-29
+
 ### Fixed
 
 - Cancel pending Memory Saver sweeps when its settings change, so disabling it during a form-safety check cannot put a tab to sleep afterward.
