@@ -19,6 +19,8 @@ import McpStatusControls from './McpStatusControls.vue'
 import UpdateNotification from './UpdateNotification.vue'
 
 defineProps<{
+  interactionPending?: boolean
+  audioPending?: boolean
   commandPaletteOpen: boolean
   tabSearchOpen: boolean
   downloadsOpen: boolean
@@ -104,25 +106,31 @@ const { t } = useI18n({ useScope: 'global' })
     <UiButton appearance="application"
       class="topbar-icon-button browser-lock-button all-lock-button"
       :class="{ locked: allInteractionLocked }"
+      :aria-busy="Boolean(interactionPending)"
+      :disabled="interactionPending"
       type="button"
-      :title="allInteractionLockLabel"
-      :aria-label="allInteractionLockLabel"
+      :title="interactionPending ? t('runtime.locks.waiting') : allInteractionLockLabel"
+      :aria-label="interactionPending ? t('runtime.locks.waiting') + ': ' + (allInteractionLockLabel) : allInteractionLockLabel"
       :aria-pressed="allInteractionLocked"
       @click="emit('toggleAllInteraction')"
     >
-      <IconLock v-if="allInteractionLocked" aria-hidden="true" />
+      <IconProgress v-if="interactionPending" class="state-spinner" aria-hidden="true" />
+      <IconLock v-else-if="allInteractionLocked" aria-hidden="true" />
       <IconLockOpen v-else aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"
       class="topbar-icon-button all-tabs-audio-button"
       :class="{ active: allTabsMuted }"
+      :aria-busy="Boolean(audioPending)"
+      :disabled="audioPending"
       type="button"
-      :title="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
-      :aria-label="t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
+      :title="audioPending ? t('runtime.locks.waiting') : t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
+      :aria-label="audioPending ? t('runtime.locks.waiting') + ': ' + (t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')) : t(allTabsMuted ? 'shell.actions.unmuteAllTabs' : 'shell.actions.muteAllTabs')"
       :aria-pressed="allTabsMuted"
       @click="emit('toggleAllTabsMuted')"
     >
-      <IconVolumeOff v-if="allTabsMuted" aria-hidden="true" />
+      <IconProgress v-if="audioPending" class="state-spinner" aria-hidden="true" />
+      <IconVolumeOff v-else-if="allTabsMuted" aria-hidden="true" />
       <IconVolumeUp v-else aria-hidden="true" />
     </UiButton>
     <UiButton appearance="application"

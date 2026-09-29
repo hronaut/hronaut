@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { shallowRef, type Ref } from 'vue'
 import type {
   BrowserState,
   BrowserTabState,
@@ -35,6 +35,7 @@ export interface BrowserTabActionsControllerOptions {
 
 export function useBrowserTabActionsController(options: BrowserTabActionsControllerOptions) {
   const toggleOperations = new Map<string, Promise<void>>()
+  const pendingToggleKeys = shallowRef<ReadonlySet<string>>(new Set())
   const navigationTokens = new Map<string, symbol>()
   let disposed = false
 
@@ -45,8 +46,12 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
       if (!disposed) await action()
     })
     toggleOperations.set(key, operation)
+    pendingToggleKeys.value = new Set(toggleOperations.keys())
     return operation.finally(() => {
-      if (toggleOperations.get(key) === operation) toggleOperations.delete(key)
+      if (toggleOperations.get(key) === operation) {
+        toggleOperations.delete(key)
+        pendingToggleKeys.value = new Set(toggleOperations.keys())
+      }
     })
   }
 
@@ -180,9 +185,11 @@ export function useBrowserTabActionsController(options: BrowserTabActionsControl
     disposed = true
     navigationTokens.clear()
     toggleOperations.clear()
+    pendingToggleKeys.value = new Set()
   }
 
   return {
+    isTogglePending: (key: string) => pendingToggleKeys.value.has(key),
     reorderTab,
     selectBrowserTab,
     navigateAddress,

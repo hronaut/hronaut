@@ -889,7 +889,7 @@ export const frFR = {
       "copyFailed": "Échec de la copie",
       "clipboardFailed": "Le presse-papiers système n’a pas accepté le texte."
     },
-    "locks": { lockInput: "Verrouiller la saisie", unlockInput: "Déverrouiller la saisie", controls: "Commandes de l’onglet",
+    "locks": { waiting: "En attente…", lockInput: "Verrouiller la saisie", unlockInput: "Déverrouiller la saisie", controls: "Commandes de l’onglet",
       "websiteOnly": "Le verrouillage des onglets est disponible sur les sites",
       "allLocked": "La saisie humaine dans les pages est bloquée ; les contrôles Hronaut fiables et les agents continuent de fonctionner",
       "unlockTab": "Déverrouiller la saisie dans cet onglet",

@@ -647,3 +647,13 @@
   .interaction-lock-button.tab-mute-button { @apply [width:32px] [min-width:32px] justify-center [padding:0]; }
   .tab-mute-label { @apply hidden; }
 }
+
+.interaction-lock-button .state-spinner,
+.all-lock-button .state-spinner,
+.all-tabs-audio-button .state-spinner { @apply [animation:spin_.9s_linear_infinite]; }
+
+@media (prefers-reduced-motion: reduce) {
+  .interaction-lock-button .state-spinner,
+  .all-lock-button .state-spinner,
+  .all-tabs-audio-button .state-spinner { animation: none; }
+}

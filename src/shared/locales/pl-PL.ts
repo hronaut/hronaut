@@ -889,7 +889,7 @@ export const plPL = {
       "copyFailed": "Kopiowanie nie powiodło się",
       "clipboardFailed": "Schowek systemowy nie przyjął tekstu."
     },
-    "locks": { lockInput: "Zablokuj wprowadzanie", unlockInput: "Odblokuj wprowadzanie", controls: "Sterowanie kartą",
+    "locks": { waiting: "Oczekiwanie…", lockInput: "Zablokuj wprowadzanie", unlockInput: "Odblokuj wprowadzanie", controls: "Sterowanie kartą",
       "websiteOnly": "Blokada karty jest dostępna w witrynach",
       "allLocked": "Wprowadzanie danych przez człowieka na stronach jest zablokowane; zaufane elementy sterujące Hronaut i agenci nadal działają",
       "unlockTab": "Odblokuj wprowadzanie danych na tej karcie",

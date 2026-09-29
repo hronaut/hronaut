@@ -256,6 +256,7 @@ function createHarness(home = false) {
     openUpdateSettings: vi.fn()
   }
   const tabActions = {
+    isTogglePending: vi.fn(() => false),
     reorderTab: vi.fn(),
     selectBrowserTab: vi.fn(),
     showWorkspaceContextMenu: vi.fn(),

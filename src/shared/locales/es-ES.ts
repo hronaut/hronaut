@@ -889,7 +889,7 @@ export const esES = {
       "copyFailed": "No se pudo copiar",
       "clipboardFailed": "El portapapeles del sistema no aceptó el texto."
     },
-    "locks": { lockInput: "Bloquear entrada", unlockInput: "Desbloquear entrada", controls: "Controles de pestaña",
+    "locks": { waiting: "Esperando…", lockInput: "Bloquear entrada", unlockInput: "Desbloquear entrada", controls: "Controles de pestaña",
       "websiteOnly": "El bloqueo de pestaña está disponible en sitios web",
       "allLocked": "La entrada humana en las páginas está bloqueada; los controles de confianza de Hronaut y los agentes siguen funcionando",
       "unlockTab": "Desbloquear la entrada en esta pestaña",

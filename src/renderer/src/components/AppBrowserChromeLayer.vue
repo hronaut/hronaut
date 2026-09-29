@@ -151,6 +151,7 @@ const {
   openUpdateSettings
 } = props.siteController
 const {
+  isTogglePending,
   reorderTab,
   selectBrowserTab,
   showWorkspaceContextMenu,
@@ -251,6 +252,8 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :all-tabs-muted="allTabsMuted"
       :all-interaction-locked="state.allHumanInteractionLocked"
       :all-interaction-lock-label="allInteractionLockLabel"
+      :interaction-pending="isTogglePending('interaction')"
+      :audio-pending="isTogglePending('audio')"
       :follow-agent-activity="settings.followAgentActivity"
       :show-update-status="showUpdateStatusPill"
       :update-state="updateState"
@@ -333,6 +336,10 @@ defineExpose({ expandTabGroup, expandTabGroupForTab })
       :effective-human-interaction-locked="effectiveHumanInteractionLocked"
       :tab-human-interaction-locked="tabHumanInteractionLocked"
       :tab-interaction-lock-label="tabInteractionLockLabel"
+      :interaction-pending="isTogglePending('interaction')"
+      :audio-pending="isTogglePending('audio')"
+      :agent-pending="isTogglePending(`agents:${activeTab?.id}`)"
+      :lifecycle-pending="isTogglePending(`lifecycle:${activeTab?.id}`)"
       :area-capture-state="areaCaptureState"
       :area-capture-label="areaCaptureLabel"
       :element-picker-state="elementPickerState"

@@ -889,7 +889,7 @@ export const deDE = {
       "copyFailed": "Kopieren fehlgeschlagen",
       "clipboardFailed": "Die Systemzwischenablage hat den Text nicht angenommen."
     },
-    "locks": { lockInput: "Eingabe sperren", unlockInput: "Eingabe entsperren", controls: "Tab-Steuerung",
+    "locks": { waiting: "Warten…", lockInput: "Eingabe sperren", unlockInput: "Eingabe entsperren", controls: "Tab-Steuerung",
       "websiteOnly": "Tab-Sperre ist auf Websites verfügbar",
       "allLocked": "Menschliche Seiteneingabe ist blockiert; vertrauenswürdige Hronaut-Bedienelemente und Agenten arbeiten weiter",
       "unlockTab": "Seiteneingabe in diesem Tab entsperren",
