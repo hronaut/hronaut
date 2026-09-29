@@ -1111,6 +1111,7 @@ export class BrowserTabsManager {
   private memorySaverTimer: NodeJS.Timeout | null = null
   private initialized = false
   private readonly memorySaverSweeps = new MemorySaverSweepQueue()
+  private memorySaverSettingsGeneration = 0
   private memorySaverEnabled: boolean
   private memorySaverTimeoutMinutes: MemorySaverTimeoutMinutes
   private readonly mcpActivitiesByTab = new Map<string, Set<string>>()
@@ -2980,6 +2981,9 @@ export class BrowserTabsManager {
 
   setMemorySaverSettings(enabled: boolean, timeoutMinutes: MemorySaverTimeoutMinutes): void {
     if (!isMemorySaverTimeoutMinutes(timeoutMinutes)) throw new TypeError('Unsupported Memory Saver timeout')
+    if (this.memorySaverEnabled !== enabled || this.memorySaverTimeoutMinutes !== timeoutMinutes) {
+      this.memorySaverSettingsGeneration += 1
+    }
     this.memorySaverEnabled = enabled
     this.memorySaverTimeoutMinutes = timeoutMinutes
     if (!enabled) {
@@ -8369,9 +8373,9 @@ export class BrowserTabsManager {
     })()`, true).catch(() => undefined)
   }
 
-  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean): Promise<boolean> {
+  private async putTabToSleep(tab: BrowserTab, reportBlocked: boolean, isCurrent: () => boolean = () => true): Promise<boolean> {
     if (tab.wakePromise) await tab.wakePromise
-    if (tab.sleeping) return false
+    if (!isCurrent() || tab.sleeping) return false
     const blockReason = this.sleepBlockReason(tab)
     if (blockReason) {
       if (reportBlocked) throw new Error(blockReason)
@@ -8381,6 +8385,7 @@ export class BrowserTabsManager {
       if (reportBlocked) throw new Error('This tab has a partially filled form and stays active to protect unsaved input.')
       return false
     }
+    if (!isCurrent()) return false
     const latestBlockReason = this.sleepBlockReason(tab)
     if (latestBlockReason) {
       if (reportBlocked) throw new Error(latestBlockReason)
@@ -8453,10 +8458,13 @@ export class BrowserTabsManager {
 
   private async runMemorySaverSweep(force: boolean): Promise<void> {
     if (!this.memorySaverEnabled) return
+    const generation = this.memorySaverSettingsGeneration
+    const isCurrent = () => !this.destroyed && this.memorySaverEnabled && generation === this.memorySaverSettingsGeneration
     const cutoff = memorySaverCutoff(Date.now(), this.memorySaverTimeoutMinutes)
     for (const tab of this.tabs.values()) {
+      if (!isCurrent()) return
       if (tab.sleeping || (!force && tab.lastActiveAt > cutoff)) continue
-      await this.putTabToSleep(tab, false)
+      await this.putTabToSleep(tab, false, isCurrent)
     }
   }
 

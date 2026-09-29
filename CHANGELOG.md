@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Cancel pending Memory Saver sweeps when its settings change, so disabling it during a form-safety check cannot put a tab to sleep afterward.
+
 - Clean up temporary MCP token files when startup persistence fails, preserving owner-only permissions and allowing a clean retry.
 
 - Remove partial PDF, HAR, and video export files after a failed write, allowing retries to reuse the filename without overwriting existing files or deleting files that replaced a moved export.
