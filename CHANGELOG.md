@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.2] - 2026-09-29
+
 ### Fixed
 
 - Preserve long download filenames when saving duplicates by making room for the numbered suffix without splitting Unicode characters or overwriting existing files.
