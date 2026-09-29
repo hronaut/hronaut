@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep PDF and HAR export filenames within filesystem byte limits for long non-ASCII page titles, preserving whole Unicode characters and room for duplicate-file suffixes.
+
 - Keep an older Home copy failure from replacing shared feedback or selecting stale text after another copy action starts, and preserve selected text when status polling leaves its content unchanged.
 
 - Correct the browser-mute documentation to explain temporary per-tab exceptions and when saved mute preferences are restored.

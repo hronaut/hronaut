@@ -146,7 +146,7 @@ import { redactNetworkHeaders, redactNetworkUrl, sanitizeNetworkBody } from '../
 import { normalizePageUrlWaitPattern, pageUrlMatchesWait } from '../../shared/page-url-wait.js'
 import { deriveNetworkTiming } from '../../shared/network-timing.js'
 import { parseServerTimingHeaders, serializeServerTimingMetrics } from '../../shared/server-timing.js'
-import { isWindowsReservedFilename } from '../../shared/portable-filename.js'
+import { portableExportFilename } from '../../shared/portable-filename.js'
 import {
   buildSanitizedNetworkHar,
   filterNetworkRequests,
@@ -527,30 +527,7 @@ function headerValue(headers: Record<string, string | string[] | undefined> | un
 }
 
 function pdfFilename(requested: string | undefined, title: string): string {
-  if (requested !== undefined) {
-    const filename = requested.trim()
-    if (
-      !filename
-      || filename === '.'
-      || filename === '..'
-      || filename !== basename(filename)
-      || filename.includes('/')
-      || filename.includes('\\')
-      || filename.length > 180
-      || /[\u0000-\u001f<>:"|?*]/.test(filename)
-      || /[. ]$/.test(filename)
-      || isWindowsReservedFilename(filename)
-    ) throw new Error('PDF filename must be a portable file name without a directory path')
-    return filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`
-  }
-  const stem = title
-    .replace(/[\u0000-\u001f<>:"/\\|?*]/g, '-')
-    .replace(/\s+/g, ' ')
-    .replace(/[. ]+$/g, '')
-    .trim()
-    .slice(0, 160) || 'page'
-  const portableStem = isWindowsReservedFilename(stem) ? `page-${stem}` : stem
-  return `${portableStem}.pdf`
+  return portableExportFilename(requested, title, 'pdf')
 }
 
 type BrowserConsoleCaptureSource = 'electron' | 'runtime-console' | 'runtime' | 'log' | 'preload' | 'lifecycle'

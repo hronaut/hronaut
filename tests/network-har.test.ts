@@ -91,6 +91,13 @@ describe('sanitized network HAR', () => {
     }
   })
 
+  it('bounds generated Unicode filenames and rejects oversized requested names', () => {
+    const filename = networkHarFilename(undefined, '界'.repeat(150))
+    expect(Buffer.byteLength(filename)).toBeLessThanOrEqual(248)
+    expect(filename.endsWith('.sanitized.har')).toBe(true)
+    expect(() => networkHarFilename('界'.repeat(100), '')).toThrow('portable file name')
+  })
+
   it('exports standard request metadata without sensitive headers or cookie collections', () => {
     const har = buildSanitizedNetworkHar({
       appVersion: '2.6.0',
