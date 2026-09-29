@@ -2357,6 +2357,14 @@ export class BrowserTabsManager {
     if (pageUrl.protocol !== 'http:' && pageUrl.protocol !== 'https:') {
       throw new Error('Offline app inspection is available only for HTTP and HTTPS tabs.')
     }
+    const navigationGeneration = tab.navigationGeneration
+    const requireCurrentPage = (): void => {
+      if (this.tabs.get(tab.id) !== tab
+        || tab.webContents.isDestroyed()
+        || tab.navigationGeneration !== navigationGeneration) {
+        throw new Error('The page changed during offline app inspection. Run a fresh inspection.')
+      }
+    }
     const normalized = normalizeBrowserPwaOptions(options)
     const rawRegistrations = await tab.webContents.executeJavaScriptInIsolatedWorld(
       PWA_INSPECTOR_WORLD_ID,
@@ -2376,6 +2384,7 @@ export class BrowserTabsManager {
       }>
       truncated?: boolean
     }
+    requireCurrentPage()
     const worker = (value: { scriptUrl: string; state: string } | undefined) => value ? {
       scriptUrl: redactNetworkUrl(value.scriptUrl).slice(0, 4_096),
       state: redactDiagnosticText(value.state).slice(0, 64)
@@ -2419,8 +2428,10 @@ export class BrowserTabsManager {
 
     try {
       await this.withDebugger(tab.webContents, async () => {
+        requireCurrentPage()
         try {
           const manifestResult = await tab.webContents.debugger.sendCommand('Page.getAppManifest') as CdpAppManifestResult
+          requireCurrentPage()
           let installabilityErrors: CdpInstallabilityError[] = []
           try {
             const installabilityResult = await tab.webContents.debugger.sendCommand('Page.getInstallabilityErrors') as {
@@ -2433,17 +2444,20 @@ export class BrowserTabsManager {
               report.caveats.push(`Installability diagnostics were unavailable: ${redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 500)}`)
             }
           }
+          requireCurrentPage()
           report.manifest = sanitizePwaManifest(manifestResult, installabilityErrors)
         } catch (error) {
           report.manifestInspectionAvailable = false
           report.installabilityInspectionAvailable = false
           report.manifestInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
         }
+        requireCurrentPage()
         const cacheNames = await tab.webContents.debugger.sendCommand('CacheStorage.requestCacheNames', {
           securityOrigin: pageUrl.origin
         }) as {
           caches?: Array<{ cacheId: string; cacheName: string }>
         }
+        requireCurrentPage()
         const usableCaches = (cacheNames.caches ?? [])
           .filter((cache) => cache.cacheName.length <= PWA_INSPECTION_LIMITS.maxNameChars)
           .sort((left, right) => left.cacheName.localeCompare(right.cacheName))
@@ -2476,6 +2490,7 @@ export class BrowserTabsManager {
           }>
           returnCount?: number
         }
+        requireCurrentPage()
         const entries = (entriesResult.cacheDataEntries ?? []).map((entry) => ({
           requestUrl: redactNetworkUrl(entry.requestURL).slice(0, PWA_INSPECTION_LIMITS.maxUrlChars),
           requestMethod: redactDiagnosticText(entry.requestMethod).slice(0, 32),
@@ -2507,6 +2522,7 @@ export class BrowserTabsManager {
       report.cacheInspectionAvailable = false
       report.cacheInspectionError = redactDiagnosticText(error instanceof Error ? error.message : String(error)).slice(0, 1_000)
     }
+    requireCurrentPage()
     return report
   }
 

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Reject offline-app inspections when the tab navigates or closes during collection, preventing reports that mix different pages.
+
 - Mark Cache Storage listings as incomplete when oversized cache names are omitted, instead of reporting only the remaining caches as a complete list.
 
 - Redact Cache Storage header values using complete header names before display limits, and preserve prototype-named headers as ordinary diagnostic data.

@@ -238,3 +238,67 @@ test('inspects service workers and Cache Storage for people and grouped agents',
     await closeFixtureServer(server)
   }
 })
+
+for (const stage of ['registrations', 'cache names'] as const) {
+  test(`rejects offline inspection when navigation occurs during ${stage}`, async ({ electronApp, mcpPort, mcpToken }) => {
+    const server = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' })
+      response.end('<!doctype html><title>Offline navigation fixture</title><main>Ready</main>')
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    const client = await connectClient(mcpPort, mcpToken)
+    const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args }) as Promise<CallToolResult>
+    try {
+      const workspace = await call('browser_workspaces', { action: 'create', name: 'Offline navigation', storage: 'scratch' })
+      expect(workspace.isError, text(workspace)).not.toBe(true)
+      const workspaceId = (JSON.parse(text(workspace)) as { id: string }).id
+      const opened = await call('browser_new_tab', { workspaceId, url: `${origin}/before` })
+      expect(opened.isError, text(opened)).not.toBe(true)
+      const tabId = (JSON.parse(text(opened)) as { activeTabId: string }).activeTabId
+      await expect.poll(() => electronApp.evaluate(({ webContents }, origin) => webContents.getAllWebContents()
+        .some(page => page.getURL() === `${origin}/before` && !page.isLoading()), origin)).toBe(true)
+      await electronApp.evaluate(({ webContents }, { origin, stage }) => {
+        const page = webContents.getAllWebContents().find(page => page.getURL() === `${origin}/before`)!
+        const state = globalThis as typeof globalThis & { __pwaRestore?: () => void }
+        if (stage === 'registrations') {
+          const original = page.executeJavaScriptInIsolatedWorld
+          state.__pwaRestore = () => { page.executeJavaScriptInIsolatedWorld = original }
+          page.executeJavaScriptInIsolatedWorld = async function (...args) {
+            const result = await original.apply(this, args)
+            if (args[0] === 1008) {
+              state.__pwaRestore?.()
+              await page.loadURL(`${origin}/after`)
+            }
+            return result
+          }
+        } else {
+          const original = page.debugger.sendCommand
+          state.__pwaRestore = () => { page.debugger.sendCommand = original }
+          page.debugger.sendCommand = async function (...args) {
+            const result = await original.apply(this, args)
+            if (args[0] === 'CacheStorage.requestCacheNames') {
+              state.__pwaRestore?.()
+              await page.loadURL(`${origin}/after`)
+            }
+            return result
+          }
+        }
+      }, { origin, stage })
+      const stale = await call('browser_pwa', { workspaceId, tabId })
+      expect(stale.isError, text(stale)).toBe(true)
+      expect(text(stale)).toContain('The page changed during offline app inspection')
+      const fresh = await call('browser_pwa', { workspaceId, tabId })
+      expect(fresh.isError, text(fresh)).not.toBe(true)
+      expect(JSON.parse(text(fresh))).toMatchObject({ url: `${origin}/after`, origin })
+    } finally {
+      await electronApp.evaluate(() => {
+        const state = globalThis as typeof globalThis & { __pwaRestore?: () => void }
+        state.__pwaRestore?.()
+        delete state.__pwaRestore
+      })
+      await client.close()
+      await closeFixtureServer(server)
+    }
+  })
+}
