@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep keyboard focus moving between available modal controls when a fieldset or explicitly focusable button is disabled.
+
 - Show a waiting spinner while input-lock, mute, agent pause, or page lifecycle changes are queued or applying, and prevent duplicate clicks until they finish.
 
 - Do not restore an outdated window focus owner when an agent action finishes after the human has moved away from Hronaut.
