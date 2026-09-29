@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve regular-expression patterns and flags in IndexedDB previews, marking oversized patterns as truncated instead of displaying empty objects.
+
 - Keep keyboard focus moving between available modal controls when a fieldset or explicitly focusable button is disabled.
 
 - Show a waiting spinner while input-lock, mute, agent pause, or page lifecycle changes are queued or applying, and prevent duplicate clicks until they finish.

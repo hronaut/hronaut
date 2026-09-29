@@ -88,6 +88,9 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
       }
       seen.add(value);
       if (value instanceof Date) return Number.isNaN(value.getTime()) ? '[Invalid Date]' : value.toISOString();
+      if (value instanceof RegExp) return {
+        type: 'RegExp', source: normalize(value.source, depth + 1, seen, state), flags: value.flags
+      };
       if (value instanceof Blob) return { type: valueType(value), size: value.size, mimeType: boundedName(value.type) };
       if (value instanceof ArrayBuffer) return { type: 'ArrayBuffer', byteLength: value.byteLength };
       if (ArrayBuffer.isView(value)) {
