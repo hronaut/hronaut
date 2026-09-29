@@ -206,9 +206,13 @@ Browser CSV exports contain readable passwords. Delete the export after confirmi
 
 ## Prevent accidental human interaction
 
-Use **Tab** beside the address bar to lock the current tab, or **Hronaut** in the tab strip to lock every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
+Use **Lock input / Unlock input** beside the address bar to control the current tab, or the global lock icon in the tab strip to control every website tab. Both block human mouse, wheel, context-menu, and keyboard input inside websites. Trusted Hronaut controls remain usable, including the full-app unlock control and tab-close buttons, middle-click, context-menu actions, Delete, and `Ctrl/Cmd+W`. This lets you stop an unavailable page that an agent is repeatedly reloading without restoring page input. MCP inspection and interaction continue to work while human input is locked.
 
 While the Hronaut-wide input lock is on, use the current tab's lock button to temporarily allow human page input in that one tab. Other tabs remain locked. Turning the Hronaut-wide lock off and on again clears every temporary unlock. This exception is not saved across restarts and is unavailable in read-only public observer workspaces.
+
+The page controls are separate buttons: **Lock input / Unlock input** controls human page input, **Pause agents / Resume agents** controls agent access, **Live / Frozen** controls page execution, and **Mute / Unmute** controls audio. Global input lock, agent pause, and mute remain in the tab strip.
+
+A waiting spinner means a control change is queued or being applied. The affected button is temporarily disabled to prevent duplicate clicks; its accessible label includes **Waiting…**. Input-lock requests wait for an earlier lock change and any rollback to finish. If an input-lock request fails, Hronaut reports the error and makes the control available again; the spinner does not mean a failed request will be retried indefinitely.
 
 ## Right-click webpage actions
 
@@ -308,7 +312,7 @@ Press **Ctrl+H** on Linux/Windows, **Cmd+Y** on macOS, or use the history button
 
 ## Identify and mute tabs
 
-Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab, press **M** while the tab is focused, or use the tab context menu. The speaker button in the global topbar mutes every currently open website tab and changes to **Unmute all tabs** when all of them are muted. These controls do not change site-wide sound permissions. Agents can use `browser_audio` for a specific tab, and `browser_tabs` reports each tab's audible and muted state.
+Website tabs display their real favicon after Hronaut safely normalizes it into a local 32px PNG; remote favicon URLs are never loaded inside the trusted shell. When a tab emits audio, a speaker appears beside its title. Click it to mute or unmute only that tab, press **M** while the tab is focused, or use the tab context menu. The speaker button in the global topbar controls browser mute for existing and future website tabs. It shows **Unmute all tabs** while browser mute is enabled, including when a tab has been temporarily unmuted. Turning browser mute off restores each tab’s saved mute preference. These controls do not change site-wide sound permissions. Agents can use `browser_audio` for a specific tab, and `browser_tabs` reports each tab's audible and muted state.
 
 ## Recover a failed page
 
