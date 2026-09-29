@@ -378,6 +378,60 @@ describe('diagnostics controller', () => {
     }
   )
 
+  it.each([
+    ['coverage', 'success'], ['coverage', 'failure'], ['cpu', 'success'], ['cpu', 'failure']
+  ] as const)('keeps %s stop %s authoritative during a recording-state refresh', async (domain, outcome) => {
+    const pending = deferred<void>()
+    const { activeTab, browser, controller } = createController()
+    const coverage = domain === 'coverage'
+    const api = coverage ? browser.manageCodeCoverage : browser.manageCpuProfile
+    const manage = coverage ? controller.manageCodeCoverage : controller.manageCpuProfile
+    const panel = coverage ? controller.coveragePanelOpen : controller.cpuProfilePanelOpen
+    const state = coverage ? controller.coverageState : controller.cpuProfileState
+    const error = coverage ? controller.coverageError : controller.cpuProfileError
+    const result = coverage ? controller.coverageResult : controller.cpuProfileResult
+    const completed = { tabId: 'tab-1', url: tab().url, title: 'Example', action: 'stop' as const, status: 'complete' as const }
+    activeTab.value = {
+      ...tab(),
+      ...(coverage
+        ? { codeCoverageRecording: { startedAt: '2026-08-21T12:00:00Z', mode: 'function' as const } }
+        : { cpuProfileRecording: { startedAt: '2026-08-21T12:00:00Z' } })
+    }
+    await nextTick()
+    panel.value = true
+    result.value = { ...completed, status: 'recording' }
+    api.mockImplementationOnce(async () => {
+      await pending.promise
+      if (outcome === 'failure') throw new Error('Profiler stop failed')
+      return completed
+    })
+    api.mockResolvedValue({ ...completed, action: 'get', status: 'idle' })
+    try {
+      const stopping = manage('stop')
+      activeTab.value = tab()
+      await nextTick()
+      await nextTick()
+      expect(api).toHaveBeenCalledTimes(1)
+      expect(state.value).toBe('loading')
+      pending.resolve()
+      await stopping
+      if (outcome === 'failure') {
+        expect(state.value).toBe('error')
+        expect(error.value).toBe('Profiler stop failed')
+      } else {
+        expect(state.value).toBe('ready')
+        expect(result.value).toEqual(completed)
+      }
+      await manage('get')
+      expect(api).toHaveBeenCalledTimes(2)
+      expect(state.value).toBe('ready')
+      expect(result.value?.status).toBe('idle')
+    } finally {
+      pending.resolve()
+      controller.dispose()
+    }
+  })
+
   it('keeps a recorder stop authoritative while tab updates request a refresh', async () => {
     const pending = deferred<BrowserReproRecording>()
     const { activeTab, browser, controller } = createController()

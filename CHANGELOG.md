@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep CPU-profile and code-coverage Stop results and errors visible when a background recording-state refresh arrives before the action completes.
+
 - Report offline-app diagnostic truncation accurately at the service-worker registration limit and when installability error arguments are omitted.
 
 - Identify omitted repeated references in IndexedDB previews without incorrectly calling shared objects circular, and mark these previews as truncated.
