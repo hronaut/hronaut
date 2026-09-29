@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep truncated storage previews out of the editor to prevent accidental replacement of complete values with partial text; explain how to enter a complete replacement.
+
 - Allow reading, editing, and deleting valid empty or whitespace-only local/session storage keys through MCP and the Site storage editor.
 
 - Preserve complete Unicode characters and byte limits in storage-change baselines and comparison values, sharing the storage preview decoder.

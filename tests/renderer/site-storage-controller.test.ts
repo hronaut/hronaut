@@ -97,6 +97,15 @@ afterEach(() => {
 })
 
 describe('site-storage controller', () => {
+  it.each(['partial preview', undefined])('does not load a truncated value into the editor (%s)', value => {
+    const { controller } = createController()
+    controller.key.value = 'draft-key'
+    controller.value.value = 'complete draft'
+    controller.editItem({ key: 'large-value', value, valueBytes: 18_000, valueTruncated: true })
+    expect(controller.key.value).toBe('draft-key')
+    expect(controller.value.value).toBe('complete draft')
+  })
+
   it.each([
     { kind: 'local-storage' as const, key: '' },
     { kind: 'local-storage' as const, key: '   ' },

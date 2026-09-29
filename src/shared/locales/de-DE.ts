@@ -2712,6 +2712,7 @@ export const deDE = {
     "noKindDescription": "Diese Website hat in dieser Kategorie nichts gespeichert.",
     "noMatches": "Keine passenden Einträge",
     "protectedTitle": "HttpOnly-Cookie-Wert ist geschützt",
+    "partialValueTitle": "Dies ist nur eine Vorschau des Werts. Geben Sie zum Aktualisieren einen vollständigen Ersatz im Editor ein.",
     "editTitle": "Diesen Eintrag bearbeiten",
     "protectedValue": "HttpOnly-Wert geschützt",
     "emptyValue": "(leer)",

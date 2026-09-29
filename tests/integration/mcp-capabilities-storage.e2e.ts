@@ -116,11 +116,29 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   ]))
   expect(text(cookieStorage)).not.toContain('server-secret')
 
+  const largeEntry = await client.callTool({
+    name: 'browser_storage',
+    arguments: { tabId, kind: 'local-storage', action: 'set', key: 'preview-only', value: 'x'.repeat(18_000) }
+  }) as CallToolResult
+  expect(largeEntry.isError, text(largeEntry)).not.toBe(true)
   await openPageTool('Site storage for 127.0.0.1')
   const storagePanel = appWindow.getByRole('dialog', { name: /Site storage/ })
   await expect(storagePanel).toBeVisible()
   await expect(storagePanel).toContainText('hronaut-mcp-site-data')
   await expect(storagePanel).toContainText('Shared by origin in this workspace')
+  const partialEntry = storagePanel.getByRole('button', { name: /^preview-only / })
+  await expect(partialEntry).toBeDisabled()
+  await expect(partialEntry).toHaveAttribute('title', 'This value is only a preview. Enter a complete replacement in the editor to update it.')
+  await storagePanel.getByRole('textbox', { name: 'Storage key', exact: true }).fill('preview-only')
+  await storagePanel.getByRole('textbox', { name: 'Storage value', exact: true }).fill('complete replacement')
+  await storagePanel.getByRole('button', { name: 'Update', exact: true }).click()
+  await expect(partialEntry).toBeEnabled()
+  const replacement = await client.callTool({
+    name: 'browser_storage', arguments: { tabId, kind: 'local-storage', action: 'get', key: 'preview-only' }
+  }) as CallToolResult
+  expect(replacement.isError, text(replacement)).not.toBe(true)
+  expect(JSON.parse(text(replacement)).items).toEqual([expect.objectContaining({ key: 'preview-only', value: 'complete replacement' })])
+
   await storagePanel.getByRole('button', { name: 'Session', exact: true }).click()
   await expect(storagePanel).toContainText('first-tab-only')
 

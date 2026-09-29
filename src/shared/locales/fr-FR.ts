@@ -2712,6 +2712,7 @@ export const frFR = {
     "noKindDescription": "Ce site n’a rien stocké dans cette catégorie.",
     "noMatches": "Aucune entrée correspondante",
     "protectedTitle": "La valeur du cookie HttpOnly est protégée",
+    "partialValueTitle": "Cette valeur est un aperçu. Saisissez une valeur de remplacement complète dans l’éditeur pour la mettre à jour.",
     "editTitle": "Modifier cette entrée",
     "protectedValue": "Valeur HttpOnly protégée",
     "emptyValue": "(vide)",

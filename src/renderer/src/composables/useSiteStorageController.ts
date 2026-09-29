@@ -506,7 +506,7 @@ export function useSiteStorageController(options: SiteStorageControllerOptions) 
   }
 
   function editItem(item: BrowserStorageItem): void {
-    if (item.protected || state.value === 'saving') return
+    if (item.protected || item.valueTruncated || state.value === 'saving') return
     key.value = item.key
     value.value = item.value ?? ''
   }

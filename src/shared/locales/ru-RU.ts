@@ -2712,6 +2712,7 @@ export const ruRU = {
     "noKindDescription": "Этот сайт ничего не сохранил в данной категории.",
     "noMatches": "Нет подходящих записей",
     "protectedTitle": "Значение cookie HttpOnly защищено",
+    "partialValueTitle": "Это только предварительный просмотр значения. Чтобы обновить его, введите полное новое значение в редакторе.",
     "editTitle": "Изменить эту запись",
     "protectedValue": "Значение HttpOnly защищено",
     "emptyValue": "(пусто)",

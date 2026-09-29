@@ -2712,6 +2712,7 @@ export const esES = {
     "noKindDescription": "Este sitio no ha almacenado nada en esta categoría.",
     "noMatches": "No hay entradas coincidentes",
     "protectedTitle": "El valor de la cookie HttpOnly está protegido",
+    "partialValueTitle": "Este valor es solo una vista previa. Introduce un reemplazo completo en el editor para actualizarlo.",
     "editTitle": "Editar esta entrada",
     "protectedValue": "Valor HttpOnly protegido",
     "emptyValue": "(vacío)",

@@ -164,7 +164,7 @@ onBeforeUnmount(dispose)
           <div v-else-if="!filteredSiteStorageItems.length" class="site-storage-empty compact"><IconSearch aria-hidden="true" /><strong>{{ t('siteStorage.noMatches') }}</strong></div>
           <template v-else>
             <article v-for="(item, index) in filteredSiteStorageItems" :key="`${item.key}-${item.domain ?? ''}-${item.path ?? ''}-${index}`" class="site-storage-item" :class="{ protected: item.protected }">
-              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || siteStorageState === 'saving'" :title="item.protected ? t('siteStorage.protectedTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
+              <UiButton appearance="application" class="site-storage-item-main" type="button" :disabled="item.protected || item.valueTruncated || siteStorageState === 'saving'" :title="item.protected ? t('siteStorage.protectedTitle') : item.valueTruncated ? t('siteStorage.partialValueTitle') : t('siteStorage.editTitle')" @click="editSiteStorageItem(item)">
                   <strong>{{ item.key }}</strong>
                   <code>{{ item.protected ? t('siteStorage.protectedValue') : (item.value || t('siteStorage.emptyValue')) }}</code>
                   <small>{{ localBytes(item.valueBytes) }}<template v-if="item.domain"> · {{ item.domain }}{{ item.path }}</template><template v-if="item.valueTruncated"> {{ t('siteStorage.previewTruncated') }}</template></small>

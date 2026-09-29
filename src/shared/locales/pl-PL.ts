@@ -2712,6 +2712,7 @@ export const plPL = {
     "noKindDescription": "Ta witryna nie zapisała niczego w tej kategorii.",
     "noMatches": "Brak pasujących wpisów",
     "protectedTitle": "Wartość pliku cookie HttpOnly jest chroniona",
+    "partialValueTitle": "To tylko podgląd wartości. Aby ją zaktualizować, wpisz pełną nową wartość w edytorze.",
     "editTitle": "Edytuj ten wpis",
     "protectedValue": "Wartość HttpOnly jest chroniona",
     "emptyValue": "(puste)",
