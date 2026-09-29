@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_CONSOLE_STACK_FRAMES,
+  MAX_CONSOLE_EXCEPTION_CHARS,
   normalizeConsoleLogEntry,
   normalizeConsoleStack,
   normalizePageException,
@@ -9,6 +10,30 @@ import {
 } from '../src/shared/console-exceptions.js'
 
 describe('runtime exception normalization', () => {
+  it.each([
+    [{ type: 'string', value: 'checkout rejected' }, 'checkout rejected'],
+    [{ type: 'string', value: '' }, '""'],
+    [{ type: 'number', value: 0 }, '0'],
+    [{ type: 'boolean', value: false }, 'false'],
+    [{ type: 'object', subtype: 'null', value: null }, 'null'],
+    [{ type: 'undefined' }, 'undefined'],
+    [{ type: 'bigint', unserializableValue: '42n' }, '42n']
+  ] as const)('preserves a thrown primitive %j', (exception, expected) => {
+    expect(normalizeRuntimeException({ exceptionDetails: { text: 'Uncaught', exception } })?.message)
+      .toBe(`Uncaught: ${expected}`)
+  })
+
+  it('redacts and bounds primitive exception messages', () => {
+    const message = normalizeRuntimeException({ exceptionDetails: {
+      text: 'Uncaught (in promise)',
+      exception: { type: 'string', value: `failed token=synthetic-secret\n${'x'.repeat(5_000)}` }
+    } })?.message
+    expect(message).toHaveLength(MAX_CONSOLE_EXCEPTION_CHARS)
+    expect(message).toContain('Uncaught (in promise): failed token=[REDACTED] ')
+    expect(message).not.toContain('synthetic-secret')
+    expect(message).not.toContain('\n')
+  })
+
   it.each(['runtime', 'page'] as const)('redacts long %s source credentials before truncation', (source) => {
     const url = `https://user:synthetic-secret-${'x'.repeat(2_100)}@example.test/app.js?token=private`
     const safe = 'https://%5BREDACTED%5D:%5BREDACTED%5D@example.test/app.js?token=%5BREDACTED%5D'

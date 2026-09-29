@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve thrown primitive values in console exception diagnostics instead of reporting only “Uncaught”, while retaining redaction and message limits.
+
 - Serialize native tab and global input-lock changes through rollback so a failed request cannot undo a newer successful lock.
 
 - Preserve regular-expression patterns and flags in IndexedDB previews, marking oversized patterns as truncated instead of displaying empty objects.

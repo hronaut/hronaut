@@ -26,7 +26,7 @@ export interface CdpRuntimeExceptionDetails {
   columnNumber?: number
   url?: string
   stackTrace?: CdpRuntimeStackTrace
-  exception?: { description?: string }
+  exception?: CdpRuntimeRemoteObject
 }
 
 export interface CdpRuntimeRemoteObject {
@@ -122,7 +122,8 @@ export function normalizeConsoleStack(stack: CdpRuntimeStackTrace | undefined): 
 }
 
 function exceptionMessage(details: CdpRuntimeExceptionDetails): string {
-  const description = details.exception?.description?.split(/\r?\n/, 1)[0]
+  const value = details.exception ? runtimeConsoleArgument(details.exception) : undefined
+  const description = value === '' ? '""' : value
   const text = description || details.text || 'Unhandled JavaScript exception'
   const withContext = details.text && /^uncaught/i.test(details.text) && description && !/^uncaught/i.test(description)
     ? `${details.text.replace(/\s*$/, '')}: ${description}`
