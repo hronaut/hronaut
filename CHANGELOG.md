@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Patch vulnerable undici dependencies used by Electron downloads and native-build tooling, including preservation of custom connection policies.
+
 - Preserve storage-change truncation markers when the snapshot preview budget omits a value completely.
 
 ## [2.8.4] - 2026-09-29
