@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.4] - 2026-09-29
+
 ### Fixed
 
 - Read individual local/session storage keys directly instead of enumerating every entry on large sites.
