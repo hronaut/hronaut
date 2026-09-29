@@ -176,15 +176,15 @@ it.each([
   ['lifecyclePending', '.page-lifecycle-button', 'togglePageLifecycle']
 ])('shows waiting feedback for %s until the request settles', async (pending, selector, event) => {
   const view = renderActions()
-  await view.rerender({ [pending!]: true })
-  const button = view.container.querySelector(selector!) as HTMLButtonElement
+  await view.rerender({ [pending]: true })
+  const button = view.container.querySelector(selector) as HTMLButtonElement
   expect(button).toBeDisabled()
   expect(button).toHaveAttribute('aria-busy', 'true')
   expect(button.getAttribute('aria-label')).toContain('Waiting…')
   expect(button.querySelector('.state-spinner')).not.toBeNull()
   button.click()
-  expect(view.emitted()[event!]).toBeUndefined()
-  await view.rerender({ [pending!]: false })
+  expect(view.emitted()[event]).toBeUndefined()
+  await view.rerender({ [pending]: false })
   expect(button).toBeEnabled()
   expect(button).toHaveAttribute('aria-busy', 'false')
   expect(button.querySelector('.state-spinner')).toBeNull()
