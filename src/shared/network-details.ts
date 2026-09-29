@@ -33,7 +33,7 @@ function redactJsonValue(value: unknown, depth = 0): { value: unknown; redacted:
   }
   if (!value || typeof value !== 'object') return { value, redacted: false }
   let redacted = false
-  const next: Record<string, unknown> = {}
+  const next = Object.create(null) as Record<string, unknown>
   for (const [key, item] of Object.entries(value)) {
     if (isSensitiveName(key)) {
       next[key] = REDACTED_VALUE
@@ -60,7 +60,7 @@ function boundBody(text: string, originalChars: number, maxChars: number, redact
 export function redactNetworkHeaders(
   headers: Record<string, string | string[] | undefined> | undefined
 ): Record<string, string | string[]> {
-  const safe: Record<string, string | string[]> = {}
+  const safe = Object.create(null) as Record<string, string | string[]>
   for (const [name, value] of Object.entries(headers ?? {})) {
     if (value === undefined) continue
     safe[name] = isSensitiveName(name)

@@ -24,6 +24,28 @@ describe('network detail redaction', () => {
     })
   })
 
+  it('preserves prototype-named JSON fields while redacting their nested secrets', () => {
+    const body = '{"__proto__":{"visible":"kept","password":"fixture-secret"},"constructor":{"token":"fixture-token"},"nested":[{"__proto__":"literal"}]}'
+    const result = sanitizeNetworkBody(body, 'application/json', 10_000)
+    const parsed = JSON.parse(result.text)
+
+    expect(Object.hasOwn(parsed, '__proto__')).toBe(true)
+    expect(parsed).toEqual(JSON.parse(
+      '{"__proto__":{"visible":"kept","password":"[REDACTED]"},"constructor":{"token":"[REDACTED]"},"nested":[{"__proto__":"literal"}]}'
+    ))
+    expect(result.redacted).toBe(true)
+    expect(result.text).not.toContain('fixture-')
+  })
+
+  it.each([{ value: 'literal' }, { value: ['first', 'second'] }])('preserves prototype-named headers as own data properties (%j)', ({ value }) => {
+    const headers = redactNetworkHeaders({ ['__proto__']: value, Authorization: 'fixture-secret' })
+
+    expect(Object.hasOwn(headers, '__proto__')).toBe(true)
+    expect(headers.__proto__).toEqual(value)
+    expect(Object.getPrototypeOf(headers)).toBeNull()
+    expect(JSON.parse(JSON.stringify(headers))).toEqual({ ['__proto__']: value, Authorization: '[REDACTED]' })
+  })
+
   it('redacts nested JSON secrets and bounds the formatted output', () => {
     const result = sanitizeNetworkBody(JSON.stringify({
       ok: true,

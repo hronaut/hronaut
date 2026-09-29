@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve prototype-named JSON fields and headers in network diagnostics as ordinary data keys while retaining secret redaction.
+
 - Omit deeply nested JSON network bodies when they cannot be safely redacted, preventing raw secret fields from appearing after a sanitizer failure.
 
 - Show IndexedDB BigInt typed-array previews without dropping the enclosing record, and limit array conversion to the previewed elements.
