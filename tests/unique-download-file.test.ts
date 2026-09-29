@@ -70,6 +70,28 @@ describe('unique export file writer', () => {
     expect(await readdir(directory)).toEqual([])
   })
 
+  it('preserves a replacement file when the partial export was moved during a failed write', async () => {
+    const directory = await fixture()
+    const path = join(directory, 'page.pdf')
+    const moved = join(directory, 'moved-partial.pdf')
+    const failure = Object.assign(new Error('disk full'), { code: 'ENOSPC' })
+    vi.mocked(open).mockImplementationOnce(async (file, flags, mode) => {
+      const handle = await actualFs.open(file, flags, mode)
+      vi.spyOn(handle, 'writeFile').mockImplementationOnce(async () => {
+        await handle.write(Buffer.from('partial'))
+        await actualFs.rename(path, moved)
+        await writeFile(path, 'replacement contents')
+        throw failure
+      })
+      return handle
+    })
+
+    await expect(writeUniqueDownloadFile(directory, 'page.pdf', Buffer.from('export'))).rejects.toBe(failure)
+
+    expect(await readFile(path, 'utf8')).toBe('replacement contents')
+    expect(await readFile(moved, 'utf8')).toBe('partial')
+  })
+
   it('does not delete a destination when exclusive creation fails', async () => {
     const directory = await fixture()
     const path = join(directory, 'page.pdf')

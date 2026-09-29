@@ -6,7 +6,7 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
-- Remove partial PDF, HAR, and video export files after a failed write, allowing retries to reuse the filename without overwriting existing files.
+- Remove partial PDF, HAR, and video export files after a failed write, allowing retries to reuse the filename without overwriting existing files or deleting files that replaced a moved export.
 
 - Close the hidden video export window and release its timeout and abort listener if renderer setup fails.
 

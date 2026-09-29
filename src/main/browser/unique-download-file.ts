@@ -1,4 +1,5 @@
-import { mkdir, open, rm } from 'node:fs/promises'
+import type { BigIntStats } from 'node:fs'
+import { lstat, mkdir, open, rm } from 'node:fs/promises'
 import { extname, join } from 'node:path'
 
 /** Reserve a new export exclusively and remove its partial contents on failure. */
@@ -22,7 +23,9 @@ export async function writeUniqueDownloadFile(
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') continue
       throw error
     }
+    let ownedFile: BigIntStats | undefined
     try {
+      ownedFile = await handle.stat({ bigint: true })
       validate()
       await handle.writeFile(data)
       validate()
@@ -30,7 +33,12 @@ export async function writeUniqueDownloadFile(
       return candidate
     } catch (error) {
       await handle.close().catch(() => undefined)
-      await rm(candidate, { force: true }).catch(() => undefined)
+      // The user may have moved the partial export and reused its name while
+      // the write was pending. Never clean up an observed replacement file.
+      const currentFile = await lstat(candidate, { bigint: true }).catch(() => undefined)
+      if (ownedFile && currentFile && ownedFile.dev === currentFile.dev && ownedFile.ino === currentFile.ino) {
+        await rm(candidate, { force: true }).catch(() => undefined)
+      }
       throw error
     }
   }
