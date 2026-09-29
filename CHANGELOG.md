@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep Server-Timing diagnostics faithful to incomplete first parameters and preserve finite durations when rounding very large values.
+
 - Preserve the last successful license validation when the service returns malformed or incomplete data instead of incorrectly marking the license inactive.
 
 - Support arrow, Home, and End keys in the workspace color picker, with a single Tab stop and focus following the selected color.
