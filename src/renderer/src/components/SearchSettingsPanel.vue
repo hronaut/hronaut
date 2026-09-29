@@ -3,7 +3,7 @@ import UiButton from "../ui/UiButton.vue"
 import { useI18n } from 'vue-i18n'
 import IconCheck from '~icons/material-symbols/check-rounded'
 import IconInfo from '~icons/material-symbols/info-rounded'
-import { SEARCH_ENGINE_OPTIONS } from '../../../shared/search-engine.js'
+import { SEARCH_ENGINE_OPTIONS, isSearchEngineName } from '../../../shared/search-engine.js'
 import type { SearchSettingsController } from '../composables/useSearchSettingsController.js'
 
 const props = defineProps<{
@@ -12,6 +12,27 @@ const props = defineProps<{
 
 const { t } = useI18n({ useScope: 'global' })
 const { settings, busy, select } = props.controller
+
+function navigateEngine(event: KeyboardEvent): void {
+  const current = event.currentTarget
+  if (!(current instanceof HTMLButtonElement)) return
+  const radios = [...(current.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[data-engine]') ?? [])]
+  const index = radios.indexOf(current)
+  if (index < 0 || !radios.length) return
+  let targetIndex: number
+  if (event.key === 'ArrowRight' || event.key === 'ArrowDown') targetIndex = (index + 1) % radios.length
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') targetIndex = (index - 1 + radios.length) % radios.length
+  else if (event.key === 'Home') targetIndex = 0
+  else if (event.key === 'End') targetIndex = radios.length - 1
+  else return
+  event.preventDefault()
+  if (busy.value) return
+  const target = radios[targetIndex]
+  const engine = target?.dataset.engine
+  if (!target || !isSearchEngineName(engine)) return
+  target.focus()
+  void select(engine)
+}
 </script>
 
 <template>
@@ -29,9 +50,12 @@ const { settings, busy, select } = props.controller
         type="button"
         role="radio"
         :aria-checked="settings.searchEngine === engine.id"
-        :disabled="busy"
+        :aria-disabled="busy || undefined"
+        :tabindex="settings.searchEngine === engine.id ? 0 : -1"
+        :data-engine="engine.id"
         :data-testid="`search-engine-${engine.id}`"
         @click="select(engine.id)"
+        @keydown="navigateEngine"
       >
         <span class="search-engine-mark" aria-hidden="true">{{ engine.label.slice(0, 1) }}</span>
         <span class="search-engine-copy">

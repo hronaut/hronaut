@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Make the search-engine radio group navigable with arrow, Home, and End keys, with one Tab stop and stable focus while saving.
+
 - Release unused response streams when release-history requests fail, including rate limits that fall back to cached history.
 
 ## [2.8.3] - 2026-09-29
