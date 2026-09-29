@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, type ElectronApplication } from '@playwright/test'
 import { describe, expect, it, vi } from 'vitest'
-import { closeFixtureServer, closeHronaut, launchHronaut } from './integration/fixtures.js'
+import { closeFixtureServer, closeHronaut, collectRendererDiagnostics, launchHronaut } from './integration/fixtures.js'
 
 describe('integration fixture teardown', () => {
   it.each(['monitor', 'window', 'renderer'] as const)('closes a launched app when %s initialization fails', async (stage) => {
@@ -73,6 +73,33 @@ describe('integration fixture teardown', () => {
 
     expect(server.listening).toBe(false)
     client.destroy()
+  })
+
+  it('bounds failed-test diagnostics so an unresponsive main process cannot prevent teardown', async () => {
+    vi.useFakeTimers()
+    try {
+      const app = { evaluate: () => new Promise<never>(() => undefined) } as unknown as ElectronApplication
+      const diagnostics = collectRendererDiagnostics(app)
+      await vi.advanceTimersByTimeAsync(1_000)
+      await expect(diagnostics).resolves.toEqual({
+        unavailable: 'Main process did not respond to diagnostics within 1000ms'
+      })
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retains successful renderer diagnostics and clears the fallback timer', async () => {
+    vi.useFakeTimers()
+    try {
+      const result = { rendererExits: [], nativeContents: [] }
+      const app = { evaluate: async () => result } as unknown as ElectronApplication
+      await expect(collectRendererDiagnostics(app)).resolves.toEqual(result)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not let an unresponsive Electron evaluation block forced shutdown', async () => {

@@ -145,6 +145,33 @@ export async function launchHronaut(
   }
 }
 
+export async function collectRendererDiagnostics(app: ElectronApplication): Promise<unknown> {
+  const pending = app.evaluate(({ webContents }) => {
+    const scope = globalThis as typeof globalThis & {
+      __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
+    }
+    const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
+      try {
+        const url = contents.getURL()
+        return {
+          id: contents.id,
+          type: contents.getType(),
+          surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
+          loading: contents.isLoadingMainFrame(),
+          crashed: contents.isCrashed(),
+          processId: contents.getOSProcessId()
+        }
+      } catch {
+        return { id: contents.id, unavailable: true }
+      }
+    })
+    return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
+  }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
+  let diagnostics: unknown = { unavailable: 'Main process did not respond to diagnostics within 1000ms' }
+  await settleWithin(pending.then(result => { diagnostics = result }), 1_000)
+  return diagnostics
+}
+
 export async function closeHronaut(app: ElectronApplication): Promise<void> {
   await applicationTraces.get(app)?.stop(app)
   applicationTraces.delete(app)
@@ -247,27 +274,7 @@ export const test = base.extend<HronautFixtures, { workerDisplay: void }>({
     } finally {
       try {
         if (testInfo.status !== testInfo.expectedStatus) {
-          const diagnostics = await instance.app.evaluate(({ webContents }) => {
-            const scope = globalThis as typeof globalThis & {
-              __hronautQaRendererExits?: { exits: { reason: string; exitCode: number; webContentsId: number; type: string }[] }
-            }
-            const nativeContents = webContents.getAllWebContents().slice(0, 32).map(contents => {
-              try {
-                const url = contents.getURL()
-                return {
-                  id: contents.id,
-                  type: contents.getType(),
-                  surface: url.startsWith('hronaut://home') ? 'home' : url.startsWith('file:') ? 'app' : !url || url === 'about:blank' ? 'blank' : 'page',
-                  loading: contents.isLoadingMainFrame(),
-                  crashed: contents.isCrashed(),
-                  processId: contents.getOSProcessId()
-                }
-              } catch {
-                return { id: contents.id, unavailable: true }
-              }
-            })
-            return { rendererExits: scope.__hronautQaRendererExits?.exits ?? [], nativeContents }
-          }).catch(() => ({ unavailable: 'Main process closed before diagnostics could be collected' }))
+          const diagnostics = await collectRendererDiagnostics(instance.app)
           await testInfo.attach('renderer-exits', { body: JSON.stringify(diagnostics), contentType: 'application/json' })
         }
       } finally {
