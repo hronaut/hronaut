@@ -256,7 +256,13 @@ export class BrowserDownloadsController {
     const extension = extname(safeFilename)
     const stem = safeFilename.slice(0, safeFilename.length - extension.length)
     for (let index = 1; index <= 9_999; index += 1) {
-      const candidate = join(directory, `${stem} (${index})${extension}`)
+      const suffix = ` (${index})${extension}`
+      const characters = Array.from(stem)
+      // Chromium's suggested name may already use the full filesystem limit.
+      // Make room for the collision suffix without splitting a Unicode character.
+      while (characters.length && Buffer.byteLength(characters.join('') + suffix) > 255) characters.pop()
+      if (Buffer.byteLength(characters.join('') + suffix) > 255) break
+      const candidate = join(directory, characters.join('') + suffix)
       if (existsSync(candidate) || this.reservedDownloadPaths.has(candidate)) continue
       this.reservedDownloadPaths.add(candidate)
       return candidate
