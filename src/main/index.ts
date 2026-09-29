@@ -505,7 +505,9 @@ function showWindow(): void {
 
 function showWindowInactive(): void {
   if (!mainWindow) return
-  mainWindow.showInactive()
+  // showInactive can raise an already visible window above another app.
+  // Agent requests ensure visibility without changing the current stacking.
+  if (!mainWindow.isVisible() || mainWindow.isMinimized()) mainWindow.showInactive()
   if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.isVisible()) panelWindow.showInactive()
 }
 

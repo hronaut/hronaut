@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep background tab replacement and page popups from requesting keyboard focus, and avoid raising an already visible window when an agent asks to show Hronaut.
+
 - Read only the bounded set of object property values needed for IndexedDB previews, avoiding full-record entry allocation for large objects.
 
 - Omit oversized IndexedDB field names with an explicit truncation marker instead of shortening them and overwriting another field in the preview.

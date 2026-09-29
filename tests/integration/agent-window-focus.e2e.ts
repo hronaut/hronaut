@@ -5,7 +5,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
-for (const eventKind of ['focus', 'navigation', 'show', 'capture'] as const) {
+for (const eventKind of ['focus', 'navigation', 'show', 'capture', 'close', 'popup'] as const) {
   test(`preserves native focus during agent ${eventKind}`, async ({ appWindow, electronApp, mcpPort, mcpToken }) => {
     const fixture = createServer((request, response) => {
       response.writeHead(200, { 'content-type': 'text/html' })
@@ -28,7 +28,11 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture'] as const) {
       const created = await call('browser_workspaces', { action: 'create', name: 'Delayed focus', storage: 'scratch' })
       expect(created.isError).not.toBe(true)
       const { id: workspaceId } = JSON.parse(created.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as { id: string }
-      expect((await call('browser_new_tab', { workspaceId, url: origin })).isError).not.toBe(true)
+      const opened = await call('browser_new_tab', { workspaceId, url: origin })
+      expect(opened.isError).not.toBe(true)
+      const openedState = JSON.parse(opened.content.filter(part => part.type === 'text').map(part => part.text).join('\n')) as { tabs: Array<{ id: string; url: string }> }
+      const targetTabId = openedState.tabs.find(tab => tab.url.startsWith(origin))?.id
+      if (!targetTabId) throw new Error('Missing focus fixture tab')
       let backgroundTabId: string | undefined
       if (eventKind === 'capture') {
         await appWindow.evaluate('window.hronautSettings.setFollowAgentActivity(false)')
@@ -40,6 +44,11 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture'] as const) {
         expect((await call('browser_evaluate', { workspaceId, tabId: backgroundTabId,
           script: "window.__captureIdentity = 'unchanged'; document.querySelector('input').value = 'unsaved'; scrollTo(0, 400); 'ready'"
         })).isError).not.toBe(true)
+      }
+      // Ensure close/popups exercise the currently presented tab, regardless
+      // of the default follow-agent setting.
+      if (eventKind === 'close' || eventKind === 'popup') {
+        await appWindow.evaluate(`window.hronaut.selectTab(${JSON.stringify(targetTabId)})`)
       }
       humanWindowId = await electronApp.evaluate(async ({ BrowserWindow }, fullscreen) => {
         const human = new BrowserWindow({ width: 320, height: 200, show: false, fullscreen })
@@ -69,10 +78,28 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture'] as const) {
         state.__qaOnWindow = () => { state.__qaWindowCount! += 1 }
         app.on('browser-window-created', state.__qaOnWindow)
       })
-      const result = eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
+      await electronApp.evaluate(({ BrowserWindow }, humanId) => {
+        const main = BrowserWindow.getAllWindows().find(window => window.id !== humanId)
+        if (!main) throw new Error('Missing main window')
+        const state = globalThis as typeof globalThis & { __qaFocusRequests?: number; __qaRaiseRequests?: number; __qaRestoreFocusSpies?: () => void }
+        state.__qaFocusRequests = 0
+        state.__qaRaiseRequests = 0
+        const prototype = Object.getPrototypeOf(main.webContents) as Electron.WebContents
+        const focus = prototype.focus
+        const showInactive = main.showInactive
+        prototype.focus = function () { state.__qaFocusRequests! += 1; return focus.call(this) }
+        main.showInactive = function () { state.__qaRaiseRequests! += 1; return showInactive.call(this) }
+        state.__qaRestoreFocusSpies = () => { prototype.focus = focus; main.showInactive = showInactive }
+      }, humanId)
+      const result = eventKind === 'close' ? await call('browser_close_tab', { workspaceId, tabId: targetTabId }) : eventKind === 'popup' ? await call('browser_evaluate', { workspaceId, script: "window.open('/popup'); 'opened'" }) : eventKind === 'capture' ? await call('browser_screenshot', { workspaceId, tabId: backgroundTabId }) : eventKind === 'show' ? await call('browser_show', { workspaceId }) : await call('browser_evaluate', { workspaceId, script: eventKind === 'focus'
         ? "setTimeout(() => { window.focus(); document.body.dataset.focusAttempted = 'yes'; }, 250); 'scheduled'"
         : "setTimeout(() => { location.href = '/landed'; }, 250); 'scheduled'" })
       expect(result.isError, JSON.stringify(result.content.filter(part => part.type === 'text'))).not.toBe(true)
+      if (eventKind === 'popup') await expect.poll(() => electronApp.evaluate(({ webContents }, url) =>
+        webContents.getAllWebContents().some(contents => contents.getURL() === url), `${origin}/popup`)).toBe(true)
+      expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaFocusRequests?: number }).__qaFocusRequests)).toBe(0)
+      if (eventKind === 'show') expect(await electronApp.evaluate(() =>
+        (globalThis as typeof globalThis & { __qaRaiseRequests?: number }).__qaRaiseRequests)).toBe(0)
       if (eventKind === 'capture') {
         expect(await electronApp.evaluate(() => (globalThis as typeof globalThis & { __qaWindowCount?: number }).__qaWindowCount)).toBe(0)
         const image = result.content.find(part => part.type === 'image')
@@ -99,7 +126,9 @@ for (const eventKind of ['focus', 'navigation', 'show', 'capture'] as const) {
     } finally {
       await client.close()
       await electronApp.evaluate(({ app }) => {
-        const state = globalThis as typeof globalThis & { __qaOnWindow?: () => void }
+        const state = globalThis as typeof globalThis & { __qaOnWindow?: () => void; __qaRestoreFocusSpies?: () => void }
+        state.__qaRestoreFocusSpies?.()
+        delete state.__qaRestoreFocusSpies
         if (state.__qaOnWindow) app.removeListener('browser-window-created', state.__qaOnWindow)
         delete state.__qaOnWindow
       })

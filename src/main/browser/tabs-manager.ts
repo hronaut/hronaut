@@ -8718,6 +8718,9 @@ export class BrowserTabsManager {
   }
 
   private focusTabOrTrustedChrome(tab: BrowserTab): void {
+    // Tab creation, replacement and renderer recovery also run in the
+    // background. Only transfer keyboard focus inside an already active shell.
+    if (this.window.isDestroyed() || !this.window.isFocused()) return
     if (this.isHumanInteractionLocked(tab) && !this.agentInputWebContents.has(tab.webContents.id)) {
       this.window.webContents.focus()
       return
