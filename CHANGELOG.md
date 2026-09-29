@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Report complete single-key storage lookups accurately even when the site has more than 200 entries; retain truncation flags for capped lists and values.
+
 - Keep truncated storage previews out of the editor to prevent accidental replacement of complete values with partial text; explain how to enter a complete replacement.
 
 - Allow reading, editing, and deleting valid empty or whitespace-only local/session storage keys through MCP and the Site storage editor.

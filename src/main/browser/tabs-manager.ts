@@ -1,5 +1,5 @@
 import { utf8Prefix } from '../../shared/utf8.js'
-import { boundStorageItems, MAX_STORAGE_ITEMS } from './storage-items.js'
+import { boundStorageItems } from './storage-items.js'
 import { BrowserVideoRecorder } from './video-recorder.js'
 import { captureStableVideoImage } from './video-capture.js'
 import { renderBrowserVideo } from './video-export.js'
@@ -2264,7 +2264,7 @@ export class BrowserTabsManager {
       itemCount: raw.itemCount,
       items: bounded.items,
       changed: ['set', 'delete', 'clear'].includes(action) ? raw.changed : undefined,
-      truncated: raw.itemCount > MAX_STORAGE_ITEMS || bounded.truncated || undefined,
+      truncated: bounded.truncated || undefined,
       note: options.kind === 'session-storage'
         ? 'Session storage belongs to this tab. Local storage and cookies are shared by origin only inside this workspace.'
         : 'This storage belongs to the current workspace, so changes are visible to its tabs on this origin but isolated from other workspaces.'
@@ -2839,7 +2839,7 @@ export class BrowserTabsManager {
       itemCount: next.length,
       items: bounded.items,
       changed,
-      truncated: next.length > MAX_STORAGE_ITEMS || bounded.truncated || undefined,
+      truncated: bounded.truncated || undefined,
       note: 'HttpOnly cookie values are protected. Non-HttpOnly cookies and local storage are shared by origin only inside this workspace.'
     }
   }

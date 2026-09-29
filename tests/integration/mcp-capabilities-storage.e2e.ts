@@ -262,3 +262,45 @@ test('isolates storage and manages site data, history and bookmarks', async ({ c
   }) as CallToolResult
   expect(JSON.parse(text(removedBookmarks))).toEqual([])
 })
+
+for (const kind of ['local-storage', 'session-storage'] as const) {
+  test(`reports single-key completeness independently of the ${kind} listing limit`, async ({ capabilities }) => {
+    const { client, tabId } = capabilities
+    const storageName = kind === 'local-storage' ? 'localStorage' : 'sessionStorage'
+    const seeded = await client.callTool({
+      name: 'browser_evaluate',
+      arguments: {
+        tabId,
+        script: `(() => {
+          const storage = window[${JSON.stringify(storageName)}];
+          storage.clear();
+          for (let i = 0; i < 201; i++) storage.setItem('key-' + i, 'complete');
+          storage.setItem('large', 'x'.repeat(18000));
+          return true;
+        })()`
+      }
+    }) as CallToolResult
+    expect(seeded.isError, text(seeded)).not.toBe(true)
+    const call = async (args: Record<string, unknown>) => {
+      const response = await client.callTool({ name: 'browser_storage', arguments: { tabId, kind, ...args } }) as CallToolResult
+      expect(response.isError, text(response)).not.toBe(true)
+      return JSON.parse(text(response)) as {
+        itemCount: number; truncated?: boolean; items: Array<{ key: string; value?: string; valueTruncated?: boolean }>
+      }
+    }
+    const list = await call({ action: 'list' })
+    expect(list).toMatchObject({ itemCount: 202, truncated: true })
+    expect(list.items).toHaveLength(200)
+    const single = await call({ action: 'get', key: 'key-200' })
+    expect(single.itemCount).toBe(202)
+    expect(single.items).toEqual([expect.objectContaining({ key: 'key-200', value: 'complete' })])
+    expect(single.truncated).toBeUndefined()
+    const missing = await call({ action: 'get', key: 'missing' })
+    expect(missing.items).toEqual([])
+    expect(missing.truncated).toBeUndefined()
+    const large = await call({ action: 'get', key: 'large' })
+    expect(large.truncated).toBe(true)
+    expect(large.items[0]?.valueTruncated).toBe(true)
+    expect(large.items[0]?.value).toHaveLength(16_384)
+  })
+}
