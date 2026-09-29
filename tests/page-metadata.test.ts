@@ -50,6 +50,33 @@ describe('page metadata', () => {
     expect(images.every((image: { alt: string | null }) => image.alt === null)).toBe(true)
   })
 
+  it('reports repeated JSON-LD types independently for each block', () => {
+    document.head.innerHTML = [
+      { '@type': 'Organization' },
+      { '@graph': [{ '@type': 'Organization' }, { '@type': ['Organization', 'WebSite'] }] }
+    ].map((value) => `<script type="application/ld+json">${JSON.stringify(value)}</script>`).join('')
+    const result = globalThis.eval(pageMetadataScript()).structuredData
+    expect(result.types).toEqual(['Organization', 'WebSite'])
+    expect(result.blocks).toEqual([
+      { index: 0, valid: true, types: ['Organization'] },
+      { index: 1, valid: true, types: ['Organization', 'WebSite'] }
+    ])
+  })
+
+  it('keeps block types independent of the capped page-wide type summary', () => {
+    const types = Array.from({ length: PAGE_METADATA_LIMITS.maxStructuredDataTypes }, (_, i) => `Type${i}`)
+    document.head.innerHTML = [
+      { '@type': types },
+      { '@type': ['Type0', 'LaterType'] }
+    ].map((value) => `<script type="application/ld+json">${JSON.stringify(value)}</script>`).join('')
+    const result = globalThis.eval(pageMetadataScript()).structuredData
+    expect(result.types).toEqual(types)
+    expect(result.blocks).toEqual([
+      { index: 0, valid: true, types },
+      { index: 1, valid: true, types: ['Type0', 'LaterType'] }
+    ])
+  })
+
   it('uses explicit bounded collections for search, social, and structured-data metadata', () => {
     expect(PAGE_METADATA_LIMITS).toMatchObject({
       maxCanonicalUrls: 5,

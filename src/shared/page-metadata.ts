@@ -124,32 +124,35 @@ export function pageMetadataScript(): string {
     const structuredDataBlocks = [];
     const structuredDataTypes = new Set();
     let structuredNodesVisited = 0;
-    const collectTypes = (value) => {
+    const collectTypes = (value, blockTypes) => {
       if (structuredNodesVisited >= limits.maxStructuredDataNodes || value == null) return;
       structuredNodesVisited += 1;
       if (Array.isArray(value)) {
-        for (const item of value) collectTypes(item);
+        for (const item of value) collectTypes(item, blockTypes);
         return;
       }
       if (typeof value !== 'object') return;
       const declared = value['@type'];
       for (const type of Array.isArray(declared) ? declared : declared == null ? [] : [declared]) {
-        if (structuredDataTypes.size >= limits.maxStructuredDataTypes) break;
+        if (blockTypes.size >= limits.maxStructuredDataTypes) break;
         const normalized = bounded(type, 128);
-        if (normalized) structuredDataTypes.add(normalized);
+        if (normalized) {
+          blockTypes.add(normalized);
+          if (structuredDataTypes.size < limits.maxStructuredDataTypes) structuredDataTypes.add(normalized);
+        }
       }
-      for (const child of Object.values(value)) collectTypes(child);
+      for (const child of Object.values(value)) collectTypes(child, blockTypes);
     };
     const jsonLdScripts = Array.from(document.querySelectorAll('script[type="application/ld+json" i]'));
     for (const [index, script] of jsonLdScripts.slice(0, limits.maxStructuredDataBlocks).entries()) {
       try {
         const parsed = JSON.parse(script.text || '');
-        const before = new Set(structuredDataTypes);
-        collectTypes(parsed);
+        const blockTypes = new Set();
+        collectTypes(parsed, blockTypes);
         structuredDataBlocks.push({
           index,
           valid: true,
-          types: Array.from(structuredDataTypes).filter((type) => !before.has(type)).slice(0, limits.maxStructuredDataTypes)
+          types: Array.from(blockTypes)
         });
       } catch (error) {
         structuredDataBlocks.push({
