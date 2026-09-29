@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Preserve prototype-named fields in IndexedDB record previews instead of silently omitting them.
+
 - Report JSON-LD types independently for each metadata block, including types already present in other blocks or a full page summary.
 
 - Associate Open Graph image dimensions and alt text with the correct image when pages declare multiple images with optional metadata.
