@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Omit oversized IndexedDB field names with an explicit truncation marker instead of shortening them and overwriting another field in the preview.
+
 - Distinguish NaN and positive/negative infinity from null in IndexedDB record previews, including nested arrays and floating-point typed arrays.
 
 - Preserve complete empty storage values when diagnostic preview budgets are exhausted, instead of omitting them or marking them truncated.

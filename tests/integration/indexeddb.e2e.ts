@@ -68,6 +68,13 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
           events.add(NaN);
           events.add(Infinity);
           events.add(-Infinity);
+          const fieldPrefix = 'x'.repeat(512);
+          events.add({
+            [fieldPrefix]: 'retained',
+            [fieldPrefix + 'suffix']: 'wrong field',
+            nested: { ['y'.repeat(513)]: 'omitted' },
+            normal: 'visible'
+          });
           transaction.oncomplete = () => {
             document.querySelector('h1').textContent = 'IndexedDB ready';
             database.close();
@@ -118,7 +125,7 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       selectedDatabase: { objectStores: Array<{ name: string; entryCount: number; indexes: Array<{ name: string }> }> }
     }
     expect(schema.selectedDatabase.objectStores).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'events', entryCount: 10 }),
+      expect.objectContaining({ name: 'events', entryCount: 11 }),
       expect.objectContaining({ name: 'settings', entryCount: 3, indexes: [expect.objectContaining({ name: 'by-category' })] })
     ]))
 
@@ -213,6 +220,20 @@ test('inspects bounded IndexedDB schema and records for people and grouped agent
       '[NaN]', '[Infinity]', '[-Infinity]'
     ])
     expect(numbers.entries.every((entry) => !entry.valueTruncated)).toBe(true)
+
+    const longFieldsResult = await client.callTool({
+      name: 'browser_indexeddb',
+      arguments: { workspaceId, tabId, database: 'app-cache', objectStore: 'events', offset: 10, limit: 1, includeValues: true }
+    }) as CallToolResult
+    expect(longFieldsResult.isError, text(longFieldsResult)).not.toBe(true)
+    const longFields = JSON.parse(text(longFieldsResult)) as {
+      entries: Array<{ valuePreview: string; valueTruncated?: boolean }>
+    }
+    expect(longFields.entries).toHaveLength(1)
+    expect(JSON.parse(longFields.entries[0]!.valuePreview)).toEqual({
+      ['x'.repeat(512)]: 'retained', nested: {}, normal: 'visible'
+    })
+    expect(longFields.entries[0]!.valueTruncated).toBe(true)
 
     await appWindow.getByRole('button', { name: 'Page tools' }).click()
     const pageTools = appWindow.getByRole('dialog', { name: 'Page tools' })

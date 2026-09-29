@@ -119,7 +119,13 @@ export function indexedDbPageScript(options: NormalizedBrowserIndexedDbOptions):
       const output = Object.create(null);
       const entries = Object.entries(value).slice(0, limits.maxCollectionItems);
       if (Object.keys(value).length > entries.length) state.truncated = true;
-      for (const [key, item] of entries) output[boundedName(key)] = normalize(item, depth + 1, seen, state);
+      for (const [key, item] of entries) {
+        if (key.length > limits.maxNameChars) {
+          state.truncated = true;
+          continue;
+        }
+        output[key] = normalize(item, depth + 1, seen, state);
+      }
       return output;
     };
     const preview = (value, maxBytes) => {
