@@ -15,9 +15,9 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     assertCurrent()
     return result
   }
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
-  window.webContents.on('will-navigate', event => event.preventDefault())
   try {
+    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    window.webContents.on('will-navigate', event => event.preventDefault())
     assertCurrent()
     if (process.env.ELECTRON_RENDERER_URL) {
       await window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-export.html`)
