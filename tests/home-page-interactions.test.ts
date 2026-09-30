@@ -545,6 +545,51 @@ describe('Home workspace hub', () => {
     expect(document.querySelector('#workspace-notice')?.textContent).toBe('“Research <safe>” cleared.')
   })
 
+  it.each([
+    ['hiddenFromSidebar', false, false], ['hiddenFromSidebar', true, false],
+    ['deletionProtected', false, false], ['deletionProtected', true, false],
+    ['hiddenFromSidebar', false, true], ['hiddenFromSidebar', true, true],
+    ['deletionProtected', false, true], ['deletionProtected', true, true]
+  ] as const)('restores %s=%s after a rejected preference change (archived=%s)', async (preference, stored, archived) => {
+    let reject!: (error: Error) => void
+    const action = vi.fn().mockImplementation(() => new Promise((_, fail) => { reject = fail }))
+    const group = { ...workspace, [preference]: stored, savedAt: workspace.lastUsedAt, tabs: [] }
+    const current = { ...inventory, mcpTabGroups: archived ? [] : [group], savedTabGroups: archived ? [group] : [] }
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(current), workspaceAction: action })
+    await settle()
+    if (archived) button('#workspaces-archived').click()
+    const card = document.querySelector<HTMLElement>('.home-workspace-card')!
+    const details = card.querySelector('details')!
+    details.open = true
+    const selector = `[data-workspace-preference="${preference}"]`
+    const input = card.querySelector<HTMLInputElement>(selector)!
+    input.checked = !stored
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    expect(action).toHaveBeenCalledWith({ view: 'preferences', workspaceId: workspace.id, [preference]: !stored })
+    expect(input.disabled).toBe(true)
+    reject(new Error('Preference write failed'))
+    await settle()
+    expect(document.querySelector('#workspace-error')?.textContent).toBe('Preference write failed')
+    expect(card.querySelector(selector)).toBe(input)
+    expect(input.checked).toBe(stored)
+    expect(input.disabled).toBe(false)
+    expect(details.open).toBe(true)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(input.checked).toBe(stored)
+  })
+
+  it('reconciles a preference save that returns unchanged workspace state', async () => {
+    mount({ getWorkspaces: vi.fn().mockResolvedValue(inventory), workspaceAction: vi.fn().mockResolvedValue(inventory) })
+    await settle()
+    const input = document.querySelector<HTMLInputElement>('[data-workspace-preference="deletionProtected"]')!
+    input.checked = true
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    await settle()
+    expect(input.checked).toBe(false)
+    expect(input.disabled).toBe(false)
+    expect(document.querySelector('#workspace-error')?.textContent).toBe('')
+  })
+
   it('does not let an older inventory read undo a completed preference change', async () => {
     let finishRead!: (value: unknown) => void
     const getWorkspaces = vi.fn().mockResolvedValueOnce(inventory).mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve }))

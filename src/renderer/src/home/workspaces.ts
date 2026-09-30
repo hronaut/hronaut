@@ -56,6 +56,11 @@ export function mountWorkspaces(data: HomeBootstrap, api: HronautHomeApi, signal
           ? card.node.querySelector<HTMLElement>(`[data-workspace-action="${focusKey}"],[data-workspace-preference="${focusKey}"]`)
           : focused?.tagName === 'SUMMARY' ? card.node.querySelector('summary') : null
       }
+      // Failed or unchanged saves still need to restore the authoritative values.
+      if (!pending) for (const preference of ['hiddenFromSidebar', 'deletionProtected'] as const) {
+        const input = card.node.querySelector<HTMLInputElement>(`[data-workspace-preference="${preference}"]`)
+        if (input) input.checked = Boolean(group[preference])
+      }
       // Retain the same card and controls on polling; move only when ordering changes.
       if (grid.children[index] !== card.node) grid.insertBefore(card.node, grid.children[index] ?? null)
       // Moving an existing card can blur its controls; restore only after ordering.
