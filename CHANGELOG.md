@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.8] - 2026-10-01
+
 ### Fixed
 
 - Keep replacement element and area selections cancellable when an earlier selection’s page cleanup completes late.
@@ -17,6 +19,10 @@ All notable changes to Hronaut are documented in this file.
 - Keep audio composition controls within cue and imported-asset capacity, showing usage and preserving edits and removals when full.
 
 - Flush the containing directory after replacing persisted state on supported POSIX filesystems, strengthening rename durability while preserving Windows, unsupported filesystems and writable directories without read permission.
+
+### Changed
+
+- Update Mediabunny to 1.60.0 and Viem to 2.56.9.
 
 ## [2.8.7] - 2026-09-30
 
