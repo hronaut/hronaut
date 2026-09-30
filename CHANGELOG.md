@@ -14,6 +14,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Give recorded arrows and callout pointers rounded chevron heads, a matching contrast outline, and proportional heads for short arrows and drawing entrances.
 
+- Read navigation history through the retained tab handle so a native view being torn down cannot interrupt browser state snapshots.
+
 - Keep older HAR export completions from overwriting a newer clipboard copy or replacing its feedback with stale errors.
 
 - Track compressed response body bytes separately from decoded content bytes for accurate HAR sizes, without counting headers or sanitized text characters as body bytes.

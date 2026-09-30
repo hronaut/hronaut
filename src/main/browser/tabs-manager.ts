@@ -8568,7 +8568,7 @@ export class BrowserTabsManager {
         index: tab.sleepNavigationHistory.index
       }
     }
-    return safeNavigationHistorySnapshot(tab.view?.webContents)
+    return safeNavigationHistorySnapshot(tab.webContents)
   }
 
   private validateTarget(target: { ref?: string; selector?: string }): void {
