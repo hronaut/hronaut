@@ -162,15 +162,15 @@ async function openExisting(id: string): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
   templateView.value = false
-  await openExistingEditor(id)
   importDestination.value = id
+  await openExistingEditor(id)
 }
 async function openNew(): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return
   importTarget.value = null
   templateView.value = false
-  await openNewEditor()
   importDestination.value = ''
+  await openNewEditor()
 }
 async function openTransfer(sourceWorkspaceId?: string): Promise<void> {
   if (importBusy.value || templateBusy.value || dismissBlocked.value) return

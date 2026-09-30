@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Suppress errors from obsolete workspace editor lookups after a newer action, dismissal, or competing modal takes over, while retaining current lookup failures and the newer browser import destination.
+
 - Discard pending related network request selections when the panel context or selected request changes, preventing stale lookups and feedback in another tab.
 
 - Keep older HAR export completions from overwriting a newer clipboard copy or replacing its feedback with stale errors.
