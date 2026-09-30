@@ -54,3 +54,43 @@ describe('video export renderer cleanup', () => {
     if (stage !== 'page load') expect(window.loadURL).not.toHaveBeenCalled()
   })
 })
+
+it.each(['page load', 'encoder call'] as const)('settles cancellation even when Electron never settles its %s promise', async stage => {
+  let destroyed = false
+  let entered!: () => void
+  const started = new Promise<void>(resolve => { entered = resolve })
+  const pending = () => { entered(); return new Promise<never>(() => undefined) }
+  const window = {
+    isDestroyed: () => destroyed,
+    destroy: vi.fn(() => { destroyed = true }),
+    webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn(), executeJavaScript: vi.fn(pending) },
+    loadURL: stage === 'page load' ? vi.fn(pending) : vi.fn(async () => undefined)
+  }
+  electron.BrowserWindow.mockImplementation(function () { return window })
+  const controller = new AbortController()
+  const exportPromise = renderBrowserVideo(plan, [], controller.signal, () => undefined)
+  await started
+  const rejected = expect(exportPromise).rejects.toThrow('cancelled')
+  controller.abort()
+  await rejected
+  expect(window.destroy).toHaveBeenCalledOnce()
+  expect(vi.getTimerCount()).toBe(0)
+  expect(getEventListeners(controller.signal, 'abort')).toEqual([])
+})
+
+it('settles the export timeout even when Electron never settles the page load', async () => {
+  let destroyed = false
+  const window = {
+    isDestroyed: () => destroyed,
+    destroy: vi.fn(() => { destroyed = true }),
+    webContents: { setWindowOpenHandler: vi.fn(), on: vi.fn() },
+    loadURL: vi.fn(() => new Promise<never>(() => undefined))
+  }
+  electron.BrowserWindow.mockImplementation(function () { return window })
+  const controller = new AbortController()
+  const rejected = expect(renderBrowserVideo(plan, [], controller.signal, () => undefined)).rejects.toThrow('timed out')
+  await vi.advanceTimersByTimeAsync(5 * 60_000)
+  await rejected
+  expect(window.destroy).toHaveBeenCalledOnce()
+  expect(getEventListeners(controller.signal, 'abort')).toEqual([])
+})
