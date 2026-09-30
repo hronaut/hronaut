@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Bound agent-follow activity to the latest 40 dispatches so abandoned older calls cannot accumulate or select an obsolete tab after recent work finishes.
+
 - Update build and lint brace parsers to patched versions that bound deeply nested glob expansion and address published recursion and rewrite advisories.
 
 - Update transitive URI and IP parsers to patched versions addressing published host-normalization, cross-family subnet, and oversized-input advisories.
