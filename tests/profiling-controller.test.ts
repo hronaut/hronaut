@@ -89,6 +89,44 @@ describe('browser profiling controller', () => {
     )
   }
 
+  for (const kind of ['cpu', 'coverage'] as const) {
+    it.each(['detached', 'closed', 'replaced', 'destroyed', 'newer-recording', 'newer-after-failure'] as const)(
+      `preserves ownership when a ${kind} start completes after %s`, async (change) => {
+        const f = fixture()
+        const run = (action: 'start' | 'get') => kind === 'cpu'
+          ? f.controller.cpuProfile({ action })
+          : f.controller.codeCoverage({ action, reload: true })
+        const entered = deferred<void>()
+        const pending = deferred<void>()
+        const failure = new Error('Old debugger lease failed')
+        f.withDebugger.mockImplementationOnce(async () => {
+          entered.resolve()
+          await pending.promise
+          if (change === 'newer-after-failure') throw failure
+        })
+        const starting = run('start')
+        await entered.promise
+        if (change === 'detached' || change.startsWith('newer')) f.controller.handleDebuggerDetached(f.tab)
+        if (change === 'closed') f.tabs.delete(f.tab.id)
+        if (change === 'replaced') f.tabs.set(f.tab.id, { ...f.tab })
+        if (change === 'destroyed') f.isDestroyed.mockReturnValue(true)
+        if (change.startsWith('newer')) await run('start')
+        const replacement = kind === 'cpu' ? f.tab.cpuProfile : f.tab.codeCoverage
+        f.changed.mockClear()
+        f.reloadIgnoringCache.mockClear()
+        pending.resolve()
+        if (change === 'newer-after-failure') await expect(starting).rejects.toBe(failure)
+        else await expect(starting).rejects.toThrow('changed while starting')
+        expect(f.changed).not.toHaveBeenCalled()
+        expect(f.reloadIgnoringCache).not.toHaveBeenCalled()
+        if (change.startsWith('newer')) {
+          expect(kind === 'cpu' ? f.tab.cpuProfile : f.tab.codeCoverage).toBe(replacement)
+          expect(await run('get')).toMatchObject({ status: 'recording' })
+        } else expect(kind === 'cpu' ? f.tab.cpuProfile : f.tab.codeCoverage).toBeUndefined()
+      }
+    )
+  }
+
   it.each(['clear', 'navigation', 'closed', 'replaced', 'destroyed'] as const)('rejects a stopped allocation report invalidated by %s during its final measurement', async (change) => {
     const f = fixture()
     await f.controller.memoryReport({ action: 'start-allocation-sampling' })
