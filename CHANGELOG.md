@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Update build and lint brace parsers to patched versions that bound deeply nested glob expansion and address published recursion and rewrite advisories.
+
 - Update transitive URI and IP parsers to patched versions addressing published host-normalization, cross-family subnet, and oversized-input advisories.
 
 - Settle MCP activity history when saving a reviewed action outcome fails, preserving the reported storage error and allowing subsequent calls to be tracked.
