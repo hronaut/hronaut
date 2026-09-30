@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ruRU = {
+  licenseNotice: {"expired": "Автоматизация агентов заблокирована. Активируйте или продлите лицензию. Сохранённые данные остаются доступными.", "manage": "Настройки лицензии", "purchase": "Купить или продлить ↗"},
   browserImport: browserImportMessages['ru-RU'],
   video: enUS.video,
   workspaceLibrary: {

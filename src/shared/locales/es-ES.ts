@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const esES = {
+  licenseNotice: {"expired": "La automatización de agentes está bloqueada. Active o renueve su licencia. Los datos guardados siguen disponibles.", "manage": "Configuración de licencia", "purchase": "Comprar o renovar ↗"},
   browserImport: browserImportMessages['es-ES'],
   video: enUS.video,
   workspaceLibrary: {

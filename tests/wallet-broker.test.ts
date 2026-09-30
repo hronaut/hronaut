@@ -593,6 +593,49 @@ describe('WalletBroker', () => {
     expect(chain.broadcast).toHaveBeenCalledOnce()
   })
 
+  it('keeps manual website wallet requests available when agent access expires', async () => {
+    const { service, wallet } = await setup('testnet')
+    const broker = new WalletBroker(service, { adapters: { evm: adapter() }, assertAgentAccess: () => {
+      throw new Error('License expired')
+    } })
+    const result = broker.providerRequest(context(), { family: 'evm', method: 'eth_requestAccounts' })
+    const pending = await broker.waitForPending(request => request.operation === 'connect-account' && request.status === 'awaiting-human')
+    await broker.approve(pending.id)
+    await expect(result).resolves.toEqual([wallet.publicAddress])
+  })
+
+  it('does not sign a pending agent approval after license expiry', async () => {
+    const { service, wallet } = await setup('testnet')
+    const chain = adapter()
+    let entitled = true
+    const broker = new WalletBroker(service, { adapters: { evm: chain }, assertAgentAccess: () => {
+      if (!entitled) throw new Error('License expired')
+    } })
+    const agent = context({ requester: { type: 'agent', id: 'wallet-session:license', name: 'License test' } })
+    const permission = await broker.agentBalance(agent, wallet.id)
+    await broker.approve((permission.request as { id: string }).id)
+    const requested = await broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    entitled = false
+    await expect(broker.approve((requested.request as { id: string }).id)).rejects.toThrow('Wallet request failed validation or processing')
+    expect(chain.sign).not.toHaveBeenCalled()
+    expect(chain.broadcast).not.toHaveBeenCalled()
+    entitled = true
+    const renewed = await broker.requestAgentTransaction(agent, wallet.id, {
+      to: '0x0000000000000000000000000000000000000002'
+    }, true)
+    vi.spyOn(chain, 'broadcast').mockImplementationOnce(async () => {
+      entitled = false
+      return '0xtransaction'
+    })
+    const renewedId = (renewed.request as { id: string }).id
+    await expect(broker.approve(renewedId)).resolves.toMatchObject({ status: 'submitted' })
+    await vi.waitFor(() => expect(service.approvals.get(renewedId)?.status).toBe('confirmed'))
+    expect(chain.sign).toHaveBeenCalledOnce()
+    expect(chain.broadcast).toHaveBeenCalledOnce()
+  })
+
   it('does not create or sign an agent transaction after its requester session is cancelled', async () => {
     const { service, wallet } = await setup('testnet')
     const chain = adapter()

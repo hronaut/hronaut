@@ -198,6 +198,11 @@ export class CommercialLicenseStore {
       await this.persist(nextValue)
       this.value = nextValue
     })
+    this.assertAutomationAccess()
+  }
+
+  /** Recheck immediately before dispatch; never starts a trial or performs I/O. */
+  assertAutomationAccess(): void {
     if (!this.summary(true).accessAllowed) {
       throw new Error('Hronaut requires an active subscription after the 10-day trial. Open Settings → License to activate or renew. $4/month or $24/year (50% off). Saved browser data remains accessible.')
     }
@@ -221,4 +226,11 @@ export class CommercialLicenseStore {
     this.saveQueue = operation.catch(() => undefined)
     return operation
   }
+}
+
+/** Bound wall-clock jump detection without repeating provider requests. */
+export function commercialLicenseStateRefreshDelay(state: CommercialLicenseState, now = Date.now()): number {
+  const deadlines = [state.trialExpiresAt, state.expiresAt].map(value => Date.parse(value ?? ''))
+  if (state.lastValidatedAt) deadlines.push(Date.parse(state.lastValidatedAt) + LICENSE_OFFLINE_GRACE_MS)
+  return Math.max(1, Math.min(60_000, ...deadlines.filter(time => time > now).map(time => time - now)))
 }

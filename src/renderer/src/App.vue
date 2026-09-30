@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import LicenseExpiryNotice from './components/LicenseExpiryNotice.vue'
 import { isHronautHomeUrl } from '../../shared/home-url.js'
 import { bind as bindFoley } from '@foleyjs/core'
 import { computed, nextTick, ref } from 'vue'
@@ -832,6 +833,12 @@ useAppLifecycleController({
       :run-action="runShellAction"
       :sync-state="syncState"
       :actions="browserChromeActions"
+    />
+    <LicenseExpiryNotice
+      v-if="!isDetachedPanelWindow"
+      :state="appSettingsFeatureController.commercialLicenseController.state.value"
+      @manage="openSupportSettings"
+      @purchase="purchaseCommercialLicense"
     />
     <AppPageToolsLayer
       v-model:dock="panelDock"

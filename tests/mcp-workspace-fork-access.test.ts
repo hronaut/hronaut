@@ -20,7 +20,7 @@ describe('MCP workspace fork sources and direct access', () => {
   let client: Client
   afterEach(async () => { await client?.close(); await server?.stop() })
 
-  async function setup(beforeAuditOperation?: () => void) {
+  async function setup(beforeAuditOperation?: () => void, assertAutomationAccess?: () => void) {
     let accessible = true
     let humanInteractionGeneration = 0
     let navigationGeneration = 1
@@ -85,7 +85,7 @@ describe('MCP workspace fork sources and direct access', () => {
           return options.operation()
         }
       } as never } : {}),
-      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials',
+      host: '127.0.0.1', port: 0, version: 'test', toolSet: 'essentials', assertAutomationAccess,
       showWindowInactive: () => undefined, getUserAttention: () => null,
       requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
       bookmarks: {} as never, history: {} as never, siteData: {} as never
@@ -245,6 +245,32 @@ describe('MCP workspace fork sources and direct access', () => {
     const result = await call('browser_workspaces', { action, workspaceId: ownId })
     expect(result.isError).toBe(true)
     expect(manager.transferWorkspaceStorage).not.toHaveBeenCalled()
+  })
+
+  it('blocks dispatch after expiry during page wake, then resumes after renewal on the same session', async () => {
+    let entitled = true
+    const { manager, call } = await setup(undefined, () => {
+      if (!entitled) throw new Error('License expired')
+    })
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.wakeTab.mockImplementationOnce(async () => { entitled = false })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.click).not.toHaveBeenCalled()
+    entitled = true
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
+    expect(manager.click).toHaveBeenCalledTimes(1)
+  })
+
+  it('retains an already-dispatched result when entitlement expires and blocks the next call', async () => {
+    let entitled = true
+    const { manager, call } = await setup(undefined, () => {
+      if (!entitled) throw new Error('License expired')
+    })
+    await call('browser_workspaces', { action: 'create', name: 'Task' })
+    manager.click.mockImplementationOnce(async () => { entitled = false; return 'Clicked' })
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).not.toBe(true)
+    expect((await call('browser_click', { workspaceId: ownId, selector: 'button' })).isError).toBe(true)
+    expect(manager.click).toHaveBeenCalledTimes(1)
   })
 
   it('rechecks direct access after an asynchronous page wake', async () => {

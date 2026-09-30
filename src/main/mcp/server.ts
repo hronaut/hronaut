@@ -277,6 +277,7 @@ export interface McpHttpServerOptions {
   taskRuns?: TaskRunService
   actionTracker?: McpActionTracker
   authorizeAutomation?: () => Promise<void>
+  assertAutomationAccess?: () => void
   auditReceipts?: AuditReceiptService
   host: string
   port: number
@@ -896,7 +897,8 @@ function createBrowserMcpServer(
   authorizeAutomation?: () => Promise<void>,
   humanWaiting?: HumanWaitingService,
   taskRuns?: TaskRunService,
-  workspaceLeases = new WorkspaceWriteLeaseRegistry()
+  workspaceLeases = new WorkspaceWriteLeaseRegistry(),
+  assertAutomationAccess?: () => void
 ): { server: McpServer } {
   const server = new McpServer(
     { name: 'hronaut', version },
@@ -1003,6 +1005,7 @@ function createBrowserMcpServer(
     input: Record<string, unknown>,
     target?: { workspaceId: string; tabId?: string; origins?: string[] }
   ): McpCapabilityProfile | undefined => {
+    assertAutomationAccess?.()
     requireAgentControl(name, input, target?.tabId)
     if (!capability) return undefined
     return capability.store.authorizeActiveDispatch(capability.grant, capabilityRequest(name, input, target))
@@ -1057,6 +1060,7 @@ function createBrowserMcpServer(
           finishWorkspaceMutation = workspaceLeases.beginMutation(leaseWorkspaceId, client.id)
         }
         await authorizeCapability(name, input, 'consume')
+        assertAutomationAccess?.()
         requireAgentControl(name, input)
         const result = await actionTracker.run(() => agentControlContext.run(
           () => { if (!singleTabControlTools.has(name)) requireAgentControl(name, input) },
@@ -4750,7 +4754,8 @@ export class McpHttpServer {
             this.options.authorizeAutomation,
             this.options.humanWaiting,
             this.options.taskRuns,
-            this.workspaceLeases
+            this.workspaceLeases,
+            this.options.assertAutomationAccess
           )
           session.server = mcp.server
           session.transport = transport
