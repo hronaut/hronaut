@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
 import type { BrowserVideoOptions, BrowserVideoState } from '../../../shared/video.js'
+import { VIDEO_AUDIO_LIMITS } from '../../../shared/video-audio.js'
 
 const props = defineProps<{ state: BrowserVideoState; busy: boolean }>()
 const emit = defineEmits<{
@@ -16,6 +17,9 @@ const volume = ref(60), fadeIn = ref(0), fadeOut = ref(0), loop = ref(false)
 const provenance = ref(''), editing = ref<number | null>(null)
 const assets = computed(() => props.state.audioAssets ?? [])
 const events = computed(() => props.state.audio ?? [])
+const importedCount = computed(() => assets.value.filter(item => !item.builtin).length)
+const atEventLimit = computed(() => events.value.length >= VIDEO_AUDIO_LIMITS.events)
+const canImport = computed(() => !!provenance.value.trim() && importedCount.value < VIDEO_AUDIO_LIMITS.assets)
 const asset = computed(() => assets.value.find(item => item.id === assetId.value))
 const outputMs = computed(() => props.state.clips.length
   ? props.state.clips.reduce((sum, clip) => sum + clip.endMs - clip.startMs, 0)
@@ -30,9 +34,11 @@ function chooseAsset(): void {
   fadeIn.value = fadeOut.value = music ? Math.min(300, (end.value - start.value) * 500) : 0
 }
 function save(): void {
+  if (!asset.value || (editing.value === null && atEventLimit.value)) return
   const event = { assetId: assetId.value, startMs: start.value * 1000, endMs: end.value * 1000, offsetMs: offset.value * 1000, volume: volume.value / 100, fadeInMs: fadeIn.value, fadeOutMs: fadeOut.value, loop: loop.value }
   emit('edit', { audio: editing.value === null ? [...events.value, event] : events.value.map((item, index) => index === editing.value ? event : item) })
 }
+function importAudio(): void { if (canImport.value) emit('import', provenance.value.trim()) }
 function edit(index: number): void {
   const event = events.value[index]
   if (!event) return
@@ -50,7 +56,7 @@ function name(id: string): string { return assets.value.find(item => item.id ===
 
 <template>
   <details class="video-section">
-    <summary>{{ t('video.audio.title') }} <span>{{ events.length }}</span></summary>
+    <summary>{{ t('video.audio.title') }} <span>{{ t('video.audio.capacity', { count: events.length, limit: VIDEO_AUDIO_LIMITS.events }) }}</span></summary>
     <fieldset :disabled="busy">
       <legend>{{ editing === null ? t('video.audio.add') : t('video.audio.edit') }}</legend>
       <p class="video-help">{{ t('video.audio.timingHelp', { duration: (outputMs / 1000).toFixed(1) }) }}</p>
@@ -66,7 +72,7 @@ function name(id: string): string { return assets.value.find(item => item.id ===
       </div>
       <label class="video-check"><input v-model="loop" type="checkbox" />{{ t('video.audio.loop') }}</label>
       <div class="video-actions">
-        <UiButton :disabled="!asset" @click="save">{{ editing === null ? t('video.audio.add') : t('video.audio.save') }}</UiButton>
+        <UiButton :disabled="!asset || (editing === null && atEventLimit)" @click="save">{{ editing === null ? t('video.audio.add') : t('video.audio.save') }}</UiButton>
         <UiButton v-if="editing !== null" @click="reset">{{ t('video.audio.cancelEdit') }}</UiButton>
       </div>
       <ol v-if="events.length" class="video-items">
@@ -80,10 +86,10 @@ function name(id: string): string { return assets.value.find(item => item.id ===
       </ol>
     </fieldset>
     <fieldset :disabled="busy">
-      <legend>{{ t('video.audio.importTitle') }}</legend>
+      <legend>{{ t('video.audio.importTitle') }} <span>{{ t('video.audio.capacity', { count: importedCount, limit: VIDEO_AUDIO_LIMITS.assets }) }}</span></legend>
       <p class="video-help">{{ t('video.audio.importHelp') }}</p>
       <label>{{ t('video.audio.provenance') }}<textarea v-model="provenance" maxlength="240" rows="2" :placeholder="t('video.audio.provenanceExample')" /></label>
-      <UiButton :disabled="!provenance.trim()" @click="emit('import', provenance.trim())">{{ t('video.audio.import') }}</UiButton>
+      <UiButton :disabled="!canImport" @click="importAudio">{{ t('video.audio.import') }}</UiButton>
       <template v-if="asset && !asset.builtin">
         <UiButton :disabled="assetInUse" @click="emit('removeAsset', asset.id)">{{ t('video.audio.removeAsset') }}</UiButton>
         <p v-if="assetInUse" class="video-help">{{ t('video.audio.removeHelp') }}</p>

@@ -5,6 +5,7 @@ export const enUS = {
     workflow: 'Trim first, then add sound and motion. Preview the finished clip before exporting.',
     cancelRender: 'Cancel render and discard recording',
     audio: {
+      capacity: '{count} / {limit}',
       title: 'Music and sound', add: 'Add audio event', edit: 'Edit audio event', save: 'Save audio event', cancelEdit: 'Cancel edit',
       timingHelp: 'Audio uses the finished video timeline ({duration} seconds), after trimming.',
       asset: 'Audio asset', missingAsset: 'Missing audio asset', from: 'Audio start (seconds)', to: 'Audio end (seconds)',

@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Keep audio composition controls within cue and imported-asset capacity, showing usage and preserving edits and removals when full.
+
 - Flush the containing directory after replacing persisted state on supported POSIX filesystems, strengthening rename durability while preserving Windows, unsupported filesystems and writable directories without read permission.
 
 ## [2.8.7] - 2026-09-30
