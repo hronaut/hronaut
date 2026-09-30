@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Export HAR request body sizes from byte metadata, marking unavailable sizes as unknown instead of reporting character counts as bytes.
+
 - Copy HEAD requests with cURL header-only handling so valid responses do not hang or fail while waiting for a body.
 
 - Report file-upload selector errors directly and release their debugger handles instead of attempting to upload into an exception object.

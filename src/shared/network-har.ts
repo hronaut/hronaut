@@ -204,6 +204,19 @@ function headerValue(headers: Record<string, string | string[]>, target: string)
   return Array.isArray(match[1]) ? match[1][0] ?? '' : match[1]
 }
 
+function requestBodySize(headers: Record<string, string | string[]>): number {
+  const values = Object.entries(headers)
+    .filter(([name]) => name.toLowerCase() === 'content-length')
+    .flatMap(([, value]) => Array.isArray(value) ? value : [value])
+  if (values.length !== 1) return -1
+  const value = values[0]?.trim() ?? ''
+  if (!/^\d+$/.test(value)) return -1
+  const bytes = Number(value)
+  // Captured body previews count UTF-16 characters and can be sanitized or
+  // incomplete. Only an unambiguous byte count can populate HAR bodySize.
+  return Number.isSafeInteger(bytes) ? bytes : -1
+}
+
 function queryEntries(input: string): BrowserNetworkHarHeader[] {
   try {
     const url = new URL(input)
@@ -243,7 +256,7 @@ function harEntry(details: BrowserNetworkRequestDetails, includeBodies: boolean)
       queryString: queryEntries(details.url),
       cookies: [],
       headersSize: -1,
-      bodySize: details.request.body?.originalChars ?? -1,
+      bodySize: requestBodySize(details.request.headers),
       ...(requestText !== undefined ? { postData: { mimeType: requestMimeType, text: requestText } } : {})
     },
     response: {

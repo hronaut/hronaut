@@ -77,6 +77,34 @@ const details: BrowserNetworkRequestDetails = {
 }
 
 describe('sanitized network HAR', () => {
+  const requestSizeCases: [Record<string, string | string[]>, number][] = [
+    [{ 'Content-Length': '4' }, 4],
+    [{ 'content-length': ' 0 ' }, 0],
+    [{ 'content-length': ['4'] }, 4],
+    [{}, -1],
+    [{ 'content-length': '' }, -1],
+    [{ 'content-length': '-1' }, -1],
+    [{ 'content-length': '4.5' }, -1],
+    [{ 'content-length': '9007199254740992' }, -1],
+    [{ 'content-length': ['4', '8'] }, -1],
+    [{ 'content-length': '4', 'Content-Length': '8' }, -1]
+  ]
+  it.each(requestSizeCases)('uses known byte metadata for request headers %j', (headers, expectedBytes) => {
+    const har = buildSanitizedNetworkHar({
+      appVersion: '1.0.0', tabId: 'tab-1', title: 'Example', url: details.url,
+      availableRequestCount: 1, includeBodies: false, truncated: false,
+      details: [{
+        ...details,
+        request: {
+          headers,
+          body: { text: '😀', originalChars: 2, truncated: false, redacted: false }
+        }
+      }]
+    })
+    expect(har.log.entries[0]?.request.bodySize).toBe(expectedBytes)
+    expect(har.log.entries[0]?.request.postData).toBeUndefined()
+  })
+
   it('creates portable sanitized filenames and rejects paths', () => {
     expect(networkHarFilename(undefined, 'Example: account / overview.')).toBe('Example- account - overview.sanitized.har')
     expect(networkHarFilename(undefined, '  ...  ')).toBe('network.sanitized.har')
