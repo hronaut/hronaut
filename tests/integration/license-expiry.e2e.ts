@@ -1,11 +1,13 @@
 import type { HronautLicenseApi } from '../../src/shared/types.js'
+import { createServer } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { expect, test as base } from './fixtures.js'
+import { closeFixtureServer, expect, test as base } from './fixtures.js'
 
 const test = base.extend({
   profileDirectory: async ({ mcpPort }, use) => {
@@ -52,6 +54,16 @@ test('blocks automation after trial expiry while keeping license management acce
 const paidTest = base.extend({
   profileDirectory: async ({ mcpPort }, use) => {
     const directory = await mkdtemp(join(tmpdir(), `hronaut-paid-expiry-${mcpPort}-`))
+    let expiresAt: string | undefined
+    const provider = createServer((request, response) => {
+      if (request.url !== '/validate') { response.writeHead(404).end(); return }
+      expiresAt ??= new Date(Date.now() + 10_000).toISOString()
+      response.writeHead(200, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({ valid: true, status: 'active', productId: 'synthetic-hronaut', expiresAt }))
+    })
+    await new Promise<void>(resolve => provider.listen(0, '127.0.0.1', resolve))
+    const previousApiBase = process.env.HRONAUT_LICENSE_API_BASE
+    process.env.HRONAUT_LICENSE_API_BASE = `http://127.0.0.1:${(provider.address() as AddressInfo).port}`
     try {
       await writeFile(join(directory, 'commercial-license.json'), JSON.stringify({
         version: 1, installationId: randomUUID(),
@@ -64,6 +76,9 @@ const paidTest = base.extend({
       }))
       await use(directory)
     } finally {
+      if (previousApiBase === undefined) delete process.env.HRONAUT_LICENSE_API_BASE
+      else process.env.HRONAUT_LICENSE_API_BASE = previousApiBase
+      await closeFixtureServer(provider)
       await rm(directory, { recursive: true, force: true })
     }
   }
@@ -88,14 +103,6 @@ paidTest('refreshes a renewed paid grant through main and unlocks the same MCP s
     await appWindow.getByRole('button', { name: 'License settings', exact: true }).click()
     await electronApp.evaluate(({ safeStorage }) => {
       safeStorage.decryptStringAsync = async () => ({ result: 'SYNTHETIC-TEST-KEY', shouldReEncrypt: false })
-      const expiresAt = new Date(Date.now() + 10_000).toISOString()
-      const originalFetch = globalThis.fetch
-      globalThis.fetch = async (input, init) => {
-        if (String(input) === 'https://hronaut.dev/api/creem-license/validate') {
-          return new Response(JSON.stringify({ valid: true, status: 'active', productId: 'synthetic-hronaut', expiresAt }), { status: 200, headers: { 'content-type': 'application/json' } })
-        }
-        return originalFetch(input, init)
-      }
     })
     // Headless Linux intentionally has no protected keyring; invoke the trusted
     // preload refresh with the synthetic decrypt fixture, without weakening UI
