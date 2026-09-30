@@ -197,6 +197,7 @@ const api: HronautApi = {
   setDiagnosticLogPreservation: (tabId: string, preserve: boolean) =>
     ipcRenderer.invoke('browser:set-diagnostic-log-preservation', tabId, preserve),
   manageVideo: options => ipcRenderer.invoke('browser:video', options),
+  importVideoAudio: (tabId, provenance) => ipcRenderer.invoke('browser:video-import-audio', tabId, provenance),
   videoPreview: tabId => ipcRenderer.invoke('browser:video-preview', tabId),
   manageRepro: (action: BrowserReproAction, tabId?: string) =>
     ipcRenderer.invoke('browser:repro-recording', { action, tabId }),

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { VIDEO_LIMITS, videoSourceTime, videoFrameTiming, type VideoFrame, type VideoRenderPlan } from '../../shared/video.js'
 
 /** An isolated trusted renderer encodes pixels. No Node, preload bridge, page scripts or network. */
-export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void): Promise<Uint8Array> {
+export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly VideoFrame[], signal: AbortSignal, validate: () => void, assets: readonly { id: string; data: Uint8Array }[] = []): Promise<Uint8Array> {
   const window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, partition: `video-export-${crypto.randomUUID()}` } })
   const stop = (): void => { if (!window.isDestroyed()) window.destroy() }
   signal.addEventListener('abort', stop, { once: true })
@@ -22,7 +22,7 @@ export async function renderBrowserVideo(plan: VideoRenderPlan, frames: readonly
     if (process.env.ELECTRON_RENDERER_URL) {
       await window.loadURL(`${process.env.ELECTRON_RENDERER_URL}/video-export.html`)
     } else await window.loadFile(join(__dirname, '../renderer/video-export.html'))
-    await call('begin', [plan])
+    await call('begin', [plan, assets.map(asset => ({ id: asset.id, base64: Buffer.from(asset.data).toString('base64') }))])
     const { frameCount, frameDurationMs } = videoFrameTiming(plan.clips)
     let frameIndex = 0
     for (let index = 0; index < frameCount; index += 1) {

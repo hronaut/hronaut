@@ -41,6 +41,7 @@ interface DiagnosticsIpcHost {
   >
   pngDataUrl(data: Buffer): string
   copyPng(data: Buffer): Promise<{ width: number; height: number }>
+  pickVideoAudio?(): Promise<string | undefined>
 }
 
 function isAllowedString(value: unknown, allowed: readonly string[]): value is string {
@@ -172,6 +173,20 @@ export function registerDiagnosticsIpc(ipcMain: Pick<IpcMain, 'handle'>, host: D
     host.assertTrustedSender(event)
     if (typeof tabId !== 'string') throw new TypeError('Invalid video tab')
     return host.tabs().videoPreview(tabId)
+  })
+  ipcMain.handle('browser:video-import-audio', async (event, tabId: unknown, provenance: unknown) => {
+    host.assertTrustedSender(event)
+    if (typeof tabId !== 'string' || !tabId || typeof provenance !== 'string' || !provenance.trim() || provenance.length > 240) throw new TypeError('Audio import requires a tab and source/usage rights')
+    const tabs = host.tabs()
+    const before = await tabs.videoRecording({ tabId, action: 'get' })
+    if (!before.recordingId || before.status !== 'stopped') throw new Error('Stop recording before importing audio')
+    if (!host.pickVideoAudio) throw new Error('Audio import is unavailable')
+    const path = await host.pickVideoAudio()
+    host.assertTrustedSender(event)
+    const current = await tabs.videoRecording({ tabId, action: 'get' })
+    if (current.recordingId !== before.recordingId || current.status !== 'stopped') throw new Error('The recording changed while choosing audio')
+    if (!path) return current
+    return tabs.videoRecording({ tabId, action: 'import-audio', audioPath: path, audioProvenance: provenance.trim() }, () => host.assertTrustedSender(event))
   })
   ipcMain.handle('browser:repro-recording', (event, value: unknown) => {
     host.assertTrustedSender(event)

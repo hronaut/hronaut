@@ -6,7 +6,7 @@ type Listener = Parameters<IpcMain['handle']>[1]
 const channels = [
   'accessibility-audit', 'quality-audit', 'performance', 'design-overview',
   'page-metadata', 'security', 'code-coverage', 'cpu-profile', 'memory',
-  'debug-report', 'set-diagnostic-log-preservation', 'video', 'video-preview', 'repro-recording',
+  'debug-report', 'set-diagnostic-log-preservation', 'video', 'video-preview', 'video-import-audio', 'repro-recording',
   'dom-changes', 'visual-compare', 'copy-visual-diff', 'inspector-issues'
 ]
 
@@ -24,7 +24,7 @@ function fixture() {
   const host = {
     assertTrustedSender: vi.fn(), tabs: vi.fn(() => tabs),
     pngDataUrl: vi.fn(() => 'data:image/png;base64,diff'),
-    copyPng: vi.fn(async () => ({ width: 20, height: 30 }))
+    copyPng: vi.fn(async () => ({ width: 20, height: 30 })), pickVideoAudio: vi.fn<() => Promise<string | undefined>>()
   }
   registerDiagnosticsIpc({ handle: (channel, listener) => { listeners.set(channel, listener) } }, host)
   const event = {} as IpcMainInvokeEvent
@@ -137,4 +137,20 @@ it('validates video options and keeps preview pixels behind the trusted shell bo
   tabs.videoRecording.mockClear()
   await expect(invoke('video', { action: 'edit', annotations: [{ kind: 'text', text: 'caption', startMs: 100, endMs: 0, x: 0, y: 0 }] })).rejects.toThrow()
   expect(tabs.videoRecording).not.toHaveBeenCalled()
+})
+
+it('keeps native audio selection bound to its stopped recording and trusted sender', async () => {
+  const { tabs, host, invoke } = fixture()
+  const before = { recordingId: 'old', status: 'stopped' }
+  tabs.videoRecording.mockResolvedValue(before)
+  host.pickVideoAudio.mockResolvedValue(undefined)
+  await expect(invoke('video-import-audio', 'tab', 'Original composition')).resolves.toEqual(before)
+  expect(tabs.videoRecording).toHaveBeenCalledTimes(2)
+  host.pickVideoAudio.mockResolvedValue('/chosen.wav')
+  tabs.videoRecording.mockResolvedValueOnce(before).mockResolvedValueOnce({ ...before, recordingId: 'new' })
+  await expect(invoke('video-import-audio', 'tab', 'Original composition')).rejects.toThrow('recording changed')
+  expect(tabs.videoRecording.mock.calls.some(([value]) => value.action === 'import-audio')).toBe(false)
+  tabs.videoRecording.mockResolvedValue(before)
+  await invoke('video-import-audio', 'tab', 'Original composition')
+  expect(tabs.videoRecording).toHaveBeenLastCalledWith({ tabId: 'tab', action: 'import-audio', audioPath: '/chosen.wav', audioProvenance: 'Original composition' }, expect.any(Function))
 })

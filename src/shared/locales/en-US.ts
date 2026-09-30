@@ -2,9 +2,27 @@ import { browserImportMessages } from './browser-import.js'
 export const enUS = {
   browserImport: browserImportMessages['en-US'],
   video: {
-    title: 'Video recorder', description: 'Record tutorials with captions and arrows',
+    workflow: 'Trim first, then add sound and motion. Preview the finished clip before exporting.',
+    cancelRender: 'Cancel render and discard recording',
+    audio: {
+      title: 'Music and sound', add: 'Add audio event', edit: 'Edit audio event', save: 'Save audio event', cancelEdit: 'Cancel edit',
+      timingHelp: 'Audio uses the finished video timeline ({duration} seconds), after trimming.',
+      asset: 'Audio asset', missingAsset: 'Missing audio asset', from: 'Audio start (seconds)', to: 'Audio end (seconds)',
+      volume: 'Volume (%)', offset: 'Asset offset (seconds)', fadeIn: 'Fade in (milliseconds)', fadeOut: 'Fade out (milliseconds)', loop: 'Loop audio to fill this event',
+      editEvent: 'Edit audio event {index}', removeEvent: 'Remove audio event {index}',
+      importTitle: 'Import your audio', importHelp: 'PCM16 WAV, mono or stereo, 8–48 kHz, up to 10 MiB and 2 minutes. Use audio you created or have rights to include in the exported clip.',
+      provenance: 'Audio source and usage rights', provenanceExample: 'Original recording by me; permitted for this clip.', import: 'Choose WAV audio…',
+      removeAsset: 'Remove selected imported asset', removeHelp: 'Remove its timeline events before deleting this asset.'
+    },
+    motion: {
+      title: 'Camera and transitions', camera: 'Focus the viewer', help: 'Camera moves use original recording time. Captions remain readable; page highlights follow the camera. Moves cannot overlap.',
+      from: 'Camera start (seconds)', to: 'Camera end (seconds)', x: 'Focus horizontal (%)', y: 'Focus vertical (%)', zoom: 'Zoom factor', ease: 'Ease in/out (milliseconds)',
+      pan: 'Pan to another focus', endX: 'End focus horizontal (%)', endY: 'End focus vertical (%)', endZoom: 'End zoom factor', add: 'Add camera move', remove: 'Remove camera move {index}',
+      transitions: 'Clip transitions', transitionHelp: 'Fade through black at kept-range cuts. Timing stays unchanged. Zero disables transitions.', fade: 'Transition duration (milliseconds)', apply: 'Apply transitions'
+    },
+    title: 'Video recorder', description: 'Compose clips with sound, captions and camera moves',
     privacy: 'Starting records visible page content, including personal data. Use a demo account and review before sharing.',
-    limits: 'Silent WebM / VP9 · up to 2 minutes · 1280 × 720 · up to 12 fps. Keep the tab visible and its size unchanged. Raw recordings disappear when the tab closes.',
+    limits: 'WebM / VP9 + optional Opus audio · up to 2 minutes · 1280 × 720 · up to 12 fps. Keep the tab visible and its size unchanged. Raw recordings disappear when the tab closes.',
     status: { idle: 'Ready to record', recording: 'Recording video', paused: 'Recording paused', stopped: 'Recording stopped', rendering: 'Rendering video…' },
     seconds: 'seconds', start: 'Start video recording', pause: 'Pause video', resume: 'Resume video', stop: 'Stop video', clear: 'Discard recording',
     annotation: 'Add an annotation', kind: 'Annotation type', caption: 'Caption text', kinds: { text: 'Text', callout: 'Step callout', arrow: 'Arrow', highlight: 'Highlight', spotlight: 'Spotlight', click: 'Click marker' },

@@ -229,6 +229,8 @@ dist
 ### Misc
 dist/
 docs/*
+!docs/VIDEO_COMPOSITION.md
+!docs/VIDEO_AUDIO_PROVENANCE.md
 !docs/WALLETS.md
 !docs/WATCH_ONLY_WALLET_QA.md
 !docs/WORKSPACE_SITE_ACCESS.md
