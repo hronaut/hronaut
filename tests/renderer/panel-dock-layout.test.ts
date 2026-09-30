@@ -10,6 +10,7 @@ interface Harness {
   controller: Controller
   dock: Ref<PanelDock>
   modalOpen: Ref<boolean>
+  panelOpen: Ref<boolean>
   setToolbarHeight: ReturnType<typeof vi.fn>
   setContentInsets: ReturnType<typeof vi.fn>
   wrapper: VueWrapper
@@ -69,7 +70,7 @@ function mountHarness(initialDock: PanelDock = 'right', tabRailWidth = 0): Harne
     }
   }))
   vi.spyOn(wrapper.element, 'getBoundingClientRect').mockReturnValue(bounds())
-  return { controller, dock, modalOpen, setToolbarHeight, setContentInsets, wrapper }
+  return { controller, dock, modalOpen, panelOpen, setToolbarHeight, setContentInsets, wrapper }
 }
 
 function resizeHandle() {
@@ -182,6 +183,50 @@ describe('usePanelDockLayout', () => {
     expect(harness.controller.resizeGesture.value).toBeNull()
     expect(() => harness.controller.resetSize()).not.toThrow()
     harness.wrapper.unmount()
+  })
+
+  it.each([
+    ['right', 'close'], ['right', 'escape'], ['bottom', 'close'], ['bottom', 'escape']
+  ] as const)('cancels a %s dock resize on %s without saving the partial drag', async (dock, action) => {
+    const harness = mountHarness(dock)
+    const { handle, releasePointerCapture } = resizeHandle()
+    try {
+      harness.controller.reportShellHeight()
+      const originalSize = harness.controller.size.value
+      harness.controller.startResize(pointerEvent(handle, { pointerId: 17, clientX: 700, clientY: 600 }))
+      harness.controller.moveResize(pointerEvent(handle, { pointerId: 17, clientX: 640, clientY: 540 }))
+      expect(harness.controller.size.value).toBe(originalSize + 60)
+      if (action === 'close') harness.panelOpen.value = false
+      else window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      expect(harness.controller.resizeGesture.value).toBeNull()
+      expect(releasePointerCapture).toHaveBeenCalledWith(17)
+      expect(harness.controller.size.value).toBe(originalSize)
+      const move = new MouseEvent('pointermove', { clientX: 500, clientY: 400 })
+      Object.defineProperty(move, 'pointerId', { value: 17 })
+      window.dispatchEvent(move)
+      const finish = new Event('pointerup')
+      Object.defineProperty(finish, 'pointerId', { value: 17 })
+      window.dispatchEvent(finish)
+      await nextTick()
+      expect(harness.controller.size.value).toBe(originalSize)
+      expect(window.localStorage.getItem('hronaut:panel-dock-size-horizontal')).toBeNull()
+      expect(window.localStorage.getItem('hronaut:panel-dock-size-vertical')).toBeNull()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1500 })
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 1000 })
+      harness.controller.reportShellHeight()
+      expect(harness.controller.size.value).toBe(dock === 'right' ? 600 : 450)
+    } finally { harness.wrapper.unmount() }
+  })
+
+  it('ignores a stale resize handle after its panel closes', () => {
+    const harness = mountHarness()
+    const { handle, setPointerCapture } = resizeHandle()
+    try {
+      harness.panelOpen.value = false
+      harness.controller.startResize(pointerEvent(handle, { pointerId: 19 }))
+      expect(harness.controller.resizeGesture.value).toBeNull()
+      expect(setPointerCapture).not.toHaveBeenCalled()
+    } finally { harness.wrapper.unmount() }
   })
 
   it('finishes a resize against its starting axis when the panel is redocked mid-gesture', async () => {

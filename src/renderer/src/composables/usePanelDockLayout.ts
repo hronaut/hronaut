@@ -28,6 +28,7 @@ interface PanelResizeGesture {
   pointerId: number
   coordinate: number
   size: number
+  preferredSize: number | null
   dock: DockedPanelPosition
   handle: HTMLElement
 }
@@ -121,6 +122,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     window.removeEventListener('pointermove', moveResize)
     window.removeEventListener('pointerup', finishResize)
     window.removeEventListener('pointercancel', finishResize)
+    window.removeEventListener('keydown', cancelResizeWithKeyboard)
     gesture.handle.removeEventListener('lostpointercapture', finishResize)
   }
 
@@ -134,7 +136,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
   }
 
   function startResize(event: PointerEvent): void {
-    if (disposed) return
+    if (disposed || !options.dockedPanelOpen.value) return
     const dock = options.dock.value
     if (event.button !== 0 || !isDockedPosition(dock)) return
     event.preventDefault()
@@ -144,12 +146,14 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
       pointerId: event.pointerId,
       coordinate: isHorizontalDock(dock) ? event.clientX : event.clientY,
       size: size.value,
+      preferredSize: isHorizontalDock(dock) ? horizontalSize.value : verticalSize.value,
       dock,
       handle
     }
     window.addEventListener('pointermove', moveResize)
     window.addEventListener('pointerup', finishResize)
     window.addEventListener('pointercancel', finishResize)
+    window.addEventListener('keydown', cancelResizeWithKeyboard)
     handle.addEventListener('lostpointercapture', finishResize)
   }
 
@@ -163,6 +167,19 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
 
   function finishResize(event: PointerEvent): void {
     endResize(event.pointerId, true)
+  }
+
+  function cancelResize(): void {
+    const gesture = resizeGesture.value
+    if (!gesture) return
+    endResize(gesture.pointerId, false)
+    if (isHorizontalDock(gesture.dock)) horizontalSize.value = gesture.preferredSize
+    else verticalSize.value = gesture.preferredSize
+    reportShellHeight()
+  }
+
+  function cancelResizeWithKeyboard(event: KeyboardEvent): void {
+    if (event.key === 'Escape') cancelResize()
   }
 
   function resizeWithKeyboard(event: KeyboardEvent): void {
@@ -212,6 +229,10 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     if (!disposed) reportShellHeight()
   })
 
+  const stopPanelOpenWatch = watch(options.dockedPanelOpen, (open) => {
+    if (!open) cancelResize()
+  }, { flush: 'sync' })
+
   function dispose(): void {
     if (disposed) return
     const gesture = resizeGesture.value
@@ -219,6 +240,7 @@ export function usePanelDockLayout(options: PanelDockLayoutOptions) {
     disposed = true
     stopDockWatch()
     stopTabRailWidthWatch()
+    stopPanelOpenWatch()
   }
 
   onBeforeUnmount(dispose)
