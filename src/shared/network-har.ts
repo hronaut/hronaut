@@ -266,13 +266,13 @@ function harEntry(details: BrowserNetworkRequestDetails, includeBodies: boolean)
       headers: headerEntries(details.response.headers),
       cookies: [],
       content: {
-        size: details.responseSizeBytes ?? details.response.body.originalChars ?? -1,
+        size: details.response.contentSizeBytes ?? -1,
         mimeType: responseMimeType,
         ...(responseText !== undefined ? { text: responseText } : {})
       },
       redirectURL: headerValue(details.response.headers, 'location'),
       headersSize: -1,
-      bodySize: details.responseSizeBytes ?? -1
+      bodySize: details.response.bodySizeBytes ?? -1
     },
     cache: {},
     timings: {

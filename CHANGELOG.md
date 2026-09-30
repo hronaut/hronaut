@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Track compressed response body bytes separately from decoded content bytes for accurate HAR sizes, without counting headers or sanitized text characters as body bytes.
+
 - Export HAR request body sizes from byte metadata, marking unavailable sizes as unknown instead of reporting character counts as bytes.
 
 - Copy HEAD requests with cURL header-only handling so valid responses do not hang or fail while waiting for a body.

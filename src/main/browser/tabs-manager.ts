@@ -5958,6 +5958,10 @@ export class BrowserTabsManager {
       },
       response: {
         headers: responseHeaders,
+        ...(request.bodyAvailable && request.responseBodySizeBytes !== undefined
+          ? { bodySizeBytes: request.responseBodySizeBytes } : {}),
+        ...(request.bodyAvailable && request.responseContentSizeBytes !== undefined
+          ? { contentSizeBytes: request.responseContentSizeBytes } : {}),
         ...(request.mimeType ? { mimeType: request.mimeType } : {}),
         ...(request.protocol ? { protocol: request.protocol } : {}),
         ...(serverTiming.length ? { serverTiming } : {}),

@@ -1562,6 +1562,10 @@ export interface BrowserNetworkRequestDetails extends BrowserNetworkRequest {
     mimeType?: string
     protocol?: string
     serverTiming?: BrowserServerTimingMetric[]
+    /** Completed response body bytes, excluding headers, before decompression. */
+    bodySizeBytes?: number
+    /** Completed response content bytes after decompression, before text decoding. */
+    contentSizeBytes?: number
     body: BrowserNetworkBody
   }
   timing?: BrowserNetworkTiming

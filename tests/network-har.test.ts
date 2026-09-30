@@ -55,6 +55,8 @@ const details: BrowserNetworkRequestDetails = {
     }
   },
   response: {
+    bodySizeBytes: 30,
+    contentSizeBytes: 42,
     headers: {
       'set-cookie': '[REDACTED]',
       'x-request-id': 'visible-42',
@@ -105,6 +107,19 @@ describe('sanitized network HAR', () => {
     expect(har.log.entries[0]?.request.postData).toBeUndefined()
   })
 
+  it('does not substitute transfer bytes or character counts for unknown response body sizes', () => {
+    const har = buildSanitizedNetworkHar({
+      appVersion: '1.0.0', tabId: 'tab-1', title: 'Example', url: details.url,
+      availableRequestCount: 1, includeBodies: true, truncated: false,
+      details: [{
+        ...details,
+        response: { ...details.response, bodySizeBytes: undefined, contentSizeBytes: undefined }
+      }]
+    })
+    expect(har.log.entries[0]?.response.bodySize).toBe(-1)
+    expect(har.log.entries[0]?.response.content.size).toBe(-1)
+  })
+
   it('creates portable sanitized filenames and rejects paths', () => {
     expect(networkHarFilename(undefined, 'Example: account / overview.')).toBe('Example- account - overview.sanitized.har')
     expect(networkHarFilename(undefined, '  ...  ')).toBe('network.sanitized.har')
@@ -147,7 +162,7 @@ describe('sanitized network HAR', () => {
         cookies: [],
         postData: { mimeType: 'application/json' }
       },
-      response: { status: 200, cookies: [], content: { size: 42, mimeType: 'application/json' } },
+      response: { status: 200, cookies: [], bodySize: 30, content: { size: 42, mimeType: 'application/json' } },
       timings: { blocked: 5, dns: 5, connect: 10, ssl: 7, send: 2, wait: 90, receive: 13 },
       _hronaut: {
         fromCache: true,
