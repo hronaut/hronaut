@@ -10,6 +10,8 @@ All notable changes to Hronaut are documented in this file.
 
 - Discard pending related network request selections when the panel context or selected request changes, preventing stale lookups and feedback in another tab.
 
+- Give recorded arrows and callout pointers rounded chevron heads, a matching contrast outline, and proportional heads for short arrows and drawing entrances.
+
 - Keep older HAR export completions from overwriting a newer clipboard copy or replacing its feedback with stale errors.
 
 - Track compressed response body bytes separately from decoded content bytes for accurate HAR sizes, without counting headers or sanitized text characters as body bytes.

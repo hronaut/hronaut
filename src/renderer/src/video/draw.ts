@@ -37,17 +37,19 @@ function arrow(context: CanvasRenderingContext2D, x: number, y: number, endX: nu
   const tipX = (1 - t) ** 2 * x + 2 * (1 - t) * t * controlX + t ** 2 * endX
   const tipY = (1 - t) ** 2 * y + 2 * (1 - t) * t * controlY + t ** 2 * endY
   const partialX = x + (controlX - x) * t, partialY = y + (controlY - y) * t
-  const thickness = Math.max(2.5, 4 * scale)
+  // Scale the entire pointer down while a short arrow (or its entrance) grows.
+  const length = Math.hypot(tipX - x, tipY - y)
+  const thickness = Math.min(Math.max(2.5, 5 * scale), length * 0.16)
+  const head = Math.min(Math.max(10, 20 * scale), length * 0.38)
+  const angle = Math.atan2(tipY - partialY, tipX - partialX)
   context.lineCap = 'round'; context.lineJoin = 'round'
   context.beginPath(); context.moveTo(x, y); context.quadraticCurveTo(partialX, partialY, tipX, tipY)
-  context.strokeStyle = '#0b102080'; context.lineWidth = thickness + Math.max(2, 3 * scale); context.stroke()
+  context.moveTo(tipX - head * Math.cos(angle - 0.55), tipY - head * Math.sin(angle - 0.55))
+  context.lineTo(tipX, tipY)
+  context.lineTo(tipX - head * Math.cos(angle + 0.55), tipY - head * Math.sin(angle + 0.55))
+  // Outline the shaft and open head together, including their rounded joins.
+  context.strokeStyle = `${badgeInk(color)}99`; context.lineWidth = thickness * 1.65; context.stroke()
   context.strokeStyle = color; context.lineWidth = thickness; context.stroke()
-  const angle = Math.atan2(tipY - partialY, tipX - partialX), head = Math.max(9, 16 * scale)
-  context.beginPath(); context.moveTo(tipX, tipY)
-  context.lineTo(tipX - head * Math.cos(angle - 0.5), tipY - head * Math.sin(angle - 0.5))
-  context.lineTo(tipX - head * Math.cos(angle + 0.5), tipY - head * Math.sin(angle + 0.5))
-  context.closePath(); context.fillStyle = color; context.fill()
-  context.beginPath(); context.arc(x, y, thickness * 0.9, 0, Math.PI * 2); context.fill()
 }
 
 function textCard(context: CanvasRenderingContext2D, a: VideoAnnotation, width: number, height: number): void {
