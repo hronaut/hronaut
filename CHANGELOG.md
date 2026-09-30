@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Show capability-profile validation errors for argument constraint keys that collide with JavaScript prototype names, allowing the form to be corrected and resubmitted.
+
 - Release workspace cookie listeners after the last tab closes, including when its native WebContents has already been destroyed.
 
 - Cancel docked-panel resizing when the panel closes or Escape is pressed, releasing the pointer and restoring the prior size preference without saving a partial drag.
