@@ -151,8 +151,12 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
             throw error
           }
         })
+        if (this.host.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
+          || tab.codeCoverage?.recording !== recording) {
+          throw new Error('Code coverage changed while starting. Run the requested action again.')
+        }
       } catch (error) {
-        tab.codeCoverage = undefined
+        if (tab.codeCoverage?.recording === recording) tab.codeCoverage = undefined
         throw error
       }
       this.host.changed()
@@ -369,12 +373,11 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
       if (tab.cpuProfile?.recording) throw new Error('A JavaScript CPU profile is already recording for this tab')
       if (tab.codeCoverage?.recording) throw new Error('Stop code coverage before recording a JavaScript CPU profile')
       if (tab.memoryAllocation?.recording) throw new Error('Stop memory allocation sampling before recording a JavaScript CPU profile')
-      tab.cpuProfile = {
-        recording: {
-          startedAt: new Date().toISOString(),
-          startedUrl: tab.url
-        }
+      const recording = {
+        startedAt: new Date().toISOString(),
+        startedUrl: tab.url
       }
+      tab.cpuProfile = { recording }
       try {
         await this.host.withDebugger(tab.webContents, async () => {
           try {
@@ -386,8 +389,12 @@ export class BrowserProfilingController<Tab extends BrowserProfilingTab> {
             throw error
           }
         })
+        if (this.host.findTab(tab.id) !== tab || tab.webContents.isDestroyed()
+          || tab.cpuProfile?.recording !== recording) {
+          throw new Error('JavaScript CPU profiling changed while starting. Run the requested action again.')
+        }
       } catch (error) {
-        tab.cpuProfile = undefined
+        if (tab.cpuProfile?.recording === recording) tab.cpuProfile = undefined
         throw error
       }
       this.host.changed()
