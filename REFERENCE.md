@@ -983,7 +983,7 @@ recorder or encoder bridge.
   require `endX`/`endY`: the pointer target for a callout, or the opposite corner
   for a highlight/spotlight. Regions must have non-zero width and height.
 - `render`: prepare a local preview without writing a file.
-- `export`: render if necessary and save a silent `.webm` file. Returns its path,
+- `export`: render if necessary and save a `.webm` file with optional composed Opus audio. Returns its path,
   filename, bytes, codec, MIME type and edited duration. This action requires the
   capability's `external-request` operation class as well as workspace write access.
 
@@ -1049,3 +1049,7 @@ macOS ([WebKit compatibility notes](https://webkit.org/blog/15063/webkit-feature
 WebM is not a universal native-player/editor format; MP4/H.264 conversion is not
 included. The bundled WebCodecs encoder is checked at export time. Unsupported
 encoding reports an error while preserving the raw recording for review/retry.
+
+### Video sound and motion
+
+`browser_video` also supports original music/SFX, authorized local WAV imports, output-time audio mixing, source-time camera zoom/pan and restrained clip transitions. See [complete composition examples and limits](docs/VIDEO_COMPOSITION.md) and [audio provenance](docs/VIDEO_AUDIO_PROVENANCE.md). Existing silent exports remain supported.

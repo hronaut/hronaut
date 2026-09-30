@@ -6,6 +6,10 @@ All notable changes to Hronaut are documented in this file.
 
 ## [2.8.7] - 2026-09-30
 
+### Added
+
+- Compose complete browser clips with original music and sound effects, authorized WAV imports, timed volume/fades and Opus audio, camera zoom/pan and smooth cut transitions, with readable screen-anchored captions.
+
 ### Fixed
 
 - Reject obsolete CPU and code-coverage start completions without clearing newer recordings or reloading a detached coverage tab.

@@ -1,5 +1,6 @@
 import type { VideoAnnotation } from '../../../shared/video.js'
 import { layoutVideoText, videoTextBaseline, VIDEO_FONT } from './layout.js'
+import { videoCameraPoint, type VideoCameraTransform } from './motion.js'
 
 const clamp = (value: number, low: number, high: number): number => Math.max(low, Math.min(value, high))
 const ease = (value: number): number => 1 - (1 - clamp(value, 0, 1)) ** 3
@@ -52,13 +53,14 @@ function arrow(context: CanvasRenderingContext2D, x: number, y: number, endX: nu
   context.strokeStyle = color; context.lineWidth = thickness; context.stroke()
 }
 
-function textCard(context: CanvasRenderingContext2D, a: VideoAnnotation, width: number, height: number): void {
+function textCard(context: CanvasRenderingContext2D, a: VideoAnnotation, width: number, height: number, camera?: VideoCameraTransform): void {
   const box = layoutVideoText(context, a, width, height)
   const { x, y, padding, scale } = box
   const light = a.theme === 'light'
   const foreground = a.textColor ?? (light ? '#172033' : '#f8fafc')
   if (a.kind === 'callout') {
-    const endX = (a.endX ?? 0.5) * width, endY = (a.endY ?? 0.5) * height
+    const target = camera ? videoCameraPoint(a.endX ?? 0.5, a.endY ?? 0.5, camera) : { x: a.endX ?? 0.5, y: a.endY ?? 0.5 }
+    const endX = target.x * width, endY = target.y * height
     const startX = endX < x ? x : endX > x + box.width ? x + box.width : clamp(endX, x + padding, x + box.width - padding)
     const startY = endX < x || endX > x + box.width ? clamp(endY, y + padding, y + box.height - padding) : endY < y ? y : y + box.height
     arrow(context, startX, startY, endX, endY, a.color, scale, a.curvature ?? 0.12)
@@ -93,9 +95,14 @@ function textCard(context: CanvasRenderingContext2D, a: VideoAnnotation, width: 
   box.lines.forEach((line, index) => context.fillText(line, textX, videoTextBaseline(context, y + padding + box.headerHeight + box.headerGap + index * box.lineHeight, box.lineHeight, box.fontSize)))
 }
 
-export function drawVideoAnnotations(context: CanvasRenderingContext2D, annotations: VideoAnnotation[], sourceMs: number, width: number, height: number): void {
+export function drawVideoAnnotations(context: CanvasRenderingContext2D, annotations: VideoAnnotation[], sourceMs: number, width: number, height: number, camera?: VideoCameraTransform): void {
   if (width < 48 || height < 48) return
-  const active = annotations.filter(a => sourceMs >= a.startMs && sourceMs < a.endMs)
+  const active = annotations.filter(a => sourceMs >= a.startMs && sourceMs < a.endMs).map(a => {
+    if (!camera || a.kind === 'text' || a.kind === 'callout') return a
+    const start = a.x !== undefined && a.y !== undefined ? videoCameraPoint(a.x, a.y, camera) : undefined
+    const end = a.endX !== undefined && a.endY !== undefined ? videoCameraPoint(a.endX, a.endY, camera) : undefined
+    return { ...a, ...(start ? { x: start.x, y: start.y } : {}), ...(end ? { endX: end.x, endY: end.y } : {}) }
+  })
   const scale = Math.min(width / 1280, height / 720)
   const spotlights = active.filter(a => a.kind === 'spotlight')
   if (spotlights.length) {
@@ -118,7 +125,9 @@ export function drawVideoAnnotations(context: CanvasRenderingContext2D, annotati
     if (!opacity) continue
     context.save(); context.globalAlpha = opacity
     const x = (a.x ?? 0) * width, y = (a.y ?? 0) * height
-    if (a.kind === 'text' || a.kind === 'callout') textCard(context, a, width, height)
+    // Card layout stays screen anchored even when an automatic callout's target
+    // crosses the frame center, avoiding abrupt side changes during a camera pan.
+    if (a.kind === 'text' || a.kind === 'callout') textCard(context, a, width, height, camera)
     else if (a.kind === 'arrow') {
       const progress = a.animation === 'draw' ? ease((sourceMs - a.startMs) / Math.min(400, (a.endMs - a.startMs) / 2)) : 1
       arrow(context, x, y, (a.endX ?? 0) * width, (a.endY ?? 0) * height, a.color, scale, a.curvature ?? 0.15, progress)

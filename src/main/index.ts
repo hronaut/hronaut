@@ -2914,7 +2914,12 @@ function registerIpc(): void {
     assertTrustedSender: assertTrustedShellSender,
     tabs: () => tabsManager!,
     pngDataUrl: (data) => nativeImage.createFromBuffer(data).toDataURL(),
-    copyPng: copyPngToClipboard
+    copyPng: copyPngToClipboard,
+    pickVideoAudio: async () => {
+      if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Browser window is unavailable')
+      const selection = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], filters: [{ name: 'PCM WAV audio', extensions: ['wav'] }] })
+      return selection.canceled ? undefined : selection.filePaths[0]
+    }
   })
   ipcMain.handle('browser:console', (event, value: unknown) => {
     assertTrustedShellSender(event)

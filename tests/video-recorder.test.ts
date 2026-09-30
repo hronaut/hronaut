@@ -140,3 +140,53 @@ it('ignores a late capture failure after stop and keeps stopped recordings termi
   await expect(manage('resume')).rejects.toThrow('Only a paused recording')
   recorder.destroy()
 })
+
+it('validates audio and camera edits atomically and passes soundtrack assets only to the renderer', async () => {
+  const { recorder, manage, capture, validate, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(1000); await manage('stop')
+  const edit = (input: Record<string, unknown>) => recorder.manage('tab', { action: 'edit', ...input }, capture, validate)
+  await edit({ audio: [{ assetId: 'builtin:ambient', startMs: 0, endMs: 1000, loop: true }], cameras: [{ startMs: 0, endMs: 900, x: 0.5, y: 0.5 }] })
+  const before = recorder.state('tab')
+  await expect(edit({ audio: [{ assetId: 'missing', startMs: 0, endMs: 500 }], cameras: [] })).rejects.toThrow('unavailable')
+  expect(recorder.state('tab')).toEqual(before)
+  await expect(edit({ clips: [{ startMs: 0, endMs: 500 }] })).rejects.toThrow('finished video')
+  await expect(edit({ cameras: [{ startMs: 0, endMs: 800, x: 0.5, y: 0.5 }, { startMs: 500, endMs: 1000, x: 0.5, y: 0.5 }] })).rejects.toThrow('non-overlapping')
+  const output = await manage('export')
+  expect(output.exported?.audioCodec).toBe('opus')
+  expect(host.render.mock.calls[0]?.[0]).toMatchObject({ audio: before.audio, cameras: before.cameras })
+  await edit({ audio: [], cameras: [] })
+  expect(recorder.state('tab').previewReady).toBe(false)
+  recorder.destroy()
+})
+
+it('discards an import when its recording is cleared or authority is revoked during the read', async () => {
+  const { recorder, manage, capture, validate, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  let finish!: (bytes: Uint8Array) => void
+  Object.assign(host, { loadAudio: vi.fn(() => new Promise<Uint8Array>(resolve => { finish = resolve })) })
+  const pending = recorder.manage('tab', { action: 'import-audio', audioPath: '/original.wav', audioProvenance: 'Original' }, capture, validate)
+  await expect(manage('export')).rejects.toThrow('current video operation')
+  await manage('clear')
+  finish(new Uint8Array(44))
+  await expect(pending).rejects.toThrow('cancelled')
+  expect(recorder.state('tab')).toMatchObject({ status: 'idle', audio: [] })
+})
+
+it('cancels a request render without caching a late result or discarding the recording', async () => {
+  const { recorder, manage, capture, validate, host } = fixture()
+  await manage('start'); await vi.advanceTimersByTimeAsync(100); await manage('stop')
+  const controller = new AbortController()
+  let finish!: (bytes: Uint8Array) => void
+  host.render.mockImplementationOnce(async (_plan, _frames, signal) => {
+    expect(signal.aborted).toBe(false)
+    return new Promise(resolve => { finish = resolve })
+  })
+  const pending = recorder.manage('tab', { action: 'export' }, capture, validate, validate, controller.signal)
+  controller.abort(); finish(new Uint8Array([1]))
+  await expect(pending).rejects.toThrow('cancelled')
+  expect(host.save).not.toHaveBeenCalled()
+  expect(recorder.state('tab')).toMatchObject({ status: 'stopped', previewReady: false })
+  await manage('render')
+  expect(host.render).toHaveBeenCalledTimes(2)
+  recorder.destroy()
+})

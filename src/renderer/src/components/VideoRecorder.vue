@@ -2,12 +2,15 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import UiButton from '../ui/UiButton.vue'
+import VideoAudioEditor from './VideoAudioEditor.vue'
+import VideoMotionEditor from './VideoMotionEditor.vue'
 import { VIDEO_ANNOTATION_KINDS, VIDEO_PLACEMENTS, VIDEO_TEXT_PRESETS, videoAnnotationSchema, videoOptionsSchema, type BrowserVideoOptions, type BrowserVideoState, type VideoAnnotation } from '../../../shared/video.js'
 
 const props = defineProps<{ tabId: string }>()
 const { t } = useI18n({ useScope: 'global' })
 const state = ref<BrowserVideoState | null>(null)
 const busy = ref(false)
+const pendingAction = ref<BrowserVideoOptions['action']>()
 const error = ref('')
 const previewUrl = ref('')
 const kind = ref<VideoAnnotation['kind']>('text')
@@ -25,6 +28,7 @@ const needsEnd = computed(() => ['callout', 'arrow', 'highlight', 'spotlight'].i
 const start = ref(0), end = ref(1), x = ref(10), y = ref(10), endX = ref(50), endY = ref(50)
 const clipStart = ref(0), clipEnd = ref(1)
 const stopped = computed(() => state.value?.status === 'stopped')
+const rendering = computed(() => state.value?.status === 'rendering' || pendingAction.value === 'render' || pendingAction.value === 'export')
 let revision = 0
 let disposed = false
 let poll: ReturnType<typeof setTimeout> | undefined
@@ -45,16 +49,16 @@ async function refresh(): Promise<void> {
   } catch { /* Explicit operations report errors; polling never replaces an in-flight result. */ }
   finally { if (!disposed && expected === revision) poll = setTimeout(() => { void refresh() }, 1000) }
 }
-async function manage(action: BrowserVideoOptions['action'], extra: Partial<BrowserVideoOptions> = {}): Promise<void> {
-  if (busy.value) return
+async function perform(action: BrowserVideoOptions['action'], operation: (tabId: string) => Promise<BrowserVideoState>): Promise<void> {
+  if (busy.value && !(action === 'clear' && rendering.value)) return
   const expected = ++revision, tabId = props.tabId
   if (poll) clearTimeout(poll)
-  busy.value = true; error.value = ''
+  busy.value = true; pendingAction.value = action; error.value = ''
   try {
-    const result = await window.hronaut.manageVideo(videoOptionsSchema.parse({ ...extra, tabId, action }))
+    const result = await operation(tabId)
     if (disposed || expected !== revision || tabId !== props.tabId) return
     state.value = result
-    if (action === 'clear' || action === 'edit') clearPreview()
+    if (action === 'clear' || action === 'edit' || !result.previewReady) clearPreview()
     if ((action === 'render' || action === 'export') && result.previewReady) {
       const data = await window.hronaut.videoPreview(tabId)
       if (disposed || expected !== revision || tabId !== props.tabId) return
@@ -64,8 +68,14 @@ async function manage(action: BrowserVideoOptions['action'], extra: Partial<Brow
   } catch (cause) {
     if (!disposed && expected === revision) error.value = cause instanceof Error ? cause.message : String(cause)
   } finally {
-    if (!disposed && expected === revision) { busy.value = false; void refresh() }
+    if (!disposed && expected === revision) { busy.value = false; pendingAction.value = undefined; void refresh() }
   }
+}
+async function manage(action: BrowserVideoOptions['action'], extra: Partial<BrowserVideoOptions> = {}): Promise<void> {
+  await perform(action, tabId => window.hronaut.manageVideo(videoOptionsSchema.parse({ ...extra, tabId, action })))
+}
+async function importAudio(provenance: string): Promise<void> {
+  await perform('import-audio', tabId => window.hronaut.importVideoAudio(tabId, provenance))
 }
 async function addAnnotation(): Promise<void> {
   try {
@@ -87,7 +97,7 @@ watch(kind, value => {
 watch(() => props.tabId, () => {
   revision += 1
   if (poll) clearTimeout(poll)
-  state.value = null; busy.value = false; error.value = ''; clearPreview()
+  state.value = null; busy.value = false; pendingAction.value = undefined; error.value = ''; clearPreview()
   void refresh()
 }, { immediate: true })
 onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(poll); clearPreview() })
@@ -104,9 +114,10 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
       <UiButton v-if="state?.status === 'recording'" :disabled="busy" @click="manage('pause')">{{ t('video.pause') }}</UiButton>
       <UiButton v-if="state?.status === 'paused'" :disabled="busy" @click="manage('resume')">{{ t('video.resume') }}</UiButton>
       <UiButton v-if="state?.status === 'recording' || state?.status === 'paused'" :disabled="busy" @click="manage('stop')">{{ t('video.stop') }}</UiButton>
-      <UiButton v-if="state && state.status !== 'idle'" :disabled="busy" @click="manage('clear')">{{ t('video.clear') }}</UiButton>
+      <UiButton v-if="state && state.status !== 'idle'" :disabled="busy && !rendering" @click="manage('clear')">{{ rendering ? t('video.cancelRender') : t('video.clear') }}</UiButton>
     </div>
     <template v-if="stopped">
+      <p class="video-help">{{ t('video.workflow') }}</p>
       <fieldset :disabled="busy">
         <legend>{{ t('video.annotation') }}</legend>
         <label>{{ t('video.kind') }}<select v-model="kind"><option v-for="option in VIDEO_ANNOTATION_KINDS" :key="option" :value="option">{{ t(`video.kinds.${option}`) }}</option></select></label>
@@ -157,6 +168,8 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
         <UiButton v-if="state?.clips.length" @click="manage('edit', { clips: [{ startMs: 0, endMs: state.durationMs }] })">{{ t('video.wholeRecording') }}</UiButton>
         <ol><li v-for="(clip, index) in state?.clips" :key="index">{{ clip.startMs / 1000 }} · {{ clip.endMs / 1000 }} {{ t('video.seconds') }}<UiButton v-if="state && state.clips.length > 1" @click="manage('edit', { clips: state.clips.filter((_, i) => i !== index) })">{{ t('video.remove') }}</UiButton></li></ol>
       </fieldset>
+      <VideoAudioEditor v-if="state" :key="`audio-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" @import="importAudio" @remove-asset="manage('remove-audio', { assetId: $event })" />
+      <VideoMotionEditor v-if="state" :key="`motion-${tabId}-${state.recordingId ?? ''}`" :state="state" :busy="busy" @edit="manage('edit', $event)" />
       <div class="video-actions">
         <UiButton :disabled="busy || !state?.frameCount" @click="manage('render')">{{ t('video.preview') }}</UiButton>
         <UiButton variant="primary" :disabled="busy || !state?.frameCount" @click="manage('export')">{{ t('video.export') }}</UiButton>
@@ -168,7 +181,7 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
   </section>
 </template>
 
-<style scoped>
+<style>
 .video-recorder { grid-column: 1 / -1; display: grid; gap: 12px; min-width: 0; }
 .video-recorder p { margin: 0; }
 .video-recorder fieldset { display: grid; gap: 10px; min-width: 0; border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px; }
@@ -176,9 +189,18 @@ onBeforeUnmount(() => { disposed = true; revision += 1; if (poll) clearTimeout(p
 .video-recorder input, .video-recorder select, .video-recorder textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px; color: inherit; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 4px; }
 .video-recorder textarea { resize: vertical; font: inherit; }
 .video-recorder input[type="color"] { height: 32px; padding: 3px; }
-.video-help { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
-.video-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.video-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.video-recorder .video-help { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.video-recorder .video-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.video-recorder .video-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.video-recorder .video-check { display: flex; align-items: center; gap: 8px; }
+.video-recorder .video-check input { width: auto; }
+.video-recorder .video-section { border: 1px solid var(--border-soft); border-radius: 8px; padding: 10px; }
+.video-recorder .video-section summary { cursor: pointer; font-weight: 600; }
+.video-recorder .video-section summary span { color: var(--text-muted); font-weight: 400; }
+.video-recorder .video-section[open] summary { margin-bottom: 12px; }
+.video-recorder .video-section fieldset + fieldset { margin-top: 12px; }
+.video-recorder .video-items { padding-left: 20px; margin: 0; }
+.video-recorder .video-items li { overflow-wrap: anywhere; }
 .video-recorder video { width: 100%; border-radius: 8px; }
 .video-recorder code { overflow-wrap: anywhere; }
 .video-recorder li { margin-bottom: 6px; }

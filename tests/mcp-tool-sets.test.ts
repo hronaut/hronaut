@@ -180,6 +180,8 @@ describe('MCP tool sets', () => {
     expect(mcpCapabilityOperationClass('browser_video', { action: 'get' })).toBe('read')
     expect(mcpCapabilityOperationClass('browser_video', { action: 'start' })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_video', { action: 'export' })).toBe('external-request')
+    expect(mcpCapabilityOperationClass('browser_video', { action: 'import-audio' })).toBe('external-request')
+    expect(mcpCapabilityOperationClass('browser_video', { action: 'remove-audio' })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_console', {})).toBe('read')
     expect(mcpCapabilityOperationClass('browser_console', { clear: true })).toBe('browser-state')
     expect(mcpCapabilityOperationClass('browser_network', {})).toBe('read')
