@@ -205,6 +205,27 @@ describe('McpSettingsPanel', () => {
     controller.dispose()
   })
 
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__', ''])('shows validation errors for constraint key "%s" and permits correction', async (path) => {
+    const { controller, createCapabilityProfile } = renderPanel()
+    createCapabilityProfile.mockRejectedValueOnce(new Error('Capability profile argument constraints are invalid'))
+    await fireEvent.update(screen.getByLabelText('Profile name'), 'QA reader')
+    await fireEvent.update(screen.getByLabelText('Exact argument constraints (optional)'), `${path}=1`)
+    await fireEvent.click(screen.getByRole('button', { name: 'Create profile' }))
+
+    await vi.waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Capability profile argument constraints are invalid'))
+    expect(createCapabilityProfile).toHaveBeenCalledWith(expect.objectContaining({
+      argumentConstraints: Object.fromEntries([[path, path ? [1] : []]])
+    }))
+    expect(screen.getByLabelText('Profile name')).toHaveValue('QA reader')
+    expect(screen.queryByText(`hrc1_${'a'.repeat(43)}`)).not.toBeInTheDocument()
+
+    await fireEvent.update(screen.getByLabelText('Exact argument constraints (optional)'), 'browser_snapshot.tabId=tab-1')
+    await fireEvent.click(screen.getByRole('button', { name: 'Create profile' }))
+    await vi.waitFor(() => expect(screen.getByText(`hrc1_${'a'.repeat(43)}`)).toBeVisible())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    controller.dispose()
+  })
+
   it('creates a scoped profile and shows its credential only in the transient result', async () => {
     const { controller, createCapabilityProfile } = renderPanel()
     const user = userEvent.setup()
