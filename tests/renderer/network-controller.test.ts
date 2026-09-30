@@ -187,6 +187,43 @@ afterEach(() => {
 })
 
 describe('network controller', () => {
+  it.each(['switch', 'reset'] as const)('discards a related request selection after a context %s', async (action) => {
+    const { activeTab, browser, controller } = createController()
+    const selecting = controller.selectRelatedRequest(request('old'))
+    if (action === 'switch') activeTab.value = tab('tab-2')
+    else controller.reset()
+    await selecting
+    expect(browser.getNetworkRequestDetails).not.toHaveBeenCalled()
+    expect(controller.selectedRequestId.value).toBeNull()
+    expect(controller.requestDetails.value).toBeNull()
+    expect(controller.monitorError.value).toBe('')
+    controller.dispose()
+  })
+
+  it('keeps a newer direct request selection while a related request waits for rendering', async () => {
+    const { browser, controller } = createController()
+    const selecting = controller.selectRelatedRequest(request('old'))
+    await controller.selectRequest(request('new'))
+    await selecting
+    expect(browser.getNetworkRequestDetails).toHaveBeenCalledOnce()
+    expect(browser.getNetworkRequestDetails).toHaveBeenCalledWith('tab-1', 'new', 20_000)
+    expect(controller.selectedRequestId.value).toBe('new')
+    expect(controller.requestDetails.value?.id).toBe('new')
+    controller.dispose()
+  })
+
+  it('selects only the newest related request queued before rendering', async () => {
+    const { browser, controller } = createController()
+    const older = controller.selectRelatedRequest(request('old'))
+    const newer = controller.selectRelatedRequest(request('new'))
+    await Promise.all([older, newer])
+    expect(browser.getNetworkRequestDetails).toHaveBeenCalledOnce()
+    expect(browser.getNetworkRequestDetails).toHaveBeenCalledWith('tab-1', 'new', 20_000)
+    expect(controller.selectedRequestId.value).toBe('new')
+    expect(controller.requestDetails.value?.id).toBe('new')
+    controller.dispose()
+  })
+
   it.each(['success', 'failure'] as const)('ignores an older HAR export completing with %s after a newer copy', async (outcome) => {
     const { browser, controller, copyText } = createController()
     const har = await browser.createNetworkHar()
