@@ -1,4 +1,4 @@
-import { mkdtemp, open, readFile, readdir, rm, stat, writeFile, type FileHandle } from 'node:fs/promises'
+import { chmod, mkdtemp, open, readFile, readdir, rm, stat, writeFile, type FileHandle } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
@@ -110,4 +110,16 @@ it('retains the file flush on Windows without opening a directory handle', async
 
   expect(sync).toHaveBeenCalledOnce()
   expect(await readFile(path, 'utf8')).toBe('new state')
+})
+
+it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('preserves saves into a writable directory without read permission', async () => {
+  directory = await mkdtemp(join(tmpdir(), 'hronaut-atomic-write-only-'))
+  const path = join(directory, 'state.json')
+  await chmod(directory, 0o300)
+  try {
+    await writeTextFileAtomically(path, 'new state')
+    expect(await readFile(path, 'utf8')).toBe('new state')
+  } finally {
+    await chmod(directory, 0o700)
+  }
 })
