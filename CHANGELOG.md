@@ -4,6 +4,8 @@ All notable changes to Hronaut are documented in this file.
 
 ## [Unreleased]
 
+## [2.8.6] - 2026-09-30
+
 ### Fixed
 
 - Sign hex-looking Solana and Tron message strings as their UTF-8 text, preserving EVM hex decoding and explicit binary message inputs.
