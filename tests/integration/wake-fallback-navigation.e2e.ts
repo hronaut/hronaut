@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import type { HronautApi } from '../../src/shared/types.js'
 import { closeFixtureServer, expect, test } from './fixtures.js'
 
 for (const replacement of [false, true]) {
@@ -54,7 +55,9 @@ for (const replacement of [false, true]) {
           .then(() => { window.wakeFallbackOutcome = 'resolved'; }, () => { window.wakeFallbackOutcome = 'rejected'; });
       })()`)
       await expect.poll(() => electronApp.evaluate(({ webContents }, id) => Reflect.get(webContents.fromId(id)!, 'wakeFallbackFixture').started, pageId!)).toBe(true)
-      if (replacement) await appWindow.evaluate(`window.hronaut.navigate(${JSON.stringify(newUrl)}, ${JSON.stringify(tabId)})`)
+      if (replacement) await appWindow.evaluate(({ url, tabId }) => (
+        window as unknown as { hronaut: HronautApi }
+      ).hronaut.navigate({ url, tabId }), { url: newUrl, tabId: tabId as string })
       await electronApp.evaluate(({ webContents }, id) => Reflect.get(webContents.fromId(id)!, 'wakeFallbackFixture').reject(), pageId)
       await expect.poll(() => appWindow.evaluate('window.wakeFallbackOutcome')).toBe(replacement ? 'resolved' : 'rejected')
       expect(await appWindow.evaluate(`window.hronaut.getState().then(state => state.tabs.find(tab => tab.id === ${JSON.stringify(tabId)})?.sleeping)`)).toBe(!replacement)
@@ -71,6 +74,7 @@ for (const replacement of [false, true]) {
       if (pageId) await electronApp.evaluate(({ webContents }, id) => {
         const page = webContents.fromId(id)
         if (page) {
+          Reflect.get(page, 'wakeFallbackFixture')?.reject()
           Reflect.get(page, 'wakeFallbackFixture')?.restore()
           Reflect.deleteProperty(page, 'wakeFallbackFixture')
         }
