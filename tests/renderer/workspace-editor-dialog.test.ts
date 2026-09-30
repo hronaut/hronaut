@@ -127,6 +127,43 @@ describe('workspace data and agent access controls', () => {
   })
 })
 
+it.each(['success', 'failure'] as const)('keeps the current browser import destination after an older editor lookup %s', async (outcome) => {
+  const state = {
+    tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
+    mcpUrl: '', profilePath: '', savedTabGroups: [],
+    mcpTabGroups: ['old', 'new'].map(id => ({ id, name: `${id} workspace`, description: '', color: 'purple',
+      createdAt: '', lastUsedAt: '', tabCount: 0, activeTabId: null, storageOriginCount: 0,
+      navigationPolicy: { mode: 'unrestricted', rules: [] } }))
+  } as BrowserState
+  let resolve!: (state: BrowserState) => void
+  let reject!: (error: Error) => void
+  const pending = new Promise<BrowserState>((finish, fail) => { resolve = finish; reject = fail })
+  Object.defineProperty(window, 'hronaut', { configurable: true, value: {
+    getState: vi.fn().mockReturnValueOnce(pending).mockResolvedValue(state),
+    listWorkspaceStorageOrigins: vi.fn(async () => []), listWorkspaceNavigationAudit: vi.fn(async () => [])
+  } })
+  const wrapper = mount(WorkspaceEditor, {
+    global: { plugins: [createHronautI18n('en-US')], stubs: {
+      WorkspaceContinuityPanel: true, HumanWaitingPanel: true
+    } },
+    props: { open: false, state, canPresent: true, formatNumber: String, syncState: async () => undefined,
+      'onUpdate:open': (open: boolean) => { void wrapper.setProps({ open }) } }
+  })
+  try {
+    const editor = wrapper.vm as unknown as { openExisting: (id: string) => Promise<void> }
+    const older = editor.openExisting('old')
+    await editor.openExisting('new')
+    await flushPromises()
+    expect(wrapper.get<HTMLSelectElement>('#browser-import-destination').element.value).toBe('new')
+    if (outcome === 'success') resolve(state)
+    else reject(new Error('Obsolete lookup failed'))
+    await expect(older).resolves.toBeUndefined()
+    await flushPromises()
+    expect(wrapper.get<HTMLInputElement>('#tab-group-name').element.value).toBe('new workspace')
+    expect(wrapper.get<HTMLSelectElement>('#browser-import-destination').element.value).toBe('new')
+  } finally { wrapper.unmount() }
+})
+
 it('keeps Home templates open when an older workspace editor read finishes', async () => {
   const state = {
     tabs: [], closedTabs: [], activeTabId: null, allHumanInteractionLocked: false,
