@@ -482,10 +482,15 @@ export function useNetworkController(options: NetworkControllerOptions) {
   }
 
   async function selectRelatedRequest(request: BrowserNetworkRequest): Promise<void> {
+    const tab = options.activeTab.value
+    if (!tab) return
+    const expectedGeneration = generation
+    const sequence = ++requestDetailsSequence
     search.value = ''
     resourceFilter.value = ''
     failuresOnly.value = false
     await nextTick()
+    if (sequence !== requestDetailsSequence || !isCurrent(tab.id, expectedGeneration)) return
     await selectRequest(request)
   }
 
