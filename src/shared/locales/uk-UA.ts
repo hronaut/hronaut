@@ -2,6 +2,7 @@ import { browserImportMessages } from './browser-import.js'
 import { enUS, type MessageSchema } from './en-US.js'
 
 export const ukUA = {
+  licenseNotice: {"expired": "Автоматизацію агентів заблоковано. Активуйте або поновіть ліцензію. Збережені дані залишаються доступними.", "manage": "Налаштування ліцензії", "purchase": "Придбати або поновити ↗"},
   browserImport: browserImportMessages['uk-UA'],
   video: enUS.video,
   workspaceLibrary: {

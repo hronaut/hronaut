@@ -36,3 +36,32 @@ it('checks licensing before each tool handler, while allowing discovery and reac
     await server.stop()
   }
 })
+
+
+it('rechecks entitlement after admission before dispatch without repeating an admitted effect', async () => {
+  const listWorkspaces = vi.fn(() => [])
+  let entitled = true
+  const assertAutomationAccess = vi.fn(() => {
+    if (!entitled) throw new Error('Subscription expired before dispatch')
+  })
+  const server = new McpHttpServer({ listMcpTabGroups: listWorkspaces } as never, {
+    host: '127.0.0.1', port: 0, version: 'test',
+    authorizeAutomation: async () => { entitled = false },
+    assertAutomationAccess,
+    showWindowInactive: () => undefined,
+    getUserAttention: () => null,
+    requestUserAttention: async (request) => ({ ...request, id: 'request', requestedAt: new Date().toISOString() }),
+    bookmarks: {} as never, history: {} as never, siteData: {} as never
+  })
+  const client = new Client({ name: 'license-dispatch-test', version: '1' })
+  try {
+    const endpoint = await server.start()
+    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint)))
+    const denied = await client.callTool({ name: 'browser_workspaces', arguments: { action: 'list' } })
+    expect(denied).toMatchObject({ isError: true, content: [{ type: 'text', text: 'Subscription expired before dispatch' }] })
+    expect(listWorkspaces).not.toHaveBeenCalled()
+  } finally {
+    await client.close()
+    await server.stop()
+  }
+})

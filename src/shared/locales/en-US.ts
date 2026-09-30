@@ -1,5 +1,6 @@
 import { browserImportMessages } from './browser-import.js'
 export const enUS = {
+  licenseNotice: {"expired": "Agent automation is locked. Activate or renew your license to continue. Saved data remains available.", "manage": "License settings", "purchase": "Buy or renew ↗"},
   browserImport: browserImportMessages['en-US'],
   video: {
     workflow: 'Trim first, then add sound and motion. Preview the finished clip before exporting.',

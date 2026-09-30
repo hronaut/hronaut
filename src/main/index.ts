@@ -66,7 +66,7 @@ import {
   commercialLicensePurchaseHandler
 } from './commercial-license-links.js'
 import { CommercialLicenseOperationCoordinator } from './commercial-license-operations.js'
-import { CommercialLicenseStore } from './commercial-license-store.js'
+import { CommercialLicenseStore, commercialLicenseStateRefreshDelay } from './commercial-license-store.js'
 import { ReleaseHistoryService } from './release-history.js'
 import { buildBrowsingDataWebsiteInventory, cookieAvailableToOrigin } from './browsing-data-websites.js'
 import { createHomeProtocolHandler } from './platform/home-protocol.js'
@@ -273,6 +273,7 @@ let credentialStore: CredentialStore | null = null
 let commercialLicenseStore: CommercialLicenseStore | null = null
 let commercialLicenseClient: CommercialLicenseClient | null = null
 let commercialLicenseMessage: string | undefined
+let commercialLicenseStateTimer: ReturnType<typeof setTimeout> | undefined
 const commercialLicenseOperations = new CommercialLicenseOperationCoordinator()
 let bookmarkStore: BookmarkStore | null = null
 let historyStore: HistoryStore | null = null
@@ -861,6 +862,8 @@ function currentCommercialLicenseState(): CommercialLicenseState {
 function publishCommercialLicenseState(): CommercialLicenseState {
   const state = currentCommercialLicenseState()
   sendToShellWindows('license:changed', state)
+  clearTimeout(commercialLicenseStateTimer)
+  if (!quitting) commercialLicenseStateTimer = setTimeout(publishCommercialLicenseState, commercialLicenseStateRefreshDelay(state)).unref()
   return state
 }
 
@@ -3993,6 +3996,10 @@ function createRuntimeMcpServer(
         publishCommercialLicenseState()
       }
     },
+    assertAutomationAccess: () => {
+      if (!commercialLicenseStore) throw new Error('License storage is unavailable')
+      commercialLicenseStore.assertAutomationAccess()
+    },
     auditReceipts: auditReceipts ?? undefined,
     humanWaiting: humanWaiting ?? undefined,
     taskRuns: taskRuns ?? undefined,
@@ -4189,6 +4196,7 @@ app.on('window-all-closed', () => {
   // The app intentionally stays alive: MCP clients may reconnect later.
 })
 app.on('before-quit', () => {
+  clearTimeout(commercialLicenseStateTimer)
   quitting = true
   lastWindowState = currentWindowState() ?? lastWindowState
   lastPanelWindowState = currentPanelWindowState() ?? lastPanelWindowState

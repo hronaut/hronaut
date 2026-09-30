@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { CommercialLicenseStore, TRIAL_DURATION_MS, LICENSE_OFFLINE_GRACE_MS, type CommercialLicenseEncryption } from '../src/main/commercial-license-store.js'
+import { CommercialLicenseStore, commercialLicenseStateRefreshDelay, TRIAL_DURATION_MS, LICENSE_OFFLINE_GRACE_MS, type CommercialLicenseEncryption } from '../src/main/commercial-license-store.js'
 
 const temporaryDirectories: string[] = []
 const encryption: CommercialLicenseEncryption = {
@@ -280,4 +280,29 @@ describe('paid automation access', () => {
     await expect(store.authorizeAutomation()).rejects.toThrow()
   })
 
+})
+
+
+it('schedules elapsed-state publication at trial, paid and offline boundaries without provider traffic', () => {
+  const now = Date.parse('2026-09-30T20:00:00Z')
+  const state = { status: 'active', active: true, secureStorageAvailable: true }
+  expect(commercialLicenseStateRefreshDelay(state, now)).toBe(60_000)
+  expect(commercialLicenseStateRefreshDelay({ ...state, trialExpiresAt: new Date(now + 1500).toISOString() }, now)).toBe(1500)
+  expect(commercialLicenseStateRefreshDelay({ ...state, expiresAt: new Date(now + 500).toISOString() }, now)).toBe(500)
+  expect(commercialLicenseStateRefreshDelay({ ...state, lastValidatedAt: new Date(now - LICENSE_OFFLINE_GRACE_MS + 250).toISOString() }, now)).toBe(250)
+  expect(commercialLicenseStateRefreshDelay({ ...state, expiresAt: 'invalid' }, now)).toBe(60_000)
+})
+
+it('rechecks elapsed entitlement without starting a trial or writing, and accepts renewal', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  const { store, path } = await createStore()
+  expect(() => store.assertAutomationAccess()).toThrow('active subscription')
+  expect(store.summary(true).trialStatus).toBe('not-started')
+  await store.authorizeAutomation()
+  const before = await readFile(path, 'utf8')
+  vi.setSystemTime(Date.now() + TRIAL_DURATION_MS)
+  expect(() => store.assertAutomationAccess()).toThrow('active subscription')
+  expect(await readFile(path, 'utf8')).toBe(before)
+  await store.saveActivation('SYNTHETIC-LICENSE', { valid: true, status: 'active', productId: 'test', instanceId: 'test' })
+  expect(() => store.assertAutomationAccess()).not.toThrow()
 })
