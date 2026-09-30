@@ -15,6 +15,48 @@ function canvas() {
   return { context: context as unknown as CanvasRenderingContext2D, calls: context }
 }
 
+it.each(['#7c3aed', '#ffffff'])('outlines the whole rounded arrow, including its open head, for %s', (color) => {
+  const { context, calls } = canvas()
+  const strokes: Array<{ color: string | CanvasGradient | CanvasPattern; width: number; headSegments: number }> = []
+  calls.stroke.mockImplementation(() => { strokes.push({ color: context.strokeStyle, width: context.lineWidth, headSegments: calls.lineTo.mock.calls.length }) })
+  drawVideoAnnotations(context, [videoAnnotationSchema.parse({ kind: 'arrow', color, x: 0.1, y: 0.2, endX: 0.8, endY: 0.7, startMs: 0, endMs: 1000, animation: 'none' })], 500, 1280, 720)
+  expect(strokes).toHaveLength(2)
+  expect(strokes.every(stroke => stroke.headSegments === 2)).toBe(true)
+  expect(strokes[0].color).not.toBe(color)
+  expect(strokes[0].width).toBeGreaterThan(strokes[1].width)
+  expect(strokes[1].color).toBe(color)
+  expect(context.lineCap).toBe('round')
+  expect(context.lineJoin).toBe('round')
+  expect(calls.fill).not.toHaveBeenCalled()
+  expect(calls.arc).not.toHaveBeenCalled()
+  expect(calls.quadraticCurveTo.mock.calls[0][2]).toBeCloseTo(1024)
+  expect(calls.quadraticCurveTo.mock.calls[0][3]).toBeCloseTo(504)
+})
+
+it.each([['none', 500, 0.10625], ['draw', 1, 0.8]] as const)('keeps a %s short pointer head between its tail and animated tip', (animation, time, endX) => {
+  const { context, calls } = canvas()
+  drawVideoAnnotations(context, [videoAnnotationSchema.parse({ kind: 'arrow', x: 0.1, y: 0.5, endX, endY: 0.5, curvature: 0, animation, startMs: 0, endMs: 1000 })], time, 1280, 720)
+  const tipX = calls.quadraticCurveTo.mock.calls[0][2] as number
+  const headPoints = [...calls.moveTo.mock.calls.slice(1), ...calls.lineTo.mock.calls]
+  expect(headPoints).toHaveLength(3)
+  for (const [x, y] of headPoints) {
+    expect(x).toBeGreaterThan(128)
+    expect(x).toBeLessThanOrEqual(tipX)
+    expect(Math.abs(y - 360)).toBeLessThan((tipX - 128) / 2)
+  }
+  expect(context.lineWidth).toBeLessThan((tipX - 128) / 4)
+})
+
+it('gives callout pointers the same outlined head and preserves their target', () => {
+  const { context, calls } = canvas()
+  const headsAtStroke: number[] = []
+  calls.stroke.mockImplementation(() => { headsAtStroke.push(calls.lineTo.mock.calls.length) })
+  drawVideoAnnotations(context, [videoAnnotationSchema.parse({ kind: 'callout', text: 'Choose this', endX: 0.8, endY: 0.5, startMs: 0, endMs: 1000 })], 500, 1280, 720)
+  expect(headsAtStroke.slice(0, 2)).toEqual([2, 2])
+  expect(calls.quadraticCurveTo.mock.calls[0].slice(2)).toEqual([1024, 360])
+  expect(calls.arc).not.toHaveBeenCalled()
+})
+
 it('wraps captions at words instead of cutting words between lines', () => {
   const { context, calls } = canvas()
   const text = 'Create a workspace and invite your teammates before publishing your first project.'

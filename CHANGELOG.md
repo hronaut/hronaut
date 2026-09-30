@@ -6,6 +6,8 @@ All notable changes to Hronaut are documented in this file.
 
 ### Fixed
 
+- Give recorded arrows and callout pointers rounded chevron heads, a matching contrast outline, and proportional heads for short arrows and drawing entrances.
+
 - Discard pending related network request selections when the panel context or selected request changes, preventing stale lookups and feedback in another tab.
 
 - Keep older HAR export completions from overwriting a newer clipboard copy or replacing its feedback with stale errors.
